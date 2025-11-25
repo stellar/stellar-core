@@ -29,8 +29,7 @@ enum PeerRecordFlags
     PEER_RECORD_FLAGS_PREFERRED = 1
 };
 
-bool
-operator==(PeerRecord const& x, PeerRecord const& y)
+bool operator==(PeerRecord const& x, PeerRecord const& y)
 {
     if (VirtualClock::tmToSystemPoint(x.mNextAttempt) !=
         VirtualClock::tmToSystemPoint(y.mNextAttempt))
@@ -47,8 +46,7 @@ operator==(PeerRecord const& x, PeerRecord const& y)
 namespace
 {
 
-void
-ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
+void ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
 {
     std::stringstream ss(ip);
     std::string item;
@@ -63,8 +61,7 @@ ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
 }
 }
 
-PeerAddress
-toXdr(PeerBareAddress const& address)
+PeerAddress toXdr(PeerBareAddress const& address)
 {
     PeerAddress result;
 
@@ -164,9 +161,8 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     return result;
 }
 
-void
-PeerManager::removePeersWithManyFailures(size_t minNumFailures,
-                                         PeerBareAddress const* address)
+void PeerManager::removePeersWithManyFailures(size_t minNumFailures,
+                                              PeerBareAddress const* address)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -227,8 +223,7 @@ PeerManager::getPeersToSend(size_t size, PeerBareAddress const& address)
     return peers;
 }
 
-std::pair<PeerRecord, bool>
-PeerManager::load(PeerBareAddress const& address)
+std::pair<PeerRecord, bool> PeerManager::load(PeerBareAddress const& address)
 {
     ZoneScoped;
     auto result = PeerRecord{};
@@ -271,9 +266,8 @@ PeerManager::load(PeerBareAddress const& address)
     return std::make_pair(result, inDatabase);
 }
 
-void
-PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
-                   bool inDatabase)
+void PeerManager::store(PeerBareAddress const& address,
+                        PeerRecord const& peerRecord, bool inDatabase)
 {
     ZoneScoped;
     std::string query;
@@ -324,8 +318,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
     }
 }
 
-void
-PeerManager::update(PeerRecord& peer, TypeUpdate type)
+void PeerManager::update(PeerRecord& peer, TypeUpdate type)
 {
     switch (type)
     {
@@ -362,8 +355,7 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
 namespace
 {
 
-static std::chrono::seconds
-computeBackoff(size_t numFailures)
+static std::chrono::seconds computeBackoff(size_t numFailures)
 {
     constexpr const uint32 SECONDS_PER_BACKOFF = 10;
     constexpr const size_t MAX_BACKOFF_EXPONENT = 10;
@@ -378,8 +370,8 @@ computeBackoff(size_t numFailures)
 }
 }
 
-void
-PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
+void PeerManager::update(PeerRecord& peer, BackOffUpdate backOff,
+                         Application& app)
 {
     switch (backOff)
     {
@@ -409,8 +401,7 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     }
 }
 
-void
-PeerManager::ensureExists(PeerBareAddress const& address)
+void PeerManager::ensureExists(PeerBareAddress const& address)
 {
     ZoneScoped;
     auto peer = load(address);
@@ -421,9 +412,9 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     }
 }
 
-static PeerManager::TypeUpdate
-getTypeUpdate(PeerRecord const& peer, PeerType observedType,
-              bool preferredTypeKnown)
+static PeerManager::TypeUpdate getTypeUpdate(PeerRecord const& peer,
+                                             PeerType observedType,
+                                             bool preferredTypeKnown)
 {
     PeerManager::TypeUpdate typeUpdate;
     bool isPreferredInDB = peer.mType == static_cast<int>(PeerType::PREFERRED);
@@ -467,9 +458,8 @@ getTypeUpdate(PeerRecord const& peer, PeerType observedType,
     return typeUpdate;
 }
 
-void
-PeerManager::update(PeerBareAddress const& address, PeerType observedType,
-                    bool preferredTypeKnown)
+void PeerManager::update(PeerBareAddress const& address, PeerType observedType,
+                         bool preferredTypeKnown)
 {
     ZoneScoped;
     auto peer = load(address);
@@ -479,8 +469,7 @@ PeerManager::update(PeerBareAddress const& address, PeerType observedType,
     store(address, peer.first, peer.second);
 }
 
-void
-PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
+void PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
 {
     ZoneScoped;
     auto peer = load(address);
@@ -488,9 +477,8 @@ PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
     store(address, peer.first, peer.second);
 }
 
-void
-PeerManager::update(PeerBareAddress const& address, PeerType observedType,
-                    bool preferredTypeKnown, BackOffUpdate backOff)
+void PeerManager::update(PeerBareAddress const& address, PeerType observedType,
+                         bool preferredTypeKnown, BackOffUpdate backOff)
 {
     ZoneScoped;
     auto peer = load(address);
@@ -578,15 +566,13 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
     return result;
 }
 
-void
-PeerManager::dropAll(Database& db)
+void PeerManager::dropAll(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS peers;";
     db.getRawSession() << kSQLCreateStatement;
 }
 
-std::vector<std::pair<PeerBareAddress, PeerRecord>>
-PeerManager::loadAllPeers()
+std::vector<std::pair<PeerBareAddress, PeerRecord>> PeerManager::loadAllPeers()
 {
     ZoneScoped;
     std::vector<std::pair<PeerBareAddress, PeerRecord>> result;
@@ -629,8 +615,7 @@ PeerManager::loadAllPeers()
     return result;
 }
 
-void
-PeerManager::storePeers(
+void PeerManager::storePeers(
     std::vector<std::pair<PeerBareAddress, PeerRecord>> peers)
 {
     soci::transaction tx(mApp.getDatabase().getRawSession());

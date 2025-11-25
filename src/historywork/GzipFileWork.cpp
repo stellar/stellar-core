@@ -18,15 +18,13 @@ GzipFileWork::GzipFileWork(Application& app, std::string const& filenameNoGz,
     fs::checkNoGzipSuffix(mFilenameNoGz);
 }
 
-void
-GzipFileWork::onReset()
+void GzipFileWork::onReset()
 {
     std::string filenameGz = mFilenameNoGz + ".gz";
     fs::removeWithLog(filenameGz);
 }
 
-CommandInfo
-GzipFileWork::getCommand()
+CommandInfo GzipFileWork::getCommand()
 {
     std::string cmdLine = "gzip ";
     std::string outFile;

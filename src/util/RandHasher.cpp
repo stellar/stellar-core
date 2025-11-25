@@ -16,8 +16,7 @@ size_t gMixer{0};
 bool gHaveInitialized{false};
 static std::mutex gInitMutex;
 
-void
-initialize()
+void initialize()
 {
     std::lock_guard<std::mutex> guard(gInitMutex);
     if (!gHaveInitialized)

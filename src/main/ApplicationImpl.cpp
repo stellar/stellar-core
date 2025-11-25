@@ -208,8 +208,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     }
 }
 
-static void
-maybeRebuildLedger(Application& app, bool applyBuckets)
+static void maybeRebuildLedger(Application& app, bool applyBuckets)
 {
     auto& ps = app.getPersistentState();
     if (ps.shouldRebuildForOfferTable())
@@ -241,8 +240,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     ps.clearRebuildForOfferTable();
 }
 
-void
-ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
+void ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 {
     // Subtle: initialize the bucket manager first before initializing the
     // database. This is needed as some modes in core (such as in-memory) use a
@@ -347,8 +345,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }
 
-void
-ApplicationImpl::resetLedgerState()
+void ApplicationImpl::resetLedgerState()
 {
 #ifdef BUILD_TESTS
     mRootAccount.reset();
@@ -371,17 +368,15 @@ ApplicationImpl::resetLedgerState()
     }
 }
 
-void
-ApplicationImpl::newDB()
+void ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     upgradeToCurrentSchemaAndMaybeRebuildLedger(false, true);
     mLedgerManager->startNewLedger();
 }
 
-void
-ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
-                                                             bool forceRebuild)
+void ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(
+    bool applyBuckets, bool forceRebuild)
 {
     if (forceRebuild)
     {
@@ -393,8 +388,7 @@ ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
     maybeRebuildLedger(*this, applyBuckets);
 }
 
-void
-ApplicationImpl::reportCfgMetrics()
+void ApplicationImpl::reportCfgMetrics()
 {
     if (!mMetrics)
     {
@@ -456,8 +450,7 @@ ApplicationImpl::reportCfgMetrics()
     }
 }
 
-Json::Value
-ApplicationImpl::getJsonInfo(bool verbose)
+Json::Value ApplicationImpl::getJsonInfo(bool verbose)
 {
     auto root = Json::Value{};
 
@@ -553,8 +546,7 @@ ApplicationImpl::getJsonInfo(bool verbose)
     return root;
 }
 
-void
-ApplicationImpl::reportInfo(bool verbose)
+void ApplicationImpl::reportInfo(bool verbose)
 {
     mLedgerManager->partiallyLoadLastKnownLedgerForUtils();
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
@@ -622,8 +614,7 @@ ApplicationImpl::scheduleSelfCheck(bool waitUntilNextCheckpoint)
     return ptr;
 }
 
-Hash const&
-ApplicationImpl::getNetworkID() const
+Hash const& ApplicationImpl::getNetworkID() const
 {
     return mNetworkID;
 }
@@ -645,14 +636,12 @@ ApplicationImpl::~ApplicationImpl()
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
-uint64_t
-ApplicationImpl::timeNow()
+uint64_t ApplicationImpl::timeNow()
 {
     return VirtualClock::to_time_t(getClock().system_now());
 }
 
-void
-ApplicationImpl::validateAndLogConfig()
+void ApplicationImpl::validateAndLogConfig()
 {
     if (mConfig.FORCE_SCP && !mConfig.NODE_IS_VALIDATOR)
     {
@@ -759,8 +748,7 @@ ApplicationImpl::validateAndLogConfig()
     mConfig.logBasicInfo();
 }
 
-void
-ApplicationImpl::startServices()
+void ApplicationImpl::startServices()
 {
     mInvariantManager->start(*mLedgerManager);
 
@@ -796,8 +784,7 @@ ApplicationImpl::startServices()
     }
 }
 
-void
-ApplicationImpl::start()
+void ApplicationImpl::start()
 {
     if (mStarted)
     {
@@ -821,8 +808,7 @@ ApplicationImpl::start()
     startServices();
 }
 
-void
-ApplicationImpl::idempotentShutdown(bool forgetBuckets)
+void ApplicationImpl::idempotentShutdown(bool forgetBuckets)
 {
     // Graceful shutdown sequence:
     // Perform a graceful shutdown by first signaling all managers to stop
@@ -870,8 +856,7 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
     joinAllThreads();
 }
 
-void
-ApplicationImpl::gracefulStop()
+void ApplicationImpl::gracefulStop()
 {
     releaseAssert(threadIsMain());
     if (mStopping)
@@ -889,14 +874,12 @@ ApplicationImpl::gracefulStop()
         VirtualTimer::onFailureNoop);
 }
 
-void
-ApplicationImpl::shutdownMainIOContext()
+void ApplicationImpl::shutdownMainIOContext()
 {
     mVirtualClock.shutdown();
 }
 
-void
-ApplicationImpl::shutdownWorkScheduler()
+void ApplicationImpl::shutdownWorkScheduler()
 {
     if (mWorkScheduler)
     {
@@ -904,8 +887,7 @@ ApplicationImpl::shutdownWorkScheduler()
     }
 }
 
-bool
-ApplicationImpl::shutdownThread(
+bool ApplicationImpl::shutdownThread(
     std::unique_ptr<std::thread>& threadPtr,
     std::unique_ptr<asio::io_context::work>& workPtr,
     std::string const& threadName)
@@ -928,8 +910,7 @@ ApplicationImpl::shutdownThread(
     return false;
 }
 
-void
-ApplicationImpl::joinAllThreads()
+void ApplicationImpl::joinAllThreads()
 {
     uint32_t joined = 0;
     joined +=
@@ -1021,8 +1002,7 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
         "trigger consensus. Ensure NODE_IS_VALIDATOR is set to true.");
 }
 
-uint32_t
-ApplicationImpl::targetManualCloseLedgerSeqNum(
+uint32_t ApplicationImpl::targetManualCloseLedgerSeqNum(
     std::optional<uint32_t> const& explicitlyProvidedSeqNum)
 {
     auto const startLedgerSeq = getLedgerManager().getLastClosedLedgerNum();
@@ -1065,8 +1045,7 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
     return explicitlyProvidedSeqNum ? *explicitlyProvidedSeqNum : nextLedgerSeq;
 }
 
-void
-ApplicationImpl::setManualCloseVirtualTime(
+void ApplicationImpl::setManualCloseVirtualTime(
     std::optional<TimePoint> const& explicitlyProvidedCloseTime)
 {
     TimePoint constexpr firstSecondOfYear2200GMT = 7'258'118'400ULL;
@@ -1122,8 +1101,7 @@ ApplicationImpl::setManualCloseVirtualTime(
     getClock().setCurrentVirtualTime(VirtualClock::from_time_t(nextCloseTime));
 }
 
-void
-ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
+void ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
     uint32_t const& targetLedgerSeq)
 {
     if (targetLedgerSeq != getLedgerManager().getLastClosedLedgerNum() + 1)
@@ -1146,15 +1124,13 @@ ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
 }
 
 #ifdef BUILD_TESTS
-void
-ApplicationImpl::generateLoad(GeneratedLoadConfig cfg)
+void ApplicationImpl::generateLoad(GeneratedLoadConfig cfg)
 {
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     getLoadGenerator().generateLoad(cfg);
 }
 
-LoadGenerator&
-ApplicationImpl::getLoadGenerator()
+LoadGenerator& ApplicationImpl::getLoadGenerator()
 {
     if (!mLoadGenerator)
     {
@@ -1163,8 +1139,7 @@ ApplicationImpl::getLoadGenerator()
     return *mLoadGenerator;
 }
 
-std::shared_ptr<TestAccount>
-ApplicationImpl::getRoot()
+std::shared_ptr<TestAccount> ApplicationImpl::getRoot()
 {
     if (!mRootAccount)
     {
@@ -1175,21 +1150,18 @@ ApplicationImpl::getRoot()
     return mRootAccount;
 }
 
-bool
-ApplicationImpl::getRunInOverlayOnlyMode() const
+bool ApplicationImpl::getRunInOverlayOnlyMode() const
 {
     return mRunInOverlayOnlyMode;
 }
 
-void
-ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
+void ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
 {
     mRunInOverlayOnlyMode = mode;
 }
 #endif
 
-void
-ApplicationImpl::applyCfgCommands()
+void ApplicationImpl::applyCfgCommands()
 {
     for (auto cmd : mConfig.COMMANDS)
     {
@@ -1197,14 +1169,12 @@ ApplicationImpl::applyCfgCommands()
     }
 }
 
-Config const&
-ApplicationImpl::getConfig()
+Config const& ApplicationImpl::getConfig()
 {
     return mConfig;
 }
 
-Application::State
-ApplicationImpl::getState() const
+Application::State ApplicationImpl::getState() const
 {
     State s;
 
@@ -1242,8 +1212,7 @@ ApplicationImpl::getState() const
     return s;
 }
 
-std::string
-ApplicationImpl::getStateHuman() const
+std::string ApplicationImpl::getStateHuman() const
 {
     static std::array<const char*, APP_NUM_STATE> stateStrings =
         std::array{"Booting",     "Joining SCP", "Connected",
@@ -1251,34 +1220,29 @@ ApplicationImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
-bool
-ApplicationImpl::isStopping() const
+bool ApplicationImpl::isStopping() const
 {
     return mStopping;
 }
 
-VirtualClock&
-ApplicationImpl::getClock()
+VirtualClock& ApplicationImpl::getClock()
 {
     return mVirtualClock;
 }
 
-medida::MetricsRegistry&
-ApplicationImpl::getMetrics()
+medida::MetricsRegistry& ApplicationImpl::getMetrics()
 {
     return *mMetrics;
 }
 
-bool
-ApplicationImpl::threadIsType(ThreadType type) const
+bool ApplicationImpl::threadIsType(ThreadType type) const
 {
     auto it = mThreadTypes.find(std::this_thread::get_id());
     releaseAssert(it != mThreadTypes.end());
     return it->second == type;
 }
 
-void
-ApplicationImpl::syncOwnMetrics()
+void ApplicationImpl::syncOwnMetrics()
 {
     // Flush crypto pure-global-cache stats. They don't belong
     // to a single app instance but first one to flush will claim
@@ -1318,8 +1282,7 @@ ApplicationImpl::syncOwnMetrics()
         .set_count(fs::getOpenHandleCount());
 }
 
-void
-ApplicationImpl::syncAllMetrics()
+void ApplicationImpl::syncAllMetrics()
 {
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
@@ -1327,8 +1290,7 @@ ApplicationImpl::syncAllMetrics()
     syncOwnMetrics();
 }
 
-void
-ApplicationImpl::clearMetrics(std::string const& domain)
+void ApplicationImpl::clearMetrics(std::string const& domain)
 {
     MetricResetter resetter;
     auto const& metrics = mMetrics->GetAllMetrics();
@@ -1341,144 +1303,122 @@ ApplicationImpl::clearMetrics(std::string const& domain)
     }
 }
 
-TmpDirManager&
-ApplicationImpl::getTmpDirManager()
+TmpDirManager& ApplicationImpl::getTmpDirManager()
 {
     return getBucketManager().getTmpDirManager();
 }
 
-LedgerManager&
-ApplicationImpl::getLedgerManager()
+LedgerManager& ApplicationImpl::getLedgerManager()
 {
     return *mLedgerManager;
 }
 
-BucketManager&
-ApplicationImpl::getBucketManager()
+BucketManager& ApplicationImpl::getBucketManager()
 {
     return *mBucketManager;
 }
 
-LedgerApplyManager&
-ApplicationImpl::getLedgerApplyManager()
+LedgerApplyManager& ApplicationImpl::getLedgerApplyManager()
 {
     return *mLedgerApplyManager;
 }
 
-HistoryArchiveManager&
-ApplicationImpl::getHistoryArchiveManager()
+HistoryArchiveManager& ApplicationImpl::getHistoryArchiveManager()
 {
     return *mHistoryArchiveManager;
 }
 
-HistoryManager&
-ApplicationImpl::getHistoryManager()
+HistoryManager& ApplicationImpl::getHistoryManager()
 {
     return *mHistoryManager;
 }
 
-Maintainer&
-ApplicationImpl::getMaintainer()
+Maintainer& ApplicationImpl::getMaintainer()
 {
     return *mMaintainer;
 }
 
-ProcessManager&
-ApplicationImpl::getProcessManager()
+ProcessManager& ApplicationImpl::getProcessManager()
 {
     return *mProcessManager;
 }
 
-Herder&
-ApplicationImpl::getHerder()
+Herder& ApplicationImpl::getHerder()
 {
     return *mHerder;
 }
 
-HerderPersistence&
-ApplicationImpl::getHerderPersistence()
+HerderPersistence& ApplicationImpl::getHerderPersistence()
 {
     return *mHerderPersistence;
 }
 
-InvariantManager&
-ApplicationImpl::getInvariantManager()
+InvariantManager& ApplicationImpl::getInvariantManager()
 {
     return *mInvariantManager;
 }
 
-OverlayManager&
-ApplicationImpl::getOverlayManager()
+OverlayManager& ApplicationImpl::getOverlayManager()
 {
     return *mOverlayManager;
 }
 
-Database&
-ApplicationImpl::getDatabase() const
+Database& ApplicationImpl::getDatabase() const
 {
     return *mDatabase;
 }
 
-PersistentState&
-ApplicationImpl::getPersistentState()
+PersistentState& ApplicationImpl::getPersistentState()
 {
     return *mPersistentState;
 }
 
-CommandHandler&
-ApplicationImpl::getCommandHandler()
+CommandHandler& ApplicationImpl::getCommandHandler()
 {
     return *mCommandHandler;
 }
 
-WorkScheduler&
-ApplicationImpl::getWorkScheduler()
+WorkScheduler& ApplicationImpl::getWorkScheduler()
 {
     return *mWorkScheduler;
 }
 
-BanManager&
-ApplicationImpl::getBanManager()
+BanManager& ApplicationImpl::getBanManager()
 {
     return *mBanManager;
 }
 
-StatusManager&
-ApplicationImpl::getStatusManager()
+StatusManager& ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
 }
 
-asio::io_context&
-ApplicationImpl::getWorkerIOContext()
+asio::io_context& ApplicationImpl::getWorkerIOContext()
 {
     return mWorkerIOContext;
 }
 
-asio::io_context&
-ApplicationImpl::getEvictionIOContext()
+asio::io_context& ApplicationImpl::getEvictionIOContext()
 {
     releaseAssert(mEvictionIOContext);
     return *mEvictionIOContext;
 }
 
-asio::io_context&
-ApplicationImpl::getOverlayIOContext()
+asio::io_context& ApplicationImpl::getOverlayIOContext()
 {
     releaseAssert(mOverlayIOContext);
     return *mOverlayIOContext;
 }
 
-asio::io_context&
-ApplicationImpl::getLedgerCloseIOContext()
+asio::io_context& ApplicationImpl::getLedgerCloseIOContext()
 {
     releaseAssert(mLedgerCloseIOContext);
     return *mLedgerCloseIOContext;
 }
 
-void
-ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
-                                  Scheduler::ActionType type)
+void ApplicationImpl::postOnMainThread(std::function<void()>&& f,
+                                       std::string&& name,
+                                       Scheduler::ActionType type)
 {
     JITTER_INJECT_DELAY();
     LogSlowExecution isSlow{name, LogSlowExecution::Mode::MANUAL,
@@ -1499,9 +1439,8 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
         std::move(name), type);
 }
 
-void
-ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
-                                        std::string jobName)
+void ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
+                                             std::string jobName)
 {
     JITTER_INJECT_DELAY();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
@@ -1513,9 +1452,8 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
     });
 }
 
-void
-ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
-                                                std::string jobName)
+void ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                                     std::string jobName)
 {
     JITTER_INJECT_DELAY();
 
@@ -1528,9 +1466,8 @@ ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
     });
 }
 
-void
-ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
-                                     std::string jobName)
+void ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
+                                          std::string jobName)
 {
     JITTER_INJECT_DELAY();
     releaseAssert(mOverlayIOContext);
@@ -1543,9 +1480,8 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
     });
 }
 
-void
-ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
-                                         std::string jobName)
+void ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
+                                              std::string jobName)
 {
     JITTER_INJECT_DELAY();
     releaseAssert(mLedgerCloseIOContext);
@@ -1560,8 +1496,7 @@ ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
     });
 }
 
-void
-ApplicationImpl::enableInvariantsFromConfig()
+void ApplicationImpl::enableInvariantsFromConfig()
 {
     for (auto name : mConfig.INVARIANT_CHECKS)
     {
@@ -1593,38 +1528,32 @@ ApplicationImpl::enableInvariantsFromConfig()
     }
 }
 
-std::unique_ptr<Herder>
-ApplicationImpl::createHerder()
+std::unique_ptr<Herder> ApplicationImpl::createHerder()
 {
     return Herder::create(*this);
 }
 
-std::unique_ptr<InvariantManager>
-ApplicationImpl::createInvariantManager()
+std::unique_ptr<InvariantManager> ApplicationImpl::createInvariantManager()
 {
     return InvariantManager::create(*this);
 }
 
-std::unique_ptr<OverlayManager>
-ApplicationImpl::createOverlayManager()
+std::unique_ptr<OverlayManager> ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
 }
 
-std::unique_ptr<LedgerManager>
-ApplicationImpl::createLedgerManager()
+std::unique_ptr<LedgerManager> ApplicationImpl::createLedgerManager()
 {
     return LedgerManager::create(*this);
 }
 
-std::unique_ptr<Database>
-ApplicationImpl::createDatabase()
+std::unique_ptr<Database> ApplicationImpl::createDatabase()
 {
     return std::make_unique<Database>(*this);
 }
 
-AbstractLedgerTxnParent&
-ApplicationImpl::getLedgerTxnRoot()
+AbstractLedgerTxnParent& ApplicationImpl::getLedgerTxnRoot()
 {
 #ifdef BUILD_TESTS
     if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
@@ -1636,8 +1565,7 @@ ApplicationImpl::getLedgerTxnRoot()
     return *mLedgerTxnRoot;
 }
 
-AppConnector&
-ApplicationImpl::getAppConnector()
+AppConnector& ApplicationImpl::getAppConnector()
 {
     return *mAppConnector;
 }

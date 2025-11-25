@@ -17,9 +17,9 @@ using namespace stellar;
 
 namespace detail
 {
-static bool
-isSponsoringSubentrySumIncreaseValid(LedgerHeader const& lh,
-                                     LedgerEntry const& acc, uint32_t mult)
+static bool isSponsoringSubentrySumIncreaseValid(LedgerHeader const& lh,
+                                                 LedgerEntry const& acc,
+                                                 uint32_t mult)
 {
     return protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_18) ||
            ((uint64_t)getNumSponsoring(acc) +
@@ -28,8 +28,8 @@ isSponsoringSubentrySumIncreaseValid(LedgerHeader const& lh,
 }
 }
 
-static bool
-tooManySponsoring(LedgerHeader const& lh, LedgerEntry const& acc, uint32_t mult)
+static bool tooManySponsoring(LedgerHeader const& lh, LedgerEntry const& acc,
+                              uint32_t mult)
 {
     if (getNumSponsoring(acc) > UINT32_MAX - mult)
     {
@@ -39,9 +39,8 @@ tooManySponsoring(LedgerHeader const& lh, LedgerEntry const& acc, uint32_t mult)
     return !detail::isSponsoringSubentrySumIncreaseValid(lh, acc, mult);
 }
 
-static bool
-tooManyNumSubEntries(LedgerHeader const& lh, LedgerEntry const& acc,
-                     uint32_t mult)
+static bool tooManyNumSubEntries(LedgerHeader const& lh, LedgerEntry const& acc,
+                                 uint32_t mult)
 {
     if (protocolVersionStartsFrom(lh.ledgerVersion,
                                   FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS) &&
@@ -115,9 +114,8 @@ canTransferSponsorshipHelper(LedgerHeader const& lh,
     return canEstablishSponsorshipHelper(lh, newSponsoringAcc, nullptr, mult);
 }
 
-static void
-accountIsSponsor(SponsorshipDescriptor const& sponsoringID,
-                 LedgerEntry const& sponsoringAcc)
+static void accountIsSponsor(SponsorshipDescriptor const& sponsoringID,
+                             LedgerEntry const& sponsoringAcc)
 {
     if (!sponsoringID ||
         !(*sponsoringID == sponsoringAcc.data.account().accountID))
@@ -134,8 +132,7 @@ namespace stellar
 // Sponsorship "getters"
 //
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t
-getNumSponsored(LedgerEntry const& le)
+uint32_t getNumSponsored(LedgerEntry const& le)
 {
     auto const& ae = le.data.account();
     if (hasAccountEntryExtV2(ae))
@@ -145,8 +142,7 @@ getNumSponsored(LedgerEntry const& le)
     return 0;
 }
 
-uint32_t
-getNumSponsoring(LedgerEntry const& le)
+uint32_t getNumSponsoring(LedgerEntry const& le)
 {
     auto const& ae = le.data.account();
     if (hasAccountEntryExtV2(ae))
@@ -186,8 +182,7 @@ isSignerSponsored(std::vector<Signer>::const_iterator const& signerIt,
 // Utility functions to check if you can establish/remove/transfer sponsorships
 //
 ////////////////////////////////////////////////////////////////////////////////
-int32_t
-computeMultiplier(LedgerEntry const& le)
+int32_t computeMultiplier(LedgerEntry const& le)
 {
     switch (le.data.type())
     {
@@ -214,8 +209,7 @@ computeMultiplier(LedgerEntry const& le)
     }
 }
 
-static bool
-isSubentry(LedgerEntry const& le)
+static bool isSubentry(LedgerEntry const& le)
 {
     switch (le.data.type())
     {
@@ -238,10 +232,10 @@ isSubentry(LedgerEntry const& le)
     }
 }
 
-SponsorshipResult
-canEstablishEntrySponsorship(LedgerHeader const& lh, LedgerEntry const& le,
-                             LedgerEntry const& sponsoringAcc,
-                             LedgerEntry const* sponsoredAcc)
+SponsorshipResult canEstablishEntrySponsorship(LedgerHeader const& lh,
+                                               LedgerEntry const& le,
+                                               LedgerEntry const& sponsoringAcc,
+                                               LedgerEntry const* sponsoredAcc)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14))
     {
@@ -256,10 +250,10 @@ canEstablishEntrySponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     return canEstablishSponsorshipHelper(lh, sponsoringAcc, sponsoredAcc, mult);
 }
 
-SponsorshipResult
-canRemoveEntrySponsorship(LedgerHeader const& lh, LedgerEntry const& le,
-                          LedgerEntry const& sponsoringAcc,
-                          LedgerEntry const* sponsoredAcc)
+SponsorshipResult canRemoveEntrySponsorship(LedgerHeader const& lh,
+                                            LedgerEntry const& le,
+                                            LedgerEntry const& sponsoringAcc,
+                                            LedgerEntry const* sponsoredAcc)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14))
     {
@@ -298,8 +292,7 @@ canTransferEntrySponsorship(LedgerHeader const& lh, LedgerEntry const& le,
                                         mult);
 }
 
-SponsorshipResult
-canEstablishSignerSponsorship(
+SponsorshipResult canEstablishSignerSponsorship(
     LedgerHeader const& lh, std::vector<Signer>::const_iterator const& signerIt,
     LedgerEntry const& sponsoringAcc, LedgerEntry const& sponsoredAcc)
 {
@@ -316,11 +309,9 @@ canEstablishSignerSponsorship(
     return canEstablishSponsorshipHelper(lh, sponsoringAcc, &sponsoredAcc, 1);
 }
 
-SponsorshipResult
-canRemoveSignerSponsorship(LedgerHeader const& lh,
-                           std::vector<Signer>::const_iterator const& signerIt,
-                           LedgerEntry const& sponsoringAcc,
-                           LedgerEntry const& sponsoredAcc)
+SponsorshipResult canRemoveSignerSponsorship(
+    LedgerHeader const& lh, std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry const& sponsoringAcc, LedgerEntry const& sponsoredAcc)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14))
     {
@@ -335,8 +326,7 @@ canRemoveSignerSponsorship(LedgerHeader const& lh,
     return canRemoveSponsorshipHelper(lh, sponsoringAcc, &sponsoredAcc, 1);
 }
 
-SponsorshipResult
-canTransferSignerSponsorship(
+SponsorshipResult canTransferSignerSponsorship(
     LedgerHeader const& lh, std::vector<Signer>::const_iterator const& signerIt,
     LedgerEntry const& oldSponsoringAcc, LedgerEntry const& newSponsoringAcc,
     LedgerEntry const& sponsoredAcc)
@@ -360,9 +350,8 @@ canTransferSignerSponsorship(
 // Utility functions to establish/remove/transfer sponsorships
 //
 ////////////////////////////////////////////////////////////////////////////////
-void
-establishEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
-                          LedgerEntry* sponsoredAcc)
+void establishEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
+                               LedgerEntry* sponsoredAcc)
 {
     uint32_t mult = computeMultiplier(le);
     prepareLedgerEntryExtensionV1(le).sponsoringID.activate() =
@@ -376,9 +365,8 @@ establishEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     }
 }
 
-void
-removeEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
-                       LedgerEntry* sponsoredAcc)
+void removeEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
+                            LedgerEntry* sponsoredAcc)
 {
     auto& sponsoringID = getLedgerEntryExtensionV1(le).sponsoringID;
     accountIsSponsor(sponsoringID, sponsoringAcc);
@@ -394,9 +382,8 @@ removeEntrySponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     }
 }
 
-void
-transferEntrySponsorship(LedgerEntry& le, LedgerEntry& oldSponsoringAcc,
-                         LedgerEntry& newSponsoringAcc)
+void transferEntrySponsorship(LedgerEntry& le, LedgerEntry& oldSponsoringAcc,
+                              LedgerEntry& newSponsoringAcc)
 {
     auto& sponsoringID = getLedgerEntryExtensionV1(le).sponsoringID;
     accountIsSponsor(sponsoringID, oldSponsoringAcc);
@@ -412,10 +399,9 @@ transferEntrySponsorship(LedgerEntry& le, LedgerEntry& oldSponsoringAcc,
         mult;
 }
 
-void
-establishSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                           LedgerEntry& sponsoringAcc,
-                           LedgerEntry& sponsoredAcc)
+void establishSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
 {
     size_t n = signerIt - sponsoredAcc.data.account().signers.begin();
 
@@ -427,9 +413,9 @@ establishSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
           .numSponsoring;
 }
 
-void
-removeSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                        LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
+void removeSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
 {
     size_t n = signerIt - sponsoredAcc.data.account().signers.begin();
 
@@ -442,11 +428,10 @@ removeSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
     --getAccountEntryExtensionV2(sponsoringAcc.data.account()).numSponsoring;
 }
 
-void
-transferSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                          LedgerEntry& oldSponsoringAcc,
-                          LedgerEntry& newSponsoringAcc,
-                          LedgerEntry& sponsoredAcc)
+void transferSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& oldSponsoringAcc, LedgerEntry& newSponsoringAcc,
+    LedgerEntry& sponsoredAcc)
 {
     size_t n = signerIt - sponsoredAcc.data.account().signers.begin();
 
@@ -469,9 +454,9 @@ transferSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
 // sponsorship
 //
 ////////////////////////////////////////////////////////////////////////////////
-SponsorshipResult
-canCreateEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
-                                 LedgerEntry const& acc)
+SponsorshipResult canCreateEntryWithoutSponsorship(LedgerHeader const& lh,
+                                                   LedgerEntry const& le,
+                                                   LedgerEntry const& acc)
 {
     if (le.data.type() != ACCOUNT)
     {
@@ -535,9 +520,9 @@ canCreateEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     return canEstablishEntrySponsorship(lh, le, sponsoringAcc, sponsoredAcc);
 }
 
-void
-canRemoveEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
-                                 LedgerEntry const& acc)
+void canRemoveEntryWithoutSponsorship(LedgerHeader const& lh,
+                                      LedgerEntry const& le,
+                                      LedgerEntry const& acc)
 {
     if (le.data.type() != ACCOUNT)
     {
@@ -549,10 +534,10 @@ canRemoveEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     }
 }
 
-void
-canRemoveEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
-                              LedgerEntry const& sponsoringAcc,
-                              LedgerEntry const* sponsoredAcc)
+void canRemoveEntryWithSponsorship(LedgerHeader const& lh,
+                                   LedgerEntry const& le,
+                                   LedgerEntry const& sponsoringAcc,
+                                   LedgerEntry const* sponsoredAcc)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14))
     {
@@ -578,9 +563,8 @@ canRemoveEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     }
 }
 
-SponsorshipResult
-canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
-                                  LedgerEntry const& acc)
+SponsorshipResult canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
+                                                    LedgerEntry const& acc)
 {
     if (tooManyNumSubEntries(lh, acc, 1))
     {
@@ -595,8 +579,7 @@ canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
     return SponsorshipResult::SUCCESS;
 }
 
-SponsorshipResult
-canCreateSignerWithSponsorship(
+SponsorshipResult canCreateSignerWithSponsorship(
     LedgerHeader const& lh, std::vector<Signer>::const_iterator const& signerIt,
     LedgerEntry const& sponsoringAcc, LedgerEntry const& sponsoredAcc)
 {
@@ -614,9 +597,8 @@ canCreateSignerWithSponsorship(
                                          sponsoredAcc);
 }
 
-void
-canRemoveSignerWithoutSponsorship(LedgerHeader const& lh,
-                                  LedgerEntry const& acc)
+void canRemoveSignerWithoutSponsorship(LedgerHeader const& lh,
+                                       LedgerEntry const& acc)
 {
     if (acc.data.account().numSubEntries < 1)
     {
@@ -624,10 +606,9 @@ canRemoveSignerWithoutSponsorship(LedgerHeader const& lh,
     }
 }
 
-void
-canRemoveSignerWithSponsorship(LedgerHeader const& lh,
-                               LedgerEntry const& sponsoringAcc,
-                               LedgerEntry const& sponsoredAcc)
+void canRemoveSignerWithSponsorship(LedgerHeader const& lh,
+                                    LedgerEntry const& sponsoringAcc,
+                                    LedgerEntry const& sponsoredAcc)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14))
     {
@@ -651,8 +632,7 @@ canRemoveSignerWithSponsorship(LedgerHeader const& lh,
 // Utility functions to create/remove with/without sponsorship
 //
 ////////////////////////////////////////////////////////////////////////////////
-void
-createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
+void createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
 {
     if (isSubentry(le))
     {
@@ -660,9 +640,8 @@ createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
     }
 }
 
-void
-createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
-                           LedgerEntry* sponsoredAcc)
+void createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
+                                LedgerEntry* sponsoredAcc)
 {
     if (sponsoredAcc)
     {
@@ -671,8 +650,7 @@ createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     establishEntrySponsorship(le, sponsoringAcc, sponsoredAcc);
 }
 
-void
-removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
+void removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
 {
     if (le.data.type() != ACCOUNT)
     {
@@ -680,9 +658,8 @@ removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
     }
 }
 
-void
-removeEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
-                           LedgerEntry* sponsoredAcc)
+void removeEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
+                                LedgerEntry* sponsoredAcc)
 {
     if (sponsoredAcc)
     {
@@ -691,24 +668,21 @@ removeEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
     removeEntrySponsorship(le, sponsoringAcc, sponsoredAcc);
 }
 
-void
-createSignerWithoutSponsorship(LedgerEntry& acc)
+void createSignerWithoutSponsorship(LedgerEntry& acc)
 {
     auto& ae = acc.data.account();
     ++ae.numSubEntries;
 }
 
-void
-createSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                            LedgerEntry& sponsoringAcc,
-                            LedgerEntry& sponsoredAcc)
+void createSignerWithSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
 {
     createSignerWithoutSponsorship(sponsoredAcc);
     establishSignerSponsorship(signerIt, sponsoringAcc, sponsoredAcc);
 }
 
-void
-removeSignerWithoutSponsorship(
+void removeSignerWithoutSponsorship(
     std::vector<Signer>::const_iterator const& signerIt, LedgerEntry& acc)
 {
     auto& ae = acc.data.account();
@@ -722,10 +696,9 @@ removeSignerWithoutSponsorship(
     ae.signers.erase(signerIt);
 }
 
-void
-removeSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                            LedgerEntry& sponsoringAcc,
-                            LedgerEntry& sponsoredAcc)
+void removeSignerWithSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
 {
     removeSignerSponsorship(signerIt, sponsoringAcc, sponsoredAcc);
     removeSignerWithoutSponsorship(signerIt, sponsoredAcc);
@@ -796,10 +769,9 @@ createEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
     return res;
 }
 
-void
-removeEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
-                                   LedgerTxnHeader const& header,
-                                   LedgerEntry& le, LedgerTxnEntry& acc)
+void removeEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
+                                        LedgerTxnHeader const& header,
+                                        LedgerEntry& le, LedgerTxnEntry& acc)
 {
     if (le.ext.v() == 1 && le.ext.v1().sponsoringID)
     {
@@ -837,8 +809,7 @@ removeEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
     }
 }
 
-SponsorshipResult
-createSignerWithPossibleSponsorship(
+SponsorshipResult createSignerWithPossibleSponsorship(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     std::vector<Signer>::const_iterator const& signerIt, LedgerTxnEntry& acc)
 {
@@ -871,8 +842,7 @@ createSignerWithPossibleSponsorship(
     return res;
 }
 
-void
-removeSignerWithPossibleSponsorship(
+void removeSignerWithPossibleSponsorship(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     std::vector<Signer>::const_iterator const& signerIt, LedgerTxnEntry& acc)
 {

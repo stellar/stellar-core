@@ -70,14 +70,12 @@ class CatchupWork : public Work
     virtual ~CatchupWork();
     std::string getStatus() const override;
 
-    CatchupConfiguration const&
-    getCatchupConfiguration() const
+    CatchupConfiguration const& getCatchupConfiguration() const
     {
         return mCatchupConfiguration;
     }
 
-    bool
-    fatalFailure()
+    bool fatalFailure()
     {
         if (futureIsReady(mFatalFailureFuture))
         {

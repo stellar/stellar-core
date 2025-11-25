@@ -26,8 +26,7 @@ VerifyTxResultsWork::VerifyTxResultsWork(Application& app,
 {
 }
 
-void
-VerifyTxResultsWork::onReset()
+void VerifyTxResultsWork::onReset()
 {
     mHdrIn.close();
     mResIn.close();
@@ -37,8 +36,7 @@ VerifyTxResultsWork::onReset()
     mLastSeenLedger = 0;
 }
 
-BasicWork::State
-VerifyTxResultsWork::onRun()
+BasicWork::State VerifyTxResultsWork::onRun()
 {
     if (mDone)
     {
@@ -84,8 +82,7 @@ VerifyTxResultsWork::onRun()
     return State::WORK_WAITING;
 }
 
-bool
-VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
+bool VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
 {
     ZoneScoped;
     try

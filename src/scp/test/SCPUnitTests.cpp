@@ -8,8 +8,7 @@
 
 namespace stellar
 {
-bool
-isNear(uint64 r, double target)
+bool isNear(uint64 r, double target)
 {
     double v = (double)r / (double)UINT64_MAX;
     return (std::abs(v - target) < .01);
@@ -32,38 +31,33 @@ class TestNominationSCP : public SCPDriver
         storeQuorumSet(localQSet);
     }
 
-    void
-    signEnvelope(SCPEnvelope&) override
+    void signEnvelope(SCPEnvelope&) override
     {
     }
 
-    void
-    storeQuorumSet(SCPQuorumSetPtr qSet)
+    void storeQuorumSet(SCPQuorumSetPtr qSet)
     {
         Hash qSetHash = sha256(xdr::xdr_to_opaque(*qSet.get()));
         mQuorumSets[qSetHash] = qSet;
     }
 
-    SCPDriver::ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value,
-                  bool nomination) override
+    SCPDriver::ValidationLevel validateValue(uint64 slotIndex,
+                                             Value const& value,
+                                             bool nomination) override
     {
         return SCPDriver::kFullyValidatedValue;
     }
 
-    SCPQuorumSetPtr
-    getQSet(Hash const& qSetHash) override
+    SCPQuorumSetPtr getQSet(Hash const& qSetHash) override
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-
             return mQuorumSets[qSetHash];
         }
         return SCPQuorumSetPtr();
     }
 
-    void
-    emitEnvelope(SCPEnvelope const& envelope) override
+    void emitEnvelope(SCPEnvelope const& envelope) override
     {
     }
 
@@ -74,28 +68,25 @@ class TestNominationSCP : public SCPDriver
         return nullptr;
     }
 
-    void
-    setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
-               std::function<void()> cb) override
+    void setupTimer(uint64 slotIndex, int timerID,
+                    std::chrono::milliseconds timeout,
+                    std::function<void()> cb) override
     {
     }
 
-    void
-    stopTimer(uint64 slotIndex, int timerID) override
+    void stopTimer(uint64 slotIndex, int timerID) override
     {
     }
 
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
 
-    Value const&
-    getLatestCompositeCandidate(uint64 slotIndex)
+    Value const& getLatestCompositeCandidate(uint64 slotIndex)
     {
         static Value const emptyValue{};
         return emptyValue;
     }
 
-    Hash
-    getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
+    Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
     {
         SHA256 hasher;
         for (auto const& v : vals)
@@ -108,8 +99,8 @@ class TestNominationSCP : public SCPDriver
     // Copied from HerderSCPDriver.cpp
     static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
-    std::chrono::milliseconds
-    computeTimeout(uint32 roundNumber, bool isNomination) override
+    std::chrono::milliseconds computeTimeout(uint32 roundNumber,
+                                             bool isNomination) override
     {
         int initialTimeoutMS;
         int incrementMS;
@@ -177,40 +168,34 @@ class NominationTestHandler : public NominationProtocol
     {
     }
 
-    void
-    setPreviousValue(Value const& v)
+    void setPreviousValue(Value const& v)
     {
         mPreviousValue = v;
     }
 
-    void
-    setRoundNumber(int32 n)
+    void setRoundNumber(int32 n)
     {
         mRoundNumber = n;
     }
 
-    void
-    updateRoundLeaders()
+    void updateRoundLeaders()
     {
         NominationProtocol::updateRoundLeaders();
     }
 
-    std::set<NodeID>&
-    getRoundLeaders()
+    std::set<NodeID>& getRoundLeaders()
     {
         return mRoundLeaders;
     }
 
-    uint64
-    getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset)
+    uint64 getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset)
     {
         return NominationProtocol::getNodePriority(nodeID, qset);
     }
 };
 
-static SCPQuorumSet
-makeQSet(std::vector<NodeID> const& nodeIDs, int threshold, int total,
-         int offset)
+static SCPQuorumSet makeQSet(std::vector<NodeID> const& nodeIDs, int threshold,
+                             int total, int offset)
 {
     SCPQuorumSet qSet;
     qSet.threshold = threshold;

@@ -29,8 +29,7 @@ BatchDownloadWork::BatchDownloadWork(Application& app, CheckpointRange range,
 {
 }
 
-std::string
-BatchDownloadWork::getStatus() const
+std::string BatchDownloadWork::getStatus() const
 {
     if (!isDone() && !isAborting())
     {
@@ -41,8 +40,7 @@ BatchDownloadWork::getStatus() const
     return BatchWork::getStatus();
 }
 
-std::shared_ptr<BasicWork>
-BatchDownloadWork::yieldMoreWork()
+std::shared_ptr<BasicWork> BatchDownloadWork::yieldMoreWork()
 {
     ZoneScoped;
     if (!hasNext())
@@ -62,14 +60,12 @@ BatchDownloadWork::yieldMoreWork()
     return getAndUnzip;
 }
 
-bool
-BatchDownloadWork::hasNext() const
+bool BatchDownloadWork::hasNext() const
 {
     return mNext < mRange.limit();
 }
 
-void
-BatchDownloadWork::resetIter()
+void BatchDownloadWork::resetIter()
 {
     mNext = mRange.mFirst;
 }

@@ -20,8 +20,7 @@ using namespace stellar::txtest;
 namespace
 {
 
-int64_t
-operator*(int64_t x, const Price& y)
+int64_t operator*(int64_t x, const Price& y)
 {
     bool xNegative = (x < 0);
     int64_t m =
@@ -29,8 +28,7 @@ operator*(int64_t x, const Price& y)
     return xNegative ? -m : m;
 }
 
-Price
-operator*(const Price& x, const Price& y)
+Price operator*(const Price& x, const Price& y)
 {
     int64_t n = int64_t(x.n) * int64_t(y.n);
     int64_t d = int64_t(x.d) * int64_t(y.d);
@@ -41,17 +39,14 @@ operator*(const Price& x, const Price& y)
     return Price{(int32_t)n, (int32_t)d};
 }
 
-template <typename T>
-void
-rotateRight(std::deque<T>& d)
+template <typename T> void rotateRight(std::deque<T>& d)
 {
     auto e = d.back();
     d.pop_back();
     d.push_front(e);
 }
 
-std::string
-assetPathToString(const std::deque<Asset>& assets)
+std::string assetPathToString(const std::deque<Asset>& assets)
 {
     auto r = assetToString(assets[0]);
     for (auto i = assets.rbegin(); i != assets.rend(); i++)
@@ -61,8 +56,7 @@ assetPathToString(const std::deque<Asset>& assets)
     return r;
 };
 
-static Asset const&
-getAssetBought(ClaimAtom const& atom)
+static Asset const& getAssetBought(ClaimAtom const& atom)
 {
     switch (atom.type())
     {
@@ -75,8 +69,7 @@ getAssetBought(ClaimAtom const& atom)
     }
 }
 
-static Asset const&
-getAssetSold(ClaimAtom const& atom)
+static Asset const& getAssetSold(ClaimAtom const& atom)
 {
     switch (atom.type())
     {
@@ -89,8 +82,7 @@ getAssetSold(ClaimAtom const& atom)
     }
 }
 
-static int64_t
-getAmountBought(ClaimAtom const& atom)
+static int64_t getAmountBought(ClaimAtom const& atom)
 {
     switch (atom.type())
     {
@@ -103,8 +95,7 @@ getAmountBought(ClaimAtom const& atom)
     }
 }
 
-static int64_t
-getAmountSold(ClaimAtom const& atom)
+static int64_t getAmountSold(ClaimAtom const& atom)
 {
     switch (atom.type())
     {
@@ -117,10 +108,9 @@ getAmountSold(ClaimAtom const& atom)
     }
 }
 
-void
-checkClaimedOffers(std::vector<ClaimAtom> const& actual,
-                   std::vector<ClaimAtom> const& expected, int64_t sendAmount,
-                   int64_t destMinAmount)
+void checkClaimedOffers(std::vector<ClaimAtom> const& actual,
+                        std::vector<ClaimAtom> const& expected,
+                        int64_t sendAmount, int64_t destMinAmount)
 {
     REQUIRE(actual == expected);
 

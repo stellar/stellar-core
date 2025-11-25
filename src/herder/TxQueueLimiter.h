@@ -95,8 +95,7 @@ class TxQueueLimiter
                      std::optional<std::vector<Resource>> const& customLimits =
                          std::nullopt);
 
-    Resource
-    getTotalResourcesToFlood() const
+    Resource getTotalResourcesToFlood() const
     {
         return mTxsToFlood->totalResources();
     }

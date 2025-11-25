@@ -24,8 +24,7 @@ class SelfCheckMultiArchiveHistoryConfigurator
     : public TmpDirHistoryConfigurator
 {
   public:
-    Config&
-    configure(Config& cfg, bool writable) const override
+    Config& configure(Config& cfg, bool writable) const override
     {
         REQUIRE(writable);
         TmpDirHistoryConfigurator::configure(cfg, writable);

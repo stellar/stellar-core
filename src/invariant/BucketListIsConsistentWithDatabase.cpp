@@ -28,8 +28,8 @@ namespace stellar
 
 namespace
 {
-std::string
-checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
+std::string checkAgainstDatabase(AbstractLedgerTxn& ltx,
+                                 LedgerEntry const& entry)
 {
     auto fromDb = ltx.loadWithoutRecord(LedgerEntryKey(entry));
     if (!fromDb)
@@ -53,8 +53,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     }
 }
 
-std::string
-checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
+std::string checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
 {
     auto fromDb = ltx.loadWithoutRecord(key);
     if (!fromDb)
@@ -67,9 +66,8 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
     return s;
 }
 
-std::string
-checkDbEntryCounts(Application& app, LedgerRange const& range,
-                   uint64_t expectedOfferCount)
+std::string checkDbEntryCounts(Application& app, LedgerRange const& range,
+                               uint64_t expectedOfferCount)
 {
     std::string msg;
     auto& ltxRoot = app.getLedgerTxnRoot();
@@ -99,14 +97,12 @@ BucketListIsConsistentWithDatabase::BucketListIsConsistentWithDatabase(
 {
 }
 
-std::string
-BucketListIsConsistentWithDatabase::getName() const
+std::string BucketListIsConsistentWithDatabase::getName() const
 {
     return "BucketListIsConsistentWithDatabase";
 }
 
-void
-BucketListIsConsistentWithDatabase::checkEntireBucketlist()
+void BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 {
     auto& lm = mApp.getLedgerManager();
     auto& bm = mApp.getBucketManager();
@@ -239,8 +235,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
     return checkDbEntryCounts(mApp, range, offerCount);
 }
 
-std::string
-BucketListIsConsistentWithDatabase::checkOnBucketApply(
+std::string BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger, std::unordered_set<LedgerKey> const& shadowedKeys)
 {

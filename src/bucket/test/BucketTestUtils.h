@@ -37,13 +37,11 @@ template <class BucketT> struct EntryCounts
     size_t nInitOrArchived{0};
     size_t nLive{0};
     size_t nDead{0};
-    size_t
-    sum() const
+    size_t sum() const
     {
         return nLive + nInitOrArchived + nDead;
     }
-    size_t
-    sumIncludingMeta() const
+    size_t sumIncludingMeta() const
     {
         return nLive + nInitOrArchived + nDead + nMeta;
     }
@@ -80,8 +78,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         LedgerHeader lh, uint32_t initialLedgerVers) override;
 
   public:
-    void
-    setNextLedgerEntryBatchForBucketTesting(
+    void setNextLedgerEntryBatchForBucketTesting(
         std::vector<LedgerEntry> const& initEntries,
         std::vector<LedgerEntry> const& liveEntries,
         std::vector<LedgerKey> const& deadEntries,
@@ -94,8 +91,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         mTestDeadEntries = deadEntries;
     }
 
-    void
-    setNextArchiveBatchForBucketTesting(
+    void setNextArchiveBatchForBucketTesting(
         std::vector<LedgerEntry> const& archiveEntries,
         std::vector<LedgerKey> const& restoredEntries)
     {
@@ -120,8 +116,7 @@ class BucketTestApplication : public TestApplication
     virtual LedgerManagerForBucketTests& getLedgerManager() override;
 
   private:
-    virtual std::unique_ptr<LedgerManager>
-    createLedgerManager() override
+    virtual std::unique_ptr<LedgerManager> createLedgerManager() override
     {
         return std::make_unique<LedgerManagerForBucketTests>(*this);
     }

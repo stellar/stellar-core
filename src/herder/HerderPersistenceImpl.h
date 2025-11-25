@@ -12,7 +12,6 @@ class Application;
 
 class HerderPersistenceImpl : public HerderPersistence
 {
-
   public:
     HerderPersistenceImpl(Application& app);
     ~HerderPersistenceImpl();

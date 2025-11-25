@@ -46,8 +46,7 @@ namespace Catch
 template <typename T>
 struct StringMaker<T, std::enable_if_t<xdr::xdr_traits<T>::valid>>
 {
-    static std::string
-    convert(T const& val)
+    static std::string convert(T const& val)
     {
         return xdr::xdr_to_string(val, "value");
     }

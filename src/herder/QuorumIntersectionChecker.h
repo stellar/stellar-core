@@ -43,14 +43,12 @@ struct QuorumMapIntersectionState
     std::pair<std::vector<PublicKey>, std::vector<PublicKey>> mPotentialSplit{};
     std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
 
-    bool
-    hasAnyResults() const
+    bool hasAnyResults() const
     {
         return mLastGoodLedger != 0;
     }
 
-    bool
-    enjoysQuorunIntersection() const
+    bool enjoysQuorunIntersection() const
     {
         return mLastCheckLedger == mLastGoodLedger;
     }

@@ -92,20 +92,20 @@ class SurveyDataManager : public NonMovableOrCopyable
     // already active. `inboundPeers` and `outboundPeers` should collectively
     // contain the `NodeID`s of all connected peers. Returns `true` if this
     // successfully starts a survey.
-    bool
-    startSurveyCollecting(TimeSlicedSurveyStartCollectingMessage const& msg,
-                          std::map<NodeID, Peer::pointer> const& inboundPeers,
-                          std::map<NodeID, Peer::pointer> const& outboundPeers,
-                          Application::State initialState);
+    bool startSurveyCollecting(
+        TimeSlicedSurveyStartCollectingMessage const& msg,
+        std::map<NodeID, Peer::pointer> const& inboundPeers,
+        std::map<NodeID, Peer::pointer> const& outboundPeers,
+        Application::State initialState);
 
     // Stop the collecting phase of a survey and enter the reporting phase.
     // Ignores request if no survey is active or if nonce does not match the
     // active survey. Returns `true` if this successfully stops a survey.
-    bool
-    stopSurveyCollecting(TimeSlicedSurveyStopCollectingMessage const& msg,
-                         std::map<NodeID, Peer::pointer> const& inboundPeers,
-                         std::map<NodeID, Peer::pointer> const& outboundPeers,
-                         Config const& config);
+    bool stopSurveyCollecting(
+        TimeSlicedSurveyStopCollectingMessage const& msg,
+        std::map<NodeID, Peer::pointer> const& inboundPeers,
+        std::map<NodeID, Peer::pointer> const& outboundPeers,
+        Config const& config);
 
     // Apply `f` to the data for this node. Does nothing if the survey is not in
     // the collecting phase.
@@ -201,10 +201,10 @@ class SurveyDataManager : public NonMovableOrCopyable
 
     // Transition to the reporting phase. Should only be called from the
     // collecting phase. Returns `false` if transition fails.
-    bool
-    startReportingPhase(std::map<NodeID, Peer::pointer> const& inboundPeers,
-                        std::map<NodeID, Peer::pointer> const& outboundPeers,
-                        Config const& config);
+    bool startReportingPhase(
+        std::map<NodeID, Peer::pointer> const& inboundPeers,
+        std::map<NodeID, Peer::pointer> const& outboundPeers,
+        Config const& config);
 
     // Function to call when the impossible occurs. Logs an error and resets
     // the survey. Use instead of `releaseAssert` as an overlay survey

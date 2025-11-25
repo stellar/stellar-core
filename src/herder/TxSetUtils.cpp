@@ -35,8 +35,7 @@ namespace
 {
 // Target use case is to remove a subset of invalid transactions from a TxSet.
 // I.e. txSet.size() >= txsToRemove.size()
-TxFrameList
-removeTxs(TxFrameList const& txs, TxFrameList const& txsToRemove)
+TxFrameList removeTxs(TxFrameList const& txs, TxFrameList const& txsToRemove)
 {
     UnorderedSet<Hash> txsToRemoveSet;
     txsToRemoveSet.reserve(txsToRemove.size());
@@ -75,38 +74,33 @@ AccountTransactionQueue::AccountTransactionQueue(
     }
 }
 
-TransactionFrameBasePtr
-AccountTransactionQueue::getTopTx() const
+TransactionFrameBasePtr AccountTransactionQueue::getTopTx() const
 {
     releaseAssert(!mTxs.empty());
     return mTxs.front();
 }
 
-bool
-AccountTransactionQueue::empty() const
+bool AccountTransactionQueue::empty() const
 {
     return mTxs.empty();
 }
 
-void
-AccountTransactionQueue::popTopTx()
+void AccountTransactionQueue::popTopTx()
 {
     releaseAssert(!mTxs.empty());
     mNumOperations -= mTxs.front()->getNumOperations();
     mTxs.pop_front();
 }
 
-bool
-TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
-                         TransactionFrameBasePtr const& tx2)
+bool TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
+                              TransactionFrameBasePtr const& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
     return tx1->getFullHash() < tx2->getFullHash();
 }
 
-TxFrameList
-TxSetUtils::sortTxsInHashOrder(TxFrameList const& transactions)
+TxFrameList TxSetUtils::sortTxsInHashOrder(TxFrameList const& transactions)
 {
     ZoneScoped;
     TxFrameList sortedTxs(transactions);
@@ -161,10 +155,10 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
     return queues;
 }
 
-TxFrameList
-TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+TxFrameList TxSetUtils::getInvalidTxList(TxFrameList const& txs,
+                                         Application& app,
+                                         uint64_t lowerBoundCloseTimeOffset,
+                                         uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -190,11 +184,10 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
     return invalidTxs;
 }
 
-TxFrameList
-TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
-                        uint64_t lowerBoundCloseTimeOffset,
-                        uint64_t upperBoundCloseTimeOffset,
-                        TxFrameList& invalidTxs)
+TxFrameList TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
+                                    uint64_t lowerBoundCloseTimeOffset,
+                                    uint64_t upperBoundCloseTimeOffset,
+                                    TxFrameList& invalidTxs)
 {
     invalidTxs = getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset);

@@ -67,8 +67,7 @@ class Tracker
     /**
      * Return true if does not wait for any envelope.
      */
-    bool
-    empty() const
+    bool empty() const
     {
         return mWaitingEnvelopes.empty();
     }
@@ -76,8 +75,7 @@ class Tracker
     /**
      * Return list of envelopes this tracker is waiting for.
      */
-    const std::vector<std::pair<Hash, SCPEnvelope>>&
-    waitingEnvelopes() const
+    const std::vector<std::pair<Hash, SCPEnvelope>>& waitingEnvelopes() const
     {
         return mWaitingEnvelopes;
     }
@@ -85,8 +83,7 @@ class Tracker
     /**
      * Return count of envelopes it is waiting for.
      */
-    size_t
-    size() const
+    size_t size() const
     {
         return mWaitingEnvelopes.size();
     }
@@ -141,8 +138,7 @@ class Tracker
     /**
      * Return biggest slot index seen since last reset.
      */
-    uint64
-    getLastSeenSlotIndex() const
+    uint64 getLastSeenSlotIndex() const
     {
         return mLastSeenSlotIndex;
     }
@@ -150,15 +146,13 @@ class Tracker
     /**
      * Reset value of biggest slot index seen.
      */
-    void
-    resetLastSeenSlotIndex()
+    void resetLastSeenSlotIndex()
     {
         mLastSeenSlotIndex = 0;
     }
 
 #ifdef BUILD_TESTS
-    Peer::pointer
-    getLastAskedPeer()
+    Peer::pointer getLastAskedPeer()
     {
         return mLastAskedPeer;
     }

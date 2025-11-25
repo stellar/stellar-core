@@ -23,8 +23,7 @@ Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
 {
 }
 
-void
-Maintainer::start()
+void Maintainer::start()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -54,16 +53,14 @@ Maintainer::start()
     }
 }
 
-void
-Maintainer::scheduleMaintenance()
+void Maintainer::scheduleMaintenance()
 {
     releaseAssert(threadIsMain());
     mTimer.expires_from_now(mApp.getConfig().AUTOMATIC_MAINTENANCE_PERIOD);
     mTimer.async_wait([this]() { tick(); }, VirtualTimer::onFailureNoop);
 }
 
-void
-Maintainer::tick()
+void Maintainer::tick()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -71,8 +68,7 @@ Maintainer::tick()
     scheduleMaintenance();
 }
 
-void
-Maintainer::performMaintenance(uint32_t count)
+void Maintainer::performMaintenance(uint32_t count)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());

@@ -225,8 +225,7 @@ struct ExchangeResult
     int64_t numSheepSend;
     bool reduced;
 
-    ExchangeResultType
-    type() const
+    ExchangeResultType type() const
     {
         if (numWheatReceived != 0 && numSheepSend != 0)
             return ExchangeResultType::NORMAL;

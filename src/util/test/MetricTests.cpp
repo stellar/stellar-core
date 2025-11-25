@@ -28,8 +28,7 @@ using uniform_u64 = stellar::uniform_int_distribution<uint64_t>;
 // how much data to keep in memory when comparing datasets
 static std::chrono::seconds const sampleCutoff(60 * 5);
 
-void
-sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
+void sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
 {
     // Medida doesn't support any virtual clock.
     // Therefore, the following tests use the real time.
@@ -56,8 +55,7 @@ sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
         std::this_thread::sleep_for(threshold / 2);
     }
 }
-void
-sleepAtLeast(std::chrono::seconds const& duration)
+void sleepAtLeast(std::chrono::seconds const& duration)
 {
     // By sleeping a shorter amount repeatedly,
     // we reduce the risk of sleeping too much.
@@ -70,8 +68,7 @@ sleepAtLeast(std::chrono::seconds const& duration)
 }
 
 // Helper for diagnostics.
-void
-printDistribution(std::vector<double> const& dist, size_t nbuckets = 10)
+void printDistribution(std::vector<double> const& dist, size_t nbuckets = 10)
 {
     // Establish bucket linear range.
     double lo = std::numeric_limits<double>::max();
@@ -136,8 +133,7 @@ struct Percentiles
             setSkewMargin(p999 * 0.075);
         }
     }
-    void
-    setFlatMargin(double m)
+    void setFlatMargin(double m)
     {
         mP50.margin(m);
         mP75.margin(m);
@@ -146,8 +142,7 @@ struct Percentiles
         mP99.margin(m);
         mP999.margin(m);
     }
-    void
-    setSkewMargin(double m)
+    void setSkewMargin(double m)
     {
         // When dealing with gamma distributions we've got quite a long tail, so
         // the p9x values all need more leeway.
@@ -158,8 +153,7 @@ struct Percentiles
         mP99.margin(m * 4);
         mP999.margin(m * 16);
     }
-    void
-    checkAgainst(medida::stats::Snapshot const& snap) const
+    void checkAgainst(medida::stats::Snapshot const& snap) const
     {
         double calc50 = snap.getMedian();
         double calc75 = snap.get75thPercentile();
@@ -243,8 +237,7 @@ class SlidingWindowTester
         mSlidingWindowSample.Seed(stellar::getGlobalRandomEngine()());
     }
     template <typename Dist, typename... Args>
-    void
-    addSamplesAtFrequency(std::chrono::milliseconds timeStep, Args... args)
+    void addSamplesAtFrequency(std::chrono::milliseconds timeStep, Args... args)
     {
         Dist dist(std::forward<Args>(args)...);
 
@@ -270,61 +263,53 @@ class SlidingWindowTester
     }
 
     // Adds 10 minutes @ 1khz of uniform samples from [low, high]
-    void
-    addUniformSamplesAtHighFrequency(uint64_t low, uint64_t high)
+    void addUniformSamplesAtHighFrequency(uint64_t low, uint64_t high)
     {
         auto freq = std::chrono::milliseconds(1);
         addSamplesAtFrequency<uniform_u64>(freq, low, high);
     }
 
     // Adds 10 minutes @ 30hz of uniform samples from [low, high]
-    void
-    addUniformSamplesAtMediumFrequency(uint64_t low, uint64_t high)
+    void addUniformSamplesAtMediumFrequency(uint64_t low, uint64_t high)
     {
         auto freq = std::chrono::milliseconds(33);
         addSamplesAtFrequency<uniform_u64>(freq, low, high);
     }
 
     // Adds 10 minutes @ 1hz of uniform samples from [low, high]
-    void
-    addUniformSamplesAtLowFrequency(uint64_t low, uint64_t high)
+    void addUniformSamplesAtLowFrequency(uint64_t low, uint64_t high)
     {
         auto freq = std::chrono::milliseconds(1000);
         addSamplesAtFrequency<uniform_u64>(freq, low, high);
     }
 
     // Adds 10 minutes @ 1khz of gamma(shape,scale) samples
-    void
-    addGammaSamplesAtHighFrequency(double shape, double scale)
+    void addGammaSamplesAtHighFrequency(double shape, double scale)
     {
         auto freq = std::chrono::milliseconds(1);
         addSamplesAtFrequency<gamma_dbl>(freq, shape, scale);
     }
 
     // Adds 10 minutes @ 30hz of gamma(shape,scale) samples
-    void
-    addGammaSamplesAtMediumFrequency(double shape, double scale)
+    void addGammaSamplesAtMediumFrequency(double shape, double scale)
     {
         auto freq = std::chrono::milliseconds(33);
         addSamplesAtFrequency<gamma_dbl>(freq, shape, scale);
     }
 
     // Adds 10 minutes @ 1hz of gamma(shape,scale) samples
-    void
-    addGammaSamplesAtLowFrequency(double shape, double scale)
+    void addGammaSamplesAtLowFrequency(double shape, double scale)
     {
         auto freq = std::chrono::milliseconds(1000);
         addSamplesAtFrequency<gamma_dbl>(freq, shape, scale);
     }
 
-    medida::stats::Snapshot
-    getSnapshot()
+    medida::stats::Snapshot getSnapshot()
     {
         return mSlidingWindowSample.MakeSnapshot();
     }
 
-    void
-    dumpData() const
+    void dumpData() const
     {
         for (auto s : mSamples)
         {
@@ -333,8 +318,7 @@ class SlidingWindowTester
         }
     }
 
-    Percentiles
-    computePercentiles(bool skewed) const
+    Percentiles computePercentiles(bool skewed) const
     {
         // dumpData();
         std::vector<double> data;
@@ -351,8 +335,7 @@ class SlidingWindowTester
                            !skewed);
     }
 
-    void
-    checkPercentiles(bool skewed)
+    void checkPercentiles(bool skewed)
     {
         auto snp = computePercentiles(skewed);
         snp.checkAgainst(getSnapshot());
@@ -365,8 +348,7 @@ class SlidingWindowTester
  *****************************************************************/
 
 template <typename Dist, typename... Args>
-medida::stats::Snapshot
-sampleFrom(Args... args)
+medida::stats::Snapshot sampleFrom(Args... args)
 {
     Dist dist(std::forward<Args>(args)...);
     std::vector<double> sample;
@@ -391,7 +373,6 @@ TEST_CASE("percentile calculation - uniform", "[percentile][medida_math]")
 
 TEST_CASE("percentile calculation - gamma", "[percentile][medida_math]")
 {
-
     auto snap = sampleFrom<gamma_dbl>(4.0, 100.0);
     gamma_4_100_pct.checkAgainst(snap);
 }
@@ -573,8 +554,7 @@ TEST_CASE("sums of nanoseconds do not overflow", "[medida_math]")
 }
 
 template <typename Dist, typename... Args>
-void
-testCKMSSample(int const count, Args... args)
+void testCKMSSample(int const count, Args... args)
 {
     auto const windowSize = std::chrono::seconds(5);
     medida::Histogram hist{medida::SamplingInterface::kCKMS, windowSize};

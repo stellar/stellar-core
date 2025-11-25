@@ -19,8 +19,7 @@
 namespace stellar
 {
 
-static RestoreFootprintResult&
-innerResult(OperationResult& res)
+static RestoreFootprintResult& innerResult(OperationResult& res)
 {
     return res.tr().restoreFootprintResult();
 }
@@ -41,8 +40,7 @@ struct RestoreFootprintMetrics
         mMetrics.mRestoreFpOpReadLedgerByte.Mark(mLedgerReadByte);
         mMetrics.mRestoreFpOpWriteLedgerByte.Mark(mLedgerWriteByte);
     }
-    medida::TimerContext
-    getExecTimer()
+    medida::TimerContext getExecTimer()
     {
         return mMetrics.mRestoreFpOpExec.TimeScope();
     }
@@ -57,7 +55,6 @@ RestoreFootprintOpFrame::RestoreFootprintOpFrame(
 
 class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
 {
-
   protected:
     AppConnector& mApp;
     OperationResult& mRes;
@@ -99,8 +96,7 @@ class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
                               std::optional<LedgerEntry> const& ttlEntryOpt,
                               uint32_t restoredLiveUntilLedger) = 0;
 
-    virtual bool
-    apply()
+    virtual bool apply()
     {
         ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
         auto timeScope = mMetrics.getExecTimer();
@@ -261,24 +257,21 @@ class RestoreFootprintPreV23ApplyHelper
     {
     }
 
-    std::optional<LedgerEntry>
-    getHotArchiveEntry(LedgerKey const& key) override
+    std::optional<LedgerEntry> getHotArchiveEntry(LedgerKey const& key) override
     {
         // There is no hot archive pre-23.
         return std::nullopt;
     }
-    bool
-    entryWasRestored(LedgerKey const& key) override
+    bool entryWasRestored(LedgerKey const& key) override
     {
         // NB: even though pre-23 can answer this question precisely, the code
         // in pre-23 wasn't sensitive to it, so we preserve that functionality.
         return false;
     }
-    void
-    restoreEntry(LedgerKey const& lk, LedgerEntry const& entry,
-                 LedgerKey const& ttlKey,
-                 std::optional<LedgerEntry> const& ttlEntryOpt,
-                 uint32_t restoredLiveUntilLedger) override
+    void restoreEntry(LedgerKey const& lk, LedgerEntry const& entry,
+                      LedgerKey const& ttlKey,
+                      std::optional<LedgerEntry> const& ttlEntryOpt,
+                      uint32_t restoredLiveUntilLedger) override
     {
         mLtx.restoreFromLiveBucketList(entry, restoredLiveUntilLedger);
     }
@@ -303,8 +296,7 @@ class RestoreFootprintParallelApplyHelper
     {
     }
 
-    std::optional<LedgerEntry>
-    getHotArchiveEntry(LedgerKey const& key) override
+    std::optional<LedgerEntry> getHotArchiveEntry(LedgerKey const& key) override
     {
         auto ptr = mHotArchive->load(key);
         if (ptr)
@@ -317,17 +309,15 @@ class RestoreFootprintParallelApplyHelper
         }
     }
 
-    bool
-    entryWasRestored(LedgerKey const& key) override
+    bool entryWasRestored(LedgerKey const& key) override
     {
         return mOpState.entryWasRestored(key);
     }
 
-    void
-    restoreEntry(LedgerKey const& lk, LedgerEntry const& entry,
-                 LedgerKey const& ttlKey,
-                 std::optional<LedgerEntry> const& ttlEntryOpt,
-                 uint32_t restoredLiveUntilLedger) override
+    void restoreEntry(LedgerKey const& lk, LedgerEntry const& entry,
+                      LedgerKey const& ttlKey,
+                      std::optional<LedgerEntry> const& ttlEntryOpt,
+                      uint32_t restoredLiveUntilLedger) override
     {
         if (!ttlEntryOpt)
         {
@@ -352,8 +342,7 @@ class RestoreFootprintParallelApplyHelper
         }
     }
 
-    ParallelTxReturnVal
-    takeResults(bool applySucceeded)
+    ParallelTxReturnVal takeResults(bool applySucceeded)
     {
         if (applySucceeded)
         {
@@ -366,15 +355,13 @@ class RestoreFootprintParallelApplyHelper
     }
 };
 
-bool
-RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
+bool RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      SOROBAN_PROTOCOL_VERSION);
 }
 
-ParallelTxReturnVal
-RestoreFootprintOpFrame::doParallelApply(
+ParallelTxReturnVal RestoreFootprintOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
@@ -382,7 +369,6 @@ RestoreFootprintOpFrame::doParallelApply(
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
-
     releaseAssertOrThrow(
         protocolVersionStartsFrom(ledgerInfo.getLedgerVersion(),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
@@ -393,8 +379,7 @@ RestoreFootprintOpFrame::doParallelApply(
     return helper.takeResults(success);
 }
 
-bool
-RestoreFootprintOpFrame::doApplyForSoroban(
+bool RestoreFootprintOpFrame::doApplyForSoroban(
     AppConnector& app, AbstractLedgerTxn& ltx,
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
@@ -410,17 +395,15 @@ RestoreFootprintOpFrame::doApplyForSoroban(
     return helper.apply();
 }
 
-bool
-RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                 OperationResult& res,
-                                 OperationMetaBuilder& opMeta) const
+bool RestoreFootprintOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                      OperationResult& res,
+                                      OperationMetaBuilder& opMeta) const
 {
     throw std::runtime_error(
         "RestoreFootprintOpFrame may only be applied via doApplyForSoroban");
 }
 
-bool
-RestoreFootprintOpFrame::doCheckValidForSoroban(
+bool RestoreFootprintOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
     DiagnosticEventManager& diagnosticEvents) const
@@ -451,28 +434,24 @@ RestoreFootprintOpFrame::doCheckValidForSoroban(
     return true;
 }
 
-bool
-RestoreFootprintOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                      OperationResult& res) const
+bool RestoreFootprintOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                           OperationResult& res) const
 {
     throw std::runtime_error(
         "RestoreFootprintOpFrame::doCheckValid needs Config");
 }
 
-void
-RestoreFootprintOpFrame::insertLedgerKeysToPrefetch(
+void RestoreFootprintOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
 
-bool
-RestoreFootprintOpFrame::isSoroban() const
+bool RestoreFootprintOpFrame::isSoroban() const
 {
     return true;
 }
 
-ThresholdLevel
-RestoreFootprintOpFrame::getThresholdLevel() const
+ThresholdLevel RestoreFootprintOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }

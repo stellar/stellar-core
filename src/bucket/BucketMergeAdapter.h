@@ -53,51 +53,43 @@ template <class BucketT> class FileMergeInput : public MergeInput<BucketT>
     {
     }
 
-    bool
-    isDone() const override
+    bool isDone() const override
     {
         return !mOldIter && !mNewIter;
     }
 
-    bool
-    oldFirst() const override
+    bool oldFirst() const override
     {
         return !mNewIter || (mOldIter && mCmp(*mOldIter, *mNewIter));
     }
 
-    bool
-    newFirst() const override
+    bool newFirst() const override
     {
         return !mOldIter || (mNewIter && mCmp(*mNewIter, *mOldIter));
     }
 
-    bool
-    equalKeys() const override
+    bool equalKeys() const override
     {
         return mOldIter && mNewIter && !mCmp(*mOldIter, *mNewIter) &&
                !mCmp(*mNewIter, *mOldIter);
     }
 
-    typename BucketT::EntryT const&
-    getOldEntry() override
+    typename BucketT::EntryT const& getOldEntry() override
     {
         return *mOldIter;
     }
 
-    typename BucketT::EntryT const&
-    getNewEntry() override
+    typename BucketT::EntryT const& getNewEntry() override
     {
         return *mNewIter;
     }
 
-    void
-    advanceOld() override
+    void advanceOld() override
     {
         ++mOldIter;
     }
 
-    void
-    advanceNew() override
+    void advanceNew() override
     {
         ++mNewIter;
     }
@@ -119,56 +111,48 @@ template <class BucketT> class MemoryMergeInput : public MergeInput<BucketT>
     {
     }
 
-    bool
-    isDone() const override
+    bool isDone() const override
     {
         return mOldIdx >= mOldEntries.size() && mNewIdx >= mNewEntries.size();
     }
 
-    bool
-    oldFirst() const override
+    bool oldFirst() const override
     {
         return mNewIdx >= mNewEntries.size() ||
                (mOldIdx < mOldEntries.size() &&
                 mCmp(mOldEntries.at(mOldIdx), mNewEntries.at(mNewIdx)));
     }
 
-    bool
-    newFirst() const override
+    bool newFirst() const override
     {
         return mOldIdx >= mOldEntries.size() ||
                (mNewIdx < mNewEntries.size() &&
                 mCmp(mNewEntries.at(mNewIdx), mOldEntries.at(mOldIdx)));
     }
 
-    bool
-    equalKeys() const override
+    bool equalKeys() const override
     {
         return mOldIdx < mOldEntries.size() && mNewIdx < mNewEntries.size() &&
                !mCmp(mOldEntries.at(mOldIdx), mNewEntries.at(mNewIdx)) &&
                !mCmp(mNewEntries.at(mNewIdx), mOldEntries.at(mOldIdx));
     }
 
-    typename BucketT::EntryT const&
-    getOldEntry() override
+    typename BucketT::EntryT const& getOldEntry() override
     {
         return mOldEntries.at(mOldIdx);
     }
 
-    typename BucketT::EntryT const&
-    getNewEntry() override
+    typename BucketT::EntryT const& getNewEntry() override
     {
         return mNewEntries.at(mNewIdx);
     }
 
-    void
-    advanceOld() override
+    void advanceOld() override
     {
         ++mOldIdx;
     }
 
-    void
-    advanceNew() override
+    void advanceNew() override
     {
         ++mNewIdx;
     }

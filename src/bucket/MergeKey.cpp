@@ -19,8 +19,7 @@ MergeKey::MergeKey(bool keepTombstoneEntries, Hash const& currHash,
 {
 }
 
-bool
-MergeKey::operator==(MergeKey const& other) const
+bool MergeKey::operator==(MergeKey const& other) const
 {
     return mKeepTombstoneEntries == other.mKeepTombstoneEntries &&
            mInputCurrBucket == other.mInputCurrBucket &&
@@ -28,8 +27,7 @@ MergeKey::operator==(MergeKey const& other) const
            mInputShadowBuckets == other.mInputShadowBuckets;
 }
 
-std::ostream&
-operator<<(std::ostream& out, MergeKey const& b)
+std::ostream& operator<<(std::ostream& out, MergeKey const& b)
 {
     out << "[curr=" << hexAbbrev(b.mInputCurrBucket)
         << ", snap=" << hexAbbrev(b.mInputSnapBucket) << ", shadows=[";
@@ -47,8 +45,7 @@ operator<<(std::ostream& out, MergeKey const& b)
     return out;
 }
 
-std::string
-format_as(MergeKey const& k)
+std::string format_as(MergeKey const& k)
 {
     std::stringstream ss;
     ss << k;

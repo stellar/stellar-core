@@ -37,8 +37,8 @@ namespace stellar
 {
 
 template <typename... Tokens>
-std::string
-formatString(std::string const& templateString, Tokens const&... tokens)
+std::string formatString(std::string const& templateString,
+                         Tokens const&... tokens)
 {
     try
     {
@@ -53,8 +53,7 @@ formatString(std::string const& templateString, Tokens const&... tokens)
     }
 }
 
-bool
-HistoryArchiveState::futuresAllResolved() const
+bool HistoryArchiveState::futuresAllResolved() const
 {
     ZoneScoped;
     for (auto const& level : currentBuckets)
@@ -75,8 +74,7 @@ HistoryArchiveState::futuresAllResolved() const
     return true;
 }
 
-bool
-HistoryArchiveState::futuresAllClear() const
+bool HistoryArchiveState::futuresAllClear() const
 {
     return std::all_of(currentBuckets.begin(), currentBuckets.end(),
                        [](auto const& bl) { return bl.next.isClear(); }) &&
@@ -84,8 +82,7 @@ HistoryArchiveState::futuresAllClear() const
                        [](auto const& bl) { return bl.next.isClear(); });
 }
 
-void
-HistoryArchiveState::resolveAllFutures()
+void HistoryArchiveState::resolveAllFutures()
 {
     ZoneScoped;
     for (auto& level : currentBuckets)
@@ -105,8 +102,7 @@ HistoryArchiveState::resolveAllFutures()
     }
 }
 
-void
-HistoryArchiveState::resolveAnyReadyFutures()
+void HistoryArchiveState::resolveAnyReadyFutures()
 {
     ZoneScoped;
     auto resolveMerged = [](auto& buckets) {
@@ -123,8 +119,7 @@ HistoryArchiveState::resolveAnyReadyFutures()
     resolveMerged(hotArchiveBuckets);
 }
 
-void
-HistoryArchiveState::save(std::string const& outFile) const
+void HistoryArchiveState::save(std::string const& outFile) const
 {
     ZoneScoped;
     std::ofstream out;
@@ -134,8 +129,7 @@ HistoryArchiveState::save(std::string const& outFile) const
     serialize(ar);
 }
 
-std::string
-HistoryArchiveState::toString() const
+std::string HistoryArchiveState::toString() const
 {
     ZoneScoped;
     // We serialize-to-a-string any HAS, regardless of resolvedness, as we are
@@ -149,8 +143,7 @@ HistoryArchiveState::toString() const
     return out.str();
 }
 
-void
-HistoryArchiveState::load(std::string const& inFile)
+void HistoryArchiveState::load(std::string const& inFile)
 {
     ZoneScoped;
     std::ifstream in(inFile);
@@ -171,8 +164,7 @@ HistoryArchiveState::load(std::string const& inFile)
     }
 }
 
-void
-HistoryArchiveState::fromString(std::string const& str)
+void HistoryArchiveState::fromString(std::string const& str)
 {
     ZoneScoped;
     std::istringstream in(str);
@@ -180,47 +172,40 @@ HistoryArchiveState::fromString(std::string const& str)
     serialize(ar);
 }
 
-std::string
-HistoryArchiveState::baseName()
+std::string HistoryArchiveState::baseName()
 {
     return std::string("stellar-history.json");
 }
 
-std::string
-HistoryArchiveState::wellKnownRemoteDir()
+std::string HistoryArchiveState::wellKnownRemoteDir()
 {
     // The RFC 5785 dir
     return std::string(".well-known");
 }
 
-std::string
-HistoryArchiveState::wellKnownRemoteName()
+std::string HistoryArchiveState::wellKnownRemoteName()
 {
     return wellKnownRemoteDir() + "/" + baseName();
 }
 
-std::string
-HistoryArchiveState::remoteDir(uint32_t snapshotNumber)
+std::string HistoryArchiveState::remoteDir(uint32_t snapshotNumber)
 {
     return fs::remoteDir("history", fs::hexStr(snapshotNumber));
 }
 
-std::string
-HistoryArchiveState::remoteName(uint32_t snapshotNumber)
+std::string HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 {
     return fs::remoteName("history", fs::hexStr(snapshotNumber), "json");
 }
 
-std::string
-HistoryArchiveState::localName(Application& app,
-                               std::string const& uniquePrefix)
+std::string HistoryArchiveState::localName(Application& app,
+                                           std::string const& uniquePrefix)
 {
     return app.getHistoryManager().localFilename(uniquePrefix + "-" +
                                                  baseName());
 }
 
-Hash
-HistoryArchiveState::getBucketListHash() const
+Hash HistoryArchiveState::getBucketListHash() const
 {
     ZoneScoped;
     // NB: This hash algorithm has to match "what the BucketList does" to
@@ -308,8 +293,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     return BucketHashReturnT(std::move(liveHashes), std::move(hotHashes));
 }
 
-std::vector<std::string>
-HistoryArchiveState::allBuckets() const
+std::vector<std::string> HistoryArchiveState::allBuckets() const
 {
     ZoneScoped;
     std::set<std::string> buckets;
@@ -335,10 +319,9 @@ namespace
 // checking that the bucket list has the correct number of levels, versioning
 // consistency, and future bucket state.
 template <typename HistoryStateBucketT>
-bool
-validateBucketListHelper(Application& app,
-                         std::vector<HistoryStateBucketT> const& buckets,
-                         uint32_t expectedLevels)
+bool validateBucketListHelper(Application& app,
+                              std::vector<HistoryStateBucketT> const& buckets,
+                              uint32_t expectedLevels)
 {
     // Get Bucket version and set nonEmptySeen
     bool nonEmptySeen = false;
@@ -444,8 +427,7 @@ validateBucketListHelper(Application& app,
 }
 }
 
-bool
-HistoryArchiveState::containsValidBuckets(Application& app) const
+bool HistoryArchiveState::containsValidBuckets(Application& app) const
 {
     ZoneScoped;
     if (!validateBucketListHelper(app, currentBuckets,
@@ -464,8 +446,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     return true;
 }
 
-void
-HistoryArchiveState::prepareForPublish(Application& app)
+void HistoryArchiveState::prepareForPublish(Application& app)
 {
     ZoneScoped;
     auto prepareBucketList = [&](auto& buckets, size_t numLevels) {
@@ -591,50 +572,43 @@ HistoryArchive::~HistoryArchive()
 {
 }
 
-bool
-HistoryArchive::hasGetCmd() const
+bool HistoryArchive::hasGetCmd() const
 {
     return !mConfig.mGetCmd.empty();
 }
 
-bool
-HistoryArchive::hasPutCmd() const
+bool HistoryArchive::hasPutCmd() const
 {
     return !mConfig.mPutCmd.empty();
 }
 
-bool
-HistoryArchive::hasMkdirCmd() const
+bool HistoryArchive::hasMkdirCmd() const
 {
     return !mConfig.mMkdirCmd.empty();
 }
 
-std::string const&
-HistoryArchive::getName() const
+std::string const& HistoryArchive::getName() const
 {
     return mConfig.mName;
 }
 
-std::string
-HistoryArchive::getFileCmd(std::string const& remote,
-                           std::string const& local) const
+std::string HistoryArchive::getFileCmd(std::string const& remote,
+                                       std::string const& local) const
 {
     if (mConfig.mGetCmd.empty())
         return "";
     return formatString(mConfig.mGetCmd, remote, local);
 }
 
-std::string
-HistoryArchive::putFileCmd(std::string const& local,
-                           std::string const& remote) const
+std::string HistoryArchive::putFileCmd(std::string const& local,
+                                       std::string const& remote) const
 {
     if (mConfig.mPutCmd.empty())
         return "";
     return formatString(mConfig.mPutCmd, local, remote);
 }
 
-std::string
-HistoryArchive::mkdirCmd(std::string const& remoteDir) const
+std::string HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
     if (mConfig.mMkdirCmd.empty())
         return "";

@@ -29,8 +29,7 @@ class WorkScheduler : public Work
     static std::shared_ptr<WorkScheduler> create(Application& app);
 
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    executeWork(Args&&... args)
+    std::shared_ptr<T> executeWork(Args&&... args)
     {
         auto work = scheduleWork<T>(std::forward<Args>(args)...);
         auto& clock = mApp.getClock();
@@ -44,8 +43,7 @@ class WorkScheduler : public Work
     // Returns a work that's been scheduled, or nullptr if the WorkScheduler
     // is aborting.
     template <typename T, typename... Args>
-    std::shared_ptr<T>
-    scheduleWork(Args&&... args)
+    std::shared_ptr<T> scheduleWork(Args&&... args)
     {
         if (isAborting() || isDone())
         {

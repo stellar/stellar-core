@@ -33,8 +33,7 @@ class InternalInMemoryBucketEntry
         virtual size_t hash() const = 0;
         virtual IndexPtrT const& get() const = 0;
 
-        virtual bool
-        operator==(const AbstractEntry& other) const
+        virtual bool operator==(const AbstractEntry& other) const
         {
             return copyKey() == other.copyKey();
         }
@@ -51,20 +50,17 @@ class InternalInMemoryBucketEntry
         {
         }
 
-        LedgerKey
-        copyKey() const override
+        LedgerKey copyKey() const override
         {
             return getBucketLedgerKey(*entry);
         }
 
-        size_t
-        hash() const override
+        size_t hash() const override
         {
             return std::hash<LedgerKey>{}(getBucketLedgerKey(*entry));
         }
 
-        IndexPtrT const&
-        get() const override
+        IndexPtrT const& get() const override
         {
             return entry;
         }
@@ -81,20 +77,17 @@ class InternalInMemoryBucketEntry
         {
         }
 
-        LedgerKey
-        copyKey() const override
+        LedgerKey copyKey() const override
         {
             return ledgerKey;
         }
 
-        size_t
-        hash() const override
+        size_t hash() const override
         {
             return std::hash<LedgerKey>{}(ledgerKey);
         }
 
-        IndexPtrT const&
-        get() const override
+        IndexPtrT const& get() const override
         {
             throw std::runtime_error("Called get() on QueryKey");
         }
@@ -113,20 +106,17 @@ class InternalInMemoryBucketEntry
     {
     }
 
-    size_t
-    hash() const
+    size_t hash() const
     {
         return impl->hash();
     }
 
-    bool
-    operator==(InternalInMemoryBucketEntry const& other) const
+    bool operator==(InternalInMemoryBucketEntry const& other) const
     {
         return impl->operator==(*other.impl);
     }
 
-    IndexPtrT const&
-    get() const
+    IndexPtrT const& get() const
     {
         return impl->get();
     }
@@ -134,8 +124,7 @@ class InternalInMemoryBucketEntry
 
 struct InternalInMemoryBucketEntryHash
 {
-    size_t
-    operator()(InternalInMemoryBucketEntry const& entry) const
+    size_t operator()(InternalInMemoryBucketEntry const& entry) const
     {
         return entry.hash();
     }
@@ -163,20 +152,17 @@ class InMemoryBucketState : public NonMovableOrCopyable
     std::pair<IndexReturnT, IterT> scan(IterT start,
                                         LedgerKey const& searchKey) const;
 
-    IterT
-    begin() const
+    IterT begin() const
     {
         return mEntries.begin();
     }
-    IterT
-    end() const
+    IterT end() const
     {
         return mEntries.end();
     }
 
 #ifdef BUILD_TESTS
-    bool
-    operator==(InMemoryBucketState const& in) const
+    bool operator==(InMemoryBucketState const& in) const
     {
         return mEntries == in.mEntries;
     }
@@ -202,31 +188,27 @@ class InMemoryIndex
                   std::vector<BucketEntry> const& inMemoryState,
                   BucketMetadata const& metadata);
 
-    IterT
-    begin() const
+    IterT begin() const
     {
         return mInMemoryState.begin();
     }
-    IterT
-    end() const
+    IterT end() const
     {
         return mInMemoryState.end();
     }
 
-    AssetPoolIDMap const&
-    getAssetPoolIDMap() const
+    AssetPoolIDMap const& getAssetPoolIDMap() const
     {
         return mAssetPoolIDMap;
     }
 
-    BucketEntryCounters const&
-    getBucketEntryCounters() const
+    BucketEntryCounters const& getBucketEntryCounters() const
     {
         return mCounters;
     }
 
-    std::pair<IndexReturnT, IterT>
-    scan(IterT start, LedgerKey const& searchKey) const
+    std::pair<IndexReturnT, IterT> scan(IterT start,
+                                        LedgerKey const& searchKey) const
     {
         return mInMemoryState.scan(start, searchKey);
     }

@@ -40,8 +40,7 @@ TmpDir::TmpDir(TmpDir&& other) : mPath(std::move(other.mPath))
 {
 }
 
-std::string const&
-TmpDir::getName() const
+std::string const& TmpDir::getName() const
 {
     return *mPath;
 }
@@ -86,8 +85,7 @@ TmpDirManager::~TmpDirManager()
     clean();
 }
 
-void
-TmpDirManager::clean()
+void TmpDirManager::clean()
 {
     ZoneScoped;
     if (fs::exists(mRoot))
@@ -97,8 +95,7 @@ TmpDirManager::clean()
     }
 }
 
-TmpDir
-TmpDirManager::tmpDir(std::string const& prefix)
+TmpDir TmpDirManager::tmpDir(std::string const& prefix)
 {
     return TmpDir(mRoot + "/" + prefix);
 }

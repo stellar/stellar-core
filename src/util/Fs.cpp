@@ -51,8 +51,7 @@ namespace fs
 
 static std::map<std::string, HANDLE> lockMap;
 
-void
-lockFile(std::string const& path)
+void lockFile(std::string const& path)
 {
     ZoneScoped;
     std::ostringstream errmsg;
@@ -78,8 +77,7 @@ lockFile(std::string const& path)
     lockMap.insert(std::make_pair(path, h));
 }
 
-void
-unlockFile(std::string const& path)
+void unlockFile(std::string const& path)
 {
     ZoneScoped;
     auto it = lockMap.find(path);
@@ -94,8 +92,7 @@ unlockFile(std::string const& path)
     }
 }
 
-void
-flushFileChanges(native_handle_t fh)
+void flushFileChanges(native_handle_t fh)
 {
     ZoneScoped;
     if (FlushFileBuffers(fh) == FALSE)
@@ -105,8 +102,7 @@ flushFileChanges(native_handle_t fh)
     }
 }
 
-native_handle_t
-openFileToWrite(std::string const& path)
+native_handle_t openFileToWrite(std::string const& path)
 {
     ZoneScoped;
     HANDLE h = ::CreateFile(path.c_str(),
@@ -126,8 +122,7 @@ openFileToWrite(std::string const& path)
     return h;
 }
 
-FILE*
-fdOpen(native_handle_t h)
+FILE* fdOpen(native_handle_t h)
 {
     FILE* res;
     int const fd =
@@ -148,9 +143,8 @@ fdOpen(native_handle_t h)
     return res;
 }
 
-bool
-durableRename(std::string const& src, std::string const& dst,
-              std::string const& dir)
+bool durableRename(std::string const& src, std::string const& dst,
+                   std::string const& dir)
 {
     ZoneScoped;
     if (MoveFileExA(src.c_str(), dst.c_str(),
@@ -171,8 +165,7 @@ durableRename(std::string const& src, std::string const& dst,
 
 static std::map<std::string, int> lockMap;
 
-void
-lockFile(std::string const& path)
+void lockFile(std::string const& path)
 {
     ZoneScoped;
     std::ostringstream errmsg;
@@ -203,8 +196,7 @@ lockFile(std::string const& path)
     lockMap.insert(std::make_pair(path, fd));
 }
 
-void
-unlockFile(std::string const& path)
+void unlockFile(std::string const& path)
 {
     ZoneScoped;
     auto it = lockMap.find(path);
@@ -220,8 +212,7 @@ unlockFile(std::string const& path)
     }
 }
 
-void
-flushFileChanges(native_handle_t fd)
+void flushFileChanges(native_handle_t fd)
 {
     ZoneScoped;
     while (fsync(fd) == -1)
@@ -235,8 +226,7 @@ flushFileChanges(native_handle_t fd)
     }
 }
 
-native_handle_t
-openFileToWrite(std::string const& path)
+native_handle_t openFileToWrite(std::string const& path)
 {
     ZoneScoped;
     int fd;
@@ -253,9 +243,8 @@ openFileToWrite(std::string const& path)
     return fd;
 }
 
-bool
-durableRename(std::string const& src, std::string const& dst,
-              std::string const& dir)
+bool durableRename(std::string const& src, std::string const& dst,
+                   std::string const& dir)
 {
     ZoneScoped;
     std::error_code ec;
@@ -298,15 +287,13 @@ durableRename(std::string const& src, std::string const& dst,
 
 namespace stdfs = std::filesystem;
 
-bool
-exists(std::string const& name)
+bool exists(std::string const& name)
 {
     ZoneScoped;
     return stdfs::exists(stdfs::path(name));
 }
 
-bool
-mkdir(std::string const& name)
+bool mkdir(std::string const& name)
 {
     ZoneScoped;
     bool ok = stdfs::create_directory(stdfs::path(name));
@@ -315,8 +302,7 @@ mkdir(std::string const& name)
     return ok;
 }
 
-void
-deltree(std::string const& d)
+void deltree(std::string const& d)
 {
     ZoneScoped;
     stdfs::remove_all(stdfs::path(d));
@@ -342,8 +328,7 @@ findfiles(std::string const& p,
     return res;
 }
 
-bool
-mkpath(const std::string& path)
+bool mkpath(const std::string& path)
 {
     ZoneScoped;
     auto p = stdfs::path(path);
@@ -351,14 +336,12 @@ mkpath(const std::string& path)
     return stdfs::exists(p) && stdfs::is_directory(p);
 }
 
-std::string
-hexStr(uint32_t checkpointNum)
+std::string hexStr(uint32_t checkpointNum)
 {
     return fmt::format(FMT_STRING("{:08x}"), checkpointNum);
 }
 
-std::string
-hexDir(std::string const& hexStr)
+std::string hexDir(std::string const& hexStr)
 {
     static const std::regex rx(
         "([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
@@ -369,28 +352,24 @@ hexDir(std::string const& hexStr)
             std::string(sm[3]));
 }
 
-std::string
-baseName(std::string const& type, std::string const& hexStr,
-         std::string const& suffix)
+std::string baseName(std::string const& type, std::string const& hexStr,
+                     std::string const& suffix)
 {
     return type + "-" + hexStr + "." + suffix;
 }
 
-std::string
-remoteDir(std::string const& type, std::string const& hexStr)
+std::string remoteDir(std::string const& type, std::string const& hexStr)
 {
     return type + "/" + hexDir(hexStr);
 }
 
-std::string
-remoteName(std::string const& type, std::string const& hexStr,
-           std::string const& suffix)
+std::string remoteName(std::string const& type, std::string const& hexStr,
+                       std::string const& suffix)
 {
     return remoteDir(type, hexStr) + "/" + baseName(type, hexStr, suffix);
 }
 
-void
-checkGzipSuffix(std::string const& filename)
+void checkGzipSuffix(std::string const& filename)
 {
     static const std::string suf(".gz");
     if (std::filesystem::path(filename).extension().string() != suf)
@@ -399,8 +378,7 @@ checkGzipSuffix(std::string const& filename)
     }
 }
 
-void
-checkNoGzipSuffix(std::string const& filename)
+void checkNoGzipSuffix(std::string const& filename)
 {
     static const std::string suf(".gz");
     if (std::filesystem::path(filename).extension().string() == suf)
@@ -409,8 +387,7 @@ checkNoGzipSuffix(std::string const& filename)
     }
 }
 
-size_t
-size(std::ifstream& ifs)
+size_t size(std::ifstream& ifs)
 {
     ZoneScoped;
     releaseAssert(ifs.is_open());
@@ -422,8 +399,7 @@ size(std::ifstream& ifs)
     return std::max(decltype(result){0}, result);
 }
 
-size_t
-size(std::string const& filename)
+size_t size(std::string const& filename)
 {
     ZoneScoped;
     return stdfs::file_size(stdfs::path(filename));
@@ -431,8 +407,7 @@ size(std::string const& filename)
 
 #ifdef _WIN32
 
-int64_t
-getMaxHandles()
+int64_t getMaxHandles()
 {
     // on Windows, there is no limit on handles
     // only limits based on ephemeral ports, etc
@@ -440,8 +415,7 @@ getMaxHandles()
 }
 
 #else
-int64_t
-getMaxHandles()
+int64_t getMaxHandles()
 {
     struct rlimit rl;
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
@@ -455,8 +429,7 @@ getMaxHandles()
 #endif
 
 #if defined(_WIN32)
-int64_t
-getOpenHandleCount()
+int64_t getOpenHandleCount()
 {
     HANDLE proc =
         OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, GetCurrentProcessId());
@@ -472,8 +445,7 @@ getOpenHandleCount()
     return 0;
 }
 #elif defined(__APPLE__)
-int64_t
-getOpenHandleCount()
+int64_t getOpenHandleCount()
 {
     int64_t n{0};
     for (auto const& _fd : std::filesystem::directory_iterator("/dev/fd"))
@@ -484,8 +456,7 @@ getOpenHandleCount()
     return n;
 }
 #elif defined(__linux__)
-int64_t
-getOpenHandleCount()
+int64_t getOpenHandleCount()
 {
     int64_t n{0};
     for (auto const& _fd : std::filesystem::directory_iterator("/proc/self/fd"))
@@ -496,15 +467,13 @@ getOpenHandleCount()
     return n;
 }
 #else
-int64_t
-getOpenHandleCount()
+int64_t getOpenHandleCount()
 {
     return 0;
 }
 #endif
 
-bool
-removeWithLog(std::string const& path, bool ignoreEnoent)
+bool removeWithLog(std::string const& path, bool ignoreEnoent)
 {
     if (std::remove(path.c_str()) == 0)
     {

@@ -59,8 +59,7 @@ class StatementContext : NonCopyable
             mStmt->clean_up(false);
         }
     }
-    soci::statement&
-    statement()
+    soci::statement& statement()
     {
         return *mStmt;
     }
@@ -81,13 +80,11 @@ class SessionWrapper : NonCopyable
     {
     }
 
-    soci::session&
-    session()
+    soci::session& session()
     {
         return mSession;
     }
-    std::string const&
-    getSessionName() const
+    std::string const& getSessionName() const
     {
         return mSessionName;
     }
@@ -224,9 +221,8 @@ class Database : NonMovableOrCopyable
 };
 
 template <typename T>
-T
-doDatabaseTypeSpecificOperation(soci::session& session,
-                                DatabaseTypeSpecificOperation<T>& op)
+T doDatabaseTypeSpecificOperation(soci::session& session,
+                                  DatabaseTypeSpecificOperation<T>& op)
 {
     auto b = session.get_backend();
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
@@ -247,16 +243,13 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 }
 
 template <typename T>
-T
-Database::doDatabaseTypeSpecificOperation(SessionWrapper& session,
-                                          DatabaseTypeSpecificOperation<T>& op)
+T Database::doDatabaseTypeSpecificOperation(
+    SessionWrapper& session, DatabaseTypeSpecificOperation<T>& op)
 {
     return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }
 
-template <typename T>
-void
-decodeOpaqueXDR(std::string const& in, T& out)
+template <typename T> void decodeOpaqueXDR(std::string const& in, T& out)
 {
     std::vector<uint8_t> opaque;
     decoder::decode_b64(in, opaque);
@@ -264,8 +257,7 @@ decodeOpaqueXDR(std::string const& in, T& out)
 }
 
 template <typename T>
-void
-decodeOpaqueXDR(std::string const& in, soci::indicator const& ind, T& out)
+void decodeOpaqueXDR(std::string const& in, soci::indicator const& ind, T& out)
 {
     if (ind == soci::i_ok)
     {

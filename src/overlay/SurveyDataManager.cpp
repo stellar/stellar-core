@@ -52,8 +52,7 @@ fillTimeSlicedPeerDataList(std::vector<TimeSlicedPeerData> const& peerData,
 }
 
 // Initialize a map of peer data with the initial metrics from `peers`
-void
-initializeCollectingPeerData(
+void initializeCollectingPeerData(
     std::map<NodeID, Peer::pointer> const& peers,
     std::unordered_map<NodeID, CollectingPeerData>& peerData)
 {
@@ -112,8 +111,7 @@ SurveyDataManager::SurveyDataManager(
 #endif
 }
 
-bool
-SurveyDataManager::startSurveyCollecting(
+bool SurveyDataManager::startSurveyCollecting(
     TimeSlicedSurveyStartCollectingMessage const& msg,
     std::map<NodeID, Peer::pointer> const& inboundPeers,
     std::map<NodeID, Peer::pointer> const& outboundPeers,
@@ -151,8 +149,7 @@ SurveyDataManager::startSurveyCollecting(
     return false;
 }
 
-bool
-SurveyDataManager::startReportingPhase(
+bool SurveyDataManager::startReportingPhase(
     std::map<NodeID, Peer::pointer> const& inboundPeers,
     std::map<NodeID, Peer::pointer> const& outboundPeers, Config const& config)
 {
@@ -180,8 +177,7 @@ SurveyDataManager::startReportingPhase(
     return true;
 }
 
-bool
-SurveyDataManager::stopSurveyCollecting(
+bool SurveyDataManager::stopSurveyCollecting(
     TimeSlicedSurveyStopCollectingMessage const& msg,
     std::map<NodeID, Peer::pointer> const& inboundPeers,
     std::map<NodeID, Peer::pointer> const& outboundPeers, Config const& config)
@@ -203,8 +199,8 @@ SurveyDataManager::stopSurveyCollecting(
     return false;
 }
 
-void
-SurveyDataManager::modifyNodeData(std::function<void(CollectingNodeData&)> f)
+void SurveyDataManager::modifyNodeData(
+    std::function<void(CollectingNodeData&)> f)
 {
     ZoneScoped;
 
@@ -221,9 +217,8 @@ SurveyDataManager::modifyNodeData(std::function<void(CollectingNodeData&)> f)
     }
 }
 
-void
-SurveyDataManager::modifyPeerData(Peer const& peer,
-                                  std::function<void(CollectingPeerData&)> f)
+void SurveyDataManager::modifyPeerData(
+    Peer const& peer, std::function<void(CollectingPeerData&)> f)
 {
     ZoneScoped;
 
@@ -244,8 +239,7 @@ SurveyDataManager::modifyPeerData(Peer const& peer,
     }
 }
 
-void
-SurveyDataManager::recordDroppedPeer(Peer const& peer)
+void SurveyDataManager::recordDroppedPeer(Peer const& peer)
 {
     ZoneScoped;
 
@@ -267,21 +261,19 @@ SurveyDataManager::recordDroppedPeer(Peer const& peer)
     }
 }
 
-std::optional<uint32_t>
-SurveyDataManager::getNonce() const
+std::optional<uint32_t> SurveyDataManager::getNonce() const
 {
     return mNonce;
 }
 
-bool
-SurveyDataManager::nonceIsReporting(uint32_t nonce) const
+bool SurveyDataManager::nonceIsReporting(uint32_t nonce) const
 {
     return mPhase == SurveyPhase::REPORTING && mNonce == nonce;
 }
 
-bool
-SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
-                                  TopologyResponseBodyV2& response)
+bool SurveyDataManager::fillSurveyData(
+    TimeSlicedSurveyRequestMessage const& request,
+    TopologyResponseBodyV2& response)
 {
     ZoneScoped;
 
@@ -306,8 +298,7 @@ SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
     return false;
 }
 
-std::optional<TimeSlicedNodeData> const&
-SurveyDataManager::getFinalNodeData()
+std::optional<TimeSlicedNodeData> const& SurveyDataManager::getFinalNodeData()
 {
     if (mPhase != SurveyPhase::REPORTING || !mFinalNodeData.has_value())
     {
@@ -336,23 +327,20 @@ SurveyDataManager::getFinalOutboundPeerData()
     return mFinalOutboundPeerData;
 }
 
-bool
-SurveyDataManager::surveyIsActive() const
+bool SurveyDataManager::surveyIsActive() const
 {
     return mPhase != SurveyPhase::INACTIVE;
 }
 
 #ifdef BUILD_TESTS
-void
-SurveyDataManager::setPhaseMaxDurationsForTesting(
+void SurveyDataManager::setPhaseMaxDurationsForTesting(
     std::chrono::minutes maxPhaseDuration)
 {
     mMaxPhaseDurationForTesting = maxPhaseDuration;
 }
 #endif
 
-void
-SurveyDataManager::updateSurveyPhase(
+void SurveyDataManager::updateSurveyPhase(
     std::map<NodeID, Peer::pointer> const& inboundPeers,
     std::map<NodeID, Peer::pointer> const& outboundPeers, Config const& config)
 {
@@ -398,8 +386,7 @@ SurveyDataManager::updateSurveyPhase(
     }
 }
 
-void
-SurveyDataManager::reset()
+void SurveyDataManager::reset()
 {
     mPhase = SurveyPhase::INACTIVE;
     mCollectStartTime.reset();
@@ -414,8 +401,7 @@ SurveyDataManager::reset()
     mFinalOutboundPeerData.clear();
 }
 
-void
-SurveyDataManager::emitInconsistencyError(std::string const& where)
+void SurveyDataManager::emitInconsistencyError(std::string const& where)
 {
     logErrorOrThrow(
         fmt::format("Encountered inconsistent survey data while executing "
@@ -425,8 +411,7 @@ SurveyDataManager::emitInconsistencyError(std::string const& where)
     reset();
 }
 
-void
-SurveyDataManager::finalizeNodeData(Config const& config)
+void SurveyDataManager::finalizeNodeData(Config const& config)
 {
     if (mFinalNodeData.has_value() || !mCollectingNodeData.has_value())
     {
@@ -471,8 +456,7 @@ SurveyDataManager::finalizeNodeData(Config const& config)
     mCollectingNodeData.reset();
 }
 
-void
-SurveyDataManager::finalizePeerData(
+void SurveyDataManager::finalizePeerData(
     std::map<NodeID, Peer::pointer> const peers,
     std::unordered_map<NodeID, CollectingPeerData> const& collectingPeerData,
     std::vector<TimeSlicedPeerData>& finalPeerData)
@@ -532,8 +516,7 @@ SurveyDataManager::finalizePeerData(
     }
 }
 
-std::chrono::minutes
-SurveyDataManager::getCollectingPhaseMaxDuration() const
+std::chrono::minutes SurveyDataManager::getCollectingPhaseMaxDuration() const
 {
 #ifdef BUILD_TESTS
     if (mMaxPhaseDurationForTesting.has_value())
@@ -545,8 +528,7 @@ SurveyDataManager::getCollectingPhaseMaxDuration() const
         COLLECTING_PHASE_MAX_DURATION);
 }
 
-std::chrono::minutes
-SurveyDataManager::getReportingPhaseMaxDuration() const
+std::chrono::minutes SurveyDataManager::getReportingPhaseMaxDuration() const
 {
 #ifdef BUILD_TESTS
     if (mMaxPhaseDurationForTesting.has_value())

@@ -24,10 +24,9 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op,
 {
 }
 
-bool
-PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                        OperationResult& res,
-                        OperationMetaBuilder& opMeta) const
+bool PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                             OperationResult& res,
+                             OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -125,8 +124,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-PaymentOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
+bool PaymentOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                  OperationResult& res) const
 {
     if (mPayment.amount <= 0)
     {
@@ -141,8 +140,8 @@ PaymentOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
     return true;
 }
 
-void
-PaymentOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
+void PaymentOpFrame::insertLedgerKeysToPrefetch(
+    UnorderedSet<LedgerKey>& keys) const
 {
     auto destID = toAccountID(mPayment.destination);
     keys.emplace(accountKey(destID));

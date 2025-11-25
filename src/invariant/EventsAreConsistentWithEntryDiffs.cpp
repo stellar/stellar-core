@@ -37,9 +37,9 @@ struct AggregatedEvents
     CxxI128 consumeAmount(SCAddress const& addr, Asset const& asset);
 };
 
-bool
-AggregatedEvents::addAssetBalance(SCAddress const& addr, Asset const& asset,
-                                  CxxI128 const& amount)
+bool AggregatedEvents::addAssetBalance(SCAddress const& addr,
+                                       Asset const& asset,
+                                       CxxI128 const& amount)
 {
     auto current = mEventAmounts[addr][asset];
 
@@ -52,10 +52,9 @@ AggregatedEvents::addAssetBalance(SCAddress const& addr, Asset const& asset,
     return true;
 }
 
-bool
-AggregatedEvents::subtractAssetBalance(SCAddress const& addr,
-                                       Asset const& asset,
-                                       CxxI128 const& amount)
+bool AggregatedEvents::subtractAssetBalance(SCAddress const& addr,
+                                            Asset const& asset,
+                                            CxxI128 const& amount)
 {
     auto current = mEventAmounts[addr][asset];
 
@@ -68,8 +67,8 @@ AggregatedEvents::subtractAssetBalance(SCAddress const& addr,
     return true;
 }
 
-CxxI128
-AggregatedEvents::consumeAmount(SCAddress const& addr, Asset const& asset)
+CxxI128 AggregatedEvents::consumeAmount(SCAddress const& addr,
+                                        Asset const& asset)
 {
     auto lkAssetMapIt = mEventAmounts.find(addr);
     if (lkAssetMapIt == mEventAmounts.end())
@@ -95,8 +94,7 @@ AggregatedEvents::consumeAmount(SCAddress const& addr, Asset const& asset)
     return res;
 }
 
-CxxI128
-getAmountFromData(SCVal const& data)
+CxxI128 getAmountFromData(SCVal const& data)
 {
     if (data.type() == SCV_I128)
     {
@@ -119,8 +117,7 @@ getAmountFromData(SCVal const& data)
     return I128ZERO;
 }
 
-std::optional<SCAddress>
-getAddressFromBalanceKey(LedgerKey const& lk)
+std::optional<SCAddress> getAddressFromBalanceKey(LedgerKey const& lk)
 {
     if (lk.contractData().key.type() != SCV_VEC)
     {
@@ -144,10 +141,9 @@ getAddressFromBalanceKey(LedgerKey const& lk)
 }
 
 // Should only be called with trustlines as input
-bool
-checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
-                   Asset const& asset, LedgerEntry const* current,
-                   LedgerEntry const* previous)
+bool checkAuthorization(AggregatedEvents& agg, SCAddress const& trustlineOwner,
+                        Asset const& asset, LedgerEntry const* current,
+                        LedgerEntry const* previous)
 {
     if (!current || !previous)
     {
@@ -573,16 +569,14 @@ EventsAreConsistentWithEntryDiffs::registerInvariant(Application& app)
             app.getNetworkID());
 }
 
-std::string
-EventsAreConsistentWithEntryDiffs::getName() const
+std::string EventsAreConsistentWithEntryDiffs::getName() const
 {
     return "EventsAreConsistentWithEntryDiffs";
 }
 
 // Note that this invariant only verifies balance changes in the context of an
 // operation. The fee events should not be accounted for here.
-std::string
-EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
+std::string EventsAreConsistentWithEntryDiffs::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector& app)

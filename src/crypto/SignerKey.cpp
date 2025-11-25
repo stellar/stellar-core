@@ -13,14 +13,12 @@
 namespace stellar
 {
 
-std::string
-KeyFunctions<SignerKey>::getKeyTypeName()
+std::string KeyFunctions<SignerKey>::getKeyTypeName()
 {
     return "signer key";
 }
 
-bool
-KeyFunctions<SignerKey>::getKeyVersionIsSupported(
+bool KeyFunctions<SignerKey>::getKeyVersionIsSupported(
     strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
@@ -38,8 +36,7 @@ KeyFunctions<SignerKey>::getKeyVersionIsSupported(
     }
 }
 
-bool
-KeyFunctions<SignerKey>::getKeyVersionIsVariableLength(
+bool KeyFunctions<SignerKey>::getKeyVersionIsVariableLength(
     strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
@@ -93,8 +90,7 @@ KeyFunctions<SignerKey>::toKeyVersion(SignerKeyType keyType)
     }
 }
 
-uint256&
-KeyFunctions<SignerKey>::getEd25519Value(SignerKey& key)
+uint256& KeyFunctions<SignerKey>::getEd25519Value(SignerKey& key)
 {
     switch (key.type())
     {
@@ -105,8 +101,7 @@ KeyFunctions<SignerKey>::getEd25519Value(SignerKey& key)
     }
 }
 
-uint256 const&
-KeyFunctions<SignerKey>::getEd25519Value(SignerKey const& key)
+uint256 const& KeyFunctions<SignerKey>::getEd25519Value(SignerKey const& key)
 {
     switch (key.type())
     {
@@ -117,8 +112,7 @@ KeyFunctions<SignerKey>::getEd25519Value(SignerKey const& key)
     }
 }
 
-std::vector<uint8_t>
-KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
+std::vector<uint8_t> KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
 {
     switch (key.type())
     {
@@ -135,9 +129,8 @@ KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
     }
 }
 
-void
-KeyFunctions<SignerKey>::setKeyValue(SignerKey& key,
-                                     std::vector<uint8_t> const& data)
+void KeyFunctions<SignerKey>::setKeyValue(SignerKey& key,
+                                          std::vector<uint8_t> const& data)
 {
     switch (key.type())
     {

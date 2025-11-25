@@ -20,50 +20,43 @@ namespace stellar
 namespace overlaytestutils
 {
 
-uint64_t
-getOverlayFloodMessageCount(std::shared_ptr<Application> app,
-                            std::string const& name)
+uint64_t getOverlayFloodMessageCount(std::shared_ptr<Application> app,
+                                     std::string const& name)
 {
     return app->getMetrics()
         .NewMeter({"overlay", "flood", name}, "message")
         .count();
 }
 
-uint64_t
-getAdvertisedHashCount(std::shared_ptr<Application> app)
+uint64_t getAdvertisedHashCount(std::shared_ptr<Application> app)
 {
     return getOverlayFloodMessageCount(app, "advertised");
 }
 
-uint64_t
-getFulfilledDemandCount(std::shared_ptr<Application> app)
+uint64_t getFulfilledDemandCount(std::shared_ptr<Application> app)
 {
     return getOverlayFloodMessageCount(app, "fulfilled");
 }
 
-uint64_t
-getUnfulfilledDemandCount(std::shared_ptr<Application> app)
+uint64_t getUnfulfilledDemandCount(std::shared_ptr<Application> app)
 {
     return getOverlayFloodMessageCount(app, "unfulfilled-unknown") +
            getOverlayFloodMessageCount(app, "unfulfilled-banned");
 }
 
-uint64_t
-getUnknownDemandCount(std::shared_ptr<Application> app)
+uint64_t getUnknownDemandCount(std::shared_ptr<Application> app)
 {
     return getOverlayFloodMessageCount(app, "unfulfilled-unknown");
 }
 
-uint64_t
-getSentDemandCount(std::shared_ptr<Application> app)
+uint64_t getSentDemandCount(std::shared_ptr<Application> app)
 {
     return app->getOverlayManager()
         .getOverlayMetrics()
         .mSendFloodDemandMeter.count();
 }
 
-bool
-knowsAs(Application& knowingApp, Application& knownApp, PeerType peerType)
+bool knowsAs(Application& knowingApp, Application& knownApp, PeerType peerType)
 {
     auto data = knowingApp.getOverlayManager().getPeerManager().load(
         PeerBareAddress{"127.0.0.1", knownApp.getConfig().PEER_PORT});
@@ -75,8 +68,7 @@ knowsAs(Application& knowingApp, Application& knownApp, PeerType peerType)
     return data.first.mType == static_cast<int>(peerType);
 }
 
-bool
-doesNotKnow(Application& knowingApp, Application& knownApp)
+bool doesNotKnow(Application& knowingApp, Application& knownApp)
 {
     return !knowingApp.getOverlayManager()
                 .getPeerManager()
@@ -85,32 +77,27 @@ doesNotKnow(Application& knowingApp, Application& knownApp)
                 .second;
 }
 
-bool
-knowsAsInbound(Application& knowingApp, Application& knownApp)
+bool knowsAsInbound(Application& knowingApp, Application& knownApp)
 {
     return knowsAs(knowingApp, knownApp, PeerType::INBOUND);
 }
 
-bool
-knowsAsOutbound(Application& knowingApp, Application& knownApp)
+bool knowsAsOutbound(Application& knowingApp, Application& knownApp)
 {
     return knowsAs(knowingApp, knownApp, PeerType::OUTBOUND);
 }
 
-bool
-knowsAsPreferred(Application& knowingApp, Application& knownApp)
+bool knowsAsPreferred(Application& knowingApp, Application& knownApp)
 {
     return knowsAs(knowingApp, knownApp, PeerType::PREFERRED);
 }
 
-int
-numberOfAppConnections(Application& app)
+int numberOfAppConnections(Application& app)
 {
     return app.getOverlayManager().getAuthenticatedPeersCount();
 }
 
-int
-numberOfSimulationConnections(std::shared_ptr<Simulation> simulation)
+int numberOfSimulationConnections(std::shared_ptr<Simulation> simulation)
 {
     auto nodes = simulation->getNodes();
     auto num = std::accumulate(std::begin(nodes), std::end(nodes), 0,
@@ -120,8 +107,7 @@ numberOfSimulationConnections(std::shared_ptr<Simulation> simulation)
     return num;
 }
 
-std::shared_ptr<StellarMessage>
-makeStellarMessage(uint32_t wasmSize)
+std::shared_ptr<StellarMessage> makeStellarMessage(uint32_t wasmSize)
 {
     Operation uploadOp;
     uploadOp.body.type(INVOKE_HOST_FUNCTION);

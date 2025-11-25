@@ -70,7 +70,6 @@ struct ValidatorWeightConfig
 
 class Config : public std::enable_shared_from_this<Config>
 {
-
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   uint32 level);
@@ -130,8 +129,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Sets VALIDATOR_WEIGHT_CONFIG based on the content of `validators`. No-op
     // if this node is not a validator.
-    void
-    setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators);
+    void setValidatorWeightConfig(
+        std::vector<ValidatorEntry> const& validators);
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -897,8 +896,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
-    void
-    generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
+    void generateQuorumSetForTesting(
+        std::vector<ValidatorEntry> const& validators);
 
 #endif
 

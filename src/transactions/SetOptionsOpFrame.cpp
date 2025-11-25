@@ -28,8 +28,7 @@ SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op,
 {
 }
 
-ThresholdLevel
-SetOptionsOpFrame::getThresholdLevel() const
+ThresholdLevel SetOptionsOpFrame::getThresholdLevel() const
 {
     // updating thresholds or signer requires high threshold
     if (mSetOptions.masterWeight || mSetOptions.lowThreshold ||
@@ -41,9 +40,8 @@ SetOptionsOpFrame::getThresholdLevel() const
     return ThresholdLevel::MEDIUM;
 }
 
-bool
-SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
-                                     OperationResult& res) const
+bool SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
+                                          OperationResult& res) const
 {
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -103,10 +101,9 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
     return true;
 }
 
-void
-SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
-                                LedgerTxnHeader const& header,
-                                LedgerTxnEntry& sourceAccount) const
+void SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
+                                     LedgerTxnHeader const& header,
+                                     LedgerTxnEntry& sourceAccount) const
 {
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
@@ -120,10 +117,9 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
     }
 }
 
-bool
-SetOptionsOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                           OperationResult& res,
-                           OperationMetaBuilder& opMeta) const
+bool SetOptionsOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                OperationResult& res,
+                                OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
 
@@ -227,9 +223,8 @@ SetOptionsOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                OperationResult& res) const
+bool SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                     OperationResult& res) const
 {
     if ((mSetOptions.setFlags &&
          !accountFlagMaskCheckIsValid(*mSetOptions.setFlags, ledgerVersion)) ||

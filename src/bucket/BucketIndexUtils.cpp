@@ -16,8 +16,7 @@
 namespace stellar
 {
 
-std::streamoff
-getPageSizeFromConfig(Config const& cfg)
+std::streamoff getPageSizeFromConfig(Config const& cfg)
 {
     if (cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT == 0)
     {

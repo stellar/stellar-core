@@ -14,8 +14,7 @@ namespace stellar
 
 using namespace std;
 
-std::unique_ptr<BanManager>
-BanManager::create(Application& app)
+std::unique_ptr<BanManager> BanManager::create(Application& app)
 {
     return std::make_unique<BanManagerImpl>(app);
 }
@@ -28,8 +27,7 @@ BanManagerImpl::~BanManagerImpl()
 {
 }
 
-void
-BanManagerImpl::banNode(NodeID nodeID)
+void BanManagerImpl::banNode(NodeID nodeID)
 {
     ZoneScoped;
     if (isBanned(nodeID))
@@ -53,8 +51,7 @@ BanManagerImpl::banNode(NodeID nodeID)
     }
 }
 
-void
-BanManagerImpl::unbanNode(NodeID nodeID)
+void BanManagerImpl::unbanNode(NodeID nodeID)
 {
     ZoneScoped;
     auto nodeIDString = KeyUtils::toStrKey(nodeID);
@@ -71,8 +68,7 @@ BanManagerImpl::unbanNode(NodeID nodeID)
     }
 }
 
-bool
-BanManagerImpl::isBanned(NodeID nodeID)
+bool BanManagerImpl::isBanned(NodeID nodeID)
 {
     ZoneScoped;
     auto nodeIDString = KeyUtils::toStrKey(nodeID);
@@ -91,8 +87,7 @@ BanManagerImpl::isBanned(NodeID nodeID)
     }
 }
 
-std::vector<std::string>
-BanManagerImpl::getBans()
+std::vector<std::string> BanManagerImpl::getBans()
 {
     ZoneScoped;
     std::vector<std::string> result;
@@ -114,8 +109,7 @@ BanManagerImpl::getBans()
     return result;
 }
 
-void
-BanManager::dropAll(Database& db)
+void BanManager::dropAll(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS ban";
 

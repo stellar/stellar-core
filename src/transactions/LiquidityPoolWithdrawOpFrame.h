@@ -13,8 +13,7 @@ class AbstractLedgerTxn;
 
 class LiquidityPoolWithdrawOpFrame : public OperationFrame
 {
-    LiquidityPoolWithdrawResult&
-    innerResult(OperationResult& res) const
+    LiquidityPoolWithdrawResult& innerResult(OperationResult& res) const
     {
         return res.tr().liquidityPoolWithdrawResult();
     }
@@ -35,8 +34,8 @@ class LiquidityPoolWithdrawOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
     static LiquidityPoolWithdrawResultCode
     getInnerCode(OperationResult const& res)

@@ -84,9 +84,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
     return HistoryManager::VERIFY_STATUS_OK;
 }
 
-template <typename T>
-void
-trySetFuture(std::promise<T>& promise, T value)
+template <typename T> void trySetFuture(std::promise<T>& promise, T value)
 {
     try
     {
@@ -130,8 +128,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     releaseAssert(lastClosedLedger.second);
 }
 
-std::string
-VerifyLedgerChainWork::getStatus() const
+std::string VerifyLedgerChainWork::getStatus() const
 {
     if (!isDone() && !isAborting() && mRange.mCount != 0)
     {
@@ -142,8 +139,7 @@ VerifyLedgerChainWork::getStatus() const
     return BasicWork::getStatus();
 }
 
-void
-VerifyLedgerChainWork::onReset()
+void VerifyLedgerChainWork::onReset()
 {
     CLOG_INFO(History, "Verifying ledgers {}", mRange.toString());
 
@@ -425,8 +421,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     return HistoryManager::VERIFY_STATUS_OK;
 }
 
-void
-VerifyLedgerChainWork::onSuccess()
+void VerifyLedgerChainWork::onSuccess()
 {
     trySetFuture<bool>(mFatalFailurePromise,
                        mChainDisagreesWithLocalState && mHasTrustedHash);
@@ -446,15 +441,13 @@ VerifyLedgerChainWork::onSuccess()
     }
 }
 
-void
-VerifyLedgerChainWork::onFailureRaise()
+void VerifyLedgerChainWork::onFailureRaise()
 {
     trySetFuture<bool>(mFatalFailurePromise,
                        mChainDisagreesWithLocalState && mHasTrustedHash);
 }
 
-BasicWork::State
-VerifyLedgerChainWork::onRun()
+BasicWork::State VerifyLedgerChainWork::onRun()
 {
     ZoneScoped;
     if (mRange.mCount == 0)

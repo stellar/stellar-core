@@ -14,9 +14,7 @@ namespace stellar
 void runCurrentThreadWithLowPriority();
 void runCurrentThreadWithMediumPriority();
 
-template <typename T>
-bool
-futureIsReady(std::future<T> const& fut)
+template <typename T> bool futureIsReady(std::future<T> const& fut)
 {
     if (!fut.valid())
     {
@@ -26,9 +24,7 @@ futureIsReady(std::future<T> const& fut)
     return status == std::future_status::ready;
 }
 
-template <typename T>
-bool
-futureIsReady(std::shared_future<T> const& fut)
+template <typename T> bool futureIsReady(std::shared_future<T> const& fut)
 {
     if (!fut.valid())
     {

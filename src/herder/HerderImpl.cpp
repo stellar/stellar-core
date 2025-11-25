@@ -65,8 +65,7 @@ constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 
-std::unique_ptr<Herder>
-Herder::create(Application& app)
+std::unique_ptr<Herder> Herder::create(Application& app)
 {
     return std::make_unique<HerderImpl>(app);
 }
@@ -116,14 +115,12 @@ HerderImpl::~HerderImpl()
 {
 }
 
-Herder::State
-HerderImpl::getState() const
+Herder::State HerderImpl::getState() const
 {
     return mState;
 }
 
-uint32_t
-HerderImpl::getMaxClassicTxSize() const
+uint32_t HerderImpl::getMaxClassicTxSize() const
 {
 #ifdef BUILD_TESTS
     if (mMaxClassicTxSize)
@@ -134,8 +131,7 @@ HerderImpl::getMaxClassicTxSize() const
     return MAX_CLASSIC_TX_SIZE_BYTES;
 }
 
-uint32_t
-HerderImpl::getFlowControlExtraBuffer() const
+uint32_t HerderImpl::getFlowControlExtraBuffer() const
 {
 #ifdef BUILD_TESTS
     if (mFlowControlExtraBuffer)
@@ -146,9 +142,8 @@ HerderImpl::getFlowControlExtraBuffer() const
     return FLOW_CONTROL_BYTES_EXTRA_BUFFER;
 }
 
-void
-HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
-                                bool isTrackingNetwork)
+void HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
+                                     bool isTrackingNetwork)
 {
     mTrackingSCP = ConsensusData{index, value.closeTime};
     if (isTrackingNetwork)
@@ -161,8 +156,7 @@ HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
     }
 }
 
-uint32
-HerderImpl::trackingConsensusLedgerIndex() const
+uint32 HerderImpl::trackingConsensusLedgerIndex() const
 {
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
     releaseAssert(mTrackingSCP.mConsensusIndex <= UINT32_MAX);
@@ -180,15 +174,13 @@ HerderImpl::trackingConsensusLedgerIndex() const
     return static_cast<uint32>(mTrackingSCP.mConsensusIndex);
 }
 
-TimePoint
-HerderImpl::trackingConsensusCloseTime() const
+TimePoint HerderImpl::trackingConsensusCloseTime() const
 {
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
     return mTrackingSCP.mConsensusCloseTime;
 }
 
-void
-HerderImpl::setState(State st)
+void HerderImpl::setState(State st)
 {
     bool initState = st == HERDER_BOOTING_STATE;
     if (initState && (mState == HERDER_TRACKING_NETWORK_STATE ||
@@ -201,29 +193,25 @@ HerderImpl::setState(State st)
     mState = st;
 }
 
-void
-HerderImpl::lostSync()
+void HerderImpl::lostSync()
 {
     mHerderSCPDriver.stateChanged();
     setState(Herder::State::HERDER_SYNCING_STATE);
 }
 
-SCP&
-HerderImpl::getSCP()
+SCP& HerderImpl::getSCP()
 {
     return mHerderSCPDriver.getSCP();
 }
 
-void
-HerderImpl::syncMetrics()
+void HerderImpl::syncMetrics()
 {
     int64_t count = getSCP().getCumulativeStatemtCount();
     mSCPMetrics.mCumulativeStatements.set_count(count);
     TracyPlot("scp.memory.cumulative-statements", count);
 }
 
-std::string
-HerderImpl::getStateHuman(State st) const
+std::string HerderImpl::getStateHuman(State st) const
 {
     static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
         "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
@@ -231,8 +219,7 @@ HerderImpl::getStateHuman(State st) const
     return std::string(stateStrings[st]);
 }
 
-void
-HerderImpl::bootstrap()
+void HerderImpl::bootstrap()
 {
     CLOG_INFO(Herder, "Force joining SCP with local state");
     releaseAssert(getSCP().isValidator());
@@ -246,8 +233,8 @@ HerderImpl::bootstrap()
         true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
 }
 
-void
-HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
+void HerderImpl::newSlotExternalized(bool synchronous,
+                                     StellarValue const& value)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "HerderImpl::newSlotExternalized");
@@ -268,8 +255,7 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     safelyProcessSCPQueue(synchronous);
 }
 
-void
-HerderImpl::shutdown()
+void HerderImpl::shutdown()
 {
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
@@ -284,9 +270,9 @@ HerderImpl::shutdown()
     mCheckForDeadNodesTimer.cancel();
 }
 
-void
-HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
-                                bool isLatestSlot)
+void HerderImpl::processExternalized(uint64 slotIndex,
+                                     StellarValue const& value,
+                                     bool isLatestSlot)
 {
     ZoneScoped;
 
@@ -360,8 +346,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     mLedgerManager.valueExternalized(ledgerData, isLatestSlot);
 }
 
-void
-HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
+void HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
 {
     ZoneScoped;
 
@@ -399,8 +384,7 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
     }
 }
 
-void
-recordExternalizeAndCheckCloseTimeDrift(
+void recordExternalizeAndCheckCloseTimeDrift(
     uint64 slotIndex, StellarValue const& value,
     std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
 {
@@ -432,9 +416,8 @@ recordExternalizeAndCheckCloseTimeDrift(
     }
 }
 
-void
-HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
-                              bool isLatestSlot)
+void HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
+                                   bool isLatestSlot)
 {
     ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
@@ -501,8 +484,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
     }
 }
 
-void
-HerderImpl::outOfSyncRecovery()
+void HerderImpl::outOfSyncRecovery()
 {
     ZoneScoped;
 
@@ -541,8 +523,7 @@ HerderImpl::outOfSyncRecovery()
     getMoreSCPState();
 }
 
-void
-HerderImpl::broadcast(SCPEnvelope const& e)
+void HerderImpl::broadcast(SCPEnvelope const& e)
 {
     ZoneScoped;
     if (!mApp.getConfig().MANUAL_CLOSE)
@@ -559,8 +540,7 @@ HerderImpl::broadcast(SCPEnvelope const& e)
     }
 }
 
-void
-HerderImpl::startOutOfSyncTimer()
+void HerderImpl::startOutOfSyncTimer()
 {
     if (mApp.getConfig().MANUAL_CLOSE && mApp.getConfig().RUN_STANDALONE)
     {
@@ -577,8 +557,7 @@ HerderImpl::startOutOfSyncTimer()
         &VirtualTimer::onFailureNoop);
 }
 
-void
-HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
+void HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     uint64 slotIndex = envelope.statement.slotIndex;
@@ -659,8 +638,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     return result;
 }
 
-bool
-HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
+bool HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 {
     ZoneScoped;
     using std::placeholders::_1;
@@ -763,8 +741,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     return b;
 }
 
-uint32_t
-HerderImpl::getMinLedgerSeqToRemember() const
+uint32_t HerderImpl::getMinLedgerSeqToRemember() const
 {
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
     auto currSlot = trackingConsensusLedgerIndex();
@@ -778,8 +755,7 @@ HerderImpl::getMinLedgerSeqToRemember() const
     }
 }
 
-Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
+Herder::EnvelopeStatus HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     if (mApp.getConfig().MANUAL_CLOSE)
@@ -901,10 +877,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
 #ifdef BUILD_TESTS
 
-Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
-                            TxSetXDRFrameConstPtr txset)
+Herder::EnvelopeStatus HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
+                                                   const SCPQuorumSet& qset,
+                                                   TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     mPendingEnvelopes.addTxSet(txset->getContentsHash(),
@@ -913,10 +888,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     return recvSCPEnvelope(envelope);
 }
 
-Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
-                            StellarMessage const& txset)
+Herder::EnvelopeStatus HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
+                                                   const SCPQuorumSet& qset,
+                                                   StellarMessage const& txset)
 {
     auto txSetFrame =
         txset.type() == TX_SET
@@ -925,11 +899,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     return recvSCPEnvelope(envelope, qset, txSetFrame);
 }
 
-void
-HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
-                             uint64_t closeTime,
-                             xdr::xvector<UpgradeType, 6> const& upgrades,
-                             std::optional<SecretKey> skToSignValue)
+void HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet,
+                                  uint32_t ledgerSeq, uint64_t closeTime,
+                                  xdr::xvector<UpgradeType, 6> const& upgrades,
+                                  std::optional<SecretKey> skToSignValue)
 {
     getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
     auto sk = skToSignValue ? *skToSignValue : mApp.getConfig().NODE_SEED;
@@ -942,8 +915,7 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
     }
 }
 
-bool
-HerderImpl::sourceAccountPending(AccountID const& accountID) const
+bool HerderImpl::sourceAccountPending(AccountID const& accountID) const
 {
     bool accPending = mTransactionQueue.sourceAccountPending(accountID);
     if (mSorobanTransactionQueue)
@@ -956,8 +928,7 @@ HerderImpl::sourceAccountPending(AccountID const& accountID) const
 
 #endif
 
-void
-HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
+void HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     ZoneScoped;
     bool log = true;
@@ -1045,8 +1016,7 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     }
 }
 
-void
-HerderImpl::processSCPQueue()
+void HerderImpl::processSCPQueue()
 {
     ZoneScoped;
     if (isTracking())
@@ -1075,8 +1045,7 @@ HerderImpl::processSCPQueue()
     }
 }
 
-void
-HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
+void HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     ZoneScoped;
     while (true)
@@ -1105,19 +1074,16 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 }
 
 #ifdef BUILD_TESTS
-PendingEnvelopes&
-HerderImpl::getPendingEnvelopes()
+PendingEnvelopes& HerderImpl::getPendingEnvelopes()
 {
     return mPendingEnvelopes;
 }
 
-ClassicTransactionQueue&
-HerderImpl::getTransactionQueue()
+ClassicTransactionQueue& HerderImpl::getTransactionQueue()
 {
     return mTransactionQueue;
 }
-SorobanTransactionQueue&
-HerderImpl::getSorobanTransactionQueue()
+SorobanTransactionQueue& HerderImpl::getSorobanTransactionQueue()
 {
     releaseAssert(mSorobanTransactionQueue);
     return *mSorobanTransactionQueue;
@@ -1141,8 +1107,7 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
     return std::chrono::milliseconds::zero();
 }
 
-void
-HerderImpl::safelyProcessSCPQueue(bool synchronous)
+void HerderImpl::safelyProcessSCPQueue(bool synchronous)
 {
     // process any statements up to the next slot
     // this may cause it to externalize
@@ -1166,9 +1131,9 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
     }
 }
 
-void
-HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
-                                      bool upgradeApplied)
+void HerderImpl::lastClosedLedgerIncreased(bool latest,
+                                           TxSetXDRFrameConstPtr txSet,
+                                           bool upgradeApplied)
 {
     releaseAssert(threadIsMain());
 
@@ -1203,8 +1168,7 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
     }
 }
 
-void
-HerderImpl::setupTriggerNextLedger()
+void HerderImpl::setupTriggerNextLedger()
 {
     // Invariant: core proceeds to vote for the next ledger only when it's _not_
     // applying to ensure block production does not conflict with ledger close.
@@ -1278,8 +1242,7 @@ HerderImpl::setupTriggerNextLedger()
 #endif
 }
 
-void
-HerderImpl::eraseBelow(uint32 ledgerSeq)
+void HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
     auto lastCheckpointSeq = getMostRecentCheckpointSeq();
     getHerderSCPDriver().purgeSlots(ledgerSeq, lastCheckpointSeq);
@@ -1288,42 +1251,36 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }
 
-bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
+bool HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
-bool
-HerderImpl::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
+bool HerderImpl::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
-void
-HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
-                           Peer::pointer peer)
+void HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
+                                Peer::pointer peer)
 {
     ZoneScoped;
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetXDRFrameConstPtr
-HerderImpl::getTxSet(Hash const& hash)
+TxSetXDRFrameConstPtr HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
 }
 
-SCPQuorumSetPtr
-HerderImpl::getQSet(Hash const& qSetHash)
+SCPQuorumSetPtr HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mHerderSCPDriver.getQSet(qSetHash);
 }
 
-uint32
-HerderImpl::getMinLedgerSeqToAskPeers() const
+uint32 HerderImpl::getMinLedgerSeqToAskPeers() const
 {
     // computes the smallest ledger for which we *think* we need more SCP
     // messages
@@ -1350,16 +1307,14 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
     return low;
 }
 
-uint32_t
-HerderImpl::getMostRecentCheckpointSeq()
+uint32_t HerderImpl::getMostRecentCheckpointSeq()
 {
     auto lastIndex = trackingConsensusLedgerIndex();
     return HistoryManager::firstLedgerInCheckpointContaining(lastIndex,
                                                              mApp.getConfig());
 }
 
-void
-HerderImpl::setInSyncAndTriggerNextLedger()
+void HerderImpl::setInSyncAndTriggerNextLedger()
 {
     // We either have not set trigger timer, or we're in the
     // middle of a consensus round. Either way, we do not want
@@ -1384,9 +1339,8 @@ HerderImpl::setInSyncAndTriggerNextLedger()
 
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
-void
-HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
-                              bool checkTrackingSCP)
+void HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
+                                   bool checkTrackingSCP)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
@@ -1566,8 +1520,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                               lcl.header.scpValue);
 }
 
-void
-HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
+void HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 {
     mUpgrades.setParameters(upgrades, mApp.getConfig());
     persistUpgrades();
@@ -1595,23 +1548,20 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
     }
 }
 
-std::string
-HerderImpl::getUpgradesJson()
+std::string HerderImpl::getUpgradesJson()
 {
     auto ls = LedgerSnapshot(mApp);
     return mUpgrades.getParameters().toDebugJson(ls);
 }
 
-void
-HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
+void HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
     setTrackingSCPState(header.ledgerSeq, header.scpValue,
                         /* isTrackingNetwork */ true);
 }
 
-bool
-HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
+bool HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
 {
     bool r = mApp.getConfig().resolveNodeID(s, retKey);
     if (!r)
@@ -1643,8 +1593,7 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
     return r;
 }
 
-Json::Value
-HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
+Json::Value HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 {
     Json::Value ret;
     ret["you"] = mApp.getConfig().toStrKey(
@@ -1704,9 +1653,8 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
     return ret;
 }
 
-Json::Value
-HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
-                              uint64 index)
+Json::Value HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary,
+                                          bool fullKeys, uint64 index)
 {
     Json::Value ret;
     ret["node"] = mApp.getConfig().toStrKey(id, fullKeys);
@@ -1730,9 +1678,8 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     return ret;
 }
 
-Json::Value
-HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
-                                        bool fullKeys)
+Json::Value HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID,
+                                                    bool summary, bool fullKeys)
 {
     Json::Value ret;
     bool isSelf = rootID == mApp.getConfig().NODE_SEED.getPublicKey();
@@ -1856,14 +1803,12 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
     return ret;
 }
 
-QuorumTracker::QuorumMap const&
-HerderImpl::getCurrentlyTrackedQuorum() const
+QuorumTracker::QuorumMap const& HerderImpl::getCurrentlyTrackedQuorum() const
 {
     return mPendingEnvelopes.getCurrentlyTrackedQuorum();
 }
 
-static Hash
-getQmapHash(QuorumTracker::QuorumMap const& qmap)
+static Hash getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
     SHA256 hasher;
@@ -1884,8 +1829,7 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
     return hasher.finish();
 }
 
-void
-HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
+void HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
 {
     ZoneScoped;
     if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
@@ -1932,8 +1876,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
         true /*analyzeCriticalGroups*/);
 }
 
-void
-HerderImpl::checkAndMaybeReanalyzeQuorumMap()
+void HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 {
     if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
     {
@@ -2051,8 +1994,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
     }
 }
 
-void
-HerderImpl::persistSCPState(uint64 slot)
+void HerderImpl::persistSCPState(uint64 slot)
 {
     ZoneScoped;
     if (slot < mLastSlotSaved)
@@ -2115,8 +2057,7 @@ HerderImpl::persistSCPState(uint64 slot)
                                                    txSetsToPersist);
 }
 
-void
-HerderImpl::restoreSCPState()
+void HerderImpl::restoreSCPState()
 {
     ZoneScoped;
 
@@ -2190,8 +2131,7 @@ HerderImpl::restoreSCPState()
     }
 }
 
-void
-HerderImpl::persistUpgrades()
+void HerderImpl::persistUpgrades()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2200,8 +2140,7 @@ HerderImpl::persistUpgrades()
                                        mApp.getDatabase().getSession());
 }
 
-void
-HerderImpl::restoreUpgrades()
+void HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -2226,8 +2165,7 @@ HerderImpl::restoreUpgrades()
     }
 }
 
-void
-HerderImpl::maybeHandleUpgrade()
+void HerderImpl::maybeHandleUpgrade()
 {
     ZoneScoped;
 
@@ -2262,8 +2200,7 @@ HerderImpl::maybeHandleUpgrade()
     }
 }
 
-void
-HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
+void HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
 {
     if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -2284,8 +2221,7 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
     }
 }
 
-void
-HerderImpl::start()
+void HerderImpl::start()
 {
     mMaxTxSize = mApp.getHerder().getMaxClassicTxSize();
     {
@@ -2350,16 +2286,14 @@ HerderImpl::start()
     startCheckForDeadNodesInterval();
 }
 
-void
-HerderImpl::startTxSetGCTimer()
+void HerderImpl::startTxSetGCTimer()
 {
     mTxSetGarbageCollectTimer.expires_from_now(TX_SET_GC_DELAY);
     mTxSetGarbageCollectTimer.async_wait(
         [this]() { purgeOldPersistedTxSets(); }, &VirtualTimer::onFailureNoop);
 }
 
-void
-HerderImpl::purgeOldPersistedTxSets()
+void HerderImpl::purgeOldPersistedTxSets()
 {
     ZoneScoped;
 
@@ -2400,8 +2334,7 @@ HerderImpl::purgeOldPersistedTxSets()
     }
 }
 
-void
-HerderImpl::startCheckForDeadNodesInterval()
+void HerderImpl::startCheckForDeadNodesInterval()
 {
     mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
     mCheckForDeadNodesTimer.async_wait(
@@ -2412,8 +2345,7 @@ HerderImpl::startCheckForDeadNodesInterval()
         &VirtualTimer::onFailureNoop);
 }
 
-void
-HerderImpl::trackingHeartBeat()
+void HerderImpl::trackingHeartBeat()
 {
     releaseAssert(threadIsMain());
     if (mApp.getConfig().MANUAL_CLOSE)
@@ -2466,9 +2398,8 @@ HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
     return filteredSet(KEYS_TO_FILTER_P24_COUNT, KEYS_TO_FILTER_P24);
 }
 
-void
-HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
-                                   bool queueRebuildNeeded)
+void HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
+                                        bool queueRebuildNeeded)
 {
     ZoneScoped;
     if (externalizedTxSet == nullptr)
@@ -2520,8 +2451,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
     }
 }
 
-void
-HerderImpl::herderOutOfSync()
+void HerderImpl::herderOutOfSync()
 {
     ZoneScoped;
     // State switch from "tracking" to "out of sync" should only happen if
@@ -2550,8 +2480,7 @@ HerderImpl::herderOutOfSync()
     processSCPQueue();
 }
 
-void
-HerderImpl::getMoreSCPState()
+void HerderImpl::getMoreSCPState()
 {
     ZoneScoped;
     size_t const NB_PEERS_TO_ASK = 2;
@@ -2568,8 +2497,7 @@ HerderImpl::getMoreSCPState()
     }
 }
 
-bool
-HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
+bool HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     auto [b, _] = PubKeyUtils::verifySig(
@@ -2587,15 +2515,13 @@ HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 
     return b;
 }
-void
-HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
+void HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
 {
     ZoneScoped;
     envelope.signature = s.sign(xdr::xdr_to_opaque(
         mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
 }
-bool
-HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
+bool HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
     auto [b, _] = PubKeyUtils::verifySig(
@@ -2623,29 +2549,25 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
     return sv;
 }
 
-bool
-HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
-                                        SCPStatement const& newSt)
+bool HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                             SCPStatement const& newSt)
 {
     return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
 }
 
-size_t
-HerderImpl::getMaxQueueSizeOps() const
+size_t HerderImpl::getMaxQueueSizeOps() const
 {
     return mTransactionQueue.getMaxQueueSizeOps();
 }
 
-size_t
-HerderImpl::getMaxQueueSizeSorobanOps() const
+size_t HerderImpl::getMaxQueueSizeSorobanOps() const
 {
     return mSorobanTransactionQueue
                ? mSorobanTransactionQueue->getMaxQueueSizeOps()
                : 0;
 }
 
-bool
-HerderImpl::isBannedTx(Hash const& hash) const
+bool HerderImpl::isBannedTx(Hash const& hash) const
 {
     auto banned = mTransactionQueue.isBanned(hash);
     if (mSorobanTransactionQueue)
@@ -2655,8 +2577,7 @@ HerderImpl::isBannedTx(Hash const& hash) const
     return banned;
 }
 
-TransactionFrameBaseConstPtr
-HerderImpl::getTx(Hash const& hash) const
+TransactionFrameBaseConstPtr HerderImpl::getTx(Hash const& hash) const
 {
     auto classic = mTransactionQueue.getTx(hash);
     if (!classic && mSorobanTransactionQueue)

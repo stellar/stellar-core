@@ -34,8 +34,7 @@ namespace stellar
 
 template <typename T> inline void xdr_validate_enum(T);
 
-static void
-printCurrentException()
+static void printCurrentException()
 {
     std::exception_ptr eptr = std::current_exception();
     if (eptr)
@@ -133,16 +132,14 @@ printCurrentException()
     }
 }
 
-static void
-printBacktraceAndAbort()
+static void printBacktraceAndAbort()
 {
     printCurrentException();
     printCurrentBacktrace();
     std::abort();
 }
 
-static void
-outOfMemory()
+static void outOfMemory()
 {
     std::fprintf(stderr, "Unable to allocate memory\n");
     std::fflush(stderr);
@@ -162,8 +159,7 @@ extern const std::vector<std::pair<std::filesystem::path, std::string>>
     XDR_FILES_SHA256;
 }
 
-void
-checkXDRFileIdentity()
+void checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
 
@@ -227,8 +223,7 @@ checkXDRFileIdentity()
     }
 }
 
-void
-checkStellarCoreMajorVersionProtocolIdentity()
+void checkStellarCoreMajorVersionProtocolIdentity()
 {
     // This extracts a major version number from the git version string embedded
     // in the binary if, and only if, that version string has the form of a
@@ -295,8 +290,7 @@ checkStellarCoreMajorVersionProtocolIdentity()
 #ifdef ASAN_ENABLED
 #error "ASAN_ENABLED and USE_TRACY_MEMORY_TRACKING are mutually exclusive"
 #else
-void*
-operator new(std::size_t count)
+void* operator new(std::size_t count)
 {
     auto ptr = malloc(count);
     if (ptr == nullptr)
@@ -309,15 +303,13 @@ operator new(std::size_t count)
     return ptr;
 }
 
-void
-operator delete(void* ptr) noexcept
+void operator delete(void* ptr) noexcept
 {
     TracySecureFree(ptr);
     free(ptr);
 }
 
-void*
-operator new[](std::size_t count)
+void* operator new[](std::size_t count)
 {
     auto ptr = malloc(count);
     if (ptr == nullptr)
@@ -328,8 +320,7 @@ operator new[](std::size_t count)
     return ptr;
 }
 
-void
-operator delete[](void* ptr) noexcept
+void operator delete[](void* ptr) noexcept
 {
     TracySecureFree(ptr);
     free(ptr);
@@ -337,8 +328,7 @@ operator delete[](void* ptr) noexcept
 #endif // !ASAN_ENABLED
 #endif // USE_TRACY_MEMORY_TRACKING
 
-int
-main(int argc, char* const* argv)
+int main(int argc, char* const* argv)
 {
     using namespace stellar;
     BacktraceManager btGuard;
@@ -359,7 +349,6 @@ main(int argc, char* const* argv)
 
     try
     {
-
         checkStellarCoreMajorVersionProtocolIdentity();
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);

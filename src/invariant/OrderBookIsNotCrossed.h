@@ -55,8 +55,7 @@ class OrderBookIsNotCrossed : public Invariant
         LedgerTxnDelta const& ltxDelta,
         std::vector<ContractEvent> const& events, AppConnector& app) override;
 
-    OrderBook const&
-    getOrderBook() const
+    OrderBook const& getOrderBook() const
     {
         return mOrderBook;
     }

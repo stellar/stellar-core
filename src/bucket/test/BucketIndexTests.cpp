@@ -64,9 +64,8 @@ class BucketIndexTest
         }
     }
 
-    void
-    buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
-                    bool isCacheTest = false, bool sorobanOnly = false)
+    void buildBucketList(std::function<void(std::vector<LedgerEntry>&)> f,
+                         bool isCacheTest = false, bool sorobanOnly = false)
     {
         releaseAssertOrThrow(!(isCacheTest && sorobanOnly));
 
@@ -89,7 +88,6 @@ class BucketIndexTest
             }
             else if (sorobanOnly)
             {
-
                 entries =
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
                         {CONTRACT_DATA, CONTRACT_CODE}, 10, mGeneratedKeys);
@@ -146,32 +144,27 @@ class BucketIndexTest
     {
     }
 
-    BucketManager&
-    getBM() const
+    BucketManager& getBM() const
     {
         return mApp->getBucketManager();
     }
 
-    Application&
-    getApp() const
+    Application& getApp() const
     {
         return *mApp;
     }
 
-    UnorderedMap<LedgerKey, LedgerEntry> const&
-    getContractCodeEntries() const
+    UnorderedMap<LedgerKey, LedgerEntry> const& getContractCodeEntries() const
     {
         return mContractCodeEntries;
     }
 
-    UnorderedMap<LedgerKey, LedgerEntry> const&
-    getContractDataEntries() const
+    UnorderedMap<LedgerKey, LedgerEntry> const& getContractDataEntries() const
     {
         return mContractDataEntries;
     }
 
-    virtual void
-    buildGeneralTest(bool isCacheTest = false)
+    virtual void buildGeneralTest(bool isCacheTest = false)
     {
         auto f = [&](std::vector<LedgerEntry> const& entries) {
             // Sample ~4% of entries if not a cache test
@@ -193,8 +186,7 @@ class BucketIndexTest
         buildBucketList(f, isCacheTest);
     }
 
-    void
-    runHistoricalSnapshotTest()
+    void runHistoricalSnapshotTest()
     {
         uint32_t ledger = 0;
 
@@ -247,8 +239,7 @@ class BucketIndexTest
         }
     }
 
-    virtual void
-    buildMultiVersionTest(bool sorobanOnly = false)
+    virtual void buildMultiVersionTest(bool sorobanOnly = false)
     {
         std::vector<LedgerKey> toDestroy;
         std::vector<LedgerEntry> toUpdate;
@@ -359,8 +350,7 @@ class BucketIndexTest
         buildBucketList(f, /*isCacheTest=*/false, sorobanOnly);
     }
 
-    void
-    insertSimilarContractDataKeys()
+    void insertSimilarContractDataKeys()
     {
         auto templateEntry =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -410,8 +400,7 @@ class BucketIndexTest
         closeLedger(*mApp);
     }
 
-    virtual void
-    run(std::optional<double> expectedHitRate = std::nullopt)
+    virtual void run(std::optional<double> expectedHitRate = std::nullopt)
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -541,8 +530,7 @@ class BucketIndexTest
     }
 
     // Do many lookups with subsets of sampled entries
-    virtual void
-    runPerf(size_t n)
+    virtual void runPerf(size_t n)
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -582,8 +570,7 @@ class BucketIndexTest
         }
     }
 
-    void
-    testInvalidKeys()
+    void testInvalidKeys()
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
@@ -607,8 +594,7 @@ class BucketIndexTest
         }
     }
 
-    void
-    restartWithConfig(Config const& cfg)
+    void restartWithConfig(Config const& cfg)
     {
         mApp->gracefulStop();
         while (mClock->crank(false))
@@ -631,8 +617,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     Asset mAsset2;
     Asset mAsset3;
 
-    static LedgerEntry
-    generateTrustline(AccountEntry a, LiquidityPoolEntry p)
+    static LedgerEntry generateTrustline(AccountEntry a, LiquidityPoolEntry p)
     {
         LedgerEntry t;
         t.data.type(TRUSTLINE);
@@ -642,8 +627,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
         return t;
     }
 
-    void
-    buildTest(bool shouldMultiVersion)
+    void buildTest(bool shouldMultiVersion)
     {
         auto f = [&](std::vector<LedgerEntry>& entries) {
             std::vector<LedgerEntry> poolEntries;
@@ -741,14 +725,12 @@ class BucketIndexPoolShareTest : public BucketIndexTest
         strToAssetCode(mAsset3.alphaNum4().assetCode, "ast2");
     }
 
-    virtual void
-    buildGeneralTest(bool isCacheTest = false) override
+    virtual void buildGeneralTest(bool isCacheTest = false) override
     {
         buildTest(false);
     }
 
-    virtual void
-    buildMultiVersionTest(bool ignored = false) override
+    virtual void buildMultiVersionTest(bool ignored = false) override
     {
         buildTest(true);
     }
@@ -766,8 +748,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 };
 
-static void
-testAllIndexTypes(std::function<void(Config&)> f)
+static void testAllIndexTypes(std::function<void(Config&)> f)
 {
     SECTION("individual index only")
     {

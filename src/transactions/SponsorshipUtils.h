@@ -68,18 +68,16 @@ SponsorshipResult canTransferSignerSponsorship(
     LedgerEntry const& oldSponsoringAcc, LedgerEntry const& newSponsoringAcc,
     LedgerEntry const& sponsoredAcc);
 
-void
-establishSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                           LedgerEntry& sponsoringAcc,
-                           LedgerEntry& sponsoredAcc);
-void
-removeSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                        LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc);
-void
-transferSignerSponsorship(std::vector<Signer>::const_iterator const& signerIt,
-                          LedgerEntry& oldSponsoringAcc,
-                          LedgerEntry& newSponsoringAcc,
-                          LedgerEntry& sponsoredAcc);
+void establishSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc);
+void removeSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc);
+void transferSignerSponsorship(
+    std::vector<Signer>::const_iterator const& signerIt,
+    LedgerEntry& oldSponsoringAcc, LedgerEntry& newSponsoringAcc,
+    LedgerEntry& sponsoredAcc);
 
 SponsorshipResult canCreateEntryWithoutSponsorship(LedgerHeader const& lh,
                                                    LedgerEntry const& le,

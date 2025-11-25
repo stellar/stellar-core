@@ -29,20 +29,17 @@ TxDemandsManager::TxDemandsManager(Application& app)
 {
 }
 
-void
-TxDemandsManager::start()
+void TxDemandsManager::start()
 {
     demand();
 }
 
-void
-TxDemandsManager::shutdown()
+void TxDemandsManager::shutdown()
 {
     mDemandTimer.cancel();
 }
 
-size_t
-TxDemandsManager::getMaxDemandSize() const
+size_t TxDemandsManager::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
@@ -106,8 +103,7 @@ TxDemandsManager::demandStatus(Hash const& txHash, Peer::pointer peer) const
     return DemandStatus::DISCARD;
 }
 
-void
-TxDemandsManager::startDemandTimer()
+void TxDemandsManager::startDemandTimer()
 {
     mDemandTimer.expires_from_now(mApp.getConfig().FLOOD_DEMAND_PERIOD_MS);
     mDemandTimer.async_wait([this](asio::error_code const& error) {
@@ -118,8 +114,7 @@ TxDemandsManager::startDemandTimer()
     });
 }
 
-void
-TxDemandsManager::demand()
+void TxDemandsManager::demand()
 {
     ZoneScoped;
     if (mApp.getOverlayManager().isShuttingDown())
@@ -225,9 +220,8 @@ TxDemandsManager::demand()
     startDemandTimer();
 }
 
-void
-TxDemandsManager::recordTxPullLatency(Hash const& hash,
-                                      std::shared_ptr<Peer> peer)
+void TxDemandsManager::recordTxPullLatency(Hash const& hash,
+                                           std::shared_ptr<Peer> peer)
 {
     auto it = mDemandHistoryMap.find(hash);
     auto now = mApp.getClock().now();
@@ -267,8 +261,7 @@ TxDemandsManager::recordTxPullLatency(Hash const& hash,
     }
 }
 
-void
-TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
+void TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 {
     ZoneScoped;
     auto& herder = mApp.getHerder();

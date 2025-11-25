@@ -101,8 +101,7 @@ class NominationProtocol
     // return the current leaders
     std::set<NodeID> const& getLeaders() const;
 
-    ValueWrapperPtr const&
-    getLatestCompositeCandidate() const
+    ValueWrapperPtr const& getLatestCompositeCandidate() const
     {
         return mLatestCompositeCandidate;
     }
@@ -112,8 +111,7 @@ class NominationProtocol
     SCP::QuorumInfoNodeState getState(NodeID const& node,
                                       bool selfAlreadyMovedOn);
 
-    SCPEnvelope const*
-    getLastMessageSend() const
+    SCPEnvelope const* getLastMessageSend() const
     {
         return mLastEnvelope ? &mLastEnvelope->getEnvelope() : nullptr;
     }

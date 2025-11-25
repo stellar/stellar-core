@@ -19,14 +19,13 @@
 namespace stellar
 {
 
-bool
-LiveBucketIndex::typeNotSupported(LedgerEntryType t)
+bool LiveBucketIndex::typeNotSupported(LedgerEntryType t)
 {
     return t == OFFER;
 }
 
-std::streamoff
-LiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
+std::streamoff LiveBucketIndex::getPageSize(Config const& cfg,
+                                            size_t bucketSize)
 {
     // Convert cfg param from MB to bytes
     if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1024 * 1024;
@@ -51,7 +50,6 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
     auto pageSize = getPageSize(bm.getConfig(), fs::size(filename.string()));
     if (pageSize == 0)
     {
-
         CLOG_DEBUG(Bucket,
                    "LiveBucketIndex::createIndex() using in-memory index for "
                    "bucket {}",
@@ -91,9 +89,8 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
 {
 }
 
-void
-LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
-                                      Config const& cfg) const
+void LiveBucketIndex::maybeInitializeCache(
+    size_t totalBucketListAccountsSizeBytes, Config const& cfg) const
 {
     // Everything is already in memory, no need for a redundant cache.
     if (mInMemoryIndex)
@@ -162,8 +159,7 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
     }
 }
 
-LiveBucketIndex::IterT
-LiveBucketIndex::begin() const
+LiveBucketIndex::IterT LiveBucketIndex::begin() const
 {
     if (mDiskIndex)
     {
@@ -176,8 +172,7 @@ LiveBucketIndex::begin() const
     }
 }
 
-LiveBucketIndex::IterT
-LiveBucketIndex::end() const
+LiveBucketIndex::IterT LiveBucketIndex::end() const
 {
     if (mDiskIndex)
     {
@@ -190,8 +185,7 @@ LiveBucketIndex::end() const
     }
 }
 
-void
-LiveBucketIndex::markBloomMiss() const
+void LiveBucketIndex::markBloomMiss() const
 {
     releaseAssertOrThrow(mDiskIndex);
     mDiskIndex->markBloomMiss();
@@ -220,8 +214,7 @@ LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
     return nullptr;
 }
 
-IndexReturnT
-LiveBucketIndex::lookup(LedgerKey const& k) const
+IndexReturnT LiveBucketIndex::lookup(LedgerKey const& k) const
 {
     if (mDiskIndex)
     {
@@ -294,8 +287,7 @@ LiveBucketIndex::getRangeForType(LedgerEntryType type) const
     return mInMemoryIndex->getRangeForType(type);
 }
 
-uint32_t
-LiveBucketIndex::getPageSize() const
+uint32_t LiveBucketIndex::getPageSize() const
 {
     if (mDiskIndex)
     {
@@ -306,8 +298,7 @@ LiveBucketIndex::getPageSize() const
     return 0;
 }
 
-BucketEntryCounters const&
-LiveBucketIndex::getBucketEntryCounters() const
+BucketEntryCounters const& LiveBucketIndex::getBucketEntryCounters() const
 {
     if (mDiskIndex)
     {
@@ -318,8 +309,7 @@ LiveBucketIndex::getBucketEntryCounters() const
     return mInMemoryIndex->getBucketEntryCounters();
 }
 
-bool
-LiveBucketIndex::shouldUseCache() const
+bool LiveBucketIndex::shouldUseCache() const
 {
     if (mDiskIndex)
     {
@@ -330,14 +320,12 @@ LiveBucketIndex::shouldUseCache() const
     return false;
 }
 
-bool
-LiveBucketIndex::isCachedType(LedgerKey const& lk)
+bool LiveBucketIndex::isCachedType(LedgerKey const& lk)
 {
     return lk.type() == ACCOUNT;
 }
 
-void
-LiveBucketIndex::maybeAddToCache(
+void LiveBucketIndex::maybeAddToCache(
     std::shared_ptr<BucketEntry const> const& entry) const
 {
     if (shouldUseCache())
@@ -359,8 +347,7 @@ LiveBucketIndex::maybeAddToCache(
 }
 
 #ifdef BUILD_TESTS
-bool
-LiveBucketIndex::operator==(LiveBucketIndex const& in) const
+bool LiveBucketIndex::operator==(LiveBucketIndex const& in) const
 {
     if (mDiskIndex)
     {
@@ -387,8 +374,7 @@ LiveBucketIndex::operator==(LiveBucketIndex const& in) const
     return true;
 }
 
-size_t
-LiveBucketIndex::getMaxCacheSize() const
+size_t LiveBucketIndex::getMaxCacheSize() const
 {
     if (shouldUseCache())
     {
@@ -400,8 +386,7 @@ LiveBucketIndex::getMaxCacheSize() const
 }
 #endif
 
-size_t
-LiveBucketIndex::getCurrentCacheSize() const
+size_t LiveBucketIndex::getCurrentCacheSize() const
 {
     if (shouldUseCache())
     {

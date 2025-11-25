@@ -84,8 +84,7 @@ FutureBucket<BucketT>::FutureBucket(
 }
 
 template <class BucketT>
-void
-FutureBucket<BucketT>::setLiveOutput(std::shared_ptr<BucketT> output)
+void FutureBucket<BucketT>::setLiveOutput(std::shared_ptr<BucketT> output)
 {
     ZoneScoped;
     mState = FB_LIVE_OUTPUT;
@@ -95,15 +94,12 @@ FutureBucket<BucketT>::setLiveOutput(std::shared_ptr<BucketT> output)
 }
 
 template <class BucketT>
-static void
-checkHashEq(std::shared_ptr<BucketT> const& b, std::string const& h)
+static void checkHashEq(std::shared_ptr<BucketT> const& b, std::string const& h)
 {
     releaseAssert(b->getHash() == hexToBin256(h));
 }
 
-template <class BucketT>
-void
-FutureBucket<BucketT>::checkHashesMatch() const
+template <class BucketT> void FutureBucket<BucketT>::checkHashesMatch() const
 {
     ZoneScoped;
     if (!mInputShadowBuckets.empty())
@@ -136,9 +132,7 @@ FutureBucket<BucketT>::checkHashesMatch() const
  * the different hash-only states are mutually exclusive with each other and
  * with live values.
  */
-template <class BucketT>
-void
-FutureBucket<BucketT>::checkState() const
+template <class BucketT> void FutureBucket<BucketT>::checkState() const
 {
     switch (mState)
     {
@@ -197,9 +191,7 @@ FutureBucket<BucketT>::checkState() const
     }
 }
 
-template <class BucketT>
-void
-FutureBucket<BucketT>::clearInputs()
+template <class BucketT> void FutureBucket<BucketT>::clearInputs()
 {
     mInputShadowBuckets.clear();
     mInputSnapBucket.reset();
@@ -210,9 +202,7 @@ FutureBucket<BucketT>::clearInputs()
     mInputCurrBucketHash.clear();
 }
 
-template <class BucketT>
-void
-FutureBucket<BucketT>::clearOutput()
+template <class BucketT> void FutureBucket<BucketT>::clearOutput()
 {
     // NB: MSVC future<> implementation doesn't purge the task lambda (and
     // its captures) on invalidation (due to get()); must explicitly reset.
@@ -221,46 +211,34 @@ FutureBucket<BucketT>::clearOutput()
     mOutputBucket.reset();
 }
 
-template <class BucketT>
-void
-FutureBucket<BucketT>::clear()
+template <class BucketT> void FutureBucket<BucketT>::clear()
 {
     mState = FB_CLEAR;
     clearInputs();
     clearOutput();
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::isLive() const
+template <class BucketT> bool FutureBucket<BucketT>::isLive() const
 {
     return (mState == FB_LIVE_INPUTS || mState == FB_LIVE_OUTPUT);
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::isMerging() const
+template <class BucketT> bool FutureBucket<BucketT>::isMerging() const
 {
     return mState == FB_LIVE_INPUTS;
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::hasHashes() const
+template <class BucketT> bool FutureBucket<BucketT>::hasHashes() const
 {
     return (mState == FB_HASH_INPUTS || mState == FB_HASH_OUTPUT);
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::isClear() const
+template <class BucketT> bool FutureBucket<BucketT>::isClear() const
 {
     return mState == FB_CLEAR;
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::mergeComplete() const
+template <class BucketT> bool FutureBucket<BucketT>::mergeComplete() const
 {
     ZoneScoped;
     releaseAssert(isLive());
@@ -273,8 +251,7 @@ FutureBucket<BucketT>::mergeComplete() const
 }
 
 template <class BucketT>
-std::shared_ptr<BucketT>
-FutureBucket<BucketT>::resolve()
+std::shared_ptr<BucketT> FutureBucket<BucketT>::resolve()
 {
     ZoneScoped;
     checkState();
@@ -304,9 +281,7 @@ FutureBucket<BucketT>::resolve()
     return mOutputBucket;
 }
 
-template <class BucketT>
-bool
-FutureBucket<BucketT>::hasOutputHash() const
+template <class BucketT> bool FutureBucket<BucketT>::hasOutputHash() const
 {
     if (mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT)
     {
@@ -317,8 +292,7 @@ FutureBucket<BucketT>::hasOutputHash() const
 }
 
 template <class BucketT>
-std::string const&
-FutureBucket<BucketT>::getOutputHash() const
+std::string const& FutureBucket<BucketT>::getOutputHash() const
 {
     releaseAssert(mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT);
     releaseAssert(!mOutputBucketHash.empty());
@@ -326,8 +300,8 @@ FutureBucket<BucketT>::getOutputHash() const
 }
 
 template <class BucketT>
-static std::chrono::seconds
-getAvailableTimeForMerge(Application& app, uint32_t level)
+static std::chrono::seconds getAvailableTimeForMerge(Application& app,
+                                                     uint32_t level)
 {
     // FutureBucket is managed by a background thread that is not related to the
     // rest of the core state machine such that getting the current value of a
@@ -344,9 +318,9 @@ getAvailableTimeForMerge(Application& app, uint32_t level)
 }
 
 template <class BucketT>
-void
-FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
-                                  bool countMergeEvents, uint32_t level)
+void FutureBucket<BucketT>::startMerge(Application& app,
+                                       uint32_t maxProtocolVersion,
+                                       bool countMergeEvents, uint32_t level)
 {
     ZoneScoped;
     // NB: startMerge starts with FutureBucket in a half-valid state; the inputs
@@ -462,9 +436,9 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
 }
 
 template <class BucketT>
-void
-FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
-                                uint32_t level)
+void FutureBucket<BucketT>::makeLive(Application& app,
+                                     uint32_t maxProtocolVersion,
+                                     uint32_t level)
 {
     ZoneScoped;
     checkState();
@@ -501,8 +475,7 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
 }
 
 template <class BucketT>
-std::vector<std::string>
-FutureBucket<BucketT>::getHashes() const
+std::vector<std::string> FutureBucket<BucketT>::getHashes() const
 {
     ZoneScoped;
     std::vector<std::string> hashes;

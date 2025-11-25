@@ -8,8 +8,7 @@
 namespace stellar
 {
 
-std::string
-binToHex(ByteSlice const& bin)
+std::string binToHex(ByteSlice const& bin)
 {
     // NB: C++ standard says we can't go modifying the contents of a std::string
     // just by const_cast'ing away const on .data(), so we use a vector<char> to
@@ -26,8 +25,7 @@ binToHex(ByteSlice const& bin)
     return std::string(hex.begin(), hex.end() - 1);
 }
 
-std::string
-hexAbbrev(ByteSlice const& bin)
+std::string hexAbbrev(ByteSlice const& bin)
 {
     size_t sz = bin.size();
     if (sz > 3)
@@ -37,8 +35,7 @@ hexAbbrev(ByteSlice const& bin)
     return binToHex(ByteSlice(bin.data(), sz));
 }
 
-std::vector<uint8_t>
-hexToBin(std::string const& hex)
+std::vector<uint8_t> hexToBin(std::string const& hex)
 {
     std::vector<uint8_t> bin(hex.size() / 2, 0);
     if (!hex.empty())
@@ -52,8 +49,7 @@ hexToBin(std::string const& hex)
     return bin;
 }
 
-uint256
-hexToBin256(std::string const& hex)
+uint256 hexToBin256(std::string const& hex)
 {
     uint256 out;
     auto bin = hexToBin(hex);

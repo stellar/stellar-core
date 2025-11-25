@@ -67,8 +67,7 @@ Simulation::~Simulation()
                std::chrono::seconds(20), false);
 }
 
-void
-Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
+void Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
 {
     mClock.setCurrentVirtualTime(t);
     for (auto& p : mNodes)
@@ -77,8 +76,7 @@ Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
     }
 }
 
-void
-Simulation::setCurrentVirtualTime(VirtualClock::system_time_point t)
+void Simulation::setCurrentVirtualTime(VirtualClock::system_time_point t)
 {
     mClock.setCurrentVirtualTime(t);
     for (auto& p : mNodes)
@@ -87,9 +85,8 @@ Simulation::setCurrentVirtualTime(VirtualClock::system_time_point t)
     }
 }
 
-Application::pointer
-Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
-                    bool newDB)
+Application::pointer Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet,
+                                         Config const* cfg2, bool newDB)
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
@@ -139,21 +136,18 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     return app;
 }
 
-Application::pointer
-Simulation::getNode(NodeID nodeID)
+Application::pointer Simulation::getNode(NodeID nodeID)
 {
     return mNodes[nodeID].mApp;
 }
-vector<Application::pointer>
-Simulation::getNodes()
+vector<Application::pointer> Simulation::getNodes()
 {
     vector<Application::pointer> result;
     for (auto const& p : mNodes)
         result.push_back(p.second.mApp);
     return result;
 }
-vector<NodeID>
-Simulation::getNodeIDs()
+vector<NodeID> Simulation::getNodeIDs()
 {
     vector<NodeID> result;
     for (auto const& p : mNodes)
@@ -161,8 +155,7 @@ Simulation::getNodeIDs()
     return result;
 }
 
-void
-Simulation::removeNode(NodeID const& id)
+void Simulation::removeNode(NodeID const& id)
 {
     auto it = mNodes.find(id);
     if (it != mNodes.end())
@@ -180,8 +173,7 @@ Simulation::removeNode(NodeID const& id)
     }
 }
 
-Application::pointer
-Simulation::getAppFromPeerMap(unsigned short peerPort)
+Application::pointer Simulation::getAppFromPeerMap(unsigned short peerPort)
 {
     releaseAssert(mMode == OVER_LOOPBACK);
     auto it = mPeerMap.find(peerPort);
@@ -199,8 +191,7 @@ Simulation::getAppFromPeerMap(unsigned short peerPort)
     return nullptr;
 }
 
-void
-Simulation::dropAllConnections(NodeID const& id)
+void Simulation::dropAllConnections(NodeID const& id)
 {
     if (mMode == OVER_LOOPBACK)
     {
@@ -226,15 +217,13 @@ Simulation::dropAllConnections(NodeID const& id)
     }
 }
 
-void
-Simulation::addPendingConnection(NodeID const& initiator,
-                                 NodeID const& acceptor)
+void Simulation::addPendingConnection(NodeID const& initiator,
+                                      NodeID const& acceptor)
 {
     mPendingConnections.push_back(std::make_pair(initiator, acceptor));
 }
 
-void
-Simulation::addConnection(NodeID initiator, NodeID acceptor)
+void Simulation::addConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode == OVER_LOOPBACK)
         addLoopbackConnection(initiator, acceptor);
@@ -242,8 +231,7 @@ Simulation::addConnection(NodeID initiator, NodeID acceptor)
         addTCPConnection(initiator, acceptor);
 }
 
-void
-Simulation::dropConnection(NodeID initiator, NodeID acceptor)
+void Simulation::dropConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode == OVER_LOOPBACK)
         dropLoopbackConnection(initiator, acceptor);
@@ -264,8 +252,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
     }
 }
 
-void
-Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
+void Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
     if (mNodes[initiator].mApp && mNodes[acceptor].mApp)
     {
@@ -291,8 +278,7 @@ Simulation::getLoopbackConnection(NodeID const& initiator,
     return it == std::end(mLoopbackConnections) ? nullptr : *it;
 }
 
-void
-Simulation::dropLoopbackConnection(NodeID initiator, NodeID acceptor)
+void Simulation::dropLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
     auto it = std::find_if(
         std::begin(mLoopbackConnections), std::end(mLoopbackConnections),
@@ -308,8 +294,7 @@ Simulation::dropLoopbackConnection(NodeID initiator, NodeID acceptor)
     }
 }
 
-void
-Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
+void Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode != OVER_TCP)
     {
@@ -325,8 +310,7 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     from->getOverlayManager().connectTo(address);
 }
 
-void
-Simulation::stopOverlayTick()
+void Simulation::stopOverlayTick()
 {
     auto cancel = [](Application::pointer app) {
         auto& ov = static_cast<OverlayManagerImpl&>(app->getOverlayManager());
@@ -339,8 +323,7 @@ Simulation::stopOverlayTick()
     }
 }
 
-std::chrono::milliseconds
-Simulation::getExpectedLedgerCloseTime() const
+std::chrono::milliseconds Simulation::getExpectedLedgerCloseTime() const
 {
     if (mNodes.empty())
     {
@@ -352,8 +335,7 @@ Simulation::getExpectedLedgerCloseTime() const
     return node->getLedgerManager().getExpectedLedgerCloseTime();
 }
 
-void
-Simulation::startAllNodes()
+void Simulation::startAllNodes()
 {
     for (auto const& it : mNodes)
     {
@@ -371,8 +353,7 @@ Simulation::startAllNodes()
     mPendingConnections.clear();
 }
 
-void
-Simulation::stopAllNodes()
+void Simulation::stopAllNodes()
 {
     for (auto& n : mNodes)
     {
@@ -384,8 +365,7 @@ Simulation::stopAllNodes()
         ;
 }
 
-size_t
-Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
+size_t Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
 {
     auto p = mNodes[id];
     auto clock = p.mClock;
@@ -436,10 +416,8 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     return count - quantumClicks;
 }
 
-std::size_t
-Simulation::crankAllNodes(int nbTicks)
+std::size_t Simulation::crankAllNodes(int nbTicks)
 {
-
     std::size_t count = 0;
 
     VirtualTimer mainQuantumTimer(*mIdleApp);
@@ -536,9 +514,8 @@ Simulation::crankAllNodes(int nbTicks)
     return count;
 }
 
-bool
-Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
-                                bool validatorsOnly)
+bool Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
+                                     bool validatorsOnly)
 {
     uint32_t min = UINT32_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
@@ -563,8 +540,7 @@ Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
     return num <= min;
 }
 
-void
-Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
+void Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
 {
     bool stop = false;
     auto stopIt = [&](asio::error_code const& error) {
@@ -591,8 +567,8 @@ Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
     }
 }
 
-void
-Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
+void Simulation::crankForAtLeast(VirtualClock::duration seconds,
+                                 bool finalCrank)
 {
     bool stop = false;
     auto stopIt = [&](asio::error_code const& error) {
@@ -620,9 +596,8 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
     }
 }
 
-void
-Simulation::crankUntil(function<bool()> const& predicate,
-                       VirtualClock::duration timeout, bool finalCrank)
+void Simulation::crankUntil(function<bool()> const& predicate,
+                            VirtualClock::duration timeout, bool finalCrank)
 {
     bool timedOut = false;
     VirtualTimer timeoutTimer(*mIdleApp);
@@ -675,8 +650,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
     }
 }
 
-void
-Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
+void Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
 {
     bool stop = false;
     auto stopIt = [&](asio::error_code const& error) {
@@ -701,16 +675,14 @@ Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
     }
 }
 
-void
-Simulation::crankUntil(VirtualClock::system_time_point timePoint,
-                       bool finalCrank)
+void Simulation::crankUntil(VirtualClock::system_time_point timePoint,
+                            bool finalCrank)
 {
     crankUntil(VirtualClock::time_point(timePoint.time_since_epoch()),
                finalCrank);
 }
 
-Config
-Simulation::newConfig()
+Config Simulation::newConfig()
 {
     Config cfg;
     if (mConfigGen)
@@ -739,8 +711,7 @@ class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
     {
     }
 
-    void
-    Process(medida::Timer& timer) override
+    void Process(medida::Timer& timer) override
     {
         auto snapshot = timer.GetSnapshot();
         auto unit = "ms";
@@ -754,8 +725,7 @@ class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
     }
 };
 
-string
-Simulation::metricsSummary(string domain)
+string Simulation::metricsSummary(string domain)
 {
     auto& registry = getNodes().front()->getMetrics();
     auto const& metrics = registry.GetAllMetrics();
@@ -775,9 +745,8 @@ Simulation::metricsSummary(string domain)
     return out.str();
 }
 
-bool
-LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
-                                      bool forceoutbound)
+bool LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
+                                           bool forceoutbound)
 {
     CLOG_TRACE(Overlay, "Connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);

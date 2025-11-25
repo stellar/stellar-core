@@ -23,8 +23,7 @@ class ValueWrapper : public NonMovableOrCopyable
     explicit ValueWrapper(Value const& value);
     virtual ~ValueWrapper();
 
-    Value const&
-    getValue() const
+    Value const& getValue() const
     {
         return mValue;
     }
@@ -49,13 +48,11 @@ class SCPEnvelopeWrapper : public NonMovableOrCopyable
     explicit SCPEnvelopeWrapper(SCPEnvelope const& e);
     virtual ~SCPEnvelopeWrapper();
 
-    SCPEnvelope const&
-    getEnvelope() const
+    SCPEnvelope const& getEnvelope() const
     {
         return mEnvelope;
     }
-    SCPStatement const&
-    getStatement() const
+    SCPStatement const& getStatement() const
     {
         return mEnvelope.statement;
     }
@@ -119,8 +116,8 @@ class SCPDriver
         kMaybeValidValue = 1,    // value may be valid
         kFullyValidatedValue = 2 // value is valid for sure
     };
-    virtual ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value, bool nomination)
+    virtual ValidationLevel validateValue(uint64 slotIndex, Value const& value,
+                                          bool nomination)
     {
         return kMaybeValidValue;
     }
@@ -130,8 +127,8 @@ class SCPDriver
     // This is used during nomination when encountering an invalid value (ie
     // validateValue did not return `kFullyValidatedValue` for this value).
     // returning nullptr means no valid value could be extracted
-    virtual ValueWrapperPtr
-    extractValidValue(uint64 slotIndex, Value const& value)
+    virtual ValueWrapperPtr extractValidValue(uint64 slotIndex,
+                                              Value const& value)
     {
         return nullptr;
     }
@@ -190,15 +187,13 @@ class SCPDriver
 
     // `valueExternalized` is called at most once per slot when the slot
     // externalize its value.
-    virtual void
-    valueExternalized(uint64 slotIndex, Value const& value)
+    virtual void valueExternalized(uint64 slotIndex, Value const& value)
     {
     }
 
     // ``nominatingValue`` is called every time the local instance nominates
     // a new value.
-    virtual void
-    nominatingValue(uint64 slotIndex, Value const& value)
+    virtual void nominatingValue(uint64 slotIndex, Value const& value)
     {
     }
 
@@ -208,48 +203,45 @@ class SCPDriver
     // `updatedCandidateValue` is called every time a new candidate value
     // is included in the candidate set, the value passed in is
     // a composite value
-    virtual void
-    updatedCandidateValue(uint64 slotIndex, Value const& value)
+    virtual void updatedCandidateValue(uint64 slotIndex, Value const& value)
     {
     }
 
     // `startedBallotProtocol` is called when the ballot protocol is started
     // (ie attempts to prepare a new ballot)
-    virtual void
-    startedBallotProtocol(uint64 slotIndex, SCPBallot const& ballot)
+    virtual void startedBallotProtocol(uint64 slotIndex,
+                                       SCPBallot const& ballot)
     {
     }
 
     // `acceptedBallotPrepared` every time a ballot is accepted as prepared
-    virtual void
-    acceptedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
+    virtual void acceptedBallotPrepared(uint64 slotIndex,
+                                        SCPBallot const& ballot)
     {
     }
 
     // `confirmedBallotPrepared` every time a ballot is confirmed prepared
-    virtual void
-    confirmedBallotPrepared(uint64 slotIndex, SCPBallot const& ballot)
+    virtual void confirmedBallotPrepared(uint64 slotIndex,
+                                         SCPBallot const& ballot)
     {
     }
 
     // `acceptedCommit` every time a ballot is accepted commit
-    virtual void
-    acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
+    virtual void acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
     {
     }
 
     // `ballotDidHearFromQuorum` is called when we received messages related to
     // the current `mBallot` from a set of node that is a transitive quorum for
     // the local node.
-    virtual void
-    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
+    virtual void ballotDidHearFromQuorum(uint64 slotIndex,
+                                         SCPBallot const& ballot)
     {
     }
 
 #ifdef BUILD_TESTS
     std::function<uint64(NodeID const&)> mPriorityLookupForTesting;
-    void
-    setPriorityLookup(std::function<uint64(NodeID const&)> const& f)
+    void setPriorityLookup(std::function<uint64(NodeID const&)> const& f)
     {
         mPriorityLookupForTesting = f;
     }

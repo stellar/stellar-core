@@ -45,9 +45,8 @@ PersistentState::PersistentState(Application& app) : mApp(app)
     releaseAssert(threadIsMain());
 }
 
-void
-PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
-                              std::string table)
+void PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
+                                   std::string table)
 {
     releaseAssert(threadIsMain());
     soci::transaction tx(mApp.getDatabase().getRawSession());
@@ -66,8 +65,7 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
     tx.commit();
 }
 
-void
-PersistentState::migrateToSlotStateTable()
+void PersistentState::migrateToSlotStateTable()
 {
     // No soci::transaction needed, because the migration in Database.cpp wraps
     // everything in one transaction anyway.
@@ -126,8 +124,7 @@ PersistentState::migrateToSlotStateTable()
     }
 }
 
-void
-PersistentState::dropAll(Database& db)
+void PersistentState::dropAll(Database& db)
 {
     releaseAssert(threadIsMain());
     db.getRawSession() << "DROP TABLE IF EXISTS storestate;";
@@ -139,8 +136,8 @@ PersistentState::dropAll(Database& db)
     st2.execute(true);
 }
 
-std::string
-PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
+std::string PersistentState::getStoreStateName(PersistentState::Entry n,
+                                               uint32 subscript)
 {
     if (n < 0 || n >= kLastEntry)
     {
@@ -154,16 +151,14 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
     return res;
 }
 
-std::string
-PersistentState::getStoreStateNameForTxSet(Hash const& txSetHash)
+std::string PersistentState::getStoreStateNameForTxSet(Hash const& txSetHash)
 {
     auto res = mapping[kTxSet];
     res += binToHex(txSetHash);
     return res;
 }
 
-bool
-PersistentState::hasTxSet(Hash const& txSetHash)
+bool PersistentState::hasTxSet(Hash const& txSetHash)
 {
     releaseAssert(threadIsMain());
 
@@ -183,15 +178,14 @@ PersistentState::hasTxSet(Hash const& txSetHash)
     return res > 0;
 }
 
-std::string
-PersistentState::getDBForEntry(PersistentState::Entry entry)
+std::string PersistentState::getDBForEntry(PersistentState::Entry entry)
 {
     releaseAssert(entry != kLastEntry);
     return entry <= kRebuildLedger ? kLCLTableName : kSlotTableName;
 }
 
-std::string
-PersistentState::getState(PersistentState::Entry entry, SessionWrapper& session)
+std::string PersistentState::getState(PersistentState::Entry entry,
+                                      SessionWrapper& session)
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -199,9 +193,9 @@ PersistentState::getState(PersistentState::Entry entry, SessionWrapper& session)
     return getFromDb(getStoreStateName(entry), session, getDBForEntry(entry));
 }
 
-void
-PersistentState::setState(PersistentState::Entry entry,
-                          std::string const& value, SessionWrapper& session)
+void PersistentState::setState(PersistentState::Entry entry,
+                               std::string const& value,
+                               SessionWrapper& session)
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -230,8 +224,7 @@ PersistentState::getSCPStateAllSlots(std::string table)
     return states;
 }
 
-void
-PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
+void PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -242,8 +235,7 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
              mApp.getDatabase().getSession(), kSlotTableName);
 }
 
-void
-PersistentState::setSCPStateV1ForSlot(
+void PersistentState::setSCPStateV1ForSlot(
     uint64 slot, std::string const& value,
     std::unordered_map<Hash, std::string> const& txSets)
 {
@@ -260,8 +252,7 @@ PersistentState::setSCPStateV1ForSlot(
     tx.commit();
 }
 
-bool
-PersistentState::shouldRebuildForOfferTable()
+bool PersistentState::shouldRebuildForOfferTable()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -271,8 +262,7 @@ PersistentState::shouldRebuildForOfferTable()
                 .empty();
 }
 
-void
-PersistentState::clearRebuildForOfferTable()
+void PersistentState::clearRebuildForOfferTable()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -281,8 +271,7 @@ PersistentState::clearRebuildForOfferTable()
              mApp.getDatabase().getSession(), kLCLTableName);
 }
 
-void
-PersistentState::setRebuildForOfferTable()
+void PersistentState::setRebuildForOfferTable()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -290,9 +279,9 @@ PersistentState::setRebuildForOfferTable()
              mApp.getDatabase().getSession(), kLCLTableName);
 }
 
-void
-PersistentState::updateDb(std::string const& entry, std::string const& value,
-                          SessionWrapper& sess, std::string const& tableName)
+void PersistentState::updateDb(std::string const& entry,
+                               std::string const& value, SessionWrapper& sess,
+                               std::string const& tableName)
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -369,8 +358,7 @@ PersistentState::getTxSetsForAllSlots(std::string table)
     return result;
 }
 
-std::unordered_set<Hash>
-PersistentState::getTxSetHashesForAllSlots()
+std::unordered_set<Hash> PersistentState::getTxSetHashesForAllSlots()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -405,9 +393,9 @@ PersistentState::getTxSetHashesForAllSlots()
     return result;
 }
 
-std::string
-PersistentState::getFromDb(std::string const& entry, SessionWrapper& sess,
-                           std::string const& tableName)
+std::string PersistentState::getFromDb(std::string const& entry,
+                                       SessionWrapper& sess,
+                                       std::string const& tableName)
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||

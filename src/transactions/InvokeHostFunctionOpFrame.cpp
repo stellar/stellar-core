@@ -39,10 +39,10 @@ namespace stellar
 {
 namespace
 {
-CxxLedgerInfo
-getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
-              uint32_t ledgerSeq, uint32_t baseReserve, TimePoint closeTime,
-              Hash const& networkID)
+CxxLedgerInfo getLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
+                            uint32_t ledgerVersion, uint32_t ledgerSeq,
+                            uint32_t baseReserve, TimePoint closeTime,
+                            Hash const& networkID)
 {
     CxxLedgerInfo info{};
     info.base_reserve = baseReserve;
@@ -70,8 +70,7 @@ getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
     return info;
 }
 
-DiagnosticEvent
-metricsEvent(bool success, std::string&& topic, uint64_t value)
+DiagnosticEvent metricsEvent(bool success, std::string&& topic, uint64_t value)
 {
     DiagnosticEvent de;
     de.inSuccessfulContractCall = success;
@@ -85,10 +84,9 @@ metricsEvent(bool success, std::string&& topic, uint64_t value)
     return de;
 }
 
-void
-maybePopulateOutputDiagnosticEvents(Config const& cfg,
-                                    InvokeHostFunctionOutput const& output,
-                                    DiagnosticEventManager& buffer)
+void maybePopulateOutputDiagnosticEvents(Config const& cfg,
+                                         InvokeHostFunctionOutput const& output,
+                                         DiagnosticEventManager& buffer)
 {
     if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
@@ -206,8 +204,8 @@ struct HostFunctionMetrics
         }
     }
 
-    void
-    noteDiskReadEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
+    void noteDiskReadEntry(bool isCodeEntry, uint32_t keySize,
+                           uint32_t entrySize)
     {
         mReadEntry++;
         mReadKeyByte += keySize;
@@ -225,8 +223,7 @@ struct HostFunctionMetrics
         }
     }
 
-    void
-    noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
+    void noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
     {
         mWriteEntry++;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
@@ -243,8 +240,7 @@ struct HostFunctionMetrics
         }
     }
 
-    std::optional<medida::TimerContext>
-    getExecTimer()
+    std::optional<medida::TimerContext> getExecTimer()
     {
         if (!mDisableMetrics)
         {
@@ -330,9 +326,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     // resource usage. Returns false if the operation
     // should fail and populates result code and
     // diagnostic events.
-    bool
-    meterDiskReadResource(LedgerKey const& lk, uint32_t keySize,
-                          uint32_t entrySize)
+    bool meterDiskReadResource(LedgerKey const& lk, uint32_t keySize,
+                               uint32_t entrySize)
     {
         mMetrics.noteDiskReadEntry(isContractCodeEntry(lk), keySize, entrySize);
         if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
@@ -356,8 +351,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     // if the operation should fail and populates
     // result code and diagnostic events. Returns true
     // if no failure occurred.
-    bool
-    addReads(xdr::xvector<LedgerKey> const& footprintKeys, bool isReadOnly)
+    bool addReads(xdr::xvector<LedgerKey> const& footprintKeys, bool isReadOnly)
     {
         ZoneScoped;
         auto ledgerSeq = getLedgerSeq();
@@ -504,8 +498,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    bool
-    addFootprint()
+    bool addFootprint()
     {
         ZoneScoped;
         if (!addReads(mResources.footprint.readOnly,
@@ -523,8 +516,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    bool
-    invokeHostFunction(InvokeHostFunctionOutput& out)
+    bool invokeHostFunction(InvokeHostFunctionOutput& out)
     {
         ZoneScoped;
         rust::Vec<CxxBuf> authEntryCxxBufs;
@@ -607,8 +599,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    bool
-    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    bool recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
         // Create or update every entry returned.
@@ -696,9 +687,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    bool
-    collectEvents(InvokeHostFunctionOutput const& out,
-                  InvokeHostFunctionSuccessPreImage& success)
+    bool collectEvents(InvokeHostFunctionOutput const& out,
+                       InvokeHostFunctionSuccessPreImage& success)
     {
         ZoneScoped;
         // We collect the events into a preimage that will be hashed
@@ -746,8 +736,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    bool
-    consumeRefundableResources(InvokeHostFunctionOutput const& out)
+    bool consumeRefundableResources(InvokeHostFunctionOutput const& out)
     {
         if (!mRefundableFeeTracker->consumeRefundableSorobanResources(
                 mMetrics.mEmitEventByte, out.rent_fee, getLedgerVersion(),
@@ -761,8 +750,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    void
-    setEvents(InvokeHostFunctionSuccessPreImage& success)
+    void setEvents(InvokeHostFunctionSuccessPreImage& success)
     {
         if (!mProtocol23SACReconciliationEvents.empty())
         {
@@ -805,9 +793,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         }
     }
 
-    void
-    finalizeSuccess(InvokeHostFunctionOutput const& out,
-                    InvokeHostFunctionSuccessPreImage& success)
+    void finalizeSuccess(InvokeHostFunctionOutput const& out,
+                         InvokeHostFunctionSuccessPreImage& success)
     {
         xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
@@ -821,9 +808,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         mMetrics.mSuccess = true;
     }
 
-    void
-    maybePopulateMetricsInDiagnosticEvents(Config const& cfg,
-                                           DiagnosticEventManager& buffer)
+    void maybePopulateMetricsInDiagnosticEvents(Config const& cfg,
+                                                DiagnosticEventManager& buffer)
     {
         if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
         {
@@ -873,8 +859,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                                       mMetrics.mMaxEmitEventByte));
     }
 
-    bool
-    doApply()
+    bool doApply()
     {
         ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame doApply", true);
         auto timeScope = mMetrics.getExecTimer();
@@ -912,8 +897,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
   public:
-    bool
-    apply()
+    bool apply()
     {
         bool success = doApply();
         // Log the diagnostic events, but not the metrics, as these seem too
@@ -931,10 +915,9 @@ class InvokeHostFunctionPreV23ApplyHelper
       virtual public PreV23LedgerAccessHelper
 {
   private:
-    bool
-    handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
-                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
-                        bool isHotArchiveEntry, uint32_t index) override
+    bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                             bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                             bool isHotArchiveEntry, uint32_t index) override
     {
         // Before p23, archived entries are never valid
         if (lk.type() == CONTRACT_CODE)
@@ -958,14 +941,12 @@ class InvokeHostFunctionPreV23ApplyHelper
     }
 
     // Entries can't be restored from the hot archive before p23
-    bool
-    previouslyRestoredFromHotArchive(LedgerKey const& lk) override
+    bool previouslyRestoredFromHotArchive(LedgerKey const& lk) override
     {
         return false;
     }
 
-    CxxLedgerInfo
-    getLedgerInfo() override
+    CxxLedgerInfo getLedgerInfo() override
     {
         auto hdr = mLtx.loadHeader();
         auto const& lh = hdr.current();
@@ -1006,10 +987,9 @@ class InvokeHostFunctionParallelApplyHelper
     // Helper called on all archived keys in the footprint. Returns false if
     // the operation should fail and populates result code and diagnostic
     // events. Returns true if no failure occurred.
-    bool
-    handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
-                        bool isReadOnly, uint32_t restoredLiveUntilLedger,
-                        bool isHotArchiveEntry, uint32_t index) override
+    bool handleArchivedEntry(LedgerKey const& lk, LedgerEntry const& le,
+                             bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                             bool isHotArchiveEntry, uint32_t index) override
     {
         // autorestore support started in p23. Entry must be in the read write
         // footprint and must be marked as in the archivedSorobanEntries vector.
@@ -1128,8 +1108,7 @@ class InvokeHostFunctionParallelApplyHelper
         return false;
     }
 
-    bool
-    previouslyRestoredFromHotArchive(LedgerKey const& lk) override
+    bool previouslyRestoredFromHotArchive(LedgerKey const& lk) override
     {
         return mOpState.entryWasRestored(lk);
     }
@@ -1137,10 +1116,8 @@ class InvokeHostFunctionParallelApplyHelper
     // Returns true if the given key is marked for
     // autorestore, false otherwise. Assumes that lk is
     // a read-write key.
-    bool
-    checkIfReadWriteEntryIsMarkedForAutorestore(uint32_t index)
+    bool checkIfReadWriteEntryIsMarkedForAutorestore(uint32_t index)
     {
-
         // If the autorestore vector is empty, there
         // are no entries to restore
         if (mAutorestoredEntries.empty())
@@ -1151,8 +1128,7 @@ class InvokeHostFunctionParallelApplyHelper
         return mAutorestoredEntries.at(index);
     }
 
-    CxxLedgerInfo
-    getLedgerInfo() override
+    CxxLedgerInfo getLedgerInfo() override
     {
         return stellar::getLedgerInfo(
             mSorobanConfig, mLedgerInfo.getLedgerVersion(),
@@ -1197,8 +1173,7 @@ class InvokeHostFunctionParallelApplyHelper
         }
     }
 
-    ParallelTxReturnVal
-    takeResults(bool applySucceeded)
+    ParallelTxReturnVal takeResults(bool applySucceeded)
     {
         if (applySucceeded)
         {
@@ -1218,15 +1193,13 @@ InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(
 {
 }
 
-bool
-InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
+bool InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      SOROBAN_PROTOCOL_VERSION);
 }
 
-bool
-InvokeHostFunctionOpFrame::doApplyForSoroban(
+bool InvokeHostFunctionOpFrame::doApplyForSoroban(
     AppConnector& app, AbstractLedgerTxn& ltx,
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
@@ -1247,17 +1220,16 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(
     return helper.apply();
 }
 
-bool
-InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   OperationResult& res,
-                                   OperationMetaBuilder& opMeta) const
+bool InvokeHostFunctionOpFrame::doApply(AppConnector& app,
+                                        AbstractLedgerTxn& ltx,
+                                        OperationResult& res,
+                                        OperationMetaBuilder& opMeta) const
 {
     throw std::runtime_error(
         "InvokeHostFunctionOpFrame may only be applied via doApplyForSoroban");
 }
 
-ParallelTxReturnVal
-InvokeHostFunctionOpFrame::doParallelApply(
+ParallelTxReturnVal InvokeHostFunctionOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
@@ -1279,8 +1251,7 @@ InvokeHostFunctionOpFrame::doParallelApply(
     return helper.takeResults(success);
 }
 
-bool
-InvokeHostFunctionOpFrame::doCheckValidForSoroban(
+bool InvokeHostFunctionOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
     DiagnosticEventManager& diagnosticEvents) const
@@ -1311,22 +1282,19 @@ InvokeHostFunctionOpFrame::doCheckValidForSoroban(
     return true;
 }
 
-bool
-InvokeHostFunctionOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                        OperationResult& res) const
+bool InvokeHostFunctionOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                             OperationResult& res) const
 {
     throw std::runtime_error(
         "InvokeHostFunctionOpFrame::doCheckValid needs Config");
 }
 
-void
-InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
+void InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
 
-bool
-InvokeHostFunctionOpFrame::isSoroban() const
+bool InvokeHostFunctionOpFrame::isSoroban() const
 {
     return true;
 }

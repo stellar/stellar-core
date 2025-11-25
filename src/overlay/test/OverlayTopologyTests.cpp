@@ -26,8 +26,7 @@ using TraverseFunc =
     std::function<void(Application& app, Application& otherApp)>;
 
 // A basic DFS algorithm to traverse the topology
-void
-dfs(Application& app, std::unordered_set<NodeID>& visited, TraverseFunc f)
+void dfs(Application& app, std::unordered_set<NodeID>& visited, TraverseFunc f)
 {
     visited.emplace(app.getConfig().NODE_SEED.getPublicKey());
     for (auto const& node : app.getOverlayManager().getAuthenticatedPeers())
@@ -46,8 +45,7 @@ dfs(Application& app, std::unordered_set<NodeID>& visited, TraverseFunc f)
     }
 }
 
-bool
-isConnected(int numNodes, int numWatchers, Simulation::pointer simulation)
+bool isConnected(int numNodes, int numWatchers, Simulation::pointer simulation)
 {
     // Check if a graph is fully connected
     std::unordered_set<NodeID> visited;
@@ -56,8 +54,7 @@ isConnected(int numNodes, int numWatchers, Simulation::pointer simulation)
 }
 
 // Log basic information about each node in the topology
-void
-logTopologyInfo(Simulation::pointer simulation)
+void logTopologyInfo(Simulation::pointer simulation)
 {
     for (auto const& node : simulation->getNodes())
     {
@@ -76,9 +73,8 @@ logTopologyInfo(Simulation::pointer simulation)
               numberOfSimulationConnections(simulation));
 }
 
-void
-populateGraphJson(Application& app, std::unordered_set<NodeID>& visited,
-                  Json::Value& res)
+void populateGraphJson(Application& app, std::unordered_set<NodeID>& visited,
+                       Json::Value& res)
 {
     auto func = [&](Application& app, Application& otherApp) {
         auto id = KeyUtils::toStrKey(app.getConfig().NODE_SEED.getPublicKey());
@@ -91,8 +87,7 @@ populateGraphJson(Application& app, std::unordered_set<NodeID>& visited,
     dfs(app, visited, func);
 }
 
-void
-exportGraphJson(Json::Value graphJson, std::string prefix, int testID)
+void exportGraphJson(Json::Value graphJson, std::string prefix, int testID)
 {
     std::string refJsonPath =
         fmt::format("src/testdata/test-{}-topology-{}-{}.json", testID, prefix,

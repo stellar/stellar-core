@@ -21,8 +21,7 @@ namespace p23_hot_archive_bug
 {
 namespace
 {
-LedgerEntry
-decodeLedgerEntry(std::string const& encodedBase64)
+LedgerEntry decodeLedgerEntry(std::string const& encodedBase64)
 {
     LedgerEntry entry;
     fromOpaqueBase64(entry, encodedBase64);
@@ -32,8 +31,7 @@ decodeLedgerEntry(std::string const& encodedBase64)
 
 using namespace internal;
 
-void
-addHotArchiveBatchWithP23HotArchiveFix(
+void addHotArchiveBatchWithP23HotArchiveFix(
     AbstractLedgerTxn& ltx, Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries)
@@ -106,8 +104,7 @@ addHotArchiveBatchWithP23HotArchiveFix(
         app, header, updatedArchivedEntries, restoredEntries);
 }
 
-bool
-Protocol23CorruptionDataVerifier::loadFromFile(std::string const& path)
+bool Protocol23CorruptionDataVerifier::loadFromFile(std::string const& path)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -162,9 +159,8 @@ Protocol23CorruptionDataVerifier::loadFromFile(std::string const& path)
     return true;
 }
 
-bool
-Protocol23CorruptionDataVerifier::parseLine(std::string const& line,
-                                            size_t lineNumber)
+bool Protocol23CorruptionDataVerifier::parseLine(std::string const& line,
+                                                 size_t lineNumber)
 {
     // Parse CSV line: ledgerKey,correctLedgerEntry,corruptedLedgerEntry,
     // evictedLedgerSeq,restoredLedgerSeq
@@ -242,8 +238,7 @@ Protocol23CorruptionDataVerifier::parseLine(std::string const& line,
     }
 }
 
-void
-Protocol23CorruptionDataVerifier::verifyHardcodedData() const
+void Protocol23CorruptionDataVerifier::verifyHardcodedData() const
 {
     CLOG_INFO(Ledger,
               "Verifying hardcoded Protocol 23 corruption data against CSV...");
@@ -292,8 +287,7 @@ Protocol23CorruptionDataVerifier::verifyHardcodedData() const
               corruptedMap.size());
 }
 
-void
-Protocol23CorruptionDataVerifier::verifyRestorationOfCorruptedEntry(
+void Protocol23CorruptionDataVerifier::verifyRestorationOfCorruptedEntry(
     LedgerKey const& restoredKey, LedgerEntry const& restoredEntry,
     uint32_t ledgerSeq, uint32_t protocolVersion)
 {
@@ -333,8 +327,7 @@ Protocol23CorruptionDataVerifier::verifyRestorationOfCorruptedEntry(
     releaseAssert(mNotRestoredKeys.find(restoredKey) == mNotRestoredKeys.end());
 }
 
-void
-Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
+void Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     EvictedStateVectors const& evictedState, Application& app,
     uint32_t ledgerSeq, uint32_t protocolVersion)
 {
@@ -404,8 +397,7 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     releaseAssert(incorrectlyEvictedKeys.empty());
 }
 
-void
-Protocol23CorruptionDataVerifier::verifyEntryFixesOnP24Upgrade(
+void Protocol23CorruptionDataVerifier::verifyEntryFixesOnP24Upgrade(
     std::vector<LedgerEntry> const& entryBatch) const
 {
     // General note: this check is much more strict than the set of checks
@@ -484,8 +476,7 @@ Protocol23CorruptionEventReconciler::Protocol23CorruptionEventReconciler(
 // the balances always fit in the [0, INT64_MAX] range.
 // We know that the only SAC entries that were incorrectly restored were
 // Balances, so we can be strict with our check here.
-std::pair<int64_t, SCAddress /*owner*/>
-getSACBalance(LedgerEntry const& le)
+std::pair<int64_t, SCAddress /*owner*/> getSACBalance(LedgerEntry const& le)
 {
     releaseAssert(le.data.type() == CONTRACT_DATA);
     auto const& cd = le.data.contractData();
@@ -586,8 +577,7 @@ Protocol23CorruptionEventReconciler::getSACReconciliationEventAndTrackDiff(
     return info;
 }
 
-bool
-Protocol23CorruptionEventReconciler::hasReconciliationAmount(
+bool Protocol23CorruptionEventReconciler::hasReconciliationAmount(
     Asset const& asset, SCAddress const& address, CxxI128 const& amount) const
 {
     auto addrIt = mReconciliationAmounts.find(address);

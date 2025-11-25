@@ -7,8 +7,7 @@
 #include "util/types.h"
 #include <xdrpp/marshal.h>
 
-bool
-Hmac::setSendMackey(HmacSha256Key const& key)
+bool Hmac::setSendMackey(HmacSha256Key const& key)
 {
     ZoneScoped;
     LOCK_GUARD(mMutex, guard);
@@ -20,8 +19,7 @@ Hmac::setSendMackey(HmacSha256Key const& key)
     return true;
 }
 
-bool
-Hmac::setRecvMackey(HmacSha256Key const& key)
+bool Hmac::setRecvMackey(HmacSha256Key const& key)
 {
     ZoneScoped;
     LOCK_GUARD(mMutex, guard);
@@ -33,9 +31,8 @@ Hmac::setRecvMackey(HmacSha256Key const& key)
     return true;
 }
 
-bool
-Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
-                                std::string& errorMsg)
+bool Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
+                                     std::string& errorMsg)
 {
     ZoneScoped;
     LOCK_GUARD(mMutex, guard);
@@ -61,9 +58,8 @@ Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
     return true;
 }
 
-void
-Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
-                                  StellarMessage const& msg)
+void Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
+                                       StellarMessage const& msg)
 
 {
     ZoneScoped;
@@ -80,8 +76,7 @@ Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
 }
 
 #ifdef BUILD_TESTS
-void
-Hmac::damageRecvMacKey()
+void Hmac::damageRecvMacKey()
 {
     auto bytes = randomBytes(mRecvMacKey.key.size());
     std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());

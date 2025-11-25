@@ -55,8 +55,7 @@ class GeneralizedTxSetUnpacker
     }
 
     template <typename T>
-    typename std::enable_if<xdr_traits<T>::is_bytes>::type
-    operator()(T& t)
+    typename std::enable_if<xdr_traits<T>::is_bytes>::type operator()(T& t)
     {
         if (xdr_traits<T>::variable_nelem)
         {
@@ -92,8 +91,7 @@ class GeneralizedTxSetUnpacker
     }
 
   private:
-    void
-    check(std::size_t n) const
+    void check(std::size_t n) const
     {
         if (mCurrIndex + n > mBuffer.size())
         {
@@ -102,8 +100,7 @@ class GeneralizedTxSetUnpacker
         }
     }
 
-    void
-    getBytes(void* buf, size_t len)
+    void getBytes(void* buf, size_t len)
     {
         if (len != 0)
         {
@@ -150,8 +147,7 @@ readEncodedTxSets(Application& app, soci::session& sess, uint32_t ledgerSeq,
     return txSets;
 }
 
-void
-writeNonGeneralizedTxSetToStream(
+void writeNonGeneralizedTxSetToStream(
     Database& db, soci::session& sess, uint32 ledgerSeq,
     std::vector<TransactionFrameBasePtr> const& txs,
     TransactionHistoryResultEntry& results,
@@ -173,8 +169,8 @@ writeNonGeneralizedTxSetToStream(
                                            /* skipStartupCheck */ true);
 }
 
-void
-checkEncodedGeneralizedTxSetIsEmpty(std::vector<uint8_t> const& encodedTxSet)
+void checkEncodedGeneralizedTxSetIsEmpty(
+    std::vector<uint8_t> const& encodedTxSet)
 {
     ZoneScoped;
     UnorderedMap<Hash, TransactionFrameBase const*> txByHash;
@@ -185,12 +181,11 @@ checkEncodedGeneralizedTxSetIsEmpty(std::vector<uint8_t> const& encodedTxSet)
     xdr_argpack_archive(unpacker, txSet);
 }
 
-void
-writeGeneralizedTxSetToStream(uint32 ledgerSeq,
-                              std::vector<uint8_t> const& encodedTxSet,
-                              std::vector<TransactionFrameBasePtr> const& txs,
-                              TransactionHistoryResultEntry& results,
-                              CheckpointBuilder& checkpointBuilder)
+void writeGeneralizedTxSetToStream(
+    uint32 ledgerSeq, std::vector<uint8_t> const& encodedTxSet,
+    std::vector<TransactionFrameBasePtr> const& txs,
+    TransactionHistoryResultEntry& results,
+    CheckpointBuilder& checkpointBuilder)
 {
     ZoneScoped;
     UnorderedMap<Hash, TransactionFrameBase const*> txByHash;
@@ -209,8 +204,7 @@ writeGeneralizedTxSetToStream(uint32 ledgerSeq,
                                            /* skipStartupCheck */ true);
 }
 
-void
-writeTxSetToStream(
+void writeTxSetToStream(
     Database& db, soci::session& sess, uint32 ledgerSeq,
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> const& encodedTxSets,
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>>::const_iterator&
@@ -254,10 +248,9 @@ writeTxSetToStream(
 
 } // namespace
 
-size_t
-populateCheckpointFilesFromDB(Application& app, soci::session& sess,
-                              uint32_t ledgerSeq, uint32_t ledgerCount,
-                              CheckpointBuilder& checkpointBuilder)
+size_t populateCheckpointFilesFromDB(Application& app, soci::session& sess,
+                                     uint32_t ledgerSeq, uint32_t ledgerCount,
+                                     CheckpointBuilder& checkpointBuilder)
 {
     ZoneScoped;
 
@@ -344,24 +337,21 @@ populateCheckpointFilesFromDB(Application& app, soci::session& sess,
     return n;
 }
 
-void
-dropSupportTransactionFeeHistory(Database& db)
+void dropSupportTransactionFeeHistory(Database& db)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     db.getRawSession() << "DROP TABLE IF EXISTS txfeehistory";
 }
 
-void
-dropSupportTxSetHistory(Database& db)
+void dropSupportTxSetHistory(Database& db)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     db.getRawSession() << "DROP TABLE IF EXISTS txsethistory";
 }
 
-void
-dropSupportTxHistory(Database& db)
+void dropSupportTxHistory(Database& db)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());

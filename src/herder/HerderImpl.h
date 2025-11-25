@@ -53,8 +53,7 @@ class HerderImpl : public Herder
     TimePoint trackingConsensusCloseTime() const;
 
     // the ledger index that we expect to externalize next
-    uint32
-    nextConsensusLedgerIndex() const
+    uint32 nextConsensusLedgerIndex() const
     {
         return trackingConsensusLedgerIndex() + 1;
     }
@@ -79,14 +78,12 @@ class HerderImpl : public Herder
                                    bool queueRebuildNeeded) override;
 
     SCP& getSCP();
-    HerderSCPDriver&
-    getHerderSCPDriver()
+    HerderSCPDriver& getHerderSCPDriver()
     {
         return mHerderSCPDriver;
     }
 
-    bool
-    isTracking() const override
+    bool isTracking() const override
     {
         return mState == State::HERDER_TRACKING_NETWORK_STATE;
     }
@@ -121,8 +118,7 @@ class HerderImpl : public Herder
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
 
-    VirtualTimer const&
-    getTriggerTimer() const override
+    VirtualTimer const& getTriggerTimer() const override
     {
         return mTriggerTimer;
     }
@@ -131,19 +127,16 @@ class HerderImpl : public Herder
 
     std::optional<uint32_t> mMaxClassicTxSize;
     std::optional<uint32_t> mMaxTxSizeOverride;
-    void
-    setMaxClassicTxSize(uint32 bytes) override
+    void setMaxClassicTxSize(uint32 bytes) override
     {
         mMaxClassicTxSize = std::make_optional<uint32_t>(bytes);
     }
-    void
-    setMaxTxSize(uint32 bytes) override
+    void setMaxTxSize(uint32 bytes) override
     {
         mMaxTxSizeOverride = bytes;
     }
     std::optional<uint32_t> mFlowControlExtraBuffer;
-    void
-    setFlowControlExtraBufferSize(uint32 bytes) override
+    void setFlowControlExtraBufferSize(uint32 bytes) override
     {
         mFlowControlExtraBuffer = std::make_optional<uint32_t>(bytes);
     }
@@ -162,8 +155,7 @@ class HerderImpl : public Herder
     uint32_t getMaxClassicTxSize() const override;
     uint32_t getFlowControlExtraBuffer() const override;
 
-    uint32_t
-    getMaxTxSize() const override
+    uint32_t getMaxTxSize() const override
     {
 #ifdef BUILD_TESTS
         if (mMaxTxSizeOverride)

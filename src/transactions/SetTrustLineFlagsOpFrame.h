@@ -12,8 +12,7 @@ class AbstractLedgerTxn;
 
 class SetTrustLineFlagsOpFrame : public TrustFlagsOpFrameBase
 {
-    SetTrustLineFlagsResult&
-    innerResult(OperationResult& res) const
+    SetTrustLineFlagsResult& innerResult(OperationResult& res) const
     {
         return res.tr().setTrustLineFlagsResult();
     }
@@ -52,11 +51,10 @@ class SetTrustLineFlagsOpFrame : public TrustFlagsOpFrameBase
 
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static SetTrustLineFlagsResultCode
-    getInnerCode(OperationResult const& res)
+    static SetTrustLineFlagsResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().setTrustLineFlagsResult().code();
     }

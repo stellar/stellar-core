@@ -15,14 +15,12 @@ namespace stellar
 class FileSystemException : public std::runtime_error
 {
   public:
-    static void
-    failWith(std::string msg)
+    static void failWith(std::string msg)
     {
         CLOG_FATAL(Fs, "{}", msg);
         throw FileSystemException(msg);
     }
-    static void
-    failWithErrno(std::string msg)
+    static void failWithErrno(std::string msg)
     {
         failWith(msg + std::strerror(errno));
     }

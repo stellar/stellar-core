@@ -18,8 +18,7 @@ namespace stellar
 
 using namespace txtest;
 
-bool
-operator<(OfferKey const& x, OfferKey const& y)
+bool operator<(OfferKey const& x, OfferKey const& y)
 {
     if (x.sellerID < y.sellerID)
     {
@@ -46,8 +45,7 @@ OfferState::OfferState(OfferEntry const& entry)
 {
 }
 
-bool
-operator==(OfferState const& x, OfferState const& y)
+bool operator==(OfferState const& x, OfferState const& y)
 {
     if (!(x.selling == y.selling))
     {
@@ -72,9 +70,8 @@ operator==(OfferState const& x, OfferState const& y)
     return true;
 }
 
-ClaimAtom
-TestMarketOffer::exchanged(uint32_t ledgerVersion, int64_t sold,
-                           int64_t bought) const
+ClaimAtom TestMarketOffer::exchanged(uint32_t ledgerVersion, int64_t sold,
+                                     int64_t bought) const
 {
     return makeClaimAtom(ledgerVersion, key.sellerID, key.offerID,
                          state.selling, sold, state.buying, bought);
@@ -84,9 +81,9 @@ TestMarket::TestMarket(Application& app) : mApp{app}
 {
 }
 
-TestMarketOffer
-TestMarket::addOffer(TestAccount& account, OfferState const& state,
-                     OfferState const& finishedState)
+TestMarketOffer TestMarket::addOffer(TestAccount& account,
+                                     OfferState const& state,
+                                     OfferState const& finishedState)
 {
     auto newOffersState = mOffers;
     auto deleted = finishedState == OfferState::DELETED;
@@ -108,7 +105,6 @@ TestMarket::addOffer(TestAccount& account, OfferState const& state,
     {
         if (mLastAddedID != 0)
         {
-
             REQUIRE(offerId == mLastAddedID + 1);
         }
         mLastAddedID = offerId;
@@ -118,10 +114,9 @@ TestMarket::addOffer(TestAccount& account, OfferState const& state,
             finishedState == OfferState::SAME ? state : finishedState};
 }
 
-TestMarketOffer
-TestMarket::updateOffer(TestAccount& account, int64_t id,
-                        OfferState const& state,
-                        OfferState const& finishedState)
+TestMarketOffer TestMarket::updateOffer(TestAccount& account, int64_t id,
+                                        OfferState const& state,
+                                        OfferState const& finishedState)
 {
     auto newOffersState = mOffers;
     auto deleted = finishedState == OfferState::DELETED;
@@ -143,9 +138,8 @@ TestMarket::updateOffer(TestAccount& account, int64_t id,
             finishedState == OfferState::SAME ? state : finishedState};
 }
 
-void
-TestMarket::requireChanges(std::vector<TestMarketOffer> const& changes,
-                           std::function<void()> const& f)
+void TestMarket::requireChanges(std::vector<TestMarketOffer> const& changes,
+                                std::function<void()> const& f)
 {
     auto newOffersState = mOffers;
     try
@@ -213,8 +207,8 @@ TestMarket::requireChangesWithOffer(std::vector<TestMarketOffer> changes,
     return o;
 }
 
-void
-TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
+void TestMarket::requireBalances(
+    std::vector<TestMarketBalances> const& balances)
 {
     for (auto const& accountBalances : balances)
     {
@@ -240,15 +234,13 @@ TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
     }
 }
 
-void
-TestMarket::checkCurrentOffers()
+void TestMarket::checkCurrentOffers()
 {
     checkState(mOffers, {});
 }
 
-void
-TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
-                       std::vector<OfferKey> const& deletedOffers)
+void TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
+                            std::vector<OfferKey> const& deletedOffers)
 {
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     for (auto const& o : offers)

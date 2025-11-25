@@ -19,8 +19,7 @@ ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
 {
 }
 
-void
-ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
+void ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "fetch {}", hexAbbrev(itemHash));
@@ -40,8 +39,7 @@ ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
     }
 }
 
-void
-ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
+void ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
 {
     ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
@@ -65,8 +63,7 @@ ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
     }
 }
 
-uint64
-ItemFetcher::getLastSeenSlotIndex(Hash const& itemHash) const
+uint64 ItemFetcher::getLastSeenSlotIndex(Hash const& itemHash) const
 {
     auto iter = mTrackers.find(itemHash);
     if (iter == mTrackers.end())
@@ -77,8 +74,7 @@ ItemFetcher::getLastSeenSlotIndex(Hash const& itemHash) const
     return iter->second->getLastSeenSlotIndex();
 }
 
-std::vector<SCPEnvelope>
-ItemFetcher::fetchingFor(Hash const& itemHash) const
+std::vector<SCPEnvelope> ItemFetcher::fetchingFor(Hash const& itemHash) const
 {
     auto result = std::vector<SCPEnvelope>{};
     auto iter = mTrackers.find(itemHash);
@@ -94,8 +90,7 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
     return result;
 }
 
-void
-ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
+void ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
@@ -106,8 +101,7 @@ ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
         "ItemFetcher: stopFetchingBelow");
 }
 
-void
-ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
+void ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
@@ -123,8 +117,7 @@ ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
     }
 }
 
-void
-ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
+void ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
     ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
@@ -134,8 +127,7 @@ ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
     }
 }
 
-void
-ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
+void ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 {
     ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
@@ -165,8 +157,7 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 }
 
 #ifdef BUILD_TESTS
-std::shared_ptr<Tracker>
-ItemFetcher::getTracker(Hash const& h)
+std::shared_ptr<Tracker> ItemFetcher::getTracker(Hash const& h)
 {
     auto it = mTrackers.find(h);
     if (it == mTrackers.end())

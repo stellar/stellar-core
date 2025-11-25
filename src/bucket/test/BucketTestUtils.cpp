@@ -21,24 +21,21 @@ namespace stellar
 namespace BucketTestUtils
 {
 
-uint32_t
-getAppLedgerVersion(Application& app)
+uint32_t getAppLedgerVersion(Application& app)
 {
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     return lcl.header.ledgerVersion;
 }
 
-uint32_t
-getAppLedgerVersion(Application::pointer app)
+uint32_t getAppLedgerVersion(Application::pointer app)
 {
     return getAppLedgerVersion(*app);
 }
 
-void
-addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
-                              std::vector<LedgerEntry> const& initEntries,
-                              std::vector<LedgerEntry> const& liveEntries,
-                              std::vector<LedgerKey> const& deadEntries)
+void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
+                                   std::vector<LedgerEntry> const& initEntries,
+                                   std::vector<LedgerEntry> const& liveEntries,
+                                   std::vector<LedgerKey> const& deadEntries)
 {
     auto& liveBl = app.getBucketManager().getLiveBucketList();
     liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
@@ -54,8 +51,7 @@ addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 }
 
-void
-addHotArchiveBatchAndUpdateSnapshot(
+void addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archiveEntries,
     std::vector<LedgerKey> const& restoredEntries)
@@ -73,8 +69,7 @@ addHotArchiveBatchAndUpdateSnapshot(
         std::move(liveSnapshot), std::move(hotArchiveSnapshot));
 }
 
-void
-for_versions_with_differing_bucket_logic(
+void for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
     for_versions(
@@ -89,9 +84,8 @@ for_versions_with_differing_bucket_logic(
         cfg, f);
 }
 
-Hash
-closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
-            xdr::xvector<UpgradeType, 6> upgrades)
+Hash closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
+                 xdr::xvector<UpgradeType, 6> upgrades)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
@@ -110,8 +104,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     return lm.getLastClosedLedgerHeader().hash;
 }
 
-Hash
-closeLedger(Application& app)
+Hash closeLedger(Application& app)
 {
     return closeLedger(app, std::nullopt);
 }
@@ -174,9 +167,7 @@ EntryCounts<HotArchiveBucket>::EntryCounts(
     }
 }
 
-template <class BucketT>
-size_t
-countEntries(std::shared_ptr<BucketT> bucket)
+template <class BucketT> size_t countEntries(std::shared_ptr<BucketT> bucket)
 {
     EntryCounts e(bucket);
     return e.sum();
@@ -185,8 +176,7 @@ countEntries(std::shared_ptr<BucketT> bucket)
 template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
-void
-LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
+void LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     SearchableSnapshotConstPtr lclSnapshot,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
     AbstractLedgerTxn& ltx,
@@ -352,8 +342,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     }
 }
 
-LedgerManagerForBucketTests&
-BucketTestApplication::getLedgerManager()
+LedgerManagerForBucketTests& BucketTestApplication::getLedgerManager()
 {
     auto& lm = ApplicationImpl::getLedgerManager();
     return static_cast<LedgerManagerForBucketTests&>(lm);

@@ -1,4 +1,3 @@
-
 // Copyright 2023 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
@@ -9,8 +8,7 @@
 namespace stellar
 {
 
-Resource
-subtractNonNegative(Resource const& lhs, Resource const& rhs)
+Resource subtractNonNegative(Resource const& lhs, Resource const& rhs)
 {
     releaseAssert(lhs.size() == rhs.size());
     auto newRes = lhs;
@@ -30,8 +28,7 @@ subtractNonNegative(Resource const& lhs, Resource const& rhs)
     return newRes;
 }
 
-bool
-anyLessThan(Resource const& lhs, Resource const& rhs)
+bool anyLessThan(Resource const& lhs, Resource const& rhs)
 {
     releaseAssert(lhs.size() == rhs.size());
     for (size_t i = 0; i < lhs.size(); i++)
@@ -45,8 +42,7 @@ anyLessThan(Resource const& lhs, Resource const& rhs)
 }
 
 // Throws if multiplication result overflows int64_t
-Resource
-multiplyByDouble(Resource const& res, double m)
+Resource multiplyByDouble(Resource const& res, double m)
 {
     auto newRes = res;
     for (auto& resource : newRes.mResources)
@@ -62,8 +58,7 @@ multiplyByDouble(Resource const& res, double m)
 }
 
 // Saturating multiply: cap at int64_t::max if result would overflow
-Resource
-saturatedMultiplyByDouble(Resource const& res, double m)
+Resource saturatedMultiplyByDouble(Resource const& res, double m)
 {
     auto newRes = res;
     for (auto& resource : newRes.mResources)
@@ -84,8 +79,8 @@ saturatedMultiplyByDouble(Resource const& res, double m)
     return newRes;
 }
 
-Resource
-bigDivideOrThrow(Resource const& res, int64_t B, int64_t C, Rounding rounding)
+Resource bigDivideOrThrow(Resource const& res, int64_t B, int64_t C,
+                          Rounding rounding)
 {
     auto newRes = res;
     for (auto& resource : newRes.mResources)
@@ -96,28 +91,24 @@ bigDivideOrThrow(Resource const& res, int64_t B, int64_t C, Rounding rounding)
     return newRes;
 }
 
-bool
-operator==(Resource const& lhs, Resource const& rhs)
+bool operator==(Resource const& lhs, Resource const& rhs)
 {
     return lhs.mResources == rhs.mResources;
 }
 
-Resource
-operator+(Resource const& lhs, Resource const& rhs)
+Resource operator+(Resource const& lhs, Resource const& rhs)
 {
     Resource result(lhs);
     return result += rhs;
 }
 
-Resource
-operator-(Resource const& lhs, Resource const& rhs)
+Resource operator-(Resource const& lhs, Resource const& rhs)
 {
     Resource result(lhs);
     return result -= rhs;
 }
 
-bool
-operator<=(Resource const& lhs, Resource const& rhs)
+bool operator<=(Resource const& lhs, Resource const& rhs)
 {
     releaseAssert(lhs.size() == rhs.size());
     for (size_t i = 0; i < lhs.size(); i++)
@@ -130,8 +121,7 @@ operator<=(Resource const& lhs, Resource const& rhs)
     return true;
 }
 
-bool
-anyGreater(Resource const& lhs, Resource const& rhs)
+bool anyGreater(Resource const& lhs, Resource const& rhs)
 {
     releaseAssert(lhs.size() == rhs.size());
     for (size_t i = 0; i < lhs.size(); i++)
@@ -145,14 +135,12 @@ anyGreater(Resource const& lhs, Resource const& rhs)
 }
 
 // All greater
-bool
-operator>(Resource const& lhs, Resource const& rhs)
+bool operator>(Resource const& lhs, Resource const& rhs)
 {
     return !(lhs <= rhs);
 }
 
-Resource&
-Resource::operator+=(Resource const& other)
+Resource& Resource::operator+=(Resource const& other)
 {
     releaseAssert(canAdd(other));
     for (size_t i = 0; i < mResources.size(); i++)
@@ -162,8 +150,7 @@ Resource::operator+=(Resource const& other)
     return *this;
 }
 
-Resource&
-Resource::operator-=(Resource const& other)
+Resource& Resource::operator-=(Resource const& other)
 {
     releaseAssert(mResources.size() == other.mResources.size());
     for (size_t i = 0; i < mResources.size(); i++)
@@ -174,8 +161,7 @@ Resource::operator-=(Resource const& other)
     return *this;
 }
 
-Resource
-limitTo(Resource const& curr, Resource const& limit)
+Resource limitTo(Resource const& curr, Resource const& limit)
 {
     releaseAssert(curr.size() == limit.size());
     Resource limited(std::vector<int64_t>(curr.size(), 0));
@@ -187,8 +173,7 @@ limitTo(Resource const& curr, Resource const& limit)
     return limited;
 }
 
-bool
-Resource::canAdd(Resource const& other) const
+bool Resource::canAdd(Resource const& other) const
 {
     releaseAssert(size() == other.size());
     for (size_t i = 0; i < size(); i++)

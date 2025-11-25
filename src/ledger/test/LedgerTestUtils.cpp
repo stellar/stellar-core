@@ -27,9 +27,7 @@ namespace stellar
 namespace LedgerTestUtils
 {
 
-template <typename T>
-void
-clampLow(T low, T& v)
+template <typename T> void clampLow(T low, T& v)
 {
     if (v < low)
     {
@@ -37,9 +35,7 @@ clampLow(T low, T& v)
     }
 }
 
-template <typename T>
-void
-clampHigh(T high, T& v)
+template <typename T> void clampHigh(T high, T& v)
 {
     if (v > high)
     {
@@ -49,9 +45,7 @@ clampHigh(T high, T& v)
 
 // mutate string such that it doesn't contain control characters
 // and is at least minSize characters long
-template <typename T>
-void
-replaceControlCharacters(T& s, int minSize)
+template <typename T> void replaceControlCharacters(T& s, int minSize)
 {
     if (static_cast<int>(s.size()) < minSize)
     {
@@ -72,15 +66,13 @@ template void replaceControlCharacters(std::string& s, int minSize);
 template void replaceControlCharacters(string32& s, int minSize);
 template void replaceControlCharacters(string64& s, int minSize);
 
-static bool
-signerEqual(Signer const& s1, Signer const& s2)
+static bool signerEqual(Signer const& s1, Signer const& s2)
 {
     return s1.key == s2.key;
 }
 
 template <size_t MAX_SIZE>
-xdr::xvector<uint8_t, MAX_SIZE>
-generateOpaqueVector()
+xdr::xvector<uint8_t, MAX_SIZE> generateOpaqueVector()
 {
     static auto vecgen = autocheck::list_of(autocheck::generator<uint8_t>());
     stellar::uniform_int_distribution<size_t> distr(1, MAX_SIZE);
@@ -88,8 +80,7 @@ generateOpaqueVector()
     return xdr::xvector<uint8_t, MAX_SIZE>(vec.begin(), vec.end());
 }
 
-void
-randomlyModifyEntry(LedgerEntry& e)
+void randomlyModifyEntry(LedgerEntry& e)
 {
     switch (e.data.type())
     {
@@ -153,8 +144,7 @@ randomlyModifyEntry(LedgerEntry& e)
     }
 }
 
-void
-makeValid(AccountEntry& a)
+void makeValid(AccountEntry& a)
 {
     if (a.balance < 0)
     {
@@ -226,8 +216,7 @@ makeValid(AccountEntry& a)
     }
 }
 
-void
-makeValid(TrustLineEntry& tl)
+void makeValid(TrustLineEntry& tl)
 {
     if (tl.balance < 0)
     {
@@ -265,8 +254,7 @@ makeValid(TrustLineEntry& tl)
             std::abs(tl.ext.v1().liabilities.selling);
     }
 }
-void
-makeValid(OfferEntry& o)
+void makeValid(OfferEntry& o)
 {
     o.offerID = o.offerID & INT64_MAX;
     o.selling.type(ASSET_TYPE_CREDIT_ALPHANUM4);
@@ -286,14 +274,12 @@ makeValid(OfferEntry& o)
     o.flags = o.flags & MASK_OFFERENTRY_FLAGS;
 }
 
-void
-makeValid(DataEntry& d)
+void makeValid(DataEntry& d)
 {
     replaceControlCharacters(d.dataName, 1);
 }
 
-void
-makeValid(ClaimableBalanceEntry& c)
+void makeValid(ClaimableBalanceEntry& c)
 {
     c.amount = std::abs(c.amount);
     clampLow<int64>(1, c.amount);
@@ -315,8 +301,7 @@ makeValid(ClaimableBalanceEntry& c)
     }
 }
 
-void
-makeValid(LiquidityPoolEntry& lp)
+void makeValid(LiquidityPoolEntry& lp)
 {
     auto& cp = lp.body.constantProduct();
     cp.params.assetA.type(ASSET_TYPE_CREDIT_ALPHANUM4);
@@ -332,16 +317,14 @@ makeValid(LiquidityPoolEntry& lp)
     cp.poolSharesTrustLineCount = std::abs(cp.poolSharesTrustLineCount);
 }
 
-void
-makeValid(ConfigSettingEntry& ce)
+void makeValid(ConfigSettingEntry& ce)
 {
     auto ids = xdr::xdr_traits<ConfigSettingID>::enum_values();
     ce.configSettingID(static_cast<ConfigSettingID>(
         ids.at(ce.configSettingID() % ids.size())));
 }
 
-void
-makeValid(ContractDataEntry& cde)
+void makeValid(ContractDataEntry& cde)
 {
     int t = cde.durability;
     auto modulo = static_cast<int64_t>(
@@ -408,8 +391,7 @@ makeValid(ContractDataEntry& cde)
     fixSCErrors(cde.val);
 }
 
-void
-makeValid(ContractCodeEntry& cce)
+void makeValid(ContractCodeEntry& cce)
 {
     auto seed = rand_uniform<uint64_t>(0, UINT64_MAX);
     auto size = rand_uniform<size_t>(64, 150);
@@ -433,15 +415,13 @@ makeValid(ContractCodeEntry& cce)
     }
 }
 
-void
-makeValid(TTLEntry& cce)
+void makeValid(TTLEntry& cce)
 {
 }
 
-void
-makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
-          LedgerHeaderHistoryEntry firstLedger,
-          HistoryManager::LedgerVerificationStatus state)
+void makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
+               LedgerHeaderHistoryEntry firstLedger,
+               HistoryManager::LedgerVerificationStatus state)
 {
     // We want to avoid corrupting the 0th through 2nd entries, because we use
     // these corrupt sequences in history tests that differentiate between
@@ -634,14 +614,12 @@ static auto validTTLEntryGenerator = autocheck::map(
     },
     autocheck::generator<TTLEntry>());
 
-LedgerEntry
-generateValidLedgerEntry(size_t b)
+LedgerEntry generateValidLedgerEntry(size_t b)
 {
     return validLedgerEntryGenerator(b);
 }
 
-LedgerEntry
-generateValidLedgerEntryOfType(LedgerEntryType type)
+LedgerEntry generateValidLedgerEntryOfType(LedgerEntryType type)
 {
     auto entry = generateValidLedgerEntry();
     while (entry.data.type() != type)
@@ -651,15 +629,13 @@ generateValidLedgerEntryOfType(LedgerEntryType type)
     return entry;
 }
 
-std::vector<LedgerEntry>
-generateValidLedgerEntries(size_t n)
+std::vector<LedgerEntry> generateValidLedgerEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validLedgerEntryGenerator);
     return vecgen(n);
 }
 
-std::vector<LedgerEntry>
-generateValidUniqueLedgerEntries(size_t n)
+std::vector<LedgerEntry> generateValidUniqueLedgerEntries(size_t n)
 {
     UnorderedSet<LedgerKey> keys;
     std::vector<LedgerEntry> entries;
@@ -677,8 +653,7 @@ generateValidUniqueLedgerEntries(size_t n)
     return entries;
 }
 
-LedgerEntry
-generateValidLedgerEntryWithExclusions(
+LedgerEntry generateValidLedgerEntryWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b)
 {
     while (true)
@@ -691,11 +666,9 @@ generateValidLedgerEntryWithExclusions(
     }
 }
 
-std::vector<LedgerEntry>
-generateValidLedgerEntriesWithExclusions(
+std::vector<LedgerEntry> generateValidLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
-
     if (n > 1000)
     {
         throw "generateValidLedgerEntryWithExclusions: must generate <= 1000 "
@@ -711,8 +684,7 @@ generateValidLedgerEntriesWithExclusions(
     return res;
 }
 
-std::vector<LedgerKey>
-generateValidLedgerEntryKeysWithExclusions(
+std::vector<LedgerKey> generateValidLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
     if (n > 1000)
@@ -732,8 +704,7 @@ generateValidLedgerEntryKeysWithExclusions(
     return keys;
 }
 
-std::vector<LedgerKey>
-generateUniqueValidSorobanLedgerEntryKeys(size_t n)
+std::vector<LedgerKey> generateUniqueValidSorobanLedgerEntryKeys(size_t n)
 {
     return LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
         {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING, TTL},
@@ -772,8 +743,7 @@ generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys)
     return res;
 }
 
-std::vector<LedgerKey>
-generateValidUniqueLedgerEntryKeysWithExclusions(
+std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
     UnorderedSet<LedgerKey>& seenKeys)
 {
@@ -794,8 +764,7 @@ generateValidUniqueLedgerEntryKeysWithExclusions(
     return res;
 }
 
-std::vector<LedgerKey>
-generateValidUniqueLedgerEntryKeysWithExclusions(
+std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
     UnorderedSet<LedgerKey> seenKeys;
@@ -803,8 +772,7 @@ generateValidUniqueLedgerEntryKeysWithExclusions(
                                                             seenKeys);
 }
 
-std::vector<LedgerEntry>
-generateValidUniqueLedgerEntriesWithExclusions(
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
     UnorderedSet<LedgerKey> seenKeys;
@@ -812,8 +780,7 @@ generateValidUniqueLedgerEntriesWithExclusions(
                                                           seenKeys);
 }
 
-std::vector<LedgerEntry>
-generateValidUniqueLedgerEntriesWithExclusions(
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
     UnorderedSet<LedgerKey>& seenKeys)
 {
@@ -834,8 +801,7 @@ generateValidUniqueLedgerEntriesWithExclusions(
     return res;
 }
 
-LedgerEntry
-generateValidLedgerEntryWithTypes(
+LedgerEntry generateValidLedgerEntryWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t b)
 {
     while (true)
@@ -848,8 +814,7 @@ generateValidLedgerEntryWithTypes(
     }
 }
 
-std::vector<LedgerKey>
-generateValidUniqueLedgerKeysWithTypes(
+std::vector<LedgerKey> generateValidUniqueLedgerKeysWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n,
     UnorderedSet<LedgerKey>& seenKeys)
 {
@@ -857,7 +822,6 @@ generateValidUniqueLedgerKeysWithTypes(
     res.reserve(n);
     while (res.size() < n)
     {
-
         auto entry = generateValidLedgerEntryWithTypes(types);
         auto key = LedgerEntryKey(entry);
         if (seenKeys.find(key) != seenKeys.end())
@@ -871,8 +835,7 @@ generateValidUniqueLedgerKeysWithTypes(
     return res;
 }
 
-std::vector<LedgerEntry>
-generateValidUniqueLedgerEntriesWithTypes(
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n)
 {
     UnorderedSet<LedgerKey> keys;
@@ -894,8 +857,7 @@ generateValidUniqueLedgerEntriesWithTypes(
     return entries;
 }
 
-std::vector<LedgerEntry>
-generateValidUniqueLedgerEntriesWithTypes(
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n,
     UnorderedSet<LedgerKey>& seenKeys)
 {
@@ -916,21 +878,18 @@ generateValidUniqueLedgerEntriesWithTypes(
     return entries;
 }
 
-AccountEntry
-generateValidAccountEntry(size_t b)
+AccountEntry generateValidAccountEntry(size_t b)
 {
     return validAccountEntryGenerator(b);
 }
 
-std::vector<AccountEntry>
-generateValidAccountEntries(size_t n)
+std::vector<AccountEntry> generateValidAccountEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validAccountEntryGenerator);
     return vecgen(n);
 }
 
-TrustLineEntry
-generateNonPoolShareValidTrustLineEntry(size_t b)
+TrustLineEntry generateNonPoolShareValidTrustLineEntry(size_t b)
 {
     auto tl = validTrustLineEntryGenerator(b);
     if (tl.asset.type() == ASSET_TYPE_POOL_SHARE)
@@ -942,47 +901,40 @@ generateNonPoolShareValidTrustLineEntry(size_t b)
     return tl;
 }
 
-TrustLineEntry
-generateValidTrustLineEntry(size_t b)
+TrustLineEntry generateValidTrustLineEntry(size_t b)
 {
     return validTrustLineEntryGenerator(b);
 }
 
-std::vector<TrustLineEntry>
-generateValidTrustLineEntries(size_t n)
+std::vector<TrustLineEntry> generateValidTrustLineEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validTrustLineEntryGenerator);
     return vecgen(n);
 }
 
-OfferEntry
-generateValidOfferEntry(size_t b)
+OfferEntry generateValidOfferEntry(size_t b)
 {
     return validOfferEntryGenerator(b);
 }
 
-std::vector<OfferEntry>
-generateValidOfferEntries(size_t n)
+std::vector<OfferEntry> generateValidOfferEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validOfferEntryGenerator);
     return vecgen(n);
 }
 
-DataEntry
-generateValidDataEntry(size_t b)
+DataEntry generateValidDataEntry(size_t b)
 {
     return validDataEntryGenerator(b);
 }
 
-std::vector<DataEntry>
-generateValidDataEntries(size_t n)
+std::vector<DataEntry> generateValidDataEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validDataEntryGenerator);
     return vecgen(n);
 }
 
-ClaimableBalanceEntry
-generateValidClaimableBalanceEntry(size_t b)
+ClaimableBalanceEntry generateValidClaimableBalanceEntry(size_t b)
 {
     return validClaimableBalanceEntryGenerator(b);
 }
@@ -995,73 +947,62 @@ generateValidClaimableBalanceEntries(size_t n)
     return vecgen(n);
 }
 
-LiquidityPoolEntry
-generateValidLiquidityPoolEntry(size_t b)
+LiquidityPoolEntry generateValidLiquidityPoolEntry(size_t b)
 {
     return validLiquidityPoolEntryGenerator(b);
 }
 
-std::vector<LiquidityPoolEntry>
-generateValidLiquidityPoolEntries(size_t n)
+std::vector<LiquidityPoolEntry> generateValidLiquidityPoolEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validLiquidityPoolEntryGenerator);
     return vecgen(n);
 }
 
-ConfigSettingEntry
-generateValidConfigSettingEntry(size_t b)
+ConfigSettingEntry generateValidConfigSettingEntry(size_t b)
 {
     return validConfigSettingEntryGenerator(b);
 }
 
-std::vector<ConfigSettingEntry>
-generateValidConfigSettingEntries(size_t n)
+std::vector<ConfigSettingEntry> generateValidConfigSettingEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validConfigSettingEntryGenerator);
     return vecgen(n);
 }
 
-ContractDataEntry
-generateValidContractDataEntry(size_t b)
+ContractDataEntry generateValidContractDataEntry(size_t b)
 {
     return validContractDataEntryGenerator(b);
 }
 
-std::vector<ContractDataEntry>
-generateValidContractDataEntries(size_t n)
+std::vector<ContractDataEntry> generateValidContractDataEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validContractDataEntryGenerator);
     return vecgen(n);
 }
 
-ContractCodeEntry
-generateValidContractCodeEntry(size_t b)
+ContractCodeEntry generateValidContractCodeEntry(size_t b)
 {
     return validContractCodeEntryGenerator(b);
 }
 
-std::vector<ContractCodeEntry>
-generateValidContractCodeEntries(size_t n)
+std::vector<ContractCodeEntry> generateValidContractCodeEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validContractCodeEntryGenerator);
     return vecgen(n);
 }
 
-TTLEntry
-generateValidTTLEntry(size_t b)
+TTLEntry generateValidTTLEntry(size_t b)
 {
     return validTTLEntryGenerator(b);
 }
 
-std::vector<TTLEntry>
-generateValidTTLEntries(size_t n)
+std::vector<TTLEntry> generateValidTTLEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validTTLEntryGenerator);
     return vecgen(n);
 }
 
-std::vector<LedgerHeaderHistoryEntry>
-generateLedgerHeadersForCheckpoint(
+std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
     LedgerHeaderHistoryEntry firstLedger, uint32_t size,
     HistoryManager::LedgerVerificationStatus state)
 {
@@ -1072,8 +1013,7 @@ generateLedgerHeadersForCheckpoint(
     return res;
 }
 
-UpgradeType
-toUpgradeType(LedgerUpgrade const& upgrade)
+UpgradeType toUpgradeType(LedgerUpgrade const& upgrade)
 {
     auto v = xdr::xdr_to_opaque(upgrade);
     auto result = UpgradeType{v.begin(), v.end()};

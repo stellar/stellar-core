@@ -43,10 +43,8 @@ using namespace BucketTestUtils;
 namespace BucketManagerTests
 {
 
-static void
-clearFutures(Application::pointer app, LiveBucketList& bl)
+static void clearFutures(Application::pointer app, LiveBucketList& bl)
 {
-
     // First go through the BL and mop up all the FutureBuckets.
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
@@ -108,8 +106,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
             : BucketManager(app.getAppConnector())
         {
         }
-        void
-        test()
+        void test()
         {
             Hash h0;
             Hash h1 = HashUtils::pseudoRandomForTesting();
@@ -843,9 +840,7 @@ TEST_CASE_VERSIONS(
 // 2048).
 class StopAndRestartBucketMergesTest
 {
-    template <class BucketListT>
-    static void
-    resolveAllMerges(BucketListT& bl)
+    template <class BucketListT> static void resolveAllMerges(BucketListT& bl)
     {
         for (uint32 i = 0; i < BucketListT::kNumLevels; ++i)
         {
@@ -868,8 +863,7 @@ class StopAndRestartBucketMergesTest
         MergeCounters mLiveMergeCounters;
         MergeCounters mHotArchiveMergeCounters;
 
-        void
-        checkEmptyHotArchiveMetrics() const
+        void checkEmptyHotArchiveMetrics() const
         {
             // If before p23, check that all hot archive metrics are zero
             CHECK(mHotArchiveMergeCounters.mPreInitEntryProtocolMerges == 0);
@@ -906,9 +900,8 @@ class StopAndRestartBucketMergesTest
             CHECK(mHotArchiveMergeCounters.mOutputIteratorActualWrites == 0);
         }
 
-        void
-        dumpMergeCounters(std::string const& label, uint32_t level,
-                          uint32_t protocol) const
+        void dumpMergeCounters(std::string const& label, uint32_t level,
+                               uint32_t protocol) const
         {
             auto dumpCounters = [&](std::string const& label, uint32_t level,
                                     MergeCounters const& counters) {
@@ -981,8 +974,7 @@ class StopAndRestartBucketMergesTest
             }
         }
 
-        void
-        checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
+        void checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
             // Check live merge counters
             CHECK(mLiveMergeCounters.mPostInitEntryProtocolMerges != 0);
@@ -1089,8 +1081,7 @@ class StopAndRestartBucketMergesTest
             }
         }
 
-        void
-        checkSensiblePreInitEntryMergeCounters(uint32_t protocol) const
+        void checkSensiblePreInitEntryMergeCounters(uint32_t protocol) const
         {
             CHECK(mLiveMergeCounters.mPreInitEntryProtocolMerges != 0);
             CHECK(mLiveMergeCounters.mPreShadowRemovalProtocolMerges != 0);
@@ -1124,8 +1115,7 @@ class StopAndRestartBucketMergesTest
                   mLiveMergeCounters.mOutputIteratorActualWrites);
         }
 
-        void
-        checkEqualMergeCounters(Survey const& other) const
+        void checkEqualMergeCounters(Survey const& other) const
         {
             auto checkCountersEqual = [](auto const& counters,
                                          auto const& other) {
@@ -1189,8 +1179,7 @@ class StopAndRestartBucketMergesTest
                                other.mHotArchiveMergeCounters);
         }
 
-        void
-        checkEqual(Survey const& other) const
+        void checkEqual(Survey const& other) const
         {
             CHECK(mCurrBucketHash == other.mCurrBucketHash);
             CHECK(mSnapBucketHash == other.mSnapBucketHash);
@@ -1241,10 +1230,9 @@ class StopAndRestartBucketMergesTest
     // for Hot Archive
     std::vector<LedgerKey> mHotArchiveInitialBatch;
 
-    void
-    collectLedgerEntries(Application& app,
-                         std::map<LedgerKey, LedgerEntry>& liveEntries,
-                         std::map<LedgerKey, LedgerEntry>& archiveEntries)
+    void collectLedgerEntries(Application& app,
+                              std::map<LedgerKey, LedgerEntry>& liveEntries,
+                              std::map<LedgerKey, LedgerEntry>& archiveEntries)
     {
         auto bl = app.getBucketManager().getLiveBucketList();
         for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
@@ -1299,8 +1287,7 @@ class StopAndRestartBucketMergesTest
         }
     }
 
-    void
-    collectFinalLedgerEntries(Application& app)
+    void collectFinalLedgerEntries(Application& app)
     {
         collectLedgerEntries(app, mFinalEntries, mFinalArchiveEntries);
         CLOG_INFO(Bucket,
@@ -1309,8 +1296,7 @@ class StopAndRestartBucketMergesTest
                   mFinalEntries.size(), mFinalArchiveEntries.size());
     }
 
-    void
-    checkAgainstFinalLedgerEntries(Application& app)
+    void checkAgainstFinalLedgerEntries(Application& app)
     {
         std::map<LedgerKey, LedgerEntry> testEntries;
         std::map<LedgerKey, LedgerEntry> testArchiveEntries;
@@ -1331,8 +1317,7 @@ class StopAndRestartBucketMergesTest
         }
     }
 
-    void
-    calculateDesignatedLedgers()
+    void calculateDesignatedLedgers()
     {
         uint32_t spillFreq = LiveBucketList::levelHalf(mDesignatedLevel);
         uint32_t prepFreq =
@@ -1379,8 +1364,7 @@ class StopAndRestartBucketMergesTest
 
     // Designated ledgers are where stop/restart events will occur. We further
     // _survey_ ledgers +/- 1 on each side of _designated_ ledgers.
-    bool
-    shouldSurveyLedger(uint32_t ledger)
+    bool shouldSurveyLedger(uint32_t ledger)
     {
         if (mDesignatedLedgers.find(ledger + 1) != mDesignatedLedgers.end())
         {
@@ -1398,8 +1382,7 @@ class StopAndRestartBucketMergesTest
         return false;
     }
 
-    void
-    collectControlSurveys()
+    void collectControlSurveys()
     {
         VirtualClock clock;
         Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
@@ -1563,8 +1546,7 @@ class StopAndRestartBucketMergesTest
         collectFinalLedgerEntries(*app);
     }
 
-    void
-    runStopAndRestartTest(uint32_t firstProtocol, uint32_t secondProtocol)
+    void runStopAndRestartTest(uint32_t firstProtocol, uint32_t secondProtocol)
     {
         std::unique_ptr<VirtualClock> clock = std::make_unique<VirtualClock>();
         Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
@@ -1745,8 +1727,7 @@ class StopAndRestartBucketMergesTest
     {
     }
 
-    void
-    run()
+    void run()
     {
         calculateDesignatedLedgers();
         collectControlSurveys();

@@ -19,8 +19,7 @@ namespace stellar
 namespace InvariantTestUtils
 {
 
-LedgerEntry
-generateRandomAccount(uint32_t ledgerSeq)
+LedgerEntry generateRandomAccount(uint32_t ledgerSeq)
 {
     LedgerEntry le;
     le.lastModifiedLedgerSeq = ledgerSeq;
@@ -34,9 +33,8 @@ generateRandomAccount(uint32_t ledgerSeq)
     return le;
 }
 
-LedgerEntry
-generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
-              Price price)
+LedgerEntry generateOffer(Asset const& selling, Asset const& buying,
+                          int64_t amount, Price price)
 {
     REQUIRE(!(selling == buying));
     REQUIRE(amount >= 1);
@@ -55,9 +53,8 @@ generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
     return le;
 }
 
-bool
-store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
-      OperationResult const* resPtr)
+bool store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
+           OperationResult const* resPtr)
 {
     bool shouldCommit = !ltxPtr;
     std::unique_ptr<LedgerTxn> ltxStore;
@@ -127,8 +124,8 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
     return doInvariantsHold;
 }
 
-UpdateList
-makeUpdateList(std::vector<LedgerEntry> const& current, std::nullptr_t previous)
+UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,
+                          std::nullptr_t previous)
 {
     UpdateList updates;
     std::transform(current.begin(), current.end(), std::back_inserter(updates),
@@ -139,9 +136,8 @@ makeUpdateList(std::vector<LedgerEntry> const& current, std::nullptr_t previous)
     return updates;
 }
 
-UpdateList
-makeUpdateList(std::vector<LedgerEntry> const& current,
-               std::vector<LedgerEntry> const& previous)
+UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,
+                          std::vector<LedgerEntry> const& previous)
 {
     assert(current.size() == previous.size());
     UpdateList updates;
@@ -155,8 +151,8 @@ makeUpdateList(std::vector<LedgerEntry> const& current,
     return updates;
 }
 
-UpdateList
-makeUpdateList(std::nullptr_t current, std::vector<LedgerEntry> const& previous)
+UpdateList makeUpdateList(std::nullptr_t current,
+                          std::vector<LedgerEntry> const& previous)
 {
     UpdateList updates;
     std::transform(previous.begin(), previous.end(),
@@ -167,8 +163,7 @@ makeUpdateList(std::nullptr_t current, std::vector<LedgerEntry> const& previous)
     return updates;
 }
 
-void
-normalizeSigners(AccountEntry& acc)
+void normalizeSigners(AccountEntry& acc)
 {
     // Get indexes after sorting by acc.signer keys
     std::vector<std::size_t> indices(acc.signers.size());
@@ -202,8 +197,7 @@ normalizeSigners(AccountEntry& acc)
     }
 }
 
-int64_t
-getMinBalance(Application& app, AccountEntry const& acc)
+int64_t getMinBalance(Application& app, AccountEntry const& acc)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     return getMinBalance(ltx.loadHeader().current(), acc);

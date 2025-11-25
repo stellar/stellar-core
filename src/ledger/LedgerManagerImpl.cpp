@@ -115,8 +115,7 @@ const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 namespace
 {
 
-std::vector<uint32_t>
-getModuleCacheProtocols()
+std::vector<uint32_t> getModuleCacheProtocols()
 {
     std::vector<uint32_t> ledgerVersions;
     for (uint32_t i = (uint32_t)REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION;
@@ -136,16 +135,14 @@ getModuleCacheProtocols()
     return ledgerVersions;
 }
 
-void
-setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
+void setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     ltx.loadHeader().current() = lh;
     ltx.commit();
 }
 
-bool
-mergeOpInTx(std::vector<Operation> const& ops)
+bool mergeOpInTx(std::vector<Operation> const& ops)
 {
     for (auto const& op : ops)
     {
@@ -158,34 +155,30 @@ mergeOpInTx(std::vector<Operation> const& ops)
 }
 }
 
-std::unique_ptr<LedgerManager>
-LedgerManager::create(Application& app)
+std::unique_ptr<LedgerManager> LedgerManager::create(Application& app)
 {
     return std::make_unique<LedgerManagerImpl>(app);
 }
 
-std::string
-LedgerManager::ledgerAbbrev(LedgerHeader const& header)
+std::string LedgerManager::ledgerAbbrev(LedgerHeader const& header)
 {
     return ledgerAbbrev(header, xdrSha256(header));
 }
 
-std::string
-LedgerManager::ledgerAbbrev(uint32_t seq, uint256 const& hash)
+std::string LedgerManager::ledgerAbbrev(uint32_t seq, uint256 const& hash)
 {
     std::ostringstream oss;
     oss << "[seq=" << seq << ", hash=" << hexAbbrev(hash) << "]";
     return oss.str();
 }
 
-std::string
-LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
+std::string LedgerManager::ledgerAbbrev(LedgerHeader const& header,
+                                        uint256 const& hash)
 {
     return ledgerAbbrev(header.ledgerSeq, hash);
 }
 
-std::string
-LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
+std::string LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 {
     return ledgerAbbrev(he.header, he.hash);
 }
@@ -266,8 +259,7 @@ LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSizeForTesting() const
 }
 #endif
 
-void
-LedgerManagerImpl::ApplyState::threadInvariant() const
+void LedgerManagerImpl::ApplyState::threadInvariant() const
 {
     if (mAppConnector.getConfig().parallelLedgerClose())
     {
@@ -287,20 +279,17 @@ LedgerManagerImpl::ApplyState::getModuleCache() const
     return mModuleCache;
 }
 
-void
-LedgerManagerImpl::markApplyStateReset()
+void LedgerManagerImpl::markApplyStateReset()
 {
     mApplyState.resetToSetupPhase();
 }
 
-bool
-LedgerManagerImpl::ApplyState::isCompilationRunning() const
+bool LedgerManagerImpl::ApplyState::isCompilationRunning() const
 {
     return static_cast<bool>(mCompiler);
 }
 
-void
-LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
+void LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::vector<LedgerEntry> const& initEntries,
     std::vector<LedgerEntry> const& liveEntries,
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
@@ -312,8 +301,7 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
                                       getMetrics().mSorobanMetrics);
 }
 
-uint64_t
-LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
+uint64_t LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
 {
     // This assert is not strictly necessary, but we don't really want to
     // access the state size outside of the snapshotting process during the
@@ -322,8 +310,7 @@ LedgerManagerImpl::ApplyState::getSorobanInMemoryStateSize() const
     return mInMemorySorobanState.getSize();
 }
 
-void
-LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
+void LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
     LedgerHeader const& lh)
 {
     assertCommittingPhase();
@@ -343,14 +330,12 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     setupLedgerCloseMetaStream();
 }
 
-void
-LedgerManagerImpl::moveToSynced()
+void LedgerManagerImpl::moveToSynced()
 {
     setState(LM_SYNCED_STATE);
 }
 
-void
-LedgerManagerImpl::beginApply()
+void LedgerManagerImpl::beginApply()
 {
     releaseAssert(threadIsMain());
 
@@ -358,8 +343,7 @@ LedgerManagerImpl::beginApply()
     mCurrentlyApplyingLedger = true;
 }
 
-void
-LedgerManagerImpl::setState(State s)
+void LedgerManagerImpl::setState(State s)
 {
     releaseAssert(threadIsMain());
     if (s != getState())
@@ -375,22 +359,19 @@ LedgerManagerImpl::setState(State s)
     }
 }
 
-LedgerManager::State
-LedgerManagerImpl::getState() const
+LedgerManager::State LedgerManagerImpl::getState() const
 {
     return mState;
 }
 
-std::string
-LedgerManagerImpl::getStateHuman() const
+std::string LedgerManagerImpl::getStateHuman() const
 {
     static std::array<const char*, LM_NUM_STATE> stateStrings = std::array{
         "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
     return std::string(stateStrings[getState()]);
 }
 
-LedgerHeader
-LedgerManager::genesisLedger()
+LedgerHeader LedgerManager::genesisLedger()
 {
     LedgerHeader result;
     // all fields are initialized by default to 0
@@ -404,8 +385,7 @@ LedgerManager::genesisLedger()
     return result;
 }
 
-void
-LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
+void LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 {
     mApplyState.assertSetupPhase();
     auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
@@ -485,8 +465,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     // LedgerManager after creating the genesis ledger.
 }
 
-void
-LedgerManagerImpl::startNewLedger()
+void LedgerManagerImpl::startNewLedger()
 {
     auto ledger = genesisLedger();
     auto const& cfg = mApp.getConfig();
@@ -501,8 +480,7 @@ LedgerManagerImpl::startNewLedger()
     startNewLedger(ledger);
 }
 
-void
-LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
+void LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 {
     ZoneScoped;
     mApplyState.assertSetupPhase();
@@ -606,26 +584,22 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     mApplyState.markEndOfSetupPhase();
 }
 
-void
-LedgerManagerImpl::loadLastKnownLedger()
+void LedgerManagerImpl::loadLastKnownLedger()
 {
     loadLastKnownLedgerInternal(/* skipBuildingFullState */ false);
 }
 
-void
-LedgerManagerImpl::partiallyLoadLastKnownLedgerForUtils()
+void LedgerManagerImpl::partiallyLoadLastKnownLedgerForUtils()
 {
     loadLastKnownLedgerInternal(/* skipBuildingFullState */ true);
 }
 
-Database&
-LedgerManagerImpl::getDatabase()
+Database& LedgerManagerImpl::getDatabase()
 {
     return mApp.getDatabase();
 }
 
-uint32_t
-LedgerManagerImpl::getLastMaxTxSetSize() const
+uint32_t LedgerManagerImpl::getLastMaxTxSetSize() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -633,8 +607,7 @@ LedgerManagerImpl::getLastMaxTxSetSize() const
         .header.maxTxSetSize;
 }
 
-uint32_t
-LedgerManagerImpl::getLastMaxTxSetSizeOps() const
+uint32_t LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -648,8 +621,7 @@ LedgerManagerImpl::getLastMaxTxSetSizeOps() const
                : (n * MAX_OPS_PER_TX);
 }
 
-Resource
-LedgerManagerImpl::maxLedgerResources(bool isSoroban)
+Resource LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 {
     ZoneScoped;
 
@@ -664,8 +636,7 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban)
     }
 }
 
-Resource
-LedgerManagerImpl::maxSorobanTransactionResources()
+Resource LedgerManagerImpl::maxSorobanTransactionResources()
 {
     ZoneScoped;
 
@@ -682,8 +653,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
     return Resource(limits);
 }
 
-int64_t
-LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
+int64_t LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -694,8 +664,7 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
         return (2LL + ownerCount) * int64_t(lh.baseReserve);
 }
 
-uint32_t
-LedgerManagerImpl::getLastReserve() const
+uint32_t LedgerManagerImpl::getLastReserve() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -703,8 +672,7 @@ LedgerManagerImpl::getLastReserve() const
         .header.baseReserve;
 }
 
-uint32_t
-LedgerManagerImpl::getLastTxFee() const
+uint32_t LedgerManagerImpl::getLastTxFee() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -719,16 +687,14 @@ LedgerManagerImpl::getLastClosedLedgerHeader() const
     return mLastClosedLedgerState->getLastClosedLedgerHeader();
 }
 
-HistoryArchiveState
-LedgerManagerImpl::getLastClosedLedgerHAS() const
+HistoryArchiveState LedgerManagerImpl::getLastClosedLedgerHAS() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedHistoryArchiveState();
 }
 
-uint32_t
-LedgerManagerImpl::getLastClosedLedgerNum() const
+uint32_t LedgerManagerImpl::getLastClosedLedgerNum() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
@@ -750,8 +716,7 @@ LedgerManagerImpl::maybeCopySorobanStateForInvariant() const
     return inMemorySnapshotForInvariant;
 }
 
-void
-LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
+void LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     CompleteConstLedgerStatePtr const& ledgerState,
     std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant,
     bool runInParallel) const
@@ -798,16 +763,14 @@ LedgerManagerImpl::getLastClosedSorobanNetworkConfig() const
     return mLastClosedLedgerState->getSorobanConfig();
 }
 
-bool
-LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
+bool LedgerManagerImpl::hasLastClosedSorobanNetworkConfig() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->hasSorobanConfig();
 }
 
-std::chrono::milliseconds
-LedgerManagerImpl::getExpectedLedgerCloseTime() const
+std::chrono::milliseconds LedgerManagerImpl::getExpectedLedgerCloseTime() const
 {
     releaseAssert(threadIsMain());
 
@@ -843,8 +806,7 @@ LedgerManagerImpl::getLastClosedLedgerCloseMeta()
     return mLastLedgerCloseMeta;
 }
 
-void
-LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
+void LedgerManagerImpl::storeCurrentLedgerForTest(LedgerHeader const& header)
 {
     storePersistentStateAndLedgerHeaderInDB(header, true);
 }
@@ -855,8 +817,8 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
     return mApplyState.getInMemorySorobanStateForTesting();
 }
 
-void
-LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
+void LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(
+    uint32_t ledgerVersion)
 {
     mApplyState.resetToSetupPhase();
     mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
@@ -872,15 +834,13 @@ LedgerManagerImpl::getModuleCacheForTesting()
     return mApplyState.getModuleCacheForTesting()->shallow_clone();
 }
 
-uint64_t
-LedgerManagerImpl::getSorobanInMemoryStateSizeForTesting()
+uint64_t LedgerManagerImpl::getSorobanInMemoryStateSizeForTesting()
 {
     return mApplyState.getSorobanInMemoryStateSizeForTesting();
 }
 #endif
 
-SorobanMetrics&
-LedgerManagerImpl::getSorobanMetrics()
+SorobanMetrics& LedgerManagerImpl::getSorobanMetrics()
 {
     return mApplyState.getMetrics().mSorobanMetrics;
 }
@@ -904,8 +864,7 @@ LedgerManagerImpl::createLedgerTxnRoot(Application& app, size_t entryCacheSize,
     );
 }
 
-::rust::Box<rust_bridge::SorobanModuleCache>
-LedgerManagerImpl::getModuleCache()
+::rust::Box<rust_bridge::SorobanModuleCache> LedgerManagerImpl::getModuleCache()
 {
     // There should not be any compilation running when
     // anyone calls this function. It is accessed from
@@ -914,16 +873,15 @@ LedgerManagerImpl::getModuleCache()
     return mApplyState.getModuleCache()->shallow_clone();
 }
 
-void
-LedgerManagerImpl::handleUpgradeAffectingSorobanInMemoryStateSize(
+void LedgerManagerImpl::handleUpgradeAffectingSorobanInMemoryStateSize(
     AbstractLedgerTxn& upgradeLtx)
 {
     mApplyState.handleUpgradeAffectingSorobanInMemoryStateSize(upgradeLtx);
 }
 
-void
-LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
-    AbstractLedgerTxn& upgradeLtx)
+void LedgerManagerImpl::ApplyState::
+    handleUpgradeAffectingSorobanInMemoryStateSize(
+        AbstractLedgerTxn& upgradeLtx)
 {
     assertCommittingPhase();
 
@@ -945,8 +903,7 @@ LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
     }
 }
 
-void
-LedgerManagerImpl::ApplyState::finishPendingCompilation()
+void LedgerManagerImpl::ApplyState::finishPendingCompilation()
 {
     assertWritablePhase();
     releaseAssert(mCompiler);
@@ -961,8 +918,7 @@ LedgerManagerImpl::ApplyState::finishPendingCompilation()
     mCompiler.reset();
 }
 
-void
-LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
+void LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
     SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
 {
     assertSetupPhase();
@@ -970,69 +926,60 @@ LedgerManagerImpl::ApplyState::compileAllContractsInLedger(
     finishPendingCompilation();
 }
 
-void
-LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
+void LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
     SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
     assertSetupPhase();
     mInMemorySorobanState.initializeStateFromSnapshot(snap, ledgerVersion);
 }
 
-void
-LedgerManagerImpl::ApplyState::assertCommittingPhase() const
+void LedgerManagerImpl::ApplyState::assertCommittingPhase() const
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::COMMITTING);
 }
 
-void
-LedgerManagerImpl::ApplyState::markStartOfApplying()
+void LedgerManagerImpl::ApplyState::markStartOfApplying()
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::READY_TO_APPLY);
     mPhase = Phase::APPLYING;
 }
 
-void
-LedgerManagerImpl::ApplyState::markStartOfCommitting()
+void LedgerManagerImpl::ApplyState::markStartOfCommitting()
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::APPLYING);
     mPhase = Phase::COMMITTING;
 }
 
-void
-LedgerManagerImpl::ApplyState::markEndOfCommitting()
+void LedgerManagerImpl::ApplyState::markEndOfCommitting()
 {
     assertCommittingPhase();
     mPhase = Phase::READY_TO_APPLY;
 }
 
-void
-LedgerManagerImpl::ApplyState::markEndOfSetupPhase()
+void LedgerManagerImpl::ApplyState::markEndOfSetupPhase()
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     mPhase = Phase::READY_TO_APPLY;
 }
 
-void
-LedgerManagerImpl::ApplyState::resetToSetupPhase()
+void LedgerManagerImpl::ApplyState::resetToSetupPhase()
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::READY_TO_APPLY);
     mPhase = Phase::SETTING_UP_STATE;
 }
 
-void
-LedgerManagerImpl::ApplyState::assertSetupPhase() const
+void LedgerManagerImpl::ApplyState::assertSetupPhase() const
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::SETTING_UP_STATE);
 }
 
-void
-LedgerManagerImpl::ApplyState::startCompilingAllContracts(
+void LedgerManagerImpl::ApplyState::startCompilingAllContracts(
     SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
 {
     threadInvariant();
@@ -1052,16 +999,14 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
     mCompiler->start();
 }
 
-void
-LedgerManagerImpl::ApplyState::assertWritablePhase() const
+void LedgerManagerImpl::ApplyState::assertWritablePhase() const
 {
     threadInvariant();
     releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
                   mPhase == Phase::COMMITTING);
 }
 
-void
-LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
+void LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     SearchableSnapshotConstPtr snap, uint32_t minLedgerVersion)
 {
     assertCommittingPhase();
@@ -1127,8 +1072,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     }
 }
 
-void
-LedgerManagerImpl::publishSorobanMetrics()
+void LedgerManagerImpl::publishSorobanMetrics()
 {
     if (!hasLastClosedSorobanNetworkConfig())
     {
@@ -1170,9 +1114,8 @@ LedgerManagerImpl::publishSorobanMetrics()
 }
 
 // called by txherder
-void
-LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
-                                     bool isLatestSlot)
+void LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
+                                          bool isLatestSlot)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1213,17 +1156,15 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
     }
 }
 
-void
-LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                std::shared_ptr<HistoryArchive> archive)
+void LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                     std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
     mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
-uint64_t
-LedgerManagerImpl::secondsSinceLastLedgerClose() const
+uint64_t LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
     uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
     if (ct == 0)
@@ -1234,16 +1175,14 @@ LedgerManagerImpl::secondsSinceLastLedgerClose() const
     return (now > ct) ? (now - ct) : 0;
 }
 
-void
-LedgerManagerImpl::syncMetrics()
+void LedgerManagerImpl::syncMetrics()
 {
     mApplyState.getMetrics().mLedgerAge.set_count(
         secondsSinceLastLedgerClose());
     mApp.syncOwnMetrics();
 }
 
-void
-LedgerManagerImpl::emitNextMeta()
+void LedgerManagerImpl::emitNextMeta()
 {
     ZoneScoped;
 
@@ -1272,9 +1211,8 @@ LedgerManagerImpl::emitNextMeta()
     mNextMetaToEmit.reset();
 }
 
-void
-maybeSimulateSleep(Config const& cfg, size_t opSize,
-                   LogSlowExecution& closeTime)
+void maybeSimulateSleep(Config const& cfg, size_t opSize,
+                        LogSlowExecution& closeTime)
 {
     if (!cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
     {
@@ -1301,16 +1239,14 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
     }
 }
 
-asio::io_context&
-getMetaIOContext(Application& app)
+asio::io_context& getMetaIOContext(Application& app)
 {
     return app.getConfig().parallelLedgerClose()
                ? app.getLedgerCloseIOContext()
                : app.getClock().getIOContext();
 }
 
-void
-LedgerManagerImpl::ledgerCloseComplete(
+void LedgerManagerImpl::ledgerCloseComplete(
     uint32_t lcl, bool calledViaExternalize, LedgerCloseData const& ledgerData,
     bool upgradeApplied,
     std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant)
@@ -1360,8 +1296,7 @@ LedgerManagerImpl::ledgerCloseComplete(
     }
 }
 
-void
-LedgerManagerImpl::advanceLedgerStateAndPublish(
+void LedgerManagerImpl::advanceLedgerStateAndPublish(
     uint32_t ledgerSeq, bool calledViaExternalize,
     LedgerCloseData const& ledgerData,
     CompleteConstLedgerStatePtr newLedgerState, bool upgradeApplied,
@@ -1414,9 +1349,8 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
 // application happening on the main thread -- it can happen on either).
 // It is called from the LedgerApplyManager and will post its results
 // back to the main thread when done, if running on the apply thread.
-void
-LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
-                               bool calledViaExternalize)
+void LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
+                                    bool calledViaExternalize)
 {
     if (mApp.isStopping())
     {
@@ -1825,8 +1759,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     FrameMark;
 }
 
-void
-LedgerManagerImpl::setLastClosedLedger(
+void LedgerManagerImpl::setLastClosedLedger(
     LedgerHeaderHistoryEntry const& lastClosed, bool rebuildInMemoryState)
 {
     // NB: this method is a sort of half-apply that runs on main thread and
@@ -1870,8 +1803,7 @@ LedgerManagerImpl::setLastClosedLedger(
     mApplyState.markEndOfSetupPhase();
 }
 
-void
-LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
+void LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
 {
     if (!mApp.getConfig().MANUAL_CLOSE || !mApp.getConfig().RUN_STANDALONE)
     {
@@ -1891,8 +1823,7 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     mApplyState.markEndOfCommitting();
 }
 
-void
-LedgerManagerImpl::setupLedgerCloseMetaStream()
+void LedgerManagerImpl::setupLedgerCloseMetaStream()
 {
     ZoneScoped;
 
@@ -1924,8 +1855,7 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
         }
     }
 }
-void
-LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
+void LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 {
     ZoneScoped;
 
@@ -2021,16 +1951,14 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     }
 }
 
-SearchableSnapshotConstPtr
-LedgerManagerImpl::getLastClosedSnapshot() const
+SearchableSnapshotConstPtr LedgerManagerImpl::getLastClosedSnapshot() const
 {
     releaseAssert(threadIsMain());
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getBucketSnapshot();
 }
 
-void
-LedgerManagerImpl::advanceLastClosedLedgerState(
+void LedgerManagerImpl::advanceLastClosedLedgerState(
     CompleteConstLedgerStatePtr newLedgerState)
 {
     releaseAssert(threadIsMain());
@@ -2075,8 +2003,7 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
 }
 }
 
-std::vector<MutableTxResultPtr>
-LedgerManagerImpl::processFeesSeqNums(
+std::vector<MutableTxResultPtr> LedgerManagerImpl::processFeesSeqNums(
     ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerCloseData const& ledgerData)
@@ -2196,10 +2123,9 @@ LedgerManagerImpl::processFeesSeqNums(
     return txResults;
 }
 
-void
-LedgerManagerImpl::prefetchTxSourceIds(AbstractLedgerTxnParent& ltx,
-                                       ApplicableTxSetFrame const& txSet,
-                                       Config const& config)
+void LedgerManagerImpl::prefetchTxSourceIds(AbstractLedgerTxnParent& ltx,
+                                            ApplicableTxSetFrame const& txSet,
+                                            Config const& config)
 {
     ZoneScoped;
     if (config.PREFETCH_BATCH_SIZE > 0 && !config.allBucketsInMemory())
@@ -2216,10 +2142,9 @@ LedgerManagerImpl::prefetchTxSourceIds(AbstractLedgerTxnParent& ltx,
     }
 }
 
-void
-LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
-                                           ApplicableTxSetFrame const& txSet,
-                                           Config const& config)
+void LedgerManagerImpl::prefetchTransactionData(
+    AbstractLedgerTxnParent& ltx, ApplicableTxSetFrame const& txSet,
+    Config const& config)
 {
     ZoneScoped;
     if (config.PREFETCH_BATCH_SIZE > 0 && !config.allBucketsInMemory())
@@ -2236,8 +2161,7 @@ LedgerManagerImpl::prefetchTransactionData(AbstractLedgerTxnParent& ltx,
     }
 }
 
-std::unique_ptr<ThreadParallelApplyLedgerState>
-LedgerManagerImpl::applyThread(
+std::unique_ptr<ThreadParallelApplyLedgerState> LedgerManagerImpl::applyThread(
     AppConnector& app,
     std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
     Cluster const& cluster, Config const& config, ParallelLedgerInfo ledgerInfo,
@@ -2276,8 +2200,8 @@ LedgerManagerImpl::applyThread(
     return threadState;
 }
 
-ParallelLedgerInfo
-getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
+ParallelLedgerInfo getParallelLedgerInfo(AppConnector& app,
+                                         LedgerHeader const& lh)
 {
     return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
             lh.scpValue.closeTime, app.getNetworkID()};
@@ -2330,8 +2254,7 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     return threadStates;
 }
 
-void
-LedgerManagerImpl::checkAllTxBundleInvariants(
+void LedgerManagerImpl::checkAllTxBundleInvariants(
     AppConnector& app, ApplyStage const& stage, Config const& config,
     ParallelLedgerInfo const& ledgerInfo, LedgerHeader const& header)
 {
@@ -2373,8 +2296,7 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
     }
 }
 
-void
-LedgerManagerImpl::applySorobanStage(
+void LedgerManagerImpl::applySorobanStage(
     AppConnector& app, LedgerHeader const& header,
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
     Hash const& sorobanBasePrngSeed)
@@ -2391,11 +2313,10 @@ LedgerManagerImpl::applySorobanStage(
     globalParState.commitChangesFromThreads(app, threadStates, stage);
 }
 
-void
-LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
-                                      std::vector<ApplyStage> const& stages,
-                                      SorobanNetworkConfig const& sorobanConfig,
-                                      Hash const& sorobanBasePrngSeed)
+void LedgerManagerImpl::applySorobanStages(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::vector<ApplyStage> const& stages,
+    SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
     GlobalParallelApplyLedgerState globalParState(
@@ -2411,8 +2332,7 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
     globalParState.commitChangesToLedgerTxn(ltx);
 }
 
-void
-LedgerManagerImpl::processResultAndMeta(
+void LedgerManagerImpl::processResultAndMeta(
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     uint32_t txIndex, TransactionMetaBuilder& txMetaBuilder,
     TransactionFrameBase const& tx, MutableTransactionResultBase const& result,
@@ -2463,8 +2383,7 @@ LedgerManagerImpl::processResultAndMeta(
     }
 }
 
-TransactionResultSet
-LedgerManagerImpl::applyTransactions(
+TransactionResultSet LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
     std::vector<MutableTxResultPtr> const& mutableTxResults,
     AbstractLedgerTxn& ltx,
@@ -2570,8 +2489,7 @@ LedgerManagerImpl::applyTransactions(
     return txResultSet;
 }
 
-void
-LedgerManagerImpl::applyParallelPhase(
+void LedgerManagerImpl::applyParallelPhase(
     TxSetPhaseFrame const& phase, std::vector<stellar::ApplyStage>& applyStages,
     std::vector<stellar::MutableTxResultPtr> const& mutableTxResults,
     uint32_t& index, stellar::AbstractLedgerTxn& ltx, bool enableTxMeta,
@@ -2629,8 +2547,7 @@ LedgerManagerImpl::applyParallelPhase(
     // meta will be processed in processPostTxSetApply
 }
 
-void
-LedgerManagerImpl::applySequentialPhase(
+void LedgerManagerImpl::applySequentialPhase(
     TxSetPhaseFrame const& phase,
     std::vector<MutableTxResultPtr> const& mutableTxResults, uint32_t& index,
     AbstractLedgerTxn& ltx, bool enableTxMeta,
@@ -2688,8 +2605,7 @@ LedgerManagerImpl::applySequentialPhase(
     }
 }
 
-void
-LedgerManagerImpl::processPostTxSetApply(
+void LedgerManagerImpl::processPostTxSetApply(
     std::vector<TxSetPhaseFrame> const& phases,
     std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
@@ -2736,9 +2652,8 @@ LedgerManagerImpl::processPostTxSetApply(
         // non-parallel phase.
     }
 }
-void
-LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
-                                     size_t numOps)
+void LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
+                                          size_t numOps)
 {
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto hitRate = mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100;
@@ -2751,8 +2666,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
     TracyPlot("ledger.prefetch.hit-rate", hitRate);
 }
 
-HistoryArchiveState
-LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
+HistoryArchiveState LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     LedgerHeader const& header, bool appendToCheckpoint)
 {
     ZoneScoped;
@@ -2801,8 +2715,7 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 }
 
 // NB: This is a separate method so a testing subclass can override it.
-void
-LedgerManagerImpl::finalizeLedgerTxnChanges(
+void LedgerManagerImpl::finalizeLedgerTxnChanges(
     SearchableSnapshotConstPtr lclSnapshot,
     SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
     AbstractLedgerTxn& ltx,
@@ -2978,8 +2891,7 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
     return res;
 }
 
-void
-LedgerManagerImpl::ApplyState::evictFromModuleCache(
+void LedgerManagerImpl::ApplyState::evictFromModuleCache(
     uint32_t ledgerVersion, EvictedStateVectors const& evictedState)
 {
     ZoneScoped;
@@ -3014,8 +2926,7 @@ LedgerManagerImpl::ApplyState::evictFromModuleCache(
     }
 }
 
-void
-LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
+void LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
     uint32_t ledgerVersion, std::vector<LedgerEntry> const& le)
 {
     ZoneScoped;

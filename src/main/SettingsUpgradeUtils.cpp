@@ -186,8 +186,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
-void
-validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
+void validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 {
     for (auto const& entry : upgradeSet.updatedEntry)
     {
@@ -217,7 +216,6 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum,
             int64_t addResourceFee)
 {
-
     validateConfigUpgradeSet(upgradeSet);
 
     TransactionEnvelope txEnv;

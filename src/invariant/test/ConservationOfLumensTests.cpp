@@ -21,8 +21,7 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-int64_t
-getTotalBalance(std::vector<LedgerEntry> const& entries)
+int64_t getTotalBalance(std::vector<LedgerEntry> const& entries)
 {
     return std::accumulate(entries.begin(), entries.end(),
                            static_cast<int64_t>(0),
@@ -31,8 +30,8 @@ getTotalBalance(std::vector<LedgerEntry> const& entries)
                            });
 }
 
-int64_t
-getCoinsAboveReserve(std::vector<LedgerEntry> const& entries, Application& app)
+int64_t getCoinsAboveReserve(std::vector<LedgerEntry> const& entries,
+                             Application& app)
 {
     return std::accumulate(
         entries.begin(), entries.end(), static_cast<int64_t>(0),
@@ -42,9 +41,9 @@ getCoinsAboveReserve(std::vector<LedgerEntry> const& entries, Application& app)
         });
 }
 
-std::vector<LedgerEntry>
-updateBalances(std::vector<LedgerEntry> entries, Application& app,
-               int64_t netChange, bool updateTotalCoins)
+std::vector<LedgerEntry> updateBalances(std::vector<LedgerEntry> entries,
+                                        Application& app, int64_t netChange,
+                                        bool updateTotalCoins)
 {
     int64_t initialCoins = getTotalBalance(entries);
     int64_t pool = netChange + getCoinsAboveReserve(entries, app);
@@ -95,8 +94,8 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
     return entries;
 }
 
-std::vector<LedgerEntry>
-updateBalances(std::vector<LedgerEntry> const& entries, Application& app)
+std::vector<LedgerEntry> updateBalances(std::vector<LedgerEntry> const& entries,
+                                        Application& app)
 {
     int64_t coinsAboveReserve = getCoinsAboveReserve(entries, app);
 

@@ -60,8 +60,8 @@ namespace stellar
 static const asio::error_code ABORT_ERROR_CODE(asio::error::operation_aborted,
                                                asio::system_category());
 
-static asio::error_code
-mapExitStatusToErrorCode(std::string const& cmdLine, int pid, int status)
+static asio::error_code mapExitStatusToErrorCode(std::string const& cmdLine,
+                                                 int pid, int status)
 {
 // On windows, an exit status is just an exit status. On unix it's
 // got some flags incorporated into it.
@@ -119,8 +119,7 @@ mapExitStatusToErrorCode(std::string const& cmdLine, int pid, int status)
 #endif
 }
 
-std::shared_ptr<ProcessManager>
-ProcessManager::create(Application& app)
+std::shared_ptr<ProcessManager> ProcessManager::create(Application& app)
 {
     return std::make_shared<ProcessManagerImpl>(app);
 }
@@ -157,8 +156,7 @@ class ProcessExitEvent::Impl
     {
     }
 
-    bool
-    finish()
+    bool finish()
     {
         ZoneScoped;
         releaseAssertOrThrow(mLifecycle == ProcessLifecycle::TERMINATED);
@@ -180,22 +178,19 @@ class ProcessExitEvent::Impl
     }
 
     void run();
-    void
-    cancel(asio::error_code const& ec)
+    void cancel(asio::error_code const& ec)
     {
         *mOuterEc = ec;
         mOuterTimer->cancel();
     }
 
-    int
-    getProcessId() const
+    int getProcessId() const
     {
         return mProcessId;
     }
 };
 
-size_t
-ProcessManagerImpl::getNumRunningProcesses()
+size_t ProcessManagerImpl::getNumRunningProcesses()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     size_t n = 0;
@@ -209,8 +204,7 @@ ProcessManagerImpl::getNumRunningProcesses()
     return n;
 }
 
-size_t
-ProcessManagerImpl::getNumRunningOrShuttingDownProcesses()
+size_t ProcessManagerImpl::getNumRunningOrShuttingDownProcesses()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     return mProcesses.size();
@@ -253,14 +247,12 @@ ProcessManagerImpl::~ProcessManagerImpl()
     }
 }
 
-bool
-ProcessManagerImpl::isShutdown() const
+bool ProcessManagerImpl::isShutdown() const
 {
     return mIsShutdown;
 }
 
-void
-ProcessManagerImpl::shutdown()
+void ProcessManagerImpl::shutdown()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     if (!mIsShutdown)
@@ -278,8 +270,7 @@ ProcessManagerImpl::shutdown()
     }
 }
 
-void
-ProcessManagerImpl::tryProcessShutdownAll()
+void ProcessManagerImpl::tryProcessShutdownAll()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     for (auto const& pe : mProcesses)
@@ -288,8 +279,8 @@ ProcessManagerImpl::tryProcessShutdownAll()
     }
 }
 
-bool
-ProcessManagerImpl::tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe)
+bool ProcessManagerImpl::tryProcessShutdown(
+    std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
@@ -360,8 +351,8 @@ ProcessManagerImpl::tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe)
     return true;
 }
 
-asio::error_code
-ProcessManagerImpl::handleProcessTermination(int pid, int status)
+asio::error_code ProcessManagerImpl::handleProcessTermination(int pid,
+                                                              int status)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
@@ -414,20 +405,17 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
 {
 }
 
-void
-ProcessManagerImpl::startWaitingForSignalChild()
+void ProcessManagerImpl::startWaitingForSignalChild()
 {
     // No-op on windows, uses waitable object handles
 }
 
-void
-ProcessManagerImpl::handleSignalChild()
+void ProcessManagerImpl::handleSignalChild()
 {
     // No-op on windows, uses waitable object handles
 }
 
-void
-ProcessManagerImpl::reapChildren()
+void ProcessManagerImpl::reapChildren()
 {
     // No-op on windows, uses waitable object handles
 }
@@ -445,8 +433,7 @@ struct InfoHelper
         ZeroMemory(&mStartupInfo, sizeof(mStartupInfo));
         mStartupInfo.StartupInfo.cb = sizeof(mStartupInfo);
     }
-    void
-    prepare()
+    void prepare()
     {
         ZoneScoped;
         if (mInitialized)
@@ -488,8 +475,7 @@ struct InfoHelper
 };
 }
 
-void
-ProcessExitEvent::Impl::run()
+void ProcessExitEvent::Impl::run()
 {
     ZoneScoped;
     auto manager = mProcManagerImpl.lock();
@@ -610,8 +596,7 @@ ProcessExitEvent::Impl::run()
     mLifecycle = ProcessLifecycle::RUNNING;
 }
 
-bool
-ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
+bool ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
     checkInvariants();
@@ -632,8 +617,7 @@ ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
     return true;
 }
 
-bool
-ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
+bool ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
     checkInvariants();
@@ -672,16 +656,14 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     startWaitingForSignalChild();
 }
 
-void
-ProcessManagerImpl::startWaitingForSignalChild()
+void ProcessManagerImpl::startWaitingForSignalChild()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     mSigChild.async_wait(
         std::bind(&ProcessManagerImpl::handleSignalChild, this));
 }
 
-void
-ProcessManagerImpl::handleSignalChild()
+void ProcessManagerImpl::handleSignalChild()
 {
     if (isShutdown())
     {
@@ -691,8 +673,7 @@ ProcessManagerImpl::handleSignalChild()
     reapChildren();
 }
 
-void
-ProcessManagerImpl::reapChildren()
+void ProcessManagerImpl::reapChildren()
 {
     // Store tuples (pid, status)
     std::vector<std::tuple<int, int>> signaledChildren;
@@ -723,8 +704,7 @@ ProcessManagerImpl::reapChildren()
     }
 }
 
-bool
-ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
+bool ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
     checkInvariants();
@@ -745,8 +725,7 @@ ProcessManagerImpl::politeShutdown(std::shared_ptr<ProcessExitEvent> pe)
     return true;
 }
 
-bool
-ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
+bool ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
     checkInvariants();
@@ -766,8 +745,7 @@ ProcessManagerImpl::forcedShutdown(std::shared_ptr<ProcessExitEvent> pe)
     return true;
 }
 
-static std::vector<std::string>
-split(std::string const& s)
+static std::vector<std::string> split(std::string const& s)
 {
     std::vector<std::string> parts;
     std::regex ws_re("\\s+");
@@ -776,8 +754,7 @@ split(std::string const& s)
     return parts;
 }
 
-void
-ProcessExitEvent::Impl::run()
+void ProcessExitEvent::Impl::run()
 {
     ZoneScoped;
     auto manager = mProcManagerImpl.lock();
@@ -858,8 +835,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     return std::weak_ptr<ProcessExitEvent>(pe);
 }
 
-void
-ProcessManagerImpl::maybeRunPendingProcesses()
+void ProcessManagerImpl::maybeRunPendingProcesses()
 {
     ZoneScoped;
     checkInvariants();
@@ -902,8 +878,7 @@ ProcessManagerImpl::maybeRunPendingProcesses()
     }
 }
 
-void
-ProcessManagerImpl::checkInvariants()
+void ProcessManagerImpl::checkInvariants()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     if (mIsShutdown)
@@ -935,8 +910,7 @@ ProcessExitEvent::~ProcessExitEvent()
 {
 }
 
-void
-ProcessExitEvent::async_wait(
+void ProcessExitEvent::async_wait(
     std::function<void(asio::error_code)> const& handler)
 {
     // Unfortunately when you cancel a timer, asio delivers

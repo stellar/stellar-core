@@ -33,9 +33,7 @@ BucketSnapshotBase<BucketT>::BucketSnapshotBase(
     releaseAssert(mBucket);
 }
 
-template <class BucketT>
-bool
-BucketSnapshotBase<BucketT>::isEmpty() const
+template <class BucketT> bool BucketSnapshotBase<BucketT>::isEmpty() const
 {
     releaseAssert(mBucket);
     return mBucket->isEmpty();
@@ -105,8 +103,7 @@ BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
 template <class BucketT>
-void
-BucketSnapshotBase<BucketT>::loadKeys(
+void BucketSnapshotBase<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
     std::vector<typename BucketT::LoadT>& result) const
 {
@@ -130,7 +127,6 @@ BucketSnapshotBase<BucketT>::loadKeys(
         std::shared_ptr<typename BucketT::EntryT const> entryOp;
         switch (indexRes.getState())
         {
-
         // Index had entry in cache
         case IndexReturnState::CACHE_HIT:
             if constexpr (std::is_same_v<BucketT, LiveBucket>)
@@ -200,8 +196,7 @@ LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 // Note: evicatbleKeys and keysInEvictableEntries both reference the same
 // entries. evictableEntries in order of eviction, keysInEvictableEntries in an
 // unordered but searchable set.
-Loop
-LiveBucketSnapshot::scanForEviction(
+Loop LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
     std::list<EvictionResultEntry>& evictableEntries,
     SearchableLiveBucketListSnapshot const& bl, uint32_t ledgerVers,
@@ -346,8 +341,7 @@ LiveBucketSnapshot::scanForEviction(
 }
 
 // Scans entries of the specified type in the bucket.
-Loop
-LiveBucketSnapshot::scanForEntriesOfType(
+Loop LiveBucketSnapshot::scanForEntriesOfType(
     LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
@@ -399,8 +393,7 @@ LiveBucketSnapshot::scanForEntriesOfType(
 }
 
 template <class BucketT>
-XDRInputFileStream&
-BucketSnapshotBase<BucketT>::getStream() const
+XDRInputFileStream& BucketSnapshotBase<BucketT>::getStream() const
 {
     releaseAssertOrThrow(!isEmpty());
     if (!mStream)
@@ -412,8 +405,7 @@ BucketSnapshotBase<BucketT>::getStream() const
 }
 
 template <class BucketT>
-std::shared_ptr<BucketT const>
-BucketSnapshotBase<BucketT>::getRawBucket() const
+std::shared_ptr<BucketT const> BucketSnapshotBase<BucketT>::getRawBucket() const
 {
     return mBucket;
 }

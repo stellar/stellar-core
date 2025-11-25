@@ -66,9 +66,9 @@ class BucketSnapshotManager : NonMovableOrCopyable
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
-    void
-    updateCurrentSnapshot(SnapshotPtrT<LiveBucket>&& liveSnapshot,
-                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
+    void updateCurrentSnapshot(
+        SnapshotPtrT<LiveBucket>&& liveSnapshot,
+        SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
         LOCKS_EXCLUDED(mSnapshotMutex);
 
     // numHistoricalLedgers is the number of historical snapshots that the
@@ -103,9 +103,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // `maybeCopy` interface refreshes `snapshot` if a newer snapshot is
     // available. It's a no-op otherwise. This is useful to avoid unnecessary
     // copying.
-    void
-    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot)
-        LOCKS_EXCLUDED(mSnapshotMutex);
+    void maybeCopySearchableBucketListSnapshot(
+        SearchableSnapshotConstPtr& snapshot) LOCKS_EXCLUDED(mSnapshotMutex);
     void maybeCopySearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveSnapshotConstPtr& snapshot)
         LOCKS_EXCLUDED(mSnapshotMutex);

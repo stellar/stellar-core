@@ -17,8 +17,7 @@
 namespace stellar
 {
 
-std::string
-toString(LedgerEntryTypeAndDurability const type)
+std::string toString(LedgerEntryTypeAndDurability const type)
 {
     switch (type)
     {
@@ -51,8 +50,7 @@ toString(LedgerEntryTypeAndDurability const type)
     }
 }
 
-MergeCounters&
-MergeCounters::operator+=(MergeCounters const& delta)
+MergeCounters& MergeCounters::operator+=(MergeCounters const& delta)
 {
     mPreInitEntryProtocolMerges += delta.mPreInitEntryProtocolMerges;
     mPostInitEntryProtocolMerges += delta.mPostInitEntryProtocolMerges;
@@ -92,8 +90,7 @@ MergeCounters::operator+=(MergeCounters const& delta)
     return *this;
 }
 
-bool
-MergeCounters::operator==(MergeCounters const& other) const
+bool MergeCounters::operator==(MergeCounters const& other) const
 {
     return (
         mPreInitEntryProtocolMerges == other.mPreInitEntryProtocolMerges &&
@@ -141,10 +138,9 @@ MergeCounters::operator==(MergeCounters const& other) const
 
 // Check that eviction scan is based off of current ledger snapshot and that
 // archival settings have not changed
-bool
-EvictionResultCandidates::isValid(uint32_t currLedgerSeq,
-                                  uint32_t currLedgerVers,
-                                  StateArchivalSettings const& currSas) const
+bool EvictionResultCandidates::isValid(
+    uint32_t currLedgerSeq, uint32_t currLedgerVers,
+    StateArchivalSettings const& currSas) const
 {
     // If the eviction scan started before a protocol upgrade, and the protocol
     // upgrade changes eviction scan behavior during the scan, we need
@@ -182,17 +178,15 @@ EvictionCounters::EvictionCounters(AppConnector& app)
 {
 }
 
-void
-EvictionStatistics::recordEvictedEntry(uint64_t age)
+void EvictionStatistics::recordEvictedEntry(uint64_t age)
 {
     std::lock_guard l(mLock);
     ++mNumEntriesEvicted;
     mEvictedEntriesAgeSum += age;
 }
 
-void
-EvictionStatistics::submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
-                                                 EvictionCounters& counters)
+void EvictionStatistics::submitMetricsAndRestartCycle(
+    uint32_t currLedgerSeq, EvictionCounters& counters)
 {
     std::lock_guard l(mLock);
 
@@ -305,22 +299,18 @@ bucketEntryToLedgerEntryAndDurabilityType<HotArchiveBucket>(
 }
 
 template <>
-bool
-isBucketMetaEntry<HotArchiveBucket>(HotArchiveBucket::EntryT const& be)
+bool isBucketMetaEntry<HotArchiveBucket>(HotArchiveBucket::EntryT const& be)
 {
     return be.type() == HOT_ARCHIVE_METAENTRY;
 }
 
-template <>
-bool
-isBucketMetaEntry<LiveBucket>(LiveBucket::EntryT const& be)
+template <> bool isBucketMetaEntry<LiveBucket>(LiveBucket::EntryT const& be)
 {
     return be.type() == METAENTRY;
 }
 
 template <class BucketT>
-void
-BucketEntryCounters::count(typename BucketT::EntryT const& be)
+void BucketEntryCounters::count(typename BucketT::EntryT const& be)
 {
     if (isBucketMetaEntry<BucketT>(be))
     {
@@ -346,21 +336,18 @@ BucketEntryCounters::operator+=(BucketEntryCounters const& other)
     return *this;
 }
 
-bool
-BucketEntryCounters::operator==(BucketEntryCounters const& other) const
+bool BucketEntryCounters::operator==(BucketEntryCounters const& other) const
 {
     return this->entryTypeCounts == other.entryTypeCounts &&
            this->entryTypeSizes == other.entryTypeSizes;
 }
 
-bool
-BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
+bool BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
 {
     return !(*this == other);
 }
 
-size_t
-BucketEntryCounters::numEntries() const
+size_t BucketEntryCounters::numEntries() const
 {
     size_t num = 0;
     for (auto const& [_, count] : entryTypeCounts)
@@ -387,8 +374,7 @@ BucketEntryCounters::count<LiveBucket>(LiveBucket::EntryT const& be);
 template void BucketEntryCounters::count<HotArchiveBucket>(
     HotArchiveBucket::EntryT const& be);
 
-void
-updateTypeBoundaries(
+void updateTypeBoundaries(
     LedgerEntryType currentType, std::streamoff position,
     std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
     std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,

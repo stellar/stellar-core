@@ -43,16 +43,12 @@ template <class BucketT> struct HistoryStateBucket
     FutureBucket<BucketT> next;
     std::string snap;
 
-    template <class Archive>
-    void
-    serialize(Archive& ar) const
+    template <class Archive> void serialize(Archive& ar) const
     {
         ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
 
-    template <class Archive>
-    void
-    serialize(Archive& ar)
+    template <class Archive> void serialize(Archive& ar)
     {
         ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
@@ -133,9 +129,7 @@ struct HistoryArchiveState
     // Return vector of all buckets referenced by this state.
     std::vector<std::string> allBuckets() const;
 
-    template <class Archive>
-    void
-    serialize(Archive& ar)
+    template <class Archive> void serialize(Archive& ar)
     {
         ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger));
         try
@@ -160,9 +154,7 @@ struct HistoryArchiveState
         }
     }
 
-    template <class Archive>
-    void
-    serialize(Archive& ar) const
+    template <class Archive> void serialize(Archive& ar) const
     {
         ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger));
         if (!networkPassphrase.empty())
@@ -207,8 +199,7 @@ struct HistoryArchiveState
     void prepareForPublish(Application& app);
     bool containsValidBuckets(Application& app) const;
 
-    bool
-    hasHotArchiveBuckets() const
+    bool hasHotArchiveBuckets() const
     {
         return version >= HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE;
     }

@@ -30,9 +30,8 @@ ManageOfferOpFrameBase::ManageOfferOpFrameBase(
 {
 }
 
-bool
-ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter,
-                                        OperationResult& res) const
+bool ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter,
+                                             OperationResult& res) const
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
@@ -103,8 +102,7 @@ ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter,
     return true;
 }
 
-bool
-ManageOfferOpFrameBase::computeOfferExchangeParameters(
+bool ManageOfferOpFrameBase::computeOfferExchangeParameters(
     AbstractLedgerTxn& ltxOuter, OperationResult& res, bool creatingNewOffer,
     int64_t& maxSheepSend, int64_t& maxWheatReceive) const
 {
@@ -211,10 +209,10 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
     return true;
 }
 
-bool
-ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                                OperationResult& res,
-                                OperationMetaBuilder& opMeta) const
+bool ManageOfferOpFrameBase::doApply(AppConnector& app,
+                                     AbstractLedgerTxn& ltxOuter,
+                                     OperationResult& res,
+                                     OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ManageOfferOp apply", true);
     std::string pairStr = assetToString(mSheep);
@@ -545,8 +543,7 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     return true;
 }
 
-bool
-ManageOfferOpFrameBase::isDexOperation() const
+bool ManageOfferOpFrameBase::isDexOperation() const
 {
     return !isDeleteOffer();
 }
@@ -577,9 +574,8 @@ ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags,
 }
 
 // makes sure the currencies are different
-bool
-ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion,
-                                     OperationResult& res) const
+bool ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion,
+                                          OperationResult& res) const
 {
     if (!isAssetValid(mSheep, ledgerVersion) ||
         !isAssetValid(mWheat, ledgerVersion))
@@ -624,8 +620,7 @@ ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
+void ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     // Prefetch existing offer

@@ -17,8 +17,7 @@
 namespace stellar
 {
 
-static ExtendFootprintTTLResult&
-innerResult(OperationResult& res)
+static ExtendFootprintTTLResult& innerResult(OperationResult& res)
 {
     return res.tr().extendFootprintTTLResult();
 }
@@ -37,8 +36,7 @@ struct ExtendFootprintTTLMetrics
     {
         mMetrics.mExtFpTtlOpReadLedgerByte.Mark(mLedgerReadByte);
     }
-    medida::TimerContext
-    getExecTimer()
+    medida::TimerContext getExecTimer()
     {
         return mMetrics.mExtFpTtlOpExec.TimeScope();
     }
@@ -51,8 +49,7 @@ ExtendFootprintTTLOpFrame::ExtendFootprintTTLOpFrame(
 {
 }
 
-bool
-ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
+bool ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      SOROBAN_PROTOCOL_VERSION);
@@ -60,7 +57,6 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 
 class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
 {
-
   protected:
     AppConnector& mApp;
     OperationResult& mRes;
@@ -96,8 +92,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
 
     virtual bool checkReadBytesResourceLimit(uint32_t entrySize) = 0;
 
-    virtual bool
-    apply()
+    virtual bool apply()
     {
         ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
         releaseAssertOrThrow(mRefundableFeeTracker);
@@ -211,8 +206,7 @@ class ExtendFootprintTTLPreV23ApplyHelper
         , PreV23LedgerAccessHelper(ltx)
     {
     }
-    virtual bool
-    checkReadBytesResourceLimit(uint32_t entrySize) override
+    virtual bool checkReadBytesResourceLimit(uint32_t entrySize) override
     {
         mMetrics.mLedgerReadByte += entrySize;
         if (mResources.diskReadBytes < mMetrics.mLedgerReadByte)
@@ -246,21 +240,18 @@ class ExtendFootprintTTLParallelApplyHelper
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
     }
-    virtual bool
-    checkReadBytesResourceLimit(uint32_t entrySize) override
+    virtual bool checkReadBytesResourceLimit(uint32_t entrySize) override
     {
         return true;
     }
 
-    OpModifiedEntryMap
-    takeOpEntryMap()
+    OpModifiedEntryMap takeOpEntryMap()
     {
         return std::move(mOpState.takeSuccess().getModifiedEntryMap());
     }
 };
 
-ParallelTxReturnVal
-ExtendFootprintTTLOpFrame::doParallelApply(
+ParallelTxReturnVal ExtendFootprintTTLOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& _txPrngSeed,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
@@ -284,8 +275,7 @@ ExtendFootprintTTLOpFrame::doParallelApply(
     }
 }
 
-bool
-ExtendFootprintTTLOpFrame::doApplyForSoroban(
+bool ExtendFootprintTTLOpFrame::doApplyForSoroban(
     AppConnector& app, AbstractLedgerTxn& ltx,
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
@@ -301,17 +291,16 @@ ExtendFootprintTTLOpFrame::doApplyForSoroban(
     return helper.apply();
 }
 
-bool
-ExtendFootprintTTLOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                   OperationResult& res,
-                                   OperationMetaBuilder& opMeta) const
+bool ExtendFootprintTTLOpFrame::doApply(AppConnector& app,
+                                        AbstractLedgerTxn& ltx,
+                                        OperationResult& res,
+                                        OperationMetaBuilder& opMeta) const
 {
     throw std::runtime_error(
         "ExtendFootprintTTLOpFrame may only be applied via doApplyForSoroban");
 }
 
-bool
-ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
+bool ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
     DiagnosticEventManager& diagnosticEvents) const
@@ -360,28 +349,24 @@ ExtendFootprintTTLOpFrame::doCheckValidForSoroban(
     return true;
 }
 
-bool
-ExtendFootprintTTLOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                        OperationResult& res) const
+bool ExtendFootprintTTLOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                             OperationResult& res) const
 {
     throw std::runtime_error(
         "ExtendFootprintTTLOpFrame::doCheckValid needs Config");
 }
 
-void
-ExtendFootprintTTLOpFrame::insertLedgerKeysToPrefetch(
+void ExtendFootprintTTLOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
 
-bool
-ExtendFootprintTTLOpFrame::isSoroban() const
+bool ExtendFootprintTTLOpFrame::isSoroban() const
 {
     return true;
 }
 
-ThresholdLevel
-ExtendFootprintTTLOpFrame::getThresholdLevel() const
+ThresholdLevel ExtendFootprintTTLOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }

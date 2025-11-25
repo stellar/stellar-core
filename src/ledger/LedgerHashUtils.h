@@ -14,20 +14,17 @@
 namespace stellar
 {
 
-static PoolID const&
-getLiquidityPoolID(Asset const& asset)
+static PoolID const& getLiquidityPoolID(Asset const& asset)
 {
     throw std::runtime_error("cannot get PoolID from Asset");
 }
 
-static PoolID const&
-getLiquidityPoolID(TrustLineAsset const& tlAsset)
+static PoolID const& getLiquidityPoolID(TrustLineAsset const& tlAsset)
 {
     return tlAsset.liquidityPoolID();
 }
 
-static inline void
-hashMix(size_t& h, size_t v)
+static inline void hashMix(size_t& h, size_t v)
 {
     // from https://github.com/ztanml/fast-hash (MIT license)
     v ^= v >> 23;
@@ -37,9 +34,7 @@ hashMix(size_t& h, size_t v)
     h *= 0x880355f21e6d1965ULL;
 }
 
-template <typename T>
-static size_t
-getAssetHash(T const& asset)
+template <typename T> static size_t getAssetHash(T const& asset)
 {
     size_t res = asset.type();
 
@@ -82,8 +77,7 @@ namespace std
 template <> class hash<stellar::Asset>
 {
   public:
-    size_t
-    operator()(stellar::Asset const& asset) const
+    size_t operator()(stellar::Asset const& asset) const
     {
         return stellar::getAssetHash<stellar::Asset>(asset);
     }
@@ -92,8 +86,7 @@ template <> class hash<stellar::Asset>
 template <> class hash<stellar::TrustLineAsset>
 {
   public:
-    size_t
-    operator()(stellar::TrustLineAsset const& asset) const
+    size_t operator()(stellar::TrustLineAsset const& asset) const
     {
         return stellar::getAssetHash<stellar::TrustLineAsset>(asset);
     }
@@ -102,8 +95,7 @@ template <> class hash<stellar::TrustLineAsset>
 template <> class hash<stellar::SCAddress>
 {
   public:
-    size_t
-    operator()(stellar::SCAddress const& addr) const
+    size_t operator()(stellar::SCAddress const& addr) const
     {
         size_t res = addr.type();
         switch (addr.type())
@@ -136,8 +128,7 @@ template <> class hash<stellar::SCAddress>
 template <> class hash<stellar::LedgerKey>
 {
   public:
-    size_t
-    operator()(stellar::LedgerKey const& lk) const
+    size_t operator()(stellar::LedgerKey const& lk) const
     {
         size_t res = lk.type();
         switch (lk.type())
@@ -205,8 +196,7 @@ template <> class hash<stellar::LedgerKey>
 template <> class hash<stellar::InternalLedgerKey>
 {
   public:
-    size_t
-    operator()(stellar::InternalLedgerKey const& glk) const
+    size_t operator()(stellar::InternalLedgerKey const& glk) const
     {
         return glk.hash();
     }

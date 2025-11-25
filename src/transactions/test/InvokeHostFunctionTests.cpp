@@ -53,8 +53,8 @@ using namespace stellar::txtest;
 namespace
 {
 
-void
-checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
+void checkResults(TransactionResultSet& r, int expectedSuccess,
+                  int expectedFailed)
 {
     int successCounter = 0;
     int failedCounter = 0;
@@ -70,8 +70,7 @@ checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
     REQUIRE(expectedFailed == expectedFailed);
 };
 
-void
-overrideNetworkSettingsToMin(Application& app)
+void overrideNetworkSettingsToMin(Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
@@ -1362,7 +1361,6 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
             ProtocolVersion::V_23))
     {
-
         auto const maxDiskReads = cfg.mTxMaxDiskReadEntries;
 
         // contract instance and WASM entry are already in the fooprint
@@ -2116,7 +2114,6 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
     auto runTests = [&](bool selfFeeBump) {
         SECTION("success")
         {
-
             SECTION("low inclusion fee")
             {
                 REQUIRE(runTest(10000 * stroopsInXlm, 200, expectedRentFee,
@@ -4530,7 +4527,6 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
 
     SECTION("extend operation")
     {
-
         SorobanResources extendResources;
         extendResources.footprint.readOnly = dataKeys;
         extendResources.diskReadBytes = 9'000;
@@ -6229,7 +6225,6 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
         }
         SECTION("wrong key type")
         {
-
             fieldsMap[0].key = makeBytesSCVal(std::string("public_key"));
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
@@ -6988,7 +6983,6 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
 
     SECTION("constructor with no arguments")
     {
-
         auto testNoArgConstructor =
             [&](ConstructorParams::HostFnVersion hostFnVersion,
                 ConstructorParams::HostFnVersion authFnVersion) {
@@ -7068,9 +7062,9 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
     }
 }
 
-static TransactionFrameBasePtr
-makeAddTx(TestContract const& contract, int64_t instructions,
-          TestAccount& source)
+static TransactionFrameBasePtr makeAddTx(TestContract const& contract,
+                                         int64_t instructions,
+                                         TestAccount& source)
 {
     auto fnName = "add";
     auto sc7 = makeI32(7);
@@ -7085,8 +7079,7 @@ makeAddTx(TestContract const& contract, int64_t instructions,
     return invocation.createTx(&source);
 }
 
-static bool
-wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
+static bool wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
 {
     auto moduleCache = app.getLedgerManager().getModuleCacheForTesting();
     for (auto const& wasm : wasms)
@@ -7135,7 +7128,6 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
         ttl = stest.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
         for (auto const& wasm : testWasms)
         {
-
             stest.deployWasmContract(wasm);
             contractHashes.push_back(sha256(wasm));
         }
@@ -7251,7 +7243,6 @@ TEST_CASE("Module cache miss on immediate execution",
 
     SECTION("same ledger upload and execution")
     {
-
         // Here we're going to create 4 txs in the same ledger (so they have to
         // come from 4 separate accounts). The 1st uploads a contract wasm, the
         // 2nd creates a contract, and the 3rd and 4th run it.

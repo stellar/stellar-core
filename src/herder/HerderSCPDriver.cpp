@@ -38,8 +38,8 @@ namespace stellar
 
 uint32_t const TXSETVALID_CACHE_SIZE = 1000;
 
-Hash
-HerderSCPDriver::getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const
+Hash HerderSCPDriver::getHashOf(
+    std::vector<xdr::opaque_vec<>> const& vals) const
 {
     SHA256 hasher;
     for (auto const& v : vals)
@@ -94,14 +94,12 @@ HerderSCPDriver::~HerderSCPDriver()
 {
 }
 
-void
-HerderSCPDriver::stateChanged()
+void HerderSCPDriver::stateChanged()
 {
     mApp.syncOwnMetrics();
 }
 
-void
-HerderSCPDriver::bootstrap()
+void HerderSCPDriver::bootstrap()
 {
     stateChanged();
     clearSCPExecutionEvents();
@@ -149,23 +147,20 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
     }
 };
 
-SCPEnvelopeWrapperPtr
-HerderSCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
+SCPEnvelopeWrapperPtr HerderSCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
 {
     auto r = std::make_shared<SCPHerderEnvelopeWrapper>(envelope, mHerder);
     return r;
 }
 
-void
-HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
+void HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
 {
     ZoneScoped;
     mSCPMetrics.mEnvelopeSign.Mark();
     mHerder.signEnvelope(mApp.getConfig().NODE_SEED, envelope);
 }
 
-void
-HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
+void HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     mHerder.emitEnvelope(envelope);
@@ -173,9 +168,8 @@ HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
 
 // value validation
 
-bool
-HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
-                                StellarValue const& b) const
+bool HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+                                     StellarValue const& b) const
 {
     // Check closeTime (not too old)
     if (b.closeTime <= lastCloseTime)
@@ -197,8 +191,7 @@ HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
     return true;
 }
 
-SCPDriver::ValidationLevel
-HerderSCPDriver::validatePastOrFutureValue(
+SCPDriver::ValidationLevel HerderSCPDriver::validatePastOrFutureValue(
     uint64_t slotIndex, StellarValue const& b,
     LedgerHeaderHistoryEntry const& lcl) const
 {
@@ -275,10 +268,8 @@ HerderSCPDriver::validatePastOrFutureValue(
     return SCPDriver::kMaybeValidValue;
 }
 
-SCPDriver::ValidationLevel
-HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
-                                                StellarValue const& b,
-                                                bool nomination) const
+SCPDriver::ValidationLevel HerderSCPDriver::validateValueAgainstLocalState(
+    uint64_t slotIndex, StellarValue const& b, bool nomination) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -332,9 +323,9 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
     return res;
 }
 
-SCPDriver::ValidationLevel
-HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
-                               bool nomination)
+SCPDriver::ValidationLevel HerderSCPDriver::validateValue(uint64_t slotIndex,
+                                                          Value const& value,
+                                                          bool nomination)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -412,8 +403,8 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     return res;
 }
 
-ValueWrapperPtr
-HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
+ValueWrapperPtr HerderSCPDriver::extractValidValue(uint64_t slotIndex,
+                                                   Value const& value)
 {
     ZoneScoped;
     StellarValue b;
@@ -451,14 +442,12 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
 
 // value marshaling
 
-std::string
-HerderSCPDriver::toShortString(NodeID const& pk) const
+std::string HerderSCPDriver::toShortString(NodeID const& pk) const
 {
     return mApp.getConfig().toShortString(pk);
 }
 
-std::string
-HerderSCPDriver::getValueString(Value const& v) const
+std::string HerderSCPDriver::getValueString(Value const& v) const
 {
     StellarValue b;
     if (v.empty())
@@ -479,9 +468,8 @@ HerderSCPDriver::getValueString(Value const& v) const
 }
 
 // timer handling
-void
-HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
-                                      std::function<void()> cb)
+void HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
+                                           std::function<void()> cb)
 {
     // reschedule timers for future slots when tracking
     if (mHerder.isTracking() && mHerder.nextConsensusLedgerIndex() != slotIndex)
@@ -518,10 +506,9 @@ HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
     }
 }
 
-void
-HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
-                            std::chrono::milliseconds timeout,
-                            std::function<void()> cb)
+void HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
+                                 std::chrono::milliseconds timeout,
+                                 std::function<void()> cb)
 {
     // don't setup timers for old slots
     if (slotIndex <= mApp.getHerder().trackingConsensusLedgerIndex())
@@ -549,10 +536,8 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     }
 }
 
-void
-HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
+void HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
 {
-
     auto timersIt = mSCPTimers.find(slotIndex);
     if (timersIt == mSCPTimers.end())
     {
@@ -570,8 +555,8 @@ HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
 
 static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
-std::chrono::milliseconds
-HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
+std::chrono::milliseconds HerderSCPDriver::computeTimeout(uint32 roundNumber,
+                                                          bool isNomination)
 {
     releaseAssertOrThrow(roundNumber > 0);
 
@@ -610,10 +595,11 @@ HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
 
 // returns true if l < r
 // lh, rh are the hashes of l,h
-static bool
-compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
-              Hash const& lh, Hash const& rh, size_t lEncodedSize,
-              size_t rEncodedSize, LedgerHeader const& header, Hash const& s)
+static bool compareTxSets(ApplicableTxSetFrame const& l,
+                          ApplicableTxSetFrame const& r, Hash const& lh,
+                          Hash const& rh, size_t lEncodedSize,
+                          size_t rEncodedSize, LedgerHeader const& header,
+                          Hash const& s)
 {
     auto lSize = l.size(header);
     auto rSize = r.size(header);
@@ -764,7 +750,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             releaseAssert(cApplicableTxSet);
             if (cTxSet->previousLedgerHash() == lcl.hash)
             {
-
                 if (!highestTxSet ||
                     compareTxSets(*highestApplicableTxSet, *cApplicableTxSet,
                                   highest->txSetHash, sv.txSetHash,
@@ -796,8 +781,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     return res;
 }
 
-bool
-HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
+bool HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
 {
     try
     {
@@ -810,8 +794,7 @@ HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
     return true;
 }
 
-void
-HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
+void HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {
     ZoneScoped;
     auto it = mSCPTimers.begin(); // cancel all timers below this slot
@@ -889,8 +872,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     }
 }
 
-void
-HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
+void HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 {
     std::string res;
     auto v = mApp.getHerder().getJsonQuorumInfo(mSCP.getLocalNodeID(), true,
@@ -930,10 +912,9 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
                           std::inserter(mMissingNodes, mMissingNodes.begin()));
 }
 
-void
-HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetXDRFrameConstPtr proposedSet,
-                          StellarValue const& previousValue)
+void HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
+                               TxSetXDRFrameConstPtr proposedSet,
+                               StellarValue const& previousValue)
 {
     ZoneScoped;
     mCurrentValue = wrapStellarValue(value);
@@ -951,49 +932,43 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
-SCPQuorumSetPtr
-HerderSCPDriver::getQSet(Hash const& qSetHash)
+SCPQuorumSetPtr HerderSCPDriver::getQSet(Hash const& qSetHash)
 {
     return mPendingEnvelopes.getQSet(qSetHash);
 }
 
-void
-HerderSCPDriver::ballotDidHearFromQuorum(uint64_t, SCPBallot const&)
+void HerderSCPDriver::ballotDidHearFromQuorum(uint64_t, SCPBallot const&)
 {
 }
 
-void
-HerderSCPDriver::nominatingValue(uint64_t slotIndex, Value const& value)
+void HerderSCPDriver::nominatingValue(uint64_t slotIndex, Value const& value)
 {
     CLOG_DEBUG(Herder, "nominatingValue i:{} v: {}", slotIndex,
                getValueString(value));
 }
 
-void
-HerderSCPDriver::updatedCandidateValue(uint64_t slotIndex, Value const& value)
+void HerderSCPDriver::updatedCandidateValue(uint64_t slotIndex,
+                                            Value const& value)
 {
 }
 
-void
-HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
-                                       SCPBallot const& ballot)
+void HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
+                                            SCPBallot const& ballot)
 {
     recordSCPEvent(slotIndex, false);
 }
-void
-HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
-                                        SCPBallot const& ballot)
+void HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
+                                             SCPBallot const& ballot)
 {
 }
 
-void
-HerderSCPDriver::confirmedBallotPrepared(uint64_t slotIndex,
-                                         SCPBallot const& ballot)
+void HerderSCPDriver::confirmedBallotPrepared(uint64_t slotIndex,
+                                              SCPBallot const& ballot)
 {
 }
 
-void
-HerderSCPDriver::acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot)
+void HerderSCPDriver::acceptedCommit(uint64_t slotIndex,
+                                     SCPBallot const& ballot)
 {
 }
 
@@ -1009,8 +984,7 @@ HerderSCPDriver::getPrepareStart(uint64_t slotIndex)
     return res;
 }
 
-Json::Value
-HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
+Json::Value HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
 {
     Json::Value ret;
     double totalLag = 0;
@@ -1043,8 +1017,7 @@ HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
     return ret;
 }
 
-Json::Value
-HerderSCPDriver::getMaybeDeadNodes(bool fullKeys)
+Json::Value HerderSCPDriver::getMaybeDeadNodes(bool fullKeys)
 {
     Json::Value maybeDeadNodes(Json::arrayValue);
     for (const auto& node : mDeadNodes)
@@ -1054,8 +1027,7 @@ HerderSCPDriver::getMaybeDeadNodes(bool fullKeys)
     return maybeDeadNodes;
 }
 
-void
-HerderSCPDriver::startCheckForDeadNodesInterval()
+void HerderSCPDriver::startCheckForDeadNodesInterval()
 {
     mDeadNodes = std::move(mMissingNodes);
     mMissingNodes.clear();
@@ -1066,8 +1038,7 @@ HerderSCPDriver::startCheckForDeadNodesInterval()
                            });
 }
 
-double
-HerderSCPDriver::getExternalizeLag(NodeID const& id) const
+double HerderSCPDriver::getExternalizeLag(NodeID const& id) const
 {
     auto n = mQSetLag.find(id);
 
@@ -1079,10 +1050,8 @@ HerderSCPDriver::getExternalizeLag(NodeID const& id) const
     return n->second.GetSnapshot().get75thPercentile();
 }
 
-void
-HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
+void HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 {
-
     auto& timing = mSCPExecutionTimes[slotIndex];
     VirtualClock::time_point start = mApp.getClock().now();
 
@@ -1098,9 +1067,9 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
     }
 }
 
-void
-HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
-                                           bool forceUpdateSelf)
+void HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex,
+                                                NodeID const& id,
+                                                bool forceUpdateSelf)
 {
     auto& timing = mSCPExecutionTimes[slotIndex];
     auto now = mApp.getClock().now();
@@ -1162,13 +1131,12 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
     }
 }
 
-void
-HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
-                                 VirtualClock::time_point end,
-                                 medida::Timer& timer,
-                                 std::string const& logStr,
-                                 std::chrono::nanoseconds threshold,
-                                 uint64_t slotIndex)
+void HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
+                                      VirtualClock::time_point end,
+                                      medida::Timer& timer,
+                                      std::string const& logStr,
+                                      std::chrono::nanoseconds threshold,
+                                      uint64_t slotIndex)
 {
     auto delta =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
@@ -1181,8 +1149,7 @@ HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
     }
 };
 
-void
-HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
+void HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 {
     auto externalizeStart = mApp.getClock().now();
 
@@ -1239,8 +1206,7 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     }
 }
 
-void
-HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep)
+void HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep)
 {
     // Clean up timings map
     auto it = mSCPExecutionTimes.begin();
@@ -1259,8 +1225,7 @@ HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep)
     getSCP().purgeSlots(maxSlotIndex, slotToKeep);
 }
 
-void
-HerderSCPDriver::clearSCPExecutionEvents()
+void HerderSCPDriver::clearSCPExecutionEvents()
 {
     mSCPExecutionTimes.clear();
 }
@@ -1288,8 +1253,7 @@ class SCPHerderValueWrapper : public ValueWrapper
     }
 };
 
-ValueWrapperPtr
-HerderSCPDriver::wrapValue(Value const& val)
+ValueWrapperPtr HerderSCPDriver::wrapValue(Value const& val)
 {
     StellarValue sv;
     auto b = mHerder.getHerderSCPDriver().toStellarValue(val, sv);
@@ -1303,18 +1267,16 @@ HerderSCPDriver::wrapValue(Value const& val)
     return res;
 }
 
-ValueWrapperPtr
-HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
+ValueWrapperPtr HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 {
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;
 }
 
-void
-HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
-                                 LedgerHeaderHistoryEntry const& lcl,
-                                 uint64_t closeTimeOffset) const
+void HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
+                                      LedgerHeaderHistoryEntry const& lcl,
+                                      uint64_t closeTimeOffset) const
 {
     auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
                                 closeTimeOffset, closeTimeOffset};
@@ -1337,10 +1299,9 @@ HerderSCPDriver::cacheValidTxSet(ApplicableTxSetFrame const& txSet,
     }
 }
 
-bool
-HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
-                                         LedgerHeaderHistoryEntry const& lcl,
-                                         uint64_t closeTimeOffset) const
+bool HerderSCPDriver::checkAndCacheTxSetValid(
+    TxSetXDRFrame const& txSet, LedgerHeaderHistoryEntry const& lcl,
+    uint64_t closeTimeOffset) const
 {
     auto key = TxSetValidityKey{lcl.hash, txSet.getContentsHash(),
                                 closeTimeOffset, closeTimeOffset};
@@ -1381,11 +1342,9 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
         return *pRes;
     }
 }
-size_t
-HerderSCPDriver::TxSetValidityKeyHash::operator()(
+size_t HerderSCPDriver::TxSetValidityKeyHash::operator()(
     TxSetValidityKey const& key) const
 {
-
     size_t res = std::hash<Hash>()(std::get<0>(key));
     hashMix(res, std::hash<Hash>()(std::get<1>(key)));
     hashMix(res, std::get<2>(key));
@@ -1393,9 +1352,9 @@ HerderSCPDriver::TxSetValidityKeyHash::operator()(
     return res;
 }
 
-uint64
-HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                               bool const isLocalNode) const
+uint64 HerderSCPDriver::getNodeWeight(NodeID const& nodeID,
+                                      SCPQuorumSet const& qset,
+                                      bool const isLocalNode) const
 {
     releaseAssert(!mLedgerManager.isApplying());
     Config const& cfg = mApp.getConfig();

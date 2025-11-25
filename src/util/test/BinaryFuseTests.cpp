@@ -20,9 +20,7 @@ static auto ledgerKeyGenerator = autocheck::such_that(
     [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
     autocheck::generator<LedgerKey>());
 
-template <class FilterT>
-void
-testFilter(double expectedFalsePositiveRate)
+template <class FilterT> void testFilter(double expectedFalsePositiveRate)
 {
     LedgerKeySet keys;
     for (size_t size = 100; size <= 1'000'000; size *= 100)
@@ -116,7 +114,6 @@ testFilter(double expectedFalsePositiveRate)
 
 TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 {
-
     SECTION("8 bit")
     {
         auto epsilon = 1ul << 8;

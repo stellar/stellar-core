@@ -23,17 +23,17 @@ PathPaymentStrictSendOpFrame::PathPaymentStrictSendOpFrame(
 {
 }
 
-bool
-PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
+bool PathPaymentStrictSendOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_12);
 }
 
-bool
-PathPaymentStrictSendOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                      OperationResult& res,
-                                      OperationMetaBuilder& opMeta) const
+bool PathPaymentStrictSendOpFrame::doApply(AppConnector& app,
+                                           AbstractLedgerTxn& ltx,
+                                           OperationResult& res,
+                                           OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -139,9 +139,8 @@ PathPaymentStrictSendOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-PathPaymentStrictSendOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                           OperationResult& res) const
+bool PathPaymentStrictSendOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                OperationResult& res) const
 {
     if (mPathPayment.sendAmount <= 0 || mPathPayment.destMin <= 0)
     {
@@ -165,117 +164,105 @@ PathPaymentStrictSendOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-bool
-PathPaymentStrictSendOpFrame::checkTransfer(int64_t maxSend, int64_t amountSend,
-                                            int64_t maxRecv,
-                                            int64_t amountRecv) const
+bool PathPaymentStrictSendOpFrame::checkTransfer(int64_t maxSend,
+                                                 int64_t amountSend,
+                                                 int64_t maxRecv,
+                                                 int64_t amountRecv) const
 {
     return maxSend == amountSend;
 }
 
-Asset const&
-PathPaymentStrictSendOpFrame::getSourceAsset() const
+Asset const& PathPaymentStrictSendOpFrame::getSourceAsset() const
 {
     return mPathPayment.sendAsset;
 }
 
-Asset const&
-PathPaymentStrictSendOpFrame::getDestAsset() const
+Asset const& PathPaymentStrictSendOpFrame::getDestAsset() const
 {
     return mPathPayment.destAsset;
 }
 
-MuxedAccount const&
-PathPaymentStrictSendOpFrame::getDestMuxedAccount() const
+MuxedAccount const& PathPaymentStrictSendOpFrame::getDestMuxedAccount() const
 {
     return mPathPayment.destination;
 }
 
-xdr::xvector<Asset, 5> const&
-PathPaymentStrictSendOpFrame::getPath() const
+xdr::xvector<Asset, 5> const& PathPaymentStrictSendOpFrame::getPath() const
 {
     return mPathPayment.path;
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultSuccess(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultSuccess(OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SUCCESS);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultMalformed(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultMalformed(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_MALFORMED);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultUnderfunded(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultUnderfunded(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_UNDERFUNDED);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultSourceNoTrust(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultSourceNoTrust(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultSourceNotAuthorized(
+void PathPaymentStrictSendOpFrame::setResultSourceNotAuthorized(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultNoDest(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultNoDest(OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_DESTINATION);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultDestNoTrust(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultDestNoTrust(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_TRUST);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultDestNotAuthorized(
+void PathPaymentStrictSendOpFrame::setResultDestNotAuthorized(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultLineFull(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultLineFull(OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_LINE_FULL);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultNoIssuer(Asset const& asset,
-                                                OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultNoIssuer(Asset const& asset,
+                                                     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_ISSUER);
     innerResult(res).noIssuer() = asset;
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultTooFewOffers(OperationResult& res) const
+void PathPaymentStrictSendOpFrame::setResultTooFewOffers(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultOfferCrossSelf(
+void PathPaymentStrictSendOpFrame::setResultOfferCrossSelf(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF);
 }
 
-void
-PathPaymentStrictSendOpFrame::setResultConstraintNotMet(
+void PathPaymentStrictSendOpFrame::setResultConstraintNotMet(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);

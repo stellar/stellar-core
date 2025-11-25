@@ -23,11 +23,9 @@ PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
 {
 }
 
-bool
-PathPaymentStrictReceiveOpFrame::doApply(AppConnector& app,
-                                         AbstractLedgerTxn& ltx,
-                                         OperationResult& res,
-                                         OperationMetaBuilder& opMeta) const
+bool PathPaymentStrictReceiveOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -147,9 +145,8 @@ PathPaymentStrictReceiveOpFrame::doApply(AppConnector& app,
     return true;
 }
 
-bool
-PathPaymentStrictReceiveOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                              OperationResult& res) const
+bool PathPaymentStrictReceiveOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                   OperationResult& res) const
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
@@ -173,122 +170,108 @@ PathPaymentStrictReceiveOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-bool
-PathPaymentStrictReceiveOpFrame::checkTransfer(int64_t maxSend,
-                                               int64_t amountSend,
-                                               int64_t maxRecv,
-                                               int64_t amountRecv) const
+bool PathPaymentStrictReceiveOpFrame::checkTransfer(int64_t maxSend,
+                                                    int64_t amountSend,
+                                                    int64_t maxRecv,
+                                                    int64_t amountRecv) const
 {
     return maxRecv == amountRecv;
 }
 
-Asset const&
-PathPaymentStrictReceiveOpFrame::getSourceAsset() const
+Asset const& PathPaymentStrictReceiveOpFrame::getSourceAsset() const
 {
     return mPathPayment.sendAsset;
 }
 
-Asset const&
-PathPaymentStrictReceiveOpFrame::getDestAsset() const
+Asset const& PathPaymentStrictReceiveOpFrame::getDestAsset() const
 {
     return mPathPayment.destAsset;
 }
 
-MuxedAccount const&
-PathPaymentStrictReceiveOpFrame::getDestMuxedAccount() const
+MuxedAccount const& PathPaymentStrictReceiveOpFrame::getDestMuxedAccount() const
 {
     return mPathPayment.destination;
 }
 
-xdr::xvector<Asset, 5> const&
-PathPaymentStrictReceiveOpFrame::getPath() const
+xdr::xvector<Asset, 5> const& PathPaymentStrictReceiveOpFrame::getPath() const
 {
     return mPathPayment.path;
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultSuccess(OperationResult& res) const
+void PathPaymentStrictReceiveOpFrame::setResultSuccess(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultMalformed(OperationResult& res) const
+void PathPaymentStrictReceiveOpFrame::setResultMalformed(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultUnderfunded(
+void PathPaymentStrictReceiveOpFrame::setResultUnderfunded(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultSourceNoTrust(
+void PathPaymentStrictReceiveOpFrame::setResultSourceNoTrust(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultSourceNotAuthorized(
+void PathPaymentStrictReceiveOpFrame::setResultSourceNotAuthorized(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultNoDest(OperationResult& res) const
+void PathPaymentStrictReceiveOpFrame::setResultNoDest(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultDestNoTrust(
+void PathPaymentStrictReceiveOpFrame::setResultDestNoTrust(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultDestNotAuthorized(
+void PathPaymentStrictReceiveOpFrame::setResultDestNotAuthorized(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultLineFull(OperationResult& res) const
+void PathPaymentStrictReceiveOpFrame::setResultLineFull(
+    OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultNoIssuer(Asset const& asset,
-                                                   OperationResult& res) const
+void PathPaymentStrictReceiveOpFrame::setResultNoIssuer(
+    Asset const& asset, OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
     innerResult(res).noIssuer() = asset;
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultTooFewOffers(
+void PathPaymentStrictReceiveOpFrame::setResultTooFewOffers(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultOfferCrossSelf(
+void PathPaymentStrictReceiveOpFrame::setResultOfferCrossSelf(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
 }
 
-void
-PathPaymentStrictReceiveOpFrame::setResultConstraintNotMet(
+void PathPaymentStrictReceiveOpFrame::setResultConstraintNotMet(
     OperationResult& res) const
 {
     innerResult(res).code(PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);

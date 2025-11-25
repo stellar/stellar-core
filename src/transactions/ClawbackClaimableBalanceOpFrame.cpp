@@ -19,18 +19,16 @@ ClawbackClaimableBalanceOpFrame::ClawbackClaimableBalanceOpFrame(
 {
 }
 
-bool
-ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
+bool ClawbackClaimableBalanceOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_17);
 }
 
-bool
-ClawbackClaimableBalanceOpFrame::doApply(AppConnector& app,
-                                         AbstractLedgerTxn& ltx,
-                                         OperationResult& res,
-                                         OperationMetaBuilder& opMeta) const
+bool ClawbackClaimableBalanceOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
+    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClawbackClaimableBalanceOp apply", true);
 
@@ -83,15 +81,13 @@ ClawbackClaimableBalanceOpFrame::doApply(AppConnector& app,
     return true;
 }
 
-bool
-ClawbackClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                              OperationResult& res) const
+bool ClawbackClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                   OperationResult& res) const
 {
     return true;
 }
 
-void
-ClawbackClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
+void ClawbackClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(claimableBalanceKey(mClawbackClaimableBalance.balanceID));

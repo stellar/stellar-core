@@ -18,8 +18,7 @@ namespace stellar
 
 using namespace std;
 
-PeerBareAddress
-localhost(unsigned short port)
+PeerBareAddress localhost(unsigned short port)
 {
     return PeerBareAddress{"127.0.0.1", port};
 }

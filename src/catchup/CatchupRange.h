@@ -50,8 +50,7 @@ class CatchupRange
   public:
     // Return a LedgerRange spanning both the apply-buckets phase (if it
     // exists) and the replay phase.
-    LedgerRange
-    getFullRangeIncludingBucketApply() const
+    LedgerRange getFullRangeIncludingBucketApply() const
     {
         if (mApplyBuckets)
         {
@@ -63,8 +62,7 @@ class CatchupRange
         }
     }
 
-    uint32_t
-    count() const
+    uint32_t count() const
     {
         if (mApplyBuckets)
         {
@@ -73,8 +71,7 @@ class CatchupRange
         return mReplayRange.mCount;
     }
 
-    uint32_t
-    first() const
+    uint32_t first() const
     {
         if (mApplyBuckets)
         {
@@ -86,8 +83,7 @@ class CatchupRange
         }
     }
 
-    uint32_t
-    last() const
+    uint32_t last() const
     {
         if (mReplayRange.mCount != 0)
         {
@@ -104,54 +100,46 @@ class CatchupRange
 
     // Return the LedgerRange that covers the ledger-replay part of this
     // catchup.
-    LedgerRange
-    getReplayRange() const
+    LedgerRange getReplayRange() const
     {
         return mReplayRange;
     }
 
-    bool
-    replayLedgers() const
+    bool replayLedgers() const
     {
         return mReplayRange.mCount > 0;
     }
 
-    uint32_t
-    getReplayFirst() const
+    uint32_t getReplayFirst() const
     {
         return mReplayRange.mFirst;
     }
 
-    uint32_t
-    getReplayCount() const
+    uint32_t getReplayCount() const
     {
         return mReplayRange.mCount;
     }
 
     // Return first+count, which is one-past-the-last ledger to replay.
     // Best to use this in a loop header to properly handle count=0.
-    uint32_t
-    getReplayLimit() const
+    uint32_t getReplayLimit() const
     {
         return mReplayRange.limit();
     }
 
     // Return first+count-1 which is the last ledger to replay, but
     // throw if count==0. Use only in rare "inclusive range" cases.
-    uint32_t
-    getReplayLast() const
+    uint32_t getReplayLast() const
     {
         return mReplayRange.last();
     }
 
-    bool
-    applyBuckets() const
+    bool applyBuckets() const
     {
         return mApplyBuckets;
     }
 
-    uint32_t
-    getBucketApplyLedger() const
+    uint32_t getBucketApplyLedger() const
     {
         if (!mApplyBuckets)
         {

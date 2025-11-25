@@ -52,9 +52,8 @@ static uint64_t gVerifyCacheMiss = 0;
 // Protected by gVerifySigCacheMutex
 static bool gUseRustDalekVerify = false;
 
-static Hash
-verifySigCacheKey(PublicKey const& key, Signature const& signature,
-                  ByteSlice const& bin)
+static Hash verifySigCacheKey(PublicKey const& key, Signature const& signature,
+                              ByteSlice const& bin)
 {
     releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
 
@@ -87,14 +86,12 @@ SecretKey::Seed::~Seed()
     std::memset(mSeed.data(), 0, mSeed.size());
 }
 
-PublicKey const&
-SecretKey::getPublicKey() const
+PublicKey const& SecretKey::getPublicKey() const
 {
     return mPublicKey;
 }
 
-SecretKey::Seed
-SecretKey::getSeed() const
+SecretKey::Seed SecretKey::getSeed() const
 {
     releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
@@ -108,22 +105,19 @@ SecretKey::getSeed() const
     return seed;
 }
 
-SecretValue
-SecretKey::getStrKeySeed() const
+SecretValue SecretKey::getStrKeySeed() const
 {
     releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     return strKey::toStrKey(strKey::STRKEY_SEED_ED25519, getSeed().mSeed);
 }
 
-std::string
-SecretKey::getStrKeyPublic() const
+std::string SecretKey::getStrKeyPublic() const
 {
     return KeyUtils::toStrKey(getPublicKey());
 }
 
-bool
-SecretKey::isZero() const
+bool SecretKey::isZero() const
 {
     for (auto i : mSecretKey)
     {
@@ -135,8 +129,7 @@ SecretKey::isZero() const
     return true;
 }
 
-Signature
-SecretKey::sign(ByteSlice const& bin) const
+Signature SecretKey::sign(ByteSlice const& bin) const
 {
     ZoneScoped;
     releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
@@ -150,8 +143,7 @@ SecretKey::sign(ByteSlice const& bin) const
     return out;
 }
 
-SecretKey
-SecretKey::random()
+SecretKey SecretKey::random()
 {
     SecretKey sk;
     releaseAssert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
@@ -171,21 +163,18 @@ struct SignVerifyTestcase
     SecretKey key;
     std::vector<uint8_t> msg;
     Signature sig;
-    void
-    sign()
+    void sign()
     {
         sig = key.sign(msg);
     }
-    void
-    verify()
+    void verify()
     {
         if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg).valid)
         {
             throw std::runtime_error("verify failed");
         }
     }
-    static SignVerifyTestcase
-    create()
+    static SignVerifyTestcase create()
     {
         SignVerifyTestcase st;
         st.key = SecretKey::random();
@@ -194,9 +183,9 @@ struct SignVerifyTestcase
     }
 };
 
-void
-SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
-                                 size_t iterations, size_t cachedVerifyPasses)
+void SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
+                                      size_t iterations,
+                                      size_t cachedVerifyPasses)
 {
     namespace ch = std::chrono;
     using clock = ch::high_resolution_clock;
@@ -240,8 +229,7 @@ SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
 
 #ifdef BUILD_TESTS
 template <typename Rng>
-static std::vector<uint8_t>
-getPRNGBytes(size_t n, Rng& engine)
+static std::vector<uint8_t> getPRNGBytes(size_t n, Rng& engine)
 {
     std::vector<uint8_t> bytes;
     for (size_t i = 0; i < n; ++i)
@@ -252,14 +240,12 @@ getPRNGBytes(size_t n, Rng& engine)
 }
 
 template <typename Rng>
-static SecretKey
-pseudoRandomForTestingFromPRNG(Rng& engine)
+static SecretKey pseudoRandomForTestingFromPRNG(Rng& engine)
 {
     return SecretKey::fromSeed(getPRNGBytes(crypto_sign_SEEDBYTES, engine));
 }
 
-SecretKey
-SecretKey::pseudoRandomForTesting()
+SecretKey SecretKey::pseudoRandomForTesting()
 {
     // Reminder: this is not cryptographic randomness or even particularly hard
     // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
@@ -267,8 +253,7 @@ SecretKey::pseudoRandomForTesting()
     return pseudoRandomForTestingFromPRNG(Catch::rng());
 }
 
-SecretKey
-SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
+SecretKey SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
 {
     // Reminder: this is not cryptographic randomness or even particularly hard
     // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
@@ -278,8 +263,7 @@ SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
 }
 #endif
 
-SecretKey
-SecretKey::fromSeed(ByteSlice const& seed)
+SecretKey SecretKey::fromSeed(ByteSlice const& seed)
 {
     SecretKey sk;
     releaseAssert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
@@ -296,8 +280,7 @@ SecretKey::fromSeed(ByteSlice const& seed)
     return sk;
 }
 
-SecretKey
-SecretKey::fromStrKeySeed(std::string const& strKeySeed)
+SecretKey SecretKey::fromStrKeySeed(std::string const& strKeySeed)
 {
     uint8_t ver;
     std::vector<uint8_t> seed;
@@ -319,29 +302,25 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
     return sk;
 }
 
-void
-PubKeyUtils::clearVerifySigCache()
+void PubKeyUtils::clearVerifySigCache()
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     gVerifySigCache.clear();
 }
 
-void
-PubKeyUtils::enableRustDalekVerify()
+void PubKeyUtils::enableRustDalekVerify()
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     gUseRustDalekVerify = true;
 }
 
-void
-PubKeyUtils::seedVerifySigCache(unsigned int seed)
+void PubKeyUtils::seedVerifySigCache(unsigned int seed)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     gVerifySigCache.seed(seed);
 }
 
-void
-PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
+void PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     hits = gVerifyCacheHit;
@@ -350,14 +329,12 @@ PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
     gVerifyCacheMiss = 0;
 }
 
-std::string
-KeyFunctions<PublicKey>::getKeyTypeName()
+std::string KeyFunctions<PublicKey>::getKeyTypeName()
 {
     return "public key";
 }
 
-bool
-KeyFunctions<PublicKey>::getKeyVersionIsSupported(
+bool KeyFunctions<PublicKey>::getKeyVersionIsSupported(
     strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
@@ -369,8 +346,7 @@ KeyFunctions<PublicKey>::getKeyVersionIsSupported(
     }
 }
 
-bool
-KeyFunctions<PublicKey>::getKeyVersionIsVariableLength(
+bool KeyFunctions<PublicKey>::getKeyVersionIsVariableLength(
     strKey::StrKeyVersionByte keyVersion)
 {
     return false;
@@ -400,8 +376,7 @@ KeyFunctions<PublicKey>::toKeyVersion(PublicKeyType keyType)
     }
 }
 
-uint256&
-KeyFunctions<PublicKey>::getEd25519Value(PublicKey& key)
+uint256& KeyFunctions<PublicKey>::getEd25519Value(PublicKey& key)
 {
     switch (key.type())
     {
@@ -412,8 +387,7 @@ KeyFunctions<PublicKey>::getEd25519Value(PublicKey& key)
     }
 }
 
-uint256 const&
-KeyFunctions<PublicKey>::getEd25519Value(PublicKey const& key)
+uint256 const& KeyFunctions<PublicKey>::getEd25519Value(PublicKey const& key)
 {
     switch (key.type())
     {
@@ -424,15 +398,13 @@ KeyFunctions<PublicKey>::getEd25519Value(PublicKey const& key)
     }
 }
 
-std::vector<uint8_t>
-KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
+std::vector<uint8_t> KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
 {
     return xdr::xdr_to_opaque(getEd25519Value(key));
 }
 
-void
-KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
-                                     std::vector<uint8_t> const& data)
+void KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
+                                          std::vector<uint8_t> const& data)
 {
     switch (key.type())
     {
@@ -444,9 +416,9 @@ KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
     }
 }
 
-PubKeyUtils::VerifySigResult
-PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
-                       ByteSlice const& bin)
+PubKeyUtils::VerifySigResult PubKeyUtils::verifySig(PublicKey const& key,
+                                                    Signature const& signature,
+                                                    ByteSlice const& bin)
 {
     ZoneScoped;
     releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
@@ -494,8 +466,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     return {ok, VerifySigCacheLookupResult::MISS};
 }
 
-PublicKey
-PubKeyUtils::random()
+PublicKey PubKeyUtils::random()
 {
     PublicKey pk;
     pk.type(PUBLIC_KEY_TYPE_ED25519);
@@ -505,33 +476,28 @@ PubKeyUtils::random()
 }
 
 #ifdef BUILD_TESTS
-PublicKey
-PubKeyUtils::pseudoRandomForTesting()
+PublicKey PubKeyUtils::pseudoRandomForTesting()
 {
     return SecretKey::pseudoRandomForTesting().getPublicKey();
 }
 #endif
 
-static void
-logPublicKey(std::ostream& s, PublicKey const& pk)
+static void logPublicKey(std::ostream& s, PublicKey const& pk)
 {
     s << "PublicKey:" << std::endl
       << "  strKey: " << KeyUtils::toStrKey(pk) << std::endl
       << "  hex: " << binToHex(pk.ed25519()) << std::endl;
 }
 
-static void
-logSecretKey(std::ostream& s, SecretKey const& sk)
+static void logSecretKey(std::ostream& s, SecretKey const& sk)
 {
     s << "Seed:" << std::endl
       << "  strKey: " << sk.getStrKeySeed().value << std::endl;
     logPublicKey(s, sk.getPublicKey());
 }
 
-void
-StrKeyUtils::logKey(std::ostream& s, std::string const& key)
+void StrKeyUtils::logKey(std::ostream& s, std::string const& key)
 {
-
     // see if it's a public key
     try
     {
@@ -632,8 +598,7 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
     s << "Unknown key type" << std::endl;
 }
 
-Hash
-HashUtils::random()
+Hash HashUtils::random()
 {
     Hash res;
     randombytes_buf(res.data(), res.size());
@@ -641,8 +606,7 @@ HashUtils::random()
 }
 
 #ifdef BUILD_TESTS
-Hash
-HashUtils::pseudoRandomForTesting()
+Hash HashUtils::pseudoRandomForTesting()
 {
     Hash res;
     auto bytes = getPRNGBytes(res.size(), getGlobalRandomEngine());

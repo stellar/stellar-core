@@ -19,14 +19,12 @@ ApplyBufferedLedgersWork::ApplyBufferedLedgersWork(Application& app)
 {
 }
 
-void
-ApplyBufferedLedgersWork::onReset()
+void ApplyBufferedLedgersWork::onReset()
 {
     mConditionalWork.reset();
 }
 
-BasicWork::State
-ApplyBufferedLedgersWork::onRun()
+BasicWork::State ApplyBufferedLedgersWork::onRun()
 {
     ZoneScoped;
     if (mConditionalWork)
@@ -78,16 +76,14 @@ ApplyBufferedLedgersWork::onRun()
     return State::WORK_RUNNING;
 }
 
-std::string
-ApplyBufferedLedgersWork::getStatus() const
+std::string ApplyBufferedLedgersWork::getStatus() const
 {
     return fmt::format(FMT_STRING("Applying buffered ledgers: {}"),
                        mConditionalWork ? mConditionalWork->getStatus()
                                         : BasicWork::getStatus());
 }
 
-void
-ApplyBufferedLedgersWork::shutdown()
+void ApplyBufferedLedgersWork::shutdown()
 {
     ZoneScoped;
     if (mConditionalWork)
@@ -97,8 +93,7 @@ ApplyBufferedLedgersWork::shutdown()
     BasicWork::shutdown();
 }
 
-bool
-ApplyBufferedLedgersWork::onAbort()
+bool ApplyBufferedLedgersWork::onAbort()
 {
     ZoneScoped;
     if (mConditionalWork && !mConditionalWork->isDone())

@@ -22,9 +22,8 @@ CheckpointRange::CheckpointRange(uint32_t first, uint32_t count,
 
 namespace
 {
-uint32_t
-checkpointCount(uint32_t firstCheckpoint, LedgerRange const& r,
-                HistoryManager const& hm)
+uint32_t checkpointCount(uint32_t firstCheckpoint, LedgerRange const& r,
+                         HistoryManager const& hm)
 {
     if (r.mCount == 0)
     {
@@ -56,14 +55,12 @@ CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
     }
 }
 
-std::string
-CheckpointRange::toString() const
+std::string CheckpointRange::toString() const
 {
     return fmt::format(FMT_STRING("[{:d},{:d})"), mFirst, limit());
 }
 
-bool
-operator==(CheckpointRange const& x, CheckpointRange const& y)
+bool operator==(CheckpointRange const& x, CheckpointRange const& y)
 {
     if (x.mFirst != y.mFirst)
     {
@@ -80,8 +77,7 @@ operator==(CheckpointRange const& x, CheckpointRange const& y)
     return true;
 }
 
-bool
-operator!=(CheckpointRange const& x, CheckpointRange const& y)
+bool operator!=(CheckpointRange const& x, CheckpointRange const& y)
 {
     return !(x == y);
 }

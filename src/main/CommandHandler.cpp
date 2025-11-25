@@ -139,17 +139,14 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 #endif
 }
 
-void
-CommandHandler::addRoute(std::string const& name, HandlerRoute route)
+void CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
-
     mServer->addRoute(
         name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
 }
 
-void
-CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
-                           std::string const& params, std::string& retStr)
+void CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
+                                std::string const& params, std::string& retStr)
 {
     try
     {
@@ -166,8 +163,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     }
 }
 
-void
-CommandHandler::ensureProtocolVersion(
+void CommandHandler::ensureProtocolVersion(
     std::map<std::string, std::string> const& args, std::string const& argName,
     ProtocolVersion minVer)
 {
@@ -179,9 +175,8 @@ CommandHandler::ensureProtocolVersion(
     ensureProtocolVersion(argName, minVer);
 }
 
-void
-CommandHandler::ensureProtocolVersion(std::string const& errString,
-                                      ProtocolVersion minVer)
+void CommandHandler::ensureProtocolVersion(std::string const& errString,
+                                           ProtocolVersion minVer)
 {
     auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
     if (protocolVersionIsBefore(lhhe.header.ledgerVersion, minVer))
@@ -193,8 +188,7 @@ CommandHandler::ensureProtocolVersion(std::string const& errString,
     }
 }
 
-std::string
-CommandHandler::manualCmd(std::string const& cmd)
+std::string CommandHandler::manualCmd(std::string const& cmd)
 {
     http::server::reply reply;
     http::server::request request;
@@ -204,8 +198,8 @@ CommandHandler::manualCmd(std::string const& cmd)
     return reply.content;
 }
 
-void
-CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
+void CommandHandler::fileNotFound(std::string const& params,
+                                  std::string& retStr)
 {
     retStr = "<b>Welcome to stellar-core!</b><p>";
     retStr +=
@@ -245,9 +239,8 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
 // If the key doesn't exist, return defaultValue.
 // Otherwise, throws an error.
 template <typename T>
-T
-parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
-                            std::string const& key, T const& defaultValue)
+T parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
+                              std::string const& key, T const& defaultValue)
 {
     std::optional<T> res = parseOptionalParam<T>(map, key);
     if (res)
@@ -261,10 +254,9 @@ parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
 }
 
 template <>
-bool
-parseOptionalParamOrDefault<bool>(std::map<std::string, std::string> const& map,
-                                  std::string const& key,
-                                  bool const& defaultValue)
+bool parseOptionalParamOrDefault<bool>(
+    std::map<std::string, std::string> const& map, std::string const& key,
+    bool const& defaultValue)
 {
     auto paramStr = parseOptionalParam<std::string>(map, key);
     if (!paramStr)
@@ -277,9 +269,8 @@ parseOptionalParamOrDefault<bool>(std::map<std::string, std::string> const& map,
 // Return a value only if the key exists and the value parses.
 // Otherwise, this throws an error.
 template <typename T>
-T
-parseRequiredParam(std::map<std::string, std::string> const& map,
-                   std::string const& key)
+T parseRequiredParam(std::map<std::string, std::string> const& map,
+                     std::string const& key)
 {
     auto res = parseOptionalParam<T>(map, key);
     if (!res)
@@ -291,8 +282,7 @@ parseRequiredParam(std::map<std::string, std::string> const& map,
     return *res;
 }
 
-void
-CommandHandler::manualClose(std::string const& params, std::string& retStr)
+void CommandHandler::manualClose(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -311,8 +301,7 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
     retStr = mApp.manualClose(manualLedgerSeq, manualCloseTime);
 }
 
-void
-CommandHandler::peers(std::string const& params, std::string& retStr)
+void CommandHandler::peers(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -361,8 +350,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::info(std::string const& params, std::string& retStr)
+void CommandHandler::info(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -371,9 +359,8 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     retStr = mApp.getJsonInfo(retMap["compact"] == "false").toStyledString();
 }
 
-static bool
-shouldEnable(std::set<std::string> const& toEnable,
-             medida::MetricName const& name)
+static bool shouldEnable(std::set<std::string> const& toEnable,
+                         medida::MetricName const& name)
 {
     // Enable individual metric name or a partition
     if (toEnable.find(name.domain()) == toEnable.end() &&
@@ -384,8 +371,7 @@ shouldEnable(std::set<std::string> const& toEnable,
     return true;
 }
 
-void
-CommandHandler::metrics(std::string const& params, std::string& retStr)
+void CommandHandler::metrics(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
 
@@ -434,8 +420,7 @@ CommandHandler::metrics(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::logRotate(std::string const& params, std::string& retStr)
+void CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     retStr = "Log rotate...";
@@ -443,8 +428,7 @@ CommandHandler::logRotate(std::string const& params, std::string& retStr)
     Logging::rotate();
 }
 
-void
-CommandHandler::connect(std::string const& params, std::string& retStr)
+void CommandHandler::connect(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -467,8 +451,7 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::dropPeer(std::string const& params, std::string& retStr)
+void CommandHandler::dropPeer(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -513,8 +496,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::bans(std::string const& params, std::string& retStr)
+void CommandHandler::bans(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;
@@ -531,8 +513,7 @@ CommandHandler::bans(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::unban(std::string const& params, std::string& retStr)
+void CommandHandler::unban(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -561,8 +542,7 @@ CommandHandler::unban(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::upgrades(std::string const& params, std::string& retStr)
+void CommandHandler::upgrades(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -642,9 +622,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::dumpProposedSettings(std::string const& params,
-                                     std::string& retStr)
+void CommandHandler::dumpProposedSettings(std::string const& params,
+                                          std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -680,8 +659,7 @@ CommandHandler::dumpProposedSettings(std::string const& params,
     }
 }
 
-void
-CommandHandler::selfCheck(std::string const&, std::string& retStr)
+void CommandHandler::selfCheck(std::string const&, std::string& retStr)
 {
     ZoneScoped;
     // NB: this only runs the online "self-check" routine; running the
@@ -692,8 +670,7 @@ CommandHandler::selfCheck(std::string const&, std::string& retStr)
     mApp.scheduleSelfCheck(true);
 }
 
-void
-CommandHandler::quorum(std::string const& params, std::string& retStr)
+void CommandHandler::quorum(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -729,8 +706,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::scpInfo(std::string const& params, std::string& retStr)
+void CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> retMap;
@@ -741,8 +717,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
+void CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
@@ -940,8 +915,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 }
 
 // "Must specify a log level: ll?level=<level>&partition=<name>";
-void
-CommandHandler::ll(std::string const& params, std::string& retStr)
+void CommandHandler::ll(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;
@@ -977,8 +951,7 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::tx(std::string const& params, std::string& retStr)
+void CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;
@@ -1045,8 +1018,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     retStr = Json::FastWriter().write(root);
 }
 
-void
-CommandHandler::maintenance(std::string const& params, std::string& retStr)
+void CommandHandler::maintenance(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> map;
@@ -1065,8 +1037,8 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
+void CommandHandler::clearMetrics(std::string const& params,
+                                  std::string& retStr)
 {
     ZoneScoped;
     std::map<std::string, std::string> map;
@@ -1080,8 +1052,7 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
     retStr = fmt::format(FMT_STRING("Cleared {} metrics!"), domain);
 }
 
-void
-CommandHandler::checkBooted() const
+void CommandHandler::checkBooted() const
 {
     if (mApp.getState() == Application::APP_CREATED_STATE ||
         mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
@@ -1091,8 +1062,7 @@ CommandHandler::checkBooted() const
     }
 }
 
-void
-CommandHandler::stopSurvey(std::string const&, std::string& retStr)
+void CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
@@ -1100,17 +1070,15 @@ CommandHandler::stopSurvey(std::string const&, std::string& retStr)
     retStr = "survey stopped";
 }
 
-void
-CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
+void CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
 {
     ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     retStr = surveyManager.getJsonResults().toStyledString();
 }
 
-void
-CommandHandler::startSurveyCollecting(std::string const& params,
-                                      std::string& retStr)
+void CommandHandler::startSurveyCollecting(std::string const& params,
+                                           std::string& retStr)
 {
     ZoneScoped;
     checkBooted();
@@ -1132,8 +1100,8 @@ CommandHandler::startSurveyCollecting(std::string const& params,
     }
 }
 
-void
-CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
+void CommandHandler::stopSurveyCollecting(std::string const&,
+                                          std::string& retStr)
 {
     ZoneScoped;
     checkBooted();
@@ -1150,9 +1118,8 @@ CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
     }
 }
 
-void
-CommandHandler::surveyTopologyTimeSliced(std::string const& params,
-                                         std::string& retStr)
+void CommandHandler::surveyTopologyTimeSliced(std::string const& params,
+                                              std::string& retStr)
 {
     ZoneScoped;
     checkBooted();
@@ -1178,8 +1145,8 @@ CommandHandler::surveyTopologyTimeSliced(std::string const& params,
 }
 
 #ifdef BUILD_TESTS
-void
-CommandHandler::generateLoad(std::string const& params, std::string& retStr)
+void CommandHandler::generateLoad(std::string const& params,
+                                  std::string& retStr)
 {
     ZoneScoped;
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
@@ -1239,7 +1206,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             cfg.setMinSorobanPercentSuccess(minPercentSuccess);
             if (cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
             {
-
                 auto& sorobanCfg = cfg.getMutSorobanConfig();
                 sorobanCfg.nInstances =
                     parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
@@ -1367,8 +1333,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     }
 }
 
-void
-CommandHandler::testAcc(std::string const& params, std::string& retStr)
+void CommandHandler::testAcc(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     using namespace txtest;
@@ -1408,8 +1373,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::testTx(std::string const& params, std::string& retStr)
+void CommandHandler::testTx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     using namespace txtest;
@@ -1475,9 +1439,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-void
-CommandHandler::toggleOverlayOnlyMode(std::string const& params,
-                                      std::string& retStr)
+void CommandHandler::toggleOverlayOnlyMode(std::string const& params,
+                                           std::string& retStr)
 {
     ZoneScoped;
 

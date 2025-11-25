@@ -38,8 +38,7 @@ SharedModuleCacheCompiler::~SharedModuleCacheCompiler()
     }
 }
 
-void
-SharedModuleCacheCompiler::pushWasm(xdr::xvector<uint8_t> const& vec)
+void SharedModuleCacheCompiler::pushWasm(xdr::xvector<uint8_t> const& vec)
 {
     std::unique_lock<std::mutex> lock(mMutex);
     mHaveSpace.wait(lock, [&] {
@@ -54,16 +53,14 @@ SharedModuleCacheCompiler::pushWasm(xdr::xvector<uint8_t> const& vec)
     LOG_DEBUG(DEFAULT_LOG, "Loaded contract with {} bytes of wasm code", size);
 }
 
-bool
-SharedModuleCacheCompiler::isFinishedCompiling(
+bool SharedModuleCacheCompiler::isFinishedCompiling(
     std::unique_lock<std::mutex>& lock)
 {
     releaseAssert(lock.owns_lock());
     return mLoadedAll && mBytesCompiled == mBytesLoaded;
 }
 
-void
-SharedModuleCacheCompiler::setFinishedLoading(size_t nContracts)
+void SharedModuleCacheCompiler::setFinishedLoading(size_t nContracts)
 {
     std::unique_lock lock(mMutex);
     mLoadedAll = true;
@@ -72,9 +69,8 @@ SharedModuleCacheCompiler::setFinishedLoading(size_t nContracts)
     mHaveContracts.notify_all();
 }
 
-bool
-SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
-                                             std::unique_lock<std::mutex>& lock)
+bool SharedModuleCacheCompiler::popAndCompileWasm(
+    size_t thread, std::unique_lock<std::mutex>& lock)
 {
     ZoneScoped;
 
@@ -133,8 +129,7 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
     return true;
 }
 
-void
-SharedModuleCacheCompiler::start()
+void SharedModuleCacheCompiler::start()
 {
     mStarted = std::chrono::steady_clock::now();
 
@@ -212,22 +207,19 @@ SharedModuleCacheCompiler::wait()
     return mModuleCache->shallow_clone();
 }
 
-size_t
-SharedModuleCacheCompiler::getBytesCompiled()
+size_t SharedModuleCacheCompiler::getBytesCompiled()
 {
     std::unique_lock lock(mMutex);
     return mBytesCompiled;
 }
 
-std::chrono::nanoseconds
-SharedModuleCacheCompiler::getCompileTime()
+std::chrono::nanoseconds SharedModuleCacheCompiler::getCompileTime()
 {
     std::unique_lock lock(mMutex);
     return mTotalCompileTime;
 }
 
-size_t
-SharedModuleCacheCompiler::getContractsCompiled()
+size_t SharedModuleCacheCompiler::getContractsCompiled()
 {
     std::unique_lock lock(mMutex);
     return mContractsCompiled;

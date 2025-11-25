@@ -32,8 +32,7 @@ ConditionalWork::ConditionalWork(Application& app, std::string name,
     }
 }
 
-BasicWork::State
-ConditionalWork::onRun()
+BasicWork::State ConditionalWork::onRun()
 {
     ZoneScoped;
     if (mWorkStarted)
@@ -61,8 +60,7 @@ ConditionalWork::onRun()
     }
 }
 
-void
-ConditionalWork::shutdown()
+void ConditionalWork::shutdown()
 {
     ZoneScoped;
     if (mWorkStarted)
@@ -72,8 +70,7 @@ ConditionalWork::shutdown()
     BasicWork::shutdown();
 }
 
-bool
-ConditionalWork::onAbort()
+bool ConditionalWork::onAbort()
 {
     ZoneScoped;
     if (mWorkStarted && !mConditionedWork->isDone())
@@ -84,14 +81,12 @@ ConditionalWork::onAbort()
     return true;
 }
 
-void
-ConditionalWork::onReset()
+void ConditionalWork::onReset()
 {
     mWorkStarted = false;
 }
 
-std::string
-ConditionalWork::getStatus() const
+std::string ConditionalWork::getStatus() const
 {
     return fmt::format(FMT_STRING("{}{}"),
                        mWorkStarted ? "" : "Waiting before starting ",

@@ -12,8 +12,7 @@ namespace stellar
 {
 using namespace std;
 
-void
-validateNetworkPassphrase(Application::pointer app)
+void validateNetworkPassphrase(Application::pointer app)
 {
     std::string networkPassphrase = app->getConfig().NETWORK_PASSPHRASE;
     if (networkPassphrase.empty())
@@ -39,9 +38,8 @@ validateNetworkPassphrase(Application::pointer app)
     }
 }
 
-Application::pointer
-Application::create(VirtualClock& clock, Config const& cfg, bool newDB,
-                    bool forceRebuild)
+Application::pointer Application::create(VirtualClock& clock, Config const& cfg,
+                                         bool newDB, bool forceRebuild)
 {
     return create<ApplicationImpl>(clock, cfg, newDB, forceRebuild);
 }

@@ -12,9 +12,7 @@ class AbstractLedgerTxn;
 
 class ManageDataOpFrame : public OperationFrame
 {
-
-    ManageDataResult&
-    innerResult(OperationResult& res) const
+    ManageDataResult& innerResult(OperationResult& res) const
     {
         return res.tr().manageDataResult();
     }
@@ -29,11 +27,10 @@ class ManageDataOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static ManageDataResultCode
-    getInnerCode(OperationResult const& res)
+    static ManageDataResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().manageDataResult().code();
     }

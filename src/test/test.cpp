@@ -61,8 +61,7 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
 {
     using TestEventListenerBase::TestEventListenerBase;
     static unsigned int sCommandLineSeed;
-    virtual void
-    testCaseStarting(Catch::TestCaseInfo const& testInfo) override
+    virtual void testCaseStarting(Catch::TestCaseInfo const& testInfo) override
     {
         reinitializeAllGlobalStateWithSeed(sCommandLineSeed);
     }
@@ -92,8 +91,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     static std::optional<Catch::TestCaseInfo> sTestCtx;
     static std::vector<Catch::SectionInfo> sSectCtx;
 
-    void
-    testCaseStarting(Catch::TestCaseInfo const& testInfo) override
+    void testCaseStarting(Catch::TestCaseInfo const& testInfo) override
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
@@ -102,8 +100,7 @@ struct TestContextListener : Catch::TestEventListenerBase
             sTestCtx.emplace(testInfo);
         }
     }
-    void
-    testCaseEnded(Catch::TestCaseStats const& testCaseStats) override
+    void testCaseEnded(Catch::TestCaseStats const& testCaseStats) override
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
@@ -113,8 +110,7 @@ struct TestContextListener : Catch::TestEventListenerBase
             sTestCtx.reset();
         }
     }
-    void
-    sectionStarting(Catch::SectionInfo const& sectionInfo) override
+    void sectionStarting(Catch::SectionInfo const& sectionInfo) override
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
@@ -122,8 +118,7 @@ struct TestContextListener : Catch::TestEventListenerBase
             sSectCtx.emplace_back(sectionInfo);
         }
     }
-    void
-    sectionEnded(Catch::SectionStats const& sectionStats) override
+    void sectionEnded(Catch::SectionStats const& sectionStats) override
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
@@ -152,8 +147,7 @@ int gBaseInstance{0};
 static bool gMustUseTestVersionsWrapper{false};
 static uint32_t gTestingVersion{Config::CURRENT_LEDGER_PROTOCOL_VERSION};
 
-static void
-clearConfigs()
+static void clearConfigs()
 {
     for (auto& a : gTestCfg)
     {
@@ -161,8 +155,7 @@ clearConfigs()
     }
 }
 
-void
-test_versions_wrapper(std::function<void(void)> f)
+void test_versions_wrapper(std::function<void(void)> f)
 {
     gMustUseTestVersionsWrapper = true;
     for (auto v : gVersionsToTest)
@@ -189,8 +182,7 @@ static void reportTestTxMeta();
 // be manually cleared using cleanupTmpDirs. If this isn't done, gTestRoots will
 // try to use the logger when it is destructed, which is an issue because the
 // logger will have been destroyed.
-Config const&
-getTestConfig(int instanceNumber, Config::TestDbMode mode)
+Config const& getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
     instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
@@ -341,8 +333,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     return *cfgs[instanceNumber];
 }
 
-std::filesystem::path
-getSrcTestDataPath(std::filesystem::path rel)
+std::filesystem::path getSrcTestDataPath(std::filesystem::path rel)
 {
     namespace fs = std::filesystem;
     fs::path testdata("testdata");
@@ -354,8 +345,7 @@ getSrcTestDataPath(std::filesystem::path rel)
     return testdata / rel;
 }
 
-std::filesystem::path
-getBuildTestDataPath(std::filesystem::path rel)
+std::filesystem::path getBuildTestDataPath(std::filesystem::path rel)
 {
     namespace fs = std::filesystem;
     fs::path testdata("testdata");
@@ -367,8 +357,7 @@ getBuildTestDataPath(std::filesystem::path rel)
     return testdata / rel;
 }
 
-int
-runTest(CommandLineArgs const& args)
+int runTest(CommandLineArgs const& args)
 {
     LogLevel logLevel{LogLevel::LVL_INFO};
 
@@ -512,55 +501,49 @@ runTest(CommandLineArgs const& args)
     return r;
 }
 
-void
-cleanupTmpDirs()
+void cleanupTmpDirs()
 {
     gTestRoots.clear();
 }
 
-void
-for_versions_to(uint32 to, Application& app, std::function<void(void)> const& f)
+void for_versions_to(uint32 to, Application& app,
+                     std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
 
-void
-for_versions_from(uint32 from, Application& app,
-                  std::function<void(void)> const& f)
+void for_versions_from(uint32 from, Application& app,
+                       std::function<void(void)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
-void
-for_versions_from(std::vector<uint32> const& versions, Application& app,
-                  std::function<void(void)> const& f)
+void for_versions_from(std::vector<uint32> const& versions, Application& app,
+                       std::function<void(void)> const& f)
 {
     for_versions(versions, app, f);
     for_versions_from(versions.back() + 1, app, f);
 }
 
-void
-for_versions_from(uint32 from, Config const& cfg,
-                  std::function<void(Config const&)> const& f)
+void for_versions_from(uint32 from, Config const& cfg,
+                       std::function<void(Config const&)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
 }
 
-void
-for_all_versions(Application& app, std::function<void(void)> const& f)
+void for_all_versions(Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
-void
-for_all_versions(Config const& cfg, std::function<void(Config const&)> const& f)
+void for_all_versions(Config const& cfg,
+                      std::function<void(Config const&)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
 }
 
-void
-for_versions(uint32 from, uint32 to, Application& app,
-             std::function<void(void)> const& f)
+void for_versions(uint32 from, uint32 to, Application& app,
+                  std::function<void(void)> const& f)
 {
     if (from > to)
     {
@@ -573,9 +556,8 @@ for_versions(uint32 from, uint32 to, Application& app,
     for_versions(versions, app, f);
 }
 
-void
-for_versions(uint32 from, uint32 to, Config const& cfg,
-             std::function<void(Config const&)> const& f)
+void for_versions(uint32 from, uint32 to, Config const& cfg,
+                  std::function<void(Config const&)> const& f)
 {
     if (from > to)
     {
@@ -588,9 +570,8 @@ for_versions(uint32 from, uint32 to, Config const& cfg,
     for_versions(versions, cfg, f);
 }
 
-void
-for_versions(uint32 from, uint32 to, Config const& cfg,
-             std::function<void(Config&)> const& f)
+void for_versions(uint32 from, uint32 to, Config const& cfg,
+                  std::function<void(Config&)> const& f)
 {
     if (from > to)
     {
@@ -603,9 +584,8 @@ for_versions(uint32 from, uint32 to, Config const& cfg,
     for_versions(versions, cfg, f);
 }
 
-void
-for_versions(std::vector<uint32> const& versions, Application& app,
-             std::function<void(void)> const& f)
+void for_versions(std::vector<uint32> const& versions, Application& app,
+                  std::function<void(void)> const& f)
 {
     REQUIRE(gMustUseTestVersionsWrapper);
 
@@ -621,9 +601,8 @@ for_versions(std::vector<uint32> const& versions, Application& app,
     }
 }
 
-void
-for_versions(std::vector<uint32> const& versions, Config const& cfg,
-             std::function<void(Config const&)> const& f)
+void for_versions(std::vector<uint32> const& versions, Config const& cfg,
+                  std::function<void(Config const&)> const& f)
 {
     REQUIRE(gMustUseTestVersionsWrapper);
 
@@ -637,9 +616,8 @@ for_versions(std::vector<uint32> const& versions, Config const& cfg,
     }
 }
 
-void
-for_versions(std::vector<uint32> const& versions, Config const& cfg,
-             std::function<void(Config&)> const& f)
+void for_versions(std::vector<uint32> const& versions, Config const& cfg,
+                  std::function<void(Config&)> const& f)
 {
     REQUIRE(gMustUseTestVersionsWrapper);
 
@@ -653,9 +631,9 @@ for_versions(std::vector<uint32> const& versions, Config const& cfg,
     }
 }
 
-void
-for_all_versions_except(std::vector<uint32> const& versions, Application& app,
-                        std::function<void(void)> const& f)
+void for_all_versions_except(std::vector<uint32> const& versions,
+                             Application& app,
+                             std::function<void(void)> const& f)
 {
     uint32 lastExcept = 0;
     for (uint32 except : versions)
@@ -666,15 +644,13 @@ for_all_versions_except(std::vector<uint32> const& versions, Application& app,
     for_versions_from(lastExcept + 1, app, f);
 }
 
-static void
-logFatalAndThrow(std::string const& msg)
+static void logFatalAndThrow(std::string const& msg)
 {
     LOG_FATAL(DEFAULT_LOG, "{}", msg);
     throw std::runtime_error(msg);
 }
 
-static std::pair<stdfs::path, std::string>
-getCurrentTestContext()
+static std::pair<stdfs::path, std::string> getCurrentTestContext()
 {
     releaseAssert(threadIsMain());
 
@@ -701,8 +677,7 @@ getCurrentTestContext()
     return std::make_pair(file, oss.str());
 }
 
-void
-recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
+void recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
 {
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_IGNORE)
     {
@@ -761,9 +736,8 @@ static char const* TESTKEY_ALL_VERSIONS = "!test all versions";
 static char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
 
 template <typename T>
-void
-checkTestKeyVal(std::string const& k, T const& expected, T const& got,
-                stdfs::path const& path)
+void checkTestKeyVal(std::string const& k, T const& expected, T const& got,
+                     stdfs::path const& path)
 {
     if (expected != got)
     {
@@ -773,9 +747,8 @@ checkTestKeyVal(std::string const& k, T const& expected, T const& got,
 }
 
 template <typename T>
-void
-checkTestKeyVals(std::string const& k, T const& expected, T const& got,
-                 stdfs::path const& path)
+void checkTestKeyVals(std::string const& k, T const& expected, T const& got,
+                      stdfs::path const& path)
 {
     if (expected != got)
     {
@@ -785,8 +758,7 @@ checkTestKeyVals(std::string const& k, T const& expected, T const& got,
     }
 }
 
-static void
-loadTestTxMeta(stdfs::path const& dir)
+static void loadTestTxMeta(stdfs::path const& dir)
 {
     if (!stdfs::is_directory(dir))
     {
@@ -872,8 +844,7 @@ loadTestTxMeta(stdfs::path const& dir)
     LOG_INFO(DEFAULT_LOG, "Loaded {} TxMetas to check during replay", n);
 }
 
-static void
-saveTestTxMeta(stdfs::path const& dir)
+static void saveTestTxMeta(stdfs::path const& dir)
 {
     for (auto const& filePair : gTestTxMetadata)
     {
@@ -916,8 +887,7 @@ saveTestTxMeta(stdfs::path const& dir)
     }
 }
 
-static void
-reportTestTxMeta()
+static void reportTestTxMeta()
 {
     size_t contexts = 0, nonempty = 0, hashes = 0;
     for (auto const& filePair : gTestTxMetadata)

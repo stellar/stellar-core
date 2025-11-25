@@ -68,8 +68,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     stellar_default_random_engine mRandEngine;
 
     // Randomly pick two elements and evict the less-recently-used one.
-    void
-    evictOne()
+    void evictOne()
     {
         size_t sz = mValuePtrs.size();
         if (sz == 0)
@@ -97,26 +96,22 @@ class RandomEvictionCache : public NonMovableOrCopyable
         mValuePtrs.reserve(maxSize + 1);
     }
 
-    void
-    seed(unsigned int seed)
+    void seed(unsigned int seed)
     {
         mRandEngine.seed(seed);
     }
 
-    size_t
-    maxSize() const
+    size_t maxSize() const
     {
         return mMaxSize;
     }
 
-    size_t
-    size() const
+    size_t size() const
     {
         return mValueMap.size();
     }
 
-    Counters const&
-    getCounters() const
+    Counters const& getCounters() const
     {
         return mCounters;
     }
@@ -124,8 +119,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // `put` does not offer exception safety. If it throws an exception,
     // cache may be in an inconsistent state. It is, therefore,
     // client's responsibility to handle failures correctly.
-    void
-    put(K const& k, V const& v)
+    void put(K const& k, V const& v)
     {
         ++mGeneration;
         CacheValue newValue{mGeneration, v};
@@ -155,8 +149,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     }
 
     // `exists` offers strong exception safety guarantee.
-    bool
-    exists(K const& k, bool countMisses = true)
+    bool exists(K const& k, bool countMisses = true)
     {
         bool miss = (mValueMap.find(k) == mValueMap.end());
         // We do not count hits here; but we usually count misses, as exists()
@@ -173,8 +166,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     }
 
     // `clear` does not throw
-    void
-    clear()
+    void clear()
     {
         mValuePtrs.clear();
         mValueMap.clear();
@@ -182,8 +174,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
     // `erase_if` offers basic exception safety guarantee. If it throws an
     // exception, then the cache may or may not be modified.
-    void
-    erase_if(std::function<bool(V const&)> const& f)
+    void erase_if(std::function<bool(V const&)> const& f)
     {
         for (size_t i = 0; i < mValuePtrs.size(); ++i)
         {
@@ -205,8 +196,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // `maybeGet` offers basic exception safety guarantee.
     // Returns a pointer to the value if the key exists,
     // and returns a nullptr otherwise.
-    V*
-    maybeGet(K const& k)
+    V* maybeGet(K const& k)
     {
         auto it = mValueMap.find(k);
         if (it != mValueMap.end())
@@ -224,8 +214,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     }
 
     // `get` offers basic exception safety guarantee.
-    V&
-    get(K const& k)
+    V& get(K const& k)
     {
         V* result = maybeGet(k);
         if (result == nullptr)

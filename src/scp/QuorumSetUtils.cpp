@@ -23,8 +23,7 @@ class QuorumSetSanityChecker
   public:
     explicit QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks,
                                     char const*& errString);
-    bool
-    isSane() const
+    bool isSane() const
     {
         return mIsSane;
     }
@@ -53,9 +52,8 @@ QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
     }
 }
 
-bool
-QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth,
-                                    char const*& errString)
+bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth,
+                                         char const*& errString)
 {
     if (depth > MAXIMUM_QUORUM_NESTING_LEVEL)
     {
@@ -112,9 +110,8 @@ QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth,
 }
 }
 
-bool
-isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks,
-                char const*& errString)
+bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks,
+                     char const*& errString)
 {
     QuorumSetSanityChecker checker{qSet, extraChecks, errString};
     return checker.isSane();
@@ -133,8 +130,7 @@ namespace
 //  * simplifies singleton innersets
 //      { t:1, { innerSet } } into innerSet
 
-void
-normalizeQSetSimplify(SCPQuorumSet& qSet, NodeID const* idToRemove)
+void normalizeQSetSimplify(SCPQuorumSet& qSet, NodeID const* idToRemove)
 {
     using xdr::operator==;
     auto& v = qSet.validators;
@@ -174,9 +170,8 @@ normalizeQSetSimplify(SCPQuorumSet& qSet, NodeID const* idToRemove)
 }
 
 template <typename InputIt1, typename InputIt2, class Compare>
-int
-intLexicographicalCompare(InputIt1 first1, InputIt1 last1, InputIt2 first2,
-                          InputIt2 last2, Compare comp)
+int intLexicographicalCompare(InputIt1 first1, InputIt1 last1, InputIt2 first2,
+                              InputIt2 last2, Compare comp)
 {
     for (; first1 != last1 && first2 != last2; first1++, first2++)
     {
@@ -200,8 +195,7 @@ intLexicographicalCompare(InputIt1 first1, InputIt1 last1, InputIt2 first2,
 // returns -1 if l < r ; 0 if l == r ; 1 if l > r
 // lexicographical sort
 // looking at, in order: validators, innerSets, threshold
-int
-qSetCompareInt(SCPQuorumSet const& l, SCPQuorumSet const& r)
+int qSetCompareInt(SCPQuorumSet const& l, SCPQuorumSet const& r)
 {
     auto& lvals = l.validators;
     auto& rvals = r.validators;
@@ -242,8 +236,7 @@ qSetCompareInt(SCPQuorumSet const& l, SCPQuorumSet const& r)
 
 // helper function that reorders validators and inner sets
 // in a standard way
-void
-normalizeQuorumSetReorder(SCPQuorumSet& qset)
+void normalizeQuorumSetReorder(SCPQuorumSet& qset)
 {
     std::sort(qset.validators.begin(), qset.validators.end());
     for (auto& qs : qset.innerSets)
@@ -257,8 +250,7 @@ normalizeQuorumSetReorder(SCPQuorumSet& qset)
               });
 }
 }
-void
-normalizeQSet(SCPQuorumSet& qSet, NodeID const* idToRemove)
+void normalizeQSet(SCPQuorumSet& qSet, NodeID const* idToRemove)
 {
     normalizeQSetSimplify(qSet, idToRemove);
     normalizeQuorumSetReorder(qSet);

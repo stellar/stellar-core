@@ -23,21 +23,19 @@ ClaimClaimableBalanceOpFrame::ClaimClaimableBalanceOpFrame(
 {
 }
 
-ThresholdLevel
-ClaimClaimableBalanceOpFrame::getThresholdLevel() const
+ThresholdLevel ClaimClaimableBalanceOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }
 
-bool
-ClaimClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
+bool ClaimClaimableBalanceOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_14);
 }
 
-bool
-validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
+bool validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 {
     switch (pred.type())
     {
@@ -69,10 +67,10 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
     return true;
 }
 
-bool
-ClaimClaimableBalanceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                      OperationResult& res,
-                                      OperationMetaBuilder& opMeta) const
+bool ClaimClaimableBalanceOpFrame::doApply(AppConnector& app,
+                                           AbstractLedgerTxn& ltx,
+                                           OperationResult& res,
+                                           OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
 
@@ -148,15 +146,13 @@ ClaimClaimableBalanceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-ClaimClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                           OperationResult& res) const
+bool ClaimClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                OperationResult& res) const
 {
     return true;
 }
 
-void
-ClaimClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
+void ClaimClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(claimableBalanceKey(mClaimClaimableBalance.balanceID));

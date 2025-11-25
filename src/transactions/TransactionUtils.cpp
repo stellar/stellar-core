@@ -34,14 +34,12 @@ namespace stellar
 static uint32_t PROD_CONST ACCOUNT_SUBENTRY_LIMIT = 1000;
 static size_t PROD_CONST MAX_OFFERS_TO_CROSS = 1000;
 
-uint32_t
-getAccountSubEntryLimit()
+uint32_t getAccountSubEntryLimit()
 {
     return ACCOUNT_SUBENTRY_LIMIT;
 }
 
-size_t
-getMaxOffersToCross()
+size_t getMaxOffersToCross()
 {
     return MAX_OFFERS_TO_CROSS;
 }
@@ -63,8 +61,7 @@ TempReduceLimitsForTesting::~TempReduceLimitsForTesting()
 }
 #endif
 
-AccountEntryExtensionV1&
-prepareAccountEntryExtensionV1(AccountEntry& ae)
+AccountEntryExtensionV1& prepareAccountEntryExtensionV1(AccountEntry& ae)
 {
     if (ae.ext.v() == 0)
     {
@@ -74,8 +71,7 @@ prepareAccountEntryExtensionV1(AccountEntry& ae)
     return ae.ext.v1();
 }
 
-AccountEntryExtensionV2&
-prepareAccountEntryExtensionV2(AccountEntry& ae)
+AccountEntryExtensionV2& prepareAccountEntryExtensionV2(AccountEntry& ae)
 {
     auto& extV1 = prepareAccountEntryExtensionV1(ae);
     if (extV1.ext.v() == 0)
@@ -88,8 +84,7 @@ prepareAccountEntryExtensionV2(AccountEntry& ae)
     return extV1.ext.v2();
 }
 
-AccountEntryExtensionV3&
-prepareAccountEntryExtensionV3(AccountEntry& ae)
+AccountEntryExtensionV3& prepareAccountEntryExtensionV3(AccountEntry& ae)
 {
     auto& extV2 = prepareAccountEntryExtensionV2(ae);
     if (extV2.ext.v() == 0)
@@ -113,8 +108,7 @@ prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
     return tl.ext.v1();
 }
 
-TrustLineEntryExtensionV2&
-prepareTrustLineEntryExtensionV2(TrustLineEntry& tl)
+TrustLineEntryExtensionV2& prepareTrustLineEntryExtensionV2(TrustLineEntry& tl)
 {
     auto& extV1 = prepareTrustLineEntryExtensionV1(tl);
 
@@ -126,8 +120,7 @@ prepareTrustLineEntryExtensionV2(TrustLineEntry& tl)
     return extV1.ext.v2();
 }
 
-LedgerEntryExtensionV1&
-prepareLedgerEntryExtensionV1(LedgerEntry& le)
+LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le)
 {
     if (le.ext.v() == 0)
     {
@@ -137,8 +130,7 @@ prepareLedgerEntryExtensionV1(LedgerEntry& le)
     return le.ext.v1();
 }
 
-void
-setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags)
+void setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags)
 {
     if (lh.ext.v() == 0)
     {
@@ -148,8 +140,7 @@ setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags)
     lh.ext.v1().flags = flags;
 }
 
-AccountEntryExtensionV2&
-getAccountEntryExtensionV2(AccountEntry& ae)
+AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae)
 {
     if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2)
     {
@@ -169,8 +160,7 @@ getAccountEntryExtensionV3(AccountEntry const& ae)
     return ae.ext.v1().ext.v2().ext.v3();
 }
 
-TrustLineEntryExtensionV2&
-getTrustLineEntryExtensionV2(TrustLineEntry& tl)
+TrustLineEntryExtensionV2& getTrustLineEntryExtensionV2(TrustLineEntry& tl)
 {
     if (!hasTrustLineEntryExtV2(tl))
     {
@@ -180,8 +170,7 @@ getTrustLineEntryExtensionV2(TrustLineEntry& tl)
     return tl.ext.v1().ext.v2();
 }
 
-LedgerEntryExtensionV1&
-getLedgerEntryExtensionV1(LedgerEntry& le)
+LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le)
 {
     if (le.ext.v() != 1)
     {
@@ -191,8 +180,8 @@ getLedgerEntryExtensionV1(LedgerEntry& le)
     return le.ext.v1();
 }
 
-static bool
-checkAuthorization(LedgerHeader const& header, LedgerEntry const& entry)
+static bool checkAuthorization(LedgerHeader const& header,
+                               LedgerEntry const& entry)
 {
     if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_10))
     {
@@ -209,22 +198,19 @@ checkAuthorization(LedgerHeader const& header, LedgerEntry const& entry)
     return true;
 }
 
-LedgerKey
-accountKey(AccountID const& accountID)
+LedgerKey accountKey(AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
     return key;
 }
 
-LedgerKey
-trustlineKey(AccountID const& accountID, Asset const& asset)
+LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset)
 {
     return trustlineKey(accountID, assetToTrustLineAsset(asset));
 }
 
-LedgerKey
-trustlineKey(AccountID const& accountID, TrustLineAsset const& asset)
+LedgerKey trustlineKey(AccountID const& accountID, TrustLineAsset const& asset)
 {
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = accountID;
@@ -232,8 +218,7 @@ trustlineKey(AccountID const& accountID, TrustLineAsset const& asset)
     return key;
 }
 
-LedgerKey
-offerKey(AccountID const& sellerID, uint64_t offerID)
+LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID)
 {
     LedgerKey key(OFFER);
     key.offer().sellerID = sellerID;
@@ -241,8 +226,7 @@ offerKey(AccountID const& sellerID, uint64_t offerID)
     return key;
 }
 
-LedgerKey
-dataKey(AccountID const& accountID, std::string const& dataName)
+LedgerKey dataKey(AccountID const& accountID, std::string const& dataName)
 {
     LedgerKey key(DATA);
     key.data().accountID = accountID;
@@ -250,24 +234,22 @@ dataKey(AccountID const& accountID, std::string const& dataName)
     return key;
 }
 
-LedgerKey
-claimableBalanceKey(ClaimableBalanceID const& balanceID)
+LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID)
 {
     LedgerKey key(CLAIMABLE_BALANCE);
     key.claimableBalance().balanceID = balanceID;
     return key;
 }
 
-LedgerKey
-liquidityPoolKey(PoolID const& poolID)
+LedgerKey liquidityPoolKey(PoolID const& poolID)
 {
     LedgerKey key(LIQUIDITY_POOL);
     key.liquidityPool().liquidityPoolID = poolID;
     return key;
 }
 
-LedgerKey
-poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
+LedgerKey poolShareTrustLineKey(AccountID const& accountID,
+                                PoolID const& poolID)
 {
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = accountID;
@@ -276,17 +258,15 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
     return key;
 }
 
-LedgerKey
-configSettingKey(ConfigSettingID const& configSettingID)
+LedgerKey configSettingKey(ConfigSettingID const& configSettingID)
 {
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID = configSettingID;
     return key;
 }
 
-LedgerKey
-contractDataKey(SCAddress const& contract, SCVal const& dataKey,
-                ContractDataDurability durability)
+LedgerKey contractDataKey(SCAddress const& contract, SCVal const& dataKey,
+                          ContractDataDurability durability)
 {
     LedgerKey key(CONTRACT_DATA);
     key.contractData().contract = contract;
@@ -295,88 +275,80 @@ contractDataKey(SCAddress const& contract, SCVal const& dataKey,
     return key;
 }
 
-LedgerKey
-contractCodeKey(Hash const& hash)
+LedgerKey contractCodeKey(Hash const& hash)
 {
     LedgerKey key(CONTRACT_CODE);
     key.contractCode().hash = hash;
     return key;
 }
 
-InternalLedgerKey
-sponsorshipKey(AccountID const& sponsoredID)
+InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID)
 {
     return InternalLedgerKey::makeSponsorshipKey(sponsoredID);
 }
 
-InternalLedgerKey
-sponsorshipCounterKey(AccountID const& sponsoringID)
+InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID)
 {
     return InternalLedgerKey::makeSponsorshipCounterKey(sponsoringID);
 }
 
-InternalLedgerKey
-maxSeqNumToApplyKey(AccountID const& sourceAccount)
+InternalLedgerKey maxSeqNumToApplyKey(AccountID const& sourceAccount)
 {
     return InternalLedgerKey::makeMaxSeqNumToApplyKey(sourceAccount);
 }
 
-LedgerTxnEntry
-loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
+LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     ZoneScoped;
     return ltx.load(accountKey(accountID));
 }
 
-ConstLedgerTxnEntry
-loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
+ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ltx,
+                                             AccountID const& accountID)
 {
     ZoneScoped;
     return ltx.loadWithoutRecord(accountKey(accountID));
 }
 
-LedgerTxnEntry
-loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
-         std::string const& dataName)
+LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
+                        std::string const& dataName)
 {
     ZoneScoped;
     return ltx.load(dataKey(accountID, dataName));
 }
 
-LedgerTxnEntry
-loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
+LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
+                         int64_t offerID)
 {
     ZoneScoped;
     return ltx.load(offerKey(sellerID, offerID));
 }
 
-LedgerTxnEntry
-loadClaimableBalance(AbstractLedgerTxn& ltx,
-                     ClaimableBalanceID const& balanceID)
+LedgerTxnEntry loadClaimableBalance(AbstractLedgerTxn& ltx,
+                                    ClaimableBalanceID const& balanceID)
 {
     ZoneScoped;
     return ltx.load(claimableBalanceKey(balanceID));
 }
 
-TrustLineWrapper
-loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
-              Asset const& asset)
+TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
+                               AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
     return TrustLineWrapper(ltx, accountID, asset);
 }
 
-ConstTrustLineWrapper
-loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                           Asset const& asset)
+ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx,
+                                                 AccountID const& accountID,
+                                                 Asset const& asset)
 {
     ZoneScoped;
     return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
-TrustLineWrapper
-loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                         Asset const& asset)
+TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
+                                          AccountID const& accountID,
+                                          Asset const& asset)
 {
     ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -386,10 +358,8 @@ loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
     return TrustLineWrapper(ltx, accountID, asset);
 }
 
-ConstTrustLineWrapper
-loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
-                                      AccountID const& accountID,
-                                      Asset const& asset)
+ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -399,61 +369,60 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
     return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
-LedgerTxnEntry
-loadSponsorship(AbstractLedgerTxn& ltx, AccountID const& sponsoredID)
+LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
+                               AccountID const& sponsoredID)
 {
     ZoneScoped;
     return ltx.load(sponsorshipKey(sponsoredID));
 }
 
-LedgerTxnEntry
-loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
+LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
+                                      AccountID const& sponsoringID)
 {
     ZoneScoped;
     return ltx.load(sponsorshipCounterKey(sponsoringID));
 }
 
-LedgerTxnEntry
-loadMaxSeqNumToApply(AbstractLedgerTxn& ltx, AccountID const& sourceAccount)
+LedgerTxnEntry loadMaxSeqNumToApply(AbstractLedgerTxn& ltx,
+                                    AccountID const& sourceAccount)
 {
     ZoneScoped;
     return ltx.load(maxSeqNumToApplyKey(sourceAccount));
 }
 
-LedgerTxnEntry
-loadPoolShareTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                       PoolID const& poolID)
+LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
+                                      AccountID const& accountID,
+                                      PoolID const& poolID)
 {
     ZoneScoped;
     return ltx.load(poolShareTrustLineKey(accountID, poolID));
 }
 
-LedgerTxnEntry
-loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
+LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 {
     ZoneScoped;
     return ltx.load(liquidityPoolKey(poolID));
 }
 
-ConstLedgerTxnEntry
-loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
-                 SCVal const& dataKey, ContractDataDurability type)
+ConstLedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
+                                     SCAddress const& contract,
+                                     SCVal const& dataKey,
+                                     ContractDataDurability type)
 {
     ZoneScoped;
     return ltx.loadWithoutRecord(contractDataKey(contract, dataKey, type));
 }
 
-ConstLedgerTxnEntry
-loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
+ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
 {
     ZoneScoped;
     return ltx.loadWithoutRecord(contractCodeKey(hash));
 }
 
-static void
-acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
-                            LedgerTxnHeader const& header,
-                            LedgerTxnEntry const& offerEntry, bool isAcquire)
+static void acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
+                                        LedgerTxnHeader const& header,
+                                        LedgerTxnEntry const& offerEntry,
+                                        bool isAcquire)
 {
     ZoneScoped;
     // This should never happen
@@ -523,16 +492,14 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
     }
 }
 
-void
-acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-                   LedgerTxnEntry const& offer)
+void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& offer)
 {
     acquireOrReleaseLiabilities(ltx, header, offer, true);
 }
 
-bool
-addBalanceSkipAuthorization(LedgerTxnHeader const& header,
-                            LedgerTxnEntry& entry, int64_t amount)
+bool addBalanceSkipAuthorization(LedgerTxnHeader const& header,
+                                 LedgerTxnEntry& entry, int64_t amount)
 {
     auto& tl = entry.current().data.trustLine();
     auto newBalance = tl.balance;
@@ -557,8 +524,8 @@ addBalanceSkipAuthorization(LedgerTxnHeader const& header,
     return true;
 }
 
-bool
-addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
+bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                int64_t delta)
 {
     if (entry.current().data.type() == ACCOUNT)
     {
@@ -611,9 +578,8 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
     }
 }
 
-bool
-addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                     int64_t delta)
+bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                          int64_t delta)
 {
     int64_t buyingLiab = getBuyingLiabilities(header, entry);
 
@@ -658,9 +624,8 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
 }
 
-bool
-addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                      int64_t delta)
+bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                           int64_t delta)
 {
     int64_t sellingLiab = getSellingLiabilities(header, entry);
 
@@ -711,14 +676,12 @@ addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
 }
 
-uint64_t
-generateID(LedgerTxnHeader& header)
+uint64_t generateID(LedgerTxnHeader& header)
 {
     return ++header.current().idPool;
 }
 
-int64_t
-getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le)
+int64_t getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le)
 {
     int64_t avail = 0;
     if (le.data.type() == ACCOUNT)
@@ -746,21 +709,20 @@ getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le)
     return avail;
 }
 
-int64_t
-getAvailableBalance(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
+int64_t getAvailableBalance(LedgerTxnHeader const& header,
+                            LedgerTxnEntry const& entry)
 {
     return getAvailableBalance(header.current(), entry.current());
 }
 
-int64_t
-getAvailableBalance(LedgerTxnHeader const& header,
-                    ConstLedgerTxnEntry const& entry)
+int64_t getAvailableBalance(LedgerTxnHeader const& header,
+                            ConstLedgerTxnEntry const& entry)
 {
     return getAvailableBalance(header.current(), entry.current());
 }
 
-int64_t
-getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
+int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
+                             LedgerEntry const& le)
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_10))
@@ -781,14 +743,14 @@ getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-int64_t
-getBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
+int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
+                             LedgerTxnEntry const& entry)
 {
     return getBuyingLiabilities(header, entry.current());
 }
 
-int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
+                            LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)
     {
@@ -823,21 +785,19 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
     }
 }
 
-int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
+                            LedgerTxnEntry const& entry)
 {
     return getMaxAmountReceive(header, entry.current());
 }
 
-int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header,
-                    ConstLedgerTxnEntry const& entry)
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
+                            ConstLedgerTxnEntry const& entry)
 {
     return getMaxAmountReceive(header, entry.current());
 }
 
-int64_t
-getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
+int64_t getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
 {
     uint32_t numSponsoring = 0;
     uint32_t numSponsored = 0;
@@ -852,9 +812,8 @@ getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
                          numSponsored);
 }
 
-int64_t
-getMinBalance(LedgerHeader const& lh, uint32_t numSubentries,
-              uint32_t numSponsoring, uint32_t numSponsored)
+int64_t getMinBalance(LedgerHeader const& lh, uint32_t numSubentries,
+                      uint32_t numSponsoring, uint32_t numSponsored)
 {
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14) &&
         (numSponsored != 0 || numSponsoring != 0))
@@ -880,8 +839,7 @@ getMinBalance(LedgerHeader const& lh, uint32_t numSubentries,
     }
 }
 
-int64_t
-getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le)
+int64_t getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     auto const& tl = le.data.trustLine();
     int64_t minLimit = tl.balance;
@@ -893,21 +851,20 @@ getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le)
     return minLimit;
 }
 
-int64_t
-getMinimumLimit(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
+int64_t getMinimumLimit(LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& entry)
 {
     return getMinimumLimit(header, entry.current());
 }
 
-int64_t
-getMinimumLimit(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& entry)
+int64_t getMinimumLimit(LedgerTxnHeader const& header,
+                        ConstLedgerTxnEntry const& entry)
 {
     return getMinimumLimit(header, entry.current());
 }
 
-int64_t
-getOfferBuyingLiabilities(LedgerTxnHeader const& header,
-                          LedgerEntry const& entry)
+int64_t getOfferBuyingLiabilities(LedgerTxnHeader const& header,
+                                  LedgerEntry const& entry)
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_10))
@@ -922,16 +879,14 @@ getOfferBuyingLiabilities(LedgerTxnHeader const& header,
     return res.numSheepSend;
 }
 
-int64_t
-getOfferBuyingLiabilities(LedgerTxnHeader const& header,
-                          LedgerTxnEntry const& entry)
+int64_t getOfferBuyingLiabilities(LedgerTxnHeader const& header,
+                                  LedgerTxnEntry const& entry)
 {
     return getOfferBuyingLiabilities(header, entry.current());
 }
 
-int64_t
-getOfferSellingLiabilities(LedgerTxnHeader const& header,
-                           LedgerEntry const& entry)
+int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
+                                   LedgerEntry const& entry)
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_10))
@@ -946,15 +901,13 @@ getOfferSellingLiabilities(LedgerTxnHeader const& header,
     return res.numWheatReceived;
 }
 
-int64_t
-getOfferSellingLiabilities(LedgerTxnHeader const& header,
-                           LedgerTxnEntry const& entry)
+int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
+                                   LedgerTxnEntry const& entry)
 {
     return getOfferSellingLiabilities(header, entry.current());
 }
 
-int64_t
-getSellingLiabilities(LedgerHeader const& header, LedgerEntry const& le)
+int64_t getSellingLiabilities(LedgerHeader const& header, LedgerEntry const& le)
 {
     if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_10))
     {
@@ -974,15 +927,13 @@ getSellingLiabilities(LedgerHeader const& header, LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-int64_t
-getSellingLiabilities(LedgerTxnHeader const& header,
-                      LedgerTxnEntry const& entry)
+int64_t getSellingLiabilities(LedgerTxnHeader const& header,
+                              LedgerTxnEntry const& entry)
 {
     return getSellingLiabilities(header.current(), entry.current());
 }
 
-SequenceNumber
-getStartingSequenceNumber(uint32_t ledgerSeq)
+SequenceNumber getStartingSequenceNumber(uint32_t ledgerSeq)
 {
     if (ledgerSeq > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
     {
@@ -991,44 +942,37 @@ getStartingSequenceNumber(uint32_t ledgerSeq)
     return static_cast<SequenceNumber>(ledgerSeq) << 32;
 }
 
-SequenceNumber
-getStartingSequenceNumber(LedgerTxnHeader const& header)
+SequenceNumber getStartingSequenceNumber(LedgerTxnHeader const& header)
 {
     return getStartingSequenceNumber(header.current().ledgerSeq);
 }
 
-SequenceNumber
-getStartingSequenceNumber(LedgerHeader const& header)
+SequenceNumber getStartingSequenceNumber(LedgerHeader const& header)
 {
     return getStartingSequenceNumber(header.ledgerSeq);
 }
 
-bool
-isAuthorized(LedgerEntry const& le)
+bool isAuthorized(LedgerEntry const& le)
 {
     return (le.data.trustLine().flags & AUTHORIZED_FLAG) != 0;
 }
 
-bool
-isAuthorized(LedgerTxnEntry const& entry)
+bool isAuthorized(LedgerTxnEntry const& entry)
 {
     return isAuthorized(entry.current());
 }
 
-bool
-isAuthorized(ConstLedgerTxnEntry const& entry)
+bool isAuthorized(ConstLedgerTxnEntry const& entry)
 {
     return isAuthorized(entry.current());
 }
 
-bool
-isAuthorizedToMaintainLiabilitiesUnsafe(uint32_t flags)
+bool isAuthorizedToMaintainLiabilitiesUnsafe(uint32_t flags)
 {
     return (flags & TRUSTLINE_AUTH_FLAGS) != 0;
 }
 
-bool
-isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
+bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
     if (le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
     {
@@ -1037,69 +981,58 @@ isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
     return isAuthorizedToMaintainLiabilitiesUnsafe(le.data.trustLine().flags);
 }
 
-bool
-isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry)
+bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry)
 {
     return isAuthorizedToMaintainLiabilities(entry.current());
 }
 
-bool
-isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry)
+bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry)
 {
     return isAuthorizedToMaintainLiabilities(entry.current());
 }
 
-bool
-isAuthRequired(ConstLedgerTxnEntry const& entry)
+bool isAuthRequired(ConstLedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_REQUIRED_FLAG) != 0;
 }
 
-bool
-isClawbackEnabledOnTrustline(TrustLineEntry const& tl)
+bool isClawbackEnabledOnTrustline(TrustLineEntry const& tl)
 {
     return (tl.flags & TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
 }
 
-bool
-isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
+bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 {
     return isClawbackEnabledOnTrustline(entry.current().data.trustLine());
 }
 
-bool
-isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
+bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
 {
     return entry.ext.v() == 1 && (entry.ext.v1().flags &
                                   CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
 }
 
-bool
-isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
+bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
 {
     return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
 }
 
-bool
-isClawbackEnabledOnAccount(LedgerEntry const& entry)
+bool isClawbackEnabledOnAccount(LedgerEntry const& entry)
 {
     return (entry.data.account().flags & AUTH_CLAWBACK_ENABLED_FLAG) != 0;
 }
 
-bool
-isClawbackEnabledOnAccount(LedgerTxnEntry const& entry)
+bool isClawbackEnabledOnAccount(LedgerTxnEntry const& entry)
 {
     return isClawbackEnabledOnAccount(entry.current());
 }
 
-bool
-isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
+bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 {
     return isClawbackEnabledOnAccount(entry.current());
 }
 
-void
-setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
+void setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
 {
     if (cb.ext.v() != 0)
     {
@@ -1111,54 +1044,46 @@ setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
     cb.ext.v1().flags = CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG;
 }
 
-bool
-isImmutableAuth(LedgerTxnEntry const& entry)
+bool isImmutableAuth(LedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
 }
 
-static bool
-isLedgerHeaderFlagSet(LedgerHeader const& header, uint32_t flag)
+static bool isLedgerHeaderFlagSet(LedgerHeader const& header, uint32_t flag)
 {
     return header.ext.v() == 1 && (header.ext.v1().flags & flag) != 0;
 }
 
-bool
-isPoolDepositDisabled(LedgerHeader const& header)
+bool isPoolDepositDisabled(LedgerHeader const& header)
 {
     return isLedgerHeaderFlagSet(header, DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG);
 }
 
-bool
-isPoolWithdrawalDisabled(LedgerHeader const& header)
+bool isPoolWithdrawalDisabled(LedgerHeader const& header)
 {
     return isLedgerHeaderFlagSet(header,
                                  DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG);
 }
 
-bool
-isPoolTradingDisabled(LedgerHeader const& header)
+bool isPoolTradingDisabled(LedgerHeader const& header)
 {
     return isLedgerHeaderFlagSet(header, DISABLE_LIQUIDITY_POOL_TRADING_FLAG);
 }
 
-void
-releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-                   LedgerTxnEntry const& offer)
+void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& offer)
 {
     acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
-bool
-trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
            (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) ||
             trustLineFlagAuthIsValid(flag));
 }
 
-bool
-trustLineFlagAuthIsValid(uint32_t flag)
+bool trustLineFlagAuthIsValid(uint32_t flag)
 {
     static_assert(TRUSTLINE_AUTH_FLAGS == 3,
                   "condition only works for two flags");
@@ -1171,8 +1096,7 @@ trustLineFlagAuthIsValid(uint32_t flag)
     return true;
 }
 
-bool
-trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+bool trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
@@ -1188,15 +1112,13 @@ trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
 }
 
-bool
-accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+bool accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     return accountFlagMaskCheckIsValid(flag, ledgerVersion) &&
            accountFlagClawbackIsValid(flag, ledgerVersion);
 }
 
-bool
-accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
+bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17) &&
         (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
@@ -1208,8 +1130,7 @@ accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
     return true;
 }
 
-bool
-accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
     {
@@ -1219,8 +1140,7 @@ accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     return (flag & ~MASK_ACCOUNT_FLAGS_V17) == 0;
 }
 
-AccountID
-toAccountID(MuxedAccount const& m)
+AccountID toAccountID(MuxedAccount const& m)
 {
     AccountID ret(static_cast<PublicKeyType>(m.type() & 0xff));
     switch (m.type())
@@ -1238,8 +1158,7 @@ toAccountID(MuxedAccount const& m)
     return ret;
 }
 
-MuxedAccount
-toMuxedAccount(AccountID const& a, std::optional<uint64> id)
+MuxedAccount toMuxedAccount(AccountID const& a, std::optional<uint64> id)
 {
     switch (a.type())
     {
@@ -1263,14 +1182,12 @@ toMuxedAccount(AccountID const& a, std::optional<uint64> id)
     }
 }
 
-bool
-trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
+bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {
     return trustLineFlagIsValid(flag, header.current().ledgerVersion);
 }
 
-uint64_t
-getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
+uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
 {
     uint64_t currentTime = VirtualClock::to_time_t(app.getClock().system_now());
 
@@ -1285,27 +1202,23 @@ getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
            closeTimeDrift;
 }
 
-bool
-hasAccountEntryExtV2(AccountEntry const& ae)
+bool hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
 }
 
-bool
-hasAccountEntryExtV3(AccountEntry const& ae)
+bool hasAccountEntryExtV3(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2 &&
            ae.ext.v1().ext.v2().ext.v() == 3;
 }
 
-bool
-hasTrustLineEntryExtV2(TrustLineEntry const& tl)
+bool hasTrustLineEntryExtV2(TrustLineEntry const& tl)
 {
     return tl.ext.v() == 1 && tl.ext.v1().ext.v() == 2;
 }
 
-Asset
-getAsset(AccountID const& issuer, AssetCode const& assetCode)
+Asset getAsset(AccountID const& issuer, AssetCode const& assetCode)
 {
     Asset asset;
     asset.type(assetCode.type());
@@ -1327,8 +1240,7 @@ getAsset(AccountID const& issuer, AssetCode const& assetCode)
     return asset;
 }
 
-bool
-claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
+bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
 {
     if (cb.ext.v() == 1)
     {
@@ -1340,9 +1252,9 @@ claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
 
 // The following static methods are used for authorization revocation
 
-static void
-removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
-                              Asset const& asset)
+static void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
+                                          AccountID const& account,
+                                          Asset const& asset)
 {
     LedgerTxn ltxInner(ltx);
 
@@ -1370,8 +1282,7 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
     ltxInner.commit();
 }
 
-static bool
-tryGetEntrySponsor(LedgerTxnEntry& entry, AccountID& sponsor)
+static bool tryGetEntrySponsor(LedgerTxnEntry& entry, AccountID& sponsor)
 {
     if (entry.current().ext.v() == 1 &&
         getLedgerEntryExtensionV1(entry.current()).sponsoringID)
@@ -1383,8 +1294,7 @@ tryGetEntrySponsor(LedgerTxnEntry& entry, AccountID& sponsor)
     return false;
 }
 
-static AccountID
-getTrustLineBacker(LedgerTxnEntry& trustLine)
+static AccountID getTrustLineBacker(LedgerTxnEntry& trustLine)
 {
     AccountID sponsor;
     if (tryGetEntrySponsor(trustLine, sponsor))
@@ -1395,8 +1305,7 @@ getTrustLineBacker(LedgerTxnEntry& trustLine)
     return trustLine.current().data.trustLine().accountID;
 }
 
-static void
-prefetchForRevokeFromPoolShareTrustLines(
+static void prefetchForRevokeFromPoolShareTrustLines(
     AbstractLedgerTxn& ltx, AccountID const& accountID,
     std::vector<LedgerTxnEntry>& poolShareTrustLines)
 {
@@ -1442,9 +1351,9 @@ prefetchForRevokeFromPoolShareTrustLines(
     ltx.prefetch(keys);
 }
 
-static ClaimableBalanceID
-getRevokeID(AccountID const& txSourceID, SequenceNumber txSeqNum,
-            uint32_t opIndex, PoolID const& poolID, Asset const& asset)
+static ClaimableBalanceID getRevokeID(AccountID const& txSourceID,
+                                      SequenceNumber txSeqNum, uint32_t opIndex,
+                                      PoolID const& poolID, Asset const& asset)
 {
     HashIDPreimage hashPreimage;
     hashPreimage.type(ENVELOPE_TYPE_POOL_REVOKE_OP_ID);
@@ -1461,8 +1370,7 @@ getRevokeID(AccountID const& txSourceID, SequenceNumber txSeqNum,
     return balanceID;
 }
 
-static Claimant
-makeUnconditionalClaimant(AccountID const& accountID)
+static Claimant makeUnconditionalClaimant(AccountID const& accountID)
 {
     Claimant c;
     c.v0().destination = accountID;
@@ -1471,10 +1379,8 @@ makeUnconditionalClaimant(AccountID const& accountID)
     return c;
 }
 
-static std::vector<LedgerKey>
-prefetchPoolShareTrustLinesByAccountAndGetKeys(AbstractLedgerTxn& ltx,
-                                               AccountID const& accountID,
-                                               Asset const& asset)
+static std::vector<LedgerKey> prefetchPoolShareTrustLinesByAccountAndGetKeys(
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset)
 {
     // always rolls back
     LedgerTxn ltxInner(ltx);
@@ -1500,13 +1406,10 @@ prefetchPoolShareTrustLinesByAccountAndGetKeys(AbstractLedgerTxn& ltx,
     return poolTLKeys;
 }
 
-RemoveResult
-removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
-                                   AccountID const& accountID,
-                                   Asset const& asset,
-                                   AccountID const& txSourceID,
-                                   SequenceNumber txSeqNum, uint32_t opIndex,
-                                   OpEventManager& opEventManager)
+RemoveResult removeOffersAndPoolShareTrustLines(
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset,
+    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex,
+    OpEventManager& opEventManager)
 {
     removeOffersByAccountAndAsset(ltx, accountID, asset);
 
@@ -1566,7 +1469,6 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
 
             if (isIssuer(accountID, assetInPool))
             {
-
                 opEventManager.newBurnEvent(
                     assetInPool, makeLiquidityPoolAddress(poolID), amount);
 
@@ -1722,8 +1624,7 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
     return RemoveResult::SUCCESS;
 }
 
-void
-decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool)
+void decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool)
 {
     auto poolTLCount = --liquidityPool.current()
                              .data.liquidityPool()
@@ -1739,9 +1640,8 @@ decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool)
     }
 }
 
-void
-decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
-                               AccountID const& accountID)
+void decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
+                                    AccountID const& accountID)
 {
     LedgerTxn ltxInner(ltx);
     if (!isIssuer(accountID, asset) && asset.type() != ASSET_TYPE_NATIVE)
@@ -1762,9 +1662,7 @@ decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
     ltxInner.commit();
 }
 
-template <typename T>
-T
-assetConversionHelper(Asset const& asset)
+template <typename T> T assetConversionHelper(Asset const& asset)
 {
     T otherAsset;
     otherAsset.type(asset.type());
@@ -1788,20 +1686,17 @@ assetConversionHelper(Asset const& asset)
     return otherAsset;
 }
 
-TrustLineAsset
-assetToTrustLineAsset(Asset const& asset)
+TrustLineAsset assetToTrustLineAsset(Asset const& asset)
 {
     return assetConversionHelper<TrustLineAsset>(asset);
 }
 
-ChangeTrustAsset
-assetToChangeTrustAsset(Asset const& asset)
+ChangeTrustAsset assetToChangeTrustAsset(Asset const& asset)
 {
     return assetConversionHelper<ChangeTrustAsset>(asset);
 }
 
-TrustLineAsset
-changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
+TrustLineAsset changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
 {
     TrustLineAsset tlAsset;
     tlAsset.type(ctAsset.type());
@@ -1826,9 +1721,8 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
     return tlAsset;
 }
 
-int64_t
-getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
-                        int64_t reserve)
+int64_t getPoolWithdrawalAmount(int64_t amountPoolShares,
+                                int64_t totalPoolShares, int64_t reserve)
 {
     if (amountPoolShares > totalPoolShares)
     {
@@ -1839,9 +1733,8 @@ getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
                             ROUND_DOWN);
 }
 
-void
-maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
-                                    LedgerTxnEntry& account)
+void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
+                                         LedgerTxnEntry& account)
 {
     if (protocolVersionStartsFrom(header.current().ledgerVersion,
                                   ProtocolVersion::V_19))
@@ -1853,9 +1746,9 @@ maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
     }
 }
 
-int64_t
-getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
-                   std::optional<int64_t> baseFee)
+int64_t getMinInclusionFee(TransactionFrameBase const& tx,
+                           LedgerHeader const& header,
+                           std::optional<int64_t> baseFee)
 {
     int64_t effectiveBaseFee = header.baseFee;
     if (baseFee)
@@ -1865,12 +1758,11 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
-bool
-validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
-                            SorobanNetworkConfig const& config,
-                            Config const& appConfig,
-                            TransactionFrame const& parentTx,
-                            DiagnosticEventManager& diagnosticEvents)
+bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
+                                 SorobanNetworkConfig const& config,
+                                 Config const& appConfig,
+                                 TransactionFrame const& parentTx,
+                                 DiagnosticEventManager& diagnosticEvents)
 {
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
@@ -1896,8 +1788,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     return true;
 }
 
-LumenContractInfo
-getLumenContractInfo(Hash const& networkID)
+LumenContractInfo getLumenContractInfo(Hash const& networkID)
 {
     Asset native;
 
@@ -1915,8 +1806,7 @@ getLumenContractInfo(Hash const& networkID)
     return {lumenContractID, balanceSymbol, amountSymbol};
 }
 
-Hash
-getAssetContractID(Hash const& networkID, Asset const& asset)
+Hash getAssetContractID(Hash const& networkID, Asset const& asset)
 {
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
@@ -1927,64 +1817,56 @@ getAssetContractID(Hash const& networkID, Asset const& asset)
     return xdrSha256(preImage);
 }
 
-SCVal
-makeSymbolSCVal(std::string&& str)
+SCVal makeSymbolSCVal(std::string&& str)
 {
     SCVal val(SCV_SYMBOL);
     val.sym().assign(std::move(str));
     return val;
 }
 
-SCVal
-makeSymbolSCVal(std::string const& str)
+SCVal makeSymbolSCVal(std::string const& str)
 {
     SCVal val(SCV_SYMBOL);
     val.sym().assign(str);
     return val;
 }
 
-SCVal
-makeStringSCVal(std::string&& str)
+SCVal makeStringSCVal(std::string&& str)
 {
     SCVal val(SCV_STRING);
     val.str().assign(std::move(str));
     return val;
 }
 
-SCVal
-makeStringSCVal(std::string const& str)
+SCVal makeStringSCVal(std::string const& str)
 {
     SCVal val(SCV_STRING);
     val.str().assign(str);
     return val;
 }
 
-SCVal
-makeU32SCVal(uint32_t u)
+SCVal makeU32SCVal(uint32_t u)
 {
     SCVal val(SCV_U32);
     val.u32() = u;
     return val;
 }
 
-SCVal
-makeU64SCVal(uint64_t u)
+SCVal makeU64SCVal(uint64_t u)
 {
     SCVal val(SCV_U64);
     val.u64() = u;
     return val;
 }
 
-SCVal
-makeAddressSCVal(SCAddress const& address)
+SCVal makeAddressSCVal(SCAddress const& address)
 {
     SCVal val(SCV_ADDRESS);
     val.address() = address;
     return val;
 }
 
-SCVal
-makeI128SCVal(int64_t v)
+SCVal makeI128SCVal(int64_t v)
 {
     SCVal val(SCV_I128);
     auto cxxI128 = rust_bridge::i128_from_i64(v);
@@ -1993,16 +1875,14 @@ makeI128SCVal(int64_t v)
     return val;
 }
 
-SCVal
-makeAccountIDSCVal(AccountID const& id)
+SCVal makeAccountIDSCVal(AccountID const& id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
     addr.accountId() = id;
     return makeAddressSCVal(addr);
 }
 
-SCAddress
-makeMuxedAccountAddress(MuxedAccount const& account)
+SCAddress makeMuxedAccountAddress(MuxedAccount const& account)
 {
     switch (account.type())
     {
@@ -2025,32 +1905,28 @@ makeMuxedAccountAddress(MuxedAccount const& account)
     }
 }
 
-SCAddress
-makeAccountAddress(AccountID const& account)
+SCAddress makeAccountAddress(AccountID const& account)
 {
     SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
     addr.accountId() = account;
     return addr;
 }
 
-SCAddress
-makeClaimableBalanceAddress(ClaimableBalanceID const& id)
+SCAddress makeClaimableBalanceAddress(ClaimableBalanceID const& id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
     addr.claimableBalanceId() = id;
     return addr;
 }
 
-SCAddress
-makeLiquidityPoolAddress(PoolID const& id)
+SCAddress makeLiquidityPoolAddress(PoolID const& id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
     addr.liquidityPoolId() = id;
     return addr;
 }
 
-SCAddress
-getAddressWithDroppedMuxedInfo(SCAddress const& addr)
+SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr)
 {
     if (addr.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT)
     {
@@ -2061,8 +1937,7 @@ getAddressWithDroppedMuxedInfo(SCAddress const& addr)
     return addr;
 }
 
-bool
-isIssuer(SCAddress const& addr, Asset const& asset)
+bool isIssuer(SCAddress const& addr, Asset const& asset)
 {
     switch (addr.type())
     {
@@ -2081,8 +1956,7 @@ isIssuer(SCAddress const& addr, Asset const& asset)
     }
 }
 
-SCVal
-makeSep0011AssetStringSCVal(Asset const& asset)
+SCVal makeSep0011AssetStringSCVal(Asset const& asset)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -2092,8 +1966,7 @@ makeSep0011AssetStringSCVal(Asset const& asset)
                            KeyUtils::toStrKey(getIssuer(asset)));
 }
 
-SCVal
-makeClassicMemoSCVal(Memo const& memo)
+SCVal makeClassicMemoSCVal(Memo const& memo)
 {
     switch (memo.type())
     {
@@ -2112,8 +1985,7 @@ makeClassicMemoSCVal(Memo const& memo)
     }
 }
 
-SCVal
-makeMuxIDSCVal(MuxedEd25519Account const& acc)
+SCVal makeMuxIDSCVal(MuxedEd25519Account const& acc)
 {
     return makeU64SCVal(acc.id);
 }
@@ -2124,8 +1996,7 @@ struct MuxChecker
 {
     bool mHasMuxedAccount{false};
 
-    void
-    operator()(stellar::MuxedAccount const& t)
+    void operator()(stellar::MuxedAccount const& t)
     {
         // checks if this is a multiplexed account,
         // such as KEY_TYPE_MUXED_ED25519
@@ -2155,18 +2026,17 @@ struct MuxChecker
 };
 } // namespace detail
 
-bool
-hasMuxedAccount(TransactionEnvelope const& e)
+bool hasMuxedAccount(TransactionEnvelope const& e)
 {
     detail::MuxChecker c;
     c(e);
     return c.mHasMuxedAccount;
 }
 
-ClaimAtom
-makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
-              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
-              Asset const& sheep, int64_t numSheepSend)
+ClaimAtom makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
+                        int64_t offerID, Asset const& wheat,
+                        int64_t numWheatReceived, Asset const& sheep,
+                        int64_t numSheepSend)
 {
     ClaimAtom atom;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
@@ -2184,8 +2054,7 @@ makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
     return atom;
 }
 
-CxxLedgerEntryRentChange
-createEntryRentChangeWithoutModification(
+CxxLedgerEntryRentChange createEntryRentChangeWithoutModification(
     LedgerEntry const& entry, uint32_t entrySize,
     std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
     uint32_t ledgerVersion, SorobanNetworkConfig const& sorobanConfig)

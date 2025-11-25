@@ -158,7 +158,6 @@ class InMemorySorobanState;
 // thread.
 class LedgerManager
 {
-
   protected:
     friend void ApplicationImpl::initialize(bool createNewDB,
                                             bool forceRebuild);
@@ -199,8 +198,7 @@ class LedgerManager
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
-    bool
-    isSynced() const
+    bool isSynced() const
     {
         return getState() == LM_SYNCED_STATE;
     }
@@ -340,8 +338,7 @@ class LedgerManager
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
-    void
-    applyLedger(LedgerCloseData const& ledgerData)
+    void applyLedger(LedgerCloseData const& ledgerData)
     {
         applyLedger(ledgerData, /* externalize */ false);
     }

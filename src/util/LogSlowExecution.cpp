@@ -37,8 +37,7 @@ LogSlowExecution::~LogSlowExecution()
     }
 }
 
-std::chrono::milliseconds
-LogSlowExecution::checkElapsedTime() const
+std::chrono::milliseconds LogSlowExecution::checkElapsedTime() const
 {
     auto finish = std::chrono::system_clock::now();
     auto elapsed =

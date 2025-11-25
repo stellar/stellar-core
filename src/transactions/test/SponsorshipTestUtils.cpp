@@ -17,8 +17,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-static OperationResult
-getOperationResult(TransactionTestFramePtr tx, size_t i)
+static OperationResult getOperationResult(TransactionTestFramePtr tx, size_t i)
 {
     return tx->getResult().result.results()[i];
 }
@@ -26,8 +25,8 @@ getOperationResult(TransactionTestFramePtr tx, size_t i)
 namespace stellar
 {
 
-static void
-validateExpectedAccountV0Ext(uint32_t ledgerVersion, AccountEntry const& ae)
+static void validateExpectedAccountV0Ext(uint32_t ledgerVersion,
+                                         AccountEntry const& ae)
 {
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19) &&
         hasAccountEntryExtV3(ae))
@@ -41,9 +40,8 @@ validateExpectedAccountV0Ext(uint32_t ledgerVersion, AccountEntry const& ae)
     }
 }
 
-void
-checkSponsorship(AbstractLedgerTxn& ltx, LedgerKey const& lk, int leExt,
-                 AccountID const* sponsoringID)
+void checkSponsorship(AbstractLedgerTxn& ltx, LedgerKey const& lk, int leExt,
+                      AccountID const* sponsoringID)
 {
     auto ltxe = ltx.load(lk);
     auto const& le = ltxe.current();
@@ -64,10 +62,9 @@ checkSponsorship(AbstractLedgerTxn& ltx, LedgerKey const& lk, int leExt,
     }
 }
 
-void
-checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                 SignerKey const& signerKey, int aeExt,
-                 AccountID const* sponsoringID)
+void checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& accountID,
+                      SignerKey const& signerKey, int aeExt,
+                      AccountID const* sponsoringID)
 {
     auto ltxe = loadAccount(ltx, accountID);
     auto const& ae = ltxe.current().data.account();
@@ -105,10 +102,9 @@ checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& accountID,
     }
 }
 
-void
-checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& acc, int leExt,
-                 AccountID const* sponsoringID, uint32_t numSubEntries,
-                 int aeExt, uint32_t numSponsoring, uint32_t numSponsored)
+void checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& acc, int leExt,
+                      AccountID const* sponsoringID, uint32_t numSubEntries,
+                      int aeExt, uint32_t numSponsoring, uint32_t numSponsored)
 {
     checkSponsorship(ltx, accountKey(acc), leExt, sponsoringID);
 
@@ -133,8 +129,7 @@ checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& acc, int leExt,
     }
 }
 
-void
-createSponsoredEntryButSponsorHasInsufficientBalance(
+void createSponsoredEntryButSponsorHasInsufficientBalance(
     Application& app, TestAccount& sponsoringAcc, TestAccount& sponsoredAcc,
     Operation const& op, std::function<bool(OperationResult const&)> check)
 {
@@ -162,8 +157,7 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
     }
 }
 
-static uint32_t
-getNumReservesRequiredForOperation(Operation const& op)
+static uint32_t getNumReservesRequiredForOperation(Operation const& op)
 {
     if (op.body.type() == REVOKE_SPONSORSHIP &&
         op.body.revokeSponsorshipOp().type() ==
@@ -193,14 +187,11 @@ getNumReservesRequiredForOperation(Operation const& op)
     return 1;
 }
 
-static void
-createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
-                                    Operation const& opCreate,
-                                    Operation const& opModify1,
-                                    Operation const& opModify2,
-                                    Operation const& opRemove,
-                                    RevokeSponsorshipOp const& rso,
-                                    uint32_t ledgerVersionFrom)
+static void createModifyAndRemoveSponsoredEntry(
+    Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
+    Operation const& opModify1, Operation const& opModify2,
+    Operation const& opRemove, RevokeSponsorshipOp const& rso,
+    uint32_t ledgerVersionFrom)
 {
     SECTION("create, modify, and remove sponsored entry")
     {
@@ -328,8 +319,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
     }
 }
 
-void
-createModifyAndRemoveSponsoredEntry(
+void createModifyAndRemoveSponsoredEntry(
     Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
     Operation const& opModify1, Operation const& opModify2,
     Operation const& opRemove, LedgerKey const& lk, uint32_t ledgerVersionFrom)
@@ -341,13 +331,10 @@ createModifyAndRemoveSponsoredEntry(
                                         ledgerVersionFrom);
 }
 
-void
-createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
-                                    Operation const& opCreate,
-                                    Operation const& opModify1,
-                                    Operation const& opModify2,
-                                    Operation const& opRemove,
-                                    SignerKey const& signerKey)
+void createModifyAndRemoveSponsoredEntry(
+    Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
+    Operation const& opModify1, Operation const& opModify2,
+    Operation const& opRemove, SignerKey const& signerKey)
 {
     RevokeSponsorshipOp rso(REVOKE_SPONSORSHIP_SIGNER);
     rso.signer().accountID = sponsoredAcc;
@@ -356,17 +343,15 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                         opModify2, opRemove, rso, 14);
 }
 
-void
-tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
-                  Operation const& successfulOp, Operation const& failOp,
-                  uint32_t reservesForSuccesfulOp)
+void tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
+                       Operation const& successfulOp, Operation const& failOp,
+                       uint32_t reservesForSuccesfulOp)
 {
     tooManySponsoring(app, sponsoredAcc, sponsoredAcc, successfulOp, failOp,
                       reservesForSuccesfulOp);
 }
 
-static uint32_t
-getMinProtocolVersionForTooManyTestsFromOp(Operation const& op)
+static uint32_t getMinProtocolVersionForTooManyTestsFromOp(Operation const& op)
 {
     if (op.body.type() == CHANGE_TRUST &&
         op.body.changeTrustOp().line.type() == ASSET_TYPE_POOL_SHARE)
@@ -395,11 +380,11 @@ getMinProtocolVersionForTooManyTestsFromOp(Operation const& op)
     return 14;
 }
 
-static void
-submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
-                           TestAccount& failOpAcc,
-                           Operation const& successfulOp,
-                           Operation const& failOp)
+static void submitTooManySponsoringTxs(Application& app,
+                                       TestAccount& successfulOpAcc,
+                                       TestAccount& failOpAcc,
+                                       Operation const& successfulOp,
+                                       Operation const& failOp)
 {
     auto root = app.getRoot();
     {
@@ -436,10 +421,9 @@ submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
     }
 }
 
-void
-tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
-                  TestAccount& failOpAcc, Operation const& successfulOp,
-                  Operation const& failOp, uint32_t reservesForSuccesfulOp)
+void tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
+                       TestAccount& failOpAcc, Operation const& successfulOp,
+                       Operation const& failOp, uint32_t reservesForSuccesfulOp)
 {
     REQUIRE(failOp.body.type() == successfulOp.body.type());
 
@@ -547,10 +531,9 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
     }
 }
 
-static void
-submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
-                           Operation const& successfulOp,
-                           Operation const& failOp)
+static void submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
+                                       Operation const& successfulOp,
+                                       Operation const& failOp)
 {
     {
         auto tx1 = transactionFrameFromOps(app.getNetworkID(), testAcc,
@@ -580,9 +563,8 @@ submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
     }
 }
 
-void
-tooManySubentries(Application& app, TestAccount& testAcc,
-                  Operation const& successfulOp, Operation const& failOp)
+void tooManySubentries(Application& app, TestAccount& testAcc,
+                       Operation const& successfulOp, Operation const& failOp)
 {
     REQUIRE(failOp.body.type() == successfulOp.body.type());
 

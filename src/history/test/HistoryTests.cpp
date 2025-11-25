@@ -617,8 +617,8 @@ TEST_CASE("History publish", "[history][publish]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 }
 
-void
-validateCheckpointFiles(Application& app, uint32_t ledger, bool isFinalized)
+void validateCheckpointFiles(Application& app, uint32_t ledger,
+                             bool isFinalized)
 {
     auto const& cfg = app.getConfig();
     auto validateHdr = [](std::string path, uint32_t ledger) {
@@ -874,8 +874,7 @@ TEST_CASE("Publish works correctly post shadow removal", "[history]")
     }
 }
 
-static std::string
-resumeModeName(uint32_t count)
+static std::string resumeModeName(uint32_t count)
 {
     switch (count)
     {
@@ -888,8 +887,7 @@ resumeModeName(uint32_t count)
     }
 }
 
-static std::string
-dbModeName(Config::TestDbMode mode)
+static std::string dbModeName(Config::TestDbMode mode)
 {
     switch (mode)
     {

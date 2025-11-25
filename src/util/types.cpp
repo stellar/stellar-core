@@ -17,8 +17,7 @@
 namespace stellar
 {
 
-LedgerKey
-LedgerEntryKey(LedgerEntry const& e)
+LedgerKey LedgerEntryKey(LedgerEntry const& e)
 {
     auto& d = e.data;
     LedgerKey k(d.type());
@@ -71,8 +70,7 @@ LedgerEntryKey(LedgerEntry const& e)
     return k;
 }
 
-bool
-isZero(uint256 const& b)
+bool isZero(uint256 const& b)
 {
     for (auto i : b)
         if (i != 0)
@@ -81,16 +79,14 @@ isZero(uint256 const& b)
     return true;
 }
 
-Hash&
-operator^=(Hash& l, Hash const& r)
+Hash& operator^=(Hash& l, Hash const& r)
 {
     std::transform(l.begin(), l.end(), r.begin(), l.begin(),
                    [](uint8_t a, uint8_t b) -> uint8_t { return a ^ b; });
     return l;
 }
 
-bool
-lessThanXored(Hash const& l, Hash const& r, Hash const& x)
+bool lessThanXored(Hash const& l, Hash const& r, Hash const& x)
 {
     Hash v1, v2;
     for (size_t i = 0; i < l.size(); i++)
@@ -102,8 +98,7 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
     return v1 < v2;
 }
 
-bool
-isStringValid(std::string const& str)
+bool isStringValid(std::string const& str)
 {
     for (auto c : str)
     {
@@ -115,20 +110,18 @@ isStringValid(std::string const& str)
     return true;
 }
 
-bool
-isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
+bool isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
 {
     throw std::runtime_error("ASSET_TYPE_POOL_SHARE is not a valid Asset type");
 }
 
-bool
-isPoolShareAssetValid(TrustLineAsset const& asset, uint32_t ledgerVersion)
+bool isPoolShareAssetValid(TrustLineAsset const& asset, uint32_t ledgerVersion)
 {
     return protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_18);
 }
 
-bool
-isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
+bool isPoolShareAssetValid(ChangeTrustAsset const& asset,
+                           uint32_t ledgerVersion)
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
     {
@@ -141,9 +134,7 @@ isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
            cp.assetA < cp.assetB && cp.fee == LIQUIDITY_POOL_FEE_V18;
 }
 
-template <typename T>
-bool
-isAssetValid(T const& cur, uint32_t ledgerVersion)
+template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion)
 {
     if (cur.type() == ASSET_TYPE_NATIVE)
         return true;
@@ -214,8 +205,7 @@ template bool isAssetValid<Asset>(Asset const&, uint32_t);
 template bool isAssetValid<TrustLineAsset>(TrustLineAsset const&, uint32_t);
 template bool isAssetValid<ChangeTrustAsset>(ChangeTrustAsset const&, uint32_t);
 
-bool
-compareAsset(Asset const& first, Asset const& second)
+bool compareAsset(Asset const& first, Asset const& second)
 {
     if (first.type() != second.type())
         return false;
@@ -239,24 +229,21 @@ compareAsset(Asset const& first, Asset const& second)
     return false;
 }
 
-int32_t
-unsignedToSigned(uint32_t v)
+int32_t unsignedToSigned(uint32_t v)
 {
     if (v > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
         throw std::runtime_error("unsigned-to-signed overflow");
     return static_cast<int32_t>(v);
 }
 
-int64_t
-unsignedToSigned(uint64_t v)
+int64_t unsignedToSigned(uint64_t v)
 {
     if (v > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         throw std::runtime_error("unsigned-to-signed overflow");
     return static_cast<int64_t>(v);
 }
 
-std::string
-formatSize(size_t size)
+std::string formatSize(size_t size)
 {
     const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
     double dsize = static_cast<double>(size);
@@ -271,8 +258,7 @@ formatSize(size_t size)
     return fmt::format("{:.2f}{}", dsize, suffixes[i]);
 }
 
-bool
-addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
+bool addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
 {
     releaseAssertOrThrow(balance >= 0);
     releaseAssertOrThrow(maxBalance >= 0);
@@ -299,8 +285,7 @@ addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
     return true;
 }
 
-bool
-iequals(std::string const& a, std::string const& b)
+bool iequals(std::string const& a, std::string const& b)
 {
     size_t sz = a.size();
     if (b.size() != sz)
@@ -311,8 +296,7 @@ iequals(std::string const& a, std::string const& b)
     return true;
 }
 
-bool
-operator>=(Price const& a, Price const& b)
+bool operator>=(Price const& a, Price const& b)
 {
     releaseAssertOrThrow(a.n >= 0);
     releaseAssertOrThrow(a.d >= 0);
@@ -325,8 +309,7 @@ operator>=(Price const& a, Price const& b)
     return l >= r;
 }
 
-bool
-operator>(Price const& a, Price const& b)
+bool operator>(Price const& a, Price const& b)
 {
     releaseAssertOrThrow(a.n >= 0);
     releaseAssertOrThrow(a.d >= 0);
@@ -339,8 +322,7 @@ operator>(Price const& a, Price const& b)
     return l > r;
 }
 
-bool
-operator==(Price const& a, Price const& b)
+bool operator==(Price const& a, Price const& b)
 {
     return (a.n == b.n) && (a.d == b.d);
 }

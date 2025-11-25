@@ -13,8 +13,7 @@
 #include <sanitizer/msan_interface.h>
 #endif
 
-std::vector<uint8_t>
-randomBytes(size_t length)
+std::vector<uint8_t> randomBytes(size_t length)
 {
     std::vector<uint8_t> vec(length);
 

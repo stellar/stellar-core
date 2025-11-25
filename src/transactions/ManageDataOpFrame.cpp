@@ -28,10 +28,9 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
 {
 }
 
-bool
-ManageDataOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                           OperationResult& res,
-                           OperationMetaBuilder& opMeta) const
+bool ManageDataOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                OperationResult& res,
+                                OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
@@ -101,9 +100,8 @@ ManageDataOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                OperationResult& res) const
+bool ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                     OperationResult& res) const
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_2))
     {
@@ -121,8 +119,7 @@ ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-ManageDataOpFrame::insertLedgerKeysToPrefetch(
+void ManageDataOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(dataKey(getSourceID(), mManageData.dataName));

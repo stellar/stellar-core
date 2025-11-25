@@ -16,8 +16,8 @@ namespace
 {
 
 // Use _inclusion_ fee to order transactions
-int
-feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
+int feeRate3WayCompare(TransactionFrameBase const& l,
+                       TransactionFrameBase const& r)
 {
     return stellar::feeRate3WayCompare(
         l.getInclusionFee(), l.getNumOperations(), r.getInclusionFee(),
@@ -26,9 +26,8 @@ feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
 
 } // namespace
 
-int
-feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
-                   uint32_t rNbOps)
+int feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
+                       uint32_t rNbOps)
 {
     // Let f1, f2 be the two fee bids, and let n1, n2 be the two
     // operation counts. We want to calculate the boolean comparison
@@ -53,9 +52,8 @@ feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
     return 0;
 }
 
-int64_t
-computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
-                 uint32_t refNbOps)
+int64_t computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
+                         uint32_t refNbOps)
 {
     constexpr auto m = std::numeric_limits<int64_t>::max();
 
@@ -79,40 +77,33 @@ SurgePricingPriorityQueue::TxComparator::TxComparator(bool isGreater,
 {
 }
 
-bool
-SurgePricingPriorityQueue::TxComparator::operator()(
+bool SurgePricingPriorityQueue::TxComparator::operator()(
     TransactionFrameBasePtr const& tx1,
     TransactionFrameBasePtr const& tx2) const
 {
     return txLessThan(tx1, tx2) ^ mIsGreater;
 }
 
-bool
-SurgePricingPriorityQueue::TxComparator::compareFeeOnly(
+bool SurgePricingPriorityQueue::TxComparator::compareFeeOnly(
     TransactionFrameBase const& tx1, TransactionFrameBase const& tx2) const
 {
     return compareFeeOnly(tx1.getInclusionFee(), tx1.getNumOperations(),
                           tx2.getInclusionFee(), tx2.getNumOperations());
 }
 
-bool
-SurgePricingPriorityQueue::TxComparator::compareFeeOnly(int64_t tx1Bid,
-                                                        uint32_t tx1Ops,
-                                                        int64_t tx2Bid,
-                                                        uint32_t tx2Ops) const
+bool SurgePricingPriorityQueue::TxComparator::compareFeeOnly(
+    int64_t tx1Bid, uint32_t tx1Ops, int64_t tx2Bid, uint32_t tx2Ops) const
 {
     bool isLess = feeRate3WayCompare(tx1Bid, tx1Ops, tx2Bid, tx2Ops) < 0;
     return isLess ^ mIsGreater;
 }
 
-bool
-SurgePricingPriorityQueue::TxComparator::isGreater() const
+bool SurgePricingPriorityQueue::TxComparator::isGreater() const
 {
     return mIsGreater;
 }
 
-bool
-SurgePricingPriorityQueue::TxComparator::txLessThan(
+bool SurgePricingPriorityQueue::TxComparator::txLessThan(
     TransactionFrameBasePtr const& tx1,
     TransactionFrameBasePtr const& tx2) const
 {
@@ -210,8 +201,7 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     return outTxs;
 }
 
-void
-SurgePricingPriorityQueue::visitTopTxs(
+void SurgePricingPriorityQueue::visitTopTxs(
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit, uint32_t ledgerVersion,
     std::optional<std::vector<Resource>> const& customLimits)
@@ -222,9 +212,8 @@ SurgePricingPriorityQueue::visitTopTxs(
               hadTxNotFittingLane, ledgerVersion, customLimits);
 }
 
-void
-SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
-                               uint32_t ledgerVersion)
+void SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
+                                    uint32_t ledgerVersion)
 {
     releaseAssert(tx != nullptr);
     auto lane = mLaneConfig->getLane(*tx);
@@ -236,8 +225,7 @@ SurgePricingPriorityQueue::add(TransactionFrameBasePtr tx,
     }
 }
 
-std::vector<Resource>
-SurgePricingPriorityQueue::countTxsResources(
+std::vector<Resource> SurgePricingPriorityQueue::countTxsResources(
     std::vector<TransactionFrameBasePtr> const& txs,
     uint32_t ledgerVersion) const
 {
@@ -255,9 +243,8 @@ SurgePricingPriorityQueue::countTxsResources(
     return laneResources;
 }
 
-void
-SurgePricingPriorityQueue::erase(TransactionFrameBasePtr tx,
-                                 uint32_t ledgerVersion)
+void SurgePricingPriorityQueue::erase(TransactionFrameBasePtr tx,
+                                      uint32_t ledgerVersion)
 {
     releaseAssert(tx != nullptr);
     auto lane = mLaneConfig->getLane(*tx);
@@ -268,15 +255,14 @@ SurgePricingPriorityQueue::erase(TransactionFrameBasePtr tx,
     }
 }
 
-void
-SurgePricingPriorityQueue::erase(Iterator const& it, uint32_t ledgerVersion)
+void SurgePricingPriorityQueue::erase(Iterator const& it,
+                                      uint32_t ledgerVersion)
 {
     auto innerIt = it.getInnerIter();
     erase(innerIt.first, innerIt.second, ledgerVersion);
 }
 
-void
-SurgePricingPriorityQueue::erase(
+void SurgePricingPriorityQueue::erase(
     size_t lane, SurgePricingPriorityQueue::TxSortedSet::iterator iter,
     uint32_t ledgerVersion)
 {
@@ -286,8 +272,7 @@ SurgePricingPriorityQueue::erase(
     mTxSortedSets[lane].erase(iter);
 }
 
-void
-SurgePricingPriorityQueue::popTopTxs(
+void SurgePricingPriorityQueue::popTopTxs(
     bool allowGaps,
     std::function<VisitTxResult(TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit,
@@ -396,8 +381,7 @@ SurgePricingPriorityQueue::popTopTxs(
     }
 }
 
-std::pair<bool, int64_t>
-SurgePricingPriorityQueue::canFitWithEviction(
+std::pair<bool, int64_t> SurgePricingPriorityQueue::canFitWithEviction(
     TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
     uint32_t ledgerVersion) const
@@ -541,8 +525,7 @@ SurgePricingPriorityQueue::canFitWithEviction(
     releaseAssert(false);
 }
 
-SurgePricingPriorityQueue::Iterator
-SurgePricingPriorityQueue::getTop() const
+SurgePricingPriorityQueue::Iterator SurgePricingPriorityQueue::getTop() const
 {
     std::vector<LaneIter> iters;
     for (size_t lane = 0; lane < mTxSortedSets.size(); ++lane)
@@ -557,8 +540,7 @@ SurgePricingPriorityQueue::getTop() const
     return SurgePricingPriorityQueue::Iterator(*this, iters);
 }
 
-Resource
-SurgePricingPriorityQueue::totalResources() const
+Resource SurgePricingPriorityQueue::totalResources() const
 {
     releaseAssert(!mLaneCurrentCount.empty());
     auto resourceCount = mLaneCurrentCount.begin()->size();
@@ -567,8 +549,7 @@ SurgePricingPriorityQueue::totalResources() const
                            res);
 }
 
-Resource
-SurgePricingPriorityQueue::laneResources(size_t lane) const
+Resource SurgePricingPriorityQueue::laneResources(size_t lane) const
 {
     releaseAssert(lane < mLaneCurrentCount.size());
     return mLaneCurrentCount[lane];
@@ -597,8 +578,7 @@ SurgePricingPriorityQueue::Iterator::getMutableInnerIter() const
     return best;
 }
 
-TransactionFrameBasePtr
-SurgePricingPriorityQueue::Iterator::operator*() const
+TransactionFrameBasePtr SurgePricingPriorityQueue::Iterator::operator*() const
 {
     return *getMutableInnerIter()->second;
 }
@@ -609,14 +589,12 @@ SurgePricingPriorityQueue::Iterator::getInnerIter() const
     return *getMutableInnerIter();
 }
 
-bool
-SurgePricingPriorityQueue::Iterator::isEnd() const
+bool SurgePricingPriorityQueue::Iterator::isEnd() const
 {
     return mIters.empty();
 }
 
-void
-SurgePricingPriorityQueue::Iterator::advance()
+void SurgePricingPriorityQueue::Iterator::advance()
 {
     auto it = getMutableInnerIter();
     ++it->second;
@@ -626,8 +604,7 @@ SurgePricingPriorityQueue::Iterator::advance()
     }
 }
 
-void
-SurgePricingPriorityQueue::Iterator::dropLane()
+void SurgePricingPriorityQueue::Iterator::dropLane()
 {
     mIters.erase(getMutableInnerIter());
 }
@@ -643,28 +620,24 @@ DexLimitingLaneConfig::DexLimitingLaneConfig(Resource Limit,
     }
 }
 
-std::vector<Resource> const&
-DexLimitingLaneConfig::getLaneLimits() const
+std::vector<Resource> const& DexLimitingLaneConfig::getLaneLimits() const
 {
     return mLaneLimits;
 }
 
-void
-DexLimitingLaneConfig::updateGenericLaneLimit(Resource const& limit)
+void DexLimitingLaneConfig::updateGenericLaneLimit(Resource const& limit)
 {
     mLaneLimits[0] = limit;
 }
 
-Resource
-DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx,
-                                      uint32_t ledgerVersion)
+Resource DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx,
+                                               uint32_t ledgerVersion)
 {
     releaseAssert(!tx.isSoroban());
     return tx.getResources(mUseByteLimit, ledgerVersion);
 }
 
-size_t
-DexLimitingLaneConfig::getLane(TransactionFrameBase const& tx) const
+size_t DexLimitingLaneConfig::getLane(TransactionFrameBase const& tx) const
 {
     if (mLaneLimits.size() > DexLimitingLaneConfig::DEX_LANE &&
         tx.hasDexOperations())
@@ -682,8 +655,7 @@ SorobanGenericLaneConfig::SorobanGenericLaneConfig(Resource limit)
     mLaneLimits.push_back(limit);
 }
 
-size_t
-SorobanGenericLaneConfig::getLane(TransactionFrameBase const& tx) const
+size_t SorobanGenericLaneConfig::getLane(TransactionFrameBase const& tx) const
 {
     if (!tx.isSoroban())
     {
@@ -693,14 +665,12 @@ SorobanGenericLaneConfig::getLane(TransactionFrameBase const& tx) const
     return SurgePricingPriorityQueue::GENERIC_LANE;
 }
 
-std::vector<Resource> const&
-SorobanGenericLaneConfig::getLaneLimits() const
+std::vector<Resource> const& SorobanGenericLaneConfig::getLaneLimits() const
 {
     return mLaneLimits;
 }
 
-void
-SorobanGenericLaneConfig::updateGenericLaneLimit(Resource const& limit)
+void SorobanGenericLaneConfig::updateGenericLaneLimit(Resource const& limit)
 {
     mLaneLimits[0] = limit;
 }

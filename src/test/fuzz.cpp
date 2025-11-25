@@ -31,8 +31,7 @@ namespace stellar
 {
 namespace FuzzUtils
 {
-std::unique_ptr<Fuzzer>
-createFuzzer(int processID, FuzzerMode fuzzerMode)
+std::unique_ptr<Fuzzer> createFuzzer(int processID, FuzzerMode fuzzerMode)
 {
     gBaseInstance = processID;
     switch (fuzzerMode)
@@ -48,9 +47,8 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
 }
 
 #define PERSIST_MAX 1000000
-void
-fuzz(std::string const& filename, std::vector<std::string> const& metrics,
-     int processID, FuzzerMode fuzzerMode)
+void fuzz(std::string const& filename, std::vector<std::string> const& metrics,
+          int processID, FuzzerMode fuzzerMode)
 {
     auto fuzzer = FuzzUtils::createFuzzer(processID, fuzzerMode);
     fuzzer->initialize();

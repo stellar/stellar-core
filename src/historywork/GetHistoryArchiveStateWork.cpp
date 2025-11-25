@@ -29,14 +29,12 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 {
 }
 
-static bool
-isWellKnown(uint32_t seq)
+static bool isWellKnown(uint32_t seq)
 {
     return seq == 0;
 }
 
-BasicWork::State
-GetHistoryArchiveStateWork::doWork()
+BasicWork::State GetHistoryArchiveStateWork::doWork()
 {
     ZoneScoped;
     if (mGetRemoteFile)
@@ -91,16 +89,14 @@ GetHistoryArchiveStateWork::doWork()
     }
 }
 
-void
-GetHistoryArchiveStateWork::doReset()
+void GetHistoryArchiveStateWork::doReset()
 {
     mGetRemoteFile.reset();
     fs::removeWithLog(mLocalFilename);
     mState = {};
 }
 
-void
-GetHistoryArchiveStateWork::onSuccess()
+void GetHistoryArchiveStateWork::onSuccess()
 {
     if (mReportMetric)
     {
@@ -109,15 +105,13 @@ GetHistoryArchiveStateWork::onSuccess()
     Work::onSuccess();
 }
 
-std::string
-GetHistoryArchiveStateWork::getRemoteName() const
+std::string GetHistoryArchiveStateWork::getRemoteName() const
 {
     return isWellKnown(mSeq) ? HistoryArchiveState::wellKnownRemoteName()
                              : HistoryArchiveState::remoteName(mSeq);
 }
 
-std::string
-GetHistoryArchiveStateWork::getStatus() const
+std::string GetHistoryArchiveStateWork::getStatus() const
 {
     std::string ledgerString = mSeq == 0 ? "current" : std::to_string(mSeq);
     return fmt::format(FMT_STRING("Downloading state file {} for ledger {}"),

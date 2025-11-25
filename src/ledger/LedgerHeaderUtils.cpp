@@ -25,14 +25,12 @@ namespace stellar
 namespace LedgerHeaderUtils
 {
 
-uint32_t
-getFlags(LedgerHeader const& lh)
+uint32_t getFlags(LedgerHeader const& lh)
 {
     return lh.ext.v() == 1 ? lh.ext.v1().flags : 0;
 }
 
-bool
-isValid(LedgerHeader const& lh)
+bool isValid(LedgerHeader const& lh)
 {
     bool res = (lh.ledgerSeq <= INT32_MAX);
 
@@ -42,8 +40,8 @@ isValid(LedgerHeader const& lh)
     return res;
 }
 
-void
-storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
+void storeInDatabase(Database& db, LedgerHeader const& header,
+                     SessionWrapper& sess)
 {
     ZoneScoped;
     if (!isValid(header))
@@ -84,8 +82,7 @@ storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
     }
 }
 
-LedgerHeader
-decodeFromData(std::string const& data)
+LedgerHeader decodeFromData(std::string const& data)
 {
     ZoneScoped;
     LedgerHeader lh;
@@ -103,8 +100,7 @@ decodeFromData(std::string const& data)
     return lh;
 }
 
-std::shared_ptr<LedgerHeader>
-loadByHash(Database& db, Hash const& hash)
+std::shared_ptr<LedgerHeader> loadByHash(Database& db, Hash const& hash)
 {
     ZoneScoped;
     std::shared_ptr<LedgerHeader> lhPtr;
@@ -140,8 +136,7 @@ loadByHash(Database& db, Hash const& hash)
     return lhPtr;
 }
 
-uint32_t
-loadMaxLedgerSeq(Database& db)
+uint32_t loadMaxLedgerSeq(Database& db)
 {
     ZoneScoped;
     uint32_t seq = 0;
@@ -159,8 +154,8 @@ loadMaxLedgerSeq(Database& db)
     return 0;
 }
 
-std::shared_ptr<LedgerHeader>
-loadBySequence(Database& db, soci::session& sess, uint32_t seq)
+std::shared_ptr<LedgerHeader> loadBySequence(Database& db, soci::session& sess,
+                                             uint32_t seq)
 {
     ZoneScoped;
     std::shared_ptr<LedgerHeader> lhPtr;
@@ -189,17 +184,15 @@ loadBySequence(Database& db, soci::session& sess, uint32_t seq)
     return lhPtr;
 }
 
-void
-deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count)
+void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count)
 {
     ZoneScoped;
     DatabaseUtils::deleteOldEntriesHelper(sess, ledgerSeq, count,
                                           "ledgerheaders", "ledgerseq");
 }
 
-size_t
-copyToStream(soci::session& sess, uint32_t ledgerSeq, uint32_t ledgerCount,
-             CheckpointBuilder& checkpointBuilder)
+size_t copyToStream(soci::session& sess, uint32_t ledgerSeq,
+                    uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder)
 {
     ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders history", true);
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -229,8 +222,7 @@ copyToStream(soci::session& sess, uint32_t ledgerSeq, uint32_t ledgerCount,
     return n;
 }
 
-void
-dropAll(Database& db)
+void dropAll(Database& db)
 {
     std::string coll = db.getSimpleCollationClause();
 

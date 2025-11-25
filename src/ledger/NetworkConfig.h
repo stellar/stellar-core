@@ -186,7 +186,6 @@ struct InitialSorobanNetworkConfig
 // any network.
 struct Protcol23UpgradedConfig
 {
-
     static constexpr int64_t SOROBAN_STATE_TARGET_SIZE_BYTES =
         3'000'000'000LL; // 3 GB
     static constexpr int64_t RENT_FEE_1KB_SOROBAN_STATE_SIZE_LOW = -17'000;

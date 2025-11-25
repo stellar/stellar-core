@@ -21,16 +21,14 @@ BeginSponsoringFutureReservesOpFrame::BeginSponsoringFutureReservesOpFrame(
 {
 }
 
-bool
-BeginSponsoringFutureReservesOpFrame::isOpSupported(
+bool BeginSponsoringFutureReservesOpFrame::isOpSupported(
     LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_14);
 }
 
-void
-BeginSponsoringFutureReservesOpFrame::createSponsorship(
+void BeginSponsoringFutureReservesOpFrame::createSponsorship(
     AbstractLedgerTxn& ltx) const
 {
     InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP);
@@ -45,8 +43,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorship(
     }
 }
 
-void
-BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
+void BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
     AbstractLedgerTxn& ltx) const
 {
     InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
@@ -61,8 +58,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
     }
 }
 
-bool
-BeginSponsoringFutureReservesOpFrame::doApply(
+bool BeginSponsoringFutureReservesOpFrame::doApply(
     AppConnector& app, AbstractLedgerTxn& ltx, OperationResult& res,
     OperationMetaBuilder& opMeta) const
 {
@@ -102,9 +98,8 @@ BeginSponsoringFutureReservesOpFrame::doApply(
     return true;
 }
 
-bool
-BeginSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                                   OperationResult& res) const
+bool BeginSponsoringFutureReservesOpFrame::doCheckValid(
+    uint32_t ledgerVersion, OperationResult& res) const
 {
     if (mBeginSponsoringFutureReservesOp.sponsoredID == getSourceID())
     {

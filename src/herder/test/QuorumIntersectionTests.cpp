@@ -28,8 +28,7 @@ using VQ = xdr::xvector<QS>;
 using VK = xdr::xvector<PublicKey>;
 using std::make_shared;
 
-void
-quorumIntersectionCheckerV2Wrapper(
+void quorumIntersectionCheckerV2Wrapper(
     Application& app, std::shared_ptr<QuorumMapIntersectionState> const& state,
     QuorumTracker::QuorumMap const& qmap, ProcessManager& pm,
     VirtualClock& clock, bool analyzeCriticalGroups, uint32_t timeLimit,
@@ -95,9 +94,8 @@ quorumIntersectionCheckerV2Wrapper(
     }
 }
 
-bool
-networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
-                                         Config const& cfg)
+bool networkEnjoysQuorumIntersectionV2Wrapper(
+    QuorumTracker::QuorumMap const& qmap, Config const& cfg)
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -483,8 +481,7 @@ TEST_CASE("quorum plausible non intersection", "[herder][quorumintersection]")
     REQUIRE(!networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
 }
 
-uint32
-roundUpPct(size_t n, size_t pct)
+uint32 roundUpPct(size_t n, size_t pct)
 {
     return static_cast<uint32>(size_t(1) +
                                (((n * pct) - size_t(1)) / size_t(100)));
@@ -1150,8 +1147,7 @@ TEST_CASE("quorum criticality check interruption v2",
                       QuorumIntersectionChecker::InterruptedException);
 }
 
-static void
-debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
+static void debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
 {
     for (auto const& pair : qm)
     {

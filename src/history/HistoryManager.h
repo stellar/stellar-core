@@ -220,8 +220,8 @@ class HistoryManager
     // Return checkpoint that contains given ledger. Checkpoint is identified
     // by last ledger in range. This does not consult the network nor take
     // account of manual checkpoints.
-    static uint32_t
-    checkpointContainingLedger(uint32_t ledger, Config const& cfg)
+    static uint32_t checkpointContainingLedger(uint32_t ledger,
+                                               Config const& cfg)
     {
         uint32_t freq = getCheckpointFrequency(cfg);
         // Round-up to next multiple of freq, then subtract 1 since checkpoints
@@ -233,27 +233,25 @@ class HistoryManager
     // Return true iff closing `ledger` should cause publishing a checkpoint.
     // Equivalent to `ledger == checkpointContainingLedger(ledger)` but a little
     // more obviously named.
-    static bool
-    publishCheckpointOnLedgerClose(uint32_t ledger, Config const& cfg)
+    static bool publishCheckpointOnLedgerClose(uint32_t ledger,
+                                               Config const& cfg)
     {
         return checkpointContainingLedger(ledger, cfg) == ledger;
     }
 
-    static bool
-    isFirstLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
+    static bool isFirstLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
     {
         return firstLedgerInCheckpointContaining(ledger, cfg) == ledger;
     }
 
-    static bool
-    isLastLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
+    static bool isLastLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
     {
         return checkpointContainingLedger(ledger, cfg) == ledger;
     }
 
     // Return the number of ledgers in the checkpoint containing a given ledger.
-    static uint32_t
-    sizeOfCheckpointContaining(uint32_t ledger, Config const& cfg)
+    static uint32_t sizeOfCheckpointContaining(uint32_t ledger,
+                                               Config const& cfg)
     {
         uint32_t freq = getCheckpointFrequency(cfg);
         if (ledger < freq)
@@ -264,8 +262,8 @@ class HistoryManager
     }
 
     // Return the first ledger in the checkpoint containing a given ledger.
-    static uint32_t
-    firstLedgerInCheckpointContaining(uint32_t ledger, Config const& cfg)
+    static uint32_t firstLedgerInCheckpointContaining(uint32_t ledger,
+                                                      Config const& cfg)
     {
         uint32_t last =
             checkpointContainingLedger(ledger, cfg); // == 63, 127, 191
@@ -275,8 +273,8 @@ class HistoryManager
     }
 
     // Return the first ledger after the checkpoint containing a given ledger.
-    static uint32_t
-    firstLedgerAfterCheckpointContaining(uint32_t ledger, Config const& cfg)
+    static uint32_t firstLedgerAfterCheckpointContaining(uint32_t ledger,
+                                                         Config const& cfg)
     {
         uint32_t first =
             firstLedgerInCheckpointContaining(ledger, cfg); // == 1, 64, 128
@@ -287,8 +285,8 @@ class HistoryManager
 
     // Return the last ledger before the checkpoint containing a given ledger,
     // or zero if `ledger` is contained inside the first checkpoint.
-    static uint32_t
-    lastLedgerBeforeCheckpointContaining(uint32_t ledger, Config const& cfg)
+    static uint32_t lastLedgerBeforeCheckpointContaining(uint32_t ledger,
+                                                         Config const& cfg)
     {
         uint32_t last =
             checkpointContainingLedger(ledger, cfg); // == 63, 127, 191

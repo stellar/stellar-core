@@ -32,8 +32,7 @@ DownloadBucketsWork::DownloadBucketsWork(
 {
 }
 
-std::string
-DownloadBucketsWork::getStatus() const
+std::string DownloadBucketsWork::getStatus() const
 {
     if (!BatchWork::isDone() && !BatchWork::isAborting())
     {
@@ -57,25 +56,23 @@ DownloadBucketsWork::getStatus() const
     return BatchWork::getStatus();
 }
 
-bool
-DownloadBucketsWork::hasNext() const
+bool DownloadBucketsWork::hasNext() const
 {
     return mLiveBucketsState.nextIter != mLiveBucketsState.hashes.end() ||
            mHotBucketsState.nextIter != mHotBucketsState.hashes.end();
 }
 
-void
-DownloadBucketsWork::resetIter()
+void DownloadBucketsWork::resetIter()
 {
     mLiveBucketsState.nextIter = mLiveBucketsState.hashes.begin();
     mHotBucketsState.nextIter = mHotBucketsState.hashes.begin();
 }
 
 template <typename BucketT>
-void
-DownloadBucketsWork::onSuccessCb(Application& app, FileTransferInfo const& ft,
-                                 std::string const& hash, int currId,
-                                 BucketState<BucketT>& state)
+void DownloadBucketsWork::onSuccessCb(Application& app,
+                                      FileTransferInfo const& ft,
+                                      std::string const& hash, int currId,
+                                      BucketState<BucketT>& state)
 {
     // To avoid dangling references, maintain a map of index pointers
     // and do a lookup inside the callback instead of capturing anything
@@ -148,8 +145,7 @@ DownloadBucketsWork::prepareWorkForBucketType(
     return {verifyWork, adoptBucketCb};
 }
 
-std::shared_ptr<BasicWork>
-DownloadBucketsWork::yieldMoreWork()
+std::shared_ptr<BasicWork> DownloadBucketsWork::yieldMoreWork()
 {
     ZoneScoped;
     if (!hasNext())

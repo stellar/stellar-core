@@ -93,9 +93,9 @@ ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
     mOperationResult.tr().setOptionsResult().code(setOptionsResultCode);
 }
 
-TransactionResult
-expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
-               std::vector<ExpectedOpResult> ops)
+TransactionResult expectedResult(int64_t fee, size_t opsCount,
+                                 TransactionResultCode code,
+                                 std::vector<ExpectedOpResult> ops)
 {
     auto result = TransactionResult{};
     result.feeCharged = fee;
@@ -119,8 +119,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
     return result;
 }
 
-bool
-applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
+bool applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
 {
     // Close the ledger here to advance ledgerSeq
     closeLedger(app);
@@ -387,8 +386,7 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
     return res;
 }
 
-void
-checkTransaction(TransactionTestFrame& txFrame, Application& app)
+void checkTransaction(TransactionTestFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
             app.getLedgerManager().getLastTxFee());
@@ -396,8 +394,8 @@ checkTransaction(TransactionTestFrame& txFrame, Application& app)
              txFrame.getResultCode() == txFAILED));
 }
 
-void
-applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
+void applyTx(TransactionTestFramePtr const& tx, Application& app,
+             bool checkSeqNum)
 {
     if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
@@ -437,10 +435,9 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
     }
 }
 
-void
-validateTxResults(TransactionTestFramePtr const& tx, Application& app,
-                  ValidationResult validationResult,
-                  TransactionResult const& applyResult)
+void validateTxResults(TransactionTestFramePtr const& tx, Application& app,
+                       ValidationResult validationResult,
+                       TransactionResult const& applyResult)
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
 
@@ -477,10 +474,10 @@ validateTxResults(TransactionTestFramePtr const& tx, Application& app,
     REQUIRE(applyOk == shouldApplyOk);
 };
 
-void
-checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
-                   int64_t reserveB, int64_t totalPoolShares,
-                   int64_t poolSharesTrustLineCount)
+void checkLiquidityPool(Application& app, PoolID const& poolID,
+                        int64_t reserveA, int64_t reserveB,
+                        int64_t totalPoolShares,
+                        int64_t poolSharesTrustLineCount)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto lp = loadLiquidityPool(ltx, poolID);
@@ -603,8 +600,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     return lm.mLatestTxResultSet;
 }
 
-TransactionResultSet
-closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
+TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
 {
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -613,9 +609,9 @@ closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
 }
 
-TransactionResultSet
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
-              TxSetXDRFrameConstPtr txSet)
+TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
+                                   time_t closeTime,
+                                   TxSetXDRFrameConstPtr txSet)
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
@@ -628,14 +624,12 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     return z1;
 }
 
-SecretKey
-getRoot(Hash const& networkID)
+SecretKey getRoot(Hash const& networkID)
 {
     return SecretKey::fromSeed(networkID);
 }
 
-SecretKey
-getAccount(std::string const& n)
+SecretKey getAccount(std::string const& n)
 {
     // stretch seed to 32 bytes
     std::string seed(n);
@@ -644,14 +638,13 @@ getAccount(std::string const& n)
     return SecretKey::fromSeed(seed);
 }
 
-Signer
-makeSigner(SecretKey key, int weight)
+Signer makeSigner(SecretKey key, int weight)
 {
     return Signer{KeyUtils::convertKey<SignerKey>(key.getPublicKey()), weight};
 }
 
-ConstLedgerTxnEntry
-loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
+ConstLedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k,
+                                bool mustExist)
 {
     auto res = stellar::loadAccountWithoutRecord(ltx, k);
     if (mustExist)
@@ -661,26 +654,22 @@ loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
     return res;
 }
 
-bool
-doesAccountExist(Application& app, PublicKey const& k)
+bool doesAccountExist(Application& app, PublicKey const& k)
 {
     LedgerSnapshot lss(app);
     return (bool)lss.getAccount(k);
 }
 
-xdr::xvector<Signer, 20>
-getAccountSigners(PublicKey const& k, Application& app)
+xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k, Application& app)
 {
     LedgerSnapshot lss(app);
     auto account = lss.getAccount(k);
     return account.current().data.account().signers;
 }
 
-TransactionTestFramePtr
-transactionFromOperationsV0(Application& app, SecretKey const& from,
-                            SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee,
-                            std::optional<Memo> memo)
+TransactionTestFramePtr transactionFromOperationsV0(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    const std::vector<Operation>& ops, uint32_t fee, std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
@@ -724,11 +713,9 @@ makeEnvelopeV1(Application& app, SecretKey const& from, SequenceNumber seq,
     return e;
 }
 
-TransactionTestFramePtr
-paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
-                                  SequenceNumber seq,
-                                  std::vector<Operation> const& ops,
-                                  uint32_t fee, uint32_t desiredSize)
+TransactionTestFramePtr paddedTransactionFromOperationsV1(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize)
 {
     TransactionEnvelope e =
         makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
@@ -776,13 +763,11 @@ paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
     return res;
 }
 
-TransactionTestFramePtr
-transactionFromOperationsV1(Application& app, SecretKey const& from,
-                            SequenceNumber seq,
-                            std::vector<Operation> const& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond,
-                            std::optional<uint64_t> sourceMux,
-                            std::optional<Memo> memo)
+TransactionTestFramePtr transactionFromOperationsV1(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee,
+    std::optional<PreconditionsV2> cond, std::optional<uint64_t> sourceMux,
+    std::optional<Memo> memo)
 {
     TransactionEnvelope e =
         makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
@@ -804,11 +789,9 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     return res;
 }
 
-TransactionTestFramePtr
-paddedTransactionFromOperations(Application& app, SecretKey const& from,
-                                SequenceNumber seq,
-                                const std::vector<Operation>& ops, uint32_t fee,
-                                uint32_t desiredSize)
+TransactionTestFramePtr paddedTransactionFromOperations(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    const std::vector<Operation>& ops, uint32_t fee, uint32_t desiredSize)
 {
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
@@ -846,10 +829,9 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
         {payment(account.getPublicKey(), 1)}, fee, cond);
 }
 
-TransactionTestFramePtr
-feeBump(Application& app, TestAccount& feeSource,
-        TransactionFrameBaseConstPtr tx, int64_t fee,
-        bool useInclusionAsFullFee)
+TransactionTestFramePtr feeBump(Application& app, TestAccount& feeSource,
+                                TransactionFrameBaseConstPtr tx, int64_t fee,
+                                bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
@@ -873,14 +855,12 @@ feeBump(Application& app, TestAccount& feeSource,
     return TransactionTestFrame::fromTxFrame(ret);
 }
 
-Operation
-changeTrust(Asset const& asset, int64_t limit)
+Operation changeTrust(Asset const& asset, int64_t limit)
 {
     return changeTrust(assetToChangeTrustAsset(asset), limit);
 }
 
-Operation
-changeTrust(ChangeTrustAsset const& asset, int64_t limit)
+Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit)
 {
     Operation op;
 
@@ -891,8 +871,8 @@ changeTrust(ChangeTrustAsset const& asset, int64_t limit)
     return op;
 }
 
-Operation
-allowTrust(PublicKey const& trustor, Asset const& asset, uint32_t authorize)
+Operation allowTrust(PublicKey const& trustor, Asset const& asset,
+                     uint32_t authorize)
 {
     Operation op;
 
@@ -915,8 +895,7 @@ allowTrust(PublicKey const& trustor, Asset const& asset, uint32_t authorize)
     return op;
 }
 
-Operation
-createAccount(PublicKey const& dest, int64_t amount)
+Operation createAccount(PublicKey const& dest, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
@@ -925,8 +904,7 @@ createAccount(PublicKey const& dest, int64_t amount)
     return op;
 }
 
-Operation
-payment(PublicKey const& to, int64_t amount)
+Operation payment(PublicKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -936,8 +914,7 @@ payment(PublicKey const& to, int64_t amount)
     return op;
 }
 
-Operation
-payment(PublicKey const& to, Asset const& asset, int64_t amount)
+Operation payment(PublicKey const& to, Asset const& asset, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -947,9 +924,9 @@ payment(PublicKey const& to, Asset const& asset, int64_t amount)
     return op;
 }
 
-TransactionTestFramePtr
-createPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
-                SequenceNumber seq, int64_t amount)
+TransactionTestFramePtr createPaymentTx(Application& app, SecretKey const& from,
+                                        PublicKey const& to, SequenceNumber seq,
+                                        int64_t amount)
 {
     return transactionFromOperations(app, from, seq, {payment(to, amount)});
 }
@@ -963,9 +940,9 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
     return transactionFromOperations(app, from, seq, {op});
 }
 
-TransactionTestFramePtr
-createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
-                  uint32_t fee)
+TransactionTestFramePtr createSimpleDexTx(Application& app,
+                                          TestAccount& account, uint32 nbOps,
+                                          uint32_t fee)
 {
     std::vector<Operation> ops;
     Asset asset1(ASSET_TYPE_NATIVE);
@@ -987,9 +964,8 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
-Operation
-createUploadWasmOperation(uint32_t generatedWasmSize,
-                          std::optional<uint64_t> wasmSeed)
+Operation createUploadWasmOperation(uint32_t generatedWasmSize,
+                                    std::optional<uint64_t> wasmSeed)
 {
     uint32_t const WASM_HEADER_SIZE = 100;
 
@@ -1048,11 +1024,10 @@ createUploadWasmTx(Application& app, TestAccount& account,
                                           memo, seq);
 }
 
-int64_t
-sorobanResourceFee(Application& app, SorobanResources const& resources,
-                   size_t txSize, uint32_t eventsSize,
-                   std::optional<std::vector<uint32_t>> archivedIndexes,
-                   bool isRestoreFootprintOp)
+int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
+                           size_t txSize, uint32_t eventsSize,
+                           std::optional<std::vector<uint32_t>> archivedIndexes,
+                           bool isRestoreFootprintOp)
 {
     releaseAssert(txSize <= INT32_MAX);
     SorobanTransactionData::_ext_t ext;
@@ -1071,24 +1046,21 @@ sorobanResourceFee(Application& app, SorobanResources const& resources,
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 
-Asset
-makeNativeAsset()
+Asset makeNativeAsset()
 {
     Asset asset;
     asset.type(ASSET_TYPE_NATIVE);
     return asset;
 }
 
-Asset
-makeInvalidAsset()
+Asset makeInvalidAsset()
 {
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     return asset;
 }
 
-Asset
-makeAsset(SecretKey const& issuer, std::string const& code)
+Asset makeAsset(SecretKey const& issuer, std::string const& code)
 {
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
@@ -1097,8 +1069,7 @@ makeAsset(SecretKey const& issuer, std::string const& code)
     return asset;
 }
 
-Asset
-makeAssetAlphanum12(SecretKey const& issuer, std::string const& code)
+Asset makeAssetAlphanum12(SecretKey const& issuer, std::string const& code)
 {
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
@@ -1107,9 +1078,8 @@ makeAssetAlphanum12(SecretKey const& issuer, std::string const& code)
     return asset;
 }
 
-ChangeTrustAsset
-makeChangeTrustAssetPoolShare(Asset const& assetA, Asset const& assetB,
-                              int32_t fee)
+ChangeTrustAsset makeChangeTrustAssetPoolShare(Asset const& assetA,
+                                               Asset const& assetB, int32_t fee)
 {
     REQUIRE(assetA < assetB);
     ChangeTrustAsset poolAsset;
@@ -1120,10 +1090,9 @@ makeChangeTrustAssetPoolShare(Asset const& assetA, Asset const& assetB,
     return poolAsset;
 }
 
-Operation
-pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
-            Asset const& destCur, int64_t destAmount,
-            std::vector<Asset> const& path)
+Operation pathPayment(PublicKey const& to, Asset const& sendCur,
+                      int64_t sendMax, Asset const& destCur, int64_t destAmount,
+                      std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT_STRICT_RECEIVE);
@@ -1138,10 +1107,9 @@ pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
     return op;
 }
 
-Operation
-pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
-                      int64_t sendAmount, Asset const& destCur, int64_t destMin,
-                      std::vector<Asset> const& path)
+Operation pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
+                                int64_t sendAmount, Asset const& destCur,
+                                int64_t destMin, std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT_STRICT_SEND);
@@ -1156,9 +1124,8 @@ pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
     return op;
 }
 
-Operation
-createPassiveOffer(Asset const& selling, Asset const& buying,
-                   Price const& price, int64_t amount)
+Operation createPassiveOffer(Asset const& selling, Asset const& buying,
+                             Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_SELL_OFFER);
@@ -1170,9 +1137,8 @@ createPassiveOffer(Asset const& selling, Asset const& buying,
     return op;
 }
 
-Operation
-manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
-            Price const& price, int64_t amount)
+Operation manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
+                      Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(MANAGE_SELL_OFFER);
@@ -1185,9 +1151,9 @@ manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
     return op;
 }
 
-Operation
-manageBuyOffer(int64 offerId, Asset const& selling, Asset const& buying,
-               Price const& price, int64_t amount)
+Operation manageBuyOffer(int64 offerId, Asset const& selling,
+                         Asset const& buying, Price const& price,
+                         int64_t amount)
 {
     Operation op;
     op.body.type(MANAGE_BUY_OFFER);
@@ -1267,11 +1233,11 @@ applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
     return manageSellOfferResult;
 }
 
-int64_t
-applyManageOffer(Application& app, int64 offerId, SecretKey const& source,
-                 Asset const& selling, Asset const& buying, Price const& price,
-                 int64_t amount, SequenceNumber seq,
-                 ManageOfferEffect expectedEffect)
+int64_t applyManageOffer(Application& app, int64 offerId,
+                         SecretKey const& source, Asset const& selling,
+                         Asset const& buying, Price const& price,
+                         int64_t amount, SequenceNumber seq,
+                         ManageOfferEffect expectedEffect)
 {
     ManageSellOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, offerId, source, selling, buying, price, amount, seq);
@@ -1282,11 +1248,11 @@ applyManageOffer(Application& app, int64 offerId, SecretKey const& source,
                                                     : 0;
 }
 
-int64_t
-applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
-                    Asset const& selling, Asset const& buying,
-                    Price const& price, int64_t amount, SequenceNumber seq,
-                    ManageOfferEffect expectedEffect)
+int64_t applyManageBuyOffer(Application& app, int64 offerId,
+                            SecretKey const& source, Asset const& selling,
+                            Asset const& buying, Price const& price,
+                            int64_t amount, SequenceNumber seq,
+                            ManageOfferEffect expectedEffect)
 {
     auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -1349,11 +1315,11 @@ applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
                                                     : 0;
 }
 
-int64_t
-applyCreatePassiveOffer(Application& app, SecretKey const& source,
-                        Asset const& selling, Asset const& buying,
-                        Price const& price, int64_t amount, SequenceNumber seq,
-                        ManageOfferEffect expectedEffect)
+int64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
+                                Asset const& selling, Asset const& buying,
+                                Price const& price, int64_t amount,
+                                SequenceNumber seq,
+                                ManageOfferEffect expectedEffect)
 {
     auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -1423,8 +1389,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                                     : 0;
 }
 
-SetOptionsArguments
-operator|(SetOptionsArguments const& x, SetOptionsArguments const& y)
+SetOptionsArguments operator|(SetOptionsArguments const& x,
+                              SetOptionsArguments const& y)
 {
     auto result = SetOptionsArguments{};
     result.masterWeight = y.masterWeight ? y.masterWeight : x.masterWeight;
@@ -1439,8 +1405,7 @@ operator|(SetOptionsArguments const& x, SetOptionsArguments const& y)
     return result;
 }
 
-Operation
-setOptions(SetOptionsArguments const& arguments)
+Operation setOptions(SetOptionsArguments const& arguments)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -1492,81 +1457,71 @@ setOptions(SetOptionsArguments const& arguments)
     return op;
 }
 
-SetOptionsArguments
-setMasterWeight(int master)
+SetOptionsArguments setMasterWeight(int master)
 {
     SetOptionsArguments result;
     result.masterWeight = std::make_optional<int>(master);
     return result;
 }
 
-SetOptionsArguments
-setLowThreshold(int low)
+SetOptionsArguments setLowThreshold(int low)
 {
     SetOptionsArguments result;
     result.lowThreshold = std::make_optional<int>(low);
     return result;
 }
 
-SetOptionsArguments
-setMedThreshold(int med)
+SetOptionsArguments setMedThreshold(int med)
 {
     SetOptionsArguments result;
     result.medThreshold = std::make_optional<int>(med);
     return result;
 }
 
-SetOptionsArguments
-setHighThreshold(int high)
+SetOptionsArguments setHighThreshold(int high)
 {
     SetOptionsArguments result;
     result.highThreshold = std::make_optional<int>(high);
     return result;
 }
 
-SetOptionsArguments
-setSigner(Signer signer)
+SetOptionsArguments setSigner(Signer signer)
 {
     SetOptionsArguments result;
     result.signer = std::make_optional<Signer>(signer);
     return result;
 }
 
-SetOptionsArguments
-setFlags(uint32_t setFlags)
+SetOptionsArguments setFlags(uint32_t setFlags)
 {
     SetOptionsArguments result;
     result.setFlags = std::make_optional<uint32_t>(setFlags);
     return result;
 }
 
-SetOptionsArguments
-clearFlags(uint32_t clearFlags)
+SetOptionsArguments clearFlags(uint32_t clearFlags)
 {
     SetOptionsArguments result;
     result.clearFlags = std::make_optional<uint32_t>(clearFlags);
     return result;
 }
 
-SetOptionsArguments
-setInflationDestination(AccountID inflationDest)
+SetOptionsArguments setInflationDestination(AccountID inflationDest)
 {
     SetOptionsArguments result;
     result.inflationDest = std::make_optional<AccountID>(inflationDest);
     return result;
 }
 
-SetOptionsArguments
-setHomeDomain(std::string const& homeDomain)
+SetOptionsArguments setHomeDomain(std::string const& homeDomain)
 {
     SetOptionsArguments result;
     result.homeDomain = std::make_optional<std::string>(homeDomain);
     return result;
 }
 
-SetTrustLineFlagsArguments
-operator|(SetTrustLineFlagsArguments const& x,
-          SetTrustLineFlagsArguments const& y)
+SetTrustLineFlagsArguments operator|(SetTrustLineFlagsArguments const& x,
+                                     SetTrustLineFlagsArguments const& y)
 {
     auto result = SetTrustLineFlagsArguments{};
     result.setFlags = y.setFlags | x.setFlags;
@@ -1574,9 +1529,8 @@ operator|(SetTrustLineFlagsArguments const& x,
     return result;
 }
 
-Operation
-setTrustLineFlags(PublicKey const& trustor, Asset const& asset,
-                  SetTrustLineFlagsArguments const& arguments)
+Operation setTrustLineFlags(PublicKey const& trustor, Asset const& asset,
+                            SetTrustLineFlagsArguments const& arguments)
 {
     Operation op;
     op.body.type(SET_TRUST_LINE_FLAGS);
@@ -1590,24 +1544,21 @@ setTrustLineFlags(PublicKey const& trustor, Asset const& asset,
     return op;
 }
 
-SetTrustLineFlagsArguments
-setTrustLineFlags(uint32_t setFlags)
+SetTrustLineFlagsArguments setTrustLineFlags(uint32_t setFlags)
 {
     SetTrustLineFlagsArguments result;
     result.setFlags = setFlags;
     return result;
 }
 
-SetTrustLineFlagsArguments
-clearTrustLineFlags(uint32_t clearFlags)
+SetTrustLineFlagsArguments clearTrustLineFlags(uint32_t clearFlags)
 {
     SetTrustLineFlagsArguments result;
     result.clearFlags = clearFlags;
     return result;
 }
 
-Operation
-inflation()
+Operation inflation()
 {
     Operation op;
     op.body.type(INFLATION);
@@ -1615,8 +1566,7 @@ inflation()
     return op;
 }
 
-Operation
-accountMerge(PublicKey const& dest)
+Operation accountMerge(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
@@ -1624,8 +1574,7 @@ accountMerge(PublicKey const& dest)
     return op;
 }
 
-Operation
-manageData(std::string const& name, DataValue* value)
+Operation manageData(std::string const& name, DataValue* value)
 {
     Operation op;
     op.body.type(MANAGE_DATA);
@@ -1636,8 +1585,7 @@ manageData(std::string const& name, DataValue* value)
     return op;
 }
 
-Operation
-bumpSequence(SequenceNumber to)
+Operation bumpSequence(SequenceNumber to)
 {
     Operation op;
     op.body.type(BUMP_SEQUENCE);
@@ -1645,9 +1593,8 @@ bumpSequence(SequenceNumber to)
     return op;
 }
 
-Operation
-createClaimableBalance(Asset const& asset, int64_t amount,
-                       xdr::xvector<Claimant, 10> const& claimants)
+Operation createClaimableBalance(Asset const& asset, int64_t amount,
+                                 xdr::xvector<Claimant, 10> const& claimants)
 {
     Operation op;
     op.body.type(CREATE_CLAIMABLE_BALANCE);
@@ -1657,8 +1604,7 @@ createClaimableBalance(Asset const& asset, int64_t amount,
     return op;
 }
 
-Operation
-claimClaimableBalance(ClaimableBalanceID const& balanceID)
+Operation claimClaimableBalance(ClaimableBalanceID const& balanceID)
 {
     Operation op;
     op.body.type(CLAIM_CLAIMABLE_BALANCE);
@@ -1666,8 +1612,7 @@ claimClaimableBalance(ClaimableBalanceID const& balanceID)
     return op;
 }
 
-Operation
-beginSponsoringFutureReserves(PublicKey const& sponsoredID)
+Operation beginSponsoringFutureReserves(PublicKey const& sponsoredID)
 {
     Operation op;
     op.body.type(BEGIN_SPONSORING_FUTURE_RESERVES);
@@ -1675,16 +1620,14 @@ beginSponsoringFutureReserves(PublicKey const& sponsoredID)
     return op;
 }
 
-Operation
-endSponsoringFutureReserves()
+Operation endSponsoringFutureReserves()
 {
     Operation op;
     op.body.type(END_SPONSORING_FUTURE_RESERVES);
     return op;
 }
 
-Operation
-revokeSponsorship(LedgerKey const& key)
+Operation revokeSponsorship(LedgerKey const& key)
 {
     Operation op;
     op.body.type(REVOKE_SPONSORSHIP);
@@ -1693,8 +1636,7 @@ revokeSponsorship(LedgerKey const& key)
     return op;
 }
 
-Operation
-revokeSponsorship(AccountID const& accID, SignerKey const& key)
+Operation revokeSponsorship(AccountID const& accID, SignerKey const& key)
 {
     Operation op;
     op.body.type(REVOKE_SPONSORSHIP);
@@ -1704,8 +1646,7 @@ revokeSponsorship(AccountID const& accID, SignerKey const& key)
     return op;
 }
 
-Operation
-clawback(AccountID const& from, Asset const& asset, int64_t amount)
+Operation clawback(AccountID const& from, Asset const& asset, int64_t amount)
 {
     Operation op;
     op.body.type(CLAWBACK);
@@ -1716,8 +1657,7 @@ clawback(AccountID const& from, Asset const& asset, int64_t amount)
     return op;
 }
 
-Operation
-clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
+Operation clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
 {
     Operation op;
     op.body.type(CLAWBACK_CLAIMABLE_BALANCE);
@@ -1725,10 +1665,9 @@ clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
     return op;
 }
 
-Operation
-liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
-                     int64_t maxAmountB, Price const& minPrice,
-                     Price const& maxPrice)
+Operation liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                               int64_t maxAmountB, Price const& minPrice,
+                               Price const& maxPrice)
 {
     Operation op;
     op.body.type(LIQUIDITY_POOL_DEPOSIT);
@@ -1740,9 +1679,8 @@ liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
     return op;
 }
 
-Operation
-liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
-                      int64_t minAmountB)
+Operation liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
+                                int64_t minAmountA, int64_t minAmountB)
 {
     Operation op;
     op.body.type(LIQUIDITY_POOL_WITHDRAW);
@@ -1753,34 +1691,29 @@ liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
     return op;
 }
 
-OperationResult const&
-getFirstResult(TransactionTestFramePtr tx)
+OperationResult const& getFirstResult(TransactionTestFramePtr tx)
 {
     return tx->getOperationResultAt(0);
 }
 
-OperationResultCode
-getFirstResultCode(TransactionTestFramePtr tx)
+OperationResultCode getFirstResultCode(TransactionTestFramePtr tx)
 {
     return tx->getOperationResultAt(0).code();
 }
 
-void
-checkTx(int index, TransactionResultSet& r, TransactionResultCode expected)
+void checkTx(int index, TransactionResultSet& r, TransactionResultCode expected)
 {
     REQUIRE(r.results[index].result.result.code() == expected);
 };
 
-void
-checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
-        OperationResultCode code)
+void checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
+             OperationResultCode code)
 {
     checkTx(index, r, expected);
     REQUIRE(r.results[index].result.result.results()[0].code() == code);
 };
 
-void
-sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+void sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
 {
     env.signatures.emplace_back(SignatureUtils::sign(
         key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
@@ -1812,15 +1745,13 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     return tx;
 }
 
-static TransactionEnvelope
-sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
-                       std::vector<Operation> const& ops,
-                       std::vector<SecretKey> const& opKeys,
-                       SorobanResources const& resources, uint32_t totalFee,
-                       int64_t resourceFee, std::optional<std::string> memo,
-                       std::optional<SequenceNumber> seq,
-                       std::optional<uint64_t> muxedData,
-                       std::optional<std::vector<uint32_t>> archivedIndexes)
+static TransactionEnvelope sorobanEnvelopeFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
+    std::optional<std::string> memo, std::optional<SequenceNumber> seq,
+    std::optional<uint64_t> muxedData,
+    std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     if (muxedData)
@@ -1880,8 +1811,7 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
-TransactionTestFramePtr
-sorobanTransactionFrameFromOps(
+TransactionTestFramePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t inclusionFee,
@@ -1902,8 +1832,7 @@ sorobanTransactionFrameFromOps(
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
-TransactionTestFramePtr
-sorobanTransactionFrameFromOpsWithTotalFee(
+TransactionTestFramePtr sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
@@ -1918,17 +1847,16 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
-LedgerUpgrade
-makeBaseReserveUpgrade(int baseReserve)
+LedgerUpgrade makeBaseReserveUpgrade(int baseReserve)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_BASE_RESERVE};
     result.newBaseReserve() = baseReserve;
     return result;
 }
 
-LedgerHeader
-executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
-                bool upgradesIgnored)
+LedgerHeader executeUpgrades(Application& app,
+                             xdr::xvector<UpgradeType, 6> const& upgrades,
+                             bool upgradesIgnored)
 {
     auto& lm = app.getLedgerManager();
     auto currLh = app.getLedgerManager().getLastClosedLedgerHeader().header;
@@ -1954,9 +1882,8 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     return lm.getLastClosedLedgerHeader().header;
 };
 
-LedgerHeader
-executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
-               bool upgradeIgnored)
+LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
+                            bool upgradeIgnored)
 {
     return executeUpgrades(app, {LedgerTestUtils::toUpgradeType(lupgrade)},
                            upgradeIgnored);
@@ -2002,8 +1929,7 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
     return ConfigUpgradeSetFrame::makeFromKey(lsg, upgradeKey);
 }
 
-LedgerUpgrade
-makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
+LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
     result.newConfig() = configUpgradeSet.getKey();
@@ -2012,9 +1938,9 @@ makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
 
 // trades is a vector of pairs, where the bool indicates if assetA or assetB is
 // sent in the payment, and the int64_t is the amount
-void
-depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
-                         std::vector<std::pair<bool, int64_t>> const& trades)
+void depositTradeWithdrawTest(
+    Application& app, TestAccount& root, int depositSize,
+    std::vector<std::pair<bool, int64_t>> const& trades)
 {
     struct Deposit
     {
@@ -2089,8 +2015,8 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
     REQUIRE(!loadLiquidityPool(ltx, pool12));
 }
 
-int64_t
-getBalance(Application& app, AccountID const& accountID, Asset const& asset)
+int64_t getBalance(Application& app, AccountID const& accountID,
+                   Asset const& asset)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -2105,22 +2031,19 @@ getBalance(Application& app, AccountID const& accountID, Asset const& asset)
     }
 }
 
-uint32_t
-getLclProtocolVersion(Application& app)
+uint32_t getLclProtocolVersion(Application& app)
 {
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     return lcl.header.ledgerVersion;
 }
 
-bool
-isSuccessResult(TransactionResult const& res)
+bool isSuccessResult(TransactionResult const& res)
 {
     return res.result.code() == txSUCCESS ||
            res.result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
 
-TestAccount
-getGenesisAccount(Application& app, uint32_t accountIndex)
+TestAccount getGenesisAccount(Application& app, uint32_t accountIndex)
 {
     REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
     return TestAccount(

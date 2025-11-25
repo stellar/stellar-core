@@ -18,8 +18,7 @@ class WorkWithCallback : public BasicWork
 
   protected:
     BasicWork::State onRun() override;
-    bool
-    onAbort() override
+    bool onAbort() override
     {
         return true;
     };

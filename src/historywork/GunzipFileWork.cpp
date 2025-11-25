@@ -17,8 +17,7 @@ GunzipFileWork::GunzipFileWork(Application& app, std::string const& filenameGz,
     fs::checkGzipSuffix(mFilenameGz);
 }
 
-CommandInfo
-GunzipFileWork::getCommand()
+CommandInfo GunzipFileWork::getCommand()
 {
     std::string cmdLine, outFile;
     cmdLine = "gzip -d ";
@@ -31,8 +30,7 @@ GunzipFileWork::getCommand()
     return CommandInfo{cmdLine, outFile};
 }
 
-void
-GunzipFileWork::onReset()
+void GunzipFileWork::onReset()
 {
     std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     fs::removeWithLog(filenameNoGz);

@@ -15,8 +15,7 @@ TarjanSCCCalculator::TarjanSCCCalculator()
 {
 }
 
-void
-TarjanSCCCalculator::calculateSCCs(
+void TarjanSCCCalculator::calculateSCCs(
     size_t graphSize,
     std::function<BitSet const&(size_t)> const& getNodeSuccessors)
 {
@@ -37,8 +36,7 @@ TarjanSCCCalculator::calculateSCCs(
     }
 }
 
-void
-TarjanSCCCalculator::scc(
+void TarjanSCCCalculator::scc(
     size_t i, std::function<BitSet const&(size_t)> const& getNodeSuccessors)
 {
     auto& v = mNodes.at(i);

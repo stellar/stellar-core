@@ -34,8 +34,7 @@ class BufferedAsioOutputArchive
     ~BufferedAsioOutputArchive() CEREAL_NOEXCEPT = default;
 
     // Writes size bytes of data to the output stream
-    void
-    saveBinary(const void* data, std::streamsize size)
+    void saveBinary(const void* data, std::streamsize size)
     {
         itsStream.writeBytes(static_cast<char const*>(data), size);
     }
@@ -71,9 +70,8 @@ inline CEREAL_ARCHIVE_RESTRICT_SINGLE_TYPE(BufferedAsioOutputArchive)
 
 // Saving binary data
 template <class T>
-inline void
-CEREAL_SAVE_FUNCTION_NAME(BufferedAsioOutputArchive& ar,
-                          BinaryData<T> const& bd)
+inline void CEREAL_SAVE_FUNCTION_NAME(BufferedAsioOutputArchive& ar,
+                                      BinaryData<T> const& bd)
 {
     ar.saveBinary(bd.data, static_cast<std::streamsize>(bd.size));
 }

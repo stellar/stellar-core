@@ -35,8 +35,7 @@ class TemporaryFileDamager
         mVictimSaved.replace_filename(mVictim.filename().string() + "-saved");
         std::filesystem::copy_file(mVictim, mVictimSaved);
     }
-    virtual void
-    damageVictim()
+    virtual void damageVictim()
     {
         // Default damage just truncates the file.
         std::ofstream out(mVictim);

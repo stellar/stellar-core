@@ -116,32 +116,27 @@ class LoopbackPeer : public Peer
 
     void clearInAndOutQueues();
 
-    virtual bool
-    useBackgroundThread() const override
+    virtual bool useBackgroundThread() const override
     {
         return false;
     }
 
-    size_t
-    getTxQueueByteCount() const
+    size_t getTxQueueByteCount() const
     {
         return mFlowControl->getTxQueueByteCountForTesting();
     }
 
-    std::array<std::deque<FlowControl::QueuedOutboundMessage>, 4>&
-    getQueues()
+    std::array<std::deque<FlowControl::QueuedOutboundMessage>, 4>& getQueues()
     {
         return getFlowControl()->getQueuesForTesting();
     }
 
-    uint64_t
-    getOutboundCapacity()
+    uint64_t getOutboundCapacity()
     {
         return getFlowControl()->getCapacity().getOutboundCapacity();
     }
 
-    Config const&
-    getConfig()
+    Config const& getConfig()
     {
         return mAppConnector.getConfig();
     }

@@ -50,26 +50,22 @@ auto constexpr MIN_ACCOUNT_BALANCE =
 // must be strictly less than 255
 uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 5U;
 
-void
-setShortKey(uint256& ed25519, int i)
+void setShortKey(uint256& ed25519, int i)
 {
     ed25519[0] = static_cast<uint8_t>(i);
 }
 
-void
-setShortKey(PublicKey& pk, int i)
+void setShortKey(PublicKey& pk, int i)
 {
     setShortKey(pk.ed25519(), i);
 }
 
-uint8_t
-getShortKey(uint256 const& ed25519)
+uint8_t getShortKey(uint256 const& ed25519)
 {
     return ed25519[0];
 }
 
-uint8_t
-getShortKey(PublicKey const& pk)
+uint8_t getShortKey(PublicKey const& pk)
 {
     return getShortKey(pk.ed25519());
 }
@@ -79,32 +75,27 @@ uint8_t constexpr NUMBER_OF_ASSET_CODE_BITS = 8 - NUMBER_OF_ASSET_ISSUER_BITS;
 uint8_t constexpr NUMBER_OF_ASSETS_TO_USE = 1 << NUMBER_OF_ASSET_CODE_BITS;
 uint8_t constexpr ENCODE_ASSET_CODE_MASK = NUMBER_OF_ASSETS_TO_USE - 1;
 
-uint8_t
-getShortKey(AssetCode4 const& code)
+uint8_t getShortKey(AssetCode4 const& code)
 {
     return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
-getShortKey(AssetCode12 const& code)
+uint8_t getShortKey(AssetCode12 const& code)
 {
     return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
-decodeAssetIssuer(uint8_t byte)
+uint8_t decodeAssetIssuer(uint8_t byte)
 {
     return byte >> NUMBER_OF_ASSET_CODE_BITS;
 }
 
-uint8_t
-decodeAssetCodeDigit(uint8_t byte)
+uint8_t decodeAssetCodeDigit(uint8_t byte)
 {
     return byte & ENCODE_ASSET_CODE_MASK;
 }
 
-uint8_t
-getShortKey(Asset const& asset)
+uint8_t getShortKey(Asset const& asset)
 {
     // This encoding does _not_ make compacting a left-inverse of unpack.  We
     // could make it so, but it's not necessary -- compacting, which alone uses
@@ -122,8 +113,7 @@ getShortKey(Asset const& asset)
     }
 }
 
-uint8_t
-getShortKey(AssetCode const& code)
+uint8_t getShortKey(AssetCode const& code)
 {
     switch (code.type())
     {
@@ -138,14 +128,12 @@ getShortKey(AssetCode const& code)
     }
 }
 
-uint8_t
-getShortKey(ClaimableBalanceID const& balanceID)
+uint8_t getShortKey(ClaimableBalanceID const& balanceID)
 {
     return balanceID.v0()[0];
 }
 
-uint8_t
-getShortKey(LedgerKey const& key)
+uint8_t getShortKey(LedgerKey const& key)
 {
     switch (key.type())
     {
@@ -188,8 +176,7 @@ getShortKey(LedgerKey const& key)
 }
 
 // Sets "code" to a 4-byte alphanumeric AssetCode "Ast<digit>".
-void
-setAssetCode4(AssetCode4& code, int digit)
+void setAssetCode4(AssetCode4& code, int digit)
 {
     static_assert(
         FuzzUtils::NUMBER_OF_ASSETS_TO_USE <= 10,
@@ -201,8 +188,7 @@ setAssetCode4(AssetCode4& code, int digit)
 // For digit == 0, returns native Asset.
 // For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
 // and an issuer with the given public key.
-Asset
-makeAsset(int issuer, int digit)
+Asset makeAsset(int issuer, int digit)
 {
     Asset asset;
     if (digit == 0)
@@ -218,14 +204,12 @@ makeAsset(int issuer, int digit)
     return asset;
 }
 
-Asset
-makeAsset(uint8_t byte)
+Asset makeAsset(uint8_t byte)
 {
     return makeAsset(decodeAssetIssuer(byte), decodeAssetCodeDigit(byte));
 }
 
-AssetCode
-makeAssetCode(uint8_t byte)
+AssetCode makeAssetCode(uint8_t byte)
 {
     AssetCode code;
     auto digit = decodeAssetCodeDigit(byte);
@@ -241,9 +225,8 @@ makeAssetCode(uint8_t byte)
     return code;
 }
 
-void
-generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
-                         StoredLedgerKeys::iterator end)
+void generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
+                              StoredLedgerKeys::iterator end)
 {
     if (std::distance(begin, end) <= NUM_UNVALIDATED_LEDGER_KEYS)
     {
@@ -264,22 +247,21 @@ generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
     });
 }
 
-void
-setShortKey(std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
-            LedgerKey& key, uint8_t byte)
+void setShortKey(
+    std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
+    LedgerKey& key, uint8_t byte)
 {
     key = storedKeys[byte % NUM_STORED_LEDGER_KEYS];
 }
 
-void
-setShortKey(FuzzUtils::StoredPoolIDs const& storedPoolIDs, PoolID& key,
-            uint8_t byte)
+void setShortKey(FuzzUtils::StoredPoolIDs const& storedPoolIDs, PoolID& key,
+                 uint8_t byte)
 {
     key = storedPoolIDs[byte % NUM_STORED_POOL_IDS];
 }
 
-SequenceNumber
-getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
+SequenceNumber getSequenceNumber(AbstractLedgerTxn& ltx,
+                                 PublicKey const& sourceAccountID)
 {
     auto account = loadAccount(ltx, sourceAccountID);
     return account.current().data.account().seqNum;
@@ -287,11 +269,10 @@ getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
 
 // Append "newOp" to "ops", optionally after enclosing it in a sandwich of
 // begin/end-sponsoring-future-reserves.
-void
-emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
-                              Operation const& newOp, bool isSponsored,
-                              int sponsorShortKey,
-                              PublicKey const& sponsoredKey)
+void emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
+                                   Operation const& newOp, bool isSponsored,
+                                   int sponsorShortKey,
+                                   PublicKey const& sponsoredKey)
 {
     if (isSponsored)
     {
@@ -354,8 +335,7 @@ struct xdr_fuzzer_compactor
     {
     }
 
-    void
-    put_bytes(void const* buf, size_t len)
+    void put_bytes(void const* buf, size_t len)
     {
         if (len != 0)
         {
@@ -364,8 +344,7 @@ struct xdr_fuzzer_compactor
         }
     }
 
-    void
-    check(std::size_t n) const
+    void check(std::size_t n) const
     {
         if (n > std::size_t(reinterpret_cast<char*>(mEnd) -
                             reinterpret_cast<char*>(mCur)))
@@ -373,8 +352,7 @@ struct xdr_fuzzer_compactor
                 "insufficient buffer space in xdr_fuzzer_compactor");
     }
 
-    uint32_t
-    size() const
+    uint32_t size() const
     {
         auto s = std::size_t(reinterpret_cast<char*>(mCur) -
                              reinterpret_cast<char*>(mStart));
@@ -503,8 +481,7 @@ struct xdr_fuzzer_compactor
 };
 
 template <typename... Args>
-opaque_vec<>
-xdr_to_fuzzer_opaque(Args const&... args)
+opaque_vec<> xdr_to_fuzzer_opaque(Args const&... args)
 {
     opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
     xdr_fuzzer_compactor p(m.data(), m.data() + m.size());
@@ -540,8 +517,7 @@ struct xdr_fuzzer_unpacker
     {
     }
 
-    void
-    get_bytes(void* buf, size_t len)
+    void get_bytes(void* buf, size_t len)
     {
         if (len != 0)
         {
@@ -550,16 +526,14 @@ struct xdr_fuzzer_unpacker
         }
     }
 
-    uint8_t
-    get_byte()
+    uint8_t get_byte()
     {
         uint8_t b;
         get_bytes(&b, 1);
         return b;
     }
 
-    void
-    check(std::size_t n) const
+    void check(std::size_t n) const
     {
         if (n > std::size_t(reinterpret_cast<char const*>(mCur) -
                             reinterpret_cast<char const*>(mEnd)))
@@ -567,9 +541,7 @@ struct xdr_fuzzer_unpacker
                 "insufficient buffer space in xdr_fuzzer_unpacker");
     }
 
-    template <typename T>
-    T
-    get32()
+    template <typename T> T get32()
     {
         // 1 byte --> uint32
         check(1);
@@ -587,9 +559,7 @@ struct xdr_fuzzer_unpacker
         return xdr_traits<T>::from_uint(w);
     }
 
-    template <typename T>
-    T
-    get64()
+    template <typename T> T get64()
     {
         // 2 bytes --> uint64 **with** "sign extension"
         check(2);
@@ -627,8 +597,7 @@ struct xdr_fuzzer_unpacker
     }
 
     template <typename T>
-    typename std::enable_if<xdr_traits<T>::is_bytes>::type
-    operator()(T& t)
+    typename std::enable_if<xdr_traits<T>::is_bytes>::type operator()(T& t)
     {
         std::uint32_t s2 = 0;
         if (xdr_traits<T>::variable_nelem)
@@ -779,8 +748,7 @@ struct xdr_fuzzer_unpacker
         stellar::FuzzUtils::setShortKey(mStoredLedgerKeys, key, v);
     }
 
-    void
-    done()
+    void done()
     {
         if (mCur != mEnd)
         {
@@ -790,8 +758,7 @@ struct xdr_fuzzer_unpacker
 };
 
 template <typename Bytes, typename... Args>
-auto
-xdr_from_fuzzer_opaque(
+auto xdr_from_fuzzer_opaque(
     stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
     stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs, Bytes const& m,
     Args&... args) -> decltype(detail::bytes_to_void(m))
@@ -803,9 +770,7 @@ xdr_from_fuzzer_opaque(
 }
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-template <>
-void
-generator_t::operator()(stellar::PublicKey& t) const
+template <> void generator_t::operator()(stellar::PublicKey& t) const
 {
     // Generate account IDs in a somewhat larger range than the number of
     // accounts created during setup, so that the fuzzer can generate some
@@ -824,8 +789,7 @@ static int RECURSION_COUNT = 0;
 static const int RECURSION_LIMIT = 50;
 
 template <>
-void
-generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
+void generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
 {
     if (++RECURSION_COUNT > RECURSION_LIMIT)
     {
@@ -845,8 +809,7 @@ generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
 }
 
 template <>
-void
-generator_t::operator()<stellar::SorobanAuthorizedInvocation>(
+void generator_t::operator()<stellar::SorobanAuthorizedInvocation>(
     stellar::SorobanAuthorizedInvocation& auth) const
 {
     if (++RECURSION_COUNT > RECURSION_LIMIT)
@@ -866,8 +829,7 @@ namespace stellar
 {
 // creates a generic configuration with settings rigged to maximize
 // determinism
-static Config
-getFuzzConfig(int instanceNumber)
+static Config getFuzzConfig(int instanceNumber)
 {
     Config cfg = getTestConfig(instanceNumber);
     cfg.MANUAL_CLOSE = true;
@@ -886,8 +848,7 @@ getFuzzConfig(int instanceNumber)
     return cfg;
 }
 
-static void
-resetTxInternalState(Application& app)
+static void resetTxInternalState(Application& app)
 {
     reinitializeAllGlobalStateWithSeed(1);
 // reset caches to clear persistent state
@@ -913,8 +874,7 @@ class FuzzTransactionFrame : public TransactionFrame
         : TransactionFrame(networkID, envelope)
         , mTxResult(MutableTransactionResult::createSuccess(*this, 0)) {};
 
-    void
-    attemptApplication(Application& app, AbstractLedgerTxn& ltx)
+    void attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
         // No soroban ops allowed
         if (std::any_of(getOperations().begin(), getOperations().end(),
@@ -976,25 +936,21 @@ class FuzzTransactionFrame : public TransactionFrame
         }
     }
 
-    TransactionResult const&
-    getResult() const
+    TransactionResult const& getResult() const
     {
         return mTxResult->getXDR();
     }
 
-    TransactionResultCode
-    getResultCode() const
+    TransactionResultCode getResultCode() const
     {
         return mTxResult->getResultCode();
     }
 };
 
-std::shared_ptr<FuzzTransactionFrame>
-createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
-                           PublicKey const& sourceAccountID,
-                           std::vector<Operation>::const_iterator begin,
-                           std::vector<Operation>::const_iterator end,
-                           Hash const& networkID)
+std::shared_ptr<FuzzTransactionFrame> createFuzzTransactionFrame(
+    AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID,
+    std::vector<Operation>::const_iterator begin,
+    std::vector<Operation>::const_iterator end, Hash const& networkID)
 {
     // construct a transaction envelope, which, for each transaction
     // application in the fuzzer, is the exact same, except for the inner
@@ -1012,8 +968,7 @@ createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
     return res;
 }
 
-bool
-isBadOverlayFuzzerInput(StellarMessage const& m)
+bool isBadOverlayFuzzerInput(StellarMessage const& m)
 {
     // HELLO, AUTH and ERROR_MSG messages cause the connection between
     // the peers to drop. Since peer connections are only established
@@ -1029,11 +984,10 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 // Empties "ops" as operations are applied.  Throws if any operations fail.
 // Handles breaking up the list of operations into multiple transactions, if the
 // caller provides more operations than fit in a single transaction.
-static void
-applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                     xdr::xvector<Operation>::const_iterator begin,
-                     xdr::xvector<Operation>::const_iterator end,
-                     Application& app)
+static void applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                                 xdr::xvector<Operation>::const_iterator begin,
+                                 xdr::xvector<Operation>::const_iterator end,
+                                 Application& app)
 {
     while (begin != end)
     {
@@ -1091,11 +1045,10 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 
 // Requires a set of operations small enough to fit in a single transaction.
 // Tolerates the failure of transaction application.
-static void
-applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                    xdr::xvector<Operation>::const_iterator begin,
-                    xdr::xvector<Operation>::const_iterator end,
-                    Application& app)
+static void applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                                xdr::xvector<Operation>::const_iterator begin,
+                                xdr::xvector<Operation>::const_iterator end,
+                                Application& app)
 {
     auto txFramePtr = createFuzzTransactionFrame(ltx, sourceAccount, begin, end,
                                                  app.getNetworkID());
@@ -1120,8 +1073,7 @@ struct AssetID
         assert(mSuffixDigit < FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     }
 
-    Asset
-    toAsset() const
+    Asset toAsset() const
     {
         return mIsNative ? txtest::makeNativeAsset()
                          : FuzzUtils::makeAsset(mIssuer, mSuffixDigit);
@@ -1528,8 +1480,7 @@ std::array<PoolSetupParameters,
      {3, AssetID(3), AssetID(4), INT64_MAX - 50, INT64_MAX - 50, 1, 1, 1, 1,
       INT64_MAX}}};
 
-void
-TransactionFuzzer::initialize()
+void TransactionFuzzer::initialize()
 {
     reinitializeAllGlobalStateWithSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
@@ -1567,9 +1518,8 @@ TransactionFuzzer::initialize()
 #endif // BUILD_TESTS
 }
 
-void
-TransactionFuzzer::storeSetupPoolIDs(AbstractLedgerTxn& ltx,
-                                     std::vector<LedgerEntry> const& entries)
+void TransactionFuzzer::storeSetupPoolIDs(
+    AbstractLedgerTxn& ltx, std::vector<LedgerEntry> const& entries)
 {
     std::vector<PoolID> poolIDs;
     for (auto const& entry : entries)
@@ -1588,8 +1538,7 @@ TransactionFuzzer::storeSetupPoolIDs(AbstractLedgerTxn& ltx,
                   []() { return PoolID{}; });
 }
 
-void
-TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
+void TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
 {
     // Get the list of ledger entries created during setup to place into
     // mStoredLedgerKeys.
@@ -1630,8 +1579,7 @@ TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
     storeSetupPoolIDs(ltx, init);
 }
 
-void
-TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
     xdr::xvector<Operation> ops;
@@ -1664,8 +1612,7 @@ TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1720,8 +1667,7 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1750,8 +1696,7 @@ TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1780,8 +1725,7 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1830,8 +1774,8 @@ TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::reduceNativeBalancesAfterSetup(
+    AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1863,8 +1807,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
+void TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
     AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
@@ -1934,8 +1877,8 @@ TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
     ltx.commit();
 }
 
-void
-TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
+void TransactionFuzzer::reduceTrustLineLimitsAfterSetup(
+    AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1973,14 +1916,12 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
     ltx.commit();
 }
 
-void
-TransactionFuzzer::shutdown()
+void TransactionFuzzer::shutdown()
 {
     exit(1);
 }
 
-void
-TransactionFuzzer::inject(std::string const& filename)
+void TransactionFuzzer::inject(std::string const& filename)
 {
     std::ifstream in;
     in.exceptions(std::ios::badbit);
@@ -2027,16 +1968,14 @@ TransactionFuzzer::inject(std::string const& filename)
     applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
-int
-TransactionFuzzer::xdrSizeLimit()
+int TransactionFuzzer::xdrSizeLimit()
 {
     // 50 bytes in compact mode seems to hold large operations
     return 50 * FuzzUtils::FUZZER_MAX_OPERATIONS;
 }
 
 #define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
-void
-TransactionFuzzer::genFuzz(std::string const& filename)
+void TransactionFuzzer::genFuzz(std::string const& filename)
 {
     reinitializeAllGlobalStateWithSeed(std::random_device()());
     std::ofstream out;
@@ -2072,14 +2011,12 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     out.write(reinterpret_cast<char const*>(bins.data()), bins.size());
 }
 
-void
-OverlayFuzzer::shutdown()
+void OverlayFuzzer::shutdown()
 {
     mSimulation->stopAllNodes();
 }
 
-void
-OverlayFuzzer::initialize()
+void OverlayFuzzer::initialize()
 {
     reinitializeAllGlobalStateWithSeed(1);
     stellar::FuzzUtils::generateStoredLedgerKeys(mStoredLedgerKeys.begin(),
@@ -2120,8 +2057,7 @@ OverlayFuzzer::initialize()
         std::chrono::milliseconds{500}, false);
 }
 
-void
-OverlayFuzzer::inject(std::string const& filename)
+void OverlayFuzzer::inject(std::string const& filename)
 {
     std::ifstream in;
     in.exceptions(std::ios::badbit);
@@ -2187,15 +2123,13 @@ OverlayFuzzer::inject(std::string const& filename)
         ;
 }
 
-int
-OverlayFuzzer::xdrSizeLimit()
+int OverlayFuzzer::xdrSizeLimit()
 {
     return MAX_MESSAGE_SIZE;
 }
 
 #define FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND 16
-void
-OverlayFuzzer::genFuzz(std::string const& filename)
+void OverlayFuzzer::genFuzz(std::string const& filename)
 {
     reinitializeAllGlobalStateWithSeed(std::random_device()());
     std::ofstream out;

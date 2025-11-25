@@ -42,8 +42,7 @@ class Invariant
 
     virtual std::string getName() const = 0;
 
-    bool
-    isStrict() const
+    bool isStrict() const
     {
         return mStrict;
     }
@@ -56,24 +55,20 @@ class Invariant
         return std::string{};
     }
 
-    virtual std::string
-    checkAfterAssumeState(uint32_t newestLedger)
+    virtual std::string checkAfterAssumeState(uint32_t newestLedger)
     {
         return std::string{};
     }
 
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta,
-                          std::vector<ContractEvent> const& events,
-                          AppConnector& app)
+    virtual std::string checkOnOperationApply(
+        Operation const& operation, OperationResult const& result,
+        LedgerTxnDelta const& ltxDelta,
+        std::vector<ContractEvent> const& events, AppConnector& app)
     {
         return std::string{};
     }
 
-    virtual std::string
-    checkOnLedgerCommit(
+    virtual std::string checkOnLedgerCommit(
         SearchableSnapshotConstPtr lclLiveState,
         SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
@@ -92,13 +87,11 @@ class Invariant
     }
 
 #ifdef BUILD_TESTS
-    virtual void
-    snapshotForFuzzer()
+    virtual void snapshotForFuzzer()
     {
     }
 
-    virtual void
-    resetForFuzzer()
+    virtual void resetForFuzzer()
     {
     }
 #endif // BUILD_TESTS

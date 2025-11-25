@@ -10,8 +10,7 @@ namespace stellar
 {
 class ChangeTrustOpFrame : public OperationFrame
 {
-    ChangeTrustResult&
-    innerResult(OperationResult& res) const
+    ChangeTrustResult& innerResult(OperationResult& res) const
     {
         return res.tr().changeTrustResult();
     }
@@ -36,8 +35,7 @@ class ChangeTrustOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    static ChangeTrustResultCode
-    getInnerCode(OperationResult const& res)
+    static ChangeTrustResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().changeTrustResult().code();
     }

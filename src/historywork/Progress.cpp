@@ -12,9 +12,8 @@
 namespace stellar
 {
 
-std::string
-fmtProgress(Application& app, std::string const& task, LedgerRange const& range,
-            uint32_t curr)
+std::string fmtProgress(Application& app, std::string const& task,
+                        LedgerRange const& range, uint32_t curr)
 {
     auto step = HistoryManager::getCheckpointFrequency(app.getConfig());
     // Step is only ever 8 or 64.

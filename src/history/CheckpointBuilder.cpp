@@ -7,8 +7,7 @@
 
 namespace stellar
 {
-bool
-CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
+bool CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
 {
     ZoneScoped;
     releaseAssert(mApp.getHistoryArchiveManager().publishEnabled());
@@ -53,8 +52,7 @@ CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
     return true;
 }
 
-void
-CheckpointBuilder::checkpointComplete(uint32_t checkpoint)
+void CheckpointBuilder::checkpointComplete(uint32_t checkpoint)
 {
     ZoneScoped;
     releaseAssert(mApp.getHistoryArchiveManager().publishEnabled());
@@ -100,11 +98,9 @@ CheckpointBuilder::CheckpointBuilder(Application& app) : mApp(app)
 {
 }
 
-void
-CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
-                                        TxSetXDRFrameConstPtr const& txSet,
-                                        TransactionResultSet const& resultSet,
-                                        bool skipStartupCheck)
+void CheckpointBuilder::appendTransactionSet(
+    uint32_t ledgerSeq, TxSetXDRFrameConstPtr const& txSet,
+    TransactionResultSet const& resultSet, bool skipStartupCheck)
 {
     ZoneScoped;
     TransactionHistoryEntry txs;
@@ -122,11 +118,9 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
     appendTransactionSet(ledgerSeq, txs, resultSet);
 }
 
-void
-CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
-                                        TransactionHistoryEntry const& txSet,
-                                        TransactionResultSet const& resultSet,
-                                        bool skipStartupCheck)
+void CheckpointBuilder::appendTransactionSet(
+    uint32_t ledgerSeq, TransactionHistoryEntry const& txSet,
+    TransactionResultSet const& resultSet, bool skipStartupCheck)
 {
     ZoneScoped;
     if (!mStartupValidationComplete &&
@@ -150,9 +144,8 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
     }
 }
 
-void
-CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
-                                      bool skipStartupCheck)
+void CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
+                                           bool skipStartupCheck)
 {
     ZoneScoped;
     if (!mStartupValidationComplete &&
@@ -174,26 +167,22 @@ CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
     mLedgerHeaders->flush();
 }
 
-uint32_t
-getLedgerSeq(TransactionHistoryEntry const& entry)
+uint32_t getLedgerSeq(TransactionHistoryEntry const& entry)
 {
     return entry.ledgerSeq;
 }
 
-uint32_t
-getLedgerSeq(TransactionHistoryResultEntry const& entry)
+uint32_t getLedgerSeq(TransactionHistoryResultEntry const& entry)
 {
     return entry.ledgerSeq;
 }
 
-uint32_t
-getLedgerSeq(LedgerHeaderHistoryEntry const& entry)
+uint32_t getLedgerSeq(LedgerHeaderHistoryEntry const& entry)
 {
     return entry.header.ledgerSeq;
 }
 
-void
-CheckpointBuilder::cleanup(uint32_t lcl)
+void CheckpointBuilder::cleanup(uint32_t lcl)
 {
     if (mStartupValidationComplete)
     {

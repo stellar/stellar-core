@@ -16,8 +16,7 @@ namespace stellar
 {
 namespace
 {
-void
-countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
+void countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
 {
     switch (e.type())
     {
@@ -37,8 +36,7 @@ countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
 }
 }
 
-void
-LiveBucket::countNewEntryType(MergeCounters& mc, BucketEntry const& e)
+void LiveBucket::countNewEntryType(MergeCounters& mc, BucketEntry const& e)
 {
     switch (e.type())
     {
@@ -56,8 +54,7 @@ LiveBucket::countNewEntryType(MergeCounters& mc, BucketEntry const& e)
         break;
     }
 }
-void
-LiveBucket::countOldEntryType(MergeCounters& mc, BucketEntry const& e)
+void LiveBucket::countOldEntryType(MergeCounters& mc, BucketEntry const& e)
 {
     switch (e.type())
     {
@@ -76,8 +73,7 @@ LiveBucket::countOldEntryType(MergeCounters& mc, BucketEntry const& e)
     }
 }
 
-bool
-LiveBucket::updateMergeCountersForProtocolVersion(
+bool LiveBucket::updateMergeCountersForProtocolVersion(
     MergeCounters& mc, uint32_t protocolVersion,
     std::vector<LiveBucketInputIterator> const& shadowIterators)
 {
@@ -112,11 +108,10 @@ LiveBucket::updateMergeCountersForProtocolVersion(
     return keepShadowedLifecycleEntries;
 }
 
-void
-LiveBucket::maybePut(std::function<void(BucketEntry const&)> putFunc,
-                     BucketEntry const& entry, MergeCounters& mc,
-                     std::vector<LiveBucketInputIterator>& shadowIterators,
-                     bool keepShadowedLifecycleEntries)
+void LiveBucket::maybePut(std::function<void(BucketEntry const&)> putFunc,
+                          BucketEntry const& entry, MergeCounters& mc,
+                          std::vector<LiveBucketInputIterator>& shadowIterators,
+                          bool keepShadowedLifecycleEntries)
 {
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
     // `false` and we will drop all shadowed entries here.
@@ -188,8 +183,7 @@ LiveBucket::maybePut(std::function<void(BucketEntry const&)> putFunc,
 }
 
 template <typename InputSource>
-void
-LiveBucket::mergeCasesWithEqualKeys(
+void LiveBucket::mergeCasesWithEqualKeys(
     MergeCounters& mc, InputSource& inputSource,
     std::function<void(BucketEntry const&)> putFunc, uint32_t protocolVersion,
     std::vector<LiveBucketInputIterator>& shadowIterators,
@@ -311,8 +305,7 @@ LiveBucket::mergeCasesWithEqualKeys(
     inputSource.advanceNew();
 }
 
-bool
-LiveBucket::containsBucketIdentity(BucketEntry const& id) const
+bool LiveBucket::containsBucketIdentity(BucketEntry const& id) const
 {
     BucketEntryIdCmp<LiveBucket> cmp;
     LiveBucketInputIterator iter(shared_from_this());
@@ -327,8 +320,7 @@ LiveBucket::containsBucketIdentity(BucketEntry const& id) const
     return false;
 }
 
-size_t
-LiveBucket::getIndexCacheSize() const
+size_t LiveBucket::getIndexCacheSize() const
 {
     if (mIndex)
     {
@@ -338,8 +330,7 @@ LiveBucket::getIndexCacheSize() const
 }
 
 #ifdef BUILD_TESTS
-void
-LiveBucket::apply(Application& app) const
+void LiveBucket::apply(Application& app) const
 {
     ZoneScoped;
     std::unordered_set<LedgerKey> emptySet;
@@ -358,8 +349,7 @@ LiveBucket::apply(Application& app) const
     counters.logInfo("direct", 0, app.getClock().now());
 }
 
-size_t
-LiveBucket::getMaxCacheSize() const
+size_t LiveBucket::getMaxCacheSize() const
 {
     if (!isEmpty())
     {
@@ -463,13 +453,11 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     return out.getBucket(bucketManager);
 }
 
-std::shared_ptr<LiveBucket>
-LiveBucket::freshInMemoryOnly(BucketManager& bucketManager,
-                              uint32_t protocolVersion,
-                              std::vector<LedgerEntry> const& initEntries,
-                              std::vector<LedgerEntry> const& liveEntries,
-                              std::vector<LedgerKey> const& deadEntries,
-                              bool countMergeEvents)
+std::shared_ptr<LiveBucket> LiveBucket::freshInMemoryOnly(
+    BucketManager& bucketManager, uint32_t protocolVersion,
+    std::vector<LedgerEntry> const& initEntries,
+    std::vector<LedgerEntry> const& liveEntries,
+    std::vector<LedgerKey> const& deadEntries, bool countMergeEvents)
 {
     ZoneScoped;
     // When building fresh buckets after protocol version 10 (i.e. version
@@ -498,9 +486,8 @@ LiveBucket::freshInMemoryOnly(BucketManager& bucketManager,
     return b;
 }
 
-void
-LiveBucket::checkProtocolLegality(BucketEntry const& entry,
-                                  uint32_t protocolVersion)
+void LiveBucket::checkProtocolLegality(BucketEntry const& entry,
+                                       uint32_t protocolVersion)
 {
     if (protocolVersionIsBefore(
             protocolVersion,
@@ -525,28 +512,24 @@ LiveBucket::LiveBucket() : BucketBase()
     mEntries = std::vector<BucketEntry>();
 }
 
-uint32_t
-LiveBucket::getBucketVersion() const
+uint32_t LiveBucket::getBucketVersion() const
 {
     LiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
 }
 
-void
-LiveBucket::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
-                                 Config const& cfg) const
+void LiveBucket::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
+                                      Config const& cfg) const
 {
     releaseAssert(mIndex);
     mIndex->maybeInitializeCache(totalBucketListAccountsSizeBytes, cfg);
 }
 
-std::shared_ptr<LiveBucket>
-LiveBucket::mergeInMemory(BucketManager& bucketManager,
-                          uint32_t maxProtocolVersion,
-                          std::shared_ptr<LiveBucket> const& oldBucket,
-                          std::shared_ptr<LiveBucket> const& newBucket,
-                          bool countMergeEvents, asio::io_context& ctx,
-                          bool doFsync)
+std::shared_ptr<LiveBucket> LiveBucket::mergeInMemory(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<LiveBucket> const& oldBucket,
+    std::shared_ptr<LiveBucket> const& newBucket, bool countMergeEvents,
+    asio::io_context& ctx, bool doFsync)
 {
     ZoneScoped;
     releaseAssertOrThrow(oldBucket->hasInMemoryEntries());
@@ -604,15 +587,13 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
     return out.getBucket(bucketManager, nullptr, std::move(mergedEntries));
 }
 
-BucketEntryCounters const&
-LiveBucket::getBucketEntryCounters() const
+BucketEntryCounters const& LiveBucket::getBucketEntryCounters() const
 {
     releaseAssert(mIndex);
     return mIndex->getBucketEntryCounters();
 }
 
-bool
-LiveBucket::isTombstoneEntry(BucketEntry const& e)
+bool LiveBucket::isTombstoneEntry(BucketEntry const& e)
 {
     return e.type() == DEADENTRY;
 }

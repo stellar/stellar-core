@@ -45,14 +45,12 @@ listMetaDebugFiles(std::filesystem::path const& bucketDir)
     return std::vector<std::filesystem::path>(files.begin(), files.end());
 }
 
-bool
-isDebugSegmentBoundary(uint32_t ledgerSeq)
+bool isDebugSegmentBoundary(uint32_t ledgerSeq)
 {
     return ledgerSeq % META_DEBUG_LEDGER_SEGMENT_SIZE == 0;
 }
 
-size_t
-getNumberOfDebugFilesToKeep(uint32_t numLedgers)
+size_t getNumberOfDebugFilesToKeep(uint32_t numLedgers)
 {
     size_t segLen = META_DEBUG_LEDGER_SEGMENT_SIZE;
     // Always keep an extra older file in case the newest file just got rotated,
@@ -60,8 +58,7 @@ getNumberOfDebugFilesToKeep(uint32_t numLedgers)
     return ((numLedgers + segLen - 1) / segLen) + 1;
 }
 
-std::regex
-getDebugMetaRegexForLedger(uint32_t ledgerSeq)
+std::regex getDebugMetaRegexForLedger(uint32_t ledgerSeq)
 {
     std::string const regexStr =
         fmt::format("meta-debug-{:08x}-[[:xdigit:]]+\\.xdr(\\.gz)?", ledgerSeq);

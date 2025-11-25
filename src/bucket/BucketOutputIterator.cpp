@@ -46,7 +46,6 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             meta.ledgerVersion,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
-
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             BucketEntry bme;
@@ -74,8 +73,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
 }
 
 template <typename BucketT>
-void
-BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
+void BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 {
     ZoneScoped;
 
@@ -165,8 +163,7 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 }
 
 template <typename BucketT>
-std::shared_ptr<BucketT>
-BucketOutputIterator<BucketT>::getBucket(
+std::shared_ptr<BucketT> BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
     std::optional<std::vector<typename BucketT::EntryT>> inMemoryState)
 {

@@ -47,15 +47,12 @@ struct RangeEntry
         releaseAssert(low < high || low == high);
     }
 
-    inline bool
-    operator==(RangeEntry const& in) const
+    inline bool operator==(RangeEntry const& in) const
     {
         return lowerBound == in.lowerBound && upperBound == in.upperBound;
     }
 
-    template <class Archive>
-    void
-    serialize(Archive& ar)
+    template <class Archive> void serialize(Archive& ar)
     {
         ar(lowerBound, upperBound);
     }
@@ -85,9 +82,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
             typeRanges;
 
-        template <class Archive>
-        void
-        save(Archive& ar) const
+        template <class Archive> void save(Archive& ar) const
         {
             auto version = BucketT::IndexT::BUCKET_INDEX_VERSION;
             ar(version, pageSize, keysToOffset, filter, assetToPoolID, counters,
@@ -100,9 +95,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         // not match the expected values, it indicates an upgrade has occurred
         // since serialization. The on-disk version is outdated and must be
         // replaced by a newly created index.
-        template <class Archive>
-        void
-        load(Archive& ar)
+        template <class Archive> void load(Archive& ar)
         {
             ar(keysToOffset, filter, assetToPoolID, counters, typeRanges);
         }
@@ -146,26 +139,22 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     getRangeForType(LedgerEntryType type) const;
 
     // Returns page size for index
-    std::streamoff
-    getPageSize() const
+    std::streamoff getPageSize() const
     {
         return mData.pageSize;
     }
 
-    BucketEntryCounters const&
-    getBucketEntryCounters() const
+    BucketEntryCounters const& getBucketEntryCounters() const
     {
         return mData.counters;
     }
 
-    IterT
-    begin() const
+    IterT begin() const
     {
         return mData.keysToOffset.begin();
     }
 
-    IterT
-    end() const
+    IterT end() const
     {
         return mData.keysToOffset.end();
     }
@@ -174,8 +163,8 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     // called before DiskIndex(Archive& ar, std::streamoff pageSize) to properly
     // deserialize index.
     template <class Archive>
-    static void
-    preLoad(Archive& ar, uint32_t& version, std::streamoff& pageSize)
+    static void preLoad(Archive& ar, uint32_t& version,
+                        std::streamoff& pageSize)
     {
         ar(version, pageSize);
     }
@@ -184,8 +173,7 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     // when BucketT == LiveBucket
     template <int..., typename T = BucketT,
               std::enable_if_t<std::is_same_v<T, LiveBucket>, bool> = true>
-    AssetPoolIDMap const&
-    getAssetPoolIDMap() const
+    AssetPoolIDMap const& getAssetPoolIDMap() const
     {
         static_assert(std::is_same_v<T, LiveBucket>);
         releaseAssert(mData.assetToPoolID);

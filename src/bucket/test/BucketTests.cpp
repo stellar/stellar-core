@@ -33,8 +33,7 @@
 using namespace stellar;
 using namespace BucketTestUtils;
 
-static std::ifstream::pos_type
-fileSize(std::string const& name)
+static std::ifstream::pos_type fileSize(std::string const& name)
 {
     assert(fs::exists(name));
     std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
@@ -43,8 +42,7 @@ fileSize(std::string const& name)
     return in.tellg();
 }
 
-static void
-for_versions_with_differing_initentry_logic(
+static void for_versions_with_differing_initentry_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
     for_versions(
@@ -373,8 +371,7 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
     });
 }
 
-static LedgerEntry
-generateAccount()
+static LedgerEntry generateAccount()
 {
     LedgerEntry e;
     e.data.type(ACCOUNT);

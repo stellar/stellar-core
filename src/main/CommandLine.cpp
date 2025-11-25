@@ -63,8 +63,7 @@ namespace stellar
 
 static const uint32_t MAINTENANCE_LEDGER_COUNT = 1000000;
 
-void
-writeWithTextFlow(std::ostream& os, std::string const& text)
+void writeWithTextFlow(std::ostream& os, std::string const& text)
 {
     size_t consoleWidth = CLARA_TEXTFLOW_CONFIG_CONSOLE_WIDTH;
     os << clara::TextFlow::Column(text).width(consoleWidth) << "\n\n";
@@ -152,14 +151,12 @@ class ParserWithValidation
         mIsValid = isValid;
     }
 
-    const clara::Parser&
-    parser() const
+    const clara::Parser& parser() const
     {
         return mParser;
     }
 
-    std::string
-    validate() const
+    std::string validate() const
     {
         return mIsValid();
     }
@@ -170,8 +167,7 @@ class ParserWithValidation
 };
 
 template <typename T>
-std::function<std::string()>
-required(T& value, std::string const& name)
+std::function<std::string()> required(T& value, std::string const& name)
 {
     return [&value, name] {
         if (value.empty())
@@ -186,33 +182,28 @@ required(T& value, std::string const& name)
 }
 
 template <typename T>
-ParserWithValidation
-requiredArgParser(T& value, std::string const& name)
+ParserWithValidation requiredArgParser(T& value, std::string const& name)
 {
     return {clara::Arg(value, name).required(), required(value, name)};
 }
 
-ParserWithValidation
-fileNameParser(std::string& string)
+ParserWithValidation fileNameParser(std::string& string)
 {
     return requiredArgParser(string, "FILE-NAME");
 }
 
-clara::Opt
-processIDParser(int& num)
+clara::Opt processIDParser(int& num)
 {
     return clara::Opt{num, "PROCESS-ID"}["--process-id"](
         "for spawning multiple instances in fuzzing parallelization");
 }
 
-clara::Opt
-outputFileParser(std::string& string)
+clara::Opt outputFileParser(std::string& string)
 {
     return clara::Opt{string, "FILE-NAME"}["--output-file"]("output file");
 }
 
-clara::Opt
-trustedHashFileParser(std::optional<std::string>& string)
+clara::Opt trustedHashFileParser(std::optional<std::string>& string)
 {
     return clara::Opt{[&](std::string const& arg) { string = arg; },
                       "FILE-NAME"}["--trusted-hash-file"](
@@ -220,95 +211,81 @@ trustedHashFileParser(std::optional<std::string>& string)
         "verify-checkpoints");
 }
 
-clara::Opt
-outputDirParser(std::string& string)
+clara::Opt outputDirParser(std::string& string)
 {
     return clara::Opt{string, "DIR-NAME"}["--output-dir"]("output dir");
 }
 
-clara::Opt
-metaDirParser(std::string& string)
+clara::Opt metaDirParser(std::string& string)
 {
     return clara::Opt{string, "DIR-NAME"}["--meta-dir"](
         "external directory that contains debug meta");
 }
 
-clara::Opt
-logLevelParser(LogLevel& value)
+clara::Opt logLevelParser(LogLevel& value)
 {
     return clara::Opt{
         [&](std::string const& arg) { value = Logging::getLLfromString(arg); },
         "LEVEL"}["--ll"]("set the log level");
 }
 
-clara::Opt
-consoleParser(bool& console)
+clara::Opt consoleParser(bool& console)
 {
     return clara::Opt{console}["--console"]("enable logging to console");
 }
 
-clara::Opt
-metricsParser(std::vector<std::string>& value)
+clara::Opt metricsParser(std::vector<std::string>& value)
 {
     return clara::Opt{value, "METRIC-NAME"}["--metric"](
         "report metric METRIC-NAME on exit");
 }
 
-clara::Opt
-compactParser(bool& compact)
+clara::Opt compactParser(bool& compact)
 {
     return clara::Opt{compact}["--compact"]("no indent");
 }
 
-clara::Opt
-base64Parser(bool& base64)
+clara::Opt base64Parser(bool& base64)
 {
     return clara::Opt{base64}["--base64"]("batch process base64 encoded input");
 }
 
-clara::Opt
-codeParser(std::string& code)
+clara::Opt codeParser(std::string& code)
 {
     return clara::Opt{code, "CODE"}["--code"]("asset code");
 }
 
-clara::Opt
-issuerParser(std::string& issuer)
+clara::Opt issuerParser(std::string& issuer)
 {
     return clara::Opt{issuer, "ISSUER"}["--issuer"]("asset issuer");
 }
 
-clara::Opt
-disableBucketGCParser(bool& disableBucketGC)
+clara::Opt disableBucketGCParser(bool& disableBucketGC)
 {
     return clara::Opt{disableBucketGC}["--disable-bucket-gc"](
         "keeps all, even old, buckets on disk");
 }
 
-clara::Opt
-waitForConsensusParser(bool& waitForConsensus)
+clara::Opt waitForConsensusParser(bool& waitForConsensus)
 {
     return clara::Opt{waitForConsensus}["--wait-for-consensus"](
         "wait to hear from the network before voting, for validating nodes "
         "only");
 }
 
-clara::Opt
-historyArchiveParser(std::string& archive)
+clara::Opt historyArchiveParser(std::string& archive)
 {
     return clara::Opt(archive, "ARCHIVE-NAME")["--archive"](
         "Archive name to be used for catchup. Use 'any' to select randomly");
 }
 
-clara::Opt
-historyLedgerNumber(uint32_t& ledgerNum)
+clara::Opt historyLedgerNumber(uint32_t& ledgerNum)
 {
     return clara::Opt{ledgerNum, "HISTORY-LEDGER"}["--history-ledger"](
         "specify a ledger number to examine in history");
 }
 
-clara::Opt
-fromLedgerNumberParser(std::optional<uint32_t>& fromLedgerNum)
+clara::Opt fromLedgerNumberParser(std::optional<uint32_t>& fromLedgerNum)
 {
     return clara::Opt{
         [&](std::string const& arg) { fromLedgerNum = std::stoul(arg); },
@@ -316,15 +293,13 @@ fromLedgerNumberParser(std::optional<uint32_t>& fromLedgerNum)
         "specify a ledger number to start from");
 }
 
-clara::Opt
-historyHashParser(std::string& hash)
+clara::Opt historyHashParser(std::string& hash)
 {
     return clara::Opt(hash, "HISTORY_HASH")["--history-hash"](
         "specify a hash to trust for the provided ledger");
 }
 
-clara::Parser
-configurationParser(CommandLine::ConfigOption& configOption)
+clara::Parser configurationParser(CommandLine::ConfigOption& configOption)
 {
     return logLevelParser(configOption.mLogLevel) |
            metricsParser(configOption.mMetrics) |
@@ -336,15 +311,13 @@ configurationParser(CommandLine::ConfigOption& configOption)
                Config::STDIN_SPECIAL_NAME));
 }
 
-clara::Opt
-metadataOutputStreamParser(std::string& stream)
+clara::Opt metadataOutputStreamParser(std::string& stream)
 {
     return clara::Opt(stream, "STREAM")["--metadata-output-stream"](
         "Filename or file-descriptor number 'fd:N' to stream metadata to");
 }
 
-void
-maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
+void maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
 {
     if (!stream.empty())
     {
@@ -358,58 +331,50 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-clara::Opt
-ledgerHashParser(std::string& ledgerHash)
+clara::Opt ledgerHashParser(std::string& ledgerHash)
 {
     return clara::Opt{ledgerHash, "HASH"}["--trusted-hash"](
         "Hash of the ledger to catchup to");
 }
 
-clara::Opt
-wasmHashParser(std::string& wasmHash)
+clara::Opt wasmHashParser(std::string& wasmHash)
 {
     return clara::Opt{wasmHash, "HASH"}["--wasm-hash"](
         "Hash of the a specific Wasm blob to dump, or 'ALL' to dump all");
 }
 
-clara::Opt
-forceUntrustedCatchup(bool& force)
+clara::Opt forceUntrustedCatchup(bool& force)
 {
     return clara::Opt{force}["--force-untrusted-catchup"](
         "force unverified catchup");
 }
 
-clara::Opt
-inMemoryParser(bool& inMemory)
+clara::Opt inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
         "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
-clara::Opt
-startAtLedgerParser(uint32_t& startAtLedger)
+clara::Opt startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
         "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
-clara::Opt
-startAtHashParser(std::string& startAtHash)
+clara::Opt startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
         "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
-clara::Opt
-filterQueryParser(std::optional<std::string>& filterQuery)
+clara::Opt filterQueryParser(std::optional<std::string>& filterQuery)
 {
     return clara::Opt{[&](std::string const& arg) { filterQuery = arg; },
                       "FILTER-QUERY"}["--filter-query"](
         "query to filter ledger entries");
 }
 
-clara::Opt
-lastModifiedLedgerCountParser(
+clara::Opt lastModifiedLedgerCountParser(
     std::optional<std::uint32_t>& lastModifiedLedgerCount)
 {
     return clara::Opt{[&](std::string const& arg) {
@@ -420,47 +385,42 @@ lastModifiedLedgerCountParser(
         "ledgers ago");
 }
 
-clara::Opt
-groupByParser(std::optional<std::string>& groupBy)
+clara::Opt groupByParser(std::optional<std::string>& groupBy)
 {
     return clara::Opt{[&](std::string const& arg) { groupBy = arg; },
                       "GROUP-BY-EXPR"}["--group-by"](
         "comma-separated fields to group the results by");
 }
 
-clara::Opt
-aggregateParser(std::optional<std::string>& aggregate)
+clara::Opt aggregateParser(std::optional<std::string>& aggregate)
 {
     return clara::Opt{[&](std::string const& arg) { aggregate = arg; },
                       "AGGREGATE-EXPR"}["--agg"](
         "comma-separated aggregate expressions");
 }
 
-clara::Opt
-limitParser(std::optional<std::uint64_t>& limit)
+clara::Opt limitParser(std::optional<std::uint64_t>& limit)
 {
     return clara::Opt{[&](std::string const& arg) { limit = std::stoull(arg); },
                       "LIMIT"}["--limit"](
         "process only this many recent ledger entries (not *most* recent)");
 }
 
-clara::Opt
-dumpHotArchiveParser(bool& dumpHotArchive)
+clara::Opt dumpHotArchiveParser(bool& dumpHotArchive)
 {
     return clara::Opt{dumpHotArchive}["--hot-archive"](
         "run query on Hot Archive instead of the Live ledger state");
 }
 
-clara::Opt
-includeAllStatesParser(bool& include)
+clara::Opt includeAllStatesParser(bool& include)
 {
     return clara::Opt{include}["--include-all-states"](
         "include all non-dead states of the entry into query results");
 }
 
-int
-runWithHelp(CommandLineArgs const& args,
-            std::vector<ParserWithValidation> parsers, std::function<int()> f)
+int runWithHelp(CommandLineArgs const& args,
+                std::vector<ParserWithValidation> parsers,
+                std::function<int()> f)
 {
     auto isHelp = false;
     auto parser = clara::Parser{} | clara::Help(isHelp);
@@ -502,9 +462,8 @@ runWithHelp(CommandLineArgs const& args,
     return f();
 }
 
-CatchupConfiguration
-parseCatchup(std::string const& catchup, std::string const& hash,
-             bool extraValidation)
+CatchupConfiguration parseCatchup(std::string const& catchup,
+                                  std::string const& hash, bool extraValidation)
 {
     auto static errorMessage =
         "catchup value should be passed as <DESTINATION-LEDGER/LEDGER-COUNT>, "
@@ -548,26 +507,22 @@ CommandLine::Command::Command(std::string const& name,
 {
 }
 
-int
-CommandLine::Command::run(CommandLineArgs const& args) const
+int CommandLine::Command::run(CommandLineArgs const& args) const
 {
     return mRunFunc(args);
 }
 
-std::string
-CommandLine::Command::name() const
+std::string CommandLine::Command::name() const
 {
     return mName;
 }
 
-std::string
-CommandLine::Command::description() const
+std::string CommandLine::Command::description() const
 {
     return mDescription;
 }
 
-Config
-CommandLine::ConfigOption::getConfig(bool logToFile) const
+Config CommandLine::ConfigOption::getConfig(bool logToFile) const
 {
     Config config;
     auto configFile =
@@ -683,8 +638,8 @@ CommandLine::selectCommand(std::string const& commandName)
     return std::nullopt;
 }
 
-void
-CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
+void CommandLine::writeToStream(std::string const& exeName,
+                                std::ostream& os) const
 {
 #ifdef BUILD_TESTS
     // Printing this line enables automatic test discovery in VSCode, and
@@ -717,8 +672,7 @@ CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
 }
 }
 
-int
-diagBucketStats(CommandLineArgs const& args)
+int diagBucketStats(CommandLineArgs const& args)
 {
     std::string bucketFile;
     bool aggAccountStats = false;
@@ -734,8 +688,7 @@ diagBucketStats(CommandLineArgs const& args)
         });
 }
 
-int
-runReplayDebugMeta(CommandLineArgs const& args)
+int runReplayDebugMeta(CommandLineArgs const& args)
 {
     // targetLedger=0 means replay all available tx meta
     uint32_t targetLedger = 0;
@@ -775,8 +728,7 @@ runReplayDebugMeta(CommandLineArgs const& args)
         });
 }
 
-int
-runCatchup(CommandLineArgs const& args)
+int runCatchup(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string catchupString;
@@ -930,8 +882,7 @@ runCatchup(CommandLineArgs const& args)
         });
 }
 
-int
-runPublish(CommandLineArgs const& args)
+int runPublish(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -945,8 +896,7 @@ runPublish(CommandLineArgs const& args)
     });
 }
 
-int
-runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
+int runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
 {
     std::string outputFile;
     std::optional<std::string> trustedHashFile;
@@ -1021,8 +971,7 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
         });
 }
 
-int
-runConvertId(CommandLineArgs const& args)
+int runConvertId(CommandLineArgs const& args)
 {
     std::string id;
 
@@ -1032,8 +981,7 @@ runConvertId(CommandLineArgs const& args)
     });
 }
 
-int
-runDumpXDR(CommandLineArgs const& args)
+int runDumpXDR(CommandLineArgs const& args)
 {
     std::string xdr;
     bool compact = false;
@@ -1045,8 +993,7 @@ runDumpXDR(CommandLineArgs const& args)
                        });
 }
 
-int
-runDumpWasm(CommandLineArgs const& args)
+int runDumpWasm(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string hash;
@@ -1061,8 +1008,7 @@ runDumpWasm(CommandLineArgs const& args)
                        });
 }
 
-int
-runEncodeAsset(CommandLineArgs const& args)
+int runEncodeAsset(CommandLineArgs const& args)
 {
     std::string code, issuer;
 
@@ -1099,8 +1045,7 @@ runEncodeAsset(CommandLineArgs const& args)
     });
 }
 
-int
-runForceSCP(CommandLineArgs const& args)
+int runForceSCP(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     auto reset = false;
@@ -1117,8 +1062,7 @@ runForceSCP(CommandLineArgs const& args)
                        });
 }
 
-int
-runGenSeed(CommandLineArgs const& args)
+int runGenSeed(CommandLineArgs const& args)
 {
     return runWithHelp(args, {}, [&] {
         genSeed();
@@ -1126,8 +1070,7 @@ runGenSeed(CommandLineArgs const& args)
     });
 }
 
-int
-runHttpCommand(CommandLineArgs const& args)
+int runHttpCommand(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string command;
@@ -1142,8 +1085,7 @@ runHttpCommand(CommandLineArgs const& args)
                        });
 }
 
-int
-runSelfCheck(CommandLineArgs const& args)
+int runSelfCheck(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -1151,8 +1093,7 @@ runSelfCheck(CommandLineArgs const& args)
                        [&] { return selfCheck(configOption.getConfig()); });
 }
 
-int
-runMergeBucketList(CommandLineArgs const& args)
+int runMergeBucketList(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string outputDir{"."};
@@ -1164,8 +1105,7 @@ runMergeBucketList(CommandLineArgs const& args)
         [&] { return mergeBucketList(configOption.getConfig(), outputDir); });
 }
 
-int
-runDumpStateArchivalStatistics(CommandLineArgs const& args)
+int runDumpStateArchivalStatistics(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
@@ -1173,8 +1113,7 @@ runDumpStateArchivalStatistics(CommandLineArgs const& args)
     });
 }
 
-int
-runDumpLedger(CommandLineArgs const& args)
+int runDumpLedger(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string outputFile;
@@ -1201,8 +1140,7 @@ runDumpLedger(CommandLineArgs const& args)
         });
 }
 
-int
-runNewDB(CommandLineArgs const& args)
+int runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     [[maybe_unused]] bool minimalForInMemoryMode = false;
@@ -1223,8 +1161,7 @@ runNewDB(CommandLineArgs const& args)
                        });
 }
 
-int
-runUpgradeDB(CommandLineArgs const& args)
+int runUpgradeDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -1237,8 +1174,7 @@ runUpgradeDB(CommandLineArgs const& args)
     });
 }
 
-int
-getSettingsUpgradeTransactions(CommandLineArgs const& args)
+int getSettingsUpgradeTransactions(CommandLineArgs const& args)
 {
     std::string netId;
 
@@ -1368,8 +1304,7 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
         });
 }
 
-int
-runPrintPublishQueue(CommandLineArgs const& args)
+int runPrintPublishQueue(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -1389,8 +1324,7 @@ runPrintPublishQueue(CommandLineArgs const& args)
     });
 }
 
-int
-runCheckQuorumIntersection(CommandLineArgs const& args)
+int runCheckQuorumIntersection(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::optional<Config> cfg = std::nullopt;
@@ -1521,8 +1455,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
         });
 }
 
-int
-runNewHist(CommandLineArgs const& args)
+int runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::vector<std::string> newHistories;
@@ -1536,8 +1469,7 @@ runNewHist(CommandLineArgs const& args)
                        });
 }
 
-int
-runOfflineInfo(CommandLineArgs const& args)
+int runOfflineInfo(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -1547,8 +1479,7 @@ runOfflineInfo(CommandLineArgs const& args)
     });
 }
 
-int
-runPrintXdr(CommandLineArgs const& args)
+int runPrintXdr(CommandLineArgs const& args)
 {
     std::string xdr;
     std::string fileType{"auto"};
@@ -1571,8 +1502,7 @@ runPrintXdr(CommandLineArgs const& args)
                        });
 }
 
-int
-runReportLastHistoryCheckpoint(CommandLineArgs const& args)
+int runReportLastHistoryCheckpoint(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string outputFile;
@@ -1585,8 +1515,7 @@ runReportLastHistoryCheckpoint(CommandLineArgs const& args)
         });
 }
 
-int
-run(CommandLineArgs const& args)
+int run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
@@ -1683,8 +1612,7 @@ run(CommandLineArgs const& args)
         });
 }
 
-int
-runSecToPub(CommandLineArgs const& args)
+int runSecToPub(CommandLineArgs const& args)
 {
     return runWithHelp(args, {}, [&] {
         priv2pub();
@@ -1692,8 +1620,7 @@ runSecToPub(CommandLineArgs const& args)
     });
 }
 
-int
-runSignTransaction(CommandLineArgs const& args)
+int runSignTransaction(CommandLineArgs const& args)
 {
     std::string transaction;
     std::string netId;
@@ -1713,8 +1640,7 @@ runSignTransaction(CommandLineArgs const& args)
         });
 }
 
-int
-runVersion(CommandLineArgs const&)
+int runVersion(CommandLineArgs const&)
 {
     rust::Vec<SorobanVersionInfo> rustVersions =
         rust_bridge::get_soroban_version_info(
@@ -1758,8 +1684,7 @@ runVersion(CommandLineArgs const&)
 }
 
 #ifdef BUILD_TESTS
-int
-runLoadXDR(CommandLineArgs const& args)
+int runLoadXDR(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string xdr;
@@ -1771,8 +1696,7 @@ runLoadXDR(CommandLineArgs const& args)
         });
 }
 
-int
-runRebuildLedgerFromBuckets(CommandLineArgs const& args)
+int runRebuildLedgerFromBuckets(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
@@ -1782,8 +1706,8 @@ runRebuildLedgerFromBuckets(CommandLineArgs const& args)
     });
 }
 
-ParserWithValidation
-fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+ParserWithValidation fuzzerModeParser(std::string& fuzzerModeArg,
+                                      FuzzerMode& fuzzerMode)
 {
     auto validateFuzzerMode = [&] {
         if (iequals(fuzzerModeArg, "overlay"))
@@ -1807,8 +1731,7 @@ fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
             validateFuzzerMode};
 }
 
-int
-runFuzz(CommandLineArgs const& args)
+int runFuzz(CommandLineArgs const& args)
 {
     LogLevel logLevel{LogLevel::LVL_FATAL};
     std::vector<std::string> metrics;
@@ -1837,8 +1760,7 @@ runFuzz(CommandLineArgs const& args)
                        });
 }
 
-int
-runGenFuzz(CommandLineArgs const& args)
+int runGenFuzz(CommandLineArgs const& args)
 {
     LogLevel logLevel{LogLevel::LVL_FATAL};
     std::string fileName;
@@ -1864,8 +1786,8 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
-ParserWithValidation
-applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
+ParserWithValidation applyLoadModeParser(std::string& modeArg,
+                                         ApplyLoadMode& mode)
 {
     auto validateMode = [&] {
         if (iequals(modeArg, "ledger-limits"))
@@ -1888,8 +1810,7 @@ applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
             validateMode};
 }
 
-int
-runApplyLoad(CommandLineArgs const& args)
+int runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
@@ -2108,8 +2029,7 @@ runApplyLoad(CommandLineArgs const& args)
         });
 }
 
-int
-runGenerateSyntheticLoad(CommandLineArgs const& args)
+int runGenerateSyntheticLoad(CommandLineArgs const& args)
 {
     CLOG_WARNING(Perf, "This command will run new-db and start a test network "
                        "to generate synthentic load");
@@ -2160,8 +2080,7 @@ runGenerateSyntheticLoad(CommandLineArgs const& args)
 }
 #endif
 
-int
-handleCommandLine(int argc, char* const* argv)
+int handleCommandLine(int argc, char* const* argv)
 {
     auto commandLine = CommandLine{
         {{"catchup",

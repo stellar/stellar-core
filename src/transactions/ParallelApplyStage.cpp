@@ -12,10 +12,8 @@ ApplyStage::Iterator::Iterator(std::vector<Cluster> const& clusters,
 {
 }
 
-TxBundle const&
-ApplyStage::Iterator::operator*() const
+TxBundle const& ApplyStage::Iterator::operator*() const
 {
-
     if (mClusterIndex >= mClusters.size() ||
         mTxIndex >= mClusters[mClusterIndex].size())
     {
@@ -24,8 +22,7 @@ ApplyStage::Iterator::operator*() const
     return mClusters[mClusterIndex][mTxIndex];
 }
 
-ApplyStage::Iterator&
-ApplyStage::Iterator::operator++()
+ApplyStage::Iterator& ApplyStage::Iterator::operator++()
 {
     if (mClusterIndex >= mClusters.size())
     {
@@ -40,47 +37,40 @@ ApplyStage::Iterator::operator++()
     return *this;
 }
 
-ApplyStage::Iterator
-ApplyStage::Iterator::operator++(int)
+ApplyStage::Iterator ApplyStage::Iterator::operator++(int)
 {
     auto it = *this;
     ++(*this);
     return it;
 }
 
-bool
-ApplyStage::Iterator::operator==(Iterator const& other) const
+bool ApplyStage::Iterator::operator==(Iterator const& other) const
 {
     return mClusterIndex == other.mClusterIndex && mTxIndex == other.mTxIndex &&
            &mClusters == &other.mClusters;
 }
 
-bool
-ApplyStage::Iterator::operator!=(Iterator const& other) const
+bool ApplyStage::Iterator::operator!=(Iterator const& other) const
 {
     return !(*this == other);
 }
 
-ApplyStage::Iterator
-ApplyStage::begin() const
+ApplyStage::Iterator ApplyStage::begin() const
 {
     return ApplyStage::Iterator(mClusters, 0);
 }
 
-ApplyStage::Iterator
-ApplyStage::end() const
+ApplyStage::Iterator ApplyStage::end() const
 {
     return ApplyStage::Iterator(mClusters, mClusters.size());
 }
 
-Cluster const&
-ApplyStage::getCluster(size_t i) const
+Cluster const& ApplyStage::getCluster(size_t i) const
 {
     return mClusters.at(i);
 }
 
-size_t
-ApplyStage::numClusters() const
+size_t ApplyStage::numClusters() const
 {
     return mClusters.size();
 }

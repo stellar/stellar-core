@@ -17,17 +17,18 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-static void
-sign(Hash const& networkID, SecretKey key, FeeBumpTransactionEnvelope& env)
+static void sign(Hash const& networkID, SecretKey key,
+                 FeeBumpTransactionEnvelope& env)
 {
     env.signatures.emplace_back(SignatureUtils::sign(
         key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX_FEE_BUMP,
                                        env.tx))));
 }
 
-static TransactionEnvelope
-feeBumpUnsigned(TestAccount& feeSource, TestAccount& source, TestAccount& dest,
-                int64_t outerFee, uint32_t innerFee, int64_t amount)
+static TransactionEnvelope feeBumpUnsigned(TestAccount& feeSource,
+                                           TestAccount& source,
+                                           TestAccount& dest, int64_t outerFee,
+                                           uint32_t innerFee, int64_t amount)
 {
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
     fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);

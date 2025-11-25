@@ -26,8 +26,7 @@ PutFilesWork::PutFilesWork(Application& app,
 {
 }
 
-BasicWork::State
-PutFilesWork::doWork()
+BasicWork::State PutFilesWork::doWork()
 {
     ZoneScoped;
     if (!mChildrenSpawned)
@@ -54,8 +53,7 @@ PutFilesWork::doWork()
     }
 }
 
-void
-PutFilesWork::doReset()
+void PutFilesWork::doReset()
 {
     mChildrenSpawned = false;
 }

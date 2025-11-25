@@ -7,32 +7,27 @@
 namespace stellar
 {
 
-void
-MetricResetter::Process(medida::Counter& counter)
+void MetricResetter::Process(medida::Counter& counter)
 {
     counter.clear();
 }
 
-void
-MetricResetter::Process(medida::Meter& meter)
+void MetricResetter::Process(medida::Meter& meter)
 {
     meter.Clear();
 }
 
-void
-MetricResetter::Process(medida::Histogram& histogram)
+void MetricResetter::Process(medida::Histogram& histogram)
 {
     histogram.Clear();
 }
 
-void
-MetricResetter::Process(medida::Timer& timer)
+void MetricResetter::Process(medida::Timer& timer)
 {
     timer.Clear();
 }
 
-void
-MetricResetter::Process(medida::Buckets& buckets)
+void MetricResetter::Process(medida::Buckets& buckets)
 {
     buckets.Clear();
 }

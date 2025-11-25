@@ -27,8 +27,7 @@ PublishWork::PublishWork(Application& app,
 {
 }
 
-void
-PublishWork::onFailureRaise()
+void PublishWork::onFailureRaise()
 {
     ZoneScoped;
     // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change
@@ -37,8 +36,7 @@ PublishWork::onFailureRaise()
         mSnapshot->mLocalState.currentLedger, mOriginalBuckets, false);
 }
 
-void
-PublishWork::onSuccess()
+void PublishWork::onSuccess()
 {
     ZoneScoped;
     // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change

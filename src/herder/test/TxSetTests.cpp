@@ -473,8 +473,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     }
 }
 
-void
-testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
+void testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1277,7 +1276,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             }
             else
             {
-
                 for (int i = 0; i < 8; ++i)
                 {
                     resources.footprint.readOnly.push_back(
@@ -1490,7 +1488,6 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
         {
             SECTION("data dependency validation")
             {
-
                 auto buildAndValidate = [&](TxStageFrameList txsPerStage) {
                     auto ledgerHash = app->getLedgerManager()
                                           .getLastClosedLedgerHeader()
@@ -2068,7 +2065,6 @@ TEST_CASE("txset nomination", "[txset]")
                 std::vector<Operation> ops;
                 if (i < dexOpsCount)
                 {
-
                     for (uint32_t j = 1; j <= numOps; ++j)
                     {
                         ops.emplace_back(manageBuyOffer(
@@ -2313,8 +2309,7 @@ TEST_CASE("txset nomination", "[txset]")
 #endif
 }
 
-void
-runParallelTxSetBuildingTest(bool variableStageCount)
+void runParallelTxSetBuildingTest(bool variableStageCount)
 {
     int const STAGE_COUNT = 4;
     int const CLUSTER_COUNT = 8;

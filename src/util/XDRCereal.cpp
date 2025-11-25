@@ -6,16 +6,14 @@
 #include "crypto/StrKey.h"
 #include "xdr/Stellar-contract.h"
 
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
+                     const char* field)
 {
     xdr::archive(ar, stellar::KeyUtils::toStrKey<stellar::PublicKey>(s), field);
 }
 
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
-                const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::SCAddress& addr, const char* field)
 {
     switch (addr.type())
     {
@@ -69,9 +67,8 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
     }
 }
 
-void
-cereal_override(cereal::JSONOutputArchive& ar,
-                const stellar::ConfigUpgradeSetKey& key, const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::ConfigUpgradeSetKey& key, const char* field)
 {
     ar.setNextName(field);
     ar.startNode();
@@ -86,9 +83,9 @@ cereal_override(cereal::JSONOutputArchive& ar,
     ar.finishNode();
 }
 
-void
-cereal_override(cereal::JSONOutputArchive& ar,
-                const stellar::MuxedAccount& muxedAccount, const char* field)
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::MuxedAccount& muxedAccount,
+                     const char* field)
 {
     switch (muxedAccount.type())
     {
@@ -111,23 +108,20 @@ cereal_override(cereal::JSONOutputArchive& ar,
     }
 }
 
-void
-cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
-                const char* field)
+void cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
+                     const char* field)
 {
     xdr::archive(ar, std::string("INVALID"), field);
 }
 
-void
-cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                const stellar::TrustLineAsset& asset, const char* field)
+void cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                     const stellar::TrustLineAsset& asset, const char* field)
 {
     cereal_override(ar, asset.liquidityPoolID(), field);
 }
 
-void
-cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                const stellar::ChangeTrustAsset& asset, const char* field)
+void cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                     const stellar::ChangeTrustAsset& asset, const char* field)
 {
     auto const& cp = asset.liquidityPool().constantProduct();
 

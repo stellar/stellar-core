@@ -22,8 +22,7 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-static LedgerEntry
-generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
+static LedgerEntry generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
 {
     LedgerEntry le;
     le.lastModifiedLedgerSeq = ledgerSeq;
@@ -41,8 +40,7 @@ generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
     return le;
 }
 
-static LedgerEntry
-generateRandomSubEntry(LedgerEntry const& acc)
+static LedgerEntry generateRandomSubEntry(LedgerEntry const& acc)
 {
     static auto validAccountIDGenerator =
         autocheck::map([](AccountID&& id, size_t s) { return std::move(id); },
@@ -103,8 +101,8 @@ generateRandomSubEntry(LedgerEntry const& acc)
     return le;
 }
 
-static LedgerEntry
-generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
+static LedgerEntry generateRandomModifiedSubEntry(LedgerEntry const& acc,
+                                                  LedgerEntry const& se)
 {
     LedgerEntry res;
     do
@@ -149,10 +147,10 @@ static auto validSignerGenerator = autocheck::map(
     },
     autocheck::generator<Signer>());
 
-static void
-updateAccountSubEntries(Application& app, LedgerEntry& leCurr,
-                        LedgerEntry lePrev, int32_t deltaNumSubEntries,
-                        UpdateList const& updatesBase)
+static void updateAccountSubEntries(Application& app, LedgerEntry& leCurr,
+                                    LedgerEntry lePrev,
+                                    int32_t deltaNumSubEntries,
+                                    UpdateList const& updatesBase)
 {
     if (deltaNumSubEntries != 0)
     {
@@ -173,9 +171,8 @@ updateAccountSubEntries(Application& app, LedgerEntry& leCurr,
     }
 }
 
-static void
-addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
-                           std::vector<LedgerEntry>& subentries)
+static void addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
+                                       std::vector<LedgerEntry>& subentries)
 {
     auto lePrev = le;
     auto& acc = le.data.account();

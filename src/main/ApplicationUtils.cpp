@@ -46,8 +46,7 @@ namespace stellar
 {
 namespace
 {
-void
-writeLedgerAggregationTable(
+void writeLedgerAggregationTable(
     std::ofstream& ofs,
     std::optional<xdrquery::XDRFieldExtractor> const& groupByExtractor,
     std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator> const&
@@ -98,8 +97,7 @@ writeLedgerAggregationTable(
 
 const std::string MINIMAL_DB_NAME = "minimal.db";
 
-bool
-canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
+bool canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
 {
     // Number of streaming ledgers ahead of LCL. Core will
     // rebuild the existing state if the difference between the start
@@ -111,16 +109,14 @@ canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
            startAtLedger - lcl <= RESTORE_STATE_LEDGER_WINDOW;
 }
 
-std::filesystem::path
-minimalDbPath(Config const& cfg)
+std::filesystem::path minimalDbPath(Config const& cfg)
 {
     std::filesystem::path dpath(cfg.BUCKET_DIR_PATH);
     dpath /= MINIMAL_DB_NAME;
     return dpath;
 }
 
-Application::pointer
-setupApp(Config& cfg, VirtualClock& clock)
+Application::pointer setupApp(Config& cfg, VirtualClock& clock)
 {
     LOG_INFO(DEFAULT_LOG, "Starting stellar-core {}", STELLAR_CORE_VERSION);
     Application::pointer app;
@@ -133,8 +129,7 @@ setupApp(Config& cfg, VirtualClock& clock)
     return app;
 }
 
-int
-runApp(Application::pointer app)
+int runApp(Application::pointer app)
 {
     // Certain in-memory modes in core may start the app before reaching this
     // point, but since start is idempotent, second call will just no-op
@@ -167,8 +162,7 @@ runApp(Application::pointer app)
     return 0;
 }
 
-bool
-applyBucketsForLCL(Application& app)
+bool applyBucketsForLCL(Application& app)
 {
     HistoryArchiveState has;
     has.fromString(app.getPersistentState().getState(
@@ -194,8 +188,7 @@ applyBucketsForLCL(Application& app)
     return work->getState() == BasicWork::State::WORK_SUCCESS;
 }
 
-void
-httpCommand(std::string const& command, unsigned short port)
+void httpCommand(std::string const& command, unsigned short port)
 {
     std::string ret;
     std::ostringstream path;
@@ -239,10 +232,9 @@ httpCommand(std::string const& command, unsigned short port)
     }
 }
 
-void
-setAuthenticatedLedgerHashPair(Application::pointer app,
-                               LedgerNumHashPair& authPair,
-                               uint32_t startLedger, std::string startHash)
+void setAuthenticatedLedgerHashPair(Application::pointer app,
+                                    LedgerNumHashPair& authPair,
+                                    uint32_t startLedger, std::string startHash)
 {
     auto const& lm = app->getLedgerManager();
 
@@ -291,8 +283,7 @@ setAuthenticatedLedgerHashPair(Application::pointer app,
     }
 }
 
-int
-selfCheck(Config cfg)
+int selfCheck(Config cfg)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -373,8 +364,7 @@ selfCheck(Config cfg)
     }
 }
 
-int
-mergeBucketList(Config cfg, std::string const& outputDir)
+int mergeBucketList(Config cfg, std::string const& outputDir)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -417,8 +407,7 @@ struct StateArchivalMetric
     uint64_t outdatedBytes{};
 };
 
-static void
-processArchivalMetrics(
+static void processArchivalMetrics(
     std::shared_ptr<LiveBucket const> const b,
     UnorderedMap<LedgerKey, StateArchivalMetric>& ledgerEntries,
     UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>>& ttls)
@@ -478,8 +467,7 @@ processArchivalMetrics(
     }
 }
 
-int
-dumpStateArchivalStatistics(Config cfg)
+int dumpStateArchivalStatistics(Config cfg)
 {
     ZoneScoped;
     VirtualClock clock;
@@ -581,13 +569,13 @@ dumpStateArchivalStatistics(Config cfg)
     return 0;
 }
 
-int
-dumpLedger(Config cfg, std::string const& outputFile,
-           std::optional<std::string> filterQuery,
-           std::optional<uint32_t> lastModifiedLedgerCount,
-           std::optional<uint64_t> limit, std::optional<std::string> groupBy,
-           std::optional<std::string> aggregate, bool dumpHotArchive,
-           bool includeAllStates)
+int dumpLedger(Config cfg, std::string const& outputFile,
+               std::optional<std::string> filterQuery,
+               std::optional<uint32_t> lastModifiedLedgerCount,
+               std::optional<uint64_t> limit,
+               std::optional<std::string> groupBy,
+               std::optional<std::string> aggregate, bool dumpHotArchive,
+               bool includeAllStates)
 {
     if (groupBy && !aggregate)
     {
@@ -716,8 +704,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     return 0;
 }
 
-void
-dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
+void dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -775,8 +762,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
     }
 }
 
-void
-setForceSCPFlag()
+void setForceSCPFlag()
 {
     LOG_WARNING(DEFAULT_LOG, "* ");
     LOG_WARNING(DEFAULT_LOG,
@@ -786,8 +772,7 @@ setForceSCPFlag()
     LOG_WARNING(DEFAULT_LOG, "* ");
 }
 
-void
-initializeDatabase(Config cfg)
+void initializeDatabase(Config cfg)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -799,8 +784,7 @@ initializeDatabase(Config cfg)
     LOG_INFO(DEFAULT_LOG, "*");
 }
 
-void
-showOfflineInfo(Config cfg, bool verbose)
+void showOfflineInfo(Config cfg, bool verbose)
 {
     // needs real time to display proper stats
     VirtualClock clock(VirtualClock::REAL_TIME);
@@ -809,9 +793,8 @@ showOfflineInfo(Config cfg, bool verbose)
     app->reportInfo(verbose);
 }
 
-bool
-checkQuorumIntersectionFromJson(std::filesystem::path const& jsonPath,
-                                std::optional<Config> const& cfg)
+bool checkQuorumIntersectionFromJson(std::filesystem::path const& jsonPath,
+                                     std::optional<Config> const& cfg)
 {
     std::atomic<bool> interrupt(false);
     auto qicPtr = QuorumIntersectionChecker::create(
@@ -820,8 +803,7 @@ checkQuorumIntersectionFromJson(std::filesystem::path const& jsonPath,
 }
 
 #ifdef BUILD_TESTS
-void
-loadXdr(Config cfg, std::string const& bucketFile)
+void loadXdr(Config cfg, std::string const& bucketFile)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -832,8 +814,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     bucket.apply(*app);
 }
 
-int
-rebuildLedgerFromBuckets(Config cfg)
+int rebuildLedgerFromBuckets(Config cfg)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
@@ -846,8 +827,7 @@ rebuildLedgerFromBuckets(Config cfg)
 }
 #endif
 
-int
-reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
+int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
@@ -894,16 +874,15 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     return ok ? 0 : 1;
 }
 
-void
-genSeed()
+void genSeed()
 {
     auto key = SecretKey::random();
     std::cout << "Secret seed: " << key.getStrKeySeed().value << std::endl;
     std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
 }
 
-int
-initializeHistories(Config cfg, std::vector<std::string> const& newHistories)
+int initializeHistories(Config cfg,
+                        std::vector<std::string> const& newHistories)
 {
     VirtualClock clock;
     cfg.setNoListen();
@@ -917,8 +896,8 @@ initializeHistories(Config cfg, std::vector<std::string> const& newHistories)
     return 0;
 }
 
-void
-writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
+void writeCatchupInfo(Json::Value const& catchupInfo,
+                      std::string const& outputFile)
 {
     std::string filename = outputFile.empty() ? "-" : outputFile;
     auto content = catchupInfo.toStyledString();
@@ -944,9 +923,8 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
     }
 }
 
-int
-catchup(Application::pointer app, CatchupConfiguration cc,
-        Json::Value& catchupInfo, std::shared_ptr<HistoryArchive> archive)
+int catchup(Application::pointer app, CatchupConfiguration cc,
+            Json::Value& catchupInfo, std::shared_ptr<HistoryArchive> archive)
 {
     app->start();
 
@@ -1016,8 +994,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     return synced ? 0 : 3;
 }
 
-int
-publish(Application::pointer app)
+int publish(Application::pointer app)
 {
     app->start();
 
@@ -1048,8 +1025,7 @@ publish(Application::pointer app)
     return 0;
 }
 
-std::string
-minimalDBForInMemoryMode(Config const& cfg)
+std::string minimalDBForInMemoryMode(Config const& cfg)
 {
     return fmt::format(FMT_STRING("sqlite3://{}"),
                        minimalDbPath(cfg).generic_string());

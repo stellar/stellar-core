@@ -53,8 +53,8 @@ class TransactionFrame : public TransactionFrameBase
   private:
     uint32_t getSize() const;
 
-    bool
-    maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
+    bool maybeAdoptFailedReplayResult(
+        MutableTransactionResultBase& txResult) const;
 
   protected:
 #ifdef BUILD_TESTS
@@ -178,8 +178,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionEnvelope& getMutableEnvelope() const override;
     void clearCached() const override;
 
-    bool
-    isTestTx() const override
+    bool isTestTx() const override
     {
         return false;
     }
@@ -252,8 +251,8 @@ class TransactionFrame : public TransactionFrameBase
 
     virtual MutableTxResultPtr createValidationSuccessResult() const override;
 
-    void
-    insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
+    void insertKeysForFeeProcessing(
+        UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
@@ -284,11 +283,10 @@ class TransactionFrame : public TransactionFrameBase
                           MutableTransactionResultBase& txResult,
                           SorobanNetworkConfig const& sorobanConfig) const;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
@@ -314,10 +312,9 @@ class TransactionFrame : public TransactionFrameBase
     // This has to be called after both `processFeeSeqNum` and
     // `apply` have been called.
     // Currently this only takes care of Soroban fee refunds.
-    void
-    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult) const override;
+    void processPostApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult) const override;
 
     // After all transactions have been applied. Currently only used
     // for refunds in Soroban.

@@ -42,38 +42,32 @@ class TCPPeer : public Peer
             : mUseBackgroundThread(useBackgroundThread)
         {
         }
-        std::deque<TimestampedMessage>&
-        getWriteQueue()
+        std::deque<TimestampedMessage>& getWriteQueue()
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             return mWriteQueue;
         }
-        std::vector<asio::const_buffer>&
-        getWriteBuffers()
+        std::vector<asio::const_buffer>& getWriteBuffers()
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             return mWriteBuffers;
         }
-        std::vector<uint8_t>&
-        getIncomingHeader()
+        std::vector<uint8_t>& getIncomingHeader()
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             return mIncomingHeader;
         }
-        std::vector<uint8_t>&
-        getIncomingBody()
+        std::vector<uint8_t>& getIncomingBody()
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             return mIncomingBody;
         }
-        bool
-        isWriting() const
+        bool isWriting() const
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             return mWriting;
         }
-        void
-        setWriting(bool value)
+        void setWriting(bool value)
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             mWriting = value;

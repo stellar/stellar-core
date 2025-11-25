@@ -21,9 +21,8 @@ namespace txtest
 {
 namespace
 {
-SCVal
-signPayloadForClassicAccount(std::vector<TestAccount*> const& signers,
-                             uint256 payload)
+SCVal signPayloadForClassicAccount(std::vector<TestAccount*> const& signers,
+                                   uint256 payload)
 {
     SCVal signatureStruct(SCV_VEC);
     auto& signatures = signatureStruct.vec().activate();
@@ -47,16 +46,14 @@ signPayloadForClassicAccount(std::vector<TestAccount*> const& signers,
 }
 } // namespace
 
-SCAddress
-makeContractAddress(Hash const& hash)
+SCAddress makeContractAddress(Hash const& hash)
 {
     SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
     addr.contractId() = hash;
     return addr;
 }
 
-SCAddress
-makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
+SCAddress makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
 {
     SCAddress addr(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
     addr.muxedAccount().ed25519 = accountID.ed25519();
@@ -64,16 +61,14 @@ makeMuxedAccountAddress(AccountID const& accountID, uint64_t id)
     return addr;
 }
 
-SCVal
-makeI32(int32_t i32)
+SCVal makeI32(int32_t i32)
 {
     SCVal val(SCV_I32);
     val.i32() = i32;
     return val;
 }
 
-SCVal
-makeI128(uint64_t u64)
+SCVal makeI128(uint64_t u64)
 {
     Int128Parts p;
     p.hi = 0;
@@ -84,49 +79,43 @@ makeI128(uint64_t u64)
     return val;
 }
 
-SCSymbol
-makeSymbol(std::string const& str)
+SCSymbol makeSymbol(std::string const& str)
 {
     SCSymbol val;
     val.assign(str.begin(), str.end());
     return val;
 }
 
-SCVal
-makeU64(uint64_t u64)
+SCVal makeU64(uint64_t u64)
 {
     SCVal val(SCV_U64);
     val.u64() = u64;
     return val;
 }
 
-SCVal
-makeU32(uint32_t u32)
+SCVal makeU32(uint32_t u32)
 {
     SCVal val(SCV_U32);
     val.u32() = u32;
     return val;
 }
 
-SCVal
-makeVecSCVal(std::vector<SCVal> elems)
+SCVal makeVecSCVal(std::vector<SCVal> elems)
 {
     SCVal val(SCV_VEC);
     val.vec().activate().assign(elems.begin(), elems.end());
     return val;
 }
 
-SCVal
-makeBool(bool b)
+SCVal makeBool(bool b)
 {
     SCVal val(SCV_BOOL);
     val.b() = b;
     return val;
 }
 
-int64_t
-getContractBalance(Application& app, SCAddress const& contractID,
-                   SCVal const& accountVal)
+int64_t getContractBalance(Application& app, SCAddress const& contractID,
+                           SCVal const& accountVal)
 {
     LedgerKey balanceKey(CONTRACT_DATA);
     balanceKey.contractData().contract = contractID;
@@ -150,8 +139,7 @@ getContractBalance(Application& app, SCAddress const& contractID,
     return balance.lo;
 }
 
-ContractIDPreimage
-makeContractIDPreimage(TestAccount& source, uint256 salt)
+ContractIDPreimage makeContractIDPreimage(TestAccount& source, uint256 salt)
 {
     ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
     idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
@@ -161,8 +149,7 @@ makeContractIDPreimage(TestAccount& source, uint256 salt)
     return idPreimage;
 }
 
-ContractIDPreimage
-makeContractIDPreimage(Asset const& asset)
+ContractIDPreimage makeContractIDPreimage(Asset const& asset)
 {
     ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ASSET);
     idPreimage.fromAsset() = asset;
@@ -180,23 +167,20 @@ makeFullContractIdPreimage(Hash const& networkID,
     return fullPreImage;
 }
 
-ContractExecutable
-makeWasmExecutable(Hash const& wasmHash)
+ContractExecutable makeWasmExecutable(Hash const& wasmHash)
 {
     ContractExecutable executable(CONTRACT_EXECUTABLE_WASM);
     executable.wasm_hash() = wasmHash;
     return executable;
 }
 
-ContractExecutable
-makeAssetExecutable(Asset const& asset)
+ContractExecutable makeAssetExecutable(Asset const& asset)
 {
     ContractExecutable executable(CONTRACT_EXECUTABLE_STELLAR_ASSET);
     return executable;
 }
 
-LedgerKey
-makeContractInstanceKey(SCAddress const& contractAddress)
+LedgerKey makeContractInstanceKey(SCAddress const& contractAddress)
 {
     SCVal instanceContractDataKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
     return contractDataKey(contractAddress, instanceContractDataKey,
@@ -227,8 +211,7 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                                           inclusionFee, uploadResourceFee);
 }
 
-bool
-isExpiredStatus(ExpirationStatus status)
+bool isExpiredStatus(ExpirationStatus status)
 {
     return status == ExpirationStatus::EXPIRED_IN_LIVE_STATE ||
            status == ExpirationStatus::HOT_ARCHIVE;
@@ -260,9 +243,9 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
     return resources;
 }
 
-ContractEvent
-makeContractEvent(Hash const& contractId, std::vector<SCVal> const& topics,
-                  SCVal const& data)
+ContractEvent makeContractEvent(Hash const& contractId,
+                                std::vector<SCVal> const& topics,
+                                SCVal const& data)
 {
     ContractEvent event;
     event.type = ContractEventType::CONTRACT;
@@ -272,17 +255,16 @@ makeContractEvent(Hash const& contractId, std::vector<SCVal> const& topics,
     return event;
 }
 
-ContractEvent
-makeTransferEvent(SCAddress const& from, SCAddress const& to, int64_t amount,
-                  std::optional<int64_t> toMuxId)
+ContractEvent makeTransferEvent(SCAddress const& from, SCAddress const& to,
+                                int64_t amount, std::optional<int64_t> toMuxId)
 {
     return ContractEvent();
 }
 
-ContractEvent
-makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
-                  SCAddress const& from, SCAddress const& to, int64_t amount,
-                  std::optional<SCMapEntry> toMemoEntry)
+ContractEvent makeTransferEvent(const stellar::Hash& contractId,
+                                Asset const& asset, SCAddress const& from,
+                                SCAddress const& to, int64_t amount,
+                                std::optional<SCMapEntry> toMemoEntry)
 {
     std::string name;
     switch (asset.type())
@@ -323,10 +305,10 @@ makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
     return makeContractEvent(contractId, topics, data);
 }
 
-ContractEvent
-makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
-                    Asset const& asset, SCAddress const& addr, int64 amount,
-                    std::optional<SCMapEntry> memoEntry)
+ContractEvent makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
+                                  Asset const& asset, SCAddress const& addr,
+                                  int64 amount,
+                                  std::optional<SCMapEntry> memoEntry)
 {
     ContractEvent ev;
     ev.type = ContractEventType::CONTRACT;
@@ -356,9 +338,9 @@ makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
     return ev;
 }
 
-void
-validateFeeEvent(TransactionEvent const& feeEvent, PublicKey const& feeSource,
-                 int64_t feeCharged, uint32_t protocolVersion, bool isRefund)
+void validateFeeEvent(TransactionEvent const& feeEvent,
+                      PublicKey const& feeSource, int64_t feeCharged,
+                      uint32_t protocolVersion, bool isRefund)
 {
     auto const& feeEventTopics = feeEvent.event.body.v0().topics;
     REQUIRE(feeEventTopics.size() == 2);
@@ -397,19 +379,15 @@ validateFeeEvent(TransactionEvent const& feeEvent, PublicKey const& feeSource,
     }
 }
 
-SorobanResources
-defaultCreateWasmContractResources(RustBuf const& wasm)
+SorobanResources defaultCreateWasmContractResources(RustBuf const& wasm)
 {
     return SorobanResources();
 }
 
-TransactionFrameBaseConstPtr
-makeSorobanCreateContractTx(Application& app, TestAccount& source,
-                            ContractIDPreimage const& idPreimage,
-                            ContractExecutable const& executable,
-                            SorobanResources& createResources,
-                            uint32_t inclusionFee,
-                            ConstructorParams const& constructorParams)
+TransactionFrameBaseConstPtr makeSorobanCreateContractTx(
+    Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
+    ContractExecutable const& executable, SorobanResources& createResources,
+    uint32_t inclusionFee, ConstructorParams const& constructorParams)
 {
     // Default to V1 function when constructor has no arguments. This is just
     // to have some coverage after the protocol bump - constructor tests should
@@ -527,24 +505,20 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                           inclusionFee, createResourceFee);
 }
 
-TransactionFrameBaseConstPtr
-makeSorobanCreateContractTx(Application& app, TestAccount& source,
-                            ContractIDPreimage const& idPreimage,
-                            ContractExecutable const& executable,
-                            SorobanResources& createResources,
-                            uint32_t inclusionFee)
+TransactionFrameBaseConstPtr makeSorobanCreateContractTx(
+    Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
+    ContractExecutable const& executable, SorobanResources& createResources,
+    uint32_t inclusionFee)
 {
     return makeSorobanCreateContractTx(app, source, idPreimage, executable,
                                        createResources, inclusionFee, {});
 }
 
-TransactionTestFramePtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                               std::vector<Operation> const& ops,
-                               std::vector<SecretKey> const& opKeys,
-                               SorobanInvocationSpec const& spec,
-                               std::optional<std::string> memo,
-                               std::optional<SequenceNumber> seq)
+TransactionTestFramePtr sorobanTransactionFrameFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanInvocationSpec const& spec, std::optional<std::string> memo,
+    std::optional<SequenceNumber> seq)
 {
     return sorobanTransactionFrameFromOps(
         networkID, source, ops, opKeys, spec.getResources(),
@@ -563,26 +537,22 @@ SorobanInvocationSpec::SorobanInvocationSpec(SorobanResources const& resources,
 {
 }
 
-SorobanResources const&
-SorobanInvocationSpec::getResources() const
+SorobanResources const& SorobanInvocationSpec::getResources() const
 {
     return mResources;
 }
 
-uint32_t
-SorobanInvocationSpec::getFee() const
+uint32_t SorobanInvocationSpec::getFee() const
 {
     return mInclusionFee + getResourceFee();
 }
 
-uint32_t
-SorobanInvocationSpec::getResourceFee() const
+uint32_t SorobanInvocationSpec::getResourceFee() const
 {
     return mNonRefundableResourceFee + mRefundableResourceFee;
 }
 
-uint32_t
-SorobanInvocationSpec::getInclusionFee() const
+uint32_t SorobanInvocationSpec::getInclusionFee() const
 {
     return mInclusionFee;
 }
@@ -601,8 +571,7 @@ SorobanInvocationSpec::setInstructions(int64_t instructions) const
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::setReadOnlyFootprint(
+SorobanInvocationSpec SorobanInvocationSpec::setReadOnlyFootprint(
     xdr::xvector<LedgerKey> const& keys) const
 {
     auto newSpec = *this;
@@ -610,8 +579,7 @@ SorobanInvocationSpec::setReadOnlyFootprint(
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::setReadWriteFootprint(
+SorobanInvocationSpec SorobanInvocationSpec::setReadWriteFootprint(
     xdr::xvector<LedgerKey> const& keys) const
 {
     auto newSpec = *this;
@@ -619,8 +587,7 @@ SorobanInvocationSpec::setReadWriteFootprint(
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::extendReadOnlyFootprint(
+SorobanInvocationSpec SorobanInvocationSpec::extendReadOnlyFootprint(
     xdr::xvector<LedgerKey> const& keys) const
 {
     auto newSpec = *this;
@@ -629,8 +596,7 @@ SorobanInvocationSpec::extendReadOnlyFootprint(
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::extendReadWriteFootprint(
+SorobanInvocationSpec SorobanInvocationSpec::extendReadWriteFootprint(
     xdr::xvector<LedgerKey> const& keys) const
 {
     auto newSpec = *this;
@@ -671,16 +637,14 @@ SorobanInvocationSpec::setNonRefundableResourceFee(uint32_t fee) const
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::setInclusionFee(uint32_t fee) const
+SorobanInvocationSpec SorobanInvocationSpec::setInclusionFee(uint32_t fee) const
 {
     auto newSpec = *this;
     newSpec.mInclusionFee = fee;
     return newSpec;
 }
 
-SorobanInvocationSpec
-SorobanInvocationSpec::setArchivedIndexes(
+SorobanInvocationSpec SorobanInvocationSpec::setArchivedIndexes(
     std::vector<uint32_t> const& indexes) const
 {
     auto newSpec = *this;
@@ -694,41 +658,35 @@ TestContract::TestContract(SorobanTest& test, SCAddress const& address,
 {
 }
 
-xdr::xvector<LedgerKey> const&
-TestContract::getKeys() const
+xdr::xvector<LedgerKey> const& TestContract::getKeys() const
 {
     return mContractKeys;
 }
 
-SCAddress const&
-TestContract::getAddress() const
+SCAddress const& TestContract::getAddress() const
 {
     return mAddress;
 }
 
-SorobanTest&
-TestContract::getTest() const
+SorobanTest& TestContract::getTest() const
 {
     return mTest;
 }
 
-LedgerKey
-TestContract::getDataKey(SCVal const& key, ContractDataDurability durability)
+LedgerKey TestContract::getDataKey(SCVal const& key,
+                                   ContractDataDurability durability)
 {
     return stellar::contractDataKey(mAddress, key, durability);
 }
 
-TestContract::Invocation
-TestContract::prepareInvocation(std::string const& functionName,
-                                std::vector<SCVal> const& args,
-                                SorobanInvocationSpec const& spec,
-                                bool addContractKeys) const
+TestContract::Invocation TestContract::prepareInvocation(
+    std::string const& functionName, std::vector<SCVal> const& args,
+    SorobanInvocationSpec const& spec, bool addContractKeys) const
 {
     return Invocation(*this, functionName, args, spec, addContractKeys);
 }
 
-void
-TestContract::Invocation::deduplicateFootprint()
+void TestContract::Invocation::deduplicateFootprint()
 {
     xdr::xvector<LedgerKey> readOnly;
     xdr::xvector<LedgerKey> readWrite;
@@ -769,8 +727,7 @@ TestContract::Invocation::Invocation(TestContract const& contract,
     }
 }
 
-TestContract::Invocation&
-TestContract::Invocation::withAuthorizedTopCall()
+TestContract::Invocation& TestContract::Invocation::withAuthorizedTopCall()
 {
     SorobanAuthorizedInvocation ai;
     ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
@@ -789,8 +746,7 @@ TestContract::Invocation::withAuthorizedTopCall(SorobanSigner const& signer)
     return withAuthorization(ai, signer);
 }
 
-TestContract::Invocation&
-TestContract::Invocation::withAuthorization(
+TestContract::Invocation& TestContract::Invocation::withAuthorization(
     SorobanAuthorizedInvocation const& invocation,
     SorobanCredentials credentials)
 {
@@ -807,8 +763,7 @@ TestContract::Invocation::withAuthorization(
     return *this;
 }
 
-TestContract::Invocation&
-TestContract::Invocation::withAuthorization(
+TestContract::Invocation& TestContract::Invocation::withAuthorization(
     SorobanAuthorizedInvocation const& invocation, SorobanSigner const& signer)
 {
     mSpec = mSpec.extendReadOnlyFootprint(signer.getLedgerKeys());
@@ -823,8 +778,7 @@ TestContract::Invocation::withSourceAccountAuthorization(
     return withAuthorization(invocation, credentials);
 }
 
-TestContract::Invocation&
-TestContract::Invocation::withDeduplicatedFootprint()
+TestContract::Invocation& TestContract::Invocation::withDeduplicatedFootprint()
 {
     mDeduplicateFootprint = true;
     return *this;
@@ -837,8 +791,7 @@ TestContract::Invocation::withSpec(SorobanInvocationSpec const& spec)
     return *this;
 }
 
-SorobanInvocationSpec
-TestContract::Invocation::getSpec()
+SorobanInvocationSpec TestContract::Invocation::getSpec()
 {
     return mSpec;
 }
@@ -883,8 +836,7 @@ TestContract::Invocation::withExactNonRefundableResourceFee()
     return *this;
 }
 
-bool
-TestContract::Invocation::invoke(TestAccount* source)
+bool TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
@@ -904,15 +856,13 @@ TestContract::Invocation::invoke(TestAccount* source)
     return isSuccessResult(result);
 }
 
-SCVal
-TestContract::Invocation::getReturnValue() const
+SCVal TestContract::Invocation::getReturnValue() const
 {
     REQUIRE(mTxMeta);
     return mTxMeta->getReturnValue();
 }
 
-TransactionMetaFrame const&
-TestContract::Invocation::getTxMeta() const
+TransactionMetaFrame const& TestContract::Invocation::getTxMeta() const
 {
     REQUIRE(mTxMeta);
     return *mTxMeta;
@@ -924,15 +874,13 @@ TestContract::Invocation::getResultCode() const
     return mResultCode;
 }
 
-int64_t
-TestContract::Invocation::getFeeCharged() const
+int64_t TestContract::Invocation::getFeeCharged() const
 {
     return mFeeCharged;
 }
 
-void
-SorobanTest::initialize(bool useTestLimits,
-                        std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+void SorobanTest::initialize(
+    bool useTestLimits, std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
 {
     if (useTestLimits)
     {
@@ -965,27 +913,24 @@ SorobanTest::SorobanTest(Application::pointer app, Config cfg,
     initialize(useTestLimits, cfgModifyFn);
 }
 
-int64_t
-SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
-                                    int64_t increment)
+int64_t SorobanTest::computeFeePerIncrement(int64_t resourceVal,
+                                            int64_t feeRate, int64_t increment)
 {
     // ceiling division for (resourceVal * feeRate) / increment
     int64_t num = (resourceVal * feeRate);
     return (num + increment - 1) / increment;
 };
 
-int64_t
-SorobanTest::getAccountBalance(TestAccount* source)
+int64_t SorobanTest::getAccountBalance(TestAccount* source)
 {
     auto& account = source ? *source : getRoot();
     return account.getBalance();
 }
 
-void
-SorobanTest::checkRefundableFee(int64_t initialBalance,
-                                TransactionFrameBaseConstPtr tx,
-                                int64_t expectedRentFeeCharged,
-                                size_t eventsSize, bool success)
+void SorobanTest::checkRefundableFee(int64_t initialBalance,
+                                     TransactionFrameBaseConstPtr tx,
+                                     int64_t expectedRentFeeCharged,
+                                     size_t eventsSize, bool success)
 {
     if (!success)
     {
@@ -1086,9 +1031,8 @@ SorobanTest::checkRefundableFee(int64_t initialBalance,
     }
 }
 
-void
-SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
-                              int64_t expectedRefundableFeeCharged)
+void SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
+                                   int64_t expectedRefundableFeeCharged)
 {
     MutableTxResultPtr result;
     {
@@ -1111,9 +1055,9 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
     checkRefundableFee(initBalance, tx, expectedRefundableFeeCharged);
 }
 
-Hash
-SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources,
-                        int64_t additionalRefundableFee)
+Hash SorobanTest::uploadWasm(RustBuf const& wasm,
+                             SorobanResources& uploadResources,
+                             int64_t additionalRefundableFee)
 {
     SCBytes expectedWasm(wasm.data.begin(), wasm.data.end());
     Hash expectedWasmHash = sha256(expectedWasm);
@@ -1194,9 +1138,8 @@ SorobanTest::createContract(ContractIDPreimage const& idPreimage,
     return contractAddress;
 }
 
-int64_t
-SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
-                                    uint32_t newLifetime)
+int64_t SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
+                                            uint32_t newLifetime)
 
 {
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
@@ -1223,8 +1166,7 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
         getLCLSeq());
 }
 
-Application&
-SorobanTest::getApp() const
+Application& SorobanTest::getApp() const
 {
     return *mApp;
 }
@@ -1272,8 +1214,7 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
     return *mContracts.back();
 }
 
-SCAddress
-SorobanTest::nextContractID()
+SCAddress SorobanTest::nextContractID()
 {
     auto idPreimage = makeContractIDPreimage(
         *mRoot, sha256(std::to_string(mContracts.size())));
@@ -1282,8 +1223,7 @@ SorobanTest::nextContractID()
     return makeContractAddress(contractID);
 }
 
-TestContract&
-SorobanTest::deployAssetContract(Asset const& asset)
+TestContract& SorobanTest::deployAssetContract(Asset const& asset)
 {
     SorobanResources createResources;
     createResources.instructions = 400'000;
@@ -1300,8 +1240,7 @@ SorobanTest::deployAssetContract(Asset const& asset)
     return *mContracts.back();
 }
 
-TestAccount&
-SorobanTest::getRoot()
+TestAccount& SorobanTest::getRoot()
 {
     // TestAccount caches the next seqno in-memory, assuming all invoked TXs
     // succeed. This is not true for these tests, so we load the seqno from
@@ -1310,20 +1249,17 @@ SorobanTest::getRoot()
     return *mRoot;
 }
 
-TestAccount&
-SorobanTest::getDummyAccount()
+TestAccount& SorobanTest::getDummyAccount()
 {
     return mDummyAccount;
 }
 
-SorobanNetworkConfig const&
-SorobanTest::getNetworkCfg()
+SorobanNetworkConfig const& SorobanTest::getNetworkCfg()
 {
     return getApp().getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
-uint32_t
-SorobanTest::getLedgerVersion() const
+uint32_t SorobanTest::getLedgerVersion() const
 {
     return getApp()
         .getLedgerManager()
@@ -1331,8 +1267,7 @@ SorobanTest::getLedgerVersion() const
         .header.ledgerVersion;
 }
 
-uint32_t
-SorobanTest::getLCLSeq() const
+uint32_t SorobanTest::getLCLSeq() const
 {
     return getApp().getLedgerManager().getLastClosedLedgerNum();
 }
@@ -1364,8 +1299,7 @@ SorobanTest::createRestoreTx(SorobanResources const& resources,
                                           resourceFee);
 }
 
-bool
-SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
+bool SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
     LedgerSnapshot ls(getApp());
     auto diagnostics = DiagnosticEventManager::createDisabled();
@@ -1374,8 +1308,7 @@ SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
     return ret->isSuccess();
 }
 
-TransactionResult
-SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
+TransactionResult SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
@@ -1391,14 +1324,12 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
     return resultSet.results[0].result;
 }
 
-TransactionMetaFrame const&
-SorobanTest::getLastTxMeta(size_t index) const
+TransactionMetaFrame const& SorobanTest::getLastTxMeta(size_t index) const
 {
     return getApp().getLedgerManager().getLastClosedLedgerTxMeta().at(index);
 }
 
-LedgerCloseMetaFrame
-SorobanTest::getLastLcm() const
+LedgerCloseMetaFrame SorobanTest::getLastLcm() const
 {
     auto const& lcm =
         getApp().getLedgerManager().getLastClosedLedgerCloseMeta();
@@ -1406,8 +1337,7 @@ SorobanTest::getLastLcm() const
     return *lcm;
 }
 
-uint32_t
-SorobanTest::getTTL(LedgerKey const& k)
+uint32_t SorobanTest::getTTL(LedgerKey const& k)
 {
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
     auto ltxe = ltx.loadWithoutRecord(k);
@@ -1419,8 +1349,7 @@ SorobanTest::getTTL(LedgerKey const& k)
     return ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
 }
 
-bool
-SorobanTest::isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
+bool SorobanTest::isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
 {
     auto ttlKey = getTTLKey(k);
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
@@ -1429,8 +1358,7 @@ SorobanTest::isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
     return isLive(ttlLtxe.current(), ledgerSeq);
 }
 
-ExpirationStatus
-SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
+ExpirationStatus SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
 {
     auto ttlKey = getTTLKey(key);
     LedgerSnapshot ls(getApp());
@@ -1454,9 +1382,8 @@ SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
     return ExpirationStatus::NOT_FOUND;
 }
 
-void
-SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
-                             int64_t expectedRefundableFeeCharged)
+void SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
+                                  int64_t expectedRefundableFeeCharged)
 {
     SorobanResources resources;
     resources.footprint.readWrite = readWrite;
@@ -1469,10 +1396,9 @@ SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
     invokeArchivalOp(tx, expectedRefundableFeeCharged);
 }
 
-void
-SorobanTest::invokeExtendOp(xdr::xvector<LedgerKey> const& readOnly,
-                            uint32_t extendTo,
-                            std::optional<int64_t> expectedRefundableFeeCharged)
+void SorobanTest::invokeExtendOp(
+    xdr::xvector<LedgerKey> const& readOnly, uint32_t extendTo,
+    std::optional<int64_t> expectedRefundableFeeCharged)
 {
     if (!expectedRefundableFeeCharged)
     {
@@ -1534,8 +1460,7 @@ AssetContractTestClient::AssetContractTestClient(SorobanTest& test,
 {
 }
 
-LedgerKey
-AssetContractTestClient::makeBalanceKey(AccountID const& acc)
+LedgerKey AssetContractTestClient::makeBalanceKey(AccountID const& acc)
 {
     LedgerKey balanceKey;
     if (mAsset.type() == ASSET_TYPE_NATIVE)
@@ -1569,8 +1494,7 @@ AssetContractTestClient::makeContractDataBalanceKey(SCAddress const& addr)
     return balanceKey;
 }
 
-void
-AssetContractTestClient::setLastEvent(
+void AssetContractTestClient::setLastEvent(
     TestContract::Invocation const& invocation, bool success)
 {
     if (!success)
@@ -1584,8 +1508,7 @@ AssetContractTestClient::setLastEvent(
     mLastEvent = sorobanEvents[0];
 }
 
-LedgerKey
-AssetContractTestClient::makeBalanceKey(SCAddress const& addr)
+LedgerKey AssetContractTestClient::makeBalanceKey(SCAddress const& addr)
 {
     if (addr.type() == SC_ADDRESS_TYPE_ACCOUNT)
     {
@@ -1597,16 +1520,14 @@ AssetContractTestClient::makeBalanceKey(SCAddress const& addr)
     }
 }
 
-LedgerKey
-AssetContractTestClient::makeIssuerKey(Asset const& asset)
+LedgerKey AssetContractTestClient::makeIssuerKey(Asset const& asset)
 {
     LedgerKey issuerLedgerKey(ACCOUNT);
     issuerLedgerKey.account().accountID = getIssuer(asset);
     return issuerLedgerKey;
 }
 
-int64_t
-AssetContractTestClient::getBalance(SCAddress const& addr)
+int64_t AssetContractTestClient::getBalance(SCAddress const& addr)
 {
     SCVal val(SCV_ADDRESS);
     val.address() = addr;
@@ -1616,8 +1537,7 @@ AssetContractTestClient::getBalance(SCAddress const& addr)
                : getContractBalance(mApp, mContract.getAddress(), val);
 }
 
-SorobanInvocationSpec
-AssetContractTestClient::defaultSpec() const
+SorobanInvocationSpec AssetContractTestClient::defaultSpec() const
 {
     return SorobanInvocationSpec()
         .setInstructions(2'000'000)
@@ -1625,14 +1545,12 @@ AssetContractTestClient::defaultSpec() const
         .setWriteBytes(2000);
 }
 
-TestContract const&
-AssetContractTestClient::getContract() const
+TestContract const& AssetContractTestClient::getContract() const
 {
     return mContract;
 }
 
-std::optional<ContractEvent>
-AssetContractTestClient::lastEvent() const
+std::optional<ContractEvent> AssetContractTestClient::lastEvent() const
 {
     return mLastEvent;
 }
@@ -1699,11 +1617,9 @@ AssetContractTestClient::getTransferTx(TestAccount& fromAcc,
     return tx;
 }
 
-TestContract::Invocation
-AssetContractTestClient::transferInvocation(TestAccount& fromAcc,
-                                            SCAddress const& maybeMuxedToAddr,
-                                            int64_t amount, bool& fromIsIssuer,
-                                            bool& toIsIssuer, SCAddress& toAddr)
+TestContract::Invocation AssetContractTestClient::transferInvocation(
+    TestAccount& fromAcc, SCAddress const& maybeMuxedToAddr, int64_t amount,
+    bool& fromIsIssuer, bool& toIsIssuer, SCAddress& toAddr)
 {
     SCVal fromVal(SCV_ADDRESS);
     fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
@@ -1769,10 +1685,9 @@ AssetContractTestClient::transferInvocation(TestAccount& fromAcc,
     return invocation;
 }
 
-bool
-AssetContractTestClient::transfer(TestAccount& fromAcc,
-                                  SCAddress const& maybeMuxedToAddr,
-                                  int64_t amount)
+bool AssetContractTestClient::transfer(TestAccount& fromAcc,
+                                       SCAddress const& maybeMuxedToAddr,
+                                       int64_t amount)
 {
     bool fromIsIssuer;
     bool toIsIssuer;
@@ -1794,7 +1709,6 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
     auto postTransferToBalance = getBalance(toAddr);
     if (success)
     {
-
         if (!fromIsIssuer)
         {
             int64_t expectedBalance = preTransferFromBalance - amount;
@@ -1857,9 +1771,8 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
     return success;
 }
 
-bool
-AssetContractTestClient::mint(TestAccount& admin, SCAddress const& toAddr,
-                              int64_t amount)
+bool AssetContractTestClient::mint(TestAccount& admin, SCAddress const& toAddr,
+                                   int64_t amount)
 {
     SCVal toVal(SCV_ADDRESS);
     toVal.address() = toAddr;
@@ -1893,8 +1806,7 @@ AssetContractTestClient::mint(TestAccount& admin, SCAddress const& toAddr,
     return success;
 }
 
-bool
-AssetContractTestClient::burn(TestAccount& from, int64_t amount)
+bool AssetContractTestClient::burn(TestAccount& from, int64_t amount)
 {
     auto fromAddr = makeAccountAddress(from.getPublicKey());
 
@@ -1940,9 +1852,9 @@ AssetContractTestClient::burn(TestAccount& from, int64_t amount)
     return success;
 }
 
-bool
-AssetContractTestClient::clawback(TestAccount& admin, SCAddress const& fromAddr,
-                                  int64_t amount)
+bool AssetContractTestClient::clawback(TestAccount& admin,
+                                       SCAddress const& fromAddr,
+                                       int64_t amount)
 {
     SCVal fromVal(SCV_ADDRESS);
     fromVal.address() = fromAddr;
@@ -1982,14 +1894,12 @@ ContractStorageTestClient::ContractStorageTestClient(
 {
 }
 
-TestContract&
-ContractStorageTestClient::getContract() const
+TestContract& ContractStorageTestClient::getContract() const
 {
     return mContract;
 }
 
-SorobanInvocationSpec
-ContractStorageTestClient::defaultSpecWithoutFootprint()
+SorobanInvocationSpec ContractStorageTestClient::defaultSpecWithoutFootprint()
 {
     return SorobanInvocationSpec()
         .setInstructions(4'000'000)
@@ -2016,33 +1926,29 @@ ContractStorageTestClient::writeKeySpec(std::string const& key,
         .setWriteBytes(1000);
 }
 
-uint32_t
-ContractStorageTestClient::getTTL(std::string const& key,
-                                  ContractDataDurability durability)
+uint32_t ContractStorageTestClient::getTTL(std::string const& key,
+                                           ContractDataDurability durability)
 {
     return mContract.getTest().getTTL(
         mContract.getDataKey(makeSymbolSCVal(key), durability));
 }
 
-bool
-ContractStorageTestClient::isEntryLive(std::string const& key,
-                                       ContractDataDurability durability,
-                                       uint32_t ledgerSeq)
+bool ContractStorageTestClient::isEntryLive(std::string const& key,
+                                            ContractDataDurability durability,
+                                            uint32_t ledgerSeq)
 {
     return mContract.getTest().isEntryLive(
         mContract.getDataKey(makeSymbolSCVal(key), durability), ledgerSeq);
 }
 
-ExpirationStatus
-ContractStorageTestClient::getEntryExpirationStatus(
+ExpirationStatus ContractStorageTestClient::getEntryExpirationStatus(
     std::string const& key, ContractDataDurability durability)
 {
     return mContract.getTest().getEntryExpirationStatus(
         mContract.getDataKey(makeSymbolSCVal(key), durability));
 }
 
-TestContract::Invocation
-ContractStorageTestClient::putInvocation(
+TestContract::Invocation ContractStorageTestClient::putInvocation(
     std::string const& key, ContractDataDurability durability, uint64_t val,
     std::optional<SorobanInvocationSpec> spec)
 {
@@ -2092,11 +1998,9 @@ ContractStorageTestClient::get(std::string const& key,
     return *invocation.getResultCode();
 }
 
-InvokeHostFunctionResultCode
-ContractStorageTestClient::has(std::string const& key,
-                               ContractDataDurability durability,
-                               std::optional<bool> expectHas,
-                               std::optional<SorobanInvocationSpec> spec)
+InvokeHostFunctionResultCode ContractStorageTestClient::has(
+    std::string const& key, ContractDataDurability durability,
+    std::optional<bool> expectHas, std::optional<SorobanInvocationSpec> spec)
 {
     if (!spec)
     {
@@ -2117,8 +2021,7 @@ ContractStorageTestClient::has(std::string const& key,
     return *invocation.getResultCode();
 }
 
-TestContract::Invocation
-ContractStorageTestClient::delInvocation(
+TestContract::Invocation ContractStorageTestClient::delInvocation(
     std::string const& key, ContractDataDurability durability,
     std::optional<SorobanInvocationSpec> spec)
 {
@@ -2141,7 +2044,6 @@ ContractStorageTestClient::del(std::string const& key,
                                ContractDataDurability durability,
                                std::optional<SorobanInvocationSpec> spec)
 {
-
     auto invocation = delInvocation(key, durability, spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();
@@ -2187,8 +2089,7 @@ ContractStorageTestClient::resizeStorageAndExtendInvocation(
                                        *spec);
 }
 
-InvokeHostFunctionResultCode
-ContractStorageTestClient::resizeStorageAndExtend(
+InvokeHostFunctionResultCode ContractStorageTestClient::resizeStorageAndExtend(
     std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
     uint32_t extendTo, std::optional<SorobanInvocationSpec> spec)
 {
@@ -2227,14 +2128,12 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
     return fullCredentials;
 }
 
-SCVal
-SorobanSigner::getAddressVal() const
+SCVal SorobanSigner::getAddressVal() const
 {
     return makeAddressSCVal(mAddress);
 }
 
-xdr::xvector<LedgerKey> const&
-SorobanSigner::getLedgerKeys() const
+xdr::xvector<LedgerKey> const& SorobanSigner::getLedgerKeys() const
 {
     return mKeys;
 }
@@ -2244,21 +2143,18 @@ AuthTestTreeNode::AuthTestTreeNode(SCAddress const& contract)
 {
 }
 
-AuthTestTreeNode&
-AuthTestTreeNode::add(std::vector<AuthTestTreeNode> children)
+AuthTestTreeNode& AuthTestTreeNode::add(std::vector<AuthTestTreeNode> children)
 {
     mChildren.insert(mChildren.end(), children.begin(), children.end());
     return *this;
 }
 
-void
-AuthTestTreeNode::setAddress(SCAddress const& address)
+void AuthTestTreeNode::setAddress(SCAddress const& address)
 {
     mContractAddress = address;
 }
 
-SCVal
-AuthTestTreeNode::toSCVal(int addressCount) const
+SCVal AuthTestTreeNode::toSCVal(int addressCount) const
 {
     std::vector<SCVal> children;
     for (auto const& child : mChildren)
@@ -2279,8 +2175,7 @@ AuthTestTreeNode::toSCVal(int addressCount) const
     return node;
 }
 
-SorobanAuthorizedInvocation
-AuthTestTreeNode::toAuthorizedInvocation() const
+SorobanAuthorizedInvocation AuthTestTreeNode::toAuthorizedInvocation() const
 {
     SorobanAuthorizedInvocation invocation;
     auto& function = invocation.function.contractFn();

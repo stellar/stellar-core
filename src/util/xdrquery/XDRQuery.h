@@ -42,14 +42,12 @@ class TypedDynamicXDRGetterResolver : public DynamicXDRGetter
         return getXDRField(mXdrMessage, fieldPath);
     }
 
-    uint64_t
-    getSize() const override
+    uint64_t getSize() const override
     {
         return xdr::xdr_size(mXdrMessage);
     }
 
-    uint32_t
-    getLiveUntilLedger() const override
+    uint32_t getLiveUntilLedger() const override
     {
         // XDR getter is implemented in generic fashion as it can normally work
         // for any XDR message. TTL getter is a special case because TTL is
@@ -98,9 +96,7 @@ class XDRMatcher
   public:
     XDRMatcher(std::string const& query, TTLGetter ttlGetter = noTtlGetter);
 
-    template <typename T>
-    bool
-    matchXDR(T const& xdrMessage)
+    template <typename T> bool matchXDR(T const& xdrMessage)
     {
         // Lazily parse the query in order to simplify exception handling as we
         // might throw XDRQueryError both during query parsing and query
@@ -138,8 +134,7 @@ class XDRFieldExtractor
                       TTLGetter ttlGetter = noTtlGetter);
 
     template <typename T>
-    std::vector<ResultType>
-    extractFields(T const& xdrMessage)
+    std::vector<ResultType> extractFields(T const& xdrMessage)
     {
         // Lazily parse the query in order to simplify exception handling as we
         // might throw XDRQueryError both during query parsing and query
@@ -180,9 +175,7 @@ class XDRAccumulator
   public:
     XDRAccumulator(std::string const& query, TTLGetter ttlGetter = noTtlGetter);
 
-    template <typename T>
-    void
-    addEntry(T const& xdrMessage)
+    template <typename T> void addEntry(T const& xdrMessage)
     {
         // Lazily parse the query in order to simplify exception handling as we
         // might throw XDRQueryError both during query parsing and query

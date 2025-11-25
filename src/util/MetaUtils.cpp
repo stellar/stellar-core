@@ -16,8 +16,7 @@ namespace
 using namespace stellar;
 struct CmpLedgerEntryChanges
 {
-    int
-    remap(LedgerEntryChangeType let)
+    int remap(LedgerEntryChangeType let)
     {
         // order that we want is:
         // LEDGER_ENTRY_STATE, LEDGER_ENTRY_CREATED,
@@ -27,8 +26,7 @@ struct CmpLedgerEntryChanges
         return reindex[let];
     }
 
-    LedgerKey
-    getKeyFromChange(LedgerEntryChange const& change)
+    LedgerKey getKeyFromChange(LedgerEntryChange const& change)
     {
         LedgerKey res;
         switch (change.type())
@@ -52,8 +50,7 @@ struct CmpLedgerEntryChanges
         return res;
     }
 
-    bool
-    operator()(LedgerEntryChange const& l, LedgerEntryChange const& r)
+    bool operator()(LedgerEntryChange const& l, LedgerEntryChange const& r)
     {
         auto lT =
             std::make_tuple(getKeyFromChange(l), remap(l.type()), xdrSha256(l));
@@ -63,14 +60,12 @@ struct CmpLedgerEntryChanges
     }
 };
 
-void
-sortChanges(LedgerEntryChanges& c)
+void sortChanges(LedgerEntryChanges& c)
 {
     std::sort(c.begin(), c.end(), CmpLedgerEntryChanges());
 }
 
-void
-normalizeOps(xdr::xvector<OperationMeta>& oms)
+void normalizeOps(xdr::xvector<OperationMeta>& oms)
 {
     for (auto& om : oms)
     {
@@ -78,8 +73,7 @@ normalizeOps(xdr::xvector<OperationMeta>& oms)
     }
 }
 
-void
-normalizeOps(xdr::xvector<OperationMetaV2>& oms)
+void normalizeOps(xdr::xvector<OperationMetaV2>& oms)
 {
     for (auto& om : oms)
     {
@@ -91,8 +85,7 @@ normalizeOps(xdr::xvector<OperationMetaV2>& oms)
 namespace stellar
 {
 
-void
-normalizeMeta(TransactionMeta& m)
+void normalizeMeta(TransactionMeta& m)
 {
     switch (m.v())
     {
@@ -123,8 +116,7 @@ normalizeMeta(TransactionMeta& m)
     }
 }
 
-void
-normalizeMeta(LedgerCloseMeta& lcm)
+void normalizeMeta(LedgerCloseMeta& lcm)
 {
     switch (lcm.v())
     {

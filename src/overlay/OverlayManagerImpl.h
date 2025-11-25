@@ -117,9 +117,9 @@ class OverlayManagerImpl : public OverlayManager
                          Peer::pointer peer, Hash const& index) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) override;
-    bool
-    broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                     std::optional<Hash> const hash = std::nullopt) override;
+    bool broadcastMessage(
+        std::shared_ptr<StellarMessage const> msg,
+        std::optional<Hash> const hash = std::nullopt) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void maybeAddInboundConnection(Peer::pointer peer) override;

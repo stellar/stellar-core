@@ -13,9 +13,8 @@
 namespace
 {
 using namespace stellar;
-void
-checkCatchupPreconditions(uint32_t lastClosedLedger,
-                          CatchupConfiguration const& configuration)
+void checkCatchupPreconditions(uint32_t lastClosedLedger,
+                               CatchupConfiguration const& configuration)
 {
     if (lastClosedLedger < LedgerManager::GENESIS_LEDGER_SEQ)
     {
@@ -41,9 +40,9 @@ checkCatchupPreconditions(uint32_t lastClosedLedger,
     }
 }
 
-CatchupRange
-calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
-                      HistoryManager const& hm)
+CatchupRange calculateCatchupRange(uint32_t lcl,
+                                   CatchupConfiguration const& cfg,
+                                   HistoryManager const& hm)
 {
     checkCatchupPreconditions(lcl, cfg);
     const uint32_t init = LedgerManager::GENESIS_LEDGER_SEQ;
@@ -129,8 +128,7 @@ CatchupRange::CatchupRange(uint32_t lastClosedLedger,
     checkInvariants();
 }
 
-void
-CatchupRange::checkInvariants()
+void CatchupRange::checkInvariants()
 {
     // Must be applying buckets and/or replaying.
     releaseAssert(applyBuckets() || replayLedgers());

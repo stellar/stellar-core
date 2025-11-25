@@ -16,8 +16,7 @@ class BumpSequenceOpFrame : public OperationFrame
     ThresholdLevel getThresholdLevel() const override;
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    BumpSequenceResult&
-    innerResult(OperationResult& res) const
+    BumpSequenceResult& innerResult(OperationResult& res) const
     {
         return res.tr().bumpSeqResult();
     }
@@ -32,8 +31,7 @@ class BumpSequenceOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    static BumpSequenceResultCode
-    getInnerCode(OperationResult const& res)
+    static BumpSequenceResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().bumpSeqResult().code();
     }

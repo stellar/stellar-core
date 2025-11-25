@@ -21,8 +21,7 @@ WorkWithCallback::WorkWithCallback(
     }
 }
 
-BasicWork::State
-WorkWithCallback::onRun()
+BasicWork::State WorkWithCallback::onRun()
 {
     bool res;
     try

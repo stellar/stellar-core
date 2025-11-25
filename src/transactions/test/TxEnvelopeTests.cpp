@@ -2591,7 +2591,6 @@ TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
                 if (i <
                     InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES)
                 {
-
                     resources.footprint.readWrite.push_back(key);
                 }
                 else

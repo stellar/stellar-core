@@ -75,10 +75,9 @@ struct LedgerUpgradeCheck
 
 namespace
 {
-void
-simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
-                std::vector<LedgerUpgradeCheck> const& checks,
-                bool checkUpgradeStatus = false)
+void simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
+                     std::vector<LedgerUpgradeCheck> const& checks,
+                     bool checkUpgradeStatus = false)
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     historytestutils::TmpDirHistoryConfigurator configurator{};
@@ -197,48 +196,42 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     }
 }
 
-LedgerUpgrade
-makeProtocolVersionUpgrade(int version)
+LedgerUpgrade makeProtocolVersionUpgrade(int version)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
     result.newLedgerVersion() = version;
     return result;
 }
 
-LedgerUpgrade
-makeBaseFeeUpgrade(int baseFee)
+LedgerUpgrade makeBaseFeeUpgrade(int baseFee)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_BASE_FEE};
     result.newBaseFee() = baseFee;
     return result;
 }
 
-LedgerUpgrade
-makeTxCountUpgrade(int txCount)
+LedgerUpgrade makeTxCountUpgrade(int txCount)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_MAX_TX_SET_SIZE};
     result.newMaxTxSetSize() = txCount;
     return result;
 }
 
-LedgerUpgrade
-makeMaxSorobanTxSizeUpgrade(int txSize)
+LedgerUpgrade makeMaxSorobanTxSizeUpgrade(int txSize)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE};
     result.newMaxSorobanTxSetSize() = txSize;
     return result;
 }
 
-LedgerUpgrade
-makeFlagsUpgrade(int flags)
+LedgerUpgrade makeFlagsUpgrade(int flags)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_FLAGS};
     result.newFlags() = flags;
     return result;
 }
 
-ConfigUpgradeSetFrameConstPtr
-makeMaxContractSizeBytesTestUpgrade(
+ConfigUpgradeSetFrameConstPtr makeMaxContractSizeBytesTestUpgrade(
     AbstractLedgerTxn& ltx, uint32_t maxContractSizeBytes,
     bool expiredEntry = false,
     ContractDataDurability type = ContractDataDurability::TEMPORARY)
@@ -270,8 +263,7 @@ makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(Application& app,
     return makeConfigUpgradeSet(ltx, configUpgradeSet);
 }
 
-LedgerKey
-getMaxContractSizeKey()
+LedgerKey getMaxContractSizeKey()
 {
     LedgerKey maxContractSizeKey(CONFIG_SETTING);
     maxContractSizeKey.configSetting().configSettingID =
@@ -279,8 +271,7 @@ getMaxContractSizeKey()
     return maxContractSizeKey;
 }
 
-LedgerKey
-getliveSorobanStateSizeWindowKey()
+LedgerKey getliveSorobanStateSizeWindowKey()
 {
     LedgerKey windowKey(CONFIG_SETTING);
     windowKey.configSetting().configSettingID =
@@ -288,8 +279,7 @@ getliveSorobanStateSizeWindowKey()
     return windowKey;
 }
 
-LedgerKey
-getParallelComputeSettingsLedgerKey()
+LedgerKey getParallelComputeSettingsLedgerKey()
 {
     LedgerKey maxContractSizeKey(CONFIG_SETTING);
     maxContractSizeKey.configSetting().configSettingID =
@@ -309,9 +299,8 @@ makeParallelComputeUpdgrade(AbstractLedgerTxn& ltx,
     return makeConfigUpgradeSet(ltx, configUpgradeSet);
 }
 
-void
-testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
-                 bool shouldListAny)
+void testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
+                      bool shouldListAny)
 {
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 10;
@@ -396,9 +385,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     }
 }
 
-void
-testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
-                     bool canBeValid)
+void testValidateUpgrades(
+    VirtualClock::system_time_point preferredUpgradeDatetime, bool canBeValid)
 {
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 10;
@@ -924,7 +912,6 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
 
     SECTION("ledger close time changes after config upgrade")
     {
-
         // Verify initial ledger close time
         auto initialCloseTime = simulation->getExpectedLedgerCloseTime();
         REQUIRE(initialCloseTime ==

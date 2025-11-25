@@ -148,8 +148,7 @@ class BucketBase : public NonMovableOrCopyable
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef BUILD_TESTS
-    IndexT const&
-    getIndexForTesting() const
+    IndexT const& getIndexForTesting() const
     {
         return getIndex();
     }

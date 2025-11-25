@@ -25,8 +25,7 @@
 
 using namespace stellar;
 
-void
-transactionTest(Application::pointer app)
+void transactionTest(Application::pointer app)
 {
     int a = 10, b = 0;
     int a0 = a + 1;
@@ -88,10 +87,8 @@ TEST_CASE("database on-disk smoketest", "[db]")
     transactionTest(app);
 }
 
-void
-checkMVCCIsolation(Application::pointer app)
+void checkMVCCIsolation(Application::pointer app)
 {
-
     int v0 = 1;
 
     // Values we insert/update in different txs

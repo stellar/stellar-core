@@ -71,20 +71,17 @@ class IndexReturnT
     {
     }
 
-    IndexReturnState
-    getState() const
+    IndexReturnState getState() const
     {
         return mState;
     }
-    IndexPtrT
-    cacheHit() const
+    IndexPtrT cacheHit() const
     {
         releaseAssertOrThrow(mState == IndexReturnState::CACHE_HIT);
         releaseAssertOrThrow(std::holds_alternative<IndexPtrT>(mPayload));
         return std::get<IndexPtrT>(mPayload);
     }
-    std::streamoff
-    fileOffset() const
+    std::streamoff fileOffset() const
     {
         releaseAssertOrThrow(mState == IndexReturnState::FILE_OFFSET);
         releaseAssertOrThrow(std::holds_alternative<std::streamoff>(mPayload));

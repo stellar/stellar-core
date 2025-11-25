@@ -47,9 +47,8 @@ namespace
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
 template <typename T>
-T
-sampleDiscrete(std::vector<T> const& values,
-               std::vector<uint32_t> const& weights, T defaultValue)
+T sampleDiscrete(std::vector<T> const& values,
+                 std::vector<uint32_t> const& weights, T defaultValue)
 {
     if (values.empty())
     {
@@ -82,8 +81,7 @@ const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 // buffer in case loadgen is unstable and needs more accounts)
 const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
-uint32_t
-getTxCount(Application& app, bool isSoroban)
+uint32_t getTxCount(Application& app, bool isSoroban)
 {
     if (isSoroban)
     {
@@ -120,8 +118,7 @@ LoadGenerator::LoadGenerator(Application& app)
 {
 }
 
-LoadGenMode
-LoadGenerator::getMode(std::string const& mode)
+LoadGenMode LoadGenerator::getMode(std::string const& mode)
 {
     if (mode == "pay")
     {
@@ -166,8 +163,7 @@ LoadGenerator::getMode(std::string const& mode)
     }
 }
 
-std::optional<uint32_t>
-LoadGenerator::chooseByteCount(Config const& cfg) const
+std::optional<uint32_t> LoadGenerator::chooseByteCount(Config const& cfg) const
 {
     if (cfg.LOADGEN_BYTE_COUNT_FOR_TESTING.size() == 0)
     {
@@ -177,9 +173,9 @@ LoadGenerator::chooseByteCount(Config const& cfg) const
                           cfg.LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING, 0u);
 }
 
-int64_t
-LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
-                            uint32_t spikeSize)
+int64_t LoadGenerator::getTxPerStep(uint32_t txRate,
+                                    std::chrono::seconds spikeInterval,
+                                    uint32_t spikeSize)
 {
     if (!mStartTime)
     {
@@ -210,8 +206,7 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
     return txs - mTotalSubmitted;
 }
 
-void
-LoadGenerator::cleanupAccounts()
+void LoadGenerator::cleanupAccounts()
 {
     ZoneScoped;
 
@@ -236,8 +231,7 @@ LoadGenerator::cleanupAccounts()
 
 // Reset everything except Soroban persistent state
 // Do not reset pregenerated transaction file position either
-void
-LoadGenerator::reset()
+void LoadGenerator::reset()
 {
     mTxGenerator.reset();
     mAccountsInUse.clear();
@@ -257,16 +251,14 @@ LoadGenerator::reset()
 }
 
 // Reset Soroban persistent state
-void
-LoadGenerator::resetSorobanState()
+void LoadGenerator::resetSorobanState()
 {
     mContractInstanceKeys.clear();
     mCodeKey.reset();
     mContactOverheadBytes = 0;
 }
 
-void
-LoadGenerator::stop()
+void LoadGenerator::stop()
 {
     ZoneScoped;
     if (mStarted)
@@ -282,8 +274,7 @@ LoadGenerator::stop()
     }
 }
 
-void
-LoadGenerator::start(GeneratedLoadConfig& cfg)
+void LoadGenerator::start(GeneratedLoadConfig& cfg)
 {
     if (mStarted)
     {
@@ -442,8 +433,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     mStarted = true;
 }
 
-ConfigUpgradeSetKey
-LoadGenerator::getConfigUpgradeSetKey(
+ConfigUpgradeSetKey LoadGenerator::getConfigUpgradeSetKey(
     SorobanUpgradeConfig const& upgradeCfg) const
 {
     auto testingKeys = getContractInstanceKeysForTesting();
@@ -454,8 +444,7 @@ LoadGenerator::getConfigUpgradeSetKey(
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
-void
-LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
+void LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 {
     std::optional<std::string> errorMsg;
     // If previously scheduled step of load did not succeed, fail this loadgen
@@ -560,21 +549,18 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     }
 }
 
-bool
-GeneratedLoadConfig::isDone() const
+bool GeneratedLoadConfig::isDone() const
 {
     return (isLoad() && nTxs == 0) ||
            (isSorobanSetup() && getSorobanConfig().nInstances == 0);
 }
 
-bool
-GeneratedLoadConfig::areTxsRemaining() const
+bool GeneratedLoadConfig::areTxsRemaining() const
 {
     return nTxs != 0;
 }
 
-Json::Value
-GeneratedLoadConfig::getStatus() const
+Json::Value GeneratedLoadConfig::getStatus() const
 {
     Json::Value ret;
     std::string modeStr;
@@ -648,8 +634,7 @@ GeneratedLoadConfig::getStatus() const
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
 // with the remainder.
-void
-LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
+void LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 {
     ZoneScoped;
 
@@ -842,11 +827,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     scheduleLoadGeneration(cfg);
 }
 
-bool
-LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
-                        std::function<std::pair<TxGenerator::TestAccountPtr,
-                                                TransactionFrameBaseConstPtr>()>
-                            generateTx)
+bool LoadGenerator::submitTx(
+    GeneratedLoadConfig const& cfg,
+    std::function<
+        std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>()>
+        generateTx)
 {
     auto [from, tx] = generateTx();
 
@@ -857,7 +842,6 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     while ((status = execute(tx, cfg.mode, code)) !=
            TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         if (cfg.mode != LoadGenMode::PAY_PREGENERATED && cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
@@ -895,8 +879,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     return true;
 }
 
-uint64_t
-LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
+uint64_t LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 {
     uint64_t sourceAccountId;
     do
@@ -938,9 +921,8 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
     return sourceAccountId;
 }
 
-void
-LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
-                           GeneratedLoadConfig const& cfg) const
+void LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
+                                GeneratedLoadConfig const& cfg) const
 {
     using namespace std::chrono;
 
@@ -1078,11 +1060,9 @@ LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
     return txPair;
 }
 
-void
-LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
-                                   TxGenerator::TestAccountPtr sourceAccount,
-                                   TransactionQueue::AddResultCode status,
-                                   TransactionResultCode code)
+void LoadGenerator::maybeHandleFailedTx(
+    TransactionFrameBaseConstPtr tx, TxGenerator::TestAccountPtr sourceAccount,
+    TransactionQueue::AddResultCode status, TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
@@ -1171,8 +1151,7 @@ LoadGenerator::checkAccountSynced(Application& app)
     return result;
 }
 
-bool
-LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
+bool LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
 {
     if (!cfg.isSoroban())
     {
@@ -1196,8 +1175,7 @@ LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
     return (nSuccessful * 100) / nTxns >= cfg.getMinSorobanPercentSuccess();
 }
 
-void
-LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
+void LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 {
     if (!mLoadTimer)
     {
@@ -1275,8 +1253,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     }
 }
 
-void
-LoadGenerator::emitFailure(bool resetSoroban)
+void LoadGenerator::emitFailure(bool resetSoroban)
 {
     CLOG_INFO(LoadGen, "Load generation failed.");
     mLoadgenFail.Mark();
@@ -1287,8 +1264,7 @@ LoadGenerator::emitFailure(bool resetSoroban)
     }
 }
 
-void
-LoadGenerator::waitTillCompleteWithoutChecks()
+void LoadGenerator::waitTillCompleteWithoutChecks()
 {
     if (!mLoadTimer)
     {
@@ -1333,8 +1309,7 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
 {
 }
 
-void
-LoadGenerator::TxMetrics::report()
+void LoadGenerator::TxMetrics::report()
 {
     CLOG_DEBUG(LoadGen,
                "Counts: {} tx, {} rj, {} by, {} na, {} "
@@ -1422,7 +1397,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         mApp.getHerder().recvTransaction(txf, true, isPregeneratedTx);
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         auto resultStr = addResult.txResult
                              ? xdrToCerealString(addResult.txResult->getXDR(),
                                                  "TransactionResult")
@@ -1448,8 +1422,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     return addResult.code;
 }
 
-void
-GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
+void GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     SorobanNetworkConfig const& baseConfig,
     SorobanNetworkConfig const& updatedConfig)
 {
@@ -1554,10 +1527,8 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
         updatedConfig.nominationTimeoutIncrementMilliseconds();
 }
 
-GeneratedLoadConfig
-GeneratedLoadConfig::createSorobanInvokeSetupLoad(uint32_t nAccounts,
-                                                  uint32_t nInstances,
-                                                  uint32_t txRate)
+GeneratedLoadConfig GeneratedLoadConfig::createSorobanInvokeSetupLoad(
+    uint32_t nAccounts, uint32_t nInstances, uint32_t txRate)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = LoadGenMode::SOROBAN_INVOKE_SETUP;
@@ -1567,8 +1538,7 @@ GeneratedLoadConfig::createSorobanInvokeSetupLoad(uint32_t nAccounts,
     return cfg;
 }
 
-GeneratedLoadConfig
-GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
+GeneratedLoadConfig GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
 {
     GeneratedLoadConfig cfg;
     cfg.mode = LoadGenMode::SOROBAN_UPGRADE_SETUP;
@@ -1578,10 +1548,11 @@ GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
     return cfg;
 }
 
-GeneratedLoadConfig
-GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate, uint32_t offset,
-                            std::optional<uint32_t> maxFee)
+GeneratedLoadConfig GeneratedLoadConfig::txLoad(LoadGenMode mode,
+                                                uint32_t nAccounts,
+                                                uint32_t nTxs, uint32_t txRate,
+                                                uint32_t offset,
+                                                std::optional<uint32_t> maxFee)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = mode;
@@ -1609,8 +1580,7 @@ GeneratedLoadConfig::pregeneratedTxLoad(uint32_t nAccounts, uint32_t nTxs,
     return cfg;
 }
 
-GeneratedLoadConfig::SorobanConfig&
-GeneratedLoadConfig::getMutSorobanConfig()
+GeneratedLoadConfig::SorobanConfig& GeneratedLoadConfig::getMutSorobanConfig()
 {
     releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
     return sorobanConfig;
@@ -1623,15 +1593,13 @@ GeneratedLoadConfig::getSorobanConfig() const
     return sorobanConfig;
 }
 
-SorobanUpgradeConfig&
-GeneratedLoadConfig::getMutSorobanUpgradeConfig()
+SorobanUpgradeConfig& GeneratedLoadConfig::getMutSorobanUpgradeConfig()
 {
     releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
     return sorobanUpgradeConfig;
 }
 
-SorobanUpgradeConfig const&
-GeneratedLoadConfig::getSorobanUpgradeConfig() const
+SorobanUpgradeConfig const& GeneratedLoadConfig::getSorobanUpgradeConfig() const
 {
     releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
     return sorobanUpgradeConfig;
@@ -1651,15 +1619,13 @@ GeneratedLoadConfig::getMixClassicSorobanConfig() const
     return mixClassicSorobanConfig;
 }
 
-uint32_t
-GeneratedLoadConfig::getMinSorobanPercentSuccess() const
+uint32_t GeneratedLoadConfig::getMinSorobanPercentSuccess() const
 {
     releaseAssert(isSoroban());
     return mMinSorobanPercentSuccess;
 }
 
-void
-GeneratedLoadConfig::setMinSorobanPercentSuccess(uint32_t percent)
+void GeneratedLoadConfig::setMinSorobanPercentSuccess(uint32_t percent)
 {
     releaseAssert(isSoroban());
     if (percent > 100)
@@ -1669,8 +1635,7 @@ GeneratedLoadConfig::setMinSorobanPercentSuccess(uint32_t percent)
     mMinSorobanPercentSuccess = percent;
 }
 
-bool
-GeneratedLoadConfig::isSoroban() const
+bool GeneratedLoadConfig::isSoroban() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
@@ -1681,15 +1646,13 @@ GeneratedLoadConfig::isSoroban() const
            mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
-bool
-GeneratedLoadConfig::isSorobanSetup() const
+bool GeneratedLoadConfig::isSorobanSetup() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
            mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
 }
 
-bool
-GeneratedLoadConfig::isLoad() const
+bool GeneratedLoadConfig::isLoad() const
 {
     return mode == LoadGenMode::PAY || mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_INVOKE ||
@@ -1699,22 +1662,19 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
-bool
-GeneratedLoadConfig::modeInvokes() const
+bool GeneratedLoadConfig::modeInvokes() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
            mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
 }
 
-bool
-GeneratedLoadConfig::modeSetsUpInvoke() const
+bool GeneratedLoadConfig::modeSetsUpInvoke() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE_SETUP;
 }
 
-bool
-GeneratedLoadConfig::modeUploads() const
+bool GeneratedLoadConfig::modeUploads() const
 {
     return mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;

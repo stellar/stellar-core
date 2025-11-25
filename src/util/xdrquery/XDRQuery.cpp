@@ -17,8 +17,7 @@ XDRFieldExtractor::XDRFieldExtractor(std::string const& query,
 {
 }
 
-std::vector<std::string>
-XDRFieldExtractor::getColumnNames() const
+std::vector<std::string> XDRFieldExtractor::getColumnNames() const
 {
     return mFieldList->getColumnNames();
 }
@@ -34,8 +33,7 @@ XDRAccumulator::getAccumulators() const
     return mAccumulatorList->getAccumulators();
 }
 
-uint32_t
-noTtlGetter(LedgerKey const&)
+uint32_t noTtlGetter(LedgerKey const&)
 {
     throw std::runtime_error("TTLGetter not available");
 }

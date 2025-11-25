@@ -93,8 +93,7 @@ LedgerTxnEntry::LedgerTxnEntry(LedgerTxnEntry&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-LedgerTxnEntry&
-LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
+LedgerTxnEntry& LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
 {
     if (this != &other)
     {
@@ -106,8 +105,7 @@ LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
     return *this;
 }
 
-LedgerTxnEntry::
-operator bool() const
+LedgerTxnEntry::operator bool() const
 {
     if (!mImpl.expired())
     {
@@ -125,82 +123,69 @@ operator bool() const
     throw std::runtime_error("Accessed deactivated entry");
 }
 
-LedgerEntry&
-LedgerTxnEntry::current()
+LedgerEntry& LedgerTxnEntry::current()
 {
     return getImpl()->current();
 }
 
-LedgerEntry const&
-LedgerTxnEntry::current() const
+LedgerEntry const& LedgerTxnEntry::current() const
 {
     return getImpl()->current();
 }
 
-LedgerEntry&
-LedgerTxnEntry::Impl::current()
+LedgerEntry& LedgerTxnEntry::Impl::current()
 {
     return mCurrent.ledgerEntry();
 }
 
-LedgerEntry const&
-LedgerTxnEntry::Impl::current() const
+LedgerEntry const& LedgerTxnEntry::Impl::current() const
 {
     return mCurrent.ledgerEntry();
 }
 
-InternalLedgerEntry&
-LedgerTxnEntry::currentGeneralized()
+InternalLedgerEntry& LedgerTxnEntry::currentGeneralized()
 {
     return getImpl()->currentGeneralized();
 }
 
-InternalLedgerEntry const&
-LedgerTxnEntry::currentGeneralized() const
+InternalLedgerEntry const& LedgerTxnEntry::currentGeneralized() const
 {
     return getImpl()->currentGeneralized();
 }
 
-InternalLedgerEntry&
-LedgerTxnEntry::Impl::currentGeneralized()
+InternalLedgerEntry& LedgerTxnEntry::Impl::currentGeneralized()
 {
     return mCurrent;
 }
 
-InternalLedgerEntry const&
-LedgerTxnEntry::Impl::currentGeneralized() const
+InternalLedgerEntry const& LedgerTxnEntry::Impl::currentGeneralized() const
 {
     return mCurrent;
 }
 
-void
-LedgerTxnEntry::deactivate()
+void LedgerTxnEntry::deactivate()
 {
     getImpl()->deactivate();
 }
 
-void
-LedgerTxnEntry::Impl::deactivate()
+void LedgerTxnEntry::Impl::deactivate()
 {
     auto key = mCurrent.toKey();
     mLedgerTxn.deactivate(key);
 }
 
-void
-LedgerTxnEntry::erase()
+void LedgerTxnEntry::erase()
 {
     getImpl()->erase();
 }
 
-void
-LedgerTxnEntry::Impl::erase()
+void LedgerTxnEntry::Impl::erase()
 {
     auto key = mCurrent.toKey();
     mLedgerTxn.erase(key);
 }
 
-std::shared_ptr<LedgerTxnEntry::Impl>
-LedgerTxnEntry::getImpl()
+std::shared_ptr<LedgerTxnEntry::Impl> LedgerTxnEntry::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
@@ -210,8 +195,7 @@ LedgerTxnEntry::getImpl()
     return impl;
 }
 
-std::shared_ptr<LedgerTxnEntry::Impl const>
-LedgerTxnEntry::getImpl() const
+std::shared_ptr<LedgerTxnEntry::Impl const> LedgerTxnEntry::getImpl() const
 {
     auto impl = mImpl.lock();
     if (!impl)
@@ -221,8 +205,7 @@ LedgerTxnEntry::getImpl() const
     return impl;
 }
 
-void
-LedgerTxnEntry::swap(LedgerTxnEntry& other)
+void LedgerTxnEntry::swap(LedgerTxnEntry& other)
 {
     mImpl.swap(other.mImpl);
 }
@@ -305,8 +288,7 @@ ConstLedgerTxnEntry::ConstLedgerTxnEntry(ConstLedgerTxnEntry&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-ConstLedgerTxnEntry&
-ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
+ConstLedgerTxnEntry& ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
 {
     if (this != &other)
     {
@@ -318,8 +300,7 @@ ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
     return *this;
 }
 
-ConstLedgerTxnEntry::
-operator bool() const
+ConstLedgerTxnEntry::operator bool() const
 {
     if (!mImpl.expired())
     {
@@ -337,32 +318,27 @@ operator bool() const
     throw std::runtime_error("Accessed deactivated entry");
 }
 
-LedgerEntry const&
-ConstLedgerTxnEntry::current() const
+LedgerEntry const& ConstLedgerTxnEntry::current() const
 {
     return getImpl()->current();
 }
 
-LedgerEntry const&
-ConstLedgerTxnEntry::Impl::current() const
+LedgerEntry const& ConstLedgerTxnEntry::Impl::current() const
 {
     return mCurrent.ledgerEntry();
 }
 
-InternalLedgerEntry const&
-ConstLedgerTxnEntry::currentGeneralized() const
+InternalLedgerEntry const& ConstLedgerTxnEntry::currentGeneralized() const
 {
     return getImpl()->currentGeneralized();
 }
 
-InternalLedgerEntry const&
-ConstLedgerTxnEntry::Impl::currentGeneralized() const
+InternalLedgerEntry const& ConstLedgerTxnEntry::Impl::currentGeneralized() const
 {
     return mCurrent;
 }
 
-std::shared_ptr<ConstLedgerTxnEntry::Impl>
-ConstLedgerTxnEntry::getImpl()
+std::shared_ptr<ConstLedgerTxnEntry::Impl> ConstLedgerTxnEntry::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
@@ -383,21 +359,18 @@ ConstLedgerTxnEntry::getImpl() const
     return impl;
 }
 
-void
-ConstLedgerTxnEntry::deactivate()
+void ConstLedgerTxnEntry::deactivate()
 {
     getImpl()->deactivate();
 }
 
-void
-ConstLedgerTxnEntry::Impl::deactivate()
+void ConstLedgerTxnEntry::Impl::deactivate()
 {
     auto key = mCurrent.toKey();
     mLedgerTxn.deactivate(key);
 }
 
-void
-ConstLedgerTxnEntry::swap(ConstLedgerTxnEntry& other)
+void ConstLedgerTxnEntry::swap(ConstLedgerTxnEntry& other)
 {
     mImpl.swap(other.mImpl);
 }

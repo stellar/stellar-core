@@ -20,8 +20,7 @@
 namespace stellar
 {
 
-std::unique_ptr<HerderPersistence>
-HerderPersistence::create(Application& app)
+std::unique_ptr<HerderPersistence> HerderPersistence::create(Application& app)
 {
     return std::make_unique<HerderPersistenceImpl>(app);
 }
@@ -34,10 +33,9 @@ HerderPersistenceImpl::~HerderPersistenceImpl()
 {
 }
 
-void
-HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
-                                      std::vector<SCPEnvelope> const& envs,
-                                      QuorumTracker::QuorumMap const& qmap)
+void HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
+                                           std::vector<SCPEnvelope> const& envs,
+                                           QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -229,11 +227,9 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     txscope.commit();
 }
 
-size_t
-HerderPersistence::copySCPHistoryToStream(soci::session& sess,
-                                          uint32_t ledgerSeq,
-                                          uint32_t ledgerCount,
-                                          XDROutputFileStream& scpHistory)
+size_t HerderPersistence::copySCPHistoryToStream(
+    soci::session& sess, uint32_t ledgerSeq, uint32_t ledgerCount,
+    XDROutputFileStream& scpHistory)
 {
     ZoneScoped;
     // Subtle: changing these queries may cause conflicts with main thread
@@ -318,8 +314,8 @@ HerderPersistence::copySCPHistoryToStream(soci::session& sess,
     return n;
 }
 
-std::optional<Hash>
-HerderPersistence::getNodeQuorumSet(soci::session& sess, NodeID const& nodeID)
+std::optional<Hash> HerderPersistence::getNodeQuorumSet(soci::session& sess,
+                                                        NodeID const& nodeID)
 {
     ZoneScoped;
     std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
@@ -343,8 +339,8 @@ HerderPersistence::getNodeQuorumSet(soci::session& sess, NodeID const& nodeID)
     }
 }
 
-SCPQuorumSetPtr
-HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
+SCPQuorumSetPtr HerderPersistence::getQuorumSet(soci::session& sess,
+                                                Hash const& qSetHash)
 {
     ZoneScoped;
     SCPQuorumSetPtr res;
@@ -375,8 +371,7 @@ HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
     }
 }
 
-void
-HerderPersistence::dropAll(Database& db)
+void HerderPersistence::dropAll(Database& db)
 {
     ZoneScoped;
     db.getRawSession() << "DROP TABLE IF EXISTS scphistory";
@@ -409,9 +404,8 @@ HerderPersistence::dropAll(Database& db)
                           "PRIMARY KEY (nodeid))";
 }
 
-void
-HerderPersistence::deleteOldEntries(soci::session& sess, uint32_t ledgerSeq,
-                                    uint32_t count)
+void HerderPersistence::deleteOldEntries(soci::session& sess,
+                                         uint32_t ledgerSeq, uint32_t count)
 {
     ZoneScoped;
     DatabaseUtils::deleteOldEntriesHelper(sess, ledgerSeq, count, "scphistory",

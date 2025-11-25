@@ -43,8 +43,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     return out.getBucket(bucketManager);
 }
 
-std::vector<HotArchiveBucketEntry>
-HotArchiveBucket::convertToBucketEntry(
+std::vector<HotArchiveBucketEntry> HotArchiveBucket::convertToBucketEntry(
     std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries)
 {
@@ -76,8 +75,7 @@ HotArchiveBucket::convertToBucketEntry(
     return bucket;
 }
 
-void
-HotArchiveBucket::maybePut(
+void HotArchiveBucket::maybePut(
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
     HotArchiveBucketEntry const& entry, MergeCounters& mc)
 {
@@ -85,8 +83,7 @@ HotArchiveBucket::maybePut(
 }
 
 template <typename InputSource>
-void
-HotArchiveBucket::mergeCasesWithEqualKeys(
+void HotArchiveBucket::mergeCasesWithEqualKeys(
     MergeCounters& mc, InputSource& inputSource,
     std::function<void(HotArchiveBucketEntry const&)> putFunc,
     uint32_t protocolVersion)
@@ -97,8 +94,7 @@ HotArchiveBucket::mergeCasesWithEqualKeys(
     inputSource.advanceOld();
 }
 
-uint32_t
-HotArchiveBucket::getBucketVersion() const
+uint32_t HotArchiveBucket::getBucketVersion() const
 {
     HotArchiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
@@ -115,8 +111,7 @@ HotArchiveBucket::HotArchiveBucket() : BucketBase()
 {
 }
 
-bool
-HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
+bool HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
 {
     return e.type() == HOT_ARCHIVE_LIVE;
 }

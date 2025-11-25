@@ -32,8 +32,7 @@ namespace stellar
 {
 namespace
 {
-SorobanUpgradeConfig
-getUpgradeConfig(Config const& cfg)
+SorobanUpgradeConfig getUpgradeConfig(Config const& cfg)
 {
     SorobanUpgradeConfig upgradeConfig;
     upgradeConfig.maxContractSizeBytes = 65536;
@@ -98,9 +97,9 @@ getUpgradeConfig(Config const& cfg)
     return upgradeConfig;
 }
 
-SorobanUpgradeConfig
-getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
-                          uint32_t totalTxs)
+SorobanUpgradeConfig getUpgradeConfigForMaxTPS(Config const& cfg,
+                                               uint64_t instructionsPerCluster,
+                                               uint32_t totalTxs)
 {
     SorobanUpgradeConfig upgradeConfig;
     upgradeConfig.ledgerMaxDependentTxClusters =
@@ -160,8 +159,7 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
 }
 }
 
-uint64_t
-ApplyLoad::calculateInstructionsPerTx() const
+uint64_t ApplyLoad::calculateInstructionsPerTx() const
 {
     uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
     if (batchSize > 1)
@@ -172,8 +170,7 @@ ApplyLoad::calculateInstructionsPerTx() const
     return TxGenerator::SAC_TX_INSTRUCTIONS;
 }
 
-void
-ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
+void ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
 {
     // Calculate the actual instructions needed for all transactions. The
     // ledger max instructions is the total instruction count per cluster. In
@@ -200,10 +197,8 @@ ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
 
 // Given an index, returns the LedgerKey for an archived entry that is
 // pre-populated in the Hot Archive.
-LedgerKey
-ApplyLoad::getKeyForArchivedEntry(uint64_t index)
+LedgerKey ApplyLoad::getKeyForArchivedEntry(uint64_t index)
 {
-
     static const SCAddress hotArchiveContractID = [] {
         SCAddress addr;
         addr.type(SC_ADDRESS_TYPE_CONTRACT);
@@ -220,8 +215,7 @@ ApplyLoad::getKeyForArchivedEntry(uint64_t index)
     return lk;
 }
 
-uint32_t
-ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
+uint32_t ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
 {
     // If no RO entries are configured, return 0
     if (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.empty())
@@ -301,8 +295,7 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     setup();
 }
 
-void
-ApplyLoad::setup()
+void ApplyLoad::setup()
 {
     releaseAssert(mTxGenerator.loadAccount(mRoot));
 
@@ -350,10 +343,9 @@ ApplyLoad::setup()
     }
 }
 
-void
-ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
-                       xdr::xvector<UpgradeType, 6> const& upgrades,
-                       bool recordSorobanUtilization)
+void ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
+                            xdr::xvector<UpgradeType, 6> const& upgrades,
+                            bool recordSorobanUtilization)
 {
     auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0);
 
@@ -401,8 +393,7 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
     stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
 }
 
-void
-ApplyLoad::setupAccounts()
+void ApplyLoad::setupAccounts()
 {
     auto const& lm = mApp.getLedgerManager();
     // pass in false for initialAccounts so we fund new account with a lower
@@ -424,8 +415,7 @@ ApplyLoad::setupAccounts()
     }
 }
 
-void
-ApplyLoad::setupUpgradeContract()
+void ApplyLoad::setupUpgradeContract()
 {
     auto wasm = rust_bridge::get_write_bytes();
     xdr::opaque_vec<> wasmBytes;
@@ -464,8 +454,7 @@ ApplyLoad::setupUpgradeContract()
 
 // To upgrade settings, just modify mUpgradeConfig and then call
 // upgradeSettings()
-void
-ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
+void ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
 {
     int64_t currApplySorobanSuccess =
         mTxGenerator.getApplySorobanSuccess().count();
@@ -499,8 +488,7 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
                   1);
 }
 
-void
-ApplyLoad::upgradeSettings()
+void ApplyLoad::upgradeSettings()
 {
     releaseAssertOrThrow(mMode != ApplyLoadMode::MAX_SAC_TPS);
 
@@ -508,8 +496,7 @@ ApplyLoad::upgradeSettings()
     applyConfigUpgrade(upgradeConfig);
 }
 
-void
-ApplyLoad::setupLoadContract()
+void ApplyLoad::setupLoadContract()
 {
     auto wasm = rust_bridge::get_test_wasm_loadgen();
     xdr::opaque_vec<> wasmBytes;
@@ -553,8 +540,7 @@ ApplyLoad::setupLoadContract()
         footprintSize(mApp, mLoadInstance.readOnlyKeys);
 }
 
-void
-ApplyLoad::setupXLMContract()
+void ApplyLoad::setupXLMContract()
 {
     int64_t currApplySorobanSuccess =
         mTxGenerator.getApplySorobanSuccess().count();
@@ -578,8 +564,7 @@ ApplyLoad::setupXLMContract()
         footprintSize(mApp, mSACInstanceXLM.readOnlyKeys);
 }
 
-void
-ApplyLoad::setupBatchTransferContracts()
+void ApplyLoad::setupBatchTransferContracts()
 {
     auto const& lm = mApp.getLedgerManager();
 
@@ -658,8 +643,7 @@ ApplyLoad::setupBatchTransferContracts()
     releaseAssertOrThrow(mBatchTransferInstances.size() == numClusters);
 }
 
-void
-ApplyLoad::setupBucketList()
+void ApplyLoad::setupBucketList()
 {
     auto lh = mApp.getLedgerManager().getLastClosedLedgerHeader().header;
     auto& bl = mApp.getBucketManager().getLiveBucketList();
@@ -838,8 +822,7 @@ ApplyLoad::setupBucketList()
     closeLedger({}, {});
 }
 
-void
-ApplyLoad::benchmark()
+void ApplyLoad::benchmark()
 {
     releaseAssertOrThrow(mMode != ApplyLoadMode::MAX_SAC_TPS);
 
@@ -943,8 +926,7 @@ ApplyLoad::benchmark()
     closeLedger(txs, {}, /* recordSorobanUtilization */ true);
 }
 
-double
-ApplyLoad::successRate()
+double ApplyLoad::successRate()
 {
     auto& success =
         mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
@@ -953,44 +935,36 @@ ApplyLoad::successRate()
     return success.count() * 1.0 / (success.count() + failure.count());
 }
 
-medida::Histogram const&
-ApplyLoad::getTxCountUtilization()
+medida::Histogram const& ApplyLoad::getTxCountUtilization()
 {
     return mTxCountUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getInstructionUtilization()
+medida::Histogram const& ApplyLoad::getInstructionUtilization()
 {
     return mInstructionUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getTxSizeUtilization()
+medida::Histogram const& ApplyLoad::getTxSizeUtilization()
 {
     return mTxSizeUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getDiskReadByteUtilization()
+medida::Histogram const& ApplyLoad::getDiskReadByteUtilization()
 {
     return mDiskReadByteUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getDiskWriteByteUtilization()
+medida::Histogram const& ApplyLoad::getDiskWriteByteUtilization()
 {
     return mWriteByteUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getDiskReadEntryUtilization()
+medida::Histogram const& ApplyLoad::getDiskReadEntryUtilization()
 {
     return mDiskReadEntryUtilization;
 }
-medida::Histogram const&
-ApplyLoad::getWriteEntryUtilization()
+medida::Histogram const& ApplyLoad::getWriteEntryUtilization()
 {
     return mWriteEntryUtilization;
 }
 
-void
-ApplyLoad::warmAccountCache()
+void ApplyLoad::warmAccountCache()
 {
     auto const& accounts = mTxGenerator.getAccounts();
     CLOG_INFO(Perf, "Warming account cache with {} accounts.", accounts.size());
@@ -1003,8 +977,7 @@ ApplyLoad::warmAccountCache()
     }
 }
 
-void
-ApplyLoad::findMaxSacTps()
+void ApplyLoad::findMaxSacTps()
 {
     releaseAssertOrThrow(mMode == ApplyLoadMode::MAX_SAC_TPS);
 
@@ -1070,8 +1043,7 @@ ApplyLoad::findMaxSacTps()
     CLOG_WARNING(Perf, "================================================");
 }
 
-double
-ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
+double ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
 {
     // For timing, we just want to track the TX application itself. This
     // includes charging fees, applying transactions, and post apply work (like
@@ -1141,9 +1113,8 @@ ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
     return avgTime;
 }
 
-void
-ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
-                               uint32_t count)
+void ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                    uint32_t count)
 {
     auto const& accounts = mTxGenerator.getAccounts();
     auto& lm = mApp.getLedgerManager();

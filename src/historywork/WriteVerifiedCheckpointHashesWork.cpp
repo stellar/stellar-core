@@ -58,8 +58,7 @@ WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
     return {jpair[0].asUInt(), hexToBin256(jpair[1].asString())};
 }
 
-Hash
-WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
+Hash WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
     uint32_t seq, std::filesystem::path const& path)
 {
     std::ifstream in(path);
@@ -128,8 +127,7 @@ WriteVerifiedCheckpointHashesWork::~WriteVerifiedCheckpointHashesWork()
     endOutputFile();
 }
 
-bool
-WriteVerifiedCheckpointHashesWork::hasNext() const
+bool WriteVerifiedCheckpointHashesWork::hasNext() const
 {
     if (mFromLedger)
     {
@@ -142,8 +140,7 @@ WriteVerifiedCheckpointHashesWork::hasNext() const
     return mCurrCheckpoint != LedgerManager::GENESIS_LEDGER_SEQ;
 }
 
-std::shared_ptr<BasicWork>
-WriteVerifiedCheckpointHashesWork::yieldMoreWork()
+std::shared_ptr<BasicWork> WriteVerifiedCheckpointHashesWork::yieldMoreWork()
 {
     ZoneScoped;
     if (!hasNext())
@@ -249,8 +246,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     return workSeq;
 }
 
-void
-WriteVerifiedCheckpointHashesWork::startOutputFile()
+void WriteVerifiedCheckpointHashesWork::startOutputFile()
 {
     releaseAssert(!mOutputFile);
     auto mode = std::ios::out | std::ios::trunc;
@@ -263,8 +259,7 @@ WriteVerifiedCheckpointHashesWork::startOutputFile()
     (*mOutputFile) << "[";
 }
 
-void
-WriteVerifiedCheckpointHashesWork::endOutputFile()
+void WriteVerifiedCheckpointHashesWork::endOutputFile()
 {
     if (mOutputFile && mOutputFile->is_open())
     {
@@ -310,8 +305,7 @@ WriteVerifiedCheckpointHashesWork::endOutputFile()
     }
 }
 
-void
-WriteVerifiedCheckpointHashesWork::resetIter()
+void WriteVerifiedCheckpointHashesWork::resetIter()
 {
     mCurrCheckpoint = mRangeEnd.first;
     mTmpDirs.clear();
@@ -319,8 +313,7 @@ WriteVerifiedCheckpointHashesWork::resetIter()
     startOutputFile();
 }
 
-void
-WriteVerifiedCheckpointHashesWork::onSuccess()
+void WriteVerifiedCheckpointHashesWork::onSuccess()
 {
     endOutputFile();
 }

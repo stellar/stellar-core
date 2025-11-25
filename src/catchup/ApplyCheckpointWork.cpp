@@ -51,8 +51,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
     }
 }
 
-std::string
-ApplyCheckpointWork::getStatus() const
+std::string ApplyCheckpointWork::getStatus() const
 {
     if (getState() == State::WORK_RUNNING)
     {
@@ -62,23 +61,20 @@ ApplyCheckpointWork::getStatus() const
     return BasicWork::getStatus();
 }
 
-void
-ApplyCheckpointWork::closeFiles()
+void ApplyCheckpointWork::closeFiles()
 {
     mHdrIn.close();
     mTxIn.close();
     mFilesOpen = false;
 }
 
-void
-ApplyCheckpointWork::onReset()
+void ApplyCheckpointWork::onReset()
 {
     mConditionalWork.reset();
     closeFiles();
 }
 
-void
-ApplyCheckpointWork::openInputFiles()
+void ApplyCheckpointWork::openInputFiles()
 {
     ZoneScoped;
     mHdrIn.close();
@@ -133,8 +129,7 @@ ApplyCheckpointWork::openInputFiles()
     mFilesOpen = true;
 }
 
-TxSetXDRFrameConstPtr
-ApplyCheckpointWork::getCurrentTxSet()
+TxSetXDRFrameConstPtr ApplyCheckpointWork::getCurrentTxSet()
 {
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
@@ -162,8 +157,7 @@ ApplyCheckpointWork::getCurrentTxSet()
 }
 
 #ifdef BUILD_TESTS
-std::optional<TransactionResultSet>
-ApplyCheckpointWork::getCurrentTxResultSet()
+std::optional<TransactionResultSet> ApplyCheckpointWork::getCurrentTxResultSet()
 {
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
@@ -187,8 +181,7 @@ ApplyCheckpointWork::getCurrentTxResultSet()
 }
 #endif // BUILD_TESTS
 
-std::shared_ptr<LedgerCloseData>
-ApplyCheckpointWork::getNextLedgerCloseData()
+std::shared_ptr<LedgerCloseData> ApplyCheckpointWork::getNextLedgerCloseData()
 {
     ZoneScoped;
     if (!mHdrIn || !mHdrIn.readOne(mHeaderHistoryEntry))
@@ -309,8 +302,7 @@ ApplyCheckpointWork::getNextLedgerCloseData()
 #endif
 }
 
-BasicWork::State
-ApplyCheckpointWork::onRun()
+BasicWork::State ApplyCheckpointWork::onRun()
 {
     ZoneScoped;
     if (mConditionalWork)
@@ -386,8 +378,7 @@ ApplyCheckpointWork::onRun()
     return State::WORK_RUNNING;
 }
 
-void
-ApplyCheckpointWork::shutdown()
+void ApplyCheckpointWork::shutdown()
 {
     ZoneScoped;
     if (mConditionalWork)
@@ -397,8 +388,7 @@ ApplyCheckpointWork::shutdown()
     BasicWork::shutdown();
 }
 
-bool
-ApplyCheckpointWork::onAbort()
+bool ApplyCheckpointWork::onAbort()
 {
     ZoneScoped;
     if (mConditionalWork && !mConditionalWork->isDone())
@@ -409,8 +399,7 @@ ApplyCheckpointWork::onAbort()
     return true;
 }
 
-void
-ApplyCheckpointWork::onFailureRaise()
+void ApplyCheckpointWork::onFailureRaise()
 {
     if (mOnFailure)
     {

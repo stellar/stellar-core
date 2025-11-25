@@ -17,16 +17,14 @@ TrustFlagsOpFrameBase::TrustFlagsOpFrameBase(Operation const& op,
 {
 }
 
-ThresholdLevel
-TrustFlagsOpFrameBase::getThresholdLevel() const
+ThresholdLevel TrustFlagsOpFrameBase::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }
 
-bool
-TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
-                                    OperationResult& res,
-                                    OpEventManager& opEventManager) const
+bool TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
+                                         OperationResult& res,
+                                         OpEventManager& opEventManager) const
 {
     // Delete all offers owned by the trustor that are either buying or
     // selling the asset which had authorization revoked. Also redeem pool
@@ -51,10 +49,9 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                               OperationResult& res,
-                               OperationMetaBuilder& opMeta) const
+bool TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                    OperationResult& res,
+                                    OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 

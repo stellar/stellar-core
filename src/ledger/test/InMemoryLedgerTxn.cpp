@@ -24,8 +24,7 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::FilteredEntryIteratorImpl(
     }
 }
 
-void
-InMemoryLedgerTxn::FilteredEntryIteratorImpl::advance()
+void InMemoryLedgerTxn::FilteredEntryIteratorImpl::advance()
 {
     while (++mIter &&
            mIter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
@@ -34,8 +33,7 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::advance()
     }
 }
 
-bool
-InMemoryLedgerTxn::FilteredEntryIteratorImpl::atEnd() const
+bool InMemoryLedgerTxn::FilteredEntryIteratorImpl::atEnd() const
 {
     return !mIter;
 }
@@ -52,14 +50,12 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryPtr() const
     return mIter.entryPtr();
 }
 
-SessionWrapper&
-InMemoryLedgerTxn::getSession() const
+SessionWrapper& InMemoryLedgerTxn::getSession() const
 {
     return mDb.getSession();
 }
 
-bool
-InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryExists() const
+bool InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryExists() const
 {
     return mIter.entryExists();
 }
@@ -87,8 +83,7 @@ InMemoryLedgerTxn::~InMemoryLedgerTxn()
 {
 }
 
-void
-InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
+void InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     if (mTransaction)
     {
@@ -102,9 +97,8 @@ InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
     }
 }
 
-void
-InMemoryLedgerTxn::updateLedgerKeyMap(InternalLedgerKey const& genKey,
-                                      bool add) noexcept
+void InMemoryLedgerTxn::updateLedgerKeyMap(InternalLedgerKey const& genKey,
+                                           bool add) noexcept
 {
     if (genKey.type() == InternalLedgerEntryType::LEDGER_ENTRY)
     {
@@ -139,8 +133,7 @@ InMemoryLedgerTxn::updateLedgerKeyMap(InternalLedgerKey const& genKey,
     }
 }
 
-void
-InMemoryLedgerTxn::updateLedgerKeyMap(EntryIterator iter)
+void InMemoryLedgerTxn::updateLedgerKeyMap(EntryIterator iter)
 {
     for (; (bool)iter; ++iter)
     {
@@ -186,10 +179,9 @@ InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
     return EntryIterator(std::move(filteredIterImpl));
 }
 
-void
-InMemoryLedgerTxn::commitChild(EntryIterator iter,
-                               RestoredEntries const& restoredEntries,
-                               LedgerTxnConsistency cons) noexcept
+void InMemoryLedgerTxn::commitChild(EntryIterator iter,
+                                    RestoredEntries const& restoredEntries,
+                                    LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
     {
@@ -216,8 +208,7 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter,
     }
 }
 
-void
-InMemoryLedgerTxn::rollbackChild() noexcept
+void InMemoryLedgerTxn::rollbackChild() noexcept
 {
     try
     {
@@ -241,35 +232,30 @@ InMemoryLedgerTxn::rollbackChild() noexcept
     }
 }
 
-void
-InMemoryLedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
+void InMemoryLedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
     LedgerTxn::createWithoutLoading(entry);
     updateLedgerKeyMap(entry.toKey(), true);
 }
 
-void
-InMemoryLedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
+void InMemoryLedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
     LedgerTxn::updateWithoutLoading(entry);
     updateLedgerKeyMap(entry.toKey(), true);
 }
 
-void
-InMemoryLedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
+void InMemoryLedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     LedgerTxn::eraseWithoutLoading(key);
     updateLedgerKeyMap(key, false);
 }
 
-LedgerTxnEntry
-InMemoryLedgerTxn::create(InternalLedgerEntry const& entry)
+LedgerTxnEntry InMemoryLedgerTxn::create(InternalLedgerEntry const& entry)
 {
     throw std::runtime_error("called create on InMemoryLedgerTxn");
 }
 
-void
-InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
+void InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 {
     throw std::runtime_error("called erase on InMemoryLedgerTxn");
 }
@@ -282,8 +268,7 @@ InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry,
         "called restoreFromLiveBucketList on InMemoryLedgerTxn");
 }
 
-LedgerTxnEntry
-InMemoryLedgerTxn::load(InternalLedgerKey const& key)
+LedgerTxnEntry InMemoryLedgerTxn::load(InternalLedgerKey const& key)
 {
     throw std::runtime_error("called load on InMemoryLedgerTxn");
 }
@@ -375,26 +360,23 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
     return res;
 }
 
-void
-InMemoryLedgerTxn::dropOffers()
+void InMemoryLedgerTxn::dropOffers()
 {
     mRealRootForOffers.dropOffers();
 }
 
-uint64_t
-InMemoryLedgerTxn::countOffers(LedgerRange const& ledgers) const
+uint64_t InMemoryLedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
     return mRealRootForOffers.countOffers(ledgers);
 }
 
-void
-InMemoryLedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
+void InMemoryLedgerTxn::deleteOffersModifiedOnOrAfterLedger(
+    uint32_t ledger) const
 {
     mRealRootForOffers.deleteOffersModifiedOnOrAfterLedger(ledger);
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-InMemoryLedgerTxn::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> InMemoryLedgerTxn::getAllOffers()
 {
     return mRealRootForOffers.getAllOffers();
 }
@@ -413,8 +395,7 @@ InMemoryLedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
 }
 
 #ifdef BEST_OFFER_DEBUGGING
-bool
-InMemoryLedgerTxn::bestOfferDebuggingEnabled() const
+bool InMemoryLedgerTxn::bestOfferDebuggingEnabled() const
 {
     return mRealRootForOffers.bestOfferDebuggingEnabled();
 }

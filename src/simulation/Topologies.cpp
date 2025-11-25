@@ -9,10 +9,10 @@ namespace stellar
 {
 using namespace std;
 
-Simulation::pointer
-Topologies::pair(Simulation::Mode mode, Hash const& networkID,
-                 Simulation::ConfigGen confGen,
-                 Simulation::QuorumSetAdjuster qSetAdjust)
+Simulation::pointer Topologies::pair(Simulation::Mode mode,
+                                     Hash const& networkID,
+                                     Simulation::ConfigGen confGen,
+                                     Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer simulation =
         make_shared<Simulation>(mode, networkID, confGen, qSetAdjust);
@@ -33,9 +33,9 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID,
     return simulation;
 }
 
-Simulation::pointer
-Topologies::cycle4(Hash const& networkID, Simulation::ConfigGen confGen,
-                   Simulation::QuorumSetAdjuster qSetAdjust)
+Simulation::pointer Topologies::cycle4(Hash const& networkID,
+                                       Simulation::ConfigGen confGen,
+                                       Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer simulation = make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, confGen, qSetAdjust);
@@ -123,11 +123,11 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer
-Topologies::core(int nNodes, double quorumThresoldFraction,
-                 Simulation::Mode mode, Hash const& networkID,
-                 Simulation::ConfigGen confGen,
-                 Simulation::QuorumSetAdjuster qSetAdjust)
+Simulation::pointer Topologies::core(int nNodes, double quorumThresoldFraction,
+                                     Simulation::Mode mode,
+                                     Hash const& networkID,
+                                     Simulation::ConfigGen confGen,
+                                     Simulation::QuorumSetAdjuster qSetAdjust)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
                                            networkID, 0, confGen, qSetAdjust);
@@ -146,11 +146,11 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer
-Topologies::cycle(int nNodes, double quorumThresoldFraction,
-                  Simulation::Mode mode, Hash const& networkID,
-                  Simulation::ConfigGen confGen,
-                  Simulation::QuorumSetAdjuster qSetAdjust)
+Simulation::pointer Topologies::cycle(int nNodes, double quorumThresoldFraction,
+                                      Simulation::Mode mode,
+                                      Hash const& networkID,
+                                      Simulation::ConfigGen confGen,
+                                      Simulation::QuorumSetAdjuster qSetAdjust)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
                                            networkID, 0, confGen, qSetAdjust);
@@ -191,8 +191,7 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer
-Topologies::hierarchicalQuorum(
+Simulation::pointer Topologies::hierarchicalQuorum(
     int nBranches, Simulation::Mode mode, Hash const& networkID,
     Simulation::ConfigGen confGen, int connectionsToCore,
     Simulation::QuorumSetAdjuster qSetAdjust) // Figure 3 from the paper
@@ -257,8 +256,7 @@ Topologies::hierarchicalQuorum(
     return sim;
 }
 
-Simulation::pointer
-Topologies::hierarchicalQuorumSimplified(
+Simulation::pointer Topologies::hierarchicalQuorumSimplified(
     int coreSize, int nbOuterNodes, Simulation::Mode mode,
     Hash const& networkID, Simulation::ConfigGen confGen, int connectionsToCore,
     Simulation::QuorumSetAdjuster qSetAdjust)
@@ -384,7 +382,6 @@ Topologies::asymmetric(Simulation::Mode mode, Hash const& networkID,
                        Simulation::ConfigGen confGen, int connections,
                        Simulation::QuorumSetAdjuster qSetAdjust)
 {
-
     Simulation::pointer s =
         Topologies::core(10, 0.7, mode, networkID, confGen, qSetAdjust);
     auto node = s->getNodes()[0];

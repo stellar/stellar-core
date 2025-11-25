@@ -7,14 +7,12 @@
 namespace stellar
 {
 
-bool
-operator==(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
+bool operator==(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
 {
     return (x.mECDHPublicKey == y.mECDHPublicKey) && (x.mRole == y.mRole);
 }
 
-bool
-operator!=(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
+bool operator!=(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
 {
     return !(x == y);
 }
@@ -23,8 +21,7 @@ operator!=(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
 namespace std
 {
 
-size_t
-hash<stellar::PeerSharedKeyId>::operator()(
+size_t hash<stellar::PeerSharedKeyId>::operator()(
     stellar::PeerSharedKeyId const& x) const noexcept
 {
     return std::hash<stellar::Curve25519Public>{}(x.mECDHPublicKey) ^
