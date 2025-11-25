@@ -430,28 +430,34 @@ if test x"$enable_libunwind" != xno; then
                 [Define to 1 if you have the <libunwind.h> header file])
             ;;
         *)
-            # Unfortunately libunwind seems to interfere with clang-compiled
-            # exception-handling, at least when linked with libgcc (which is the
-            # default of libcxx and a requirement for libstdc++). I think this is
-            # roughly caused by both libgcc and libunwind providing the C++ EH ABI
-            # symbols but, evidently, interacting with clang-compiled code slightly
-            # differently when ELF-interposed with one another, in the same binary.
+            # There are *two separate* libraries that implement the HP libunwind
+            # API: the original HP libunwind, and the LLVM project's own
+            # separate implementation of the same API.
             #
-            # Haven't been able to make a reduced testcase that works. You can check
-            # that this is still a problem by running the stellar-core Catch2-based
-            # unit test suite: many of the tests do REQUIRE_THROWS_AS(...) and
-            # that crashes with libunwind+clang.  Haven't been able to figure out a
-            # workaround either.
-            case "${CXX}" in
-                *clang*)
-                    AC_MSG_NOTICE([backtraces disabled due to clang interaction with libunwind])
-                ;;
-                *)
-                    PKG_CHECK_MODULES(libunwind, libunwind,
-                        AC_DEFINE([HAVE_LIBUNWIND], [1],
-                                  [Define to 1 if you have the <libunwind.h> header file]))
-               ;;
-            esac
+            # At the moment on linux, or at least ubuntu, the packaging of the
+            # LLVM libunwind is broken: it links against libgcc, and in some way
+            # this causes the unwinder to consistently fail to resolve symbols
+            # (possibly this is some low level C++ ABI support issue, unclear).
+            #
+            # Any time you're compiling with libc++, you're going to get linked
+            # to this libunwind, so we _should_ disable it in that case. But it
+            # turns out that even when you're compiling with libstdc++, if
+            # you've installed the LLVM libc++ package, you may still be using
+            # the LLVM libunwind at runtime. The OS packaging is now such that
+            # the HP libunwind and LLVM libunwind packages are marked as
+            # mutually exclusive, so if you have the LLVM libc++ package
+            # installed at all, it kicks out the HP libunwind and you're going
+            # to get the LLVM libunwind (and failures to resolve symbols) at
+            # runtime.
+            #
+            # Luckily this condition also manifests as a configure-time failure
+            # when the pkg-config lookup for libunwind fails, because LLVM does
+            # not ship with a pkg-config file, so we can detect that alone here
+            # and disable libunwind support any time LLVM libunwind is installed
+            # at all.
+            PKG_CHECK_MODULES(libunwind, libunwind,
+                AC_DEFINE([HAVE_LIBUNWIND], [1], [have libunwind]),
+                AC_MSG_NOTICE([libunwind disabled due to missing pkg-config]))
             ;;
     esac
 else
