@@ -478,104 +478,6 @@ processArchivalMetrics(
     }
 }
 
-int64_t
-getAssetBalance(LedgerEntry const& le, Asset const& asset,
-                AssetContractInfo const& assetContractInfo)
-{
-    switch (le.data.type())
-    {
-    case ACCOUNT:
-        if (asset.type() == ASSET_TYPE_NATIVE)
-        {
-            return le.data.account().balance;
-        }
-        break;
-    case TRUSTLINE:
-    {
-        auto const& tl = le.data.trustLine();
-        if (compareAsset(tl.asset, asset))
-        {
-            return tl.balance;
-        }
-        break;
-    }
-    case OFFER:
-        break;
-    case DATA:
-        break;
-    case CLAIMABLE_BALANCE:
-    {
-        if (compareAsset(le.data.claimableBalance().asset, asset))
-        {
-            return le.data.claimableBalance().amount;
-        }
-        break;
-    }
-    case LIQUIDITY_POOL:
-    {
-        auto const& body = le.data.liquidityPool().body.constantProduct();
-        if (compareAsset(body.params.assetA, asset))
-        {
-            return body.reserveA;
-        }
-        if (compareAsset(body.params.assetB, asset))
-        {
-            return body.reserveB;
-        }
-        break;
-    }
-    case CONTRACT_DATA:
-    {
-        auto const& contractData = le.data.contractData();
-        if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
-            contractData.contract.contractId() !=
-                assetContractInfo.mAssetContractID ||
-            contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
-            contractData.key.vec().size() == 0)
-        {
-            return 0;
-        }
-
-        // The balanceSymbol should be the first entry in the SCVec
-        if (!(contractData.key.vec()->at(0) ==
-              assetContractInfo.mBalanceSymbol))
-        {
-            return 0;
-        }
-
-        auto const& val = le.data.contractData().val;
-        if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
-        {
-            auto const& amountEntry = val.map()->at(0);
-            if (amountEntry.key == assetContractInfo.mAmountSymbol)
-            {
-                if (amountEntry.val.type() == SCV_I128)
-                {
-                    auto lo = amountEntry.val.i128().lo;
-                    auto hi = amountEntry.val.i128().hi;
-                    if (lo > static_cast<uint64_t>(
-                                 std::numeric_limits<int64_t>::max()) ||
-                        hi > 0)
-                    {
-                        throw std::runtime_error(
-                            "Asset contractData balance amount out of range");
-                    }
-                    return static_cast<int64_t>(lo);
-                }
-            }
-        }
-        return 0;
-    }
-    case CONTRACT_CODE:
-        break;
-    case CONFIG_SETTING:
-        break;
-    case TTL:
-        break;
-    }
-    return 0;
-}
-
 void
 getHotArchiveListBalanceForAsset(Application& app,
                                  HistoryArchiveState const& has,
@@ -629,7 +531,7 @@ getHotArchiveListBalanceForAsset(Application& app,
 
             auto balance =
                 getAssetBalance(be.archivedEntry(), asset, assetContractInfo);
-            if (!addBalance(runningBalance, balance))
+            if (!balance || !addBalance(runningBalance, *balance))
             {
                 throw std::runtime_error(
                     "Total asset balance overflowed int64_t");
@@ -687,7 +589,7 @@ getLiveBucketListBalanceForAsset(Application& app,
             }
             auto balance =
                 getAssetBalance(be.liveEntry(), asset, assetContractInfo);
-            if (!addBalance(runningBalance, balance))
+            if (!balance || !addBalance(runningBalance, *balance))
             {
                 throw std::runtime_error(
                     "Total asset balance overflowed int64_t");

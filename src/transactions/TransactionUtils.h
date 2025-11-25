@@ -325,6 +325,9 @@ struct AssetContractInfo
 AssetContractInfo getAssetContractInfo(Asset const& asset,
                                        Hash const& networkID);
 Hash getAssetContractID(Hash const& networkID, Asset const& asset);
+std::optional<int64_t>
+getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                AssetContractInfo const& assetContractInfo);
 
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
