@@ -153,8 +153,11 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     // 2. LedgerApplyManager received  ledger that should be immediately applied
     // by LedgerManager: check if we have any sequential ledgers. If so, attempt
     // to apply mSyncingLedgers and possibly get back in sync
-    if (!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1)
+    if (((!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1) ||
+         mTMP_TODO) &&
+        !mApp.getLedgerManager().isBooting())
     {
+        mTMP_TODO = false;
         tryApplySyncingLedgers();
         return ProcessLedgerResult::PROCESSED_ALL_LEDGERS_SEQUENTIALLY;
     }
@@ -172,6 +175,13 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     CLOG_INFO(Ledger,
               "Close of ledger {} buffered. mSyncingLedgers has {} ledgers",
               ledgerData.getLedgerSeq(), mSyncingLedgers.size());
+
+    if (mApp.getLedgerManager().isBooting())
+    {
+        mTMP_TODO = true;
+        return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
+    }
+    mTMP_TODO = false;
 
     // First: if CatchupWork has started, just buffer and return early.
     if (mCatchupWork)
@@ -513,7 +523,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
         // If we have too many ledgers queued to apply, just stop scheduling
         // more and let the node gracefully go into catchup.
         releaseAssert(mLastQueuedToApply >= lcl);
-        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
+        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT && false)
         {
             CLOG_INFO(History,
                       "Next ledger to apply is {}, but LCL {} is too far "

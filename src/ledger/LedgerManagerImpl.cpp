@@ -388,6 +388,23 @@ LedgerManagerImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
+bool
+LedgerManagerImpl::isBooting() const
+{
+    std::lock_guard guard{mBootingLock};
+    return mIsBooting;
+}
+
+void
+LedgerManagerImpl::waitForBoot()
+{
+    std::unique_lock<std::mutex> lk{mBootingLock};
+    if (mIsBooting)
+    {
+        mBootingCV.wait(lk, [this] { return !mIsBooting; });
+    }
+}
+
 LedgerHeader
 LedgerManager::genesisLedger()
 {
@@ -526,7 +543,6 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
     // earlier, or verify we're at genesis if in no-history mode
-    std::optional<LedgerHeader> latestLedgerHeader;
     auto currentLedger =
         LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
     if (!currentLedger)
@@ -543,9 +559,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
               ledgerAbbrev(*currentLedger));
     setLedgerTxnHeader(*currentLedger, mApp);
-    latestLedgerHeader = *currentLedger;
-
-    releaseAssert(latestLedgerHeader.has_value());
+    LedgerHeader latestLedgerHeader = *currentLedger;
 
     auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
     auto pubmissing =
@@ -562,12 +576,12 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     // (standalone offline commands, in-memory setup) do not need to
     // spin up expensive merge processes.
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-        has, latestLedgerHeader->ledgerVersion,
+        has, latestLedgerHeader.ledgerVersion,
         /* restartMerges */ !skipBuildingFullState);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
         CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                  ledgerAbbrev(*latestLedgerHeader));
+                  ledgerAbbrev(latestLedgerHeader));
     }
     else
     {
@@ -577,12 +591,12 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     // Step 4. Restore LedgerManager's LCL state
     advanceLastClosedLedgerState(
-        advanceBucketListSnapshotAndMakeLedgerState(*latestLedgerHeader, has));
+        advanceBucketListSnapshotAndMakeLedgerState(latestLedgerHeader, has));
 
     // Maybe truncate checkpoint files if we're restarting after a crash
     // in applyLedger (in which case any modifications to the ledger state have
     // been rolled back)
-    mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader->ledgerSeq);
+    mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader.ledgerSeq);
 
     // Prime module cache with LCL state, not apply-state. This is acceptable
     // here because we just started and there is no apply-state yet and no apply
@@ -591,11 +605,30 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     if (!skipBuildingFullState)
     {
         mApplyState.compileAllContractsInLedger(
-            snapshot, latestLedgerHeader->ledgerVersion);
-        mApplyState.populateInMemorySorobanState(
-            snapshot, latestLedgerHeader->ledgerVersion);
+            snapshot, latestLedgerHeader.ledgerVersion);
+        mBootingLock.lock();
+        mIsBooting = true;
+        mBootingLock.unlock();
+        mApp.postOnBackgroundThread(
+            [=] {
+                mApplyState.populateInMemorySorobanState(
+                    snapshot, latestLedgerHeader.ledgerVersion);
+                mApp.postOnMainThread(
+                    [=] {
+                        mBootingLock.lock();
+                        mIsBooting = false;
+                        mBootingLock.unlock();
+                        mBootingCV.notify_all();
+                        mApplyState.markEndOfSetupPhase();
+                    },
+                    "Finish populating in-memory Soroban state");
+            },
+            "Populate in-memory Soroban state");
     }
-    mApplyState.markEndOfSetupPhase();
+    else
+    {
+        mApplyState.markEndOfSetupPhase();
+    }
 }
 
 void
@@ -979,7 +1012,9 @@ void
 LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
     SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
-    assertSetupPhase();
+    // We don't use assertSetupPhase() because we don't expect the thread
+    // invariant to hold
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     mInMemorySorobanState.initializeStateFromSnapshot(snap, ledgerVersion);
 }
 
@@ -1859,9 +1894,29 @@ LedgerManagerImpl::setLastClosedLedger(
         // a snapshot _from_ the LCL state.
         auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
         mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
-        mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+        mBootingLock.lock();
+        mIsBooting = true;
+        mBootingLock.unlock();
+        mApp.postOnBackgroundThread(
+            [=] {
+                mApplyState.populateInMemorySorobanState(snapshot,
+                                                         ledgerVersion);
+                mApp.postOnMainThread(
+                    [=] {
+                        mBootingLock.lock();
+                        mIsBooting = false;
+                        mBootingLock.unlock();
+                        mBootingCV.notify_all();
+                        mApplyState.markEndOfSetupPhase();
+                    },
+                    "Finish populating in-memory Soroban state");
+            },
+            "Populate in-memory Soroban state");
     }
-    mApplyState.markEndOfSetupPhase();
+    else
+    {
+        mApplyState.markEndOfSetupPhase();
+    }
 }
 
 void

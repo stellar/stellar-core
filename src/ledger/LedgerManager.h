@@ -198,6 +198,8 @@ class LedgerManager
     virtual void beginApply() = 0;
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
+    virtual bool isBooting() const = 0;
+    virtual void waitForBoot() = 0;
 
     bool
     isSynced() const

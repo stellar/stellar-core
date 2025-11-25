@@ -409,6 +409,9 @@ class LedgerManagerImpl : public LedgerManager
                                     Config const& config);
 
     State mState;
+    bool mIsBooting{false};
+    std::condition_variable mBootingCV;
+    std::mutex mutable mBootingLock;
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
@@ -479,6 +482,8 @@ class LedgerManagerImpl : public LedgerManager
     void beginApply() override;
     State getState() const override;
     std::string getStateHuman() const override;
+    bool isBooting() const override;
+    void waitForBoot() override;
 
     void valueExternalized(LedgerCloseData const& ledgerData,
                            bool isLatestSlot) override;

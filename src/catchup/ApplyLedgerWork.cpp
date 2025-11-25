@@ -23,6 +23,16 @@ BasicWork::State
 ApplyLedgerWork::onRun()
 {
     ZoneScoped;
+    if (mApp.getLedgerManager().isBooting())
+    {
+        mApp.postOnBackgroundThread(
+            [this] {
+                mApp.getLedgerManager().waitForBoot();
+                wakeUp();
+            },
+            "Wait for LedgerManager to finish booting");
+        return BasicWork::State::WORK_WAITING;
+    }
     mApp.getLedgerManager().applyLedger(mLedgerCloseData,
                                         /* externalize */ false);
     return BasicWork::State::WORK_SUCCESS;

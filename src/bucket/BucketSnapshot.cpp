@@ -363,7 +363,11 @@ LiveBucketSnapshot::scanForEntriesOfType(
         return Loop::INCOMPLETE;
     }
 
-    auto& stream = getStream();
+    // We open up a stream locally here because otherwise, we might race with
+    // other methods accessing the stream while populating in memory soroban
+    // state
+    XDRInputFileStream stream;
+    stream.open(mBucket->getFilename().string());
     stream.seek(range->first);
 
     BucketEntry be;

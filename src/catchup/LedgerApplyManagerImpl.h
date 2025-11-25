@@ -29,6 +29,7 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
 
     Application& mApp;
     std::shared_ptr<CatchupWork> mCatchupWork;
+    bool mTMP_TODO{false};
 
     // key is ledgerSeq
     // mSyncingLedgers has the following invariants:
