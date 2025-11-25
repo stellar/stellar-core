@@ -8,7 +8,7 @@ MetricsRegistry::MetricsRegistry(std::chrono::seconds windowSize)
 }
 
 SimpleTimer&
-MetricsRegistry::NewSimpleTimer(const medida::MetricName& name,
+MetricsRegistry::NewSimpleTimer(SimpleTimerName const& name,
                                 std::chrono::nanoseconds durationUnit)
 {
     MutexLocker guard{mLock};
@@ -17,7 +17,7 @@ MetricsRegistry::NewSimpleTimer(const medida::MetricName& name,
 }
 
 void
-MetricsRegistry::syncMaxes()
+MetricsRegistry::syncSimpleTimerStats()
 {
     MutexLocker guard{mLock};
     for (auto& timer : mSimpleTimers)

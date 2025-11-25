@@ -4,15 +4,20 @@
 namespace stellar
 {
 
-SimpleTimer::SimpleTimer(MetricsRegistry& registry,
-                         medida::MetricName const& name,
+bool
+operator<(SimpleTimerName const& lhs, SimpleTimerName const& rhs)
+{
+    return std::tie(lhs.mDomain, lhs.mType, lhs.mName) <
+           std::tie(rhs.mDomain, rhs.mType, rhs.mName);
+}
+
+SimpleTimer::SimpleTimer(MetricsRegistry& registry, SimpleTimerName const& name,
                          std::chrono::nanoseconds durationUnit)
-    : mSum{registry.NewCounter(
-          {name.domain(), name.type(), name.name() + "sum", name.scope()})}
+    : mSum{registry.NewCounter({name.mDomain, name.mType, name.mName + "sum"})}
     , mSampleCount{registry.NewCounter(
-          {name.domain(), name.type(), name.name() + "count", name.scope()})}
+          {name.mDomain, name.mType, name.mName + "count"})}
     , mMaxSampleValue{registry.NewCounter(
-          {name.domain(), name.type(), name.name() + "max", name.scope()})}
+          {name.mDomain, name.mType, name.mName + "max"})}
     , mMax{0}
     , mDurationUnit(durationUnit)
 {

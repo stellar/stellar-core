@@ -11,18 +11,18 @@ namespace stellar
 class MetricsRegistry : public medida::MetricsRegistry
 {
     Mutex mLock;
-    // Note that we can use SimpleTimer instead of shared_ptr as medida does
-    // because we don't need runtime polymorphism nor do we have a GetAllMetrics
-    // call that will return shared_ptrs
-    std::map<medida::MetricName, SimpleTimer> mSimpleTimers GUARDED_BY(mLock);
+    // Note that it is safe to hand out references to this map because values
+    // have pointer stability.
+    std::map<SimpleTimerName, SimpleTimer> mSimpleTimers GUARDED_BY(mLock);
 
   public:
-    MetricsRegistry(std::chrono::seconds windowSize = std::chrono::seconds(30));
-    SimpleTimer& NewSimpleTimer(medida::MetricName const& name,
-                                std::chrono::nanoseconds durationUnit);
+    MetricsRegistry(std::chrono::seconds windowSize = std::chrono::seconds{30});
+    SimpleTimer& NewSimpleTimer(
+        SimpleTimerName const& name,
+        std::chrono::nanoseconds durationUnit = std::chrono::milliseconds{1});
 
     // Call syncMax() on each simple timer--i.e., set max metric to the tracked
     // max, and reset max tracking.
-    void syncMaxes();
+    void syncSimpleTimerStats();
 };
 }

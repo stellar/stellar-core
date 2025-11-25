@@ -192,8 +192,7 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
         auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
             static_cast<LedgerEntryType>(t));
         auto& metric = app.getMetrics().NewSimpleTimer(
-            {BucketT::METRIC_STRING, label, "sum"},
-            std::chrono::microseconds{1});
+            {BucketT::METRIC_STRING, label}, std::chrono::microseconds{1});
         mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
     }
 }

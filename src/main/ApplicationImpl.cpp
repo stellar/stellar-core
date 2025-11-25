@@ -116,8 +116,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 #endif
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
-    , mMetrics(
-          std::make_unique<stellar::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
+    , mMetrics(std::make_unique<MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
@@ -1253,7 +1252,7 @@ ApplicationImpl::getClock()
     return mVirtualClock;
 }
 
-stellar::MetricsRegistry&
+MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
@@ -1307,8 +1306,10 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
 
-    // Update simple timer metrics
-    mMetrics->syncMaxes();
+    // Update simple timer metrics. This both updates the current value of the
+    // "max" metrics to be the max for the current period and starts a new
+    // period.
+    mMetrics->syncSimpleTimerStats();
 }
 
 void

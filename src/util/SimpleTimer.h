@@ -10,6 +10,18 @@ namespace stellar
 class MetricsRegistry;
 class SimpleTimerContext;
 
+// We don't use a medida::MetricName for SimpleTimers to support defaulting
+// of mName to "" and to allow mName to be "" (medida throws an error if the
+// name is empty)
+struct SimpleTimerName
+{
+    std::string mDomain;
+    std::string mType;
+    std::string mName = "";
+};
+
+bool operator<(SimpleTimerName const&, SimpleTimerName const&);
+
 // Simple replacement for medida timer that uses an accumulator and counter
 // while keeping track of the maximums. Names are based on the constructor with
 // a suffix of `sum`, `count`, or `max`. Timers can be expensive, so this class
@@ -36,7 +48,7 @@ class SimpleTimer
     std::chrono::nanoseconds const mDurationUnit;
 
   public:
-    SimpleTimer(MetricsRegistry& registry, medida::MetricName const& name,
+    SimpleTimer(MetricsRegistry& registry, SimpleTimerName const& name,
                 std::chrono::nanoseconds durationUnit);
 
     // Update the value of the max metric to the value of the tracked max and
