@@ -15,9 +15,7 @@ namespace stellar
  * Helper class that reads from the file underlying a bucket, keeping the bucket
  * alive for the duration of its existence.
  */
-template <typename BucketT>
-void
-BucketInputIterator<BucketT>::loadEntry()
+template <typename BucketT> void BucketInputIterator<BucketT>::loadEntry()
 {
     ZoneScoped;
     if (mIn.readOne(mEntry))
@@ -84,16 +82,12 @@ BucketInputIterator<BucketT>::loadEntry()
     }
 }
 
-template <typename BucketT>
-std::streamoff
-BucketInputIterator<BucketT>::pos()
+template <typename BucketT> std::streamoff BucketInputIterator<BucketT>::pos()
 {
     return mIn.pos();
 }
 
-template <typename BucketT>
-size_t
-BucketInputIterator<BucketT>::size() const
+template <typename BucketT> size_t BucketInputIterator<BucketT>::size() const
 {
     return mIn.size();
 }
@@ -104,22 +98,19 @@ template <typename BucketT> BucketInputIterator<BucketT>::operator bool() const
 }
 
 template <typename BucketT>
-typename BucketT::EntryT const&
-BucketInputIterator<BucketT>::operator*()
+typename BucketT::EntryT const& BucketInputIterator<BucketT>::operator*()
 {
     return *mEntryPtr;
 }
 
 template <typename BucketT>
-bool
-BucketInputIterator<BucketT>::seenMetadata() const
+bool BucketInputIterator<BucketT>::seenMetadata() const
 {
     return mSeenMetadata;
 }
 
 template <typename BucketT>
-BucketMetadata const&
-BucketInputIterator<BucketT>::getMetadata() const
+BucketMetadata const& BucketInputIterator<BucketT>::getMetadata() const
 {
     return mMetadata;
 }
@@ -151,8 +142,7 @@ template <typename BucketT> BucketInputIterator<BucketT>::~BucketInputIterator()
 }
 
 template <typename BucketT>
-BucketInputIterator<BucketT>&
-BucketInputIterator<BucketT>::operator++()
+BucketInputIterator<BucketT>& BucketInputIterator<BucketT>::operator++()
 {
     if (mIn)
     {
@@ -166,8 +156,7 @@ BucketInputIterator<BucketT>::operator++()
 }
 
 template <typename BucketT>
-void
-BucketInputIterator<BucketT>::seek(std::streamoff offset)
+void BucketInputIterator<BucketT>::seek(std::streamoff offset)
 {
     mIn.seek(offset);
     loadEntry();

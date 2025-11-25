@@ -42,27 +42,23 @@ class PeerStub : public Peer
         mAddress = address;
         mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
     }
-    virtual void
-    drop(std::string const&, DropDirection) override
+    virtual void drop(std::string const&, DropDirection) override
     {
     }
-    virtual void
-    sendMessage(xdr::msg_ptr&& xdrBytes, ConstStellarMessagePtr msgPtr) override
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             ConstStellarMessagePtr msgPtr) override
     {
     }
-    virtual void
-    sendMessage(std::shared_ptr<StellarMessage const> msg,
-                bool log = true) override
+    virtual void sendMessage(std::shared_ptr<StellarMessage const> msg,
+                             bool log = true) override
     {
         mSent += static_cast<int>(OverlayManager::isFloodMessage(*msg));
     }
-    virtual void
-    scheduleRead() override
+    virtual void scheduleRead() override
     {
     }
 
-    void
-    setPullMode()
+    void setPullMode()
     {
         auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
         mTxAdverts->start(
@@ -83,8 +79,7 @@ class OverlayManagerStub : public OverlayManagerImpl
     {
     }
 
-    virtual bool
-    connectToImpl(PeerBareAddress const& address, bool) override
+    virtual bool connectToImpl(PeerBareAddress const& address, bool) override
     {
         if (getConnectedPeer(address))
         {
@@ -110,16 +105,14 @@ class OverlayManagerTests
         {
         }
 
-        virtual OverlayManagerStub&
-        getOverlayManager() override
+        virtual OverlayManagerStub& getOverlayManager() override
         {
             auto& overlay = ApplicationImpl::getOverlayManager();
             return static_cast<OverlayManagerStub&>(overlay);
         }
 
       private:
-        virtual std::unique_ptr<OverlayManager>
-        createOverlayManager() override
+        virtual std::unique_ptr<OverlayManager> createOverlayManager() override
         {
             return std::make_unique<OverlayManagerStub>(*this);
         }
@@ -146,8 +139,7 @@ class OverlayManagerTests
         app = createTestApplication<ApplicationStub>(clock, cfg);
     }
 
-    void
-    testAddPeerList(bool async = false)
+    void testAddPeerList(bool async = false)
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
@@ -191,8 +183,7 @@ class OverlayManagerTests
         REQUIRE(i == (threePeers.size() + fourPeers.size()));
     }
 
-    void
-    testAddPeerListUpdateType()
+    void testAddPeerListUpdateType()
     {
         // This test case assumes peer was discovered prior to
         // resolution, and makes sure peer type is properly updated
@@ -237,8 +228,7 @@ class OverlayManagerTests
         REQUIRE(found == 2);
     }
 
-    std::vector<int>
-    sentCounts(OverlayManagerImpl& pm)
+    std::vector<int> sentCounts(OverlayManagerImpl& pm)
     {
         auto getSent = [](Peer::pointer p) {
             auto peer = static_pointer_cast<PeerStub>(p);
@@ -252,8 +242,7 @@ class OverlayManagerTests
         return result;
     }
 
-    void
-    crank(size_t n)
+    void crank(size_t n)
     {
         while (n != 0)
         {
@@ -262,8 +251,7 @@ class OverlayManagerTests
         }
     }
 
-    void
-    testBroadcast()
+    void testBroadcast()
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 

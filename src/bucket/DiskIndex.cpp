@@ -27,8 +27,7 @@ namespace
 // Returns true if the key is not contained within the given IndexEntry.
 // Range index: check if key is outside range of indexEntry
 // Individual index: check if key does not match indexEntry key
-bool
-keyNotInIndexEntry(LedgerKey const& key, RangeEntry const& indexEntry)
+bool keyNotInIndexEntry(LedgerKey const& key, RangeEntry const& indexEntry)
 {
     return key < indexEntry.lowerBound || indexEntry.upperBound < key;
 }
@@ -38,8 +37,8 @@ keyNotInIndexEntry(LedgerKey const& key, RangeEntry const& indexEntry)
 // If key is too small for indexEntry bounds: return false
 // If key is contained within indexEntry bounds: return false
 // If key is too large for indexEntry bounds: return true
-bool
-lower_bound_pred(RangeIndex::value_type const& indexEntry, LedgerKey const& key)
+bool lower_bound_pred(RangeIndex::value_type const& indexEntry,
+                      LedgerKey const& key)
 {
     return indexEntry.first.upperBound < key;
 }
@@ -49,8 +48,8 @@ lower_bound_pred(RangeIndex::value_type const& indexEntry, LedgerKey const& key)
 // If key is too small for indexEntry bounds: return true
 // If key is contained within indexEntry bounds: return false
 // If key is too large for indexEntry bounds: return false
-bool
-upper_bound_pred(LedgerKey const& key, RangeIndex::value_type const& indexEntry)
+bool upper_bound_pred(LedgerKey const& key,
+                      RangeIndex::value_type const& indexEntry)
 {
     return key < indexEntry.first.lowerBound;
 }
@@ -321,9 +320,8 @@ DiskIndex<BucketT>::DiskIndex(Archive& ar, BucketManager const& bm,
 }
 
 template <class BucketT>
-void
-DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
-                               asio::io_context& ctx) const
+void DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
+                                    asio::io_context& ctx) const
 {
     ZoneScoped;
     releaseAssert(bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX);
@@ -371,17 +369,14 @@ DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
     }
 }
 
-template <class BucketT>
-void
-DiskIndex<BucketT>::markBloomMiss() const
+template <class BucketT> void DiskIndex<BucketT>::markBloomMiss() const
 {
     mBloomMissMeter.Mark();
 }
 
 #ifdef BUILD_TESTS
 template <class BucketT>
-bool
-DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
+bool DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
 {
     if (getPageSize() != in.getPageSize())
     {

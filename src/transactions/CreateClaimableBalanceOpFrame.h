@@ -15,8 +15,7 @@ class CreateClaimableBalanceOpFrame : public OperationFrame
 {
     virtual Hash getBalanceID() const;
 
-    CreateClaimableBalanceResult&
-    innerResult(OperationResult& res) const
+    CreateClaimableBalanceResult& innerResult(OperationResult& res) const
     {
         return res.tr().createClaimableBalanceResult();
     }
@@ -36,8 +35,8 @@ class CreateClaimableBalanceOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
     static CreateClaimableBalanceResultCode
     getInnerCode(OperationResult const& res)

@@ -30,8 +30,7 @@ LedgerEntryWrapper::LedgerEntryWrapper(std::shared_ptr<LedgerEntry const> entry)
 {
 }
 
-LedgerEntry const&
-LedgerEntryWrapper::current() const
+LedgerEntry const& LedgerEntryWrapper::current() const
 {
     switch (mEntry.index())
     {
@@ -50,8 +49,7 @@ LedgerEntryWrapper::current() const
     }
 }
 
-LedgerEntryWrapper::
-operator bool() const
+LedgerEntryWrapper::operator bool() const
 {
     switch (mEntry.index())
     {
@@ -76,8 +74,7 @@ LedgerHeaderWrapper::LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header)
 {
 }
 
-LedgerHeader&
-LedgerHeaderWrapper::currentToModify()
+LedgerHeader& LedgerHeaderWrapper::currentToModify()
 {
     switch (mHeader.index())
     {
@@ -90,8 +87,7 @@ LedgerHeaderWrapper::currentToModify()
     }
 }
 
-LedgerHeader const&
-LedgerHeaderWrapper::current() const
+LedgerHeader const& LedgerHeaderWrapper::current() const
 {
     switch (mHeader.index())
     {
@@ -112,14 +108,12 @@ LedgerTxnReadOnly::~LedgerTxnReadOnly()
 {
 }
 
-LedgerHeaderWrapper
-LedgerTxnReadOnly::getLedgerHeader() const
+LedgerHeaderWrapper LedgerTxnReadOnly::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
 }
 
-LedgerEntryWrapper
-LedgerTxnReadOnly::getAccount(AccountID const& account) const
+LedgerEntryWrapper LedgerTxnReadOnly::getAccount(AccountID const& account) const
 {
     return LedgerEntryWrapper(loadAccountWithoutRecord(mLedgerTxn, account));
 }
@@ -153,14 +147,12 @@ LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
     return getAccount(account);
 }
 
-LedgerEntryWrapper
-LedgerTxnReadOnly::load(LedgerKey const& key) const
+LedgerEntryWrapper LedgerTxnReadOnly::load(LedgerKey const& key) const
 {
     return LedgerEntryWrapper(mLedgerTxn.loadWithoutRecord(key));
 }
 
-void
-LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
+void LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     std::function<void(LedgerSnapshot const& ls)> f) const
 {
     LedgerTxn inner(mLedgerTxn);
@@ -179,8 +171,7 @@ BucketSnapshotState::~BucketSnapshotState()
 {
 }
 
-LedgerHeaderWrapper
-BucketSnapshotState::getLedgerHeader() const
+LedgerHeaderWrapper BucketSnapshotState::getLedgerHeader() const
 {
     return LedgerHeaderWrapper(std::get<1>(mLedgerHeader.mHeader));
 }
@@ -206,14 +197,12 @@ BucketSnapshotState::getAccount(LedgerHeaderWrapper const& header,
     return getAccount(AccountID);
 }
 
-LedgerEntryWrapper
-BucketSnapshotState::load(LedgerKey const& key) const
+LedgerEntryWrapper BucketSnapshotState::load(LedgerKey const& key) const
 {
     return LedgerEntryWrapper(mSnapshot->load(key));
 }
 
-void
-BucketSnapshotState::executeWithMaybeInnerSnapshot(
+void BucketSnapshotState::executeWithMaybeInnerSnapshot(
     std::function<void(LedgerSnapshot const& ls)> f) const
 {
     throw std::runtime_error(
@@ -249,33 +238,28 @@ LedgerSnapshot::LedgerSnapshot(SearchableSnapshotConstPtr snapshot)
 {
 }
 
-LedgerHeaderWrapper
-LedgerSnapshot::getLedgerHeader() const
+LedgerHeaderWrapper LedgerSnapshot::getLedgerHeader() const
 {
     return mGetter->getLedgerHeader();
 }
 
-LedgerEntryWrapper
-LedgerSnapshot::getAccount(AccountID const& account) const
+LedgerEntryWrapper LedgerSnapshot::getAccount(AccountID const& account) const
 {
     return mGetter->getAccount(account);
 }
 
-LedgerEntryWrapper
-LedgerSnapshot::load(LedgerKey const& key) const
+LedgerEntryWrapper LedgerSnapshot::load(LedgerKey const& key) const
 {
     return mGetter->load(key);
 }
 
-void
-LedgerSnapshot::executeWithMaybeInnerSnapshot(
+void LedgerSnapshot::executeWithMaybeInnerSnapshot(
     std::function<void(LedgerSnapshot const& ls)> f) const
 {
     return mGetter->executeWithMaybeInnerSnapshot(f);
 }
 
-void
-CompleteConstLedgerState::checkInvariant() const
+void CompleteConstLedgerState::checkInvariant() const
 {
     releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
                   mLastClosedLedgerHeader.header.ledgerSeq);
@@ -305,8 +289,7 @@ CompleteConstLedgerState::CompleteConstLedgerState(
     checkInvariant();
 }
 
-SearchableSnapshotConstPtr
-CompleteConstLedgerState::getBucketSnapshot() const
+SearchableSnapshotConstPtr CompleteConstLedgerState::getBucketSnapshot() const
 {
     return mBucketSnapshot;
 }
@@ -317,14 +300,12 @@ CompleteConstLedgerState::getHotArchiveSnapshot() const
     return mHotArchiveSnapshot;
 }
 
-SorobanNetworkConfig const&
-CompleteConstLedgerState::getSorobanConfig() const
+SorobanNetworkConfig const& CompleteConstLedgerState::getSorobanConfig() const
 {
     return mSorobanConfig.value();
 }
 
-bool
-CompleteConstLedgerState::hasSorobanConfig() const
+bool CompleteConstLedgerState::hasSorobanConfig() const
 {
     return mSorobanConfig.has_value();
 }

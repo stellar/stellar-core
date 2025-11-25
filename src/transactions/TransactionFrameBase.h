@@ -56,23 +56,19 @@ struct ParallelApplyEntry
     // it due to hitting read limits.
     std::optional<LedgerEntry> mLedgerEntry;
     bool mIsDirty;
-    static ParallelApplyEntry
-    cleanPopulated(LedgerEntry const& e)
+    static ParallelApplyEntry cleanPopulated(LedgerEntry const& e)
     {
         return ParallelApplyEntry{e, false};
     }
-    static ParallelApplyEntry
-    dirtyPopulated(LedgerEntry const& e)
+    static ParallelApplyEntry dirtyPopulated(LedgerEntry const& e)
     {
         return ParallelApplyEntry{e, true};
     }
-    static ParallelApplyEntry
-    cleanEmpty()
+    static ParallelApplyEntry cleanEmpty()
     {
         return ParallelApplyEntry{std::nullopt, false};
     }
-    static ParallelApplyEntry
-    dirtyEmpty()
+    static ParallelApplyEntry dirtyEmpty()
     {
         return ParallelApplyEntry{std::nullopt, true};
     }
@@ -103,18 +99,15 @@ class ParallelTxReturnVal
     {
     }
 
-    bool
-    getSuccess() const
+    bool getSuccess() const
     {
         return mSuccess;
     }
-    OpModifiedEntryMap const&
-    getModifiedEntryMap() const
+    OpModifiedEntryMap const& getModifiedEntryMap() const
     {
         return mModifiedEntryMap;
     }
-    RestoredEntries const&
-    getRestoredEntries() const
+    RestoredEntries const& getRestoredEntries() const
     {
         return mRestoredEntries;
     }

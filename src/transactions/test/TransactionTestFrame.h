@@ -138,15 +138,14 @@ class TransactionTestFrame : public TransactionFrameBase
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
 
-    void
-    insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
+    void insertKeysForFeeProcessing(
+        UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
+    void preParallelApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& resPayload,
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     ParallelTxReturnVal parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
@@ -159,10 +158,9 @@ class TransactionTestFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
-    void
-    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult) const override;
+    void processPostApply(
+        AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult) const override;
 
     void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                MutableTransactionResultBase& txResult,
@@ -182,8 +180,7 @@ class TransactionTestFrame : public TransactionFrameBase
     void withInnerTx(
         std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
 
-    bool
-    isTestTx() const override
+    bool isTestTx() const override
     {
         return true;
     }

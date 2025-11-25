@@ -49,14 +49,12 @@ class Scheduler::ActionQueue
     {
     }
 
-    bool
-    isInIdleList() const
+    bool isInIdleList() const
     {
         return mIdlePosition != mIdleList.end();
     }
 
-    void
-    addToIdleList()
+    void addToIdleList()
     {
         releaseAssert(!isInIdleList());
         releaseAssert(isEmpty());
@@ -64,8 +62,7 @@ class Scheduler::ActionQueue
         mIdlePosition = mIdleList.begin();
     }
 
-    void
-    removeFromIdleList()
+    void removeFromIdleList()
     {
         releaseAssert(isInIdleList());
         releaseAssert(isEmpty());
@@ -73,44 +70,37 @@ class Scheduler::ActionQueue
         mIdlePosition = mIdleList.end();
     }
 
-    std::string const&
-    name() const
+    std::string const& name() const
     {
         return mName;
     }
 
-    ActionType
-    type() const
+    ActionType type() const
     {
         return mType;
     }
 
-    nsecs
-    totalService() const
+    nsecs totalService() const
     {
         return mTotalService;
     }
 
-    std::chrono::steady_clock::time_point
-    lastService() const
+    std::chrono::steady_clock::time_point lastService() const
     {
         return mLastService;
     }
 
-    size_t
-    size() const
+    size_t size() const
     {
         return mActions.size();
     }
 
-    bool
-    isEmpty() const
+    bool isEmpty() const
     {
         return mActions.empty();
     }
 
-    bool
-    isOverloaded(nsecs latencyWindow, VirtualClock::time_point now) const
+    bool isOverloaded(nsecs latencyWindow, VirtualClock::time_point now) const
     {
         if (!mActions.empty())
         {
@@ -120,8 +110,7 @@ class Scheduler::ActionQueue
         return false;
     }
 
-    size_t
-    tryTrim(nsecs latencyWindow, VirtualClock::time_point now)
+    size_t tryTrim(nsecs latencyWindow, VirtualClock::time_point now)
     {
         size_t n = 0;
         while (mType == ActionType::DROPPABLE_ACTION && !mActions.empty() &&
@@ -133,15 +122,13 @@ class Scheduler::ActionQueue
         return n;
     }
 
-    void
-    enqueue(VirtualClock& clock, Action&& action)
+    void enqueue(VirtualClock& clock, Action&& action)
     {
         auto elt = Element(clock, std::move(action));
         mActions.emplace_back(std::move(elt));
     }
 
-    void
-    runNext(VirtualClock& clock, nsecs minTotalService)
+    void runNext(VirtualClock& clock, nsecs minTotalService)
     {
         ZoneScoped;
         ZoneText(mName.c_str(), mName.size());
@@ -171,16 +158,14 @@ Scheduler::Scheduler(VirtualClock& clock,
     setOverloaded(false);
 }
 
-void
-Scheduler::trimSingleActionQueue(Qptr q, VirtualClock::time_point now)
+void Scheduler::trimSingleActionQueue(Qptr q, VirtualClock::time_point now)
 {
     size_t trimmed = q->tryTrim(mLatencyWindow, now);
     mStats.mActionsDroppedDueToOverload += trimmed;
     mSize -= trimmed;
 }
 
-void
-Scheduler::trimIdleActionQueues(VirtualClock::time_point now)
+void Scheduler::trimIdleActionQueues(VirtualClock::time_point now)
 {
     if (mIdleActionQueues.empty())
     {
@@ -195,8 +180,7 @@ Scheduler::trimIdleActionQueues(VirtualClock::time_point now)
     }
 }
 
-void
-Scheduler::shutdown()
+void Scheduler::shutdown()
 {
     if (!mIsShutdown)
     {
@@ -210,8 +194,7 @@ Scheduler::shutdown()
     }
 }
 
-void
-Scheduler::setOverloaded(bool overloaded)
+void Scheduler::setOverloaded(bool overloaded)
 {
     if (overloaded)
     {
@@ -223,8 +206,7 @@ Scheduler::setOverloaded(bool overloaded)
     }
 }
 
-void
-Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
+void Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
 {
     if (mIsShutdown)
     {
@@ -255,8 +237,7 @@ Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
     mSize += 1;
 }
 
-size_t
-Scheduler::runOne()
+size_t Scheduler::runOne()
 {
     auto start = mClock.now();
     trimIdleActionQueues(start);
@@ -326,8 +307,7 @@ Scheduler::runOne()
     }
 }
 
-std::chrono::seconds
-Scheduler::getOverloadedDuration() const
+std::chrono::seconds Scheduler::getOverloadedDuration() const
 {
     auto now = mClock.now();
     std::chrono::seconds res;
@@ -345,8 +325,7 @@ Scheduler::getOverloadedDuration() const
     return res;
 }
 
-Scheduler::ActionType
-Scheduler::currentActionType() const
+Scheduler::ActionType Scheduler::currentActionType() const
 {
     return mCurrentActionType;
 }
@@ -363,8 +342,7 @@ Scheduler::getExistingQueue(std::string const& name, ActionType type) const
     return qi->second;
 }
 
-std::string const&
-Scheduler::nextQueueToRun() const
+std::string const& Scheduler::nextQueueToRun() const
 {
     static std::string empty;
     if (mRunnableActionQueues.empty())
@@ -373,16 +351,15 @@ Scheduler::nextQueueToRun() const
     }
     return mRunnableActionQueues.top()->name();
 }
-std::chrono::nanoseconds
-Scheduler::totalService(std::string const& q, ActionType type) const
+std::chrono::nanoseconds Scheduler::totalService(std::string const& q,
+                                                 ActionType type) const
 {
     auto eq = getExistingQueue(q, type);
     releaseAssert(eq);
     return eq->totalService();
 }
 
-size_t
-Scheduler::queueLength(std::string const& q, ActionType type) const
+size_t Scheduler::queueLength(std::string const& q, ActionType type) const
 {
     auto eq = getExistingQueue(q, type);
     releaseAssert(eq);

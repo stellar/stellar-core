@@ -49,9 +49,8 @@ getRevokeBalanceID(TestAccount& testAccount, SequenceNumber sn,
     return balanceID;
 }
 
-static void
-checkPoolUseCounts(TestAccount const& account, Asset const& asset,
-                   int32_t count)
+static void checkPoolUseCounts(TestAccount const& account, Asset const& asset,
+                               int32_t count)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -62,16 +61,14 @@ checkPoolUseCounts(TestAccount const& account, Asset const& asset,
     REQUIRE(getTrustLineEntryExtensionV2(tl).liquidityPoolUseCount == count);
 }
 
-static int64_t
-getBalance(TestAccount const& account, Asset const& asset)
+static int64_t getBalance(TestAccount const& account, Asset const& asset)
 {
     return asset.type() == ASSET_TYPE_NATIVE
                ? account.getBalance()
                : account.getTrustlineBalance(asset);
 }
 
-static uint32_t
-getNumSponsoring(Application& app, TestAccount const& account)
+static uint32_t getNumSponsoring(Application& app, TestAccount const& account)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
@@ -79,8 +76,7 @@ getNumSponsoring(Application& app, TestAccount const& account)
     return getNumSponsoring(ltxe.current());
 }
 
-static uint32_t
-getNumSponsored(Application& app, TestAccount const& account)
+static uint32_t getNumSponsored(Application& app, TestAccount const& account)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
@@ -88,15 +84,14 @@ getNumSponsored(Application& app, TestAccount const& account)
     return getNumSponsored(ltxe.current());
 }
 
-static void
-checkNumSponsoring(Application& app, TestAccount const& account,
-                   uint32_t numSponsoring)
+static void checkNumSponsoring(Application& app, TestAccount const& account,
+                               uint32_t numSponsoring)
 {
     REQUIRE(getNumSponsoring(app, account) == numSponsoring);
 }
 
-static uint32_t
-getNumOffers(Application& app, TestAccount const& account, Asset const& asset)
+static uint32_t getNumOffers(Application& app, TestAccount const& account,
+                             Asset const& asset)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto s = ltx.getOffersByAccountAndAsset(account, asset).size();

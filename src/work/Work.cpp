@@ -25,8 +25,7 @@ Work::~Work()
     }
 }
 
-std::string
-Work::getStatus() const
+std::string Work::getStatus() const
 {
     auto status = BasicWork::getStatus();
     if (mTotalChildren)
@@ -37,16 +36,14 @@ Work::getStatus() const
     return status;
 }
 
-void
-Work::shutdown()
+void Work::shutdown()
 {
     ZoneScoped;
     shutdownChildren();
     BasicWork::shutdown();
 }
 
-BasicWork::State
-Work::onRun()
+BasicWork::State Work::onRun()
 {
     ZoneScoped;
     if (mAbortChildrenButNotSelf)
@@ -85,8 +82,7 @@ Work::onRun()
     }
 }
 
-bool
-Work::onAbort()
+bool Work::onAbort()
 {
     ZoneScoped;
     auto child = yieldNextRunningChild();
@@ -103,18 +99,15 @@ Work::onAbort()
     }
 }
 
-void
-Work::onFailureRaise()
+void Work::onFailureRaise()
 {
 }
 
-void
-Work::onFailureRetry()
+void Work::onFailureRetry()
 {
 }
 
-void
-Work::shutdownChildren()
+void Work::shutdownChildren()
 {
     // Shutdown any children that are still running
     for (auto const& c : mChildren)
@@ -126,8 +119,7 @@ Work::shutdownChildren()
     }
 }
 
-void
-Work::onReset()
+void Work::onReset()
 {
     ZoneScoped;
     clearChildren();
@@ -135,13 +127,11 @@ Work::onReset()
     doReset();
 }
 
-void
-Work::doReset()
+void Work::doReset()
 {
 }
 
-void
-Work::clearChildren()
+void Work::clearChildren()
 {
     ZoneScoped;
     releaseAssert(allChildrenDone());
@@ -150,8 +140,7 @@ Work::clearChildren()
     mNextChild = mChildren.begin();
 }
 
-void
-Work::addChild(std::shared_ptr<BasicWork> child)
+void Work::addChild(std::shared_ptr<BasicWork> child)
 {
     bool resetIter = !hasChildren();
     mChildren.push_back(child);
@@ -162,46 +151,39 @@ Work::addChild(std::shared_ptr<BasicWork> child)
     }
 }
 
-bool
-Work::allChildrenSuccessful() const
+bool Work::allChildrenSuccessful() const
 {
     return WorkUtils::allSuccessful(mChildren);
 }
 
-bool
-Work::allChildrenDone() const
+bool Work::allChildrenDone() const
 {
     return std::all_of(
         mChildren.begin(), mChildren.end(),
         [](std::shared_ptr<BasicWork> const& w) { return w->isDone(); });
 }
 
-bool
-Work::anyChildRunning() const
+bool Work::anyChildRunning() const
 {
     return WorkUtils::anyRunning(mChildren);
 }
 
-bool
-Work::hasChildren() const
+bool Work::hasChildren() const
 {
     return !mChildren.empty();
 }
 
-bool
-Work::anyChildRaiseFailure() const
+bool Work::anyChildRaiseFailure() const
 {
     return WorkUtils::anyFailed(mChildren);
 }
 
-BasicWork::State
-Work::checkChildrenStatus() const
+BasicWork::State Work::checkChildrenStatus() const
 {
     return WorkUtils::getWorkStatus(mChildren);
 }
 
-std::shared_ptr<BasicWork>
-Work::yieldNextRunningChild()
+std::shared_ptr<BasicWork> Work::yieldNextRunningChild()
 {
     while (mNextChild != mChildren.end())
     {
@@ -228,8 +210,7 @@ Work::yieldNextRunningChild()
 namespace WorkUtils
 {
 
-bool
-allSuccessful(std::list<std::shared_ptr<BasicWork>> const& works)
+bool allSuccessful(std::list<std::shared_ptr<BasicWork>> const& works)
 {
     return std::all_of(
         works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {
@@ -237,8 +218,7 @@ allSuccessful(std::list<std::shared_ptr<BasicWork>> const& works)
         });
 }
 
-bool
-anyFailed(std::list<std::shared_ptr<BasicWork>> const& works)
+bool anyFailed(std::list<std::shared_ptr<BasicWork>> const& works)
 {
     return std::any_of(
         works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {
@@ -246,8 +226,7 @@ anyFailed(std::list<std::shared_ptr<BasicWork>> const& works)
         });
 }
 
-bool
-anyRunning(std::list<std::shared_ptr<BasicWork>> const& works)
+bool anyRunning(std::list<std::shared_ptr<BasicWork>> const& works)
 {
     return std::any_of(
         works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {

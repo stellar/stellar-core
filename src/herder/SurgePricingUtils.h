@@ -128,14 +128,12 @@ class SurgePricingPriorityQueue
     // Returns total amount of resources in the provided lane of the queue.
     Resource laneResources(size_t lane) const;
 
-    Resource
-    laneLimits(size_t lane) const
+    Resource laneLimits(size_t lane) const
     {
         return mLaneConfig->getLaneLimits().at(lane);
     }
 
-    size_t
-    getNumLanes() const
+    size_t getNumLanes() const
     {
         return mLaneConfig->getLaneLimits().size();
     }

@@ -24,9 +24,7 @@ inline size_t constexpr encoded_size64(size_t rawsize)
     return ((rawsize + 2) / 3 * 4);
 }
 
-template <class T>
-inline std::string
-encode_b32(T const& v)
+template <class T> inline std::string encode_b32(T const& v)
 {
     std::string res;
     res.reserve(encoded_size32(v.size() * sizeof(typename T::value_type)) + 1);
@@ -34,9 +32,7 @@ encode_b32(T const& v)
     return res;
 }
 
-template <class T>
-inline std::string
-encode_b64(T const& v)
+template <class T> inline std::string encode_b64(T const& v)
 {
     std::string res;
     res.reserve(encoded_size64(v.size() * sizeof(typename T::value_type)) + 1);
@@ -44,18 +40,14 @@ encode_b64(T const& v)
     return res;
 }
 
-template <class V, class T>
-inline void
-decode_b32(V const& v, T& out)
+template <class V, class T> inline void decode_b32(V const& v, T& out)
 {
     out.clear();
     out.reserve(v.size() * sizeof(typename T::value_type));
     bn::decode_b32(v.begin(), v.end(), std::back_inserter(out));
 }
 
-template <class V, class T>
-inline void
-decode_b64(V const& v, T& out)
+template <class V, class T> inline void decode_b64(V const& v, T& out)
 {
     out.clear();
     out.reserve(v.size() * sizeof(typename T::value_type));
@@ -63,8 +55,7 @@ decode_b64(V const& v, T& out)
 }
 
 template <class Iter1, class Iter2>
-inline void
-decode_b64(Iter1 start, Iter1 end, Iter2 out)
+inline void decode_b64(Iter1 start, Iter1 end, Iter2 out)
 {
     bn::decode_b64(start, end, out);
 }

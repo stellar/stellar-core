@@ -49,8 +49,7 @@ class HerderSCPDriver : public SCPDriver
     void bootstrap();
     void stateChanged();
 
-    SCP&
-    getSCP()
+    SCP& getSCP()
     {
         return mSCP;
     }

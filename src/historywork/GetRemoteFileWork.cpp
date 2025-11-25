@@ -30,8 +30,7 @@ GetRemoteFileWork::GetRemoteFileWork(Application& app,
 {
 }
 
-CommandInfo
-GetRemoteFileWork::getCommand()
+CommandInfo GetRemoteFileWork::getCommand()
 {
     mCurrentArchive = mArchive;
     if (!mCurrentArchive)
@@ -50,23 +49,20 @@ GetRemoteFileWork::getCommand()
     return CommandInfo{cmdLine, std::string()};
 }
 
-void
-GetRemoteFileWork::onReset()
+void GetRemoteFileWork::onReset()
 {
     fs::removeWithLog(mLocal);
     RunCommandWork::onReset();
 }
 
-void
-GetRemoteFileWork::onSuccess()
+void GetRemoteFileWork::onSuccess()
 {
     releaseAssert(mCurrentArchive);
     mBytesPerSecond.Mark(fs::size(mLocal));
     RunCommandWork::onSuccess();
 }
 
-void
-GetRemoteFileWork::onFailureRaise()
+void GetRemoteFileWork::onFailureRaise()
 {
     releaseAssert(mCurrentArchive);
     mFailuresPerSecond.Mark(1);
@@ -76,8 +72,7 @@ GetRemoteFileWork::onFailureRaise()
     RunCommandWork::onFailureRaise();
 }
 
-std::shared_ptr<HistoryArchive>
-GetRemoteFileWork::getCurrentArchive() const
+std::shared_ptr<HistoryArchive> GetRemoteFileWork::getCurrentArchive() const
 {
     return mCurrentArchive;
 }

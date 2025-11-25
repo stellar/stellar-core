@@ -23,12 +23,12 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool
-    doApplyForSoroban(AppConnector& app, AbstractLedgerTxn& ltx,
-                      SorobanNetworkConfig const& sorobanConfig,
-                      Hash const& sorobanBasePrngSeed, OperationResult& res,
-                      std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                      OperationMetaBuilder& opMeta) const override;
+    bool doApplyForSoroban(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed, OperationResult& res,
+        std::optional<RefundableFeeTracker>& refundableFeeTracker,
+        OperationMetaBuilder& opMeta) const override;
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
@@ -49,11 +49,10 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
                     std::optional<RefundableFeeTracker>& refundableFeeTracker,
                     OperationMetaBuilder& opMeta) const override;
 
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static ExtendFootprintTTLResultCode
-    getInnerCode(OperationResult const& res)
+    static ExtendFootprintTTLResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().extendFootprintTTLResult().code();
     }

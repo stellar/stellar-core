@@ -57,8 +57,7 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
 
     std::vector<BucketLevelSnapshot<BucketT>> const& getLevels() const;
     uint32_t getLedgerSeq() const;
-    LedgerHeader const&
-    getLedgerHeader() const
+    LedgerHeader const& getLedgerHeader() const
     {
         return mHeader;
     }
@@ -123,14 +122,12 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
                         BucketListSnapshot<BucketT> const& snapshot) const;
 
     // Overload that uses the internal snapshot
-    void
-    loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f) const
+    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f) const
     {
         loopAllBuckets(f, *mSnapshot);
     }
 
-    uint32_t
-    getLedgerSeq() const
+    uint32_t getLedgerSeq() const
     {
         return mSnapshot->getLedgerSeq();
     }

@@ -16,8 +16,7 @@ namespace stellar
 namespace
 {
 
-SCPEnvelope
-makeEnvelope(int slotIndex)
+SCPEnvelope makeEnvelope(int slotIndex)
 {
     auto result = SCPEnvelope{};
     result.statement.slotIndex = slotIndex;

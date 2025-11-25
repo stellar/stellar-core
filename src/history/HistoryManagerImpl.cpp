@@ -55,42 +55,36 @@ static std::string kSQLCreateStatement =
     "state    TEXT"
     "); ";
 
-void
-HistoryManager::dropAll(Database& db)
+void HistoryManager::dropAll(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS publishqueue;";
     soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
     st.execute(true);
 }
 
-std::filesystem::path
-HistoryManager::publishQueuePath(Config const& cfg)
+std::filesystem::path HistoryManager::publishQueuePath(Config const& cfg)
 {
     std::filesystem::path b = cfg.BUCKET_DIR_PATH;
     return b / "publishqueue";
 }
 
-void
-HistoryManager::createPublishQueueDir(Config const& cfg)
+void HistoryManager::createPublishQueueDir(Config const& cfg)
 {
     fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
 }
 
-std::filesystem::path
-publishQueueFileName(uint32_t seq)
+std::filesystem::path publishQueueFileName(uint32_t seq)
 {
     return fs::hexStr(seq) + ".checkpoint";
 }
 
-std::filesystem::path
-publishQueueTmpFileName(uint32_t seq)
+std::filesystem::path publishQueueTmpFileName(uint32_t seq)
 {
     return fs::hexStr(seq) + ".checkpoint.dirty";
 }
 
-void
-writeCheckpointFile(Application& app, HistoryArchiveState const& has,
-                    bool finalize)
+void writeCheckpointFile(Application& app, HistoryArchiveState const& has,
+                         bool finalize)
 {
     releaseAssert(HistoryManager::isLastLedgerInCheckpoint(has.currentLedger,
                                                            app.getConfig()));
@@ -134,8 +128,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
     }
 }
 
-void
-HistoryManagerImpl::dropSQLBasedPublish()
+void HistoryManagerImpl::dropSQLBasedPublish()
 {
     if (!mApp.getHistoryArchiveManager().publishEnabled())
     {
@@ -216,8 +209,7 @@ HistoryManagerImpl::dropSQLBasedPublish()
     dropSupportTxSetHistory(db);
 }
 
-std::unique_ptr<HistoryManager>
-HistoryManager::create(Application& app)
+std::unique_ptr<HistoryManager> HistoryManager::create(Application& app)
 {
     return std::make_unique<HistoryManagerImpl>(app);
 }
@@ -240,8 +232,7 @@ HistoryManagerImpl::~HistoryManagerImpl()
 {
 }
 
-uint32_t
-HistoryManager::getCheckpointFrequency(Config const& cfg)
+uint32_t HistoryManager::getCheckpointFrequency(Config const& cfg)
 {
     if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
@@ -253,8 +244,7 @@ HistoryManager::getCheckpointFrequency(Config const& cfg)
     }
 }
 
-void
-HistoryManagerImpl::logAndUpdatePublishStatus()
+void HistoryManagerImpl::logAndUpdatePublishStatus()
 {
     std::stringstream stateStr;
     if (mPublishWork)
@@ -282,31 +272,27 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
     }
 }
 
-bool
-isPublishFile(std::string const& name)
+bool isPublishFile(std::string const& name)
 {
     std::regex re("^[a-z0-9]{8}\\.checkpoint$");
     auto a = regex_match(name, re);
     return a;
 }
 
-bool
-isPublishTmpFile(std::string const& name)
+bool isPublishTmpFile(std::string const& name)
 {
     std::regex re("^[a-z0-9]{8}\\.checkpoint.dirty$");
     auto a = regex_match(name, re);
     return a;
 }
 
-std::vector<std::string>
-findPublishFiles(std::string const& dir)
+std::vector<std::string> findPublishFiles(std::string const& dir)
 {
     return fs::findfiles(dir, isPublishFile);
 }
 
-void
-iterateOverCheckpoints(std::vector<std::string> const& files,
-                       std::function<void(uint32_t, std::string const&)> f)
+void iterateOverCheckpoints(std::vector<std::string> const& files,
+                            std::function<void(uint32_t, std::string const&)> f)
 {
     for (auto const& file : files)
     {
@@ -315,29 +301,25 @@ iterateOverCheckpoints(std::vector<std::string> const& files,
     }
 }
 
-void
-forEveryQueuedCheckpoint(std::string const& dir,
-                         std::function<void(uint32_t, std::string const&)> f)
+void forEveryQueuedCheckpoint(
+    std::string const& dir, std::function<void(uint32_t, std::string const&)> f)
 {
     iterateOverCheckpoints(findPublishFiles(dir), f);
 }
 
-void
-forEveryTmpCheckpoint(std::string const& dir,
-                      std::function<void(uint32_t, std::string const&)> f)
+void forEveryTmpCheckpoint(std::string const& dir,
+                           std::function<void(uint32_t, std::string const&)> f)
 {
     iterateOverCheckpoints(fs::findfiles(dir, isPublishTmpFile), f);
 }
 
-size_t
-HistoryManager::publishQueueLength(Config const& cfg)
+size_t HistoryManager::publishQueueLength(Config const& cfg)
 {
     ZoneScoped;
     return findPublishFiles(publishQueuePath(cfg).string()).size();
 }
 
-string const&
-HistoryManagerImpl::getTmpDir()
+string const& HistoryManagerImpl::getTmpDir()
 {
     ZoneScoped;
     if (!mWorkDir)
@@ -348,14 +330,12 @@ HistoryManagerImpl::getTmpDir()
     return mWorkDir->getName();
 }
 
-std::string
-HistoryManagerImpl::localFilename(std::string const& basename)
+std::string HistoryManagerImpl::localFilename(std::string const& basename)
 {
     return this->getTmpDir() + "/" + basename;
 }
 
-uint32_t
-HistoryManager::getMinLedgerQueuedToPublish(Config const& cfg)
+uint32_t HistoryManager::getMinLedgerQueuedToPublish(Config const& cfg)
 {
     ZoneScoped;
     auto min = std::numeric_limits<uint32_t>::max();
@@ -365,8 +345,7 @@ HistoryManager::getMinLedgerQueuedToPublish(Config const& cfg)
     return min == std::numeric_limits<uint32_t>::max() ? 0 : min;
 }
 
-uint32_t
-HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
+uint32_t HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 {
     ZoneScoped;
     uint32_t max = 0;
@@ -376,9 +355,8 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
     return max;
 }
 
-bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
-                                                uint32_t ledgerVers)
+bool HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                                     uint32_t ledgerVers)
 {
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
@@ -396,8 +374,8 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
     return true;
 }
 
-void
-HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
+void HistoryManagerImpl::queueCurrentHistory(uint32_t ledger,
+                                             uint32_t ledgerVers)
 {
     ZoneScoped;
 
@@ -437,8 +415,7 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
     mPublishQueued++;
 }
 
-void
-HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
+void HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -491,8 +468,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
-HistoryArchiveState
-loadCheckpointHAS(std::string const& filename)
+HistoryArchiveState loadCheckpointHAS(std::string const& filename)
 {
     HistoryArchiveState has;
     std::ifstream in(filename, std::ios::binary);
@@ -507,8 +483,7 @@ loadCheckpointHAS(std::string const& filename)
     return has;
 }
 
-size_t
-HistoryManagerImpl::publishQueuedHistory()
+size_t HistoryManagerImpl::publishQueuedHistory()
 {
     if (mApp.isStopping())
     {
@@ -536,8 +511,7 @@ HistoryManagerImpl::publishQueuedHistory()
     return 1;
 }
 
-void
-HistoryManagerImpl::maybeCheckpointComplete(uint32_t lcl)
+void HistoryManagerImpl::maybeCheckpointComplete(uint32_t lcl)
 {
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()) ||
         !mApp.getHistoryArchiveManager().publishEnabled())
@@ -613,8 +587,7 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
     return std::vector<std::string>(buckets.begin(), buckets.end());
 }
 
-void
-HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
+void HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
 {
     releaseAssert(HistoryManager::isLastLedgerInCheckpoint(ledgerSeq, cfg));
 
@@ -673,8 +646,7 @@ HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
     }
 }
 
-void
-HistoryManagerImpl::historyPublished(
+void HistoryManagerImpl::historyPublished(
     uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets,
     bool success)
 {
@@ -705,10 +677,9 @@ HistoryManagerImpl::historyPublished(
                           "HistoryManagerImpl: publishQueuedHistory");
 }
 
-void
-HistoryManagerImpl::appendTransactionSet(uint32_t ledgerSeq,
-                                         TxSetXDRFrameConstPtr const& txSet,
-                                         TransactionResultSet const& resultSet)
+void HistoryManagerImpl::appendTransactionSet(
+    uint32_t ledgerSeq, TxSetXDRFrameConstPtr const& txSet,
+    TransactionResultSet const& resultSet)
 {
     if (mApp.getHistoryArchiveManager().publishEnabled())
     {
@@ -716,8 +687,7 @@ HistoryManagerImpl::appendTransactionSet(uint32_t ledgerSeq,
     }
 }
 
-void
-HistoryManagerImpl::appendLedgerHeader(LedgerHeader const& header)
+void HistoryManagerImpl::appendLedgerHeader(LedgerHeader const& header)
 {
     if (mApp.getHistoryArchiveManager().publishEnabled())
     {
@@ -731,8 +701,7 @@ HistoryManagerImpl::appendLedgerHeader(LedgerHeader const& header)
     }
 }
 
-void
-HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
+void HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
 {
     if (mApp.getHistoryArchiveManager().publishEnabled())
     {
@@ -778,27 +747,23 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
     }
 }
 
-uint64_t
-HistoryManagerImpl::getPublishQueueCount() const
+uint64_t HistoryManagerImpl::getPublishQueueCount() const
 {
     return mPublishQueued;
 }
 
-uint64_t
-HistoryManagerImpl::getPublishSuccessCount() const
+uint64_t HistoryManagerImpl::getPublishSuccessCount() const
 {
     return mPublishSuccess.count();
 }
 
-uint64_t
-HistoryManagerImpl::getPublishFailureCount() const
+uint64_t HistoryManagerImpl::getPublishFailureCount() const
 {
     return mPublishFailure.count();
 }
 
 #ifdef BUILD_TESTS
-void
-HistoryManagerImpl::setPublicationEnabled(bool enabled)
+void HistoryManagerImpl::setPublicationEnabled(bool enabled)
 {
     CLOG_INFO(History, "{} history publication",
               (enabled ? "Enabling" : "Disabling"));
@@ -806,8 +771,7 @@ HistoryManagerImpl::setPublicationEnabled(bool enabled)
 }
 #endif
 
-void
-HistoryManagerImpl::waitForCheckpointPublish()
+void HistoryManagerImpl::waitForCheckpointPublish()
 {
     // This may only be used for the load testing (apply-load specifically, but
     // we don't have a separate flag for that).
@@ -821,8 +785,7 @@ HistoryManagerImpl::waitForCheckpointPublish()
     }
 }
 
-Config const&
-HistoryManagerImpl::getConfig() const
+Config const& HistoryManagerImpl::getConfig() const
 {
     return mApp.getConfig();
 }

@@ -45,9 +45,8 @@ namespace stellar
 
 using namespace std;
 
-static int32_t
-getNeededThreshold(LedgerEntryWrapper const& account,
-                   ThresholdLevel const level)
+static int32_t getNeededThreshold(LedgerEntryWrapper const& account,
+                                  ThresholdLevel const level)
 {
     auto const& acc = account.current().data.account();
     switch (level)
@@ -136,8 +135,7 @@ OperationFrame::OperationFrame(Operation const& op,
 {
 }
 
-bool
-OperationFrame::apply(
+bool OperationFrame::apply(
     AppConnector& app, SignatureChecker& signatureChecker,
     AbstractLedgerTxn& ltx,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -172,8 +170,7 @@ OperationFrame::apply(
     return applyRes;
 }
 
-ParallelTxReturnVal
-OperationFrame::parallelApply(
+ParallelTxReturnVal OperationFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
     SorobanMetrics& sorobanMetrics, OperationResult& res,
@@ -188,8 +185,7 @@ OperationFrame::parallelApply(
                            sorobanMetrics, res, refundableFeeTracker, opMeta);
 }
 
-ParallelTxReturnVal
-OperationFrame::doParallelApply(
+ParallelTxReturnVal OperationFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
     ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
@@ -201,22 +197,19 @@ OperationFrame::doParallelApply(
         "Cannot call doParallelApply on a non Soroban operation");
 }
 
-ThresholdLevel
-OperationFrame::getThresholdLevel() const
+ThresholdLevel OperationFrame::getThresholdLevel() const
 {
     return ThresholdLevel::MEDIUM;
 }
 
-bool
-OperationFrame::isOpSupported(LedgerHeader const&) const
+bool OperationFrame::isOpSupported(LedgerHeader const&) const
 {
     return true;
 }
 
-bool
-OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, OperationResult* res,
-                               bool forApply) const
+bool OperationFrame::checkSignature(SignatureChecker& signatureChecker,
+                                    LedgerSnapshot const& ls,
+                                    OperationResult* res, bool forApply) const
 {
     ZoneScoped;
     auto header = ls.getLedgerHeader();
@@ -260,15 +253,13 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
     return true;
 }
 
-AccountID
-OperationFrame::getSourceID() const
+AccountID OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? toAccountID(*mOperation.sourceAccount)
                                     : mParentTx.getSourceID();
 }
 
-MuxedAccount
-OperationFrame::getSourceAccount() const
+MuxedAccount OperationFrame::getSourceAccount() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
                                     : mParentTx.getSourceAccount();
@@ -278,13 +269,12 @@ OperationFrame::getSourceAccount() const
 // called when determining if we should flood
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
-bool
-OperationFrame::checkValid(AppConnector& app,
-                           SignatureChecker& signatureChecker,
-                           SorobanNetworkConfig const* cfg,
-                           LedgerSnapshot const& ls, bool forApply,
-                           OperationResult& res,
-                           DiagnosticEventManager& diagnosticEvents) const
+bool OperationFrame::checkValid(AppConnector& app,
+                                SignatureChecker& signatureChecker,
+                                SorobanNetworkConfig const* cfg,
+                                LedgerSnapshot const& ls, bool forApply,
+                                OperationResult& res,
+                                DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
     bool validationResult = false;
@@ -358,8 +348,7 @@ OperationFrame::checkValid(AppConnector& app,
     return validationResult;
 }
 
-bool
-OperationFrame::doCheckValidForSoroban(
+bool OperationFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& config, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
     DiagnosticEventManager& diagnosticEvents) const
@@ -367,8 +356,7 @@ OperationFrame::doCheckValidForSoroban(
     return doCheckValid(ledgerVersion, res);
 }
 
-bool
-OperationFrame::doApplyForSoroban(
+bool OperationFrame::doApplyForSoroban(
     AppConnector& app, AbstractLedgerTxn& ltx,
     SorobanNetworkConfig const& sorobanConfig, Hash const& sorobanBasePrngSeed,
     OperationResult& res,
@@ -386,40 +374,35 @@ OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
     return mParentTx.loadAccount(ltx, header, getSourceID());
 }
 
-bool
-OperationFrame::isDexOperation() const
+bool OperationFrame::isDexOperation() const
 {
     return false;
 }
 
-bool
-OperationFrame::isSoroban() const
+bool OperationFrame::isSoroban() const
 {
     return false;
 }
 
-void
-OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
+void OperationFrame::insertLedgerKeysToPrefetch(
+    UnorderedSet<LedgerKey>& keys) const
 {
     // Do nothing by default
     return;
 }
 
-SorobanResources const&
-OperationFrame::getSorobanResources() const
+SorobanResources const& OperationFrame::getSorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
     return mParentTx.sorobanResources();
 }
 
-Memo const&
-OperationFrame::getTxMemo() const
+Memo const& OperationFrame::getTxMemo() const
 {
     return mParentTx.getMemo();
 }
 
-SorobanTransactionData::_ext_t const&
-OperationFrame::getResourcesExt() const
+SorobanTransactionData::_ext_t const& OperationFrame::getResourcesExt() const
 {
     return mParentTx.getResourcesExt();
 }

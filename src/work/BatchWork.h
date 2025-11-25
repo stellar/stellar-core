@@ -26,8 +26,7 @@ class BatchWork : public Work
     BatchWork(Application& app, std::string name);
     ~BatchWork() = default;
 
-    size_t
-    getNumWorksInBatch() const
+    size_t getNumWorksInBatch() const
     {
         return mBatch.size();
     }

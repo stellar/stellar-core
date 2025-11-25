@@ -12,8 +12,7 @@ class AbstractLedgerTxn;
 
 class InflationOpFrame : public OperationFrame
 {
-    InflationResult&
-    innerResult(OperationResult& res) const
+    InflationResult& innerResult(OperationResult& res) const
     {
         return res.tr().inflationResult();
     }
@@ -30,8 +29,7 @@ class InflationOpFrame : public OperationFrame
                       OperationResult& res) const override;
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    static InflationResultCode
-    getInnerCode(OperationResult const& res)
+    static InflationResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().inflationResult().code();
     }

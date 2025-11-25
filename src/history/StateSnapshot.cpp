@@ -50,8 +50,7 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     }
 }
 
-bool
-StateSnapshot::writeSCPMessages() const
+bool StateSnapshot::writeSCPMessages() const
 {
     ZoneScoped;
     std::unique_ptr<soci::session> snapSess(

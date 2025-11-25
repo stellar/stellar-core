@@ -19,8 +19,7 @@ SurveyMessageLimiter::SurveyMessageLimiter(Application& app,
 {
 }
 
-bool
-SurveyMessageLimiter::addAndValidateRequest(
+bool SurveyMessageLimiter::addAndValidateRequest(
     SurveyRequestMessage const& request,
     std::function<bool()> onSuccessValidation)
 {
@@ -96,8 +95,7 @@ SurveyMessageLimiter::addAndValidateRequest(
     return false;
 }
 
-bool
-SurveyMessageLimiter::recordAndValidateResponse(
+bool SurveyMessageLimiter::recordAndValidateResponse(
     SurveyResponseMessage const& response,
     std::function<bool()> onSuccessValidation)
 {
@@ -145,8 +143,7 @@ SurveyMessageLimiter::recordAndValidateResponse(
     return true;
 }
 
-bool
-SurveyMessageLimiter::validateStartSurveyCollecting(
+bool SurveyMessageLimiter::validateStartSurveyCollecting(
     TimeSlicedSurveyStartCollectingMessage const& startSurvey,
     SurveyDataManager& surveyDataManager,
     std::function<bool()> onSuccessValidation)
@@ -172,8 +169,7 @@ SurveyMessageLimiter::validateStartSurveyCollecting(
     return true;
 }
 
-bool
-SurveyMessageLimiter::validateStopSurveyCollecting(
+bool SurveyMessageLimiter::validateStopSurveyCollecting(
     TimeSlicedSurveyStopCollectingMessage const& stopSurvey,
     std::function<bool()> onSuccessValidation)
 {
@@ -191,8 +187,7 @@ SurveyMessageLimiter::validateStopSurveyCollecting(
     return true;
 }
 
-bool
-SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
+bool SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
 {
     uint32_t localLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
     return ledgerNum + mNumLedgersBeforeIgnore >= localLedgerNum &&
@@ -200,8 +195,7 @@ SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
                localLedgerNum + std::max<uint32_t>(mNumLedgersBeforeIgnore, 1);
 }
 
-void
-SurveyMessageLimiter::clearOldLedgers(uint32_t lastClosedledgerSeq)
+void SurveyMessageLimiter::clearOldLedgers(uint32_t lastClosedledgerSeq)
 {
     for (auto it = mRecordMap.cbegin(); it != mRecordMap.cend();)
     {

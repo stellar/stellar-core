@@ -37,8 +37,7 @@ Floodgate::Floodgate(Application& app)
 }
 
 // remove old flood records
-void
-Floodgate::clearBelow(uint32_t maxLedger)
+void Floodgate::clearBelow(uint32_t maxLedger)
 {
     ZoneScoped;
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
@@ -55,8 +54,7 @@ Floodgate::clearBelow(uint32_t maxLedger)
     mFloodMapSize.set_count(mFloodMap.size());
 }
 
-bool
-Floodgate::addRecord(Peer::pointer peer, Hash const& index)
+bool Floodgate::addRecord(Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
     if (mShuttingDown)
@@ -81,9 +79,8 @@ Floodgate::addRecord(Peer::pointer peer, Hash const& index)
 }
 
 // send message to anyone you haven't gotten it from
-bool
-Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
-                     std::optional<Hash> const& hash)
+bool Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
+                          std::optional<Hash> const& hash)
 {
     releaseAssert(threadIsMain());
     ZoneScoped;
@@ -166,8 +163,7 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
     return broadcasted;
 }
 
-std::set<Peer::pointer>
-Floodgate::getPeersKnows(Hash const& h)
+std::set<Peer::pointer> Floodgate::getPeersKnows(Hash const& h)
 {
     std::set<Peer::pointer> res;
     auto record = mFloodMap.find(h);
@@ -186,15 +182,13 @@ Floodgate::getPeersKnows(Hash const& h)
     return res;
 }
 
-void
-Floodgate::shutdown()
+void Floodgate::shutdown()
 {
     mShuttingDown = true;
     mFloodMap.clear();
 }
 
-void
-Floodgate::forgetRecord(Hash const& h)
+void Floodgate::forgetRecord(Hash const& h)
 {
     mFloodMap.erase(h);
 }

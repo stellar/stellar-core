@@ -26,9 +26,8 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
-for_current_and_previous_version_from(size_t minVersion, Application& app,
-                                      std::function<void(void)> const& f)
+void for_current_and_previous_version_from(size_t minVersion, Application& app,
+                                           std::function<void(void)> const& f)
 {
     REQUIRE(Config::CURRENT_LEDGER_PROTOCOL_VERSION >= 1);
     uint32_t const currentVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;

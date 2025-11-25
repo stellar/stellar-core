@@ -16,8 +16,7 @@ enum Rounding
     ROUND_UP
 };
 
-inline bool
-isRepresentableAsInt64(double d)
+inline bool isRepresentableAsInt64(double d)
 {
     // Subtle: the min value here is a power-of-two and is exactly representable
     // as a double, so any double equal-or-greater can be rounded-up to an
@@ -59,8 +58,7 @@ uint64_t bigSquareRoot(uint64_t a, uint64_t b);
 
 // Saturating multiplication: returns a * b, capped at INT64_MAX if overflow
 // would occur. Assumes both inputs are non-negative.
-inline int64_t
-saturatingMultiply(int64_t a, int64_t b)
+inline int64_t saturatingMultiply(int64_t a, int64_t b)
 {
     // Both inputs must be non-negative for this implementation
     if (a < 0 || b < 0)
@@ -84,9 +82,7 @@ saturatingMultiply(int64_t a, int64_t b)
 }
 
 // Saturating addition for unsigned ints: returns a + b, capped at type max.
-template <typename T>
-inline T
-saturatingAdd(T a, T b)
+template <typename T> inline T saturatingAdd(T a, T b)
 {
     static_assert(std::is_unsigned<T>());
     if (a > std::numeric_limits<T>::max() - b)

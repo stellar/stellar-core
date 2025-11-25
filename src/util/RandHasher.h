@@ -19,8 +19,7 @@ extern size_t gMixer;
 template <class T, class Hasher = std::hash<T>> class RandHasher
 {
   public:
-    size_t
-    operator()(T const& t) const
+    size_t operator()(T const& t) const
     {
         releaseAssert(randHash::gHaveInitialized);
         return Hasher()(t) ^ randHash::gMixer;

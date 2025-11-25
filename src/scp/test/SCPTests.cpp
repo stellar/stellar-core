@@ -31,8 +31,7 @@ namespace stellar
 // k can be anything
 static Value xValue, yValue, zValue, zzValue, kValue;
 
-static void
-setupValues()
+static void setupValues()
 {
     std::vector<Value> v;
     std::string d =
@@ -77,33 +76,30 @@ class TestSCP : public SCPDriver
         storeQuorumSet(localQSet);
     }
 
-    void
-    signEnvelope(SCPEnvelope&) override
+    void signEnvelope(SCPEnvelope&) override
     {
     }
 
-    void
-    storeQuorumSet(SCPQuorumSetPtr qSet)
+    void storeQuorumSet(SCPQuorumSetPtr qSet)
     {
         Hash qSetHash = sha256(xdr::xdr_to_opaque(*qSet.get()));
         mQuorumSets[qSetHash] = qSet;
     }
 
-    SCPDriver::ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value,
-                  bool nomination) override
+    SCPDriver::ValidationLevel validateValue(uint64 slotIndex,
+                                             Value const& value,
+                                             bool nomination) override
     {
         return SCPDriver::kFullyValidatedValue;
     }
 
-    void
-    ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot) override
+    void ballotDidHearFromQuorum(uint64 slotIndex,
+                                 SCPBallot const& ballot) override
     {
         mHeardFromQuorums[slotIndex].push_back(ballot);
     }
 
-    void
-    valueExternalized(uint64 slotIndex, Value const& value) override
+    void valueExternalized(uint64 slotIndex, Value const& value) override
     {
         if (mExternalizedValues.find(slotIndex) != mExternalizedValues.end())
         {
@@ -112,8 +108,7 @@ class TestSCP : public SCPDriver
         mExternalizedValues[slotIndex] = value;
     }
 
-    SCPQuorumSetPtr
-    getQSet(Hash const& qSetHash) override
+    SCPQuorumSetPtr getQSet(Hash const& qSetHash) override
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
@@ -123,21 +118,18 @@ class TestSCP : public SCPDriver
         return SCPQuorumSetPtr();
     }
 
-    void
-    emitEnvelope(SCPEnvelope const& envelope) override
+    void emitEnvelope(SCPEnvelope const& envelope) override
     {
         mEnvs.push_back(envelope);
     }
 
     // used to test BallotProtocol and bypass nomination
-    bool
-    bumpState(uint64 slotIndex, Value const& v)
+    bool bumpState(uint64 slotIndex, Value const& v)
     {
         return mSCP.getSlot(slotIndex, true)->bumpState(v, true);
     }
 
-    bool
-    nominate(uint64 slotIndex, Value const& value, bool timedout)
+    bool nominate(uint64 slotIndex, Value const& value, bool timedout)
     {
         auto wv = wrapValue(value);
         return mSCP.getSlot(slotIndex, true)->nominate(wv, value, timedout);
@@ -165,8 +157,7 @@ class TestSCP : public SCPDriver
     std::set<Value> mExpectedCandidates;
     Value mCompositeValue;
 
-    Hash
-    getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
+    Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
     {
         SHA256 hasher;
         for (auto const& v : vals)
@@ -178,9 +169,8 @@ class TestSCP : public SCPDriver
 
     // override the internal hashing scheme in order to make tests
     // more predictable.
-    uint64
-    computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                    int32_t roundNumber, NodeID const& nodeID) override
+    uint64 computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
+                           int32_t roundNumber, NodeID const& nodeID) override
     {
         uint64 res;
         if (isPriority)
@@ -195,9 +185,8 @@ class TestSCP : public SCPDriver
     }
 
     // override the value hashing, to make tests more predictable.
-    uint64
-    computeValueHash(uint64 slotIndex, Value const& prev, int32_t roundNumber,
-                     Value const& value) override
+    uint64 computeValueHash(uint64 slotIndex, Value const& prev,
+                            int32_t roundNumber, Value const& value) override
     {
         return mHashValueCalculator(value);
     }
@@ -218,9 +207,9 @@ class TestSCP : public SCPDriver
     std::map<int, TimerData> mTimers;
     std::chrono::milliseconds mCurrentTimerOffset{0};
 
-    void
-    setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
-               std::function<void()> cb) override
+    void setupTimer(uint64 slotIndex, int timerID,
+                    std::chrono::milliseconds timeout,
+                    std::function<void()> cb) override
     {
         mTimers[timerID] =
             TimerData{mCurrentTimerOffset +
@@ -228,21 +217,18 @@ class TestSCP : public SCPDriver
                       cb};
     }
 
-    void
-    stopTimer(uint64 slotIndex, int timerID) override
+    void stopTimer(uint64 slotIndex, int timerID) override
     {
         mTimers.erase(timerID);
     }
 
-    TimerData
-    getBallotProtocolTimer()
+    TimerData getBallotProtocolTimer()
     {
         return mTimers[Slot::BALLOT_PROTOCOL_TIMER];
     }
 
     // pretends the time moved forward
-    std::chrono::milliseconds
-    bumpTimerOffset()
+    std::chrono::milliseconds bumpTimerOffset()
     {
         // increase by more than the maximum timeout
         mCurrentTimerOffset += std::chrono::hours(5);
@@ -250,8 +236,7 @@ class TestSCP : public SCPDriver
     }
 
     // returns true if a ballot protocol timer exists (in the past or future)
-    bool
-    hasBallotTimer()
+    bool hasBallotTimer()
     {
         return !!getBallotProtocolTimer().mCallback;
     }
@@ -259,44 +244,38 @@ class TestSCP : public SCPDriver
     // returns true if the ballot protocol timer is scheduled in the future
     // false if scheduled in the past
     // this method is mostly used to verify that the timer *would* have fired
-    bool
-    hasBallotTimerUpcoming()
+    bool hasBallotTimerUpcoming()
     {
         // timer must be scheduled in the past or future
         REQUIRE(hasBallotTimer());
         return mCurrentTimerOffset < getBallotProtocolTimer().mAbsoluteTimeout;
     }
 
-    Value const&
-    getLatestCompositeCandidate(uint64 slotIndex)
+    Value const& getLatestCompositeCandidate(uint64 slotIndex)
     {
         return mSCP.getSlot(slotIndex, true)
             ->getLatestCompositeCandidate()
             ->getValue();
     }
 
-    void
-    receiveEnvelope(SCPEnvelope const& envelope)
+    void receiveEnvelope(SCPEnvelope const& envelope)
     {
         auto envW = mSCP.getDriver().wrapEnvelope(envelope);
         mSCP.receiveEnvelope(envW);
     }
 
-    Slot&
-    getSlot(uint64 index)
+    Slot& getSlot(uint64 index)
     {
         return *mSCP.getSlot(index, false);
     }
 
-    std::vector<SCPEnvelope>
-    getEntireState(uint64 index)
+    std::vector<SCPEnvelope> getEntireState(uint64 index)
     {
         auto v = mSCP.getSlot(index, false)->getEntireCurrentState();
         return v;
     }
 
-    SCPEnvelope
-    getCurrentEnvelope(uint64 index, NodeID const& id)
+    SCPEnvelope getCurrentEnvelope(uint64 index, NodeID const& id)
     {
         auto r = getEntireState(index);
         auto it = std::find_if(r.begin(), r.end(), [&](SCPEnvelope const& e) {
@@ -309,8 +288,7 @@ class TestSCP : public SCPDriver
         throw std::runtime_error("not found");
     }
 
-    std::set<NodeID>
-    getNominationLeaders(uint64 slotIndex)
+    std::set<NodeID> getNominationLeaders(uint64 slotIndex)
     {
         return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
     }
@@ -318,8 +296,8 @@ class TestSCP : public SCPDriver
     // Copied from HerderSCPDriver.cpp
     static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
-    std::chrono::milliseconds
-    computeTimeout(uint32 roundNumber, bool isNomination) override
+    std::chrono::milliseconds computeTimeout(uint32 roundNumber,
+                                             bool isNomination) override
     {
         int initialTimeoutMS;
         int incrementMS;
@@ -344,9 +322,8 @@ class TestSCP : public SCPDriver
     }
 };
 
-static SCPEnvelope
-makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
-             SCPStatement const& statement)
+static SCPEnvelope makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
+                                SCPStatement const& statement)
 {
     SCPEnvelope envelope;
     envelope.statement = statement;
@@ -358,9 +335,9 @@ makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
     return envelope;
 }
 
-static SCPEnvelope
-makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
-                uint64 slotIndex, SCPBallot const& commitBallot, uint32 nH)
+static SCPEnvelope makeExternalize(SecretKey const& secretKey,
+                                   Hash const& qSetHash, uint64 slotIndex,
+                                   SCPBallot const& commitBallot, uint32 nH)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_EXTERNALIZE);
@@ -372,9 +349,9 @@ makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
-makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
-            uint32 prepareCounter, SCPBallot const& b, uint32 nC, uint32 nH)
+static SCPEnvelope makeConfirm(SecretKey const& secretKey, Hash const& qSetHash,
+                               uint64 slotIndex, uint32 prepareCounter,
+                               SCPBallot const& b, uint32 nC, uint32 nH)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_CONFIRM);
@@ -388,10 +365,11 @@ makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
-makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
-            SCPBallot const& ballot, SCPBallot* prepared = nullptr,
-            uint32 nC = 0, uint32 nH = 0, SCPBallot* preparedPrime = nullptr)
+static SCPEnvelope makePrepare(SecretKey const& secretKey, Hash const& qSetHash,
+                               uint64 slotIndex, SCPBallot const& ballot,
+                               SCPBallot* prepared = nullptr, uint32 nC = 0,
+                               uint32 nH = 0,
+                               SCPBallot* preparedPrime = nullptr)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_PREPARE);
@@ -414,9 +392,10 @@ makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-static SCPEnvelope
-makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
-             std::vector<Value> votes, std::vector<Value> accepted)
+static SCPEnvelope makeNominate(SecretKey const& secretKey,
+                                Hash const& qSetHash, uint64 slotIndex,
+                                std::vector<Value> votes,
+                                std::vector<Value> accepted)
 {
     std::sort(votes.begin(), votes.end());
     std::sort(accepted.begin(), accepted.end());
@@ -436,40 +415,37 @@ makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     return makeEnvelope(secretKey, slotIndex, st);
 }
 
-void
-verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
-              Hash const& qSetHash, uint64 slotIndex, SCPBallot const& ballot,
-              SCPBallot* prepared = nullptr, uint32 nC = 0, uint32 nH = 0,
-              SCPBallot* preparedPrime = nullptr)
+void verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
+                   Hash const& qSetHash, uint64 slotIndex,
+                   SCPBallot const& ballot, SCPBallot* prepared = nullptr,
+                   uint32 nC = 0, uint32 nH = 0,
+                   SCPBallot* preparedPrime = nullptr)
 {
     auto exp = makePrepare(secretKey, qSetHash, slotIndex, ballot, prepared, nC,
                            nH, preparedPrime);
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
-verifyConfirm(SCPEnvelope const& actual, SecretKey const& secretKey,
-              Hash const& qSetHash, uint64 slotIndex, uint32 nPrepared,
-              SCPBallot const& b, uint32 nC, uint32 nH)
+void verifyConfirm(SCPEnvelope const& actual, SecretKey const& secretKey,
+                   Hash const& qSetHash, uint64 slotIndex, uint32 nPrepared,
+                   SCPBallot const& b, uint32 nC, uint32 nH)
 {
     auto exp =
         makeConfirm(secretKey, qSetHash, slotIndex, nPrepared, b, nC, nH);
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
-verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
-                  Hash const& qSetHash, uint64 slotIndex,
-                  SCPBallot const& commit, uint32 nH)
+void verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
+                       Hash const& qSetHash, uint64 slotIndex,
+                       SCPBallot const& commit, uint32 nH)
 {
     auto exp = makeExternalize(secretKey, qSetHash, slotIndex, commit, nH);
     REQUIRE(exp.statement == actual.statement);
 }
 
-void
-verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
-               Hash const& qSetHash, uint64 slotIndex, std::vector<Value> votes,
-               std::vector<Value> accepted)
+void verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
+                    Hash const& qSetHash, uint64 slotIndex,
+                    std::vector<Value> votes, std::vector<Value> accepted)
 {
     auto exp = makeNominate(secretKey, qSetHash, slotIndex, votes, accepted);
     REQUIRE(exp.statement == actual.statement);
@@ -605,26 +581,24 @@ typedef std::function<SCPEnvelope(SecretKey const& sk)> genEnvelope;
 
 using namespace std::placeholders;
 
-static genEnvelope
-makePrepareGen(Hash const& qSetHash, SCPBallot const& ballot,
-               SCPBallot* prepared = nullptr, uint32 nC = 0, uint32 nH = 0,
-               SCPBallot* preparedPrime = nullptr)
+static genEnvelope makePrepareGen(Hash const& qSetHash, SCPBallot const& ballot,
+                                  SCPBallot* prepared = nullptr, uint32 nC = 0,
+                                  uint32 nH = 0,
+                                  SCPBallot* preparedPrime = nullptr)
 {
     return std::bind(makePrepare, _1, std::cref(qSetHash), 0, std::cref(ballot),
                      prepared, nC, nH, preparedPrime);
 }
 
-static genEnvelope
-makeConfirmGen(Hash const& qSetHash, uint32 prepareCounter, SCPBallot const& b,
-               uint32 nC, uint32 nH)
+static genEnvelope makeConfirmGen(Hash const& qSetHash, uint32 prepareCounter,
+                                  SCPBallot const& b, uint32 nC, uint32 nH)
 {
     return std::bind(makeConfirm, _1, std::cref(qSetHash), 0, prepareCounter,
                      std::cref(b), nC, nH);
 }
 
-static genEnvelope
-makeExternalizeGen(Hash const& qSetHash, SCPBallot const& commitBallot,
-                   uint32 nH)
+static genEnvelope makeExternalizeGen(Hash const& qSetHash,
+                                      SCPBallot const& commitBallot, uint32 nH)
 {
     return std::bind(makeExternalize, _1, std::cref(qSetHash), 0,
                      std::cref(commitBallot), nH);
@@ -632,8 +606,7 @@ makeExternalizeGen(Hash const& qSetHash, SCPBallot const& commitBallot,
 
 // Testing matrix that covers interesting min/max values for each timeout
 // parameter
-static void
-testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
+static void testTimeouts(TestSCP& scp, std::function<void(TestSCP&)> f)
 {
     SECTION("minimum values")
     {

@@ -16,8 +16,7 @@ RunCommandWork::RunCommandWork(Application& app, std::string const& name,
 {
 }
 
-BasicWork::State
-RunCommandWork::onRun()
+BasicWork::State RunCommandWork::onRun()
 {
     ZoneScoped;
     if (mDone)
@@ -58,16 +57,14 @@ RunCommandWork::onRun()
     }
 }
 
-void
-RunCommandWork::onReset()
+void RunCommandWork::onReset()
 {
     mDone = false;
     mEc = asio::error_code();
     mExitEvent.reset();
 }
 
-bool
-RunCommandWork::onAbort()
+bool RunCommandWork::onAbort()
 {
     ZoneScoped;
     auto process = mExitEvent.lock();

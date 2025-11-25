@@ -44,9 +44,7 @@ struct XDRShortHasher : XDRHasher<XDRShortHasher>
 // (ByteSlice case). This difference isn't a security feature or anything
 // (SipHash integrates length into the hash) but it's a source of potential
 // bugs, so we avoid it by using a different function name.
-template <typename T>
-uint64_t
-xdrComputeHash(T const& t)
+template <typename T> uint64_t xdrComputeHash(T const& t)
 {
     XDRShortHasher xsh;
     xdr::archive(xsh, t);

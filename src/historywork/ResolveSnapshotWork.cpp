@@ -23,8 +23,7 @@ ResolveSnapshotWork::ResolveSnapshotWork(
     }
 }
 
-BasicWork::State
-ResolveSnapshotWork::onRun()
+BasicWork::State ResolveSnapshotWork::onRun()
 {
     ZoneScoped;
     mSnapshot->mLocalState.prepareForPublish(mApp);

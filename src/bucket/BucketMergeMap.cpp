@@ -28,8 +28,7 @@ getMergeKeyHashes(stellar::MergeKey const& key)
 namespace stellar
 {
 
-void
-BucketMergeMap::recordMerge(MergeKey const& input, Hash const& output)
+void BucketMergeMap::recordMerge(MergeKey const& input, Hash const& output)
 {
     ZoneScoped;
     mMergeKeyToOutput.emplace(input, output);
@@ -103,8 +102,7 @@ BucketMergeMap::forgetAllMergesProducing(Hash const& outputBeingDropped)
     return ret;
 }
 
-bool
-BucketMergeMap::findMergeFor(MergeKey const& input, Hash& output)
+bool BucketMergeMap::findMergeFor(MergeKey const& input, Hash& output)
 {
     ZoneScoped;
     auto i = mMergeKeyToOutput.find(input);
@@ -116,9 +114,8 @@ BucketMergeMap::findMergeFor(MergeKey const& input, Hash& output)
     return false;
 }
 
-void
-BucketMergeMap::getOutputsUsingInput(Hash const& input,
-                                     std::set<Hash>& outputs) const
+void BucketMergeMap::getOutputsUsingInput(Hash const& input,
+                                          std::set<Hash>& outputs) const
 {
     ZoneScoped;
     auto pair = mInputToOutput.equal_range(input);

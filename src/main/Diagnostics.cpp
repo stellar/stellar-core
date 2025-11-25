@@ -12,8 +12,7 @@ namespace stellar
 namespace diagnostics
 {
 
-void
-bucketStats(std::string const& filename, bool aggregateAccounts)
+void bucketStats(std::string const& filename, bool aggregateAccounts)
 {
     XDRInputFileStream in;
     in.open(filename);

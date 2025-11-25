@@ -18,8 +18,7 @@ namespace stellar
 
 namespace
 {
-uint64
-computeWeight(uint64 m, uint64 total, uint64 threshold)
+uint64 computeWeight(uint64 m, uint64 total, uint64 threshold)
 {
     uint64 res;
     releaseAssert(threshold <= total);
@@ -32,9 +31,8 @@ computeWeight(uint64 m, uint64 total, uint64 threshold)
 }
 } // namespace
 
-bool
-WrappedValuePtrComparator::operator()(ValueWrapperPtr const& l,
-                                      ValueWrapperPtr const& r) const
+bool WrappedValuePtrComparator::operator()(ValueWrapperPtr const& l,
+                                           ValueWrapperPtr const& r) const
 {
     releaseAssert(l && r);
     return l->getValue() < r->getValue();
@@ -56,36 +54,31 @@ ValueWrapper::~ValueWrapper()
 {
 }
 
-SCPEnvelopeWrapperPtr
-SCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
+SCPEnvelopeWrapperPtr SCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
 {
     auto res = std::make_shared<SCPEnvelopeWrapper>(envelope);
     return res;
 }
 
-ValueWrapperPtr
-SCPDriver::wrapValue(Value const& value)
+ValueWrapperPtr SCPDriver::wrapValue(Value const& value)
 {
     auto res = std::make_shared<ValueWrapper>(value);
     return res;
 }
 
-std::string
-SCPDriver::getValueString(Value const& v) const
+std::string SCPDriver::getValueString(Value const& v) const
 {
     Hash valueHash = getHashOf({xdr::xdr_to_opaque(v)});
 
     return hexAbbrev(valueHash);
 }
 
-std::string
-SCPDriver::toStrKey(NodeID const& pk, bool fullKey) const
+std::string SCPDriver::toStrKey(NodeID const& pk, bool fullKey) const
 {
     return fullKey ? KeyUtils::toStrKey(pk) : toShortString(pk);
 }
 
-std::string
-SCPDriver::toShortString(NodeID const& pk) const
+std::string SCPDriver::toShortString(NodeID const& pk) const
 {
     return KeyUtils::toShortString(pk);
 }
@@ -95,8 +88,7 @@ static const uint32 hash_N = 1;
 static const uint32 hash_P = 2;
 static const uint32 hash_K = 3;
 
-uint64
-SCPDriver::hashHelper(
+uint64 SCPDriver::hashHelper(
     uint64 slotIndex, Value const& prev,
     std::function<void(std::vector<xdr::opaque_vec<>>&)> extra)
 {
@@ -113,9 +105,9 @@ SCPDriver::hashHelper(
     return res;
 }
 
-uint64
-SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                           int32_t roundNumber, NodeID const& nodeID)
+uint64 SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev,
+                                  bool isPriority, int32_t roundNumber,
+                                  NodeID const& nodeID)
 {
 #ifdef BUILD_TESTS
     if (mPriorityLookupForTesting)
@@ -131,9 +123,8 @@ SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
         });
 }
 
-uint64
-SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
-                            int32_t roundNumber, Value const& value)
+uint64 SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
+                                   int32_t roundNumber, Value const& value)
 {
     return hashHelper(slotIndex, prev,
                       [&](std::vector<xdr::opaque_vec<>>& vals) {
@@ -145,9 +136,8 @@ SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
 
 // if a validator is repeated multiple times its weight is only the
 // weight of the first occurrence
-uint64
-SCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
-                         bool isLocalNode) const
+uint64 SCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
+                                bool isLocalNode) const
 {
     if (isLocalNode)
     {

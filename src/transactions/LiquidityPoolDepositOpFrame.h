@@ -16,8 +16,7 @@ typedef LiquidityPoolEntry::_body_t::_constantProduct_t
 
 class LiquidityPoolDepositOpFrame : public OperationFrame
 {
-    LiquidityPoolDepositResult&
-    innerResult(OperationResult& res) const
+    LiquidityPoolDepositResult& innerResult(OperationResult& res) const
     {
         return res.tr().liquidityPoolDepositResult();
     }
@@ -48,8 +47,8 @@ class LiquidityPoolDepositOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
     static LiquidityPoolDepositResultCode
     getInnerCode(OperationResult const& res)

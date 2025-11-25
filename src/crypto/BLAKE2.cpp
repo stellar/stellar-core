@@ -13,8 +13,7 @@ namespace stellar
 {
 
 // Plain BLAKE2 (a.k.a. BLAKE2b)
-uint256
-blake2(ByteSlice const& bin)
+uint256 blake2(ByteSlice const& bin)
 {
     static_assert(crypto_generichash_BYTES == sizeof(uint256),
                   "unexpected crypto_generichash_BYTES");
@@ -33,8 +32,7 @@ BLAKE2::BLAKE2()
     reset();
 }
 
-void
-BLAKE2::reset()
+void BLAKE2::reset()
 {
     if (crypto_generichash_init(&mState, nullptr, 0,
                                 crypto_generichash_BYTES) != 0)
@@ -44,8 +42,7 @@ BLAKE2::reset()
     mFinished = false;
 }
 
-void
-BLAKE2::add(ByteSlice const& bin)
+void BLAKE2::add(ByteSlice const& bin)
 {
     ZoneScoped;
     if (mFinished)
@@ -58,8 +55,7 @@ BLAKE2::add(ByteSlice const& bin)
     }
 }
 
-uint256
-BLAKE2::finish()
+uint256 BLAKE2::finish()
 {
     uint256 out;
     if (mFinished)

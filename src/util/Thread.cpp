@@ -19,8 +19,7 @@ namespace stellar
 
 #if defined(_WIN32)
 
-static void
-runCurrentThreadWithPriority(int priority)
+static void runCurrentThreadWithPriority(int priority)
 {
     HANDLE curThread = ::GetCurrentThread();
     BOOL ret = ::SetThreadPriority(curThread, priority);
@@ -31,22 +30,19 @@ runCurrentThreadWithPriority(int priority)
     }
 }
 
-void
-runCurrentThreadWithLowPriority()
+void runCurrentThreadWithLowPriority()
 {
     runCurrentThreadWithPriority(THREAD_PRIORITY_LOWEST);
 }
 
-void
-runCurrentThreadWithMediumPriority()
+void runCurrentThreadWithMediumPriority()
 {
     runCurrentThreadWithPriority(THREAD_PRIORITY_BELOW_NORMAL);
 }
 
 #elif defined(__linux__)
 
-static void
-runCurrentThreadWithPriority(int priority)
+static void runCurrentThreadWithPriority(int priority)
 {
     auto newNice = nice(priority);
     if (newNice != priority)
@@ -56,22 +52,19 @@ runCurrentThreadWithPriority(int priority)
     }
 }
 
-void
-runCurrentThreadWithLowPriority()
+void runCurrentThreadWithLowPriority()
 {
     runCurrentThreadWithPriority(/*LOW_PRIORITY_NICE*/ 5);
 }
 
-void
-runCurrentThreadWithMediumPriority()
+void runCurrentThreadWithMediumPriority()
 {
     runCurrentThreadWithPriority(/*MED_PRIORITY_NICE*/ 3);
 }
 
 #elif defined(__APPLE__)
 
-static void
-runCurrentThreadWithPriority(int priority)
+static void runCurrentThreadWithPriority(int priority)
 {
     // Default MacOS priority is 31 in a user-mode band from 0..63, niceing (or
     // other priority-adjustment) usually subtracts from there. Range is +/- 16,
@@ -92,26 +85,22 @@ runCurrentThreadWithPriority(int priority)
     }
 }
 
-void
-runCurrentThreadWithLowPriority()
+void runCurrentThreadWithLowPriority()
 {
     runCurrentThreadWithPriority(/*LOW_PRIORITY_NICE*/ 5);
 }
 
-void
-runCurrentThreadWithMediumPriority()
+void runCurrentThreadWithMediumPriority()
 {
     runCurrentThreadWithPriority(/*MED_PRIORITY_NICE*/ 3);
 }
 #else
 
-void
-runCurrentThreadWithLowPriority()
+void runCurrentThreadWithLowPriority()
 {
 }
 
-void
-runCurrentThreadWithMediumPriority()
+void runCurrentThreadWithMediumPriority()
 {
 }
 

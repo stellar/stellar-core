@@ -52,8 +52,8 @@ xdr::opaque_vec<> curve25519Decrypt(Curve25519Secret const& localSecret,
                                     ByteSlice const& encrypted);
 
 template <uint32_t N>
-xdr::opaque_vec<N>
-curve25519Encrypt(Curve25519Public const& remotePublic, ByteSlice const& bin)
+xdr::opaque_vec<N> curve25519Encrypt(Curve25519Public const& remotePublic,
+                                     ByteSlice const& bin)
 {
     const uint64_t CIPHERTEXT_LEN = crypto_box_SEALBYTES + bin.size();
     if (CIPHERTEXT_LEN > N)

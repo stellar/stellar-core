@@ -28,10 +28,10 @@ namespace stellar
 {
 // returns the amount of wheat that would be traded
 // while buying as much sheep as possible
-int64_t
-canSellAtMostBasedOnSheep(LedgerTxnHeader const& header, Asset const& sheep,
-                          ConstTrustLineWrapper const& sheepLine,
-                          Price const& wheatPrice)
+int64_t canSellAtMostBasedOnSheep(LedgerTxnHeader const& header,
+                                  Asset const& sheep,
+                                  ConstTrustLineWrapper const& sheepLine,
+                                  Price const& wheatPrice)
 {
     if (sheep.type() == ASSET_TYPE_NATIVE)
     {
@@ -51,9 +51,9 @@ canSellAtMostBasedOnSheep(LedgerTxnHeader const& header, Asset const& sheep,
     return wheatAmount;
 }
 
-int64_t
-canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
-              Asset const& asset, TrustLineWrapper const& trustLine)
+int64_t canSellAtMost(LedgerTxnHeader const& header,
+                      LedgerTxnEntry const& account, Asset const& asset,
+                      TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -69,9 +69,9 @@ canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
     return 0;
 }
 
-int64_t
-canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
-              Asset const& asset, ConstTrustLineWrapper const& trustLine)
+int64_t canSellAtMost(LedgerTxnHeader const& header,
+                      ConstLedgerTxnEntry const& account, Asset const& asset,
+                      ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -87,9 +87,9 @@ canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
     return 0;
 }
 
-int64_t
-canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
-             Asset const& asset, TrustLineWrapper const& trustLine)
+int64_t canBuyAtMost(LedgerTxnHeader const& header,
+                     LedgerTxnEntry const& account, Asset const& asset,
+                     TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -103,9 +103,9 @@ canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
     }
 }
 
-int64_t
-canBuyAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
-             Asset const& asset, ConstTrustLineWrapper const& trustLine)
+int64_t canBuyAtMost(LedgerTxnHeader const& header,
+                     ConstLedgerTxnEntry const& account, Asset const& asset,
+                     ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -119,9 +119,8 @@ canBuyAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
     }
 }
 
-ExchangeResult
-exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
-           int64_t maxSheepSend)
+ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
+                          int64_t maxWheatReceive, int64_t maxSheepSend)
 {
     ZoneScoped;
     auto result = ExchangeResult{};
@@ -144,9 +143,8 @@ exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
     return result;
 }
 
-ExchangeResult
-exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
-           int64_t maxSheepSend)
+ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
+                          int64_t maxWheatReceive, int64_t maxSheepSend)
 {
     ZoneScoped;
     auto result = ExchangeResult{};
@@ -183,9 +181,8 @@ exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
 // the relative error between the price and the effective price does not exceed
 // 1% if it is favoring the seller of sheep. The functionality of canFavorWheat
 // is required for PathPayment.
-bool
-checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
-                     bool canFavorWheat)
+bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
+                          bool canFavorWheat)
 {
     // Let K = 100 / threshold, where threshold is the maximum relative error in
     // percent (so in this case, threshold = 1%). Then we can rearrange the
@@ -215,9 +212,8 @@ checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
     return (absDiff <= cap);
 }
 
-static uint128_t
-calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
-                    int64_t maxReceive)
+static uint128_t calculateOfferValue(int32_t priceN, int32_t priceD,
+                                     int64_t maxSend, int64_t maxReceive)
 {
     uint128_t sendValue = bigMultiply(maxSend, priceN);
     uint128_t receiveValue = bigMultiply(maxReceive, priceD);
@@ -548,9 +544,9 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 // operation fails. If sheepSend < maxSheepSend and wheatReceive <
 // maxWheatReceive, then the operation will cross additional offers since
 // !wheatStays.
-ExchangeResultV10
-exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
-            int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round)
+ExchangeResultV10 exchangeV10(Price price, int64_t maxWheatSend,
+                              int64_t maxWheatReceive, int64_t maxSheepSend,
+                              int64_t maxSheepReceive, RoundingType round)
 {
     ZoneScoped;
     auto beforeThresholds = exchangeV10WithoutPriceErrorThresholds(
@@ -628,12 +624,9 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 // should have already been removed from the order book because no more can be
 // received. In either case, we have reached a contradiction because we would
 // not be crossing in either case. We conclude that sheepSend > 0.
-ExchangeResultV10
-exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
-                                       int64_t maxWheatReceive,
-                                       int64_t maxSheepSend,
-                                       int64_t maxSheepReceive,
-                                       RoundingType round)
+ExchangeResultV10 exchangeV10WithoutPriceErrorThresholds(
+    Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
+    int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round)
 {
     uint128_t wheatValue =
         calculateOfferValue(price.n, price.d, maxWheatSend, maxSheepReceive);
@@ -699,9 +692,9 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
 }
 
 // See comment before exchangeV10.
-ExchangeResultV10
-applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
-                          bool wheatStays, RoundingType round)
+ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
+                                            int64_t sheepSend, bool wheatStays,
+                                            RoundingType round)
 {
     if (wheatReceive > 0 && sheepSend > 0)
     {
@@ -780,11 +773,10 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     return res;
 }
 
-void
-adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
-            LedgerTxnEntry const& account, Asset const& wheat,
-            TrustLineWrapper const& wheatLine, Asset const& sheep,
-            TrustLineWrapper const& sheepLine)
+void adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
+                 LedgerTxnEntry const& account, Asset const& wheat,
+                 TrustLineWrapper const& wheatLine, Asset const& sheep,
+                 TrustLineWrapper const& sheepLine)
 {
     OfferEntry& oe = offer.current().data.offer();
     int64_t maxWheatSend =
@@ -918,8 +910,8 @@ adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
 //                   = ceil(sheepSend * price.d / price.n)
 //                   = wheatReceive
 // so we conclude that the adjusted offer is not modified by adjustOffer.
-int64_t
-adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
+int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
+                    int64_t maxSheepReceive)
 {
     ZoneScoped;
     auto res = exchangeV10(price, maxWheatSend, INT64_MAX, INT64_MAX,
@@ -980,11 +972,12 @@ performExchange(LedgerTxnHeader const& header,
     return ExchangeResultType::NORMAL;
 }
 
-static CrossOfferResult
-crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
-           int64_t maxWheatReceived, int64_t& numWheatReceived,
-           int64_t maxSheepSend, int64_t& numSheepSend,
-           std::vector<ClaimAtom>& offerTrail)
+static CrossOfferResult crossOffer(AbstractLedgerTxn& ltx,
+                                   LedgerTxnEntry& sellingWheatOffer,
+                                   int64_t maxWheatReceived,
+                                   int64_t& numWheatReceived,
+                                   int64_t maxSheepSend, int64_t& numSheepSend,
+                                   std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
     releaseAssertOrThrow(maxWheatReceived > 0);
@@ -1238,10 +1231,10 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
 // the asset that will be received from the pool. Compared to the interface of
 // exchangeV10, "ToPool" is analogous to "sheep" and "FromPool" is analogous to
 // "wheat".
-bool
-exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
-                 int64_t reservesFromPool, int64_t maxReceiveFromPool,
-                 int64_t& fromPool, int32_t feeBps, RoundingType round)
+bool exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool,
+                      int64_t& toPool, int64_t reservesFromPool,
+                      int64_t maxReceiveFromPool, int64_t& fromPool,
+                      int32_t feeBps, RoundingType round)
 {
     ZoneScoped;
 
@@ -1367,8 +1360,7 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
     }
 }
 
-PoolID
-getPoolID(Asset const& x, Asset const& y, int32_t feeBps)
+PoolID getPoolID(Asset const& x, Asset const& y, int32_t feeBps)
 {
     LiquidityPoolParameters lpp(LIQUIDITY_POOL_CONSTANT_PRODUCT);
     auto& cp = lpp.constantProduct();
@@ -1378,12 +1370,11 @@ getPoolID(Asset const& x, Asset const& y, int32_t feeBps)
     return xdrSha256(lpp);
 }
 
-static bool
-exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
-                 int64_t maxSendToPool, int64_t& toPool,
-                 Asset const& fromPoolAsset, int64_t maxReceiveFromPool,
-                 int64_t& fromPool, RoundingType round,
-                 int64_t maxOffersToCross)
+static bool exchangeWithPool(AbstractLedgerTxn& ltxOuter,
+                             Asset const& toPoolAsset, int64_t maxSendToPool,
+                             int64_t& toPool, Asset const& fromPoolAsset,
+                             int64_t maxReceiveFromPool, int64_t& fromPool,
+                             RoundingType round, int64_t maxOffersToCross)
 {
     LedgerTxn ltx(ltxOuter);
 
@@ -1478,8 +1469,7 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
     return res;
 }
 
-static ConvertResult
-convertWithOffers(
+static ConvertResult convertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
@@ -1645,8 +1635,7 @@ shouldConvertWithOffers(std::optional<ExchangedQuantities> const& poolExchange,
 }
 
 // returns true if converting with offers, false otherwise
-static bool
-maybeConvertWithOffers(
+static bool maybeConvertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
@@ -1693,8 +1682,7 @@ maybeConvertWithOffers(
     return false;
 }
 
-ConvertResult
-convertWithOffersAndPools(
+ConvertResult convertWithOffersAndPools(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,

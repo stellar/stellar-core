@@ -25,9 +25,7 @@ namespace stellar
 namespace
 {
 
-template <typename T>
-void
-vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
+template <typename T> void vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
 {
     std::move(b.begin(), b.end(), std::back_inserter(a));
 }
@@ -37,8 +35,7 @@ vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
 // (mostly) logically a new entry creation from the perspective of ltx and
 // stellar-core as a whole, but this change type is reclassified to
 // LEDGER_ENTRY_RESTORED for easier consumption downstream.
-LedgerEntryChanges
-processOpLedgerEntryChanges(
+LedgerEntryChanges processOpLedgerEntryChanges(
     Config const& cfg, OperationFrame const& op,
     LedgerEntryChanges const& initialChanges,
     UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
@@ -342,9 +339,8 @@ processOpLedgerEntryChanges(
 }
 } // namespace
 
-void
-OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
-                                       uint32_t ledgerSeq)
+void OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
+                                            uint32_t ledgerSeq)
 {
     if (!mEnabled)
     {
@@ -400,8 +396,7 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
         mMeta);
 }
 
-void
-OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
+void OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     ThreadParallelApplyLedgerState const& threadState,
     ParallelTxReturnVal const& res, uint32_t ledgerSeq)
 {
@@ -470,8 +465,7 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
         mMeta);
 }
 
-void
-OperationMetaBuilder::setSorobanReturnValue(SCVal const& val)
+void OperationMetaBuilder::setSorobanReturnValue(SCVal const& val)
 {
     if (!mEnabled)
     {
@@ -481,14 +475,12 @@ OperationMetaBuilder::setSorobanReturnValue(SCVal const& val)
     mSorobanReturnValue.emplace(val);
 }
 
-OpEventManager&
-OperationMetaBuilder::getEventManager()
+OpEventManager& OperationMetaBuilder::getEventManager()
 {
     return mEventManager;
 }
 
-DiagnosticEventManager&
-OperationMetaBuilder::getDiagnosticEventManager()
+DiagnosticEventManager& OperationMetaBuilder::getDiagnosticEventManager()
 {
     return mDiagnosticEventManager;
 }
@@ -523,8 +515,7 @@ OperationMetaBuilder::OperationMetaBuilder(
 {
 }
 
-bool
-OperationMetaBuilder::maybeFinalizeOpEvents()
+bool OperationMetaBuilder::maybeFinalizeOpEvents()
 {
     return std::visit(
         [this](auto&& meta) {
@@ -582,8 +573,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::getChangesBefore()
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
+void TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
     xdr::xvector<OperationMeta>&& opMetas)
 {
     switch (mTransactionMeta.v())
@@ -599,8 +589,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
+void TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
     xdr::xvector<OperationMetaV2>&& opMetas)
 {
     switch (mTransactionMeta.v())
@@ -645,8 +634,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::getSorobanMetaExt()
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::setDiagnosticEvents(
+void TransactionMetaBuilder::TransactionMetaWrapper::setDiagnosticEvents(
     xdr::xvector<DiagnosticEvent>&& events)
 {
     switch (mTransactionMeta.v())
@@ -665,9 +653,8 @@ TransactionMetaBuilder::TransactionMetaWrapper::setDiagnosticEvents(
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::maybeSetContractEventsAtTxLevel(
-    xdr::xvector<ContractEvent>&& events)
+void TransactionMetaBuilder::TransactionMetaWrapper::
+    maybeSetContractEventsAtTxLevel(xdr::xvector<ContractEvent>&& events)
 {
     switch (mTransactionMeta.v())
     {
@@ -685,8 +672,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::maybeSetContractEventsAtTxLevel(
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::maybeActivateSorobanMeta(
+void TransactionMetaBuilder::TransactionMetaWrapper::maybeActivateSorobanMeta(
     bool success)
 {
     switch (mTransactionMeta.v())
@@ -711,8 +697,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::maybeActivateSorobanMeta(
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::setReturnValue(
+void TransactionMetaBuilder::TransactionMetaWrapper::setReturnValue(
     SCVal const& returnValue)
 {
     switch (mTransactionMeta.v())
@@ -731,8 +716,7 @@ TransactionMetaBuilder::TransactionMetaWrapper::setReturnValue(
     }
 }
 
-void
-TransactionMetaBuilder::TransactionMetaWrapper::setTransactionEvents(
+void TransactionMetaBuilder::TransactionMetaWrapper::setTransactionEvents(
     xdr::xvector<TransactionEvent>&& events)
 {
     switch (mTransactionMeta.v())
@@ -753,8 +737,7 @@ TransactionMetaFrame::TransactionMetaFrame(TransactionMeta const& meta)
     : mTransactionMeta(meta)
 {
 }
-size_t
-TransactionMetaFrame::getNumOperations() const
+size_t TransactionMetaFrame::getNumOperations() const
 {
     switch (mTransactionMeta.v())
     {
@@ -769,8 +752,7 @@ TransactionMetaFrame::getNumOperations() const
     }
 }
 
-size_t
-TransactionMetaFrame::getNumChangesBefore() const
+size_t TransactionMetaFrame::getNumChangesBefore() const
 {
     switch (mTransactionMeta.v())
     {
@@ -785,8 +767,7 @@ TransactionMetaFrame::getNumChangesBefore() const
     }
 }
 
-LedgerEntryChanges
-TransactionMetaFrame::getChangesBefore() const
+LedgerEntryChanges TransactionMetaFrame::getChangesBefore() const
 {
     switch (mTransactionMeta.v())
     {
@@ -801,8 +782,7 @@ TransactionMetaFrame::getChangesBefore() const
     }
 }
 
-LedgerEntryChanges
-TransactionMetaFrame::getChangesAfter() const
+LedgerEntryChanges TransactionMetaFrame::getChangesAfter() const
 {
     switch (mTransactionMeta.v())
     {
@@ -817,8 +797,7 @@ TransactionMetaFrame::getChangesAfter() const
     }
 }
 
-SCVal const&
-TransactionMetaFrame::getReturnValue() const
+SCVal const& TransactionMetaFrame::getReturnValue() const
 {
     switch (mTransactionMeta.v())
     {
@@ -834,8 +813,7 @@ TransactionMetaFrame::getReturnValue() const
     }
 }
 
-bool
-TransactionMetaFrame::eventsAreSupported() const
+bool TransactionMetaFrame::eventsAreSupported() const
 {
     return mTransactionMeta.v() >= 4;
 }
@@ -872,8 +850,7 @@ TransactionMetaFrame::getOpEventsAtOp(size_t opIdx) const
     }
 }
 
-xdr::xvector<TransactionEvent> const&
-TransactionMetaFrame::getTxEvents() const
+xdr::xvector<TransactionEvent> const& TransactionMetaFrame::getTxEvents() const
 {
     switch (mTransactionMeta.v())
     {
@@ -932,8 +909,7 @@ TransactionMetaFrame::getLedgerEntryChangesAtOp(size_t opIdx) const
     }
 }
 
-TransactionMeta const&
-TransactionMetaFrame::getXDR() const
+TransactionMeta const& TransactionMetaFrame::getXDR() const
 {
     return mTransactionMeta;
 }
@@ -992,8 +968,7 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
     }
 }
 
-TxEventManager&
-TransactionMetaBuilder::getTxEventManager()
+TxEventManager& TransactionMetaBuilder::getTxEventManager()
 {
     return mTxEventManager;
 }
@@ -1004,20 +979,19 @@ TransactionMetaBuilder::getOperationMetaBuilderAt(size_t i)
     return mOperationMetaBuilders.at(i);
 }
 
-void
-TransactionMetaBuilder::pushTxChangesBefore(AbstractLedgerTxn& changesBeforeLtx)
+void TransactionMetaBuilder::pushTxChangesBefore(
+    AbstractLedgerTxn& changesBeforeLtx)
 {
     maybePushChanges(changesBeforeLtx, mTransactionMeta.getChangesBefore());
 }
 
-void
-TransactionMetaBuilder::pushTxChangesAfter(AbstractLedgerTxn& changesAfterLtx)
+void TransactionMetaBuilder::pushTxChangesAfter(
+    AbstractLedgerTxn& changesAfterLtx)
 {
     maybePushChanges(changesAfterLtx, mTransactionMeta.getChangesAfter());
 }
 
-void
-TransactionMetaBuilder::setNonRefundableResourceFee(int64_t fee)
+void TransactionMetaBuilder::setNonRefundableResourceFee(int64_t fee)
 {
     if (mEnabled && mSorobanMetaExtEnabled)
     {
@@ -1029,8 +1003,7 @@ TransactionMetaBuilder::setNonRefundableResourceFee(int64_t fee)
     }
 }
 
-void
-TransactionMetaBuilder::maybeSetRefundableFeeMeta(
+void TransactionMetaBuilder::maybeSetRefundableFeeMeta(
     std::optional<RefundableFeeTracker> const& refundableFeeTracker)
 {
     if (mEnabled && refundableFeeTracker && mSorobanMetaExtEnabled)
@@ -1045,14 +1018,12 @@ TransactionMetaBuilder::maybeSetRefundableFeeMeta(
     }
 }
 
-DiagnosticEventManager&
-TransactionMetaBuilder::getDiagnosticEventManager()
+DiagnosticEventManager& TransactionMetaBuilder::getDiagnosticEventManager()
 {
     return mDiagnosticEventManager;
 }
 
-TransactionMeta
-TransactionMetaBuilder::finalize(bool success)
+TransactionMeta TransactionMetaBuilder::finalize(bool success)
 {
     // Finalizing the meta only makes sense when it's enabled in the first
     // place.
@@ -1127,9 +1098,8 @@ TransactionMetaBuilder::finalize(bool success)
     return std::move(mTransactionMeta.mTransactionMeta);
 }
 
-void
-TransactionMetaBuilder::maybePushChanges(AbstractLedgerTxn& changesLtx,
-                                         LedgerEntryChanges& destChanges)
+void TransactionMetaBuilder::maybePushChanges(AbstractLedgerTxn& changesLtx,
+                                              LedgerEntryChanges& destChanges)
 {
     if (mEnabled)
     {

@@ -345,9 +345,9 @@ class Application
     static pointer create(VirtualClock& clock, Config const& cfg,
                           bool newDB = true, bool forceRebuild = false);
     template <typename T, typename... Args>
-    static std::shared_ptr<T>
-    create(VirtualClock& clock, Config const& cfg, Args&&... args,
-           bool newDB = true, bool forceRebuild = false)
+    static std::shared_ptr<T> create(VirtualClock& clock, Config const& cfg,
+                                     Args&&... args, bool newDB = true,
+                                     bool forceRebuild = false)
     {
         auto ret = std::make_shared<T>(clock, cfg, std::forward<Args>(args)...);
         ret->initialize(newDB, forceRebuild);

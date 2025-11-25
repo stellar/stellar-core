@@ -83,9 +83,9 @@ class OpEventManager
     void setEvents(xdr::xvector<ContractEvent>&& events);
 
     // Creates transfer events corresponding to provided claim atoms.
-    void
-    eventsForClaimAtoms(MuxedAccount const& source,
-                        xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
+    void eventsForClaimAtoms(
+        MuxedAccount const& source,
+        xdr::xvector<stellar::ClaimAtom> const& claimAtoms);
 
     // This will check if the issuer is involved, and emit a mint/burn instead
     // of a transfer if so

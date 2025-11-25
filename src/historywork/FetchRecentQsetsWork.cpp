@@ -22,8 +22,7 @@ FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app, uint32_t ledgerNum)
 {
 }
 
-void
-FetchRecentQsetsWork::doReset()
+void FetchRecentQsetsWork::doReset()
 {
     mGetHistoryArchiveStateWork.reset();
     mDownloadSCPMessagesWork.reset();
@@ -31,8 +30,7 @@ FetchRecentQsetsWork::doReset()
         std::make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
 }
 
-BasicWork::State
-FetchRecentQsetsWork::doWork()
+BasicWork::State FetchRecentQsetsWork::doWork()
 {
     ZoneScoped;
     // Phase 1: fetch remote history archive state

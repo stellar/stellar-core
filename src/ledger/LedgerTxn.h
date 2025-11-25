@@ -867,8 +867,7 @@ class LedgerTxn : public AbstractLedgerTxn
     getOrderBook() const;
 
     void resetForFuzzer() override;
-    void
-    deactivateHeaderTestOnly()
+    void deactivateHeaderTestOnly()
     {
         deactivateHeader();
     }

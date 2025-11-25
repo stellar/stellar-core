@@ -32,8 +32,7 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     mLedgerCloseMeta.v(mVersion);
 }
 
-LedgerHeaderHistoryEntry&
-LedgerCloseMetaFrame::ledgerHeader()
+LedgerHeaderHistoryEntry& LedgerCloseMetaFrame::ledgerHeader()
 {
     switch (mVersion)
     {
@@ -48,8 +47,7 @@ LedgerCloseMetaFrame::ledgerHeader()
     }
 }
 
-void
-LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
+void LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
 {
     switch (mVersion)
     {
@@ -67,8 +65,7 @@ LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
     }
 }
 
-void
-LedgerCloseMetaFrame::pushTxFeeProcessing(
+void LedgerCloseMetaFrame::pushTxFeeProcessing(
     LedgerEntryChanges const& feeProcessing)
 {
     switch (mVersion)
@@ -90,8 +87,7 @@ LedgerCloseMetaFrame::pushTxFeeProcessing(
     }
 }
 
-void
-LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
+void LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
     TransactionMeta&& tm, TransactionResultPair&& rp, int index)
 {
     switch (mVersion)
@@ -122,17 +118,15 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
     }
 }
 
-void
-LedgerCloseMetaFrame::setPostTxApplyFeeProcessing(LedgerEntryChanges&& changes,
-                                                  int index)
+void LedgerCloseMetaFrame::setPostTxApplyFeeProcessing(
+    LedgerEntryChanges&& changes, int index)
 {
     releaseAssert(mVersion == 2);
     mLedgerCloseMeta.v2().txProcessing.at(index).postTxApplyFeeProcessing =
         std::move(changes);
 }
 
-xdr::xvector<UpgradeEntryMeta>&
-LedgerCloseMetaFrame::upgradesProcessing()
+xdr::xvector<UpgradeEntryMeta>& LedgerCloseMetaFrame::upgradesProcessing()
 {
     switch (mVersion)
     {
@@ -147,8 +141,7 @@ LedgerCloseMetaFrame::upgradesProcessing()
     }
 }
 
-void
-LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
+void LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
 {
     switch (mVersion)
     {
@@ -166,8 +159,7 @@ LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
     }
 }
 
-void
-LedgerCloseMetaFrame::populateEvictedEntries(
+void LedgerCloseMetaFrame::populateEvictedEntries(
     EvictedStateVectors const& evictedState)
 {
     releaseAssert(mVersion == 1 || mVersion == 2);
@@ -186,8 +178,7 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     }
 }
 
-void
-LedgerCloseMetaFrame::setNetworkConfiguration(
+void LedgerCloseMetaFrame::setNetworkConfiguration(
     SorobanNetworkConfig const& networkConfig, bool emitExtV1)
 {
     releaseAssert(mVersion == 1 || mVersion == 2);
@@ -207,8 +198,7 @@ LedgerCloseMetaFrame::setNetworkConfiguration(
     }
 }
 
-LedgerCloseMeta const&
-LedgerCloseMetaFrame::getXDR() const
+LedgerCloseMeta const& LedgerCloseMetaFrame::getXDR() const
 {
     return mLedgerCloseMeta;
 }
@@ -227,8 +217,7 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(LedgerCloseMeta const& lm)
     }
 }
 
-LedgerHeader const&
-LedgerCloseMetaFrame::getLedgerHeader() const
+LedgerHeader const& LedgerCloseMetaFrame::getLedgerHeader() const
 {
     switch (mVersion)
     {
@@ -243,8 +232,7 @@ LedgerCloseMetaFrame::getLedgerHeader() const
     }
 }
 
-xdr::xvector<LedgerKey> const&
-LedgerCloseMetaFrame::getEvictedKeys() const
+xdr::xvector<LedgerKey> const& LedgerCloseMetaFrame::getEvictedKeys() const
 {
     switch (mVersion)
     {
@@ -257,8 +245,7 @@ LedgerCloseMetaFrame::getEvictedKeys() const
     }
 }
 
-size_t
-LedgerCloseMetaFrame::getTransactionResultMetaCount() const
+size_t LedgerCloseMetaFrame::getTransactionResultMetaCount() const
 {
     switch (mVersion)
     {
@@ -314,8 +301,7 @@ LedgerCloseMetaFrame::getPostTxApplyFeeProcessing(size_t index) const
         .postTxApplyFeeProcessing;
 }
 
-void
-LedgerCloseMetaFrame::sortTxMetaByHash()
+void LedgerCloseMetaFrame::sortTxMetaByHash()
 {
     auto sortTxMeta = [](auto& txProcessing) {
         std::sort(txProcessing.begin(), txProcessing.end(),

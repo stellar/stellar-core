@@ -48,11 +48,10 @@ class RestoreFootprintOpFrame : public OperationFrame
                     std::optional<RefundableFeeTracker>& refundableFeeTracker,
                     OperationMetaBuilder& opMeta) const override;
 
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static RestoreFootprintResultCode
-    getInnerCode(OperationResult const& res)
+    static RestoreFootprintResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().restoreFootprintResult().code();
     }

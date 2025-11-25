@@ -26,16 +26,14 @@ MergeOpFrame::MergeOpFrame(Operation const& op,
 {
 }
 
-ThresholdLevel
-MergeOpFrame::getThresholdLevel() const
+ThresholdLevel MergeOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::HIGH;
 }
 
-bool
-MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
-                             LedgerTxnHeader const& header,
-                             AccountEntry const& sourceAccount) const
+bool MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
+                                  LedgerTxnHeader const& header,
+                                  AccountEntry const& sourceAccount) const
 {
     // don't allow the account to be merged if recreating it would cause it
     // to jump backwards
@@ -60,9 +58,9 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // make sure the we delete all the offers
 // make sure the we delete all the trustlines
 // move the XLM to the new account
-bool
-MergeOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                      OperationResult& res, OperationMetaBuilder& opMeta) const
+bool MergeOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                           OperationResult& res,
+                           OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 
@@ -77,9 +75,9 @@ MergeOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     }
 }
 
-bool
-MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res,
-                               OpEventManager& opEventManager) const
+bool MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
+                                    OperationResult& res,
+                                    OpEventManager& opEventManager) const
 {
     auto header = ltx.loadHeader();
 
@@ -192,9 +190,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res,
     return true;
 }
 
-bool
-MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res,
-                             OpEventManager& opEventManager) const
+bool MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res,
+                                  OpEventManager& opEventManager) const
 {
     auto header = ltx.loadHeader();
 
@@ -274,8 +271,8 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res,
     return true;
 }
 
-bool
-MergeOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
+bool MergeOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                OperationResult& res) const
 {
     // makes sure not merging into self
     if (getSourceID() == toAccountID(mOperation.body.destination()))

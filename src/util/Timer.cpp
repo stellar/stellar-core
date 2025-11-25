@@ -29,8 +29,7 @@ VirtualClock::VirtualClock(Mode mode)
 {
 }
 
-VirtualClock::time_point
-VirtualClock::now() const noexcept
+VirtualClock::time_point VirtualClock::now() const noexcept
 {
     if (mMode == REAL_TIME)
     {
@@ -43,8 +42,7 @@ VirtualClock::now() const noexcept
     }
 }
 
-VirtualClock::system_time_point
-VirtualClock::system_now() const noexcept
+VirtualClock::system_time_point VirtualClock::system_now() const noexcept
 {
     if (mMode == REAL_TIME)
     {
@@ -60,8 +58,7 @@ VirtualClock::system_now() const noexcept
     }
 }
 
-void
-VirtualClock::maybeSetRealtimer()
+void VirtualClock::maybeSetRealtimer()
 {
     if (mMode == REAL_TIME)
     {
@@ -83,15 +80,13 @@ VirtualClock::maybeSetRealtimer()
     }
 }
 
-bool
-VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
-                                     shared_ptr<VirtualClockEvent> b)
+bool VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
+                                          shared_ptr<VirtualClockEvent> b)
 {
     return *a < *b;
 }
 
-VirtualClock::time_point
-VirtualClock::next() const
+VirtualClock::time_point VirtualClock::next() const
 {
     releaseAssert(threadIsMain());
     VirtualClock::time_point least = time_point::max();
@@ -105,15 +100,13 @@ VirtualClock::next() const
     return least;
 }
 
-VirtualClock::system_time_point
-VirtualClock::from_time_t(std::time_t timet)
+VirtualClock::system_time_point VirtualClock::from_time_t(std::time_t timet)
 {
     system_time_point epoch;
     return epoch + std::chrono::seconds(timet);
 }
 
-std::time_t
-VirtualClock::to_time_t(system_time_point point)
+std::time_t VirtualClock::to_time_t(system_time_point point)
 {
     return static_cast<std::time_t>(
         std::chrono::duration_cast<std::chrono::seconds>(
@@ -122,16 +115,14 @@ VirtualClock::to_time_t(system_time_point point)
 }
 
 #ifdef _WIN32
-time_t
-timegm(struct tm* tm)
+time_t timegm(struct tm* tm)
 {
     // Timezone independent version
     return _mkgmtime(tm);
 }
 #endif
 
-std::tm
-VirtualClock::systemPointToTm(system_time_point point)
+std::tm VirtualClock::systemPointToTm(system_time_point point)
 {
     std::time_t rawtime = to_time_t(point);
     std::tm out;
@@ -146,15 +137,13 @@ VirtualClock::systemPointToTm(system_time_point point)
     return out;
 }
 
-VirtualClock::system_time_point
-VirtualClock::tmToSystemPoint(tm t)
+VirtualClock::system_time_point VirtualClock::tmToSystemPoint(tm t)
 {
     time_t tt = timegm(&t);
     return VirtualClock::system_time_point() + std::chrono::seconds(tt);
 }
 
-std::tm
-VirtualClock::isoStringToTm(std::string const& iso)
+std::tm VirtualClock::isoStringToTm(std::string const& iso)
 {
     std::tm res{};
     std::istringstream ss(iso);
@@ -166,8 +155,7 @@ VirtualClock::isoStringToTm(std::string const& iso)
     return res;
 }
 
-std::string
-VirtualClock::tmToISOString(std::tm const& tm)
+std::string VirtualClock::tmToISOString(std::tm const& tm)
 {
     char buf[sizeof("0000-00-00T00:00:00Z")];
     size_t conv = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
@@ -175,14 +163,12 @@ VirtualClock::tmToISOString(std::tm const& tm)
     return std::string(buf);
 }
 
-std::string
-VirtualClock::systemPointToISOString(system_time_point point)
+std::string VirtualClock::systemPointToISOString(system_time_point point)
 {
     return tmToISOString(systemPointToTm(point));
 }
 
-void
-VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
+void VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
 {
     if (mDestructing)
     {
@@ -193,8 +179,7 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
     maybeSetRealtimer();
 }
 
-void
-VirtualClock::flushCancelledEvents()
+void VirtualClock::flushCancelledEvents()
 {
     ZoneScoped;
     if (mDestructing)
@@ -230,8 +215,7 @@ VirtualClock::flushCancelledEvents()
     maybeSetRealtimer();
 }
 
-bool
-VirtualClock::cancelAllEvents()
+bool VirtualClock::cancelAllEvents()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -247,8 +231,7 @@ VirtualClock::cancelAllEvents()
     return !wasEmpty;
 }
 
-void
-VirtualClock::shutdown()
+void VirtualClock::shutdown()
 {
     if (!isStopped())
     {
@@ -271,8 +254,7 @@ VirtualClock::shutdown()
     }
 }
 
-void
-VirtualClock::setCurrentVirtualTime(time_point t)
+void VirtualClock::setCurrentVirtualTime(time_point t)
 {
     releaseAssert(mMode == VIRTUAL_TIME);
     std::lock_guard<std::mutex> lock(mVirtualNowMutex);
@@ -281,15 +263,13 @@ VirtualClock::setCurrentVirtualTime(time_point t)
     mVirtualNow = t;
 }
 
-void
-VirtualClock::setCurrentVirtualTime(system_time_point t)
+void VirtualClock::setCurrentVirtualTime(system_time_point t)
 {
     auto offset = t.time_since_epoch();
     setCurrentVirtualTime(time_point(offset));
 }
 
-void
-VirtualClock::sleep_for(std::chrono::microseconds us)
+void VirtualClock::sleep_for(std::chrono::microseconds us)
 {
     ZoneScoped;
     if (mMode == VIRTUAL_TIME)
@@ -302,8 +282,7 @@ VirtualClock::sleep_for(std::chrono::microseconds us)
     }
 }
 
-bool
-VirtualClock::shouldYield() const
+bool VirtualClock::shouldYield() const
 {
     if (mMode == VIRTUAL_TIME)
     {
@@ -317,14 +296,13 @@ VirtualClock::shouldYield() const
     }
 }
 
-bool
-VirtualClock::isStopped()
+bool VirtualClock::isStopped()
 {
     return getIOContext().stopped();
 }
 
-static size_t
-crankStep(VirtualClock& clock, std::function<size_t()> step, size_t divisor = 1)
+static size_t crankStep(VirtualClock& clock, std::function<size_t()> step,
+                        size_t divisor = 1)
 {
     size_t eCount = 0;
     auto tLimit = clock.now() + (CRANK_TIME_SLICE / divisor);
@@ -341,8 +319,7 @@ crankStep(VirtualClock& clock, std::function<size_t()> step, size_t divisor = 1)
     return totalProgress;
 }
 
-size_t
-VirtualClock::crank(bool block)
+size_t VirtualClock::crank(bool block)
 {
     ZoneScoped;
     if (mDestructing)
@@ -427,9 +404,8 @@ VirtualClock::crank(bool block)
     return progressCount;
 }
 
-void
-VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
-                         Scheduler::ActionType type)
+void VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
+                              Scheduler::ActionType type)
 {
     if (isStopped())
     {
@@ -466,8 +442,7 @@ VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
     }
 }
 
-size_t
-VirtualClock::getActionQueueSize() const
+size_t VirtualClock::getActionQueueSize() const
 {
     size_t pending = 0;
     {
@@ -477,20 +452,17 @@ VirtualClock::getActionQueueSize() const
     return pending + mActionScheduler->size();
 }
 
-bool
-VirtualClock::actionQueueIsOverloaded() const
+bool VirtualClock::actionQueueIsOverloaded() const
 {
     return mActionScheduler->getOverloadedDuration().count() != 0;
 }
 
-Scheduler::ActionType
-VirtualClock::currentSchedulerActionType() const
+Scheduler::ActionType VirtualClock::currentSchedulerActionType() const
 {
     return mActionScheduler->currentActionType();
 }
 
-asio::io_context&
-VirtualClock::getIOContext()
+asio::io_context& VirtualClock::getIOContext()
 {
     return mIOContext;
 }
@@ -501,8 +473,7 @@ VirtualClock::~VirtualClock()
     cancelAllEvents();
 }
 
-size_t
-VirtualClock::advanceToNow()
+size_t VirtualClock::advanceToNow()
 {
     ZoneScoped;
     if (mDestructing)
@@ -531,8 +502,7 @@ VirtualClock::advanceToNow()
     return toDispatch.size();
 }
 
-size_t
-VirtualClock::advanceToNext()
+size_t VirtualClock::advanceToNext()
 {
     if (mDestructing)
     {
@@ -564,13 +534,11 @@ VirtualClockEvent::VirtualClockEvent(
 {
 }
 
-bool
-VirtualClockEvent::getTriggered()
+bool VirtualClockEvent::getTriggered()
 {
     return mTriggered;
 }
-void
-VirtualClockEvent::trigger()
+void VirtualClockEvent::trigger()
 {
     if (!mTriggered)
     {
@@ -580,8 +548,7 @@ VirtualClockEvent::trigger()
     }
 }
 
-void
-VirtualClockEvent::cancel()
+void VirtualClockEvent::cancel()
 {
     if (!mTriggered)
     {
@@ -591,8 +558,7 @@ VirtualClockEvent::cancel()
     }
 }
 
-bool
-VirtualClockEvent::operator<(VirtualClockEvent const& other) const
+bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
 {
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
@@ -622,8 +588,7 @@ VirtualTimer::~VirtualTimer()
     cancel();
 }
 
-void
-VirtualTimer::cancel()
+void VirtualTimer::cancel()
 {
     if (!mCancelled)
     {
@@ -638,20 +603,17 @@ VirtualTimer::cancel()
     }
 }
 
-VirtualClock::time_point const&
-VirtualTimer::expiry_time() const
+VirtualClock::time_point const& VirtualTimer::expiry_time() const
 {
     return mExpiryTime;
 }
 
-size_t
-VirtualTimer::seq() const
+size_t VirtualTimer::seq() const
 {
     return mEvents.empty() ? 0 : mEvents.back()->mSeq + 1;
 }
 
-void
-VirtualTimer::expires_at(VirtualClock::time_point t)
+void VirtualTimer::expires_at(VirtualClock::time_point t)
 {
     ZoneScoped;
     cancel();
@@ -659,8 +621,7 @@ VirtualTimer::expires_at(VirtualClock::time_point t)
     mCancelled = false;
 }
 
-void
-VirtualTimer::expires_from_now(VirtualClock::duration d)
+void VirtualTimer::expires_from_now(VirtualClock::duration d)
 {
     ZoneScoped;
     cancel();
@@ -668,8 +629,7 @@ VirtualTimer::expires_from_now(VirtualClock::duration d)
     mCancelled = false;
 }
 
-void
-VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
+void VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 {
     if (mClock.isStopped())
     {
@@ -685,9 +645,9 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
     }
 }
 
-void
-VirtualTimer::async_wait(std::function<void()> const& onSuccess,
-                         std::function<void(asio::error_code)> const& onFailure)
+void VirtualTimer::async_wait(
+    std::function<void()> const& onSuccess,
+    std::function<void(asio::error_code)> const& onFailure)
 {
     if (mClock.isStopped())
     {

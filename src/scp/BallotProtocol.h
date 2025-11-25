@@ -60,14 +60,12 @@ class BallotProtocol
             releaseAssert(o.mWvalue);
         }
 
-        SCPBallot const&
-        getBallot() const
+        SCPBallot const& getBallot() const
         {
             return mBallot;
         }
 
-        ValueWrapperPtr const&
-        getWValue() const
+        ValueWrapperPtr const& getWValue() const
         {
             return mWvalue;
         }
@@ -145,8 +143,7 @@ class BallotProtocol
     // c for EXTERNALIZE messages
     static SCPBallot getWorkingBallot(SCPStatement const& st);
 
-    SCPEnvelope const*
-    getLastMessageSend() const
+    SCPEnvelope const* getLastMessageSend() const
     {
         return mLastEnvelopeEmit ? &mLastEnvelopeEmit->getEnvelope() : nullptr;
     }

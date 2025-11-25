@@ -15,8 +15,7 @@ namespace
 {
 using namespace stellar;
 
-LedgerEntry
-makeAccountEntry(int64_t balance)
+LedgerEntry makeAccountEntry(int64_t balance)
 {
     LedgerEntry accountEntry;
     accountEntry.data.type(ACCOUNT);
@@ -38,8 +37,7 @@ makeAccountEntry(int64_t balance)
     return accountEntry;
 }
 
-LedgerEntry
-makeOfferEntry(std::string const& assetName)
+LedgerEntry makeOfferEntry(std::string const& assetName)
 {
     LedgerEntry offerEntry;
     offerEntry.data.type(OFFER);
@@ -64,8 +62,7 @@ makeOfferEntry(std::string const& assetName)
 }
 
 template <typename VariantT>
-void
-compareVariants(VariantT const& v1, VariantT const& v2)
+void compareVariants(VariantT const& v1, VariantT const& v2)
 {
     REQUIRE(v1.index() == v2.index());
     std::visit(

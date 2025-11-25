@@ -19,8 +19,7 @@ ApplyLedgerWork::ApplyLedgerWork(Application& app,
 {
 }
 
-BasicWork::State
-ApplyLedgerWork::onRun()
+BasicWork::State ApplyLedgerWork::onRun()
 {
     ZoneScoped;
     mApp.getLedgerManager().applyLedger(mLedgerCloseData,
@@ -28,14 +27,12 @@ ApplyLedgerWork::onRun()
     return BasicWork::State::WORK_SUCCESS;
 }
 
-bool
-ApplyLedgerWork::onAbort()
+bool ApplyLedgerWork::onAbort()
 {
     return true;
 }
 
-std::string
-ApplyLedgerWork::getStatus() const
+std::string ApplyLedgerWork::getStatus() const
 {
     return fmt::format(FMT_STRING("apply ledger {:d}"),
                        mLedgerCloseData.getLedgerSeq());

@@ -94,14 +94,12 @@ class Simulation
 
     std::chrono::milliseconds getExpectedLedgerCloseTime() const;
 
-    bool
-    isSetUpForSorobanUpgrade() const
+    bool isSetUpForSorobanUpgrade() const
     {
         return mSetupForSorobanUpgrade;
     }
 
-    void
-    markReadyForSorobanUpgrade()
+    void markReadyForSorobanUpgrade()
     {
         mSetupForSorobanUpgrade = true;
     }
@@ -166,22 +164,19 @@ class ApplicationLoopbackOverlay : public TestApplication
     {
     }
 
-    virtual LoopbackOverlayManager&
-    getOverlayManager() override
+    virtual LoopbackOverlayManager& getOverlayManager() override
     {
         auto& overlay = ApplicationImpl::getOverlayManager();
         return static_cast<LoopbackOverlayManager&>(overlay);
     }
 
-    Simulation&
-    getSim()
+    Simulation& getSim()
     {
         return mSim;
     }
 
   private:
-    virtual std::unique_ptr<OverlayManager>
-    createOverlayManager() override
+    virtual std::unique_ptr<OverlayManager> createOverlayManager() override
     {
         return std::make_unique<LoopbackOverlayManager>(*this);
     }

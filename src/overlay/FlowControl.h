@@ -132,20 +132,18 @@ class FlowControl
         LOCKS_EXCLUDED(mFlowControlMutex);
 
 #ifdef BUILD_TESTS
-    FlowControlCapacity&
-    getCapacity() NO_THREAD_SAFETY_ANALYSIS
+    FlowControlCapacity& getCapacity() NO_THREAD_SAFETY_ANALYSIS
     {
         return mFlowControlCapacity;
     }
 
-    FlowControlCapacity&
-    getCapacityBytes() NO_THREAD_SAFETY_ANALYSIS
+    FlowControlCapacity& getCapacityBytes() NO_THREAD_SAFETY_ANALYSIS
     {
         return mFlowControlBytesCapacity;
     }
 
-    void
-    addToQueueAndMaybeTrimForTesting(std::shared_ptr<StellarMessage const> msg)
+    void addToQueueAndMaybeTrimForTesting(
+        std::shared_ptr<StellarMessage const> msg)
         LOCKS_EXCLUDED(mFlowControlMutex)
     {
         addMsgAndMaybeTrimQueue(msg);
@@ -157,21 +155,19 @@ class FlowControl
         return mOutboundQueues;
     }
 
-    size_t
-    getTxQueueByteCountForTesting() const LOCKS_EXCLUDED(mFlowControlMutex)
+    size_t getTxQueueByteCountForTesting() const
+        LOCKS_EXCLUDED(mFlowControlMutex)
     {
         MutexLocker lockGuard(mFlowControlMutex);
         return mTxQueueByteCount;
     }
     std::optional<size_t> mOutboundQueueLimit GUARDED_BY(mFlowControlMutex);
-    void
-    setOutboundQueueLimit(size_t bytes) LOCKS_EXCLUDED(mFlowControlMutex)
+    void setOutboundQueueLimit(size_t bytes) LOCKS_EXCLUDED(mFlowControlMutex)
     {
         MutexLocker lockGuard(mFlowControlMutex);
         mOutboundQueueLimit = std::make_optional<size_t>(bytes);
     }
-    size_t
-    getOutboundQueueByteLimit() const LOCKS_EXCLUDED(mFlowControlMutex)
+    size_t getOutboundQueueByteLimit() const LOCKS_EXCLUDED(mFlowControlMutex)
     {
         MutexLocker lockGuard(mFlowControlMutex);
         return getOutboundQueueByteLimit(lockGuard);
@@ -218,8 +214,8 @@ class FlowControl
     // is called once async_write completes and invokes a handler that calls
     // this function). This function will appropriatly trim outbound queues and
     // release capacity used by the messages that were sent.
-    void
-    processSentMessages(FloodQueues<ConstStellarMessagePtr> const& sentMessages)
+    void processSentMessages(
+        FloodQueues<ConstStellarMessagePtr> const& sentMessages)
         LOCKS_EXCLUDED(mFlowControlMutex);
 };
 

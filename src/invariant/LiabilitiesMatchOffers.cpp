@@ -20,8 +20,7 @@ namespace stellar
 typedef std::map<AccountID, std::map<TrustLineAsset, Liabilities>>
     LiabilitiesMap;
 
-static int64_t
-getOfferBuyingLiabilities(LedgerEntry const& le)
+static int64_t getOfferBuyingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
@@ -30,8 +29,7 @@ getOfferBuyingLiabilities(LedgerEntry const& le)
     return res.numSheepSend;
 }
 
-static int64_t
-getOfferSellingLiabilities(LedgerEntry const& le)
+static int64_t getOfferSellingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
@@ -40,8 +38,7 @@ getOfferSellingLiabilities(LedgerEntry const& le)
     return res.numWheatReceived;
 }
 
-static int64_t
-getBuyingLiabilities(LedgerEntry const& le)
+static int64_t getBuyingLiabilities(LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)
     {
@@ -56,8 +53,7 @@ getBuyingLiabilities(LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-int64_t
-getSellingLiabilities(LedgerEntry const& le)
+int64_t getSellingLiabilities(LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)
     {
@@ -72,8 +68,8 @@ getSellingLiabilities(LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-static std::string
-checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
+static std::string checkAuthorized(LedgerEntry const* current,
+                                   LedgerEntry const* previous)
 {
     if (!current)
     {
@@ -138,9 +134,8 @@ checkAuthorized(std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     return "";
 }
 
-static void
-addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
-                         LedgerEntry const* entry, bool isAdd)
+static void addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
+                                     LedgerEntry const* entry, bool isAdd)
 {
     if (!entry)
     {
@@ -186,8 +181,7 @@ addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
     }
 }
 
-static void
-addOrSubtractLiabilities(
+static void addOrSubtractLiabilities(
     LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& genEntry, bool isAdd)
 {
@@ -198,8 +192,7 @@ addOrSubtractLiabilities(
     }
 }
 
-static void
-accumulateLiabilities(
+static void accumulateLiabilities(
     LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& current,
     std::shared_ptr<InternalLedgerEntry const> const& previous)
@@ -208,9 +201,9 @@ accumulateLiabilities(
     addOrSubtractLiabilities(deltaLiabilities, previous, false);
 }
 
-static bool
-shouldCheckAccount(LedgerEntry const* current, LedgerEntry const* previous,
-                   uint32_t ledgerVersion)
+static bool shouldCheckAccount(LedgerEntry const* current,
+                               LedgerEntry const* previous,
+                               uint32_t ledgerVersion)
 {
     if (!previous)
     {
@@ -237,9 +230,10 @@ shouldCheckAccount(LedgerEntry const* current, LedgerEntry const* previous,
     }
 }
 
-static std::string
-checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
-                     LedgerEntry const* previous, uint32_t ledgerVersion)
+static std::string checkBalanceAndLimit(LedgerHeader const& header,
+                                        LedgerEntry const* current,
+                                        LedgerEntry const* previous,
+                                        uint32_t ledgerVersion)
 {
     if (!current)
     {
@@ -288,8 +282,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
     return {};
 }
 
-static std::string
-checkBalanceAndLimit(
+static std::string checkBalanceAndLimit(
     LedgerHeader const& header,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious,
@@ -317,14 +310,12 @@ LiabilitiesMatchOffers::LiabilitiesMatchOffers() : Invariant(false)
 {
 }
 
-std::string
-LiabilitiesMatchOffers::getName() const
+std::string LiabilitiesMatchOffers::getName() const
 {
     return "LiabilitiesMatchOffers";
 }
 
-std::string
-LiabilitiesMatchOffers::checkOnOperationApply(
+std::string LiabilitiesMatchOffers::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
     AppConnector&)

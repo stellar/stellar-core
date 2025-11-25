@@ -26,8 +26,7 @@ struct ParallelPartitionConfig
     {
     }
 
-    uint64_t
-    instructionsPerStage() const
+    uint64_t instructionsPerStage() const
     {
         return mInstructionsPerCluster * mClustersPerStage;
     }
@@ -74,8 +73,7 @@ struct Cluster
         mTxIds.set(tx.mId);
     }
 
-    void
-    merge(Cluster const& other)
+    void merge(Cluster const& other)
     {
         mInstructions += other.mInstructions;
         mConflictTxs.inplaceUnion(other.mConflictTxs);
@@ -100,8 +98,7 @@ class Stage
 
     // Tries to add a transaction to the stage and returns true if the
     // transaction has been added.
-    bool
-    tryAdd(BuilderTx const& tx)
+    bool tryAdd(BuilderTx const& tx)
     {
         ZoneScoped;
         // A fast-fail condition to ensure that adding the transaction won't
@@ -187,8 +184,7 @@ class Stage
     // Visit every transaction in the stage.
     // The visitor arguments are the index of the bin the transaction is packed
     // into and the index of the transaction itself.
-    void
-    visitAllTransactions(std::function<void(size_t, size_t)> visitor) const
+    void visitAllTransactions(std::function<void(size_t, size_t)> visitor) const
     {
         for (auto const& cluster : mClusters)
         {
@@ -216,8 +212,7 @@ class Stage
         return conflictingClusters;
     }
 
-    bool
-    inPlaceBinPacking(
+    bool inPlaceBinPacking(
         Cluster const& newCluster,
         std::unordered_set<Cluster const*> const& clustersToRemove)
     {
@@ -383,8 +378,7 @@ struct ParallelPhaseBuildResult
     int64_t mTotalInclusionFee = 0;
 };
 
-ParallelPhaseBuildResult
-buildSurgePricedParallelSorobanPhaseWithStageCount(
+ParallelPhaseBuildResult buildSurgePricedParallelSorobanPhaseWithStageCount(
     SurgePricingPriorityQueue queue,
     std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*> const&
         builderTxForTx,
@@ -482,8 +476,7 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
 
 } // namespace
 
-TxStageFrameList
-buildSurgePricedParallelSorobanPhase(
+TxStageFrameList buildSurgePricedParallelSorobanPhase(
     TxFrameList const& txFrames, Config const& cfg,
     SorobanNetworkConfig const& sorobanCfg,
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,

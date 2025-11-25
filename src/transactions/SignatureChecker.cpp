@@ -30,9 +30,8 @@ SignatureChecker::SignatureChecker(
     mUsedSignatures.resize(mSignatures.size());
 }
 
-bool
-SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
-                                 int neededWeight)
+bool SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
+                                      int neededWeight)
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     return true;
@@ -143,8 +142,7 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     return false;
 }
 
-bool
-SignatureChecker::checkAllSignaturesUsed() const
+bool SignatureChecker::checkAllSignaturesUsed() const
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     return true;
@@ -165,8 +163,7 @@ SignatureChecker::checkAllSignaturesUsed() const
     return true;
 }
 
-std::pair<uint64_t, uint64_t>
-SignatureChecker::flushTxSigCacheCounts()
+std::pair<uint64_t, uint64_t> SignatureChecker::flushTxSigCacheCounts()
 {
     std::lock_guard<std::mutex> lock(gCheckValidOrApplyTxSigCacheMetricsMutex);
     auto res = std::make_pair(gCheckValidOrApplyTxSigCacheHits,
@@ -176,14 +173,12 @@ SignatureChecker::flushTxSigCacheCounts()
     return res;
 }
 
-void
-SignatureChecker::disableCacheMetricsTracking()
+void SignatureChecker::disableCacheMetricsTracking()
 {
     mTrackCacheMetrics = false;
 }
 
-void
-SignatureChecker::updateTxSigCacheMetrics(
+void SignatureChecker::updateTxSigCacheMetrics(
     PubKeyUtils::VerifySigCacheLookupResult cacheLookupRes)
 {
     if (!mTrackCacheMetrics)

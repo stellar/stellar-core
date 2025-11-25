@@ -18,8 +18,7 @@ TxAdverts::TxAdverts(Application& app)
 {
 }
 
-void
-TxAdverts::flushAdvert()
+void TxAdverts::flushAdvert()
 {
     if (mOutgoingTxHashes.size() > 0)
     {
@@ -37,14 +36,12 @@ TxAdverts::flushAdvert()
     }
 }
 
-void
-TxAdverts::shutdown()
+void TxAdverts::shutdown()
 {
     mAdvertTimer.cancel();
 }
 
-void
-TxAdverts::start(
+void TxAdverts::start(
     std::function<void(std::shared_ptr<StellarMessage const>)> sendCb)
 {
     if (!sendCb)
@@ -54,8 +51,7 @@ TxAdverts::start(
     mSendCb = sendCb;
 }
 
-void
-TxAdverts::startAdvertTimer()
+void TxAdverts::startAdvertTimer()
 {
     mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
     mAdvertTimer.async_wait([this](asio::error_code const& error) {
@@ -66,8 +62,7 @@ TxAdverts::startAdvertTimer()
     });
 }
 
-void
-TxAdverts::queueOutgoingAdvert(Hash const& txHash)
+void TxAdverts::queueOutgoingAdvert(Hash const& txHash)
 {
     if (mOutgoingTxHashes.empty())
     {
@@ -86,26 +81,22 @@ TxAdverts::queueOutgoingAdvert(Hash const& txHash)
     }
 }
 
-bool
-TxAdverts::seenAdvert(Hash const& hash)
+bool TxAdverts::seenAdvert(Hash const& hash)
 {
     return mAdvertHistory.exists(hash);
 }
 
-void
-TxAdverts::rememberHash(Hash const& hash, uint32_t ledgerSeq)
+void TxAdverts::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 {
     mAdvertHistory.put(hash, ledgerSeq);
 }
 
-size_t
-TxAdverts::size() const
+size_t TxAdverts::size() const
 {
     return mIncomingTxHashes.size() + mTxHashesToRetry.size();
 }
 
-void
-TxAdverts::retryIncomingAdvert(std::list<Hash>& list)
+void TxAdverts::retryIncomingAdvert(std::list<Hash>& list)
 {
     mTxHashesToRetry.splice(mTxHashesToRetry.end(), list);
     while (size() > mApp.getLedgerManager().getLastMaxTxSetSizeOps())
@@ -114,8 +105,8 @@ TxAdverts::retryIncomingAdvert(std::list<Hash>& list)
     }
 }
 
-void
-TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
+void TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes,
+                                    uint32_t seq)
 {
     for (auto const& hash : txHashes)
     {
@@ -145,8 +136,7 @@ TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
     }
 }
 
-Hash
-TxAdverts::popIncomingAdvert()
+Hash TxAdverts::popIncomingAdvert()
 {
     if (size() <= 0)
     {
@@ -167,23 +157,20 @@ TxAdverts::popIncomingAdvert()
     }
 }
 
-void
-TxAdverts::clearBelow(uint32_t ledgerSeq)
+void TxAdverts::clearBelow(uint32_t ledgerSeq)
 {
     mAdvertHistory.erase_if(
         [&](uint32_t const& seq) { return seq < ledgerSeq; });
 }
 
-int64_t
-TxAdverts::getOpsFloodLedger(size_t maxOps, double rate)
+int64_t TxAdverts::getOpsFloodLedger(size_t maxOps, double rate)
 {
     double opsToFloodPerLedgerDbl = rate * static_cast<double>(maxOps);
     releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
     return static_cast<int64_t>(opsToFloodPerLedgerDbl);
 }
 
-size_t
-TxAdverts::getMaxAdvertSize() const
+size_t TxAdverts::getMaxAdvertSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =

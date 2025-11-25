@@ -25,8 +25,7 @@ struct LedgerRange final
     uint32_t const mCount;
 
     LedgerRange(uint32_t first, uint32_t count);
-    static LedgerRange
-    inclusive(uint32_t first, uint32_t last)
+    static LedgerRange inclusive(uint32_t first, uint32_t last)
     {
         // LedgerRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
@@ -37,16 +36,14 @@ struct LedgerRange final
 
     // Return first+count, which is the _exclusive_ range limit.
     // Best to use this in a loop header to properly handle count=0.
-    uint32_t
-    limit() const
+    uint32_t limit() const
     {
         return mFirst + mCount;
     }
 
     // Return first+count-1 unless count == 0, in which case throw.
     // This is the _inclusive_ range limit, meaningful iff count != 0.
-    uint32_t
-    last() const
+    uint32_t last() const
     {
         if (mCount == 0)
         {

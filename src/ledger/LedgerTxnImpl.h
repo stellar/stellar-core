@@ -60,14 +60,12 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mOffersToDelete;
 
   public:
-    std::vector<EntryIterator>&
-    getOffersToUpsert()
+    std::vector<EntryIterator>& getOffersToUpsert()
     {
         return mOffersToUpsert;
     }
 
-    std::vector<EntryIterator>&
-    getOffersToDelete()
+    std::vector<EntryIterator>& getOffersToDelete()
     {
         return mOffersToDelete;
     }
@@ -852,16 +850,13 @@ class LedgerTxnRoot::Impl
 #endif
 };
 
-template <typename T>
-std::string
-toOpaqueBase64(T const& input)
+template <typename T> std::string toOpaqueBase64(T const& input)
 {
     return decoder::encode_b64(xdr::xdr_to_opaque(input));
 }
 
 template <typename T>
-void
-fromOpaqueBase64(T& res, std::string const& opaqueBase64)
+void fromOpaqueBase64(T& res, std::string const& opaqueBase64)
 {
     std::vector<uint8_t> opaque;
     decoder::decode_b64(opaqueBase64, opaque);
@@ -870,8 +865,8 @@ fromOpaqueBase64(T& res, std::string const& opaqueBase64)
 
 #ifdef USE_POSTGRES
 template <typename T>
-inline void
-marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss, const T& item)
+inline void marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss,
+                                 const T& item)
 {
     // NB: This setprecision is very important to ensuring that a double
     // gets marshaled to enough decimal digits to reconstruct exactly the
@@ -881,9 +876,9 @@ marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss, const T& item)
 }
 
 template <>
-inline void
-marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
-                                  const std::string& item)
+inline void marshalToPGArrayItem<std::string>(PGconn* conn,
+                                              std::ostringstream& oss,
+                                              const std::string& item)
 {
     std::vector<char> buf(item.size() * 2 + 1, '\0');
     int err = 0;
@@ -899,9 +894,9 @@ marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
 }
 
 template <typename T>
-inline void
-marshalToPGArray(PGconn* conn, std::string& out, const std::vector<T>& v,
-                 const std::vector<soci::indicator>* ind = nullptr)
+inline void marshalToPGArray(PGconn* conn, std::string& out,
+                             const std::vector<T>& v,
+                             const std::vector<soci::indicator>* ind = nullptr)
 {
     std::ostringstream oss;
     oss << '{';

@@ -40,14 +40,12 @@ class BitSet
     bitset_t mInlineBitset{nullptr, INLINE_NWORDS, INLINE_NWORDS};
     uint64_t mInlineBits[INLINE_NWORDS]{0};
 
-    bool
-    isStoredInline() const
+    bool isStoredInline() const
     {
         return mPtr == &mInlineBitset;
     }
 
-    void
-    setToEmptyAndInline()
+    void setToEmptyAndInline()
     {
         if (mPtr && !isStoredInline())
         {
@@ -61,8 +59,7 @@ class BitSet
         mInlineBitset.array = mInlineBits;
     }
 
-    void
-    ensureCapacity(size_t nBits)
+    void ensureCapacity(size_t nBits)
     {
         size_t nWords = (nBits + WORD_BITS - 1) >> WORD_BITS_LOG2;
         if (nWords <= mPtr->capacity)
@@ -77,8 +74,7 @@ class BitSet
         bitset_resize(mPtr, nWords, true);
     }
 
-    void
-    setToEmptyWithCapacity(size_t nBits)
+    void setToEmptyWithCapacity(size_t nBits)
     {
         // Equal to "setToEmptyAndInline + ensureCapacity" but with one malloc
         // rather than malloc+realloc in the case where it's not inline.
@@ -89,8 +85,7 @@ class BitSet
         }
     }
 
-    void
-    copyOther(BitSet const& other)
+    void copyOther(BitSet const& other)
     {
         // This step will also free any out-of-line bitset_t we own.
         setToEmptyAndInline();
@@ -135,64 +130,54 @@ class BitSet
     {
         copyOther(other);
     }
-    BitSet&
-    operator=(BitSet const& other)
+    BitSet& operator=(BitSet const& other)
     {
         copyOther(other);
         return *this;
     }
 
-    bool
-    operator!=(BitSet const& other) const
+    bool operator!=(BitSet const& other) const
     {
         return !((*this) == other);
     }
 
-    bool
-    operator==(BitSet const& other) const
+    bool operator==(BitSet const& other) const
     {
         return bitset_equal(mPtr, other.mPtr);
     }
 
-    bool
-    isSubsetEq(BitSet const& other) const
+    bool isSubsetEq(BitSet const& other) const
     {
         return bitset_subseteq(mPtr, other.mPtr);
     }
 
-    size_t
-    size() const
+    size_t size() const
     {
         return bitset_size_in_bits(mPtr);
     }
-    void
-    set(size_t i)
+    void set(size_t i)
     {
         ensureCapacity(i + 1);
         bitset_set(mPtr, i);
         mCountDirty = true;
     }
-    void
-    unset(size_t i)
+    void unset(size_t i)
     {
         bitset_unset(mPtr, i);
         mCountDirty = true;
     }
-    bool
-    get(size_t i) const
+    bool get(size_t i) const
     {
         return bitset_get(mPtr, i);
     }
-    void
-    clear()
+    void clear()
     {
         bitset_clear(mPtr);
         mCount = 0;
         mCountDirty = false;
     }
 
-    size_t
-    count() const
+    size_t count() const
     {
         if (mCountDirty)
         {
@@ -201,128 +186,108 @@ class BitSet
         }
         return mCount;
     }
-    bool
-    empty() const
+    bool empty() const
     {
         size_t tmp = 0;
         return !nextSet(tmp);
     }
-    size_t
-    min() const
+    size_t min() const
     {
         return bitset_minimum(mPtr);
     }
-    size_t
-    max() const
+    size_t max() const
     {
         return bitset_maximum(mPtr);
     }
 
-    void
-    inplaceUnion(BitSet const& other)
+    void inplaceUnion(BitSet const& other)
     {
         ensureCapacity(other.size());
         bitset_inplace_union(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet
-    operator|(BitSet const& other) const
+    BitSet operator|(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceUnion(other);
         return tmp;
     }
-    void
-    operator|=(BitSet const& other)
+    void operator|=(BitSet const& other)
     {
         inplaceUnion(other);
     }
 
-    void
-    inplaceIntersection(BitSet const& other)
+    void inplaceIntersection(BitSet const& other)
     {
         // We do not need to do ensureCapacity() here because
         // intersection never grows a bitset: no reallocation.
         bitset_inplace_intersection(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet
-    operator&(BitSet const& other) const
+    BitSet operator&(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceIntersection(other);
         return tmp;
     }
-    void
-    operator&=(BitSet const& other)
+    void operator&=(BitSet const& other)
     {
         inplaceIntersection(other);
     }
 
-    void
-    inplaceDifference(BitSet const& other)
+    void inplaceDifference(BitSet const& other)
     {
         // We do not need to do ensureCapacity() here because
         // difference never grows a bitset: no reallocation.
         bitset_inplace_difference(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet
-    operator-(BitSet const& other) const
+    BitSet operator-(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceDifference(other);
         return tmp;
     }
-    void
-    operator-=(BitSet const& other)
+    void operator-=(BitSet const& other)
     {
         inplaceDifference(other);
     }
 
-    void
-    inplaceSymmetricDifference(BitSet const& other)
+    void inplaceSymmetricDifference(BitSet const& other)
     {
         ensureCapacity(other.size());
         bitset_inplace_symmetric_difference(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet
-    symmetricDifference(BitSet const& other) const
+    BitSet symmetricDifference(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceSymmetricDifference(other);
         return tmp;
     }
 
-    size_t
-    unionCount(BitSet const& other) const
+    size_t unionCount(BitSet const& other) const
     {
         return bitset_union_count(mPtr, other.mPtr);
     }
-    size_t
-    intersectionCount(BitSet const& other) const
+    size_t intersectionCount(BitSet const& other) const
     {
         return bitset_intersection_count(mPtr, other.mPtr);
     }
-    size_t
-    differenceCount(BitSet const& other) const
+    size_t differenceCount(BitSet const& other) const
     {
         return bitset_difference_count(mPtr, other.mPtr);
     }
-    size_t
-    symmetricDifferenceCount(BitSet const& other) const
+    size_t symmetricDifferenceCount(BitSet const& other) const
     {
         return bitset_symmetric_difference_count(mPtr, other.mPtr);
     }
-    bool
-    nextSet(size_t& i) const
+    bool nextSet(size_t& i) const
     {
         return nextSetBit(mPtr, &i);
     }
-    void
-    streamWith(std::ostream& out,
-               std::function<void(std::ostream&, size_t)> item) const
+    void streamWith(std::ostream& out,
+                    std::function<void(std::ostream&, size_t)> item) const
     {
         out << '{';
         bool first = true;
@@ -340,8 +305,7 @@ class BitSet
         }
         out << '}';
     }
-    void
-    stream(std::ostream& out) const
+    void stream(std::ostream& out) const
     {
         streamWith(out, [](std::ostream& out, size_t i) { out << i; });
     }
@@ -350,8 +314,7 @@ class BitSet
         std::hash<uint64_t> mHasher;
 
       public:
-        size_t
-        operator()(BitSet const& bitset) const noexcept
+        size_t operator()(BitSet const& bitset) const noexcept
         {
             // Implementation taken from Boost.
             // https://www.boost.org/doc/libs/1_35_0/doc/html/boost/hash_combine_id241013.html
@@ -366,15 +329,13 @@ class BitSet
     };
 };
 
-inline std::ostream&
-operator<<(std::ostream& out, BitSet const& b)
+inline std::ostream& operator<<(std::ostream& out, BitSet const& b)
 {
     b.stream(out);
     return out;
 }
 
-inline std::string
-format_as(BitSet const& b)
+inline std::string format_as(BitSet const& b)
 {
     std::stringstream s;
     s << b;

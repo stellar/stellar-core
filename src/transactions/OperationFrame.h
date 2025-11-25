@@ -115,8 +115,7 @@ class OperationFrame
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 
-    Operation const&
-    getOperation() const
+    Operation const& getOperation() const
     {
         return mOperation;
     }

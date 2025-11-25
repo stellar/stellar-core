@@ -46,9 +46,7 @@ std::string formatSize(size_t size);
 template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion);
 
 // returns the issuer for the given asset
-template <typename T>
-AccountID
-getIssuer(T const& asset)
+template <typename T> AccountID getIssuer(T const& asset)
 {
     switch (asset.type())
     {
@@ -64,9 +62,7 @@ getIssuer(T const& asset)
     }
 }
 
-template <typename T>
-bool
-isIssuer(AccountID const& acc, T const& asset)
+template <typename T> bool isIssuer(AccountID const& acc, T const& asset)
 {
     switch (asset.type())
     {
@@ -83,8 +79,7 @@ isIssuer(AccountID const& acc, T const& asset)
 }
 
 template <uint32_t N>
-void
-assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr)
+void assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr)
 {
     retStr.clear();
     for (auto c : code)
@@ -98,16 +93,14 @@ assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr)
 };
 
 template <uint32_t N>
-void
-strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
+void strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 {
     ret.fill(0);
     size_t n = std::min(ret.size(), str.size());
     std::copy(str.begin(), str.begin() + n, ret.begin());
 }
 
-inline std::string
-assetToString(const Asset& asset)
+inline std::string assetToString(const Asset& asset)
 {
     auto r = std::string{};
     switch (asset.type())
@@ -128,8 +121,7 @@ assetToString(const Asset& asset)
     return r;
 };
 
-inline LedgerKey
-getBucketLedgerKey(HotArchiveBucketEntry const& be)
+inline LedgerKey getBucketLedgerKey(HotArchiveBucketEntry const& be)
 {
     switch (be.type())
     {
@@ -143,8 +135,7 @@ getBucketLedgerKey(HotArchiveBucketEntry const& be)
     }
 }
 
-inline LedgerKey
-getBucketLedgerKey(BucketEntry const& be)
+inline LedgerKey getBucketLedgerKey(BucketEntry const& be)
 {
     switch (be.type())
     {
@@ -160,9 +151,7 @@ getBucketLedgerKey(BucketEntry const& be)
 }
 
 // Round value v down to largest multiple of m, m must be power of 2
-template <typename T>
-inline T
-roundDown(T v, T m)
+template <typename T> inline T roundDown(T v, T m)
 {
     return v & ~(m - 1);
 }
@@ -180,8 +169,7 @@ bool operator==(Price const& a, Price const& b);
 // importantly are easy to accidentally misuse, we provide a few simpler
 // ascii-only functions.
 
-inline bool
-isAsciiAlphaNumeric(char c)
+inline bool isAsciiAlphaNumeric(char c)
 {
     unsigned char uc = static_cast<unsigned char>(c);
     if ('a' <= uc && uc <= 'z')
@@ -193,15 +181,13 @@ isAsciiAlphaNumeric(char c)
     return false;
 }
 
-inline bool
-isAsciiNonControl(char c)
+inline bool isAsciiNonControl(char c)
 {
     unsigned char uc = static_cast<unsigned char>(c);
     return (0x1f < uc && uc < 0x7F);
 }
 
-inline char
-toAsciiLower(char c)
+inline char toAsciiLower(char c)
 {
     unsigned char uc = static_cast<unsigned char>(c);
     if ('A' <= uc && uc <= 'Z')

@@ -24,8 +24,7 @@ using large_int::uint128_t;
 
 constexpr uint64_t full = std::numeric_limits<uint64_t>::max();
 
-uint128_t
-fromNative(unsigned __int128 const& x)
+uint128_t fromNative(unsigned __int128 const& x)
 {
     uint128_t high(uint64_t(x >> 64));
     uint128_t low(uint64_t(x & full));
@@ -33,14 +32,12 @@ fromNative(unsigned __int128 const& x)
     return (high << 64) | low;
 }
 
-unsigned __int128
-toNative(uint128_t const& x)
+unsigned __int128 toNative(uint128_t const& x)
 {
     return static_cast<unsigned __int128>(x);
 }
 
-bool
-toNative(bool x)
+bool toNative(bool x)
 {
     return x;
 }
@@ -48,8 +45,7 @@ toNative(bool x)
 struct gen128
 {
     typedef unsigned __int128 result_type;
-    result_type
-    operator()(size_t size = 0)
+    result_type operator()(size_t size = 0)
     {
         stellar::uniform_int_distribution<uint64_t> dist(1, full);
         auto a = dist(autocheck::rng());
@@ -60,8 +56,7 @@ struct gen128
 
 namespace std
 {
-std::ostream&
-operator<<(std::ostream& out, unsigned __int128 const& x)
+std::ostream& operator<<(std::ostream& out, unsigned __int128 const& x)
 {
     return out << std::hex << "0x" << uint64_t(x >> 64) << uint64_t(x);
 }

@@ -60,8 +60,7 @@ class LedgerHeaderWrapper
     explicit LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header);
     LedgerHeader& currentToModify();
     LedgerHeader const& current() const;
-    LedgerTxnHeader const&
-    getLedgerTxnHeader() const
+    LedgerTxnHeader const& getLedgerTxnHeader() const
     {
         releaseAssert(std::holds_alternative<LedgerTxnHeader>(mHeader));
         return std::get<0>(mHeader);
@@ -155,15 +154,14 @@ class LedgerSnapshot : public NonMovableOrCopyable
     explicit LedgerSnapshot(SearchableSnapshotConstPtr snapshot);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
-    LedgerEntryWrapper
-    getAccount(LedgerHeaderWrapper const& header,
-               TransactionFrame const& tx) const
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const
     {
         return mGetter->getAccount(header, tx);
     }
-    LedgerEntryWrapper
-    getAccount(LedgerHeaderWrapper const& header, TransactionFrame const& tx,
-               AccountID const& AccountID) const
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& AccountID) const
     {
         return mGetter->getAccount(header, tx, AccountID);
     }

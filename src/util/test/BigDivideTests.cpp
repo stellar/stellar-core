@@ -22,8 +22,7 @@ template <typename T> class BigDivideTester
     {
     }
 
-    void
-    test(P const& p, R const& downResult, R const& upResult)
+    void test(P const& p, R const& downResult, R const& upResult)
     {
         std::vector<uint64_t> values;
         for (auto v : mValues)

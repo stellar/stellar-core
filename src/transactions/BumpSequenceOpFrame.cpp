@@ -21,24 +21,21 @@ BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
 {
 }
 
-ThresholdLevel
-BumpSequenceOpFrame::getThresholdLevel() const
+ThresholdLevel BumpSequenceOpFrame::getThresholdLevel() const
 {
     // bumping sequence is low threshold
     return ThresholdLevel::LOW;
 }
 
-bool
-BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
+bool BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_10);
 }
 
-bool
-BumpSequenceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                             OperationResult& res,
-                             OperationMetaBuilder& opMeta) const
+bool BumpSequenceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                  OperationResult& res,
+                                  OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
@@ -68,9 +65,8 @@ BumpSequenceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                  OperationResult& res) const
+bool BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                       OperationResult& res) const
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {

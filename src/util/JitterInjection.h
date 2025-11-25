@@ -90,13 +90,11 @@ class JitterInjector
     static void resetStats();
 
     // Get statistics
-    static uint64_t
-    getInjectionCount()
+    static uint64_t getInjectionCount()
     {
         return sInjectionCount;
     }
-    static uint64_t
-    getDelayCount()
+    static uint64_t getDelayCount()
     {
         return sDelayCount;
     }

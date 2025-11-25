@@ -33,8 +33,7 @@ class Resource
         WRITE_LEDGER_ENTRIES = 6
     };
 
-    static std::string
-    getStringFromType(Type type)
+    static std::string getStringFromType(Type type)
     {
         switch (type)
         {
@@ -72,28 +71,24 @@ class Resource
         mResources = std::vector<int64_t>(1, arg);
     }
 
-    bool
-    isZero() const
+    bool isZero() const
     {
         return std::all_of(mResources.begin(), mResources.end(),
                            [](int64_t x) { return x == 0; });
     }
 
-    bool
-    anyPositive() const
+    bool anyPositive() const
     {
         return std::any_of(mResources.begin(), mResources.end(),
                            [](int64_t x) { return x > 0; });
     }
 
-    size_t
-    size() const
+    size_t size() const
     {
         return mResources.size();
     }
 
-    std::string
-    toString() const
+    std::string toString() const
     {
         std::string res = "";
         for (auto const& r : mResources)
@@ -106,27 +101,23 @@ class Resource
     Resource& operator+=(Resource const& other);
     Resource& operator-=(Resource const& other);
 
-    static Resource
-    makeEmptySoroban()
+    static Resource makeEmptySoroban()
     {
         return makeEmpty(NUM_SOROBAN_TX_RESOURCES);
     }
 
-    static Resource
-    makeEmpty(size_t numRes)
+    static Resource makeEmpty(size_t numRes)
     {
         std::vector<int64_t> res(numRes, 0);
         return Resource(res);
     }
 
-    int64_t
-    getVal(Resource::Type valType) const
+    int64_t getVal(Resource::Type valType) const
     {
         return mResources.at(static_cast<size_t>(valType));
     }
 
-    void
-    setVal(Resource::Type valType, int64_t val)
+    void setVal(Resource::Type valType, int64_t val)
     {
         mResources.at(static_cast<size_t>(valType)) = val;
     }

@@ -26,8 +26,7 @@ using namespace stellar::txtest;
 namespace
 {
 
-int64_t
-operator*(int64_t x, const Price& y)
+int64_t operator*(int64_t x, const Price& y)
 {
     bool xNegative = (x < 0);
     int64_t m =
@@ -35,8 +34,7 @@ operator*(int64_t x, const Price& y)
     return xNegative ? -m : m;
 }
 
-Price
-operator*(const Price& x, const Price& y)
+Price operator*(const Price& x, const Price& y)
 {
     int64_t n = int64_t(x.n) * int64_t(y.n);
     int64_t d = int64_t(x.d) * int64_t(y.d);
@@ -47,17 +45,14 @@ operator*(const Price& x, const Price& y)
     return Price{(int32_t)n, (int32_t)d};
 }
 
-template <typename T>
-void
-rotateRight(std::deque<T>& d)
+template <typename T> void rotateRight(std::deque<T>& d)
 {
     auto e = d.back();
     d.pop_back();
     d.push_front(e);
 }
 
-std::string
-assetPathToString(const std::deque<Asset>& assets)
+std::string assetPathToString(const std::deque<Asset>& assets)
 {
     auto r = assetToString(assets[0]);
     for (auto i = assets.rbegin(); i != assets.rend(); i++)

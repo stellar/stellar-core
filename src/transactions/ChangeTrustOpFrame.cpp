@@ -18,8 +18,7 @@
 namespace stellar
 {
 
-void
-ChangeTrustOpFrame::managePoolOnDeletedTrustLine(
+void ChangeTrustOpFrame::managePoolOnDeletedTrustLine(
     AbstractLedgerTxn& ltx, TrustLineAsset const& tlAsset) const
 {
     LedgerTxn ltxInner(ltx);
@@ -45,10 +44,9 @@ ChangeTrustOpFrame::managePoolOnDeletedTrustLine(
     ltxInner.commit();
 }
 
-bool
-ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
-                                             Asset const& asset,
-                                             OperationResult& res) const
+bool ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
+                                                  Asset const& asset,
+                                                  OperationResult& res) const
 {
     if (!isIssuer(getSourceID(), asset) && asset.type() != ASSET_TYPE_NATIVE)
     {
@@ -80,10 +78,9 @@ ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
-                                                TrustLineAsset const& tlAsset,
-                                                OperationResult& res) const
+bool ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(
+    AbstractLedgerTxn& ltx, TrustLineAsset const& tlAsset,
+    OperationResult& res) const
 {
     LedgerTxn ltxInner(ltx);
 
@@ -140,10 +137,9 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 {
 }
 
-bool
-ChangeTrustOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                            OperationResult& res,
-                            OperationMetaBuilder& opMeta) const
+bool ChangeTrustOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                 OperationResult& res,
+                                 OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
 
@@ -307,9 +303,8 @@ ChangeTrustOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     }
 }
 
-bool
-ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                 OperationResult& res) const
+bool ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                      OperationResult& res) const
 {
     if (mChangeTrust.limit < 0)
     {

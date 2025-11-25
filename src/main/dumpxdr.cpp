@@ -47,9 +47,7 @@ using namespace std::placeholders;
 namespace stellar
 {
 
-template <typename T>
-void
-dumpstream(XDRInputFileStream& in, bool compact)
+template <typename T> void dumpstream(XDRInputFileStream& in, bool compact)
 {
     T tmp;
     cereal::JSONOutputArchive archive(
@@ -62,8 +60,7 @@ dumpstream(XDRInputFileStream& in, bool compact)
     }
 }
 
-void
-dumpXdrStream(std::string const& filename, bool compact)
+void dumpXdrStream(std::string const& filename, bool compact)
 {
     std::regex rx(
         R"(.*\b(debug-tx-set|(?:(ledger|bucket|transactions|results|meta|scp)-?.*))\.xdr(?:\.dirty)?$)");
@@ -127,9 +124,8 @@ dumpXdrStream(std::string const& filename, bool compact)
                                  xdr_strerror(errno)); \
     } while (0)
 
-void
-readFile(const std::string& filename, bool base64,
-         std::function<void(xdr::opaque_vec<>)> proc)
+void readFile(const std::string& filename, bool base64,
+              std::function<void(xdr::opaque_vec<>)> proc)
 {
     using namespace std;
     ifstream file;
@@ -177,16 +173,15 @@ readFile(const std::string& filename, bool base64,
 }
 
 template <typename T>
-void
-printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
+void printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc,
+                 bool compact)
 {
     T tmp;
     xdr::xdr_from_opaque(o, tmp);
     std::cout << xdrToCerealString(tmp, desc, compact) << std::endl;
 }
 
-void
-printTransactionMeta(xdr::opaque_vec<> const& o, bool compact)
+void printTransactionMeta(xdr::opaque_vec<> const& o, bool compact)
 {
     TransactionMeta tmp;
     xdr::xdr_from_opaque(o, tmp);
@@ -195,9 +190,8 @@ printTransactionMeta(xdr::opaque_vec<> const& o, bool compact)
               << std::endl;
 }
 
-void
-printXdr(std::string const& filename, std::string const& filetype, bool base64,
-         bool compact, bool rawMode)
+void printXdr(std::string const& filename, std::string const& filetype,
+              bool base64, bool compact, bool rawMode)
 {
 // need to use this pattern as there is no good way to get a human readable
 // type name from a type
@@ -267,8 +261,7 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
 }
 
 #if HAVE_TERMIOS
-static int
-set_echo_flag(int fd, bool flag)
+static int set_echo_flag(int fd, bool flag)
 {
     struct termios tios;
     if (tcgetattr(fd, &tios))
@@ -283,8 +276,7 @@ set_echo_flag(int fd, bool flag)
 #endif
 
 #ifdef _WIN32
-static std::string
-getSecureCreds(std::string const& prompt)
+static std::string getSecureCreds(std::string const& prompt)
 {
     std::string res;
     CREDUI_INFO cui;
@@ -339,8 +331,7 @@ constexpr ssize_t (&mywrite)(int, const void*, size_t) = ::write;
 #define mywrite write
 #endif // not (gcc 4+ and glibc)
 
-std::string
-readSecret(const std::string& prompt, bool force_tty)
+std::string readSecret(const std::string& prompt, bool force_tty)
 {
     std::string ret;
 
@@ -391,9 +382,8 @@ readSecret(const std::string& prompt, bool force_tty)
 #endif
 }
 
-void
-signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
-         bool base64, bool txn_stdin, bool dump_hex_txid)
+void signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
+              bool base64, bool txn_stdin, bool dump_hex_txid)
 {
     SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
         fmt::format(FMT_STRING("Secret key seed [network id: '{}']: "), netId),
@@ -449,8 +439,7 @@ signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
     }
 }
 
-void
-signtxn(std::string const& filename, std::string netId, bool base64)
+void signtxn(std::string const& filename, std::string netId, bool base64)
 {
     using namespace std;
 
@@ -483,8 +472,7 @@ signtxn(std::string const& filename, std::string netId, bool base64)
     }
 }
 
-void
-priv2pub()
+void priv2pub()
 {
     using namespace std;
     try

@@ -13,8 +13,7 @@ class AbstractLedgerTxn;
 
 class CreateAccountOpFrame : public OperationFrame
 {
-    CreateAccountResult&
-    innerResult(OperationResult& res) const
+    CreateAccountResult& innerResult(OperationResult& res) const
     {
         return res.tr().createAccountResult();
     }
@@ -32,11 +31,10 @@ class CreateAccountOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static CreateAccountResultCode
-    getInnerCode(OperationResult const& res)
+    static CreateAccountResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().createAccountResult().code();
     }

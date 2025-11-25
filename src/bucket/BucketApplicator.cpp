@@ -57,8 +57,7 @@ BucketApplicator::BucketApplicator(Application& app,
     }
 }
 
-BucketApplicator::
-operator bool() const
+BucketApplicator::operator bool() const
 {
     // There is more work to do (i.e. (bool) *this == true) iff:
     // 1. The underlying bucket iterator is not EOF and
@@ -66,20 +65,17 @@ operator bool() const
     return static_cast<bool>(mBucketIter) && mOffersRemaining;
 }
 
-size_t
-BucketApplicator::pos()
+size_t BucketApplicator::pos()
 {
     return mBucketIter.pos();
 }
 
-size_t
-BucketApplicator::size() const
+size_t BucketApplicator::size() const
 {
     return mBucketIter.size();
 }
 
-static bool
-shouldApplyEntry(BucketEntry const& e)
+static bool shouldApplyEntry(BucketEntry const& e)
 {
     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {
@@ -94,8 +90,7 @@ shouldApplyEntry(BucketEntry const& e)
     return LiveBucketIndex::typeNotSupported(e.deadEntry().type());
 }
 
-size_t
-BucketApplicator::advance(BucketApplicator::Counters& counters)
+size_t BucketApplicator::advance(BucketApplicator::Counters& counters)
 {
     size_t count = 0;
 
@@ -217,8 +212,7 @@ BucketApplicator::Counters::Counters(VirtualClock::time_point now)
     reset(now);
 }
 
-void
-BucketApplicator::Counters::reset(VirtualClock::time_point now)
+void BucketApplicator::Counters::reset(VirtualClock::time_point now)
 {
     mStarted = now;
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
@@ -228,8 +222,7 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     }
 }
 
-void
-BucketApplicator::Counters::getRates(
+void BucketApplicator::Counters::getRates(
     VirtualClock::time_point now,
     std::map<LedgerEntryType, CounterEntry>& sec_counters, uint64_t& T_sec,
     uint64_t& total)
@@ -248,8 +241,7 @@ BucketApplicator::Counters::getRates(
     T_sec = (total * 1000000) / usecs;
 }
 
-std::string
-BucketApplicator::Counters::logStr(
+std::string BucketApplicator::Counters::logStr(
     uint64_t total, uint64_t level, std::string const& bucketName,
     std::map<LedgerEntryType, CounterEntry> const& counters)
 {
@@ -266,10 +258,9 @@ BucketApplicator::Counters::logStr(
     return str;
 }
 
-void
-BucketApplicator::Counters::logInfo(std::string const& bucketName,
-                                    uint32_t level,
-                                    VirtualClock::time_point now)
+void BucketApplicator::Counters::logInfo(std::string const& bucketName,
+                                         uint32_t level,
+                                         VirtualClock::time_point now)
 {
     uint64_t T_sec, total;
     std::map<LedgerEntryType, CounterEntry> sec_counters;
@@ -280,10 +271,9 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
               logStr(total, level, bucketName, mCounters));
 }
 
-void
-BucketApplicator::Counters::logDebug(std::string const& bucketName,
-                                     uint32_t level,
-                                     VirtualClock::time_point now)
+void BucketApplicator::Counters::logDebug(std::string const& bucketName,
+                                          uint32_t level,
+                                          VirtualClock::time_point now)
 {
     uint64_t T_sec, total;
     std::map<LedgerEntryType, CounterEntry> sec_counters;
@@ -292,8 +282,7 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
                logStr(total, level, bucketName, sec_counters), T_sec);
 }
 
-void
-BucketApplicator::Counters::mark(BucketEntry const& e)
+void BucketApplicator::Counters::mark(BucketEntry const& e)
 {
     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {

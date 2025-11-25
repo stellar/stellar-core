@@ -89,14 +89,12 @@ class VerifyLedgerChainWork : public BasicWork
     ~VerifyLedgerChainWork() override = default;
     std::string getStatus() const override;
 
-    std::shared_future<LedgerNumHashPair>
-    getVerifiedMinLedgerPrev() const
+    std::shared_future<LedgerNumHashPair> getVerifiedMinLedgerPrev() const
     {
         return mVerifiedMinLedgerPrevFuture;
     }
 
-    LedgerHeaderHistoryEntry
-    getMaxVerifiedLedgerOfMinCheckpoint()
+    LedgerHeaderHistoryEntry getMaxVerifiedLedgerOfMinCheckpoint()
     {
         return mMaxVerifiedLedgerOfMinCheckpoint;
     }
@@ -107,8 +105,7 @@ class VerifyLedgerChainWork : public BasicWork
     BasicWork::State onRun() override;
     void onSuccess() override;
     void onFailureRaise() override;
-    bool
-    onAbort() override
+    bool onAbort() override
     {
         return true;
     };

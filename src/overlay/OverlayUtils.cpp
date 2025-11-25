@@ -5,8 +5,7 @@
 namespace stellar
 {
 
-void
-logErrorOrThrow(std::string const& message)
+void logErrorOrThrow(std::string const& message)
 {
     CLOG_ERROR(Overlay, "{}", message);
 #ifdef BUILD_TESTS

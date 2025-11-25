@@ -25,8 +25,7 @@ HistoryArchiveReportWork::HistoryArchiveReportWork(
 {
 }
 
-void
-HistoryArchiveReportWork::onSuccess()
+void HistoryArchiveReportWork::onSuccess()
 {
     for (auto const& work : mGetHistoryArchiveStateWorks)
     {
@@ -40,8 +39,7 @@ HistoryArchiveReportWork::onSuccess()
     }
 }
 
-void
-HistoryArchiveReportWork::onFailureRaise()
+void HistoryArchiveReportWork::onFailureRaise()
 {
     for (auto const& work : mGetHistoryArchiveStateWorks)
     {

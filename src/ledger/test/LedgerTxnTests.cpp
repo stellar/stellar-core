@@ -63,8 +63,7 @@ validate(AbstractLedgerTxn& ltx,
     REQUIRE(iter == delta.entry.end());
 }
 
-static LedgerEntry
-generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
+static LedgerEntry generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
 {
     LedgerEntry le;
     le.data.type(leBase.data.type());
@@ -1045,8 +1044,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
 #endif
 }
 
-static void
-applyLedgerTxnUpdates(
+static void applyLedgerTxnUpdates(
     AbstractLedgerTxn& ltx,
     std::map<AccountID, std::pair<AccountID, int64_t>> const& updates)
 {
@@ -1081,8 +1079,7 @@ applyLedgerTxnUpdates(
     }
 }
 
-static void
-testInflationWinners(
+static void testInflationWinners(
     AbstractLedgerTxnParent& ltxParent, size_t maxWinners, int64_t minBalance,
     std::vector<std::tuple<AccountID, int64_t>> const& expected,
     std::vector<std::map<AccountID,
@@ -1115,8 +1112,7 @@ testInflationWinners(
     }
 }
 
-static void
-testInflationWinners(
+static void testInflationWinners(
     size_t maxWinners, int64_t minBalance,
     std::vector<std::tuple<AccountID, int64_t>> const& expected,
     std::vector<std::map<AccountID, std::pair<AccountID, int64_t>>> const&
@@ -1668,8 +1664,7 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
     }
 }
 
-static void
-applyLedgerTxnUpdates(
+static void applyLedgerTxnUpdates(
     AbstractLedgerTxn& ltx,
     std::map<std::pair<AccountID, int64_t>,
              std::tuple<Asset, Asset, int64_t>> const& updates)
@@ -1703,8 +1698,7 @@ applyLedgerTxnUpdates(
     }
 }
 
-static void
-testAllOffers(
+static void testAllOffers(
     AbstractLedgerTxnParent& ltxParent,
     std::map<AccountID,
              std::vector<std::tuple<int64_t, Asset, Asset, int64_t>>> const&
@@ -1756,8 +1750,7 @@ testAllOffers(
     }
 }
 
-static void
-testAllOffers(
+static void testAllOffers(
     std::map<AccountID,
              std::vector<std::tuple<int64_t, Asset, Asset, int64_t>>> const&
         expected,
@@ -1963,8 +1956,7 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
 #endif
 }
 
-static void
-applyLedgerTxnUpdates(
+static void applyLedgerTxnUpdates(
     AbstractLedgerTxn& ltx,
     std::map<std::pair<AccountID, int64_t>,
              std::tuple<Asset, Asset, Price, int64_t>> const& updates)
@@ -1998,8 +1990,7 @@ applyLedgerTxnUpdates(
     }
 }
 
-static void
-testBestOffer(
+static void testBestOffer(
     AbstractLedgerTxnParent& ltxParent, Asset const& buying,
     Asset const& selling,
     std::vector<std::tuple<int64_t, Asset, Asset, Price, int64_t>> const&
@@ -2037,8 +2028,7 @@ testBestOffer(
     }
 }
 
-static void
-testBestOffer(
+static void testBestOffer(
     Asset const& buying, Asset const& selling,
     std::vector<std::tuple<int64_t, Asset, Asset, Price, int64_t>> const&
         expected,
@@ -2394,8 +2384,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
 #endif
 }
 
-static void
-testOffersByAccountAndAsset(
+static void testOffersByAccountAndAsset(
     AbstractLedgerTxnParent& ltxParent, AccountID const& accountID,
     Asset const& asset,
     std::vector<std::tuple<int64_t, Asset, Asset, int64_t>> const& expected,
@@ -2433,8 +2422,7 @@ testOffersByAccountAndAsset(
     }
 }
 
-static void
-testOffersByAccountAndAsset(
+static void testOffersByAccountAndAsset(
     AccountID const& accountID, Asset const& asset,
     std::vector<std::tuple<int64_t, Asset, Asset, int64_t>> const& expected,
     std::vector<std::map<std::pair<AccountID, int64_t>,
@@ -3129,8 +3117,7 @@ typedef UnorderedMap<
     AssetPairHash>
     SortedOrderBook;
 
-static void
-checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
+static void checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
 {
     SortedOrderBook sortedExpected;
     for (auto const& kv : expected)
@@ -3163,8 +3150,7 @@ checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
     check(sortedExpected, ltxOb);
 }
 
-static LedgerEntry
-generateOfferWithSameAssets(LedgerEntry const& leBase)
+static LedgerEntry generateOfferWithSameAssets(LedgerEntry const& leBase)
 {
     LedgerEntry le;
     le.data.type(OFFER);
@@ -3175,8 +3161,7 @@ generateOfferWithSameAssets(LedgerEntry const& leBase)
     return le;
 }
 
-static LedgerEntry
-generateOfferWithSameKeyAndAssets(LedgerEntry const& leBase)
+static LedgerEntry generateOfferWithSameKeyAndAssets(LedgerEntry const& leBase)
 {
     LedgerEntry le = generateLedgerEntryWithSameKey(leBase);
     auto& oe = le.data.offer();
@@ -3794,15 +3779,14 @@ TEST_CASE("LedgerTxn best offers cache eviction", "[ledgertxn]")
 typedef std::map<std::tuple<AccountID, Asset, Asset>, int64_t> PoolShareUpdates;
 typedef std::map<std::pair<Asset, Asset>, int64_t> LiquidityPoolUpdates;
 
-static PoolID
-getPoolID(Asset const& assetA, Asset const& assetB)
+static PoolID getPoolID(Asset const& assetA, Asset const& assetB)
 {
     return sha256(xdr::xdr_to_opaque(LIQUIDITY_POOL_CONSTANT_PRODUCT, assetA,
                                      assetB, LIQUIDITY_POOL_FEE_V18));
 }
 
-static void
-applyLedgerTxnUpdates(AbstractLedgerTxn& ltx, PoolShareUpdates const& updates)
+static void applyLedgerTxnUpdates(AbstractLedgerTxn& ltx,
+                                  PoolShareUpdates const& updates)
 {
     for (auto const& kv : updates)
     {
@@ -3839,9 +3823,8 @@ applyLedgerTxnUpdates(AbstractLedgerTxn& ltx, PoolShareUpdates const& updates)
     }
 }
 
-static void
-applyLedgerTxnUpdates(AbstractLedgerTxn& ltx,
-                      LiquidityPoolUpdates const& updates)
+static void applyLedgerTxnUpdates(AbstractLedgerTxn& ltx,
+                                  LiquidityPoolUpdates const& updates)
 {
     for (auto const& kv : updates)
     {
@@ -3881,8 +3864,7 @@ applyLedgerTxnUpdates(AbstractLedgerTxn& ltx,
     }
 }
 
-static void
-testPoolShareTrustLinesByAccountAndAsset(
+static void testPoolShareTrustLinesByAccountAndAsset(
     AbstractLedgerTxnParent& ltxParent, AccountID const& accountID,
     Asset const& asset,
     std::vector<std::tuple<Asset, Asset, int64_t>> const& expected,
@@ -3924,8 +3906,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     }
 }
 
-static void
-testPoolShareTrustLinesByAccountAndAsset(
+static void testPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset,
     std::vector<std::tuple<Asset, Asset, int64_t>> const& expected,
     std::vector<std::pair<PoolShareUpdates, LiquidityPoolUpdates>> updates)

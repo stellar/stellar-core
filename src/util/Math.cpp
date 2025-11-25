@@ -22,8 +22,7 @@ namespace stellar
 
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
 
-stellar_default_random_engine&
-getGlobalRandomEngine()
+stellar_default_random_engine& getGlobalRandomEngine()
 {
     // gRandomEngine is for main thread only.
     static stellar_default_random_engine gRandomEngine;
@@ -31,20 +30,17 @@ getGlobalRandomEngine()
     return gRandomEngine;
 }
 
-double
-rand_fraction()
+double rand_fraction()
 {
     return uniformFractionDistribution(getGlobalRandomEngine());
 }
 
-bool
-rand_flip()
+bool rand_flip()
 {
     return (getGlobalRandomEngine()() & 1);
 }
 
-double
-closest_cluster(double p, std::set<double> const& centers)
+double closest_cluster(double p, std::set<double> const& centers)
 {
     auto bestCenter = std::numeric_limits<double>::max();
     auto currDist = std::numeric_limits<double>::max();
@@ -65,8 +61,7 @@ closest_cluster(double p, std::set<double> const& centers)
     return bestCenter;
 }
 
-VirtualClock::duration
-exponentialBackoff(uint64_t n)
+VirtualClock::duration exponentialBackoff(uint64_t n)
 {
     // Cap to 512 sec or ~8 minutes
     uint64_t const MAX_EXPONENT = 9;
@@ -75,8 +70,7 @@ exponentialBackoff(uint64_t n)
     return std::chrono::seconds(rand_uniform<uint64_t>(lowerBound, upperBound));
 }
 
-std::set<double>
-k_meansPP(std::vector<double> const& points, uint32_t k)
+std::set<double> k_meansPP(std::vector<double> const& points, uint32_t k)
 {
     auto& engine = getGlobalRandomEngine();
     if (k == 0)
@@ -129,8 +123,7 @@ k_meansPP(std::vector<double> const& points, uint32_t k)
     return centroids;
 }
 
-std::set<double>
-k_means(std::vector<double> const& points, uint32_t k)
+std::set<double> k_means(std::vector<double> const& points, uint32_t k)
 {
     ZoneScoped;
     // initialize centroids with k-means++
@@ -181,8 +174,7 @@ k_means(std::vector<double> const& points, uint32_t k)
 }
 
 static unsigned int lastGlobalSeed{0};
-static void
-reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
+static void reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
     lastGlobalSeed = seed;
     PubKeyUtils::clearVerifySigCache();
@@ -196,8 +188,7 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 #endif
 }
 
-void
-initializeAllGlobalState()
+void initializeAllGlobalState()
 {
     releaseAssert(lastGlobalSeed == 0);
     auto const seed = static_cast<unsigned int>(
@@ -208,8 +199,7 @@ initializeAllGlobalState()
 }
 
 #ifdef BUILD_TESTS
-void
-reinitializeAllGlobalStateWithSeed(unsigned int seed)
+void reinitializeAllGlobalStateWithSeed(unsigned int seed)
 {
     reinitializeAllGlobalStateWithSeedInternal(seed);
     // shortHash seeded for tests
@@ -223,8 +213,7 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
 #endif
 }
 
-unsigned int
-getLastGlobalStateSeed()
+unsigned int getLastGlobalStateSeed()
 {
     return lastGlobalSeed;
 }

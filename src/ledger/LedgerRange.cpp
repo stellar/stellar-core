@@ -16,14 +16,12 @@ LedgerRange::LedgerRange(uint32_t first, uint32_t count)
     releaseAssert(count == 0 || mFirst > 0);
 }
 
-std::string
-LedgerRange::toString() const
+std::string LedgerRange::toString() const
 {
     return fmt::format(FMT_STRING("[{:d},{:d})"), mFirst, mFirst + mCount);
 }
 
-bool
-operator==(LedgerRange const& x, LedgerRange const& y)
+bool operator==(LedgerRange const& x, LedgerRange const& y)
 {
     if (x.mFirst != y.mFirst)
     {
@@ -36,8 +34,7 @@ operator==(LedgerRange const& x, LedgerRange const& y)
     return true;
 }
 
-bool
-operator!=(LedgerRange const& x, LedgerRange const& y)
+bool operator!=(LedgerRange const& x, LedgerRange const& y)
 {
     return !(x == y);
 }

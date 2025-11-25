@@ -49,9 +49,9 @@ class PersistentState
     getTxSetsForAllSlots(std::string table = kSlotTableName);
     std::unordered_set<Hash> getTxSetHashesForAllSlots();
 
-    void
-    setSCPStateV1ForSlot(uint64 slot, std::string const& value,
-                         std::unordered_map<Hash, std::string> const& txSets);
+    void setSCPStateV1ForSlot(
+        uint64 slot, std::string const& value,
+        std::unordered_map<Hash, std::string> const& txSets);
 
     bool shouldRebuildForOfferTable();
     void clearRebuildForOfferTable();

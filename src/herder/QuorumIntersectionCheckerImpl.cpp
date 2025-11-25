@@ -31,8 +31,7 @@ QBitSet::QBitSet(uint32_t threshold, BitSet const& nodes,
 {
 }
 
-void
-QBitSet::log(size_t indent) const
+void QBitSet::log(size_t indent) const
 {
     std::string s(indent, ' ');
     CLOG_DEBUG(SCP, "{}QBitSet: thresh={}/{} validators={}", s, mThreshold,
@@ -43,8 +42,7 @@ QBitSet::log(size_t indent) const
     }
 }
 
-BitSet
-QBitSet::getSuccessors(BitSet const& nodes, QGraph const& inner)
+BitSet QBitSet::getSuccessors(BitSet const& nodes, QGraph const& inner)
 {
     BitSet out(nodes);
     for (auto const& i : inner)
@@ -59,8 +57,7 @@ QBitSet::getSuccessors(BitSet const& nodes, QGraph const& inner)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Slightly tweaked variant of Lachowski's next-node function.
-size_t
-MinQuorumEnumerator::pickSplitNode(
+size_t MinQuorumEnumerator::pickSplitNode(
     stellar::stellar_default_random_engine& randEngine) const
 {
     std::vector<size_t>& inDegrees = mQic.mInDegrees;
@@ -106,8 +103,7 @@ MinQuorumEnumerator::pickSplitNode(
     return maxNode;
 }
 
-size_t
-MinQuorumEnumerator::maxCommit() const
+size_t MinQuorumEnumerator::maxCommit() const
 {
     return mScanSCC.count() / 2;
 }
@@ -123,8 +119,7 @@ MinQuorumEnumerator::MinQuorumEnumerator(
 {
 }
 
-bool
-MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
+bool MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 {
     if (mQic.mInterruptFlag)
     {
@@ -292,14 +287,12 @@ QuorumIntersectionCheckerImpl::getPotentialSplit() const
     return mPotentialSplit;
 }
 
-size_t
-QuorumIntersectionCheckerImpl::getMaxQuorumsFound() const
+size_t QuorumIntersectionCheckerImpl::getMaxQuorumsFound() const
 {
     return mStats.mMaxQuorumsSeen;
 }
 
-void
-QuorumIntersectionCheckerImpl::Stats::log() const
+void QuorumIntersectionCheckerImpl::Stats::log() const
 {
     CLOG_DEBUG(SCP, "Quorum intersection checker stats:");
     size_t exits = (mEarlyExit1s + mEarlyExit21s + mEarlyExit22s +
@@ -316,9 +309,8 @@ QuorumIntersectionCheckerImpl::Stats::log() const
 
 // This function is the innermost call in the checker and must be as fast
 // as possible. We spend almost all of our time in here.
-bool
-QuorumIntersectionCheckerImpl::containsQuorumSlice(BitSet const& bs,
-                                                   QBitSet const& qbs) const
+bool QuorumIntersectionCheckerImpl::containsQuorumSlice(
+    BitSet const& bs, QBitSet const& qbs) const
 {
     // First we do a very quick check: do we have enough bits in 'bs'
     // intersected with the top-level set of nodes to meet the threshold for
@@ -381,9 +373,8 @@ QuorumIntersectionCheckerImpl::containsQuorumSlice(BitSet const& bs,
     return false;
 }
 
-bool
-QuorumIntersectionCheckerImpl::containsQuorumSliceForNode(BitSet const& bs,
-                                                          size_t node) const
+bool QuorumIntersectionCheckerImpl::containsQuorumSliceForNode(
+    BitSet const& bs, size_t node) const
 {
     if (!bs.get(node))
     {
@@ -392,8 +383,7 @@ QuorumIntersectionCheckerImpl::containsQuorumSliceForNode(BitSet const& bs,
     return containsQuorumSlice(bs, mGraph.at(node));
 }
 
-bool
-QuorumIntersectionCheckerImpl::isAQuorum(BitSet const& nodes) const
+bool QuorumIntersectionCheckerImpl::isAQuorum(BitSet const& nodes) const
 {
     bool* pRes = mCachedQuorums.maybeGet(nodes);
     if (pRes == nullptr)
@@ -454,8 +444,7 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
     }
 }
 
-bool
-QuorumIntersectionCheckerImpl::isMinimalQuorum(BitSet const& nodes) const
+bool QuorumIntersectionCheckerImpl::isMinimalQuorum(BitSet const& nodes) const
 {
 #ifndef NDEBUG
     // We should only be called with a quorum, such that contracting to its
@@ -486,8 +475,7 @@ QuorumIntersectionCheckerImpl::isMinimalQuorum(BitSet const& nodes) const
     return true;
 }
 
-void
-QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
+void QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
     BitSet const& nodes, BitSet const& disj) const
 {
     mPotentialSplit.first.clear();
@@ -514,8 +502,7 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
     }
 }
 
-bool
-MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
+bool MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
 {
     BitSet disj = mQic.contractToMaximalQuorum(mScanSCC - nodes);
     if (!disj.empty())
@@ -584,8 +571,7 @@ QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
     return QBitSet(threshold, nodeBits, inner);
 }
 
-void
-QuorumIntersectionCheckerImpl::buildGraph(
+void QuorumIntersectionCheckerImpl::buildGraph(
     QuorumIntersectionChecker::QuorumSetMap const& qmap)
 {
     mPubKeyBitNums.clear();
@@ -623,8 +609,7 @@ QuorumIntersectionCheckerImpl::buildGraph(
     mStats.mTotalNodes = mPubKeyBitNums.size();
 }
 
-void
-QuorumIntersectionCheckerImpl::buildSCCs()
+void QuorumIntersectionCheckerImpl::buildSCCs()
 {
     mTSC.calculateSCCs(mGraph.size(), [this](size_t i) -> BitSet const& {
         // NB: this closure must be written with the explicit const&
@@ -635,14 +620,12 @@ QuorumIntersectionCheckerImpl::buildSCCs()
     mStats.mNumSCCs = mTSC.mSCCs.size();
 }
 
-std::string
-QuorumIntersectionCheckerImpl::nodeName(size_t node) const
+std::string QuorumIntersectionCheckerImpl::nodeName(size_t node) const
 {
     return toShortString(mCfg, mBitNumPubKeys.at(node));
 }
 
-bool
-QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
+bool QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
 {
     if (!mQuiet)
     {
@@ -719,8 +702,7 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     return !foundDisjoint;
 }
 
-bool
-pointsToCandidate(SCPQuorumSet const& p, NodeID const& candidate)
+bool pointsToCandidate(SCPQuorumSet const& p, NodeID const& candidate)
 {
     for (auto const& k : p.validators)
     {
@@ -739,9 +721,9 @@ pointsToCandidate(SCPQuorumSet const& p, NodeID const& candidate)
     return false;
 }
 
-void
-findCriticalityCandidates(SCPQuorumSet const& p,
-                          std::set<std::set<NodeID>>& candidates, bool root)
+void findCriticalityCandidates(SCPQuorumSet const& p,
+                               std::set<std::set<NodeID>>& candidates,
+                               bool root)
 {
     // Make a singleton-set for every validator, always.
     for (auto const& k : p.validators)
@@ -769,8 +751,8 @@ findCriticalityCandidates(SCPQuorumSet const& p,
     }
 }
 
-std::string
-groupString(std::optional<Config> const& cfg, std::set<NodeID> const& group)
+std::string groupString(std::optional<Config> const& cfg,
+                        std::set<NodeID> const& group)
 {
     std::ostringstream out;
     bool first = true;
@@ -792,8 +774,7 @@ groupString(std::optional<Config> const& cfg, std::set<NodeID> const& group)
 namespace stellar
 {
 
-void
-QuorumMapIntersectionState::reset(Application& app)
+void QuorumMapIntersectionState::reset(Application& app)
 {
     // NB: this deletes any existing tmp dir before creating a new one.
     mTmpDir =
@@ -809,8 +790,7 @@ QuorumMapIntersectionState::QuorumMapIntersectionState(Application& app)
     reset(app);
 }
 
-std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(
+std::shared_ptr<QuorumIntersectionChecker> QuorumIntersectionChecker::create(
     QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
     std::atomic<bool>& interruptFlag,
     stellar_default_random_engine::result_type seed, bool quiet)
@@ -819,8 +799,7 @@ QuorumIntersectionChecker::create(
                   quiet);
 }
 
-std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(
+std::shared_ptr<QuorumIntersectionChecker> QuorumIntersectionChecker::create(
     QuorumSetMap const& qmap, std::optional<Config> const& cfg,
     std::atomic<bool>& interruptFlag,
     stellar_default_random_engine::result_type seed, bool quiet)

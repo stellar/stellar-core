@@ -94,8 +94,7 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
 
     void syncMetrics() override;
 
-    CatchupMetrics const&
-    getCatchupMetrics() override
+    CatchupMetrics const& getCatchupMetrics() override
     {
         return mMetrics;
     }
@@ -108,27 +107,23 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     void fileDownloaded(FileType type, uint32_t num) override;
 
 #ifdef BUILD_TESTS
-    std::map<uint32_t, LedgerCloseData> const&
-    getBufferedLedgers() const
+    std::map<uint32_t, LedgerCloseData> const& getBufferedLedgers() const
     {
         return mSyncingLedgers;
     }
 
-    std::shared_ptr<CatchupWork>
-    getCatchupWork() const
+    std::shared_ptr<CatchupWork> getCatchupWork() const
     {
         return mCatchupWork;
     }
 
-    bool
-    getCatchupFatalFailure() const
+    bool getCatchupFatalFailure() const
     {
         return mCatchupFatalFailure;
     }
 
     std::optional<uint32_t> mMaxExternalizeApplyBuffer;
-    uint32_t
-    getMaxExternalizeApplyBuffer()
+    uint32_t getMaxExternalizeApplyBuffer()
     {
         return mMaxExternalizeApplyBuffer ? *mMaxExternalizeApplyBuffer
                                           : MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;

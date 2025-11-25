@@ -98,9 +98,8 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
     }
 }
 
-bool
-QueryServer::notFound(std::string const& params, std::string const& body,
-                      std::string& retStr)
+bool QueryServer::notFound(std::string const& params, std::string const& body,
+                           std::string& retStr)
 {
     retStr = "<b>Welcome to stellar-core!</b><p>";
     retStr +=
@@ -115,16 +114,14 @@ QueryServer::notFound(std::string const& params, std::string const& body,
     return true;
 }
 
-void
-QueryServer::addRoute(std::string const& name, HandlerRoute route)
+void QueryServer::addRoute(std::string const& name, HandlerRoute route)
 {
     mServer.addRoute(
         name, std::bind(&QueryServer::safeRouter, this, route, _1, _2, _3));
 }
 
-bool
-QueryServer::safeRouter(HandlerRoute route, std::string const& params,
-                        std::string const& body, std::string& retStr)
+bool QueryServer::safeRouter(HandlerRoute route, std::string const& params,
+                             std::string const& body, std::string& retStr)
 {
     try
     {
@@ -144,9 +141,9 @@ QueryServer::safeRouter(HandlerRoute route, std::string const& params,
     return false;
 }
 
-bool
-QueryServer::getLedgerEntryRaw(std::string const& params,
-                               std::string const& body, std::string& retStr)
+bool QueryServer::getLedgerEntryRaw(std::string const& params,
+                                    std::string const& body,
+                                    std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;
@@ -224,9 +221,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 // 2. For any Soroban keys not in the live BucketList, load them from the Hot
 //    Archive
 // 3. Load TTL keys for any live Soroban entries found in 1.
-bool
-QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
-                            std::string& retStr)
+bool QueryServer::getLedgerEntry(std::string const& params,
+                                 std::string const& body, std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;

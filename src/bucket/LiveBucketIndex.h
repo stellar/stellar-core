@@ -71,14 +71,12 @@ class LiveBucketIndex : public NonMovableOrCopyable
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
 
-    static inline DiskIndex<LiveBucket>::IterT
-    getDiskIter(IterT const& iter)
+    static inline DiskIndex<LiveBucket>::IterT getDiskIter(IterT const& iter)
     {
         return std::get<DiskIndex<LiveBucket>::IterT>(iter);
     }
 
-    static inline InMemoryIndex::IterT
-    getInMemoryIter(IterT const& iter)
+    static inline InMemoryIndex::IterT getInMemoryIter(IterT const& iter)
     {
         return std::get<InMemoryIndex::IterT>(iter);
     }

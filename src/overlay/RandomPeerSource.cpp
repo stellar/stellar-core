@@ -9,8 +9,8 @@ namespace stellar
 {
 
 using namespace soci;
-PeerQuery
-RandomPeerSource::maxFailures(size_t maxFailures, bool requireOutobund)
+PeerQuery RandomPeerSource::maxFailures(size_t maxFailures,
+                                        bool requireOutobund)
 {
     return {false, maxFailures,
             requireOutobund ? PeerTypeFilter::ANY_OUTBOUND
@@ -19,8 +19,7 @@ RandomPeerSource::maxFailures(size_t maxFailures, bool requireOutobund)
 
 namespace
 {
-PeerTypeFilter
-peerTypeToFilter(PeerType peerType)
+PeerTypeFilter peerTypeToFilter(PeerType peerType)
 {
     switch (peerType)
     {
@@ -45,8 +44,7 @@ peerTypeToFilter(PeerType peerType)
 }
 }
 
-PeerQuery
-RandomPeerSource::nextAttemptCutoff(PeerType requireExactType)
+PeerQuery RandomPeerSource::nextAttemptCutoff(PeerType requireExactType)
 {
     return {true, Config::REALLY_DEAD_NUM_FAILURES_CUTOFF,
             peerTypeToFilter(requireExactType)};
@@ -58,8 +56,7 @@ RandomPeerSource::RandomPeerSource(PeerManager& peerManager,
 {
 }
 
-std::vector<PeerBareAddress>
-RandomPeerSource::getRandomPeers(
+std::vector<PeerBareAddress> RandomPeerSource::getRandomPeers(
     size_t size, std::function<bool(PeerBareAddress const&)> pred)
 {
     if (size == 0)

@@ -72,8 +72,7 @@ AssumeStateWork::AssumeStateWork(Application& app,
     }
 }
 
-BasicWork::State
-AssumeStateWork::doWork()
+BasicWork::State AssumeStateWork::doWork()
 {
     if (!mWorkSpawned)
     {
@@ -118,8 +117,7 @@ AssumeStateWork::doWork()
     return checkChildrenStatus();
 }
 
-void
-AssumeStateWork::doReset()
+void AssumeStateWork::doReset()
 {
     mWorkSpawned = false;
 }

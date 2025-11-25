@@ -9,8 +9,7 @@
 namespace stellar
 {
 
-void
-createPath(std::filesystem::path path)
+void createPath(std::filesystem::path path)
 {
     if (fs::exists(path.string()))
     {
@@ -30,8 +29,7 @@ createPath(std::filesystem::path path)
     }
 }
 
-std::string
-FileTransferInfo::getLocalDir(TmpDir const& localRoot) const
+std::string FileTransferInfo::getLocalDir(TmpDir const& localRoot) const
 {
     ZoneScoped;
     auto localDir = localRoot.getName();
@@ -40,8 +38,7 @@ FileTransferInfo::getLocalDir(TmpDir const& localRoot) const
     return localDir;
 }
 
-std::string
-typeString(FileType type)
+std::string typeString(FileType type)
 {
     switch (type)
     {
@@ -58,8 +55,7 @@ typeString(FileType type)
     }
 }
 
-std::filesystem::path
-createPublishDir(FileType type, Config const& cfg)
+std::filesystem::path createPublishDir(FileType type, Config const& cfg)
 {
     std::filesystem::path root = cfg.BUCKET_DIR_PATH;
     auto path = getPublishHistoryDir(type, cfg);
@@ -67,8 +63,7 @@ createPublishDir(FileType type, Config const& cfg)
     return path;
 }
 
-std::filesystem::path
-getPublishHistoryDir(FileType type, Config const& cfg)
+std::filesystem::path getPublishHistoryDir(FileType type, Config const& cfg)
 {
     std::filesystem::path root = cfg.BUCKET_DIR_PATH;
     return root / HISTORY_LOCAL_DIR_NAME / typeString(type);

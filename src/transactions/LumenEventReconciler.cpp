@@ -14,8 +14,7 @@ namespace stellar
 namespace
 {
 
-int64_t
-calculateDeltaBalance(
+int64_t calculateDeltaBalance(
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
@@ -42,9 +41,9 @@ calculateDeltaBalance(
 
 }
 
-void
-reconcileEvents(AccountID const& txSourceAccount, Operation const& operation,
-                LedgerTxnDelta const& ltxDelta, OpEventManager& opEventManager)
+void reconcileEvents(AccountID const& txSourceAccount,
+                     Operation const& operation, LedgerTxnDelta const& ltxDelta,
+                     OpEventManager& opEventManager)
 {
     // Should only be called pre protocol 8
     int64_t deltaBalances = std::accumulate(

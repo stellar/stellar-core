@@ -74,8 +74,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
 }
 
 template <typename BucketT>
-void
-BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
+void BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 {
     ZoneScoped;
 
@@ -165,8 +164,7 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 }
 
 template <typename BucketT>
-std::shared_ptr<BucketT>
-BucketOutputIterator<BucketT>::getBucket(
+std::shared_ptr<BucketT> BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
     std::optional<std::vector<typename BucketT::EntryT>> inMemoryState)
 {

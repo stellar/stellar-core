@@ -14,8 +14,7 @@ class RevokeSponsorshipOpFrame : public OperationFrame
 {
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    RevokeSponsorshipResult&
-    innerResult(OperationResult& res) const
+    RevokeSponsorshipResult& innerResult(OperationResult& res) const
     {
         return res.tr().revokeSponsorshipResult();
     }
@@ -51,8 +50,7 @@ class RevokeSponsorshipOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    static RevokeSponsorshipResultCode
-    getInnerCode(OperationResult const& res)
+    static RevokeSponsorshipResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().revokeSponsorshipResult().code();
     }

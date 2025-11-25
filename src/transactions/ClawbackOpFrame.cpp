@@ -17,17 +17,15 @@ ClawbackOpFrame::ClawbackOpFrame(Operation const& op,
 {
 }
 
-bool
-ClawbackOpFrame::isOpSupported(LedgerHeader const& header) const
+bool ClawbackOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_17);
 }
 
-bool
-ClawbackOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                         OperationResult& res,
-                         OperationMetaBuilder& opMeta) const
+bool ClawbackOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                              OperationResult& res,
+                              OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClawbackOp apply", true);
 
@@ -60,9 +58,8 @@ ClawbackOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion,
-                              OperationResult& res) const
+bool ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                   OperationResult& res) const
 {
     if (mClawback.from == toMuxedAccount(getSourceID()))
     {
@@ -97,8 +94,8 @@ ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-ClawbackOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
+void ClawbackOpFrame::insertLedgerKeysToPrefetch(
+    UnorderedSet<LedgerKey>& keys) const
 {
     if (mClawback.asset.type() != ASSET_TYPE_NATIVE)
     {

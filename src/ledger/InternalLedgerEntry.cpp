@@ -14,79 +14,71 @@
 namespace stellar
 {
 
-bool
-operator==(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
+bool operator==(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
 {
     return lhs.sponsoredID == rhs.sponsoredID;
 }
 
-bool
-operator!=(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
+bool operator!=(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
 {
     return !(lhs == rhs);
 }
 
-bool
-operator==(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
+bool operator==(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
 {
     return lhs.sponsoredID == rhs.sponsoredID &&
            lhs.sponsoringID == rhs.sponsoringID;
 }
 
-bool
-operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
+bool operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
 {
     return !(lhs == rhs);
 }
 
-bool
-operator==(SponsorshipCounterKey const& lhs, SponsorshipCounterKey const& rhs)
+bool operator==(SponsorshipCounterKey const& lhs,
+                SponsorshipCounterKey const& rhs)
 {
     return lhs.sponsoringID == rhs.sponsoringID;
 }
 
-bool
-operator!=(SponsorshipCounterKey const& lhs, SponsorshipCounterKey const& rhs)
+bool operator!=(SponsorshipCounterKey const& lhs,
+                SponsorshipCounterKey const& rhs)
 {
     return !(lhs == rhs);
 }
 
-bool
-operator==(SponsorshipCounterEntry const& lhs,
-           SponsorshipCounterEntry const& rhs)
+bool operator==(SponsorshipCounterEntry const& lhs,
+                SponsorshipCounterEntry const& rhs)
 {
     return lhs.sponsoringID == rhs.sponsoringID &&
            lhs.numSponsoring == rhs.numSponsoring;
 }
 
-bool
-operator!=(SponsorshipCounterEntry const& lhs,
-           SponsorshipCounterEntry const& rhs)
+bool operator!=(SponsorshipCounterEntry const& lhs,
+                SponsorshipCounterEntry const& rhs)
 {
     return !(lhs == rhs);
 }
 
-bool
-operator==(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
+bool operator==(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
 {
     return lhs.sourceAccount == rhs.sourceAccount;
 }
 
-bool
-operator!=(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
+bool operator!=(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
 {
     return !(lhs == rhs);
 }
 
-bool
-operator==(MaxSeqNumToApplyEntry const& lhs, MaxSeqNumToApplyEntry const& rhs)
+bool operator==(MaxSeqNumToApplyEntry const& lhs,
+                MaxSeqNumToApplyEntry const& rhs)
 {
     return lhs.sourceAccount == rhs.sourceAccount &&
            lhs.maxSeqNum == rhs.maxSeqNum;
 }
 
-bool
-operator!=(MaxSeqNumToApplyEntry const& lhs, MaxSeqNumToApplyEntry const& rhs)
+bool operator!=(MaxSeqNumToApplyEntry const& lhs,
+                MaxSeqNumToApplyEntry const& rhs)
 {
     return !(lhs == rhs);
 }
@@ -162,16 +154,14 @@ InternalLedgerKey::makeMaxSeqNumToApplyKey(AccountID const& sourceAccount)
     return res;
 }
 
-InternalLedgerKey&
-InternalLedgerKey::operator=(InternalLedgerKey const& glk)
+InternalLedgerKey& InternalLedgerKey::operator=(InternalLedgerKey const& glk)
 {
     type(glk.type());
     assign(glk);
     return *this;
 }
 
-InternalLedgerKey&
-InternalLedgerKey::operator=(InternalLedgerKey&& glk)
+InternalLedgerKey& InternalLedgerKey::operator=(InternalLedgerKey&& glk)
 {
     if (this == &glk)
     {
@@ -188,8 +178,7 @@ InternalLedgerKey::~InternalLedgerKey()
     destruct();
 }
 
-size_t
-InternalLedgerKey::hash() const
+size_t InternalLedgerKey::hash() const
 {
     if (mHash != 0)
     {
@@ -221,8 +210,7 @@ InternalLedgerKey::hash() const
     return res;
 }
 
-void
-InternalLedgerKey::assign(InternalLedgerKey const& glk)
+void InternalLedgerKey::assign(InternalLedgerKey const& glk)
 {
     releaseAssert(glk.type() == mType);
     mHash = glk.mHash;
@@ -245,8 +233,7 @@ InternalLedgerKey::assign(InternalLedgerKey const& glk)
     }
 }
 
-void
-InternalLedgerKey::assign(InternalLedgerKey&& glk)
+void InternalLedgerKey::assign(InternalLedgerKey&& glk)
 {
     releaseAssert(glk.type() == mType);
     mHash = glk.mHash;
@@ -269,8 +256,7 @@ InternalLedgerKey::assign(InternalLedgerKey&& glk)
     }
 }
 
-void
-InternalLedgerKey::construct()
+void InternalLedgerKey::construct()
 {
     switch (mType)
     {
@@ -292,8 +278,7 @@ InternalLedgerKey::construct()
     mHash = 0;
 }
 
-void
-InternalLedgerKey::destruct()
+void InternalLedgerKey::destruct()
 {
     switch (mType)
     {
@@ -315,8 +300,7 @@ InternalLedgerKey::destruct()
     mHash = 0;
 }
 
-void
-InternalLedgerKey::type(InternalLedgerEntryType t)
+void InternalLedgerKey::type(InternalLedgerEntryType t)
 {
     if (t != mType)
     {
@@ -326,14 +310,13 @@ InternalLedgerKey::type(InternalLedgerEntryType t)
     }
 }
 
-InternalLedgerEntryType
-InternalLedgerKey::type() const
+InternalLedgerEntryType InternalLedgerKey::type() const
 {
     return mType;
 }
 
-void
-InternalLedgerKey::checkDiscriminant(InternalLedgerEntryType expected) const
+void InternalLedgerKey::checkDiscriminant(
+    InternalLedgerEntryType expected) const
 {
     if (mType != expected)
     {
@@ -341,68 +324,59 @@ InternalLedgerKey::checkDiscriminant(InternalLedgerEntryType expected) const
     }
 }
 
-LedgerKey&
-InternalLedgerKey::ledgerKeyRef()
+LedgerKey& InternalLedgerKey::ledgerKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     mHash = 0;
     return mLedgerKey;
 }
 
-LedgerKey const&
-InternalLedgerKey::ledgerKey() const
+LedgerKey const& InternalLedgerKey::ledgerKey() const
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerKey;
 }
 
-SponsorshipKey&
-InternalLedgerKey::sponsorshipKeyRef()
+SponsorshipKey& InternalLedgerKey::sponsorshipKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     mHash = 0;
     return mSponsorshipKey;
 }
 
-SponsorshipKey const&
-InternalLedgerKey::sponsorshipKey() const
+SponsorshipKey const& InternalLedgerKey::sponsorshipKey() const
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipKey;
 }
 
-SponsorshipCounterKey&
-InternalLedgerKey::sponsorshipCounterKeyRef()
+SponsorshipCounterKey& InternalLedgerKey::sponsorshipCounterKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     mHash = 0;
     return mSponsorshipCounterKey;
 }
 
-SponsorshipCounterKey const&
-InternalLedgerKey::sponsorshipCounterKey() const
+SponsorshipCounterKey const& InternalLedgerKey::sponsorshipCounterKey() const
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterKey;
 }
 
-MaxSeqNumToApplyKey&
-InternalLedgerKey::maxSeqNumToApplyKeyRef()
+MaxSeqNumToApplyKey& InternalLedgerKey::maxSeqNumToApplyKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
     mHash = 0;
     return mMaxSeqNumToApplyKey;
 }
 
-MaxSeqNumToApplyKey const&
-InternalLedgerKey::maxSeqNumToApplyKey() const
+MaxSeqNumToApplyKey const& InternalLedgerKey::maxSeqNumToApplyKey() const
 {
     checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
     return mMaxSeqNumToApplyKey;
 }
 
-std::string
-InternalLedgerKey::toString() const
+std::string InternalLedgerKey::toString() const
 {
     switch (mType)
     {
@@ -428,8 +402,7 @@ InternalLedgerKey::toString() const
     }
 }
 
-bool
-operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
+bool operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
 {
     if (lhs.hash() != rhs.hash() || lhs.type() != rhs.type())
     {
@@ -451,8 +424,7 @@ operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
     }
 }
 
-bool
-operator!=(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
+bool operator!=(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
 {
     return !(lhs == rhs);
 }
@@ -517,8 +489,7 @@ InternalLedgerEntry::operator=(InternalLedgerEntry const& gle)
     return *this;
 }
 
-InternalLedgerEntry&
-InternalLedgerEntry::operator=(InternalLedgerEntry&& gle)
+InternalLedgerEntry& InternalLedgerEntry::operator=(InternalLedgerEntry&& gle)
 {
     if (this == &gle)
     {
@@ -535,8 +506,7 @@ InternalLedgerEntry::~InternalLedgerEntry()
     destruct();
 }
 
-void
-InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
+void InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
 {
     releaseAssert(gle.type() == mType);
     switch (mType)
@@ -558,8 +528,7 @@ InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
     }
 }
 
-void
-InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
+void InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
 {
     releaseAssert(gle.type() == mType);
     switch (mType)
@@ -581,8 +550,7 @@ InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
     }
 }
 
-void
-InternalLedgerEntry::construct()
+void InternalLedgerEntry::construct()
 {
     switch (mType)
     {
@@ -603,8 +571,7 @@ InternalLedgerEntry::construct()
     }
 }
 
-void
-InternalLedgerEntry::destruct()
+void InternalLedgerEntry::destruct()
 {
     switch (mType)
     {
@@ -625,8 +592,7 @@ InternalLedgerEntry::destruct()
     }
 }
 
-void
-InternalLedgerEntry::type(InternalLedgerEntryType t)
+void InternalLedgerEntry::type(InternalLedgerEntryType t)
 {
     if (t != mType)
     {
@@ -636,14 +602,13 @@ InternalLedgerEntry::type(InternalLedgerEntryType t)
     }
 }
 
-InternalLedgerEntryType
-InternalLedgerEntry::type() const
+InternalLedgerEntryType InternalLedgerEntry::type() const
 {
     return mType;
 }
 
-void
-InternalLedgerEntry::checkDiscriminant(InternalLedgerEntryType expected) const
+void InternalLedgerEntry::checkDiscriminant(
+    InternalLedgerEntryType expected) const
 {
     if (mType != expected)
     {
@@ -651,36 +616,31 @@ InternalLedgerEntry::checkDiscriminant(InternalLedgerEntryType expected) const
     }
 }
 
-LedgerEntry&
-InternalLedgerEntry::ledgerEntry()
+LedgerEntry& InternalLedgerEntry::ledgerEntry()
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerEntry;
 }
 
-LedgerEntry const&
-InternalLedgerEntry::ledgerEntry() const
+LedgerEntry const& InternalLedgerEntry::ledgerEntry() const
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerEntry;
 }
 
-SponsorshipEntry&
-InternalLedgerEntry::sponsorshipEntry()
+SponsorshipEntry& InternalLedgerEntry::sponsorshipEntry()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipEntry;
 }
 
-SponsorshipEntry const&
-InternalLedgerEntry::sponsorshipEntry() const
+SponsorshipEntry const& InternalLedgerEntry::sponsorshipEntry() const
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipEntry;
 }
 
-SponsorshipCounterEntry&
-InternalLedgerEntry::sponsorshipCounterEntry()
+SponsorshipCounterEntry& InternalLedgerEntry::sponsorshipCounterEntry()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterEntry;
@@ -693,22 +653,19 @@ InternalLedgerEntry::sponsorshipCounterEntry() const
     return mSponsorshipCounterEntry;
 }
 
-MaxSeqNumToApplyEntry&
-InternalLedgerEntry::maxSeqNumToApplyEntry()
+MaxSeqNumToApplyEntry& InternalLedgerEntry::maxSeqNumToApplyEntry()
 {
     checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
     return mMaxSeqNumToApplyEntry;
 }
 
-MaxSeqNumToApplyEntry const&
-InternalLedgerEntry::maxSeqNumToApplyEntry() const
+MaxSeqNumToApplyEntry const& InternalLedgerEntry::maxSeqNumToApplyEntry() const
 {
     checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
     return mMaxSeqNumToApplyEntry;
 }
 
-InternalLedgerKey
-InternalLedgerEntry::toKey() const
+InternalLedgerKey InternalLedgerEntry::toKey() const
 {
     switch (mType)
     {
@@ -728,8 +685,7 @@ InternalLedgerEntry::toKey() const
     }
 }
 
-std::string
-InternalLedgerEntry::toString() const
+std::string InternalLedgerEntry::toString() const
 {
     switch (mType)
     {
@@ -757,8 +713,7 @@ InternalLedgerEntry::toString() const
     }
 }
 
-bool
-operator==(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
+bool operator==(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
 {
     if (lhs.type() != rhs.type())
     {
@@ -780,8 +735,7 @@ operator==(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
     }
 }
 
-bool
-operator!=(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
+bool operator!=(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
 {
     return !(lhs == rhs);
 }

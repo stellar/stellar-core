@@ -41,8 +41,7 @@ LedgerEntryPtr::Live(std::shared_ptr<InternalLedgerEntry> const& lePtr)
     return {lePtr, EntryPtrState::LIVE};
 }
 
-LedgerEntryPtr
-LedgerEntryPtr::Delete()
+LedgerEntryPtr LedgerEntryPtr::Delete()
 {
     return {nullptr, EntryPtrState::DELETED};
 }
@@ -67,8 +66,7 @@ LedgerEntryPtr::LedgerEntryPtr(
     }
 }
 
-InternalLedgerEntry&
-LedgerEntryPtr::operator*() const
+InternalLedgerEntry& LedgerEntryPtr::operator*() const
 {
     if (!mEntryPtr)
     {
@@ -78,8 +76,7 @@ LedgerEntryPtr::operator*() const
     return *mEntryPtr;
 }
 
-InternalLedgerEntry*
-LedgerEntryPtr::operator->() const
+InternalLedgerEntry* LedgerEntryPtr::operator->() const
 {
     if (!mEntryPtr)
     {
@@ -89,14 +86,12 @@ LedgerEntryPtr::operator->() const
     return mEntryPtr.get();
 }
 
-std::shared_ptr<InternalLedgerEntry>
-LedgerEntryPtr::get() const
+std::shared_ptr<InternalLedgerEntry> LedgerEntryPtr::get() const
 {
     return mEntryPtr;
 }
 
-void
-LedgerEntryPtr::mergeFrom(LedgerEntryPtr const& entryPtr)
+void LedgerEntryPtr::mergeFrom(LedgerEntryPtr const& entryPtr)
 {
     switch (mState)
     {
@@ -146,26 +141,22 @@ LedgerEntryPtr::mergeFrom(LedgerEntryPtr const& entryPtr)
     mEntryPtr = entryPtr.get();
 }
 
-EntryPtrState
-LedgerEntryPtr::getState() const
+EntryPtrState LedgerEntryPtr::getState() const
 {
     return mState;
 }
 
-bool
-LedgerEntryPtr::isInit() const
+bool LedgerEntryPtr::isInit() const
 {
     return mState == EntryPtrState::INIT;
 }
 
-bool
-LedgerEntryPtr::isLive() const
+bool LedgerEntryPtr::isLive() const
 {
     return mState == EntryPtrState::LIVE;
 }
 
-bool
-LedgerEntryPtr::isDeleted() const
+bool LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
 }
@@ -192,15 +183,13 @@ RestoredEntries::getEntryOpt(LedgerKey const& key) const
     }
 }
 
-bool
-RestoredEntries::entryWasRestored(LedgerKey const& k) const
+bool RestoredEntries::entryWasRestored(LedgerKey const& k) const
 {
     return entryWasRestoredFromMap(k, liveBucketList) ||
            entryWasRestoredFromMap(k, hotArchive);
 }
 
-bool
-RestoredEntries::entryWasRestoredFromMap(
+bool RestoredEntries::entryWasRestoredFromMap(
     LedgerKey const& k, UnorderedMap<LedgerKey, LedgerEntry> const& map)
 {
     auto it = map.find(k);
@@ -218,11 +207,11 @@ RestoredEntries::entryWasRestoredFromMap(
     return false;
 }
 
-void
-RestoredEntries::addRestoreToMap(LedgerKey const& key, LedgerEntry const& entry,
-                                 LedgerKey const& ttlKey,
-                                 LedgerEntry const& ttlEntry,
-                                 UnorderedMap<LedgerKey, LedgerEntry>& map)
+void RestoredEntries::addRestoreToMap(LedgerKey const& key,
+                                      LedgerEntry const& entry,
+                                      LedgerKey const& ttlKey,
+                                      LedgerEntry const& ttlEntry,
+                                      UnorderedMap<LedgerKey, LedgerEntry>& map)
 {
     releaseAssert(isSorobanEntry(key));
     releaseAssert(ttlKey.type() == TTL);
@@ -232,27 +221,24 @@ RestoredEntries::addRestoreToMap(LedgerKey const& key, LedgerEntry const& entry,
     releaseAssert(ttlInserted);
 }
 
-void
-RestoredEntries::addHotArchiveRestore(LedgerKey const& key,
-                                      LedgerEntry const& entry,
-                                      LedgerKey const& ttlKey,
-                                      LedgerEntry const& ttlEntry)
+void RestoredEntries::addHotArchiveRestore(LedgerKey const& key,
+                                           LedgerEntry const& entry,
+                                           LedgerKey const& ttlKey,
+                                           LedgerEntry const& ttlEntry)
 {
     addRestoreToMap(key, entry, ttlKey, ttlEntry, hotArchive);
 }
 
-void
-RestoredEntries::addLiveBucketlistRestore(LedgerKey const& key,
-                                          LedgerEntry const& entry,
-                                          LedgerKey const& ttlKey,
-                                          LedgerEntry const& ttlEntry)
+void RestoredEntries::addLiveBucketlistRestore(LedgerKey const& key,
+                                               LedgerEntry const& entry,
+                                               LedgerKey const& ttlKey,
+                                               LedgerEntry const& ttlEntry)
 {
     addRestoreToMap(key, entry, ttlKey, ttlEntry, liveBucketList);
 }
 
-void
-RestoredEntries::addRestoresFrom(RestoredEntries const& other,
-                                 bool allowDuplicates)
+void RestoredEntries::addRestoresFrom(RestoredEntries const& other,
+                                      bool allowDuplicates)
 {
     ZoneScoped;
     // This method is called from three different call sites. In 2 of them it is
@@ -288,36 +274,31 @@ RestoredEntries::addRestoresFrom(RestoredEntries const& other,
     }
 }
 
-bool
-operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
+bool operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
 {
     return lhs.price == rhs.price && lhs.offerID == rhs.offerID;
 }
 
-bool
-IsBetterOfferComparator::operator()(OfferDescriptor const& lhs,
-                                    OfferDescriptor const& rhs) const
+bool IsBetterOfferComparator::operator()(OfferDescriptor const& lhs,
+                                         OfferDescriptor const& rhs) const
 {
     return isBetterOffer(lhs, rhs);
 }
 
-bool
-operator==(AssetPair const& lhs, AssetPair const& rhs)
+bool operator==(AssetPair const& lhs, AssetPair const& rhs)
 {
     return lhs.buying == rhs.buying && lhs.selling == rhs.selling;
 }
 
-size_t
-AssetPairHash::operator()(AssetPair const& key) const
+size_t AssetPairHash::operator()(AssetPair const& key) const
 {
     std::hash<Asset> hashAsset;
     return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
 }
 
 #ifdef BEST_OFFER_DEBUGGING
-void
-compareOffers(std::shared_ptr<LedgerEntry const> debugBest,
-              std::shared_ptr<LedgerEntry const> best)
+void compareOffers(std::shared_ptr<LedgerEntry const> debugBest,
+                   std::shared_ptr<LedgerEntry const> best)
 {
     if ((bool)debugBest ^ (bool)best)
     {
@@ -368,39 +349,33 @@ EntryIterator::getImpl() const
     return mImpl;
 }
 
-EntryIterator&
-EntryIterator::operator++()
+EntryIterator& EntryIterator::operator++()
 {
     getImpl()->advance();
     return *this;
 }
 
-EntryIterator::
-operator bool() const
+EntryIterator::operator bool() const
 {
     return !getImpl()->atEnd();
 }
 
-InternalLedgerEntry const&
-EntryIterator::entry() const
+InternalLedgerEntry const& EntryIterator::entry() const
 {
     return getImpl()->entry();
 }
 
-LedgerEntryPtr const&
-EntryIterator::entryPtr() const
+LedgerEntryPtr const& EntryIterator::entryPtr() const
 {
     return getImpl()->entryPtr();
 }
 
-bool
-EntryIterator::entryExists() const
+bool EntryIterator::entryExists() const
 {
     return getImpl()->entryExists();
 }
 
-InternalLedgerKey const&
-EntryIterator::key() const
+InternalLedgerKey const& EntryIterator::key() const
 {
     return getImpl()->key();
 }
@@ -455,8 +430,7 @@ LedgerTxn::~LedgerTxn()
     }
 }
 
-std::unique_ptr<LedgerTxn::Impl> const&
-LedgerTxn::getImpl() const
+std::unique_ptr<LedgerTxn::Impl> const& LedgerTxn::getImpl() const
 {
     if (!mImpl)
     {
@@ -465,14 +439,12 @@ LedgerTxn::getImpl() const
     return mImpl;
 }
 
-void
-LedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
+void LedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     getImpl()->addChild(child);
 }
 
-void
-LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
+void LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
 {
     abortIfWrongThread("addChild");
     throwIfSealed();
@@ -504,8 +476,7 @@ LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
     mActiveHeader.reset();
 }
 
-void
-LedgerTxn::Impl::throwIfChild() const
+void LedgerTxn::Impl::throwIfChild() const
 {
     if (mChild)
     {
@@ -513,8 +484,7 @@ LedgerTxn::Impl::throwIfChild() const
     }
 }
 
-void
-LedgerTxn::Impl::throwIfSealed() const
+void LedgerTxn::Impl::throwIfSealed() const
 {
     if (mIsSealed)
     {
@@ -522,8 +492,7 @@ LedgerTxn::Impl::throwIfSealed() const
     }
 }
 
-void
-LedgerTxn::Impl::abortIfWrongThread(const char* functionName) const
+void LedgerTxn::Impl::abortIfWrongThread(const char* functionName) const
 {
     if (mActiveThreadId != std::this_thread::get_id())
     {
@@ -533,8 +502,7 @@ LedgerTxn::Impl::abortIfWrongThread(const char* functionName) const
     }
 }
 
-void
-LedgerTxn::Impl::throwIfNotExactConsistency() const
+void LedgerTxn::Impl::throwIfNotExactConsistency() const
 {
     if (mConsistency != LedgerTxnConsistency::EXACT)
     {
@@ -542,8 +510,7 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
     }
 }
 
-void
-LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
+void LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
 {
     abortIfWrongThread("throwIfErasingConfig");
     if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
@@ -553,15 +520,13 @@ LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
     }
 }
 
-void
-LedgerTxn::commit() noexcept
+void LedgerTxn::commit() noexcept
 {
     getImpl()->commit();
     mImpl.reset();
 }
 
-void
-LedgerTxn::Impl::commit() noexcept
+void LedgerTxn::Impl::commit() noexcept
 {
     abortIfWrongThread("commit");
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
@@ -572,16 +537,15 @@ LedgerTxn::Impl::commit() noexcept
     });
 }
 
-void
-LedgerTxn::commitChild(EntryIterator iter,
-                       RestoredEntries const& restoredEntries,
-                       LedgerTxnConsistency cons) noexcept
+void LedgerTxn::commitChild(EntryIterator iter,
+                            RestoredEntries const& restoredEntries,
+                            LedgerTxnConsistency cons) noexcept
 {
     getImpl()->commitChild(std::move(iter), restoredEntries, cons);
 }
 
-static LedgerTxnConsistency
-joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
+static LedgerTxnConsistency joinConsistencyLevels(LedgerTxnConsistency c1,
+                                                  LedgerTxnConsistency c2)
 {
     switch (c1)
     {
@@ -594,10 +558,9 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
     }
 }
 
-void
-LedgerTxn::Impl::commitChild(EntryIterator iter,
-                             RestoredEntries const& restoredEntries,
-                             LedgerTxnConsistency cons) noexcept
+void LedgerTxn::Impl::commitChild(EntryIterator iter,
+                                  RestoredEntries const& restoredEntries,
+                                  LedgerTxnConsistency cons) noexcept
 {
     abortIfWrongThread("commitChild");
     // Assignment of xdrpp objects does not have the strong exception safety
@@ -713,14 +676,13 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
     mChild = nullptr;
 }
 
-LedgerTxnEntry
-LedgerTxn::create(InternalLedgerEntry const& entry)
+LedgerTxnEntry LedgerTxn::create(InternalLedgerEntry const& entry)
 {
     return getImpl()->create(*this, entry);
 }
 
-LedgerTxnEntry
-LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
+LedgerTxnEntry LedgerTxn::Impl::create(LedgerTxn& self,
+                                       InternalLedgerEntry const& entry)
 {
     abortIfWrongThread("create");
     throwIfSealed();
@@ -753,14 +715,12 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
     return ltxe;
 }
 
-void
-LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
+void LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
     getImpl()->createWithoutLoading(entry);
 }
 
-void
-LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
+void LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
 {
     abortIfWrongThread("createWithoutLoading");
     throwIfSealed();
@@ -783,14 +743,12 @@ LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
         /* effectiveActive */ false);
 }
 
-void
-LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
+void LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
     getImpl()->updateWithoutLoading(entry);
 }
 
-void
-LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
+void LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
     abortIfWrongThread("updateWithoutLoading");
     throwIfSealed();
@@ -809,14 +767,12 @@ LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
         /* effectiveActive */ false);
 }
 
-void
-LedgerTxn::deactivate(InternalLedgerKey const& key)
+void LedgerTxn::deactivate(InternalLedgerKey const& key)
 {
     getImpl()->deactivate(key);
 }
 
-void
-LedgerTxn::Impl::deactivate(InternalLedgerKey const& key)
+void LedgerTxn::Impl::deactivate(InternalLedgerKey const& key)
 {
     auto iter = mActive.find(key);
     if (iter == mActive.end())
@@ -831,14 +787,12 @@ LedgerTxn::Impl::deactivate(InternalLedgerKey const& key)
     mActive.erase(iter);
 }
 
-void
-LedgerTxn::deactivateHeader()
+void LedgerTxn::deactivateHeader()
 {
     getImpl()->deactivateHeader();
 }
 
-void
-LedgerTxn::Impl::deactivateHeader()
+void LedgerTxn::Impl::deactivateHeader()
 {
     if (!mActiveHeader)
     {
@@ -847,14 +801,12 @@ LedgerTxn::Impl::deactivateHeader()
     mActiveHeader.reset();
 }
 
-void
-LedgerTxn::erase(InternalLedgerKey const& key)
+void LedgerTxn::erase(InternalLedgerKey const& key)
 {
     getImpl()->erase(key);
 }
 
-void
-LedgerTxn::Impl::erase(InternalLedgerKey const& key)
+void LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 {
     abortIfWrongThread("erase");
     throwIfSealed();
@@ -882,16 +834,14 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     }
 }
 
-void
-LedgerTxn::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
-                                      LedgerEntry const& ttlEntry)
+void LedgerTxn::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                           LedgerEntry const& ttlEntry)
 {
     getImpl()->markRestoredFromHotArchive(ledgerEntry, ttlEntry);
 }
 
-void
-LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
-                                            LedgerEntry const& ttlEntry)
+void LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
+                                                 LedgerEntry const& ttlEntry)
 {
     abortIfWrongThread("markRestoredFromHotArchive");
     throwIfSealed();
@@ -915,16 +865,14 @@ LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
     addKey(ttlEntry);
 }
 
-LedgerTxnEntry
-LedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry, uint32_t ttl)
+LedgerTxnEntry LedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry,
+                                                    uint32_t ttl)
 {
     return getImpl()->restoreFromLiveBucketList(*this, entry, ttl);
 }
 
-LedgerTxnEntry
-LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
-                                           LedgerEntry const& entry,
-                                           uint32_t ttl)
+LedgerTxnEntry LedgerTxn::Impl::restoreFromLiveBucketList(
+    LedgerTxn& self, LedgerEntry const& entry, uint32_t ttl)
 {
     abortIfWrongThread("restoreFromLiveBucketList");
     throwIfSealed();
@@ -965,14 +913,12 @@ LedgerTxn::Impl::restoreFromLiveBucketList(LedgerTxn& self,
     return ttlLtxe;
 }
 
-void
-LedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
+void LedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     getImpl()->eraseWithoutLoading(key);
 }
 
-void
-LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
+void LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     abortIfWrongThread("eraseWithoutLoading");
     throwIfSealed();
@@ -995,14 +941,12 @@ LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
     mConsistency = LedgerTxnConsistency::EXTRA_DELETES;
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-LedgerTxn::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> LedgerTxn::getAllOffers()
 {
     return getImpl()->getAllOffers();
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-LedgerTxn::Impl::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> LedgerTxn::Impl::getAllOffers()
 {
     auto offers = mParent.getAllOffers();
     for (auto const& kv : mEntry)
@@ -1027,14 +971,12 @@ LedgerTxn::Impl::getAllOffers()
 }
 
 #ifdef BEST_OFFER_DEBUGGING
-bool
-LedgerTxn::bestOfferDebuggingEnabled() const
+bool LedgerTxn::bestOfferDebuggingEnabled() const
 {
     return getImpl()->bestOfferDebuggingEnabled();
 }
 
-bool
-LedgerTxn::Impl::bestOfferDebuggingEnabled() const
+bool LedgerTxn::Impl::bestOfferDebuggingEnabled() const
 {
     abortIfWrongThread("bestOfferDebuggingEnabled");
     return mParent.bestOfferDebuggingEnabled();
@@ -1132,8 +1074,8 @@ LedgerTxn::Impl::checkBestOffer(Asset const& buying, Asset const& selling,
 }
 #endif
 
-std::shared_ptr<LedgerEntry const>
-LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling)
+std::shared_ptr<LedgerEntry const> LedgerTxn::getBestOffer(Asset const& buying,
+                                                           Asset const& selling)
 {
 #ifdef BEST_OFFER_DEBUGGING
     return getImpl()->checkBestOffer(buying, selling, nullptr,
@@ -1323,14 +1265,12 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     return selfBest;
 }
 
-LedgerEntryChanges
-LedgerTxn::getChanges()
+LedgerEntryChanges LedgerTxn::getChanges()
 {
     return getImpl()->getChanges();
 }
 
-LedgerEntryChanges
-LedgerTxn::Impl::getChanges()
+LedgerEntryChanges LedgerTxn::Impl::getChanges()
 {
     throwIfNotExactConsistency();
     LedgerEntryChanges changes;
@@ -1377,14 +1317,12 @@ LedgerTxn::Impl::getChanges()
     return changes;
 }
 
-LedgerTxnDelta
-LedgerTxn::getDelta()
+LedgerTxnDelta LedgerTxn::getDelta()
 {
     return getImpl()->getDelta();
 }
 
-LedgerTxnDelta
-LedgerTxn::Impl::getDelta()
+LedgerTxnDelta LedgerTxn::Impl::getDelta()
 {
     abortIfWrongThread("getDelta");
     throwIfNotExactConsistency();
@@ -1411,8 +1349,7 @@ LedgerTxn::Impl::getDelta()
     return delta;
 }
 
-EntryIterator
-LedgerTxn::Impl::getEntryIterator(EntryMap const& entries) const
+EntryIterator LedgerTxn::Impl::getEntryIterator(EntryMap const& entries) const
 {
     abortIfWrongThread("getEntryIterator");
     auto iterImpl =
@@ -1420,27 +1357,24 @@ LedgerTxn::Impl::getEntryIterator(EntryMap const& entries) const
     return EntryIterator(std::move(iterImpl));
 }
 
-LedgerHeader const&
-LedgerTxn::getHeader() const
+LedgerHeader const& LedgerTxn::getHeader() const
 {
     return getImpl()->getHeader();
 }
 
-LedgerHeader const&
-LedgerTxn::Impl::getHeader() const
+LedgerHeader const& LedgerTxn::Impl::getHeader() const
 {
     abortIfWrongThread("getHeader");
     return *mHeader;
 }
 
-std::vector<InflationWinner>
-LedgerTxn::getInflationWinners(size_t maxWinners, int64_t minVotes)
+std::vector<InflationWinner> LedgerTxn::getInflationWinners(size_t maxWinners,
+                                                            int64_t minVotes)
 {
     return getImpl()->getInflationWinners(maxWinners, minVotes);
 }
 
-std::map<AccountID, int64_t>
-LedgerTxn::Impl::getDeltaVotes() const
+std::map<AccountID, int64_t> LedgerTxn::Impl::getDeltaVotes() const
 {
     abortIfWrongThread("getDeltaVotes");
     int64_t const MIN_VOTES_TO_INCLUDE = 1000000000;
@@ -1477,8 +1411,7 @@ LedgerTxn::Impl::getDeltaVotes() const
     return deltaVotes;
 }
 
-std::map<AccountID, int64_t>
-LedgerTxn::Impl::getTotalVotes(
+std::map<AccountID, int64_t> LedgerTxn::Impl::getTotalVotes(
     std::vector<InflationWinner> const& parentWinners,
     std::map<AccountID, int64_t> const& deltaVotes, int64_t minVotes) const
 {
@@ -1501,8 +1434,7 @@ LedgerTxn::Impl::getTotalVotes(
     return totalVotes;
 }
 
-std::vector<InflationWinner>
-LedgerTxn::Impl::enumerateInflationWinners(
+std::vector<InflationWinner> LedgerTxn::Impl::enumerateInflationWinners(
     std::map<AccountID, int64_t> const& totalVotes, size_t maxWinners,
     int64_t minVotes) const
 {
@@ -1578,8 +1510,8 @@ LedgerTxn::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     return enumerateInflationWinners(totalVotes, maxWinners, minVotes);
 }
 
-std::vector<InflationWinner>
-LedgerTxn::queryInflationWinners(size_t maxWinners, int64_t minVotes)
+std::vector<InflationWinner> LedgerTxn::queryInflationWinners(size_t maxWinners,
+                                                              int64_t minVotes)
 {
     return getImpl()->queryInflationWinners(maxWinners, minVotes);
 }
@@ -1593,18 +1525,16 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
     return getInflationWinners(maxWinners, minVotes);
 }
 
-void
-LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                         std::vector<LedgerEntry>& liveEntries,
-                         std::vector<LedgerKey>& deadEntries)
+void LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                              std::vector<LedgerEntry>& liveEntries,
+                              std::vector<LedgerKey>& deadEntries)
 {
     getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
 }
 
-void
-LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries)
+void LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                                    std::vector<LedgerEntry>& liveEntries,
+                                    std::vector<LedgerKey>& deadEntries)
 {
     abortIfWrongThread("getAllEntries");
     std::vector<LedgerEntry> resInit, resLive;
@@ -1673,14 +1603,12 @@ LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
     return mRestoredEntries.liveBucketList;
 }
 
-LedgerKeySet
-LedgerTxn::getAllTTLKeysWithoutSealing() const
+LedgerKeySet LedgerTxn::getAllTTLKeysWithoutSealing() const
 {
     return getImpl()->getAllTTLKeysWithoutSealing();
 }
 
-LedgerKeySet
-LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
+LedgerKeySet LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
 {
     abortIfWrongThread("getAllTTLKeysWithoutSealing");
     throwIfNotExactConsistency();
@@ -1849,14 +1777,13 @@ LedgerTxn::Impl::getPoolShareTrustLinesByAccountAndAsset(
     return trustLines;
 }
 
-LedgerTxnEntry
-LedgerTxn::load(InternalLedgerKey const& key)
+LedgerTxnEntry LedgerTxn::load(InternalLedgerKey const& key)
 {
     return getImpl()->load(*this, key);
 }
 
-LedgerTxnEntry
-LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
+LedgerTxnEntry LedgerTxn::Impl::load(LedgerTxn& self,
+                                     InternalLedgerKey const& key)
 {
     abortIfWrongThread("load");
     throwIfSealed();
@@ -1901,8 +1828,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     return ltxe;
 }
 
-std::map<AccountID, std::vector<LedgerTxnEntry>>
-LedgerTxn::loadAllOffers()
+std::map<AccountID, std::vector<LedgerTxnEntry>> LedgerTxn::loadAllOffers()
 {
     return getImpl()->loadAllOffers(*this);
 }
@@ -1939,15 +1865,15 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
     }
 }
 
-LedgerTxnEntry
-LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling)
+LedgerTxnEntry LedgerTxn::loadBestOffer(Asset const& buying,
+                                        Asset const& selling)
 {
     return getImpl()->loadBestOffer(*this, buying, selling);
 }
 
-LedgerTxnEntry
-LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
-                               Asset const& selling)
+LedgerTxnEntry LedgerTxn::Impl::loadBestOffer(LedgerTxn& self,
+                                              Asset const& buying,
+                                              Asset const& selling)
 {
     abortIfWrongThread("loadBestOffer");
     throwIfSealed();
@@ -2022,14 +1948,12 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
     return res;
 }
 
-LedgerTxnHeader
-LedgerTxn::loadHeader()
+LedgerTxnHeader LedgerTxn::loadHeader()
 {
     return getImpl()->loadHeader(*this);
 }
 
-LedgerTxnHeader
-LedgerTxn::Impl::loadHeader(LedgerTxn& self)
+LedgerTxnHeader LedgerTxn::Impl::loadHeader(LedgerTxn& self)
 {
     abortIfWrongThread("loadHeader");
     throwIfSealed();
@@ -2054,10 +1978,8 @@ LedgerTxn::loadOffersByAccountAndAsset(AccountID const& accountID,
     return getImpl()->loadOffersByAccountAndAsset(*this, accountID, asset);
 }
 
-std::vector<LedgerTxnEntry>
-LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
-                                             AccountID const& accountID,
-                                             Asset const& asset)
+std::vector<LedgerTxnEntry> LedgerTxn::Impl::loadOffersByAccountAndAsset(
+    LedgerTxn& self, AccountID const& accountID, Asset const& asset)
 {
     abortIfWrongThread("loadOffersByAccountAndAsset");
     throwIfSealed();
@@ -2127,8 +2049,7 @@ LedgerTxn::Impl::loadPoolShareTrustLinesByAccountAndAsset(
     }
 }
 
-ConstLedgerTxnEntry
-LedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
+ConstLedgerTxnEntry LedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
 {
     return getImpl()->loadWithoutRecord(*this, key);
 }
@@ -2170,15 +2091,13 @@ LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self,
     return ltxe;
 }
 
-void
-LedgerTxn::rollback() noexcept
+void LedgerTxn::rollback() noexcept
 {
     getImpl()->rollback();
     mImpl.reset();
 }
 
-void
-LedgerTxn::Impl::rollback() noexcept
+void LedgerTxn::Impl::rollback() noexcept
 {
     if (mChild)
     {
@@ -2196,27 +2115,23 @@ LedgerTxn::Impl::rollback() noexcept
     mParent.rollbackChild();
 }
 
-void
-LedgerTxn::rollbackChild() noexcept
+void LedgerTxn::rollbackChild() noexcept
 {
     getImpl()->rollbackChild();
 }
 
-void
-LedgerTxn::Impl::rollbackChild() noexcept
+void LedgerTxn::Impl::rollbackChild() noexcept
 {
     mChild = nullptr;
 }
 
-void
-LedgerTxn::unsealHeader(std::function<void(LedgerHeader&)> f)
+void LedgerTxn::unsealHeader(std::function<void(LedgerHeader&)> f)
 {
     getImpl()->unsealHeader(*this, f);
 }
 
-void
-LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
-                              std::function<void(LedgerHeader&)> f)
+void LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
+                                   std::function<void(LedgerHeader&)> f)
 {
     if (!mIsSealed)
     {
@@ -2232,60 +2147,51 @@ LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
     f(header.current());
 }
 
-uint64_t
-LedgerTxn::countOffers(LedgerRange const& ledgers) const
+uint64_t LedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
     throw std::runtime_error("called countOffers on non-root LedgerTxn");
 }
 
-void
-LedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
+void LedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     throw std::runtime_error(
         "called deleteOffersModifiedOnOrAfterLedger on non-root LedgerTxn");
 }
 
-void
-LedgerTxn::dropOffers()
+void LedgerTxn::dropOffers()
 {
     throw std::runtime_error("called dropOffers on non-root LedgerTxn");
 }
 
-double
-LedgerTxn::getPrefetchHitRate() const
+double LedgerTxn::getPrefetchHitRate() const
 {
     return getImpl()->getPrefetchHitRate();
 }
 
 #ifdef BUILD_TESTS
-void
-LedgerTxn::resetForFuzzer()
+void LedgerTxn::resetForFuzzer()
 {
     abort();
 }
 #endif // BUILD_TESTS
 
-double
-LedgerTxn::Impl::getPrefetchHitRate() const
+double LedgerTxn::Impl::getPrefetchHitRate() const
 {
     abortIfWrongThread("getPrefetchHitRate");
     return mParent.getPrefetchHitRate();
 }
 
-uint32_t
-LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
+uint32_t LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return getImpl()->prefetch(keys);
 }
 
-uint32_t
-LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+uint32_t LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return mParent.prefetch(keys);
 }
 
-void
-LedgerTxn::Impl::maybeUpdateLastModified() noexcept
+void LedgerTxn::Impl::maybeUpdateLastModified() noexcept
 {
     abortIfWrongThread("maybeUpdateLastModified");
     throwIfSealed();
@@ -2305,8 +2211,7 @@ LedgerTxn::Impl::maybeUpdateLastModified() noexcept
     }
 }
 
-void
-LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
+void LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     std::function<void(EntryMap const&)> f) noexcept
 {
     if (!mIsSealed)
@@ -2326,8 +2231,7 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     }
 }
 
-void
-LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
+void LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
 {
     abortIfWrongThread("removeFromOrderBookIfExists");
     auto const& oe = le.data.offer();
@@ -2357,8 +2261,8 @@ LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
     }
 }
 
-LedgerTxn::Impl::OrderBook*
-LedgerTxn::Impl::findOrderBook(Asset const& buying, Asset const& selling)
+LedgerTxn::Impl::OrderBook* LedgerTxn::Impl::findOrderBook(Asset const& buying,
+                                                           Asset const& selling)
 {
     abortIfWrongThread("findOrderBook");
     auto mobIterBuying = mMultiOrderBook.find(buying);
@@ -2375,9 +2279,8 @@ LedgerTxn::Impl::findOrderBook(Asset const& buying, Asset const& selling)
     return nullptr;
 }
 
-void
-LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
-                                       bool effectiveActive)
+void LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
+                                            bool effectiveActive)
 {
     abortIfWrongThread("updateEntryIfRecorded");
     // This early return is just an optimization. updateEntryIfRecorded does not
@@ -2403,11 +2306,10 @@ LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
     }
 }
 
-void
-LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator const* keyHint,
-                             LedgerEntryPtr lePtr,
-                             bool effectiveActive) noexcept
+void LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
+                                  EntryMap::iterator const* keyHint,
+                                  LedgerEntryPtr lePtr,
+                                  bool effectiveActive) noexcept
 {
     abortIfWrongThread("updateEntry");
     auto recordEntry = [&]() {
@@ -2480,15 +2382,13 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
     recordEntry();
 }
 
-static bool
-isWorseThan(std::shared_ptr<OfferDescriptor const> const& lhs,
-            std::shared_ptr<OfferDescriptor const> const& rhs)
+static bool isWorseThan(std::shared_ptr<OfferDescriptor const> const& lhs,
+                        std::shared_ptr<OfferDescriptor const> const& rhs)
 {
     return rhs && (!lhs || isBetterOffer(*rhs, *lhs));
 }
 
-void
-LedgerTxn::Impl::updateWorstBestOffer(
+void LedgerTxn::Impl::updateWorstBestOffer(
     AssetPair const& assets, std::shared_ptr<OfferDescriptor const> offerDesc)
 {
     abortIfWrongThread("updateWorstBestOffer");
@@ -2505,14 +2405,12 @@ LedgerTxn::Impl::updateWorstBestOffer(
     }
 }
 
-void
-LedgerTxn::forAllWorstBestOffers(WorstOfferProcessor proc)
+void LedgerTxn::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
     getImpl()->forAllWorstBestOffers(proc);
 }
 
-void
-LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
+void LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
     abortIfWrongThread("forAllWorstBestOffers");
     for (auto& wo : mWorstBestOffer)
@@ -2522,14 +2420,12 @@ LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
     }
 }
 
-bool
-LedgerTxn::hasSponsorshipEntry() const
+bool LedgerTxn::hasSponsorshipEntry() const
 {
     return getImpl()->hasSponsorshipEntry();
 }
 
-bool
-LedgerTxn::Impl::hasSponsorshipEntry() const
+bool LedgerTxn::Impl::hasSponsorshipEntry() const
 {
     abortIfWrongThread("hasSponsorshipEntry");
     throwIfNotExactConsistency();
@@ -2551,21 +2447,18 @@ LedgerTxn::Impl::hasSponsorshipEntry() const
     return false;
 }
 
-SessionWrapper&
-LedgerTxn::getSession() const
+SessionWrapper& LedgerTxn::getSession() const
 {
     throw std::runtime_error("LedgerTxn::getSession illegal call, can only be "
                              "called on LedgerTxnRoot");
 }
 
-void
-LedgerTxn::prepareNewObjects(size_t s)
+void LedgerTxn::prepareNewObjects(size_t s)
 {
     getImpl()->prepareNewObjects(s);
 }
 
-void
-LedgerTxn::Impl::prepareNewObjects(size_t s)
+void LedgerTxn::Impl::prepareNewObjects(size_t s)
 {
     abortIfWrongThread("prepareNewObjects");
     size_t newSize = mEntry.size();
@@ -2619,38 +2512,32 @@ LedgerTxn::Impl::EntryIteratorImpl::EntryIteratorImpl(IteratorType const& begin,
 {
 }
 
-void
-LedgerTxn::Impl::EntryIteratorImpl::advance()
+void LedgerTxn::Impl::EntryIteratorImpl::advance()
 {
     ++mIter;
 }
 
-bool
-LedgerTxn::Impl::EntryIteratorImpl::atEnd() const
+bool LedgerTxn::Impl::EntryIteratorImpl::atEnd() const
 {
     return mIter == mEnd;
 }
 
-InternalLedgerEntry const&
-LedgerTxn::Impl::EntryIteratorImpl::entry() const
+InternalLedgerEntry const& LedgerTxn::Impl::EntryIteratorImpl::entry() const
 {
     return *(mIter->second);
 }
 
-LedgerEntryPtr const&
-LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
+LedgerEntryPtr const& LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
 {
     return mIter->second;
 }
 
-bool
-LedgerTxn::Impl::EntryIteratorImpl::entryExists() const
+bool LedgerTxn::Impl::EntryIteratorImpl::entryExists() const
 {
     return !mIter->second.isDeleted();
 }
 
-InternalLedgerKey const&
-LedgerTxn::Impl::EntryIteratorImpl::key() const
+InternalLedgerKey const& LedgerTxn::Impl::EntryIteratorImpl::key() const
 {
     return mIter->first;
 }
@@ -2667,8 +2554,7 @@ ThreadInvariant::ThreadInvariant()
 {
 }
 
-void
-ThreadInvariant::abortIfWrongThread() const
+void ThreadInvariant::abortIfWrongThread() const
 {
     std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
     if (mActiveThreadIdSet && mThreadID != std::this_thread::get_id())
@@ -2677,8 +2563,7 @@ ThreadInvariant::abortIfWrongThread() const
     }
 }
 
-void
-ThreadInvariant::setActiveThread()
+void ThreadInvariant::setActiveThread()
 {
     std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
     abortIfWrongThread();
@@ -2686,8 +2571,7 @@ ThreadInvariant::setActiveThread()
     mActiveThreadIdSet = true;
 }
 
-void
-ThreadInvariant::clearActiveThread()
+void ThreadInvariant::clearActiveThread()
 {
     std::lock_guard<std::recursive_mutex> guard(mThreadInvariantMutex);
     abortIfWrongThread();
@@ -2751,8 +2635,7 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
-SessionWrapper&
-LedgerTxnRoot::Impl::getSession() const
+SessionWrapper& LedgerTxnRoot::Impl::getSession() const
 {
     if (mSession)
     {
@@ -2761,35 +2644,31 @@ LedgerTxnRoot::Impl::getSession() const
     return mApp.getDatabase().getSession();
 }
 
-SessionWrapper&
-LedgerTxnRoot::getSession() const
+SessionWrapper& LedgerTxnRoot::getSession() const
 {
     return mImpl->getSession();
 }
 
 #ifdef BUILD_TESTS
-void
-LedgerTxnRoot::Impl::resetForFuzzer()
+void LedgerTxnRoot::Impl::resetForFuzzer()
 {
     mBestOffers.clear();
     mEntryCache.clear();
 }
 
-void
-LedgerTxnRoot::resetForFuzzer()
+void LedgerTxnRoot::resetForFuzzer()
 {
     mImpl->resetForFuzzer();
 }
 #endif // BUILD_TESTS
 
-void
-LedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
+void LedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     mImpl->addChild(child, mode);
 }
 
-void
-LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
+void LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child,
+                                   TransactionMode mode)
 {
     // Will call abortIfWrongThread
     mThreadInvariant.setActiveThread();
@@ -2815,8 +2694,7 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
     mChild = &child;
 }
 
-void
-LedgerTxnRoot::Impl::throwIfChild() const
+void LedgerTxnRoot::Impl::throwIfChild() const
 {
     if (mChild)
     {
@@ -2824,23 +2702,21 @@ LedgerTxnRoot::Impl::throwIfChild() const
     }
 }
 
-void
-LedgerTxnRoot::Impl::abortIfWrongThread(const char* functionName) const
+void LedgerTxnRoot::Impl::abortIfWrongThread(const char* functionName) const
 {
     mThreadInvariant.abortIfWrongThread();
 }
 
-void
-LedgerTxnRoot::commitChild(EntryIterator iter,
-                           RestoredEntries const& restoredEntries,
-                           LedgerTxnConsistency cons) noexcept
+void LedgerTxnRoot::commitChild(EntryIterator iter,
+                                RestoredEntries const& restoredEntries,
+                                LedgerTxnConsistency cons) noexcept
 {
     mImpl->commitChild(std::move(iter), restoredEntries, cons);
 }
 
-static void
-accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
-      std::vector<EntryIterator>& deleteBuffer)
+static void accum(EntryIterator const& iter,
+                  std::vector<EntryIterator>& upsertBuffer,
+                  std::vector<EntryIterator>& deleteBuffer)
 {
     if (iter.entryExists())
         upsertBuffer.emplace_back(iter);
@@ -2849,8 +2725,7 @@ accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
 }
 
 // Return true only if something is actually accumulated and not skipped over
-bool
-BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
+bool BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
     if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
@@ -2870,10 +2745,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     return true;
 }
 
-void
-LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
-                               size_t bufferThreshold,
-                               LedgerTxnConsistency cons)
+void LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
+                                    size_t bufferThreshold,
+                                    LedgerTxnConsistency cons)
 {
 
     auto& upsertOffers = bleca.getOffersToUpsert();
@@ -2890,10 +2764,9 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     }
 }
 
-void
-LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
-                                 RestoredEntries const& /* restoredEntries */,
-                                 LedgerTxnConsistency cons) noexcept
+void LedgerTxnRoot::Impl::commitChild(
+    EntryIterator iter, RestoredEntries const& /* restoredEntries */,
+    LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
     abortIfWrongThread("commitChild");
@@ -2971,14 +2844,12 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     mThreadInvariant.clearActiveThread();
 }
 
-uint64_t
-LedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
+uint64_t LedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
     return mImpl->countOffers(ledgers);
 }
 
-uint64_t
-LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
+uint64_t LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
 {
     using namespace soci;
     throwIfChild();
@@ -2992,14 +2863,13 @@ LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
     return count;
 }
 
-void
-LedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
+void LedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     return mImpl->deleteOffersModifiedOnOrAfterLedger(ledger);
 }
 
-void
-LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
+void LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(
+    uint32_t ledger) const
 {
     using namespace soci;
     throwIfChild();
@@ -3010,20 +2880,17 @@ LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
     getSession().session() << query, use(ledger);
 }
 
-void
-LedgerTxnRoot::dropOffers()
+void LedgerTxnRoot::dropOffers()
 {
     mImpl->dropOffers();
 }
 
-uint32_t
-LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
+uint32_t LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return mImpl->prefetch(keys);
 }
 
-uint32_t
-LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+uint32_t LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
@@ -3080,14 +2947,12 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     return total;
 }
 
-double
-LedgerTxnRoot::getPrefetchHitRate() const
+double LedgerTxnRoot::getPrefetchHitRate() const
 {
     return mImpl->getPrefetchHitRate();
 }
 
-double
-LedgerTxnRoot::Impl::getPrefetchHitRate() const
+double LedgerTxnRoot::Impl::getPrefetchHitRate() const
 {
     if (mPrefetchMisses == 0 && mPrefetchHits == 0)
     {
@@ -3097,25 +2962,21 @@ LedgerTxnRoot::Impl::getPrefetchHitRate() const
            (mPrefetchMisses + mPrefetchHits);
 }
 
-void
-LedgerTxnRoot::prepareNewObjects(size_t s)
+void LedgerTxnRoot::prepareNewObjects(size_t s)
 {
     mImpl->prepareNewObjects(s);
 }
 
-void
-LedgerTxnRoot::Impl::prepareNewObjects(size_t)
+void LedgerTxnRoot::Impl::prepareNewObjects(size_t)
 {
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-LedgerTxnRoot::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> LedgerTxnRoot::getAllOffers()
 {
     return mImpl->getAllOffers();
 }
 
-UnorderedMap<LedgerKey, LedgerEntry>
-LedgerTxnRoot::Impl::getAllOffers()
+UnorderedMap<LedgerKey, LedgerEntry> LedgerTxnRoot::Impl::getAllOffers()
 {
     ZoneScoped;
     std::vector<LedgerEntry> offers;
@@ -3144,14 +3005,12 @@ LedgerTxnRoot::Impl::getAllOffers()
 }
 
 #ifdef BEST_OFFER_DEBUGGING
-bool
-LedgerTxnRoot::bestOfferDebuggingEnabled() const
+bool LedgerTxnRoot::bestOfferDebuggingEnabled() const
 {
     return mImpl->bestOfferDebuggingEnabled();
 }
 
-bool
-LedgerTxnRoot::Impl::bestOfferDebuggingEnabled() const
+bool LedgerTxnRoot::Impl::bestOfferDebuggingEnabled() const
 {
     return mBestOfferDebuggingEnabled;
 }
@@ -3298,8 +3157,7 @@ LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersEntryPtr cached,
     return iter;
 }
 
-void
-LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
+void LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
     std::deque<LedgerEntry>::const_iterator iter,
     std::deque<LedgerEntry>::const_iterator const& end)
 {
@@ -3320,8 +3178,7 @@ LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
     prefetch(toPrefetch);
 }
 
-bool
-LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
+bool LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
 {
     if (!mEntryCache.exists(accountKey(oe.sellerID)))
     {
@@ -3520,14 +3377,12 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     return res;
 }
 
-LedgerHeader const&
-LedgerTxnRoot::getHeader() const
+LedgerHeader const& LedgerTxnRoot::getHeader() const
 {
     return mImpl->getHeader();
 }
 
-LedgerHeader const&
-LedgerTxnRoot::Impl::getHeader() const
+LedgerHeader const& LedgerTxnRoot::Impl::getHeader() const
 {
     return *mHeader;
 }
@@ -3661,14 +3516,12 @@ LedgerTxnRoot::getNewestVersionBelowRoot(InternalLedgerKey const& key) const
     return {false, nullptr};
 }
 
-void
-LedgerTxnRoot::rollbackChild() noexcept
+void LedgerTxnRoot::rollbackChild() noexcept
 {
     mImpl->rollbackChild();
 }
 
-void
-LedgerTxnRoot::Impl::rollbackChild() noexcept
+void LedgerTxnRoot::Impl::rollbackChild() noexcept
 {
     abortIfWrongThread("rollbackChild");
     if (mTransaction)
@@ -3731,8 +3584,7 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
     }
 }
 
-void
-LedgerTxnRoot::Impl::putInEntryCache(
+void LedgerTxnRoot::Impl::putInEntryCache(
     LedgerKey const& key, std::shared_ptr<LedgerEntry const> const& entry,
     LoadType type) const
 {

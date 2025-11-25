@@ -51,32 +51,27 @@ class Slot : public std::enable_shared_from_this<Slot>
   public:
     Slot(uint64 slotIndex, SCP& SCP);
 
-    uint64
-    getSlotIndex() const
+    uint64 getSlotIndex() const
     {
         return mSlotIndex;
     }
 
-    SCP&
-    getSCP()
+    SCP& getSCP()
     {
         return mSCP;
     }
 
-    SCPDriver&
-    getSCPDriver()
+    SCPDriver& getSCPDriver()
     {
         return mSCP.getDriver();
     }
 
-    SCPDriver const&
-    getSCPDriver() const
+    SCPDriver const& getSCPDriver() const
     {
         return mSCP.getDriver();
     }
 
-    BallotProtocol&
-    getBallotProtocol()
+    BallotProtocol& getBallotProtocol()
     {
         return mBallotProtocol;
     }
@@ -138,14 +133,12 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // ** status methods
 
-    size_t
-    getStatementCount() const
+    size_t getStatementCount() const
     {
         return mStatementsHistory.size();
     }
 
-    bool
-    gotVBlocking() const
+    bool gotVBlocking() const
     {
         return mGotVBlocking;
     }

@@ -44,35 +44,32 @@ namespace detail
 template <int V> struct TestStub
 {
 
-    static void
-    for_versions(uint32 from, uint32 to, Application& app,
-                 std::function<void()> const& f)
+    static void for_versions(uint32 from, uint32 to, Application& app,
+                             std::function<void()> const& f)
     {
         uint32 lbound = V == 0 ? 0 : 17;
         stellar::for_versions(std::max(from, lbound), to, app, f);
     }
 
-    static void
-    for_versions_to(uint32 to, Application& app, std::function<void()> const& f)
+    static void for_versions_to(uint32 to, Application& app,
+                                std::function<void()> const& f)
     {
         for_versions(0, to, app, f);
     }
 
-    static void
-    for_versions_from(uint32 from, Application& app,
-                      std::function<void()> const& f)
+    static void for_versions_from(uint32 from, Application& app,
+                                  std::function<void()> const& f)
     {
         for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
     }
 
-    static void
-    for_all_versions(Application& app, std::function<void(void)> const& f)
+    static void for_all_versions(Application& app,
+                                 std::function<void(void)> const& f)
     {
         for_versions(0, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
     }
 
-    static void
-    testAuthorizedToMaintainLiabilities()
+    static void testAuthorizedToMaintainLiabilities()
     {
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
@@ -366,8 +363,7 @@ template <int V> struct TestStub
         });
     }
 
-    static void
-    testAllowTrust()
+    static void testAllowTrust()
     {
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;

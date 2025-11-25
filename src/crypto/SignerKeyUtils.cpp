@@ -14,8 +14,7 @@ namespace stellar
 namespace SignerKeyUtils
 {
 
-SignerKey
-preAuthTxKey(TransactionFrame const& tx)
+SignerKey preAuthTxKey(TransactionFrame const& tx)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
@@ -23,8 +22,7 @@ preAuthTxKey(TransactionFrame const& tx)
     return sk;
 }
 
-SignerKey
-preAuthTxKey(FeeBumpTransactionFrame const& tx)
+SignerKey preAuthTxKey(FeeBumpTransactionFrame const& tx)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
@@ -32,8 +30,7 @@ preAuthTxKey(FeeBumpTransactionFrame const& tx)
     return sk;
 }
 
-SignerKey
-hashXKey(ByteSlice const& bs)
+SignerKey hashXKey(ByteSlice const& bs)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_HASH_X);
@@ -41,8 +38,8 @@ hashXKey(ByteSlice const& bs)
     return sk;
 }
 
-SignerKey
-ed25519PayloadKey(uint256 const& ed25519, xdr::opaque_vec<64> const& payload)
+SignerKey ed25519PayloadKey(uint256 const& ed25519,
+                            xdr::opaque_vec<64> const& payload)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);

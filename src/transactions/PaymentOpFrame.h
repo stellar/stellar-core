@@ -12,8 +12,7 @@ class AbstractLedgerTxn;
 
 class PaymentOpFrame : public OperationFrame
 {
-    PaymentResult&
-    innerResult(OperationResult& res) const
+    PaymentResult& innerResult(OperationResult& res) const
     {
         return res.tr().paymentResult();
     }
@@ -27,11 +26,10 @@ class PaymentOpFrame : public OperationFrame
                  OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
-    void
-    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+    void insertLedgerKeysToPrefetch(
+        UnorderedSet<LedgerKey>& keys) const override;
 
-    static PaymentResultCode
-    getInnerCode(OperationResult const& res)
+    static PaymentResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().paymentResult().code();
     }

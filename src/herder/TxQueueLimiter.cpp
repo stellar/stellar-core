@@ -14,9 +14,8 @@ namespace stellar
 namespace
 {
 
-int64_t
-computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
-                 TransactionFrameBase const& tx)
+int64_t computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
+                         TransactionFrameBase const& tx)
 {
     if (evictedBid.second != 0 &&
         feeRate3WayCompare(evictedBid.first, evictedBid.second,
@@ -50,22 +49,19 @@ TxQueueLimiter::~TxQueueLimiter()
 }
 
 #ifdef BUILD_TESTS
-size_t
-TxQueueLimiter::size() const
+size_t TxQueueLimiter::size() const
 {
     return mTxs->totalResources().getVal(Resource::Type::OPERATIONS);
 }
 #endif
 
-Resource
-TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
+Resource TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
 {
     return saturatedMultiplyByDouble(
         mLedgerManager.maxLedgerResources(isSoroban), mPoolLedgerMultiplier);
 }
 
-void
-TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
+void TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
     releaseAssert(tx->isSoroban() == mIsSoroban);
     auto ledgerVersion = mApp.getLedgerManager()
@@ -75,8 +71,7 @@ TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
     mTxsToFlood->add(tx, ledgerVersion);
 }
 
-void
-TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
+void TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 {
     auto ledgerVersion = mApp.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -86,8 +81,7 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 }
 
 #ifdef BUILD_TESTS
-std::pair<bool, int64>
-TxQueueLimiter::canAddTx(
+std::pair<bool, int64> TxQueueLimiter::canAddTx(
     TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
@@ -100,8 +94,7 @@ TxQueueLimiter::canAddTx(
 }
 #endif
 
-void
-TxQueueLimiter::resetBestFeeTxs(uint32_t ledgerVersion, size_t seed)
+void TxQueueLimiter::resetBestFeeTxs(uint32_t ledgerVersion, size_t seed)
 {
     if (mIsSoroban)
     {
@@ -121,8 +114,7 @@ TxQueueLimiter::resetBestFeeTxs(uint32_t ledgerVersion, size_t seed)
         /* isHighestPriority */ true, mTxsToFloodLaneConfig, seed);
 }
 
-std::pair<bool, int64>
-TxQueueLimiter::canAddTx(
+std::pair<bool, int64> TxQueueLimiter::canAddTx(
     TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
     uint32_t ledgerVersion, size_t broadcastSeed)
@@ -185,8 +177,7 @@ TxQueueLimiter::canAddTx(
                                     ledgerVersion);
 }
 
-void
-TxQueueLimiter::evictTransactions(
+void TxQueueLimiter::evictTransactions(
     std::vector<std::pair<TransactionFrameBasePtr, bool>> const& txsToEvict,
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
@@ -240,8 +231,7 @@ TxQueueLimiter::evictTransactions(
     releaseAssert(mTxs->totalResources() + resourcesToFit <= maxLimits);
 }
 
-void
-TxQueueLimiter::reset(uint32_t ledgerVersion)
+void TxQueueLimiter::reset(uint32_t ledgerVersion)
 {
     if (mIsSoroban)
     {
@@ -276,8 +266,7 @@ TxQueueLimiter::reset(uint32_t ledgerVersion)
     resetEvictionState();
 }
 
-void
-TxQueueLimiter::resetEvictionState()
+void TxQueueLimiter::resetEvictionState()
 {
     if (mSurgePricingLaneConfig != nullptr)
     {
@@ -290,8 +279,7 @@ TxQueueLimiter::resetEvictionState()
     }
 }
 
-void
-TxQueueLimiter::visitTopTxs(
+void TxQueueLimiter::visitTopTxs(
     std::function<SurgePricingPriorityQueue::VisitTxResult(
         TransactionFrameBasePtr const&)> const& visitor,
     std::vector<Resource>& laneResourcesLeftUntilLimit, uint32_t ledgerVersion,
@@ -306,9 +294,8 @@ TxQueueLimiter::visitTopTxs(
     }
 }
 
-void
-TxQueueLimiter::markTxForFlood(TransactionFrameBasePtr const& tx,
-                               uint32_t ledgerVersion)
+void TxQueueLimiter::markTxForFlood(TransactionFrameBasePtr const& tx,
+                                    uint32_t ledgerVersion)
 {
     mTxsToFlood->add(tx, ledgerVersion);
 }

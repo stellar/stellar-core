@@ -30,8 +30,7 @@ BinaryFuseFilter<T>::BinaryFuseFilter(
 }
 
 template <typename T>
-bool
-BinaryFuseFilter<T>::contains(LedgerKey const& key) const
+bool BinaryFuseFilter<T>::contains(LedgerKey const& key) const
 {
     SipHash24 hasher(mHashSeed.data());
     auto keybuf = xdr::xdr_to_opaque(key);
@@ -40,8 +39,7 @@ BinaryFuseFilter<T>::contains(LedgerKey const& key) const
 }
 
 template <typename T>
-bool
-BinaryFuseFilter<T>::operator==(BinaryFuseFilter<T> const& other) const
+bool BinaryFuseFilter<T>::operator==(BinaryFuseFilter<T> const& other) const
 {
     return mFilter == other.mFilter && mHashSeed == other.mHashSeed;
 }

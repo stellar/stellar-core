@@ -14,8 +14,7 @@ namespace stellar
 
 #ifdef _WIN32
 
-std::string
-FileSystemException::getLastErrorString()
+std::string FileSystemException::getLastErrorString()
 {
     std::string res;
 
@@ -31,8 +30,7 @@ FileSystemException::getLastErrorString()
     return res;
 }
 
-void
-FileSystemException::failWithGetLastError(std::string msg)
+void FileSystemException::failWithGetLastError(std::string msg)
 {
     failWith(msg + ", " + getLastErrorString());
 }

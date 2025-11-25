@@ -21,7 +21,8 @@ struct NonMovable
     NonMovable& operator=(NonMovable&&) = delete;
 };
 
-struct NonMovableOrCopyable : private NonCopyable, NonMovable
+struct NonMovableOrCopyable : private NonCopyable,
+                              NonMovable
 {
     NonMovableOrCopyable() = default;
 };

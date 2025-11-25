@@ -33,8 +33,7 @@ class HerderStub : public HerderImpl
     std::vector<int> received;
 
   private:
-    EnvelopeStatus
-    recvSCPEnvelope(SCPEnvelope const& envelope) override
+    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override
     {
         received.push_back(envelope.statement.pledges.confirm().nPrepared);
         return Herder::ENVELOPE_STATUS_PROCESSED;
@@ -49,23 +48,20 @@ class ApplicationStub : public TestApplication
     {
     }
 
-    virtual HerderStub&
-    getHerder() override
+    virtual HerderStub& getHerder() override
     {
         auto& herder = ApplicationImpl::getHerder();
         return static_cast<HerderStub&>(herder);
     }
 
   private:
-    virtual std::unique_ptr<Herder>
-    createHerder() override
+    virtual std::unique_ptr<Herder> createHerder() override
     {
         return std::make_unique<HerderStub>(*this);
     }
 };
 
-SCPEnvelope
-makeEnvelope(int id)
+SCPEnvelope makeEnvelope(int id)
 {
     static int slotIndex{0};
 

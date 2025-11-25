@@ -20,18 +20,18 @@ LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
 {
 }
 
-bool
-LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
+bool LiquidityPoolWithdrawOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_18) &&
            !isPoolWithdrawalDisabled(header);
 }
 
-bool
-LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                                      OperationResult& res,
-                                      OperationMetaBuilder& opMeta) const
+bool LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app,
+                                           AbstractLedgerTxn& ltx,
+                                           OperationResult& res,
+                                           OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 
@@ -113,9 +113,8 @@ LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     return true;
 }
 
-bool
-LiquidityPoolWithdrawOpFrame::doCheckValid(uint32_t ledgerVersion,
-                                           OperationResult& res) const
+bool LiquidityPoolWithdrawOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                OperationResult& res) const
 {
     if (mLiquidityPoolWithdraw.amount <= 0 ||
         mLiquidityPoolWithdraw.minAmountA < 0 ||
@@ -127,8 +126,7 @@ LiquidityPoolWithdrawOpFrame::doCheckValid(uint32_t ledgerVersion,
     return true;
 }
 
-void
-LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
+void LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(liquidityPoolKey(mLiquidityPoolWithdraw.liquidityPoolID));
@@ -136,8 +134,7 @@ LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
                                        mLiquidityPoolWithdraw.liquidityPoolID));
 }
 
-bool
-LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
+bool LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
     AbstractLedgerTxn& ltx, OperationResult& res, LedgerTxnHeader const& header,
     Asset const& asset, int64_t minAmount, int64_t amount) const
 {

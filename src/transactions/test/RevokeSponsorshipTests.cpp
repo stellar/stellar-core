@@ -23,8 +23,7 @@ getRevokeSponsorshipResultCode(TransactionTestFramePtr tx, size_t i)
     return opRes.tr().revokeSponsorshipResult().code();
 }
 
-Claimant
-getClaimant(TestAccount const& account)
+Claimant getClaimant(TestAccount const& account)
 {
     ClaimPredicate pred;
     pred.type(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME).absBefore() = INT64_MAX;

@@ -52,8 +52,7 @@ CoutLogger::~CoutLogger()
 }
 
 #if defined(USE_SPDLOG)
-static spdlog::level::level_enum
-convert_loglevel(LogLevel level)
+static spdlog::level::level_enum convert_loglevel(LogLevel level)
 {
     auto slev = spdlog::level::info;
     switch (level)
@@ -83,8 +82,7 @@ convert_loglevel(LogLevel level)
 }
 #endif
 
-void
-Logging::init(bool truncate)
+void Logging::init(bool truncate)
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -199,8 +197,7 @@ Logging::init(bool truncate)
 #endif
 }
 
-void
-Logging::deinit()
+void Logging::deinit()
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -215,8 +212,7 @@ Logging::deinit()
 #endif
 }
 
-void
-Logging::setFmt(std::string const& peerID, bool timestamps)
+void Logging::setFmt(std::string const& peerID, bool timestamps)
 {
 #if defined(USE_SPDLOG)
     auto pattern =
@@ -231,8 +227,7 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
 #endif
 }
 
-void
-Logging::setLoggingToConsole(bool console)
+void Logging::setLoggingToConsole(bool console)
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -242,8 +237,7 @@ Logging::setLoggingToConsole(bool console)
 #endif
 }
 
-void
-Logging::setLoggingToFile(std::string const& filename)
+void Logging::setLoggingToFile(std::string const& filename)
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -266,8 +260,7 @@ Logging::setLoggingToFile(std::string const& filename)
 #endif
 }
 
-void
-Logging::setLoggingColor(bool color)
+void Logging::setLoggingColor(bool color)
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -277,8 +270,7 @@ Logging::setLoggingColor(bool color)
 #endif
 }
 
-void
-Logging::setLogLevel(LogLevel level, const char* partition)
+void Logging::setLogLevel(LogLevel level, const char* partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     if (partition)
@@ -305,8 +297,7 @@ Logging::setLogLevel(LogLevel level, const char* partition)
 #endif
 }
 
-LogLevel
-Logging::getLLfromString(std::string const& levelName)
+LogLevel Logging::getLLfromString(std::string const& levelName)
 {
     if (iequals(levelName, "fatal"))
     {
@@ -336,8 +327,7 @@ Logging::getLLfromString(std::string const& levelName)
     return LogLevel::LVL_INFO;
 }
 
-LogLevel
-Logging::getLogLevel(std::string const& partition)
+LogLevel Logging::getLogLevel(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     auto p = mPartitionLogLevels.find(partition);
@@ -348,8 +338,7 @@ Logging::getLogLevel(std::string const& partition)
     return mGlobalLogLevel;
 }
 
-std::string
-Logging::getStringFromLL(LogLevel level)
+std::string Logging::getStringFromLL(LogLevel level)
 {
     switch (level)
     {
@@ -369,20 +358,17 @@ Logging::getStringFromLL(LogLevel level)
     return "????";
 }
 
-bool
-Logging::logDebug(std::string const& partition)
+bool Logging::logDebug(std::string const& partition)
 {
     return isLogLevelAtLeast(partition, LogLevel::LVL_DEBUG);
 }
 
-bool
-Logging::logTrace(std::string const& partition)
+bool Logging::logTrace(std::string const& partition)
 {
     return isLogLevelAtLeast(partition, LogLevel::LVL_TRACE);
 }
 
-bool
-Logging::isLogLevelAtLeast(std::string const& partition, LogLevel level)
+bool Logging::isLogLevelAtLeast(std::string const& partition, LogLevel level)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     auto it = mPartitionLogLevels.find(partition);
@@ -393,8 +379,7 @@ Logging::isLogLevelAtLeast(std::string const& partition, LogLevel level)
     return mGlobalLogLevel >= level;
 }
 
-void
-Logging::rotate()
+void Logging::rotate()
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     deinit();
@@ -402,8 +387,7 @@ Logging::rotate()
 }
 
 // throws if partition name is not recognized
-std::string
-Logging::normalizePartition(std::string const& partition)
+std::string Logging::normalizePartition(std::string const& partition)
 {
     for (auto& p : kPartitionNames)
     {
@@ -433,9 +417,8 @@ std::recursive_mutex Logging::mLogMutex;
 #undef LOG_PARTITION
 #endif
 
-void
-Logging::logAtPartitionAndLevel(std::string const& partition, LogLevel level,
-                                std::string const& msg)
+void Logging::logAtPartitionAndLevel(std::string const& partition,
+                                     LogLevel level, std::string const& msg)
 {
 #if defined(USE_SPDLOG)
     auto lev = convert_loglevel(level);

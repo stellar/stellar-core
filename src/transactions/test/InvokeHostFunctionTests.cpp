@@ -53,8 +53,8 @@ using namespace stellar::txtest;
 namespace
 {
 
-void
-checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
+void checkResults(TransactionResultSet& r, int expectedSuccess,
+                  int expectedFailed)
 {
     int successCounter = 0;
     int failedCounter = 0;
@@ -70,8 +70,7 @@ checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
     REQUIRE(expectedFailed == expectedFailed);
 };
 
-void
-overrideNetworkSettingsToMin(Application& app)
+void overrideNetworkSettingsToMin(Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
@@ -7068,9 +7067,9 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
     }
 }
 
-static TransactionFrameBasePtr
-makeAddTx(TestContract const& contract, int64_t instructions,
-          TestAccount& source)
+static TransactionFrameBasePtr makeAddTx(TestContract const& contract,
+                                         int64_t instructions,
+                                         TestAccount& source)
 {
     auto fnName = "add";
     auto sc7 = makeI32(7);
@@ -7085,8 +7084,7 @@ makeAddTx(TestContract const& contract, int64_t instructions,
     return invocation.createTx(&source);
 }
 
-static bool
-wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
+static bool wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
 {
     auto moduleCache = app.getLedgerManager().getModuleCacheForTesting();
     for (auto const& wasm : wasms)

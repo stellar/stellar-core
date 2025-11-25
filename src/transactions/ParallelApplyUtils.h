@@ -31,28 +31,23 @@ class ParallelLedgerInfo
     {
     }
 
-    uint32_t
-    getLedgerVersion() const
+    uint32_t getLedgerVersion() const
     {
         return ledgerVersion;
     }
-    uint32_t
-    getLedgerSeq() const
+    uint32_t getLedgerSeq() const
     {
         return ledgerSeq;
     }
-    uint32_t
-    getBaseReserve() const
+    uint32_t getBaseReserve() const
     {
         return baseReserve;
     }
-    TimePoint
-    getCloseTime() const
+    TimePoint getCloseTime() const
     {
         return closeTime;
     }
-    Hash
-    getNetworkID() const
+    Hash getNetworkID() const
     {
         return networkID;
     }
@@ -114,10 +109,9 @@ class ThreadParallelApplyLedgerState
     void upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
                      uint32_t ledgerSeq);
     void eraseEntry(LedgerKey const& key);
-    void
-    commitChangeFromSuccessfulOp(LedgerKey const& key,
-                                 std::optional<LedgerEntry> const& entryOpt,
-                                 UnorderedSet<LedgerKey> const& roTTLSet);
+    void commitChangeFromSuccessfulOp(
+        LedgerKey const& key, std::optional<LedgerEntry> const& entryOpt,
+        UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -223,15 +217,13 @@ class GlobalParallelApplyLedgerState
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap mGlobalEntryMap;
 
-    void
-    commitChangeFromThread(LedgerKey const& key,
-                           ParallelApplyEntry const& parEntry,
-                           std::unordered_set<LedgerKey> const& readWriteSet);
+    void commitChangeFromThread(
+        LedgerKey const& key, ParallelApplyEntry const& parEntry,
+        std::unordered_set<LedgerKey> const& readWriteSet);
 
-    void
-    commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState const& thread,
-                            std::unordered_set<LedgerKey> const& readWriteSet);
+    void commitChangesFromThread(
+        AppConnector& app, ThreadParallelApplyLedgerState const& thread,
+        std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,

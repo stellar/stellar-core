@@ -37,8 +37,7 @@ class SHA256
 struct XDRSHA256 : XDRHasher<XDRSHA256>
 {
     SHA256 state;
-    void
-    hashBytes(unsigned char const* bytes, size_t size)
+    void hashBytes(unsigned char const* bytes, size_t size)
     {
         state.add(ByteSlice(bytes, size));
     }
@@ -50,9 +49,7 @@ struct XDRSHA256 : XDRHasher<XDRSHA256>
 // NB: This is not an overload of `sha256` to avoid ambiguity when called
 // with xdrpp-provided types like opaque_vec, which will convert to a ByteSlice
 // if demanded, but can also be passed to XDRSHA256.
-template <typename T>
-uint256
-xdrSha256(T const& t)
+template <typename T> uint256 xdrSha256(T const& t)
 {
     XDRSHA256 xs;
     xdr::archive(xs, t);

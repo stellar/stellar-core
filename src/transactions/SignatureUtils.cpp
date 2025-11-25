@@ -17,8 +17,7 @@ namespace stellar
 namespace SignatureUtils
 {
 
-DecoratedSignature
-sign(SecretKey const& secretKey, Hash const& hash)
+DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash)
 {
     ZoneScoped;
     DecoratedSignature result;
@@ -27,16 +26,16 @@ sign(SecretKey const& secretKey, Hash const& hash)
     return result;
 }
 
-PubKeyUtils::VerifySigResult
-verify(DecoratedSignature const& sig, SignerKey const& signerKey,
-       Hash const& hash)
+PubKeyUtils::VerifySigResult verify(DecoratedSignature const& sig,
+                                    SignerKey const& signerKey,
+                                    Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
     return verify(sig, pubKey, hash);
 }
 
-PubKeyUtils::VerifySigResult
-verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
+PubKeyUtils::VerifySigResult verify(DecoratedSignature const& sig,
+                                    PublicKey const& pubKey, Hash const& hash)
 {
     if (!doesHintMatch(pubKey.ed25519(), sig.hint))
     {
@@ -60,8 +59,7 @@ verifyEd25519SignedPayload(DecoratedSignature const& sig,
     return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload);
 }
 
-DecoratedSignature
-signHashX(const ByteSlice& x)
+DecoratedSignature signHashX(const ByteSlice& x)
 {
     ZoneScoped;
     DecoratedSignature result;
@@ -80,8 +78,7 @@ signHashX(const ByteSlice& x)
     return result;
 }
 
-bool
-verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
+bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
 {
     ZoneScoped;
     if (!doesHintMatch(signerKey.hashX(), sig.hint))
@@ -104,8 +101,7 @@ getSignedPayloadHint(SignerKey::_ed25519SignedPayload_t const& signedPayload)
     return hint;
 }
 
-SignatureHint
-getHint(ByteSlice const& bs)
+SignatureHint getHint(ByteSlice const& bs)
 {
     if (bs.empty())
     {
@@ -124,8 +120,7 @@ getHint(ByteSlice const& bs)
     return res;
 }
 
-bool
-doesHintMatch(ByteSlice const& bs, SignatureHint const& hint)
+bool doesHintMatch(ByteSlice const& bs, SignatureHint const& hint)
 {
     if (bs.size() < hint.size())
     {

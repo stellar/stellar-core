@@ -15,16 +15,13 @@ namespace stellar
 class HotArchiveBucket;
 class LiveBucket;
 
-template <typename T>
-bool
-lexCompare(T&& lhs1, T&& rhs1)
+template <typename T> bool lexCompare(T&& lhs1, T&& rhs1)
 {
     return lhs1 < rhs1;
 }
 
 template <typename T, typename... U>
-bool
-lexCompare(T&& lhs1, T&& rhs1, U&&... args)
+bool lexCompare(T&& lhs1, T&& rhs1, U&&... args)
 {
     if (lhs1 < rhs1)
     {
@@ -55,8 +52,7 @@ lexCompare(T&& lhs1, T&& rhs1, U&&... args)
 struct LedgerEntryIdCmp
 {
     template <typename T, typename U>
-    auto
-    operator()(T const& a, U const& b) const
+    auto operator()(T const& a, U const& b) const
         -> decltype(a.type(), b.type(), bool())
     {
         LedgerEntryType aty = a.type();
@@ -132,9 +128,8 @@ template <typename BucketT> struct BucketEntryIdCmp
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
-    bool
-    compareHotArchive(HotArchiveBucketEntry const& a,
-                      HotArchiveBucketEntry const& b) const
+    bool compareHotArchive(HotArchiveBucketEntry const& a,
+                           HotArchiveBucketEntry const& b) const
     {
         HotArchiveBucketEntryType aty = a.type();
         HotArchiveBucketEntryType bty = b.type();
@@ -186,8 +181,7 @@ template <typename BucketT> struct BucketEntryIdCmp
         }
     }
 
-    bool
-    compareLive(BucketEntry const& a, BucketEntry const& b) const
+    bool compareLive(BucketEntry const& a, BucketEntry const& b) const
     {
         BucketEntryType aty = a.type();
         BucketEntryType bty = b.type();
@@ -238,9 +232,8 @@ template <typename BucketT> struct BucketEntryIdCmp
         }
     }
 
-    bool
-    operator()(typename BucketT::EntryT const& a,
-               typename BucketT::EntryT const& b) const
+    bool operator()(typename BucketT::EntryT const& a,
+                    typename BucketT::EntryT const& b) const
     {
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {

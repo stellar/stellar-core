@@ -12,8 +12,8 @@
 namespace stellar
 {
 // calculates A*B/C when A*B overflows 64bits
-bool
-bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
+bool bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C,
+               Rounding rounding)
 {
     bool res;
     releaseAssertOrThrow((A >= 0) && (B >= 0) && (C > 0));
@@ -28,9 +28,8 @@ bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
     return res;
 }
 
-bool
-bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
-                  Rounding rounding)
+bool bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
+                       Rounding rounding)
 {
     releaseAssertOrThrow(C > 0);
 
@@ -44,8 +43,7 @@ bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
     return (x <= UINT64_MAX);
 }
 
-int64_t
-bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding)
+int64_t bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding)
 {
     int64_t res;
     if (!bigDivide(res, A, B, C, rounding))
@@ -55,8 +53,8 @@ bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding)
     return res;
 }
 
-bool
-bigDivide128(int64_t& result, uint128_t const& a, int64_t B, Rounding rounding)
+bool bigDivide128(int64_t& result, uint128_t const& a, int64_t B,
+                  Rounding rounding)
 {
     releaseAssertOrThrow(B > 0);
 
@@ -70,9 +68,8 @@ bigDivide128(int64_t& result, uint128_t const& a, int64_t B, Rounding rounding)
     return res;
 }
 
-bool
-bigDivideUnsigned128(uint64_t& result, uint128_t const& a, uint64_t B,
-                     Rounding rounding)
+bool bigDivideUnsigned128(uint64_t& result, uint128_t const& a, uint64_t B,
+                          Rounding rounding)
 {
     releaseAssertOrThrow(B != 0);
 
@@ -104,8 +101,7 @@ bigDivideUnsigned128(uint64_t& result, uint128_t const& a, uint64_t B,
     return (x <= UINT64_MAX);
 }
 
-int64_t
-bigDivideOrThrow128(uint128_t const& a, int64_t B, Rounding rounding)
+int64_t bigDivideOrThrow128(uint128_t const& a, int64_t B, Rounding rounding)
 {
     int64_t res;
     if (!bigDivide128(res, a, B, rounding))
@@ -115,16 +111,14 @@ bigDivideOrThrow128(uint128_t const& a, int64_t B, Rounding rounding)
     return res;
 }
 
-uint128_t
-bigMultiplyUnsigned(uint64_t a, uint64_t b)
+uint128_t bigMultiplyUnsigned(uint64_t a, uint64_t b)
 {
     uint128_t A(a);
     uint128_t B(b);
     return A * B;
 }
 
-uint128_t
-bigMultiply(int64_t a, int64_t b)
+uint128_t bigMultiply(int64_t a, int64_t b)
 {
     releaseAssertOrThrow((a >= 0) && (b >= 0));
     return bigMultiplyUnsigned((uint64_t)a, (uint64_t)b);
@@ -214,8 +208,7 @@ bigMultiply(int64_t a, int64_t b)
 // Now that we have an algorithm to compute ceil(sqrt(R+1)) then we can simply
 // use R-1 instead of R in the definition of the sequence to compute
 // ceil(sqrt(R)). This requires handling R=0 as a special case.
-static uint64_t
-bigSquareRootCeil(uint64_t a, uint64_t b)
+static uint64_t bigSquareRootCeil(uint64_t a, uint64_t b)
 {
     // a * b = 0 is a special-case because we can't compute a * b - 1
     if (a == 0 || b == 0)
@@ -257,8 +250,7 @@ bigSquareRootCeil(uint64_t a, uint64_t b)
 }
 
 // Find x such that x * x <= a * b < (x+1) * (x+1).
-uint64_t
-bigSquareRoot(uint64_t a, uint64_t b)
+uint64_t bigSquareRoot(uint64_t a, uint64_t b)
 {
     uint64_t sqrtCeil = bigSquareRootCeil(a, b);
 
@@ -282,9 +274,8 @@ bigSquareRoot(uint64_t a, uint64_t b)
     return sqrtCeil - 1;
 }
 
-bool
-hugeDivide(int64_t& result, int32_t a, uint128_t const& B, uint128_t const& C,
-           Rounding rounding)
+bool hugeDivide(int64_t& result, int32_t a, uint128_t const& B,
+                uint128_t const& C, Rounding rounding)
 {
     uint128_t constexpr i32_max((uint32_t)INT32_MAX);
     uint128_t constexpr i64_max((uint64_t)INT64_MAX);
@@ -331,8 +322,7 @@ hugeDivide(int64_t& result, int32_t a, uint128_t const& B, uint128_t const& C,
     return false;
 }
 
-uint32_t
-doubleToClampedUint32(double d)
+uint32_t doubleToClampedUint32(double d)
 {
     // IEEE-754 doubles have 52-bit fractions, and so can perfectly represent
     // uint32_t values. Therefore, it should be safe to convert to the full

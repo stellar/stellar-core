@@ -39,8 +39,7 @@ namespace historytestutils
 
 namespace
 {
-void
-setConfigForArchival(Config& cfg)
+void setConfigForArchival(Config& cfg)
 {
     // Evict very aggressively, but only 1 entry at a time so that Hot
     // Archive Buckets churn
@@ -52,8 +51,7 @@ setConfigForArchival(Config& cfg)
 }
 }
 
-std::string
-HistoryConfigurator::getArchiveDirName() const
+std::string HistoryConfigurator::getArchiveDirName() const
 {
     return "";
 }
@@ -63,14 +61,12 @@ TmpDirHistoryConfigurator::TmpDirHistoryConfigurator()
 {
 }
 
-std::string
-TmpDirHistoryConfigurator::getArchiveDirName() const
+std::string TmpDirHistoryConfigurator::getArchiveDirName() const
 {
     return mName;
 }
 
-Config&
-TmpDirHistoryConfigurator::configure(Config& cfg, bool writable) const
+Config& TmpDirHistoryConfigurator::configure(Config& cfg, bool writable) const
 {
     std::string d = getArchiveDirName();
     std::string getCmd = "cp " + d + "/{0} {1}";
@@ -99,8 +95,8 @@ MultiArchiveHistoryConfigurator::MultiArchiveHistoryConfigurator(
     }
 }
 
-Config&
-MultiArchiveHistoryConfigurator::configure(Config& cfg, bool writable) const
+Config& MultiArchiveHistoryConfigurator::configure(Config& cfg,
+                                                   bool writable) const
 {
     for (auto const& conf : mConfigurators)
     {
@@ -110,8 +106,7 @@ MultiArchiveHistoryConfigurator::configure(Config& cfg, bool writable) const
     return cfg;
 }
 
-Config&
-S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
+Config& S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
     char const* s3bucket = getenv("S3BUCKET");
     if (!s3bucket)
@@ -135,9 +130,8 @@ S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
     return mCfg;
 }
 
-Config&
-RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
-                                                bool writable) const
+Config& RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
+                                                        bool writable) const
 {
     TmpDirHistoryConfigurator::configure(mCfg, writable);
     mCfg.USE_CONFIG_FOR_GENESIS = false;
@@ -200,8 +194,7 @@ TestBucketGenerator::TestBucketGenerator(
 }
 
 template <typename BucketT>
-std::string
-TestBucketGenerator::generateBucket(TestBucketState state)
+std::string TestBucketGenerator::generateBucket(TestBucketState state)
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -267,8 +260,7 @@ TestLedgerChainGenerator::TestLedgerChainGenerator(
 {
 }
 
-void
-TestLedgerChainGenerator::createHistoryFiles(
+void TestLedgerChainGenerator::createHistoryFiles(
     std::vector<LedgerHeaderHistoryEntry> const& lhv,
     LedgerHeaderHistoryEntry& first, LedgerHeaderHistoryEntry& last,
     uint32_t checkpoint)
@@ -370,8 +362,7 @@ CatchupPerformedWork::CatchupPerformedWork(
 {
 }
 
-bool
-operator==(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
+bool operator==(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
 {
     if (x.mHistoryArchiveStatesDownloaded != y.mHistoryArchiveStatesDownloaded)
     {
@@ -408,8 +399,7 @@ operator==(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
     return true;
 }
 
-bool
-operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
+bool operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
 {
     return !(x == y);
 }
@@ -452,8 +442,7 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
            1;
 }
 
-void
-CatchupSimulation::generateRandomLedger(uint32_t version)
+void CatchupSimulation::generateRandomLedger(uint32_t version)
 {
     uint32_t const setupLedgers = 4;
     auto& lm = getApp().getLedgerManager();
@@ -642,18 +631,16 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     stroopySeqs.push_back(stroopy.loadSequenceNumber());
 }
 
-void
-CatchupSimulation::setUpgradeLedger(uint32_t ledger,
-                                    ProtocolVersion upgradeProtocolVersion)
+void CatchupSimulation::setUpgradeLedger(uint32_t ledger,
+                                         ProtocolVersion upgradeProtocolVersion)
 {
     REQUIRE(getApp().getLedgerManager().getLastClosedLedgerNum() < ledger);
     mUpgradeLedgerSeq = ledger;
     mUpgradeProtocolVersion = upgradeProtocolVersion;
 }
 
-void
-CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger,
-                                         std::optional<uint32_t> restartLedger)
+void CatchupSimulation::ensureLedgerAvailable(
+    uint32_t targetLedger, std::optional<uint32_t> restartLedger)
 {
     while (getApp().getLedgerManager().getLastClosedLedgerNum() < targetLedger)
     {
@@ -701,8 +688,7 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger,
     }
 }
 
-void
-CatchupSimulation::ensurePublishesComplete()
+void CatchupSimulation::ensurePublishesComplete()
 {
     auto& hm = getApp().getHistoryManager();
     auto const& cfg = getApp().getConfig();
@@ -741,8 +727,7 @@ CatchupSimulation::ensurePublishesComplete()
     }
 }
 
-void
-CatchupSimulation::ensureOfflineCatchupPossible(
+void CatchupSimulation::ensureOfflineCatchupPossible(
     uint32_t targetLedger, std::optional<uint32_t> restartLedger)
 {
     // One additional ledger is needed for publish.
@@ -753,9 +738,8 @@ CatchupSimulation::ensureOfflineCatchupPossible(
     ensurePublishesComplete();
 }
 
-void
-CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
-                                               uint32_t bufferLedgers)
+void CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
+                                                    uint32_t bufferLedgers)
 {
     // One additional ledger is needed for publish, one as a trigger ledger for
     // catchup, one as closing ledger.
@@ -787,8 +771,7 @@ CatchupSimulation::getAllPublishedCheckpoints() const
     return res;
 }
 
-LedgerNumHashPair
-CatchupSimulation::getLastPublishedCheckpoint() const
+LedgerNumHashPair CatchupSimulation::getLastPublishedCheckpoint() const
 {
     LedgerNumHashPair pair;
     assert(mLedgerHashes.size() == mLedgerSeqs.size());
@@ -808,8 +791,7 @@ CatchupSimulation::getLastPublishedCheckpoint() const
     return pair;
 }
 
-Application::pointer
-CatchupSimulation::createCatchupApplication(
+Application::pointer CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
     bool publish, std::optional<uint32_t> ledgerVersion, bool skipKnownResults)
 {
@@ -837,9 +819,8 @@ CatchupSimulation::createCatchupApplication(
     return newApp;
 }
 
-bool
-CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
-                                  bool extraValidation)
+bool CatchupSimulation::catchupOffline(Application::pointer app,
+                                       uint32_t toLedger, bool extraValidation)
 {
     CLOG_INFO(History, "starting offline catchup with toLedger={}", toLedger);
 
@@ -887,11 +868,10 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
     return success;
 }
 
-bool
-CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
-                                 uint32_t bufferLedgers, uint32_t gapLedger,
-                                 int32_t numGapLedgers,
-                                 std::vector<uint32_t> const& ledgersToInject)
+bool CatchupSimulation::catchupOnline(
+    Application::pointer app, uint32_t initLedger, uint32_t bufferLedgers,
+    uint32_t gapLedger, int32_t numGapLedgers,
+    std::vector<uint32_t> const& ledgersToInject)
 {
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = app->getLedgerApplyManager().getCatchupMetrics();
@@ -1003,8 +983,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     return result;
 }
 
-void
-CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
+void CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
 {
     // Remember the vectors count from 2, not 0.
     if (ledger - 2 >= mLedgerCloseDatas.size())
@@ -1024,8 +1003,7 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
 }
 
-void
-CatchupSimulation::validateCatchup(Application::pointer app)
+void CatchupSimulation::validateCatchup(Application::pointer app)
 {
     auto& lm = app->getLedgerManager();
     auto nextLedger = lm.getLastClosedLedgerNum() + 1;
@@ -1139,8 +1117,7 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CHECK(haveStrpSeq == wantStrpSeq);
 }
 
-CatchupPerformedWork
-CatchupSimulation::computeCatchupPerformedWork(
+CatchupPerformedWork CatchupSimulation::computeCatchupPerformedWork(
     uint32_t lastClosedLedger, CatchupConfiguration const& catchupConfiguration,
     Application& app)
 {
@@ -1187,8 +1164,7 @@ CatchupSimulation::computeCatchupPerformedWork(
             txSetsApplied};
 }
 
-void
-CatchupSimulation::restartApp()
+void CatchupSimulation::restartApp()
 {
     mAppPtr.reset();
     mClock = std::make_unique<VirtualClock>(mClock->getMode());

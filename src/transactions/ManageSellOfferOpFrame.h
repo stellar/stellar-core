@@ -15,8 +15,7 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
 {
     ManageSellOfferOp const& mManageSellOffer;
 
-    ManageSellOfferResult&
-    innerResult(OperationResult& res) const
+    ManageSellOfferResult& innerResult(OperationResult& res) const
     {
         return res.tr().manageSellOfferResult();
     }
@@ -36,9 +35,8 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
     void applyOperationSpecificLimits(int64_t& maxSheepSend, int64_t sheepSent,
                                       int64_t& maxWheatReceive,
                                       int64_t wheatReceived) const override;
-    void
-    getExchangeParametersBeforeV10(int64_t& maxSheepSend,
-                                   int64_t& maxWheatReceive) const override;
+    void getExchangeParametersBeforeV10(
+        int64_t& maxSheepSend, int64_t& maxWheatReceive) const override;
 
     ManageOfferSuccessResult&
     getSuccessResult(OperationResult& res) const override;
@@ -57,8 +55,7 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
     void setResultNotFound(OperationResult& res) const override;
     void setResultLowReserve(OperationResult& res) const override;
 
-    static ManageSellOfferResultCode
-    getInnerCode(OperationResult const& res)
+    static ManageSellOfferResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().manageSellOfferResult().code();
     }

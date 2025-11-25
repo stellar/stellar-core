@@ -61,10 +61,9 @@ namespace
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 
-uint32_t
-getNumDiskReadEntries(SorobanResources const& resources,
-                      SorobanTransactionData::_ext_t const& ext,
-                      bool isRestoreFootprintOp)
+uint32_t getNumDiskReadEntries(SorobanResources const& resources,
+                               SorobanTransactionData::_ext_t const& ext,
+                               bool isRestoreFootprintOp)
 {
     // All restoreOp entries require disk reads
     if (isRestoreFootprintOp)
@@ -116,8 +115,7 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
     }
 }
 
-Hash const&
-TransactionFrame::getFullHash() const
+Hash const& TransactionFrame::getFullHash() const
 {
     ZoneScoped;
     if (isZero(mFullHash))
@@ -127,8 +125,7 @@ TransactionFrame::getFullHash() const
     return (mFullHash);
 }
 
-Hash const&
-TransactionFrame::getContentsHash() const
+Hash const& TransactionFrame::getContentsHash() const
 {
     ZoneScoped;
 #ifdef _DEBUG
@@ -156,21 +153,18 @@ TransactionFrame::getContentsHash() const
     return (mContentsHash);
 }
 
-TransactionEnvelope const&
-TransactionFrame::getEnvelope() const
+TransactionEnvelope const& TransactionFrame::getEnvelope() const
 {
     return mEnvelope;
 }
 
 #ifdef BUILD_TESTS
-TransactionEnvelope&
-TransactionFrame::getMutableEnvelope() const
+TransactionEnvelope& TransactionFrame::getMutableEnvelope() const
 {
     return mEnvelope;
 }
 
-void
-TransactionFrame::clearCached() const
+void TransactionFrame::clearCached() const
 {
     Hash zero;
     mContentsHash = zero;
@@ -178,21 +172,18 @@ TransactionFrame::clearCached() const
 }
 #endif
 
-SequenceNumber
-TransactionFrame::getSeqNum() const
+SequenceNumber TransactionFrame::getSeqNum() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.seqNum
                                                    : mEnvelope.v1().tx.seqNum;
 }
 
-AccountID
-TransactionFrame::getFeeSourceID() const
+AccountID TransactionFrame::getFeeSourceID() const
 {
     return getSourceID();
 }
 
-AccountID
-TransactionFrame::getSourceID() const
+AccountID TransactionFrame::getSourceID() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
     {
@@ -203,8 +194,7 @@ TransactionFrame::getSourceID() const
     return toAccountID(mEnvelope.v1().tx.sourceAccount);
 }
 
-MuxedAccount
-TransactionFrame::getSourceAccount() const
+MuxedAccount TransactionFrame::getSourceAccount() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
     {
@@ -215,8 +205,7 @@ TransactionFrame::getSourceAccount() const
     return mEnvelope.v1().tx.sourceAccount;
 }
 
-uint32_t
-TransactionFrame::getNumOperations() const
+uint32_t TransactionFrame::getNumOperations() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                ? static_cast<uint32_t>(mEnvelope.v0().tx.operations.size())
@@ -229,9 +218,8 @@ TransactionFrame::getOperationFrames() const
     return mOperations;
 }
 
-Resource
-TransactionFrame::getResources(bool useByteLimitInClassic,
-                               uint32_t ledgerVersion) const
+Resource TransactionFrame::getResources(bool useByteLimitInClassic,
+                                        uint32_t ledgerVersion) const
 {
     auto txSize = static_cast<int64_t>(this->getSize());
     if (isSoroban())
@@ -270,16 +258,14 @@ TransactionFrame::getResources(bool useByteLimitInClassic,
     }
 }
 
-std::vector<Operation> const&
-TransactionFrame::getRawOperations() const
+std::vector<Operation> const& TransactionFrame::getRawOperations() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                ? mEnvelope.v0().tx.operations
                : mEnvelope.v1().tx.operations;
 }
 
-bool
-TransactionFrame::validateSorobanTxForFlooding(
+bool TransactionFrame::validateSorobanTxForFlooding(
     UnorderedSet<LedgerKey> const& keysToFilter) const
 {
     if (!isSoroban() || mEnvelope.type() != ENVELOPE_TYPE_TX)
@@ -308,8 +294,7 @@ TransactionFrame::validateSorobanTxForFlooding(
            checkKeys(sorobanData.resources.footprint.readWrite);
 }
 
-bool
-TransactionFrame::validateSorobanMemo() const
+bool TransactionFrame::validateSorobanMemo() const
 {
     if (!isSoroban())
     {
@@ -339,15 +324,13 @@ TransactionFrame::validateSorobanMemo() const
     return true;
 }
 
-int64_t
-TransactionFrame::getFullFee() const
+int64_t TransactionFrame::getFullFee() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.fee
                                                    : mEnvelope.v1().tx.fee;
 }
 
-int64_t
-TransactionFrame::getInclusionFee() const
+int64_t TransactionFrame::getInclusionFee() const
 {
     if (isSoroban())
     {
@@ -362,9 +345,9 @@ TransactionFrame::getInclusionFee() const
     return getFullFee();
 }
 
-int64_t
-TransactionFrame::getFee(LedgerHeader const& header,
-                         std::optional<int64_t> baseFee, bool applying) const
+int64_t TransactionFrame::getFee(LedgerHeader const& header,
+                                 std::optional<int64_t> baseFee,
+                                 bool applying) const
 {
     if (!baseFee)
     {
@@ -395,10 +378,9 @@ TransactionFrame::getFee(LedgerHeader const& header,
     }
 }
 
-bool
-TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 LedgerEntryWrapper const& account,
-                                 int32_t neededWeight) const
+bool TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
+                                      LedgerEntryWrapper const& account,
+                                      int32_t neededWeight) const
 {
     ZoneScoped;
     auto& acc = account.current().data.account();
@@ -413,9 +395,8 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, neededWeight);
 }
 
-bool
-TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
-                                          AccountID const& accountID) const
+bool TransactionFrame::checkSignatureNoAccount(
+    SignatureChecker& signatureChecker, AccountID const& accountID) const
 {
     ZoneScoped;
     std::vector<Signer> signers;
@@ -424,8 +405,8 @@ TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, 0);
 }
 
-bool
-TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
+bool TransactionFrame::checkExtraSigners(
+    SignatureChecker& signatureChecker) const
 {
     ZoneScoped;
     if (extraSignersExist())
@@ -450,8 +431,7 @@ TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
     return true;
 }
 
-bool
-TransactionFrame::checkOperationSignatures(
+bool TransactionFrame::checkOperationSignatures(
     SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
     MutableTransactionResultBase* txResult) const
 {
@@ -469,8 +449,7 @@ TransactionFrame::checkOperationSignatures(
     return allOpsValid;
 }
 
-bool
-TransactionFrame::checkAllTransactionSignatures(
+bool TransactionFrame::checkAllTransactionSignatures(
     SignatureChecker& signatureChecker, LedgerEntryWrapper const& sourceAccount,
     uint32_t ledgerVersion) const
 {
@@ -519,10 +498,9 @@ TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
     return res;
 }
 
-LedgerTxnEntry
-TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
-                              LedgerTxnHeader const& header,
-                              AccountID const& accountID) const
+LedgerTxnEntry TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
+                                             LedgerTxnHeader const& header,
+                                             AccountID const& accountID) const
 {
     ZoneScoped;
     if (protocolVersionIsBefore(header.current().ledgerVersion,
@@ -552,8 +530,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
     }
 }
 
-bool
-TransactionFrame::hasDexOperations() const
+bool TransactionFrame::hasDexOperations() const
 {
     for (auto const& op : mOperations)
     {
@@ -565,21 +542,18 @@ TransactionFrame::hasDexOperations() const
     return false;
 }
 
-bool
-TransactionFrame::isSoroban() const
+bool TransactionFrame::isSoroban() const
 {
     return !mOperations.empty() && mOperations[0]->isSoroban();
 }
 
-SorobanResources const&
-TransactionFrame::sorobanResources() const
+SorobanResources const& TransactionFrame::sorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
 
-SorobanTransactionData::_ext_t const&
-TransactionFrame::getResourcesExt() const
+SorobanTransactionData::_ext_t const& TransactionFrame::getResourcesExt() const
 {
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().ext;
@@ -591,14 +565,12 @@ TransactionFrame::createTxErrorResult(TransactionResultCode txErrorCode) const
     return MutableTransactionResult::createTxError(txErrorCode);
 }
 
-MutableTxResultPtr
-TransactionFrame::createValidationSuccessResult() const
+MutableTxResultPtr TransactionFrame::createValidationSuccessResult() const
 {
     return MutableTransactionResult::createSuccess(*this, 0);
 }
 
-std::optional<TimeBounds const> const
-TransactionFrame::getTimeBounds() const
+std::optional<TimeBounds const> const TransactionFrame::getTimeBounds() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
     {
@@ -646,8 +618,7 @@ TransactionFrame::getLedgerBounds() const
     return std::optional<LedgerBounds const>();
 }
 
-Duration
-TransactionFrame::getMinSeqAge() const
+Duration TransactionFrame::getMinSeqAge() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX)
     {
@@ -658,8 +629,7 @@ TransactionFrame::getMinSeqAge() const
     return 0;
 }
 
-uint32
-TransactionFrame::getMinSeqLedgerGap() const
+uint32 TransactionFrame::getMinSeqLedgerGap() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX)
     {
@@ -670,8 +640,7 @@ TransactionFrame::getMinSeqLedgerGap() const
     return 0;
 }
 
-std::optional<SequenceNumber const> const
-TransactionFrame::getMinSeqNum() const
+std::optional<SequenceNumber const> const TransactionFrame::getMinSeqNum() const
 {
     if (mEnvelope.type() == ENVELOPE_TYPE_TX)
     {
@@ -685,23 +654,20 @@ TransactionFrame::getMinSeqNum() const
     return std::optional<SequenceNumber const>();
 }
 
-bool
-TransactionFrame::extraSignersExist() const
+bool TransactionFrame::extraSignersExist() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX &&
            mEnvelope.v1().tx.cond.type() == PRECOND_V2 &&
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
-Memo const&
-TransactionFrame::getMemo() const
+Memo const& TransactionFrame::getMemo() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.memo
                                                    : mEnvelope.v1().tx.memo;
 }
 
-bool
-TransactionFrame::validateSorobanOpsConsistency() const
+bool TransactionFrame::validateSorobanOpsConsistency() const
 {
     bool hasSorobanOp = mOperations[0]->isSoroban();
     for (auto const& op : mOperations)
@@ -721,8 +687,7 @@ TransactionFrame::validateSorobanOpsConsistency() const
     return true;
 }
 
-bool
-TransactionFrame::checkSorobanResources(
+bool TransactionFrame::checkSorobanResources(
     SorobanNetworkConfig const& config, uint32_t ledgerVersion,
     DiagnosticEventManager& diagnosticEvents) const
 {
@@ -981,8 +946,7 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
     return feeRefund;
 }
 
-void
-TransactionFrame::updateSorobanMetrics(AppConnector& app) const
+void TransactionFrame::updateSorobanMetrics(AppConnector& app) const
 {
     releaseAssertOrThrow(isSoroban());
     if (app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
@@ -1008,8 +972,7 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     metrics.accumulateLedgerWriteByte(r.writeBytes);
 }
 
-FeePair
-TransactionFrame::computeSorobanResourceFee(
+FeePair TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanResources const& txResources,
     uint32_t txSize, uint32_t eventsSize,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
@@ -1047,15 +1010,13 @@ TransactionFrame::computeSorobanResourceFee(
         sorobanConfig.rustBridgeFeeConfiguration(protocolVersion));
 }
 
-int64
-TransactionFrame::declaredSorobanResourceFee() const
+int64 TransactionFrame::declaredSorobanResourceFee() const
 {
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resourceFee;
 }
 
-FeePair
-TransactionFrame::computePreApplySorobanResourceFee(
+FeePair TransactionFrame::computePreApplySorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg) const
 {
@@ -1071,9 +1032,8 @@ TransactionFrame::computePreApplySorobanResourceFee(
         0, sorobanConfig, cfg, getResourcesExt(), isRestoreFootprintTx());
 }
 
-bool
-TransactionFrame::isTooEarly(LedgerHeaderWrapper const& header,
-                             uint64_t lowerBoundCloseTimeOffset) const
+bool TransactionFrame::isTooEarly(LedgerHeaderWrapper const& header,
+                                  uint64_t lowerBoundCloseTimeOffset) const
 {
     auto const tb = getTimeBounds();
     if (tb)
@@ -1096,9 +1056,8 @@ TransactionFrame::isTooEarly(LedgerHeaderWrapper const& header,
     return false;
 }
 
-bool
-TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
-                            uint64_t upperBoundCloseTimeOffset) const
+bool TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
+                                 uint64_t upperBoundCloseTimeOffset) const
 {
     auto const tb = getTimeBounds();
     if (tb)
@@ -1124,10 +1083,9 @@ TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
     return false;
 }
 
-bool
-TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
-                                       LedgerEntryWrapper const& sourceAccount,
-                                       uint64_t lowerBoundCloseTimeOffset) const
+bool TransactionFrame::isTooEarlyForAccount(
+    LedgerHeaderWrapper const& header, LedgerEntryWrapper const& sourceAccount,
+    uint64_t lowerBoundCloseTimeOffset) const
 {
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_19))
@@ -1168,8 +1126,7 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
     return false;
 }
 
-std::optional<LedgerEntryWrapper>
-TransactionFrame::commonValidPreSeqNum(
+std::optional<LedgerEntryWrapper> TransactionFrame::commonValidPreSeqNum(
     AppConnector& app, SorobanNetworkConfig const* cfg,
     LedgerSnapshot const& ls, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
@@ -1400,8 +1357,7 @@ TransactionFrame::commonValidPreSeqNum(
     return sourceAccount;
 }
 
-void
-TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx) const
+void TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx) const
 {
     ZoneScoped;
     auto header = ltx.loadHeader();
@@ -1419,8 +1375,7 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx) const
     }
 }
 
-bool
-TransactionFrame::processSignatures(
+bool TransactionFrame::processSignatures(
     ValidationType cv, SignatureChecker& signatureChecker,
     AbstractLedgerTxn& ltxOuter, MutableTransactionResultBase& txResult) const
 {
@@ -1474,9 +1429,8 @@ TransactionFrame::processSignatures(
     return maybeValid;
 }
 
-bool
-TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
-                           int64_t seqNum) const
+bool TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
+                                int64_t seqNum) const
 {
     if (getSeqNum() == getStartingSequenceNumber(header.current()))
     {
@@ -1501,17 +1455,14 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
     return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
 }
 
-TransactionFrame::ValidationType
-TransactionFrame::commonValid(AppConnector& app,
-                              SorobanNetworkConfig const* cfg,
-                              SignatureChecker& signatureChecker,
-                              LedgerSnapshot const& ls, SequenceNumber current,
-                              bool applying, bool chargeFee,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              std::optional<FeePair> sorobanResourceFee,
-                              MutableTransactionResultBase& txResult,
-                              DiagnosticEventManager& diagnosticEvents) const
+TransactionFrame::ValidationType TransactionFrame::commonValid(
+    AppConnector& app, SorobanNetworkConfig const* cfg,
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SequenceNumber current, bool applying, bool chargeFee,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    std::optional<FeePair> sorobanResourceFee,
+    MutableTransactionResultBase& txResult,
+    DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
     ValidationType res = ValidationType::kInvalid;
@@ -1657,8 +1608,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     return MutableTransactionResult::createSuccess(*this, fee);
 }
 
-bool
-TransactionFrame::XDRProvidesValidFee() const
+bool TransactionFrame::XDRProvidesValidFee() const
 {
     if (isSoroban())
     {
@@ -1676,15 +1626,13 @@ TransactionFrame::XDRProvidesValidFee() const
     return true;
 }
 
-bool
-TransactionFrame::isRestoreFootprintTx() const
+bool TransactionFrame::isRestoreFootprintTx() const
 {
     return isSoroban() &&
            mOperations.front()->getOperation().body.type() == RESTORE_FOOTPRINT;
 }
 
-void
-TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
+void TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
     AbstractLedgerTxn& ltx) const
 {
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
@@ -1706,10 +1654,9 @@ TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
     }
 }
 
-void
-TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
-                                      AccountID const& accountID,
-                                      SignerKey const& signerKey) const
+void TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
+                                           AccountID const& accountID,
+                                           SignerKey const& signerKey) const
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
@@ -1731,8 +1678,7 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
     }
 }
 
-void
-TransactionFrame::checkValidWithOptionallyChargedFee(
+void TransactionFrame::checkValidWithOptionallyChargedFee(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, MutableTransactionResultBase& txResult,
@@ -1787,12 +1733,10 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     }
 }
 
-MutableTxResultPtr
-TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                             SequenceNumber current,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset,
-                             DiagnosticEventManager& diagnosticEvents) const
+MutableTxResultPtr TransactionFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents) const
 {
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
@@ -1828,15 +1772,13 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     return txResult;
 }
 
-void
-TransactionFrame::insertKeysForFeeProcessing(
+void TransactionFrame::insertKeysForFeeProcessing(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(accountKey(getSourceID()));
 }
 
-void
-TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
+void TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
     for (auto const& op : mOperations)
     {
@@ -1849,8 +1791,7 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 }
 
 #ifdef BUILD_TESTS
-bool
-TransactionFrame::apply(
+bool TransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -1863,8 +1804,7 @@ TransactionFrame::apply(
 #endif
 
 #ifdef BUILD_TESTS
-void
-maybeTriggerTestInternalError(TransactionEnvelope const& env)
+void maybeTriggerTestInternalError(TransactionEnvelope const& env)
 {
     auto memo =
         env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.memo : env.v1().tx.memo;
@@ -1876,8 +1816,7 @@ maybeTriggerTestInternalError(TransactionEnvelope const& env)
 }
 #endif
 
-std::unique_ptr<SignatureChecker>
-TransactionFrame::commonPreApply(
+std::unique_ptr<SignatureChecker> TransactionFrame::commonPreApply(
     bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const* sorobanConfig) const
@@ -1945,8 +1884,7 @@ TransactionFrame::commonPreApply(
     }
 }
 
-void
-TransactionFrame::preParallelApply(
+void TransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& resPayload,
     SorobanNetworkConfig const& sorobanConfig) const
@@ -1954,8 +1892,7 @@ TransactionFrame::preParallelApply(
     preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig);
 }
 
-void
-TransactionFrame::preParallelApply(
+void TransactionFrame::preParallelApply(
     bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig) const
@@ -2005,8 +1942,7 @@ TransactionFrame::preParallelApply(
     }
 }
 
-ParallelTxReturnVal
-TransactionFrame::parallelApply(
+ParallelTxReturnVal TransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
     MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
@@ -2113,8 +2049,7 @@ TransactionFrame::parallelApply(
     return {false, {}};
 }
 
-bool
-TransactionFrame::applyOperations(
+bool TransactionFrame::applyOperations(
     SignatureChecker& signatureChecker, AppConnector& app,
     AbstractLedgerTxn& ltx, TransactionMetaBuilder& outerMeta,
     MutableTransactionResultBase& txResult,
@@ -2310,8 +2245,7 @@ TransactionFrame::applyOperations(
     return false;
 }
 
-bool
-TransactionFrame::apply(
+bool TransactionFrame::apply(
     bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -2365,8 +2299,7 @@ TransactionFrame::apply(
     }
 }
 
-bool
-TransactionFrame::apply(
+bool TransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
@@ -2376,11 +2309,9 @@ TransactionFrame::apply(
                  sorobanBasePrngSeed);
 }
 
-void
-TransactionFrame::processPostApply(AppConnector& app,
-                                   AbstractLedgerTxn& ltxOuter,
-                                   TransactionMetaBuilder& meta,
-                                   MutableTransactionResultBase& txResult) const
+void TransactionFrame::processPostApply(
+    AppConnector& app, AbstractLedgerTxn& ltxOuter,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult) const
 {
     if (protocolVersionIsBefore(ltxOuter.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_23) &&
@@ -2394,22 +2325,21 @@ TransactionFrame::processPostApply(AppConnector& app,
     }
 }
 
-void
-TransactionFrame::processPostTxSetApply(AppConnector& app,
-                                        AbstractLedgerTxn& ltx,
-                                        MutableTransactionResultBase& txResult,
-                                        TxEventManager& txEventManager) const
+void TransactionFrame::processPostTxSetApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    MutableTransactionResultBase& txResult,
+    TxEventManager& txEventManager) const
 {
     processRefund(app, ltx, getSourceID(), txResult, txEventManager);
 }
 
 // This is a TransactionFrame specific function that should only be used by
 // FeeBumpTransactionFrame to forward a different account for the refund.
-void
-TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                                AccountID const& feeSource,
-                                MutableTransactionResultBase& txResult,
-                                TxEventManager& txEventManager) const
+void TransactionFrame::processRefund(AppConnector& app,
+                                     AbstractLedgerTxn& ltxOuter,
+                                     AccountID const& feeSource,
+                                     MutableTransactionResultBase& txResult,
+                                     TxEventManager& txEventManager) const
 {
     ZoneScoped;
     if (!isSoroban())
@@ -2431,8 +2361,7 @@ TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     txEventManager.newFeeEvent(feeSource, -refund, stage);
 }
 
-std::shared_ptr<StellarMessage const>
-TransactionFrame::toStellarMessage() const
+std::shared_ptr<StellarMessage const> TransactionFrame::toStellarMessage() const
 {
     auto msg = std::make_shared<StellarMessage>();
     msg->type(TRANSACTION);
@@ -2440,15 +2369,13 @@ TransactionFrame::toStellarMessage() const
     return msg;
 }
 
-uint32_t
-TransactionFrame::getSize() const
+uint32_t TransactionFrame::getSize() const
 {
     ZoneScoped;
     return static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
 }
 
-bool
-TransactionFrame::maybeAdoptFailedReplayResult(
+bool TransactionFrame::maybeAdoptFailedReplayResult(
     MutableTransactionResultBase& txResult) const
 {
 #ifdef BUILD_TESTS
@@ -2464,8 +2391,7 @@ TransactionFrame::maybeAdoptFailedReplayResult(
     return true;
 }
 
-void
-TransactionFrame::withInnerTx(
+void TransactionFrame::withInnerTx(
     std::function<void(TransactionFrameBaseConstPtr)> fn) const
 {
     // Nothing to do. TransactionFrame does not have an inner transaction.

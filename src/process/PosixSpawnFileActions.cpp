@@ -26,8 +26,7 @@ PosixSpawnFileActions::~PosixSpawnFileActions()
     }
 }
 
-void
-PosixSpawnFileActions::initialize()
+void PosixSpawnFileActions::initialize()
 {
     if (mInitialized)
     {
@@ -43,9 +42,8 @@ PosixSpawnFileActions::initialize()
     mInitialized = true;
 }
 
-void
-PosixSpawnFileActions::addOpen(int fildes, std::string const& fileName,
-                               int oflag, mode_t mode)
+void PosixSpawnFileActions::addOpen(int fildes, std::string const& fileName,
+                                    int oflag, mode_t mode)
 {
     assert(!fileName.empty());
     initialize();
@@ -59,8 +57,7 @@ PosixSpawnFileActions::addOpen(int fildes, std::string const& fileName,
     }
 }
 
-PosixSpawnFileActions::
-operator posix_spawn_file_actions_t*()
+PosixSpawnFileActions::operator posix_spawn_file_actions_t*()
 {
     return mInitialized ? &mFileActions : nullptr;
 }

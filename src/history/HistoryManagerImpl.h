@@ -85,8 +85,7 @@ class HistoryManagerImpl : public HistoryManager
     void setPublicationEnabled(bool enabled) override;
     // Throw after inseting ledger `n` into a checkpoint
     uint32_t mThrowOnAppend{0};
-    CheckpointBuilder&
-    getCheckpointBuilder()
+    CheckpointBuilder& getCheckpointBuilder()
     {
         return mCheckpointBuilder;
     }

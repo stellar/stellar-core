@@ -181,11 +181,10 @@ class BucketManager : NonMovableOrCopyable
         REQUIRES(mBucketMutex);
 
     template <class BucketT>
-    void
-    putMergeFutureInternal(MergeKey const& key,
-                           std::shared_future<std::shared_ptr<BucketT>> future,
-                           FutureMapT<BucketT>& futureMap)
-        REQUIRES(mBucketMutex);
+    void putMergeFutureInternal(
+        MergeKey const& key,
+        std::shared_future<std::shared_ptr<BucketT>> future,
+        FutureMapT<BucketT>& futureMap) REQUIRES(mBucketMutex);
 
     template <class BucketT>
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
@@ -373,8 +372,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Enable merge delays for testing bucket reattachment
     void enableDelayedMergesForTesting();
-    bool
-    shouldDelayMergesForTesting() const
+    bool shouldDelayMergesForTesting() const
     {
         return mDelayMergesForTesting;
     }
@@ -383,8 +381,7 @@ class BucketManager : NonMovableOrCopyable
     // Return the set of buckets referenced by the BucketList
     std::set<Hash> getBucketListReferencedBuckets() const;
 
-    std::set<Hash>
-    getAllReferencedBuckets(HistoryArchiveState const& has) const
+    std::set<Hash> getAllReferencedBuckets(HistoryArchiveState const& has) const
         LOCKS_EXCLUDED(mBucketMutex)
     {
         RecursiveMutexLocker lock(mBucketMutex);

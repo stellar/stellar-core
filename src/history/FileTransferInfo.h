@@ -71,64 +71,53 @@ class FileTransferInfo
     {
     }
 
-    FileType
-    getType() const
+    FileType getType() const
     {
         return mType;
     }
 
-    std::string
-    getTypeString() const
+    std::string getTypeString() const
     {
         return typeString(mType);
     }
 
-    std::string
-    localPath_nogz() const
+    std::string localPath_nogz() const
     {
         return mLocalPath;
     }
 
-    std::string
-    localPath_nogz_dirty() const
+    std::string localPath_nogz_dirty() const
     {
         return mLocalPath + ".dirty";
     }
 
-    std::string
-    localPath_gz() const
+    std::string localPath_gz() const
     {
         return mLocalPath + ".gz";
     }
-    std::string
-    localPath_gz_tmp() const
+    std::string localPath_gz_tmp() const
     {
         return mLocalPath + ".gz.tmp";
     }
 
-    std::string
-    baseName_nogz() const
+    std::string baseName_nogz() const
     {
         return fs::baseName(getTypeString(), mHexDigits, "xdr");
     }
-    std::string
-    baseName_gz() const
+    std::string baseName_gz() const
     {
         return baseName_nogz() + ".gz";
     }
-    std::string
-    baseName_gz_tmp() const
+    std::string baseName_gz_tmp() const
     {
         return baseName_nogz() + ".gz.tmp";
     }
 
-    std::string
-    remoteDir() const
+    std::string remoteDir() const
     {
         return fs::remoteDir(getTypeString(), mHexDigits);
     }
-    std::string
-    remoteName() const
+    std::string remoteName() const
     {
         return fs::remoteName(getTypeString(), mHexDigits, "xdr.gz");
     }

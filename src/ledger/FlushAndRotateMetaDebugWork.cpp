@@ -28,8 +28,7 @@ FlushAndRotateMetaDebugWork::FlushAndRotateMetaDebugWork(
 {
 }
 
-BasicWork::State
-FlushAndRotateMetaDebugWork::doWork()
+BasicWork::State FlushAndRotateMetaDebugWork::doWork()
 {
     // Step 1: transfer ownership of mMetaDebugFile to background thread
     // and flush/fsync it. When that completes, it will post an action

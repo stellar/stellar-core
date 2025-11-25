@@ -223,8 +223,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
     return tx;
 }
 
-static TransactionTestFramePtr
-makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
+static TransactionTestFramePtr makeSelfPayment(stellar::TestAccount& account,
+                                               int nbOps, uint32_t fee)
 {
     std::vector<stellar::Operation> ops;
     for (int i = 0; i < nbOps; i++)
@@ -238,8 +238,7 @@ makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
     return tx;
 }
 
-static void
-testTxSet(uint32 protocolVersion)
+static void testTxSet(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 15;
@@ -346,17 +345,17 @@ testTxSet(uint32 protocolVersion)
     }
 }
 
-static TransactionTestFramePtr
-transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
-            int64_t amount, uint32_t fee)
+static TransactionTestFramePtr transaction(Application& app,
+                                           TestAccount& account,
+                                           int64_t sequenceDelta,
+                                           int64_t amount, uint32_t fee)
 {
     return transactionFromOperations(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
         {payment(account.getPublicKey(), amount)}, fee);
 }
 
-static void
-testTxSetWithFeeBumps(uint32 protocolVersion)
+static void testTxSetWithFeeBumps(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
@@ -1890,8 +1889,8 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     }
 }
 
-static void
-testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
+static void testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize,
+                          size_t expectedOps)
 {
     using SVUpgrades = decltype(StellarValue::upgrades);
 
@@ -3679,15 +3678,13 @@ TEST_CASE("soroban txs accepted by the network",
     }
 }
 
-static void
-checkSynced(Application& app)
+static void checkSynced(Application& app)
 {
     REQUIRE(app.getLedgerManager().isSynced());
     REQUIRE(!app.getLedgerApplyManager().maybeGetNextBufferedLedgerToApply());
 }
 
-void
-checkInvariants(Application& app, HerderImpl& herder)
+void checkInvariants(Application& app, HerderImpl& herder)
 {
     auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
     // Either tracking or last tracking must be set
@@ -3695,9 +3692,8 @@ checkInvariants(Application& app, HerderImpl& herder)
     REQUIRE(herder.trackingConsensusLedgerIndex() >= lcl);
 }
 
-static void
-checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
-            uint32_t ledger)
+static void checkHerder(Application& app, HerderImpl& herder,
+                        Herder::State expectedState, uint32_t ledger)
 {
     checkInvariants(app, herder);
     REQUIRE(herder.getState() == expectedState);
@@ -4636,9 +4632,10 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
     REQUIRE(!found[0]);
 }
 
-static void
-externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
-            std::vector<TransactionFrameBasePtr> const& txs, Application& app)
+static void externalize(SecretKey const& sk, LedgerManager& lm,
+                        HerderImpl& herder,
+                        std::vector<TransactionFrameBasePtr> const& txs,
+                        Application& app)
 {
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto ledgerSeq = lcl.header.ledgerSeq + 1;
@@ -5815,8 +5812,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
 using Topology = std::pair<std::vector<SecretKey>, std::vector<ValidatorEntry>>;
 
 // Generate a Topology with a single org containing 3 validators of HIGH quality
-static Topology
-simpleThreeNode()
+static Topology simpleThreeNode()
 {
     // Generate validators
     std::vector<SecretKey> sks;
@@ -5838,8 +5834,7 @@ simpleThreeNode()
 
 // Generate a topology with 3 orgs of HIGH quality. Two orgs have 3 validators
 // and one org has 5 validators.
-static Topology
-unbalancedOrgs()
+static Topology unbalancedOrgs()
 {
     // Generate validators
     std::vector<SecretKey> sks;
@@ -5872,8 +5867,7 @@ unbalancedOrgs()
 
 // Generate a tier1-like topology. This topology has 7 HIGH quality orgs, 6 of
 // which have 3 validators and 1 has 5 validators.
-static Topology
-teir1Like()
+static Topology teir1Like()
 {
     std::vector<SecretKey> sks;
     std::vector<ValidatorEntry> validators;
@@ -5900,8 +5894,7 @@ teir1Like()
 }
 
 // Returns a random quality up to `maxQuality`
-static ValidatorQuality
-randomQuality(ValidatorQuality maxQuality)
+static ValidatorQuality randomQuality(ValidatorQuality maxQuality)
 {
     return static_cast<ValidatorQuality>(rand_uniform<int>(
         static_cast<int>(ValidatorQuality::VALIDATOR_LOW_QUALITY),
@@ -5924,8 +5917,7 @@ static int constexpr minOrgSize(ValidatorQuality q)
 
 // Generate a random topology with up to `maxValidators` validators. Ensures at
 // least one org is HIGH quality.
-static Topology
-randomTopology(int maxValidators)
+static Topology randomTopology(int maxValidators)
 {
     int const numValidators = rand_uniform<int>(3, maxValidators);
     int constexpr minCritOrgSize =
@@ -5970,8 +5962,7 @@ randomTopology(int maxValidators)
 // quality of `maxQuality` and or quality counts of `orgQualityCounts`. This
 // function normalizes the weight so that the highest quality has a weight of
 // `1`.
-static double
-expectedOrgNormalizedWeight(
+static double expectedOrgNormalizedWeight(
     std::unordered_map<ValidatorQuality, uint64> const& orgQualityCounts,
     ValidatorQuality maxQuality, ValidatorQuality orgQuality)
 {
@@ -5997,8 +5988,7 @@ expectedOrgNormalizedWeight(
 // `orgQuality`.  `maxQuality` is the maximum quality present in the
 // configuration. This function normalizes the weight so that the highest
 // organization-level quality has a weight of `1`.
-static double
-expectedNormalizedWeight(
+static double expectedNormalizedWeight(
     std::unordered_map<ValidatorQuality, uint64> const& orgQualityCounts,
     ValidatorQuality maxQuality, ValidatorQuality orgQuality, int orgSize)
 {
@@ -6046,8 +6036,7 @@ collectOrgInfo(ValidatorQuality& maxQuality,
 
 // Given a list of validators, test that the weights of the validators herder
 // reports are correct
-static void
-testWeights(std::vector<ValidatorEntry> const& validators)
+static void testWeights(std::vector<ValidatorEntry> const& validators)
 {
     Config cfg = getTestConfig(0);
 
@@ -6124,8 +6113,7 @@ TEST_CASE("getNodeWeight", "[herder]")
     }
 }
 
-static Value
-getRandomValue()
+static Value getRandomValue()
 {
     auto h = sha256(fmt::format("value {}", getGlobalRandomEngine()()));
     return xdr::xdr_to_opaque(h);
@@ -6139,8 +6127,7 @@ class TestNominationProtocol : public NominationProtocol
     {
     }
 
-    std::set<NodeID> const&
-    updateRoundLeadersForTesting(
+    std::set<NodeID> const& updateRoundLeadersForTesting(
         std::optional<Value> const& previousValue = std::nullopt)
     {
         mPreviousValue = previousValue.value_or(getRandomValue());
@@ -6149,8 +6136,7 @@ class TestNominationProtocol : public NominationProtocol
     }
 
     // Detect fast timeouts by examining the final round number
-    bool
-    fastTimedOut() const
+    bool fastTimedOut() const
     {
         return mRoundNumber > 0;
     }
@@ -6159,10 +6145,9 @@ class TestNominationProtocol : public NominationProtocol
 // Test nomination over `numLedgers` slots. After running, check that the win
 // percentages of each node and org are within 5% of the expected win
 // percentages.
-static void
-testWinProbabilities(std::vector<SecretKey> const& sks,
-                     std::vector<ValidatorEntry> const& validators,
-                     int const numLedgers)
+static void testWinProbabilities(std::vector<SecretKey> const& sks,
+                                 std::vector<ValidatorEntry> const& validators,
+                                 int const numLedgers)
 {
     REQUIRE(sks.size() == validators.size());
 
@@ -6305,8 +6290,7 @@ TEST_CASE("Fair nomination win rates", "[herder]")
 // Returns a new `Topology` with the last org in `t` replaced with a new org
 // with 3 validators. Requires that the last org in `t` have 3 validators and be
 // contiguous at the back of the validators vecto.
-static Topology
-replaceOneOrg(Topology const& t)
+static Topology replaceOneOrg(Topology const& t)
 {
     Topology t2(t); // Copy the topology
     auto& [sks, validators] = t2;
@@ -6345,8 +6329,7 @@ replaceOneOrg(Topology const& t)
 
 // Add `orgsToAdd` new orgs to the topology `t`. Each org will have 3
 // validators.
-static Topology
-addOrgs(int orgsToAdd, Topology const& t)
+static Topology addOrgs(int orgsToAdd, Topology const& t)
 {
     Topology t2(t); // Copy the topology
     auto& [sks, validators] = t2;
@@ -6374,9 +6357,8 @@ addOrgs(int orgsToAdd, Topology const& t)
 
 // Returns `true` if the set intersection of `leaders1` and `leaders2` is not
 // empty.
-bool
-leadersIntersect(std::set<NodeID> const& leaders1,
-                 std::set<NodeID> const& leaders2)
+bool leadersIntersect(std::set<NodeID> const& leaders1,
+                      std::set<NodeID> const& leaders2)
 {
     std::vector<NodeID> intersection;
     std::set_intersection(leaders1.begin(), leaders1.end(), leaders2.begin(),
@@ -6387,8 +6369,7 @@ leadersIntersect(std::set<NodeID> const& leaders1,
 // Given two quorum sets consisting of validators in `validators1` and
 // `validators2`, this function returns the probability that the two quorum sets
 // will agree on a leader in the first round of nomination.
-double
-computeExpectedFirstRoundAgreementProbability(
+double computeExpectedFirstRoundAgreementProbability(
     std::vector<ValidatorEntry> const& validators1,
     std::vector<ValidatorEntry> const& validators2)
 {
@@ -6426,9 +6407,8 @@ computeExpectedFirstRoundAgreementProbability(
 // test aims to analyze the worst case scenario where the two sides are fairly
 // balanced and real-world networking conditions are in place (some nodes
 // lagging, etc), such that disagreement always results in a timeout.
-void
-testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
-                       int const numLedgers)
+void testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
+                            int const numLedgers)
 {
     auto const& [sks1, validators1] = qs1;
     auto const& [sks2, validators2] = qs2;
@@ -6577,9 +6557,8 @@ TEST_CASE("Asymmetric quorum timeouts", "[herder]")
 // Test that the nomination algorithm behaves as expected when a random
 // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
 // `numLedgers` slots.
-void
-testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
-                         int const numLedgers)
+void testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
+                              int const numLedgers)
 {
     auto const& [sks, validators] = qs;
     REQUIRE(sks.size() == validators.size());

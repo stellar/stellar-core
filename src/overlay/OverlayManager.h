@@ -86,8 +86,7 @@ class OverlayManager
     // fills msgID with msg's hash
     virtual bool recvFloodedMsgID(Peer::pointer peer, Hash const& msgID) = 0;
 
-    bool
-    recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
+    bool recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
     {
         return recvFloodedMsgID(peer, xdrBlake2(msg));
     }

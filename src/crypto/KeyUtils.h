@@ -81,9 +81,7 @@ struct InvalidStrKey : public std::invalid_argument
     using std::invalid_argument::invalid_argument;
 };
 
-template <typename T>
-T
-fromStrKey(std::string const& s)
+template <typename T> T fromStrKey(std::string const& s)
 {
     T key;
     uint8_t verByte;
@@ -110,17 +108,13 @@ fromStrKey(std::string const& s)
     return key;
 }
 
-template <typename T, typename F>
-bool
-canConvert(F const& fromKey)
+template <typename T, typename F> bool canConvert(F const& fromKey)
 {
     return KeyFunctions<T>::getKeyVersionIsSupported(
         KeyFunctions<F>::toKeyVersion(fromKey.type()));
 }
 
-template <typename T, typename F>
-T
-convertKey(F const& fromKey)
+template <typename T, typename F> T convertKey(F const& fromKey)
 {
     T toKey;
     toKey.type(KeyFunctions<T>::toKeyType(

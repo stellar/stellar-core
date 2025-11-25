@@ -18,13 +18,12 @@ namespace
 {
 // Helper function to process a single bucket entry for InMemoryIndex
 // construction
-void
-processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
-             AssetPoolIDMap& assetPoolIDMap, BucketEntryCounters& counters,
-             std::streamoff& lastOffset,
-             std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
-             std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
-             std::optional<LedgerEntryType>& lastTypeSeen)
+void processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
+                  AssetPoolIDMap& assetPoolIDMap, BucketEntryCounters& counters,
+                  std::streamoff& lastOffset,
+                  std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
+                  std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
+                  std::optional<LedgerEntryType>& lastTypeSeen)
 {
     counters.template count<LiveBucket>(be);
 
@@ -51,8 +50,7 @@ processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
 }
 }
 
-void
-InMemoryBucketState::insert(BucketEntry const& be)
+void InMemoryBucketState::insert(BucketEntry const& be)
 {
     auto [_, inserted] = mEntries.insert(
         InternalInMemoryBucketEntry(std::make_shared<BucketEntry const>(be)));
@@ -162,8 +160,7 @@ InMemoryIndex::getRangeForType(LedgerEntryType type) const
 }
 
 #ifdef BUILD_TESTS
-bool
-InMemoryIndex::operator==(InMemoryIndex const& in) const
+bool InMemoryIndex::operator==(InMemoryIndex const& in) const
 {
     return mInMemoryState == in.mInMemoryState &&
            mAssetPoolIDMap == in.mAssetPoolIDMap &&

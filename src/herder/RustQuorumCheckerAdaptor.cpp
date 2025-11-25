@@ -20,8 +20,7 @@ namespace
 {
 // local helper functions to convert various types to and from json. their
 // conventions need to be consistent (e.g. nodes are represented as full strkey)
-Json::Value
-toQuorumMapJson(QuorumTracker::QuorumMap const& qmap)
+Json::Value toQuorumMapJson(QuorumTracker::QuorumMap const& qmap)
 {
     Json::Value ret;
     ret["nodes"] = Json::Value(Json::arrayValue);
@@ -45,8 +44,7 @@ toQuorumMapJson(QuorumTracker::QuorumMap const& qmap)
     return ret;
 }
 
-Json::Value
-toQuorumSplitJson(QuorumSplit const& split)
+Json::Value toQuorumSplitJson(QuorumSplit const& split)
 {
     Json::Value splitValue(Json::arrayValue);
     Json::Value left(Json::arrayValue);
@@ -65,9 +63,8 @@ toQuorumSplitJson(QuorumSplit const& split)
     return splitValue;
 }
 
-void
-fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
-                    Json::Value const& value)
+void fromQuorumSplitJson(QuorumIntersectionChecker::PotentialSplit& split,
+                         Json::Value const& value)
 {
     if (!value.isArray() || value.size() != 2 || !value[0].isArray() ||
         !value[1].isArray())
@@ -120,9 +117,8 @@ toCriticalGroupsJson(std::set<std::set<NodeID>> const& criticalGroups)
     return criticalValue;
 }
 
-void
-fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
-                       Json::Value const& value)
+void fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
+                            Json::Value const& value)
 {
     if (!value.isArray())
     {
@@ -151,8 +147,7 @@ fromCriticalGroupsJson(std::set<std::set<NodeID>>& criticalGroups,
     }
 }
 
-QuorumCheckerStatus
-fromQuorumCheckerStatusJson(Json::Value const& value)
+QuorumCheckerStatus fromQuorumCheckerStatusJson(Json::Value const& value)
 {
     if (!value.isUInt())
     {
@@ -169,12 +164,11 @@ fromQuorumCheckerStatusJson(Json::Value const& value)
     return static_cast<QuorumCheckerStatus>(statusInt);
 }
 
-void
-writeResults(std::string const& outPath, QuorumCheckerStatus status,
-             QuorumSplit const& split,
-             std::set<std::set<NodeID>> const& criticalGroups,
-             quorum_checker::QuorumCheckerMetrics metrics,
-             std::string const& errorMsg)
+void writeResults(std::string const& outPath, QuorumCheckerStatus status,
+                  QuorumSplit const& split,
+                  std::set<std::set<NodeID>> const& criticalGroups,
+                  quorum_checker::QuorumCheckerMetrics metrics,
+                  std::string const& errorMsg)
 {
     Json::Value results;
     results["status"] = static_cast<Json::UInt>(status);
@@ -199,8 +193,7 @@ writeResults(std::string const& outPath, QuorumCheckerStatus status,
     out.close();
 }
 
-Json::Value
-parseResultsJson(std::string const& resultsJson)
+Json::Value parseResultsJson(std::string const& resultsJson)
 {
     std::ifstream in(resultsJson);
     if (!in)
@@ -315,8 +308,7 @@ QuorumCheckerMetrics::QuorumCheckerMetrics(Json::Value const& value)
     mCumulativeMemByte = value["cumulative_mem_byte"].asUInt64();
 }
 
-Json::Value
-QuorumCheckerMetrics::toJson()
+Json::Value QuorumCheckerMetrics::toJson()
 {
     Json::Value ret;
     ret["successful_run_count"] = Json::UInt64(mSuccessfulRun);
@@ -329,8 +321,7 @@ QuorumCheckerMetrics::toJson()
     return ret;
 }
 
-void
-QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
+void QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
 {
     metrics.NewCounter({"scp", "qic", "successful-run"}).inc(mSuccessfulRun);
     metrics.NewCounter({"scp", "qic", "failed-run"}).inc(mFailedRun);
@@ -351,8 +342,7 @@ QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
     mCumulativeMemByte = 0;
 }
 
-QuorumCheckerStatus
-checkQuorumIntersectionInner(
+QuorumCheckerStatus checkQuorumIntersectionInner(
     QuorumIntersectionChecker::QuorumSetMap const& qmap, QuorumSplit& split,
     QuorumCheckerResource& limits, QuorumCheckerMetrics& metrics)
 {
@@ -468,8 +458,7 @@ networkEnjoysQuorumIntersection(std::string const& inJsonPath,
     return status;
 }
 
-void
-runQuorumIntersectionCheckAsync(
+void runQuorumIntersectionCheckAsync(
     Application& app, Hash const curr, uint32 ledger,
     std::string const& tmpDirName, QuorumTracker::QuorumMap const& qmap,
     std::weak_ptr<QuorumMapIntersectionState> hState, ProcessManager& pm,

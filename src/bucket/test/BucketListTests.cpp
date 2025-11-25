@@ -44,35 +44,29 @@ using namespace BucketTestUtils;
 namespace BucketListTests
 {
 
-uint32_t
-size(uint32_t level)
+uint32_t size(uint32_t level)
 {
     return 1 << (2 * (level + 1));
 }
-uint32_t
-half(uint32_t level)
+uint32_t half(uint32_t level)
 {
     return size(level) >> 1;
 }
-uint32_t
-prev(uint32_t level)
+uint32_t prev(uint32_t level)
 {
     return size(level - 1);
 }
-uint32_t
-lowBoundExclusive(uint32_t level, uint32_t ledger)
+uint32_t lowBoundExclusive(uint32_t level, uint32_t ledger)
 {
     return roundDown(ledger, size(level));
 }
-uint32_t
-highBoundInclusive(uint32_t level, uint32_t ledger)
+uint32_t highBoundInclusive(uint32_t level, uint32_t ledger)
 {
     return roundDown(ledger, prev(level));
 }
 
-void
-checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
-                         bool isCurr)
+void checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq,
+                              uint32_t level, bool isCurr)
 {
     std::shared_ptr<LiveBucket> bucket;
     uint32_t sizeOfBucket = 0;
@@ -111,9 +105,8 @@ checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
 
 // If pred is false for ledger < L and true for ledger >= L then
 // binarySearchForLedger will return L.
-uint32_t
-binarySearchForLedger(uint32_t lbound, uint32_t ubound,
-                      const std::function<uint32_t(uint32_t)>& pred)
+uint32_t binarySearchForLedger(uint32_t lbound, uint32_t ubound,
+                               const std::function<uint32_t(uint32_t)>& pred)
 {
     while (lbound + 1 != ubound)
     {
@@ -133,9 +126,7 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
 
 using namespace BucketListTests;
 
-template <class BucketListT>
-static void
-basicBucketListTest()
+template <class BucketListT> static void basicBucketListTest()
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -221,9 +212,7 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     }
 }
 
-template <class BucketListT>
-static void
-updatePeriodTest()
+template <class BucketListT> static void updatePeriodTest()
 {
     std::map<uint32_t, uint32_t> currCalculatedUpdatePeriods;
     std::map<uint32_t, uint32_t> snapCalculatedUpdatePeriods;
@@ -754,9 +743,7 @@ TEST_CASE_VERSIONS("single entry bubbling up",
     }
 }
 
-template <class BucketListT>
-static void
-sizeOfTests()
+template <class BucketListT> static void sizeOfTests()
 {
     stellar::uniform_int_distribution<uint32_t> dist;
     for (uint32_t i = 0; i < 1000; ++i)
@@ -801,9 +788,7 @@ TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
     }
 }
 
-template <class BucketListT>
-static void
-snapSteadyStateTest()
+template <class BucketListT> static void snapSteadyStateTest()
 {
     // Deliberately exclude deepest level since snap on the deepest level
     // is always empty.
@@ -847,9 +832,7 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
     }
 }
 
-template <class BucketListT>
-static void
-deepestCurrTest()
+template <class BucketListT> static void deepestCurrTest()
 {
     uint32_t const deepest = BucketListT::kNumLevels - 1;
     // Use binary search to find the first ledger where the deepest curr
@@ -893,9 +876,7 @@ TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
     }
 }
 
-template <class BucketListT>
-static void
-blSizesAtLedger1Test()
+template <class BucketListT> static void blSizesAtLedger1Test()
 {
     REQUIRE(BucketListT::sizeOfCurr(1, 0) == 1);
     REQUIRE(BucketListT::sizeOfSnap(1, 0) == 0);
@@ -1733,16 +1714,14 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
     }
 }
 
-static std::string
-formatX32(uint32_t v)
+static std::string formatX32(uint32_t v)
 {
     std::ostringstream oss;
     oss << "0x" << std::hex << std::setw(8) << std::setfill('0') << v;
     return oss.str();
 }
 
-static std::string
-formatU32(uint32_t v)
+static std::string formatU32(uint32_t v)
 {
     std::ostringstream oss;
     oss << std::dec << std::setw(8) << std::setfill(' ') << v << "="
@@ -1750,8 +1729,7 @@ formatU32(uint32_t v)
     return oss.str();
 }
 
-static std::string
-formatLedgerList(std::vector<uint32_t> const& ledgers)
+static std::string formatLedgerList(std::vector<uint32_t> const& ledgers)
 {
     std::ostringstream oss;
     bool first = true;

@@ -42,16 +42,14 @@ class ApplyLedgersFromMetaWork : public Work
     virtual ~ApplyLedgersFromMetaWork() = default;
 
   protected:
-    void
-    doReset() override
+    void doReset() override
     {
         mMetaIn.close();
         mFileOpen = false;
         mApplyLedgerWork.reset();
     }
 
-    State
-    doWork() override
+    State doWork() override
     {
         if (!mFileOpen)
         {
@@ -144,8 +142,7 @@ class ApplyLedgersFromMetaWork : public Work
         return BasicWork::State::WORK_RUNNING;
     }
 
-    void
-    onSuccess() override
+    void onSuccess() override
     {
         // Close the stream just in case Work is kept alive for some time before
         // it's garbage-collected
@@ -164,8 +161,7 @@ ReplayDebugMetaWork::ReplayDebugMetaWork(Application& app,
     mNextToApply = mFiles.cbegin();
 }
 
-BasicWork::State
-ReplayDebugMetaWork::applyLastLedger()
+BasicWork::State ReplayDebugMetaWork::applyLastLedger()
 {
     StoredDebugTransactionSet debugTxSet;
     {
@@ -196,8 +192,7 @@ ReplayDebugMetaWork::applyLastLedger()
     return BasicWork::State::WORK_SUCCESS;
 }
 
-BasicWork::State
-ReplayDebugMetaWork::doWork()
+BasicWork::State ReplayDebugMetaWork::doWork()
 {
     if (mCurrentWorkSequence)
     {
@@ -263,8 +258,7 @@ ReplayDebugMetaWork::doWork()
     return BasicWork::State::WORK_RUNNING;
 }
 
-void
-ReplayDebugMetaWork::doReset()
+void ReplayDebugMetaWork::doReset()
 {
     mNextToApply = mFiles.cbegin();
     mCurrentWorkSequence.reset();

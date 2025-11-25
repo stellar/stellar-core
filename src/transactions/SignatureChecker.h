@@ -81,13 +81,11 @@ class AlwaysValidSignatureChecker : public SignatureChecker
     {
     }
 
-    bool
-    checkSignature(std::vector<Signer> const&, int32_t) override
+    bool checkSignature(std::vector<Signer> const&, int32_t) override
     {
         return true;
     }
-    bool
-    checkAllSignaturesUsed() const override
+    bool checkAllSignaturesUsed() const override
     {
         return true;
     }

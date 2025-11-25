@@ -23,8 +23,7 @@ PeerDoor::PeerDoor(Application& app)
 {
 }
 
-void
-PeerDoor::start()
+void PeerDoor::start()
 {
     releaseAssert(threadIsMain());
 
@@ -41,8 +40,7 @@ PeerDoor::start()
     }
 }
 
-void
-PeerDoor::close()
+void PeerDoor::close()
 {
     if (mAcceptor.is_open())
     {
@@ -52,8 +50,7 @@ PeerDoor::close()
     }
 }
 
-void
-PeerDoor::acceptNextPeer()
+void PeerDoor::acceptNextPeer()
 {
     if (mApp.getOverlayManager().isShuttingDown())
     {
@@ -79,8 +76,7 @@ PeerDoor::acceptNextPeer()
                            });
 }
 
-void
-PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
+void PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
     releaseAssert(threadIsMain());
 

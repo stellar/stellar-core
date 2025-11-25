@@ -35,36 +35,30 @@ class LedgerCloseData
                     std::optional<TransactionResultSet> const& expectedResults);
 #endif // BUILD_TESTS
 
-    uint32_t
-    getLedgerSeq() const
+    uint32_t getLedgerSeq() const
     {
         return mLedgerSeq;
     }
-    TxSetXDRFrameConstPtr
-    getTxSet() const
+    TxSetXDRFrameConstPtr getTxSet() const
     {
         return mTxSet;
     }
-    StellarValue const&
-    getValue() const
+    StellarValue const& getValue() const
     {
         return mValue;
     }
-    std::optional<Hash> const&
-    getExpectedHash() const
+    std::optional<Hash> const& getExpectedHash() const
     {
         return mExpectedLedgerHash;
     }
 #ifdef BUILD_TESTS
-    std::optional<TransactionResultSet> const&
-    getExpectedResults() const
+    std::optional<TransactionResultSet> const& getExpectedResults() const
     {
         return mExpectedResults;
     }
 #endif // BUILD_TESTS
 
-    StoredDebugTransactionSet
-    toXDR() const
+    StoredDebugTransactionSet toXDR() const
     {
         StoredDebugTransactionSet sts;
         mTxSet->storeXDR(sts.txSet);

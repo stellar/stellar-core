@@ -9,8 +9,7 @@ namespace stellar
 {
 namespace
 {
-bool
-classicEventsEnabled(uint32_t protocolVersion, Config const& config)
+bool classicEventsEnabled(uint32_t protocolVersion, Config const& config)
 {
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
@@ -20,8 +19,8 @@ classicEventsEnabled(uint32_t protocolVersion, Config const& config)
 }
 } // namespace
 
-std::optional<Asset>
-getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
+std::optional<Asset> getAssetFromEvent(ContractEvent const& event,
+                                       Hash const& networkID)
 {
     if (!event.contractID)
     {
@@ -101,9 +100,8 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
     return asset;
 }
 
-SCVal
-getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
-                     bool allowMuxedIdOrMemo)
+SCVal getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
+                           bool allowMuxedIdOrMemo)
 {
     bool is_to_mux = to.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT;
 
@@ -135,10 +133,8 @@ getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
     }
 }
 
-DiagnosticEventManager
-DiagnosticEventManager::createForApply(bool metaEnabled,
-                                       TransactionFrameBase const& tx,
-                                       Config const& config)
+DiagnosticEventManager DiagnosticEventManager::createForApply(
+    bool metaEnabled, TransactionFrameBase const& tx, Config const& config)
 {
     bool enabled = metaEnabled && tx.isSoroban() &&
                    config.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
@@ -151,14 +147,12 @@ DiagnosticEventManager::createForValidation(Config const& config)
     return DiagnosticEventManager(config.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION);
 }
 
-DiagnosticEventManager
-DiagnosticEventManager::createDisabled()
+DiagnosticEventManager DiagnosticEventManager::createDisabled()
 {
     return DiagnosticEventManager(false);
 }
 
-void
-DiagnosticEventManager::pushEvent(DiagnosticEvent&& event)
+void DiagnosticEventManager::pushEvent(DiagnosticEvent&& event)
 {
     if (mEnabled)
     {
@@ -171,10 +165,9 @@ DiagnosticEventManager::DiagnosticEventManager(bool enabled) : mEnabled(enabled)
 {
 }
 
-void
-DiagnosticEventManager::pushError(SCErrorType ty, SCErrorCode code,
-                                  std::string&& message,
-                                  xdr::xvector<SCVal>&& args)
+void DiagnosticEventManager::pushError(SCErrorType ty, SCErrorCode code,
+                                       std::string&& message,
+                                       xdr::xvector<SCVal>&& args)
 {
     if (!mEnabled)
     {
@@ -209,22 +202,19 @@ DiagnosticEventManager::pushError(SCErrorType ty, SCErrorCode code,
     mBuffer.emplace_back(false, std::move(ce));
 }
 
-bool
-DiagnosticEventManager::isEnabled() const
+bool DiagnosticEventManager::isEnabled() const
 {
     return mEnabled;
 }
 
-xdr::xvector<DiagnosticEvent>
-DiagnosticEventManager::finalize()
+xdr::xvector<DiagnosticEvent> DiagnosticEventManager::finalize()
 {
     releaseAssert(!mFinalized);
     mFinalized = true;
     return std::move(mBuffer);
 }
 
-void
-DiagnosticEventManager::debugLogEvents() const
+void DiagnosticEventManager::debugLogEvents() const
 {
     for (auto const& event : mBuffer)
     {
@@ -245,8 +235,7 @@ OpEventManager::OpEventManager(bool metaEnabled, bool isSoroban,
         protocolVersionIsBefore(protocolVersion, ProtocolVersion::V_23);
 }
 
-void
-OpEventManager::eventsForClaimAtoms(
+void OpEventManager::eventsForClaimAtoms(
     MuxedAccount const& source,
     xdr::xvector<stellar::ClaimAtom> const& claimAtoms)
 {
@@ -315,12 +304,11 @@ OpEventManager::eventsForClaimAtoms(
     }
 }
 
-void
-OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
-                                                SCAddress const& from,
-                                                SCAddress const& to,
-                                                int64 amount,
-                                                bool allowMuxedIdOrMemo)
+void OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
+                                                     SCAddress const& from,
+                                                     SCAddress const& to,
+                                                     int64 amount,
+                                                     bool allowMuxedIdOrMemo)
 {
     if (!mEnabled)
     {
@@ -348,10 +336,9 @@ OpEventManager::eventForTransferWithIssuerCheck(Asset const& asset,
     }
 }
 
-void
-OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
-                                 SCAddress const& to, int64 amount,
-                                 bool allowMuxedIdOrMemo)
+void OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
+                                      SCAddress const& to, int64 amount,
+                                      bool allowMuxedIdOrMemo)
 {
     if (!mEnabled)
     {
@@ -373,9 +360,9 @@ OpEventManager::newTransferEvent(Asset const& asset, SCAddress const& from,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-ContractEvent
-OpEventManager::makeMintEvent(Asset const& asset, SCAddress const& to,
-                              int64 amount, bool allowMuxedIdOrMemo)
+ContractEvent OpEventManager::makeMintEvent(Asset const& asset,
+                                            SCAddress const& to, int64 amount,
+                                            bool allowMuxedIdOrMemo)
 {
     releaseAssert(!mFinalized);
     ContractEvent ev;
@@ -393,9 +380,8 @@ OpEventManager::makeMintEvent(Asset const& asset, SCAddress const& to,
     return ev;
 }
 
-ContractEvent
-OpEventManager::makeBurnEvent(Asset const& asset, SCAddress const& from,
-                              int64 amount)
+ContractEvent OpEventManager::makeBurnEvent(Asset const& asset,
+                                            SCAddress const& from, int64 amount)
 {
     releaseAssert(!mFinalized);
     ContractEvent ev;
@@ -412,10 +398,9 @@ OpEventManager::makeBurnEvent(Asset const& asset, SCAddress const& from,
     return ev;
 }
 
-void
-OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
-                             int64 amount, bool allowMuxedIdOrMemo,
-                             bool insertAtBeginning)
+void OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
+                                  int64 amount, bool allowMuxedIdOrMemo,
+                                  bool insertAtBeginning)
 {
     if (!mEnabled)
     {
@@ -438,9 +423,8 @@ OpEventManager::newMintEvent(Asset const& asset, SCAddress const& to,
     }
 }
 
-void
-OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
-                             int64 amount)
+void OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
+                                  int64 amount)
 {
     if (!mEnabled)
     {
@@ -452,9 +436,8 @@ OpEventManager::newBurnEvent(Asset const& asset, SCAddress const& from,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-void
-OpEventManager::newClawbackEvent(Asset const& asset, SCAddress const& from,
-                                 int64 amount)
+void OpEventManager::newClawbackEvent(Asset const& asset, SCAddress const& from,
+                                      int64 amount)
 {
     if (!mEnabled)
     {
@@ -475,9 +458,8 @@ OpEventManager::newClawbackEvent(Asset const& asset, SCAddress const& from,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-void
-OpEventManager::newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
-                                      bool authorize)
+void OpEventManager::newSetAuthorizedEvent(Asset const& asset,
+                                           AccountID const& id, bool authorize)
 {
     if (!mEnabled)
     {
@@ -500,8 +482,7 @@ OpEventManager::newSetAuthorizedEvent(Asset const& asset, AccountID const& id,
     mContractEvents.emplace_back(std::move(ev));
 }
 
-void
-OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
+void OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
 {
     if (!mEnabled)
     {
@@ -573,20 +554,17 @@ OpEventManager::setEvents(xdr::xvector<ContractEvent>&& events)
     }
 }
 
-xdr::xvector<ContractEvent> const&
-OpEventManager::getEvents()
+xdr::xvector<ContractEvent> const& OpEventManager::getEvents()
 {
     return mContractEvents;
 }
 
-bool
-OpEventManager::isEnabled() const
+bool OpEventManager::isEnabled() const
 {
     return mEnabled;
 }
 
-xdr::xvector<ContractEvent>
-OpEventManager::finalize()
+xdr::xvector<ContractEvent> OpEventManager::finalize()
 {
     releaseAssert(!mFinalized);
     mFinalized = true;
@@ -600,9 +578,8 @@ TxEventManager::TxEventManager(bool metaEnabled, uint32_t protocolVersion,
     mEnabled = metaEnabled && classicEventsEnabled(protocolVersion, config);
 }
 
-void
-TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount,
-                            TransactionEventStage stage)
+void TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount,
+                                 TransactionEventStage stage)
 {
     // We don't emit 0 fee events. This is relevant for Soroban transactions
     // that end up with no refunds.
@@ -623,14 +600,12 @@ TxEventManager::newFeeEvent(AccountID const& feeSource, int64_t amount,
     mTxEvents.emplace_back(stage, std::move(ev));
 }
 
-bool
-TxEventManager::isEnabled() const
+bool TxEventManager::isEnabled() const
 {
     return mEnabled;
 }
 
-xdr::xvector<TransactionEvent>
-TxEventManager::finalize()
+xdr::xvector<TransactionEvent> TxEventManager::finalize()
 {
     releaseAssert(!mFinalized);
     mFinalized = true;

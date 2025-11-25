@@ -46,8 +46,7 @@ template <class BucketT> class BucketListDepthModifier
     ~BucketListDepthModifier();
 };
 
-inline BucketMetadata
-testBucketMetadata(uint32_t protocolVersion)
+inline BucketMetadata testBucketMetadata(uint32_t protocolVersion)
 {
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
@@ -86,9 +85,9 @@ class TestApplication : public ApplicationImpl
 template <typename T = TestApplication, typename... Args,
           typename = typename std::enable_if<
               std::is_base_of<TestApplication, T>::value>::type>
-std::shared_ptr<T>
-createTestApplication(VirtualClock& clock, Config const& cfg, Args&&... args,
-                      bool newDB = true, bool startApp = true)
+std::shared_ptr<T> createTestApplication(VirtualClock& clock, Config const& cfg,
+                                         Args&&... args, bool newDB = true,
+                                         bool startApp = true)
 {
     Config c2(cfg);
     c2.adjust();
@@ -122,15 +121,13 @@ void overrideSorobanNetworkConfigForTest(Application& app);
 // applyUpgrade == true, close ledgers until the upgrade has been applied.
 // Otherwise just arm the nodes without closing the ledger containing the
 // upgrade.
-void
-upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation,
-                            bool applyUpgrade = true);
+void upgradeSorobanNetworkConfig(
+    std::function<void(SorobanNetworkConfig&)> modifyFn,
+    std::shared_ptr<Simulation> simulation, bool applyUpgrade = true);
 std::pair<SorobanNetworkConfig, UpgradeType> prepareSorobanNetworkConfigUpgrade(
     Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn);
-void
-modifySorobanNetworkConfig(Application& app,
-                           std::function<void(SorobanNetworkConfig&)> modifyFn);
+void modifySorobanNetworkConfig(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn);
 
 bool appProtocolVersionStartsFrom(Application& app,
                                   ProtocolVersion fromVersion);

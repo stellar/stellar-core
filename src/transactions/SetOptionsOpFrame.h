@@ -13,8 +13,7 @@ class AbstractLedgerTxn;
 class SetOptionsOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
-    SetOptionsResult&
-    innerResult(OperationResult& res) const
+    SetOptionsResult& innerResult(OperationResult& res) const
     {
         return res.tr().setOptionsResult();
     }
@@ -33,8 +32,7 @@ class SetOptionsOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    static SetOptionsResultCode
-    getInnerCode(OperationResult const& res)
+    static SetOptionsResultCode getInnerCode(OperationResult const& res)
     {
         return res.tr().setOptionsResult().code();
     }

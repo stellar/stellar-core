@@ -16,15 +16,13 @@ BatchWork::BatchWork(Application& app, std::string name)
 {
 }
 
-void
-BatchWork::doReset()
+void BatchWork::doReset()
 {
     mBatch.clear();
     resetIter();
 }
 
-BasicWork::State
-BatchWork::doWork()
+BasicWork::State BatchWork::doWork()
 {
     ZoneScoped;
     if (anyChildRaiseFailure())
@@ -61,8 +59,7 @@ BatchWork::doWork()
     return State::WORK_RUNNING;
 }
 
-void
-BatchWork::addMoreWorkIfNeeded()
+void BatchWork::addMoreWorkIfNeeded()
 {
     ZoneScoped;
     if (isAborting())

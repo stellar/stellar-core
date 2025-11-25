@@ -14,21 +14,18 @@
 namespace stellar
 {
 
-bool
-isLive(LedgerEntry const& e, uint32_t cutoffLedger)
+bool isLive(LedgerEntry const& e, uint32_t cutoffLedger)
 {
     releaseAssert(e.data.type() == TTL);
     return e.data.ttl().liveUntilLedgerSeq >= cutoffLedger;
 }
 
-LedgerKey
-getTTLKey(LedgerEntry const& e)
+LedgerKey getTTLKey(LedgerEntry const& e)
 {
     return getTTLKey(LedgerEntryKey(e));
 }
 
-LedgerKey
-getTTLKey(LedgerKey const& e)
+LedgerKey getTTLKey(LedgerKey const& e)
 {
     releaseAssert(e.type() == CONTRACT_CODE || e.type() == CONTRACT_DATA);
     LedgerKey k;
@@ -37,8 +34,7 @@ getTTLKey(LedgerKey const& e)
     return k;
 }
 
-LedgerEntry
-getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl)
+LedgerEntry getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl)
 {
     releaseAssert(ttlKey.type() == TTL);
     LedgerEntry ttlEntry;
@@ -48,10 +44,9 @@ getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl)
     return ttlEntry;
 }
 
-uint32_t
-ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
-                       uint32_t ledgerVersion,
-                       SorobanNetworkConfig const& sorobanConfig)
+uint32_t ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
+                                uint32_t ledgerVersion,
+                                SorobanNetworkConfig const& sorobanConfig)
 {
     bool isCodeEntry = isContractCodeEntry(entry.data);
     uint32_t entrySizeForRent = entryXdrSize;

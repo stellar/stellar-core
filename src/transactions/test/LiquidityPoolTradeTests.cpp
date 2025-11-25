@@ -21,8 +21,8 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
-testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
+void testLiquidityPoolTrading(Application& app, Asset const& cur1,
+                              Asset const& cur2)
 {
     auto share12 = makeChangeTrustAssetPoolShare(
         std::min(cur1, cur2), std::max(cur1, cur2), LIQUIDITY_POOL_FEE_V18);
@@ -1213,8 +1213,8 @@ TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
     });
 }
 
-static void
-testGetPoolID(Asset const& x, Asset const& y, std::string const& hex)
+static void testGetPoolID(Asset const& x, Asset const& y,
+                          std::string const& hex)
 {
     int64_t const feeBps = LIQUIDITY_POOL_FEE_V18;
 
@@ -1230,8 +1230,7 @@ testGetPoolID(Asset const& x, Asset const& y, std::string const& hex)
     }
 }
 
-static Asset
-makeAsset(std::string const& code, AccountID const& issuer)
+static Asset makeAsset(std::string const& code, AccountID const& issuer)
 {
     REQUIRE(!code.empty());
     REQUIRE(code.size() <= 12);

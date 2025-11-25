@@ -82,8 +82,7 @@ static int const MIN_POSTGRESQL_VERSION =
     (100 * MIN_POSTGRESQL_MINOR_VERSION);
 
 #ifdef USE_POSTGRES
-static std::string
-badPgVersion(int vers)
+static std::string badPgVersion(int vers)
 {
     std::ostringstream msg;
     int maj = (vers / 10000);
@@ -95,8 +94,7 @@ badPgVersion(int vers)
 }
 #endif
 
-static std::string
-badSqliteVersion(int vers)
+static std::string badSqliteVersion(int vers)
 {
     std::ostringstream msg;
     int maj = (vers / 1000000);
@@ -107,8 +105,7 @@ badSqliteVersion(int vers)
     return msg.str();
 }
 
-void
-Database::registerDrivers()
+void Database::registerDrivers()
 {
     if (!gDriversRegistered)
     {
@@ -130,8 +127,7 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
     DatabaseConfigureSessionOp(soci::session& sess) : mSession(sess)
     {
     }
-    void
-    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    void doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
         int vers = sqlite_api::sqlite3_libversion_number();
         if (vers < MIN_SQLITE_VERSION)
@@ -161,8 +157,8 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
         sqlite3_carray_init(sq->conn_, nullptr, nullptr);
     }
 #ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    void doPostgresSpecificOperation(
+        soci::postgresql_session_backend* pg) override
     {
         int vers = PQserverVersion(pg->conn_);
         if (vers < MIN_POSTGRESQL_VERSION)
@@ -192,16 +188,14 @@ Database::Database(Application& app)
     open();
 }
 
-void
-Database::open()
+void Database::open()
 {
     mSession.session().open(mApp.getConfig().DATABASE.value);
     DatabaseConfigureSessionOp op(mSession.session());
     doDatabaseTypeSpecificOperation(mSession, op);
 }
 
-void
-Database::applySchemaUpgrade(unsigned long vers)
+void Database::applySchemaUpgrade(unsigned long vers)
 {
     clearPreparedStatementCache(mSession, true);
 
@@ -230,8 +224,7 @@ Database::applySchemaUpgrade(unsigned long vers)
     tx.commit();
 }
 
-void
-Database::upgradeToCurrentSchema()
+void Database::upgradeToCurrentSchema()
 {
     auto vers = getDBSchemaVersion();
     if (vers < MIN_SCHEMA_VERSION)
@@ -261,16 +254,14 @@ Database::upgradeToCurrentSchema()
     releaseAssert(vers == SCHEMA_VERSION);
 }
 
-void
-Database::putSchemaVersion(unsigned long vers)
+void Database::putSchemaVersion(unsigned long vers)
 {
     mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
                                        std::to_string(vers),
                                        mApp.getDatabase().getSession());
 }
 
-unsigned long
-Database::getDBSchemaVersion()
+unsigned long Database::getDBSchemaVersion()
 {
     releaseAssert(threadIsMain());
     unsigned long vers = 0;
@@ -291,8 +282,7 @@ Database::getDBSchemaVersion()
     return vers;
 }
 
-medida::TimerContext
-Database::getInsertTimer(std::string const& entityName)
+medida::TimerContext Database::getInsertTimer(std::string const& entityName)
 {
     mQueryMeter.Mark();
     return mApp.getMetrics()
@@ -300,8 +290,7 @@ Database::getInsertTimer(std::string const& entityName)
         .TimeScope();
 }
 
-medida::TimerContext
-Database::getSelectTimer(std::string const& entityName)
+medida::TimerContext Database::getSelectTimer(std::string const& entityName)
 {
     mQueryMeter.Mark();
     return mApp.getMetrics()
@@ -309,8 +298,7 @@ Database::getSelectTimer(std::string const& entityName)
         .TimeScope();
 }
 
-medida::TimerContext
-Database::getDeleteTimer(std::string const& entityName)
+medida::TimerContext Database::getDeleteTimer(std::string const& entityName)
 {
     mQueryMeter.Mark();
     return mApp.getMetrics()
@@ -318,8 +306,7 @@ Database::getDeleteTimer(std::string const& entityName)
         .TimeScope();
 }
 
-medida::TimerContext
-Database::getUpdateTimer(std::string const& entityName)
+medida::TimerContext Database::getUpdateTimer(std::string const& entityName)
 {
     mQueryMeter.Mark();
     return mApp.getMetrics()
@@ -327,8 +314,7 @@ Database::getUpdateTimer(std::string const& entityName)
         .TimeScope();
 }
 
-medida::TimerContext
-Database::getUpsertTimer(std::string const& entityName)
+medida::TimerContext Database::getUpsertTimer(std::string const& entityName)
 {
     mQueryMeter.Mark();
     return mApp.getMetrics()
@@ -336,8 +322,7 @@ Database::getUpsertTimer(std::string const& entityName)
         .TimeScope();
 }
 
-void
-Database::setCurrentTransactionReadOnly()
+void Database::setCurrentTransactionReadOnly()
 {
     if (!isSqlite())
     {
@@ -349,15 +334,13 @@ Database::setCurrentTransactionReadOnly()
     }
 }
 
-bool
-Database::isSqlite() const
+bool Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3://") !=
            std::string::npos;
 }
 
-std::string
-Database::getSimpleCollationClause() const
+std::string Database::getSimpleCollationClause() const
 {
     if (isSqlite())
     {
@@ -369,15 +352,13 @@ Database::getSimpleCollationClause() const
     }
 }
 
-bool
-Database::canUsePool() const
+bool Database::canUsePool() const
 {
     return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
 }
 
-void
-Database::clearPreparedStatementCache(SessionWrapper& session,
-                                      bool assertOnlySession)
+void Database::clearPreparedStatementCache(SessionWrapper& session,
+                                           bool assertOnlySession)
 {
     std::lock_guard<std::mutex> lock(mStatementsMutex);
 
@@ -400,8 +381,7 @@ Database::clearPreparedStatementCache(SessionWrapper& session,
     mCaches.erase(session.getSessionName());
 }
 
-void
-Database::initialize()
+void Database::initialize()
 {
     clearPreparedStatementCache(mSession, true);
     if (isSqlite())
@@ -456,22 +436,19 @@ Database::initialize()
     LOG_INFO(DEFAULT_LOG, "* ");
 }
 
-SessionWrapper&
-Database::getSession()
+SessionWrapper& Database::getSession()
 {
     // global session can only be used from the main thread
     releaseAssert(threadIsMain());
     return mSession;
 }
 
-soci::session&
-Database::getRawSession()
+soci::session& Database::getRawSession()
 {
     return getSession().session();
 }
 
-soci::connection_pool&
-Database::getPool()
+soci::connection_pool& Database::getPool()
 {
     if (!mPool)
     {
@@ -499,9 +476,8 @@ Database::getPool()
     return *mPool;
 }
 
-StatementContext
-Database::getPreparedStatement(std::string const& query,
-                               SessionWrapper& session)
+StatementContext Database::getPreparedStatement(std::string const& query,
+                                                SessionWrapper& session)
 {
     std::lock_guard<std::mutex> lock(mStatementsMutex);
 

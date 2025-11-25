@@ -8,11 +8,10 @@
 namespace stellar
 {
 
-void
-HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
-                               uint32_t currLedgerProtocol,
-                               std::vector<LedgerEntry> const& archiveEntries,
-                               std::vector<LedgerKey> const& restoredEntries)
+void HotArchiveBucketList::addBatch(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    std::vector<LedgerEntry> const& archiveEntries,
+    std::vector<LedgerKey> const& restoredEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(protocolVersionStartsFrom(

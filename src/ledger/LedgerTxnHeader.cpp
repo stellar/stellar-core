@@ -65,8 +65,7 @@ LedgerTxnHeader::LedgerTxnHeader(LedgerTxnHeader&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-LedgerTxnHeader&
-LedgerTxnHeader::operator=(LedgerTxnHeader&& other)
+LedgerTxnHeader& LedgerTxnHeader::operator=(LedgerTxnHeader&& other)
 {
     if (this != &other)
     {
@@ -77,50 +76,42 @@ LedgerTxnHeader::operator=(LedgerTxnHeader&& other)
     return *this;
 }
 
-LedgerTxnHeader::
-operator bool() const
+LedgerTxnHeader::operator bool() const
 {
     return !mImpl.expired();
 }
 
-LedgerHeader&
-LedgerTxnHeader::current()
+LedgerHeader& LedgerTxnHeader::current()
 {
     return getImpl()->current();
 }
 
-LedgerHeader const&
-LedgerTxnHeader::current() const
+LedgerHeader const& LedgerTxnHeader::current() const
 {
     return getImpl()->current();
 }
 
-LedgerHeader&
-LedgerTxnHeader::Impl::current()
+LedgerHeader& LedgerTxnHeader::Impl::current()
 {
     return mCurrent;
 }
 
-LedgerHeader const&
-LedgerTxnHeader::Impl::current() const
+LedgerHeader const& LedgerTxnHeader::Impl::current() const
 {
     return mCurrent;
 }
 
-void
-LedgerTxnHeader::deactivate()
+void LedgerTxnHeader::deactivate()
 {
     getImpl()->deactivate();
 }
 
-void
-LedgerTxnHeader::Impl::deactivate()
+void LedgerTxnHeader::Impl::deactivate()
 {
     mLedgerTxn.deactivateHeader();
 }
 
-std::shared_ptr<LedgerTxnHeader::Impl>
-LedgerTxnHeader::getImpl()
+std::shared_ptr<LedgerTxnHeader::Impl> LedgerTxnHeader::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
@@ -130,8 +121,7 @@ LedgerTxnHeader::getImpl()
     return impl;
 }
 
-std::shared_ptr<LedgerTxnHeader::Impl const>
-LedgerTxnHeader::getImpl() const
+std::shared_ptr<LedgerTxnHeader::Impl const> LedgerTxnHeader::getImpl() const
 {
     auto impl = mImpl.lock();
     if (!impl)
@@ -141,8 +131,7 @@ LedgerTxnHeader::getImpl() const
     return impl;
 }
 
-void
-LedgerTxnHeader::swap(LedgerTxnHeader& other)
+void LedgerTxnHeader::swap(LedgerTxnHeader& other)
 {
     mImpl.swap(other.mImpl);
 }

@@ -53,8 +53,7 @@ struct BucketListGenerator
     }
 
     template <typename T = ApplyBucketsWork, typename... Args>
-    void
-    applyBuckets(Application::pointer app, Args&&... args)
+    void applyBuckets(Application::pointer app, Args&&... args)
     {
         std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
         auto has = getHistoryArchiveState(app);
@@ -66,8 +65,7 @@ struct BucketListGenerator
     }
 
     template <typename T = ApplyBucketsWork, typename... Args>
-    void
-    applyBuckets(Args&&... args)
+    void applyBuckets(Args&&... args)
     {
         VirtualClock clock;
         Application::pointer app =
@@ -75,8 +73,7 @@ struct BucketListGenerator
         applyBuckets<T, Args...>(app, std::forward<Args>(args)...);
     }
 
-    void
-    generateLedger()
+    void generateLedger()
     {
         auto& app = mAppGenerate;
         LedgerTxn ltx(app->getLedgerTxnRoot(), false);
@@ -118,8 +115,7 @@ struct BucketListGenerator
         ltx.commit();
     }
 
-    void
-    generateLedgers(uint32_t n)
+    void generateLedgers(uint32_t n)
     {
         uint32_t stopLedger = mLedgerSeq + n - 1;
         while (mLedgerSeq <= stopLedger)
@@ -128,8 +124,7 @@ struct BucketListGenerator
         }
     }
 
-    virtual std::vector<LedgerEntry>
-    generateLiveEntries(AbstractLedgerTxn& ltx)
+    virtual std::vector<LedgerEntry> generateLiveEntries(AbstractLedgerTxn& ltx)
     {
         auto entries =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes({OFFER},
@@ -141,8 +136,7 @@ struct BucketListGenerator
         return entries;
     }
 
-    virtual std::vector<LedgerKey>
-    generateDeadEntries(AbstractLedgerTxn& ltx)
+    virtual std::vector<LedgerKey> generateDeadEntries(AbstractLedgerTxn& ltx)
     {
         UnorderedSet<LedgerKey> liveDeletable = mLiveKeys;
         std::vector<LedgerKey> dead;
@@ -165,8 +159,7 @@ struct BucketListGenerator
         return dead;
     }
 
-    HistoryArchiveState
-    getHistoryArchiveState(Application::pointer app)
+    HistoryArchiveState getHistoryArchiveState(Application::pointer app)
     {
         auto& blGenerate = mAppGenerate->getBucketManager().getLiveBucketList();
         auto& bmApply = app->getBucketManager();
@@ -208,9 +201,8 @@ struct BucketListGenerator
     }
 };
 
-bool
-doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
-                  const BucketEntry& be)
+bool doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
+                       const BucketEntry& be)
 {
     for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
@@ -222,8 +214,7 @@ doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
     return false;
 }
 
-bool
-doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
+bool doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
@@ -249,8 +240,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
     {
     }
 
-    virtual std::vector<LedgerEntry>
-    generateLiveEntries(AbstractLedgerTxn& ltx)
+    virtual std::vector<LedgerEntry> generateLiveEntries(AbstractLedgerTxn& ltx)
     {
         if (mLedgerSeq == mSelectLedger)
         {
@@ -285,8 +275,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
         return live;
     }
 
-    virtual std::vector<LedgerKey>
-    generateDeadEntries(AbstractLedgerTxn& ltx)
+    virtual std::vector<LedgerKey> generateDeadEntries(AbstractLedgerTxn& ltx)
     {
         auto dead = BucketListGenerator::generateDeadEntries(ltx);
         if (mSelected)
@@ -321,8 +310,7 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         REQUIRE(entry.lastModifiedLedgerSeq >= 2);
     }
 
-    BasicWork::State
-    doWork() override
+    BasicWork::State doWork() override
     {
         if (!mAdded)
         {
@@ -370,8 +358,7 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     {
     }
 
-    BasicWork::State
-    doWork() override
+    BasicWork::State doWork() override
     {
         if (!mDeleted)
         {
@@ -400,8 +387,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     LedgerEntry const mEntry;
     bool mModified;
 
-    void
-    modifyOfferEntry(LedgerEntry& entry)
+    void modifyOfferEntry(LedgerEntry& entry)
     {
         OfferEntry const& offer = mEntry.data.offer();
         entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
@@ -423,8 +409,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
     }
 
-    BasicWork::State
-    doWork() override
+    BasicWork::State doWork() override
     {
         if (!mModified)
         {

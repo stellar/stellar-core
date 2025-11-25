@@ -111,64 +111,54 @@ TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry)
     }
 }
 
-TrustLineWrapper::
-operator bool() const
+TrustLineWrapper::operator bool() const
 {
     return (bool)mImpl && (bool)(*mImpl);
 }
 
-int64_t
-TrustLineWrapper::getBalance() const
+int64_t TrustLineWrapper::getBalance() const
 {
     return getImpl()->getBalance();
 }
 
-bool
-TrustLineWrapper::addBalance(LedgerTxnHeader const& header, int64_t delta)
+bool TrustLineWrapper::addBalance(LedgerTxnHeader const& header, int64_t delta)
 {
     return getImpl()->addBalance(header, delta);
 }
 
-int64_t
-TrustLineWrapper::getBuyingLiabilities(LedgerTxnHeader const& header)
+int64_t TrustLineWrapper::getBuyingLiabilities(LedgerTxnHeader const& header)
 {
     return getImpl()->getBuyingLiabilities(header);
 }
 
-int64_t
-TrustLineWrapper::getSellingLiabilities(LedgerTxnHeader const& header)
+int64_t TrustLineWrapper::getSellingLiabilities(LedgerTxnHeader const& header)
 {
     return getImpl()->getSellingLiabilities(header);
 }
 
-int64_t
-TrustLineWrapper::addBuyingLiabilities(LedgerTxnHeader const& header,
-                                       int64_t delta)
+int64_t TrustLineWrapper::addBuyingLiabilities(LedgerTxnHeader const& header,
+                                               int64_t delta)
 {
     return getImpl()->addBuyingLiabilities(header, delta);
 }
 
-int64_t
-TrustLineWrapper::addSellingLiabilities(LedgerTxnHeader const& header,
-                                        int64_t delta)
+int64_t TrustLineWrapper::addSellingLiabilities(LedgerTxnHeader const& header,
+                                                int64_t delta)
 {
     return getImpl()->addSellingLiabilities(header, delta);
 }
 
-bool
-TrustLineWrapper::isAuthorized() const
+bool TrustLineWrapper::isAuthorized() const
 {
     return getImpl()->isAuthorized();
 }
 
-bool
-TrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+bool TrustLineWrapper::isAuthorizedToMaintainLiabilities() const
 {
     return getImpl()->isAuthorizedToMaintainLiabilities();
 }
 
-bool
-TrustLineWrapper::isClawbackEnabled() const
+bool TrustLineWrapper::isClawbackEnabled() const
 {
     return getImpl()->isClawbackEnabled();
 }
@@ -185,8 +175,7 @@ TrustLineWrapper::getMaxAmountReceive(LedgerTxnHeader const& header) const
     return getImpl()->getMaxAmountReceive(header);
 }
 
-void
-TrustLineWrapper::deactivate()
+void TrustLineWrapper::deactivate()
 {
     mImpl.reset();
 }
@@ -207,80 +196,68 @@ TrustLineWrapper::NonIssuerImpl::NonIssuerImpl(LedgerTxnEntry&& entry)
 {
 }
 
-TrustLineWrapper::NonIssuerImpl::
-operator bool() const
+TrustLineWrapper::NonIssuerImpl::operator bool() const
 {
     return (bool)mEntry;
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::getBalance() const
+int64_t TrustLineWrapper::NonIssuerImpl::getBalance() const
 {
     return mEntry.current().data.trustLine().balance;
 }
 
-bool
-TrustLineWrapper::NonIssuerImpl::addBalance(LedgerTxnHeader const& header,
-                                            int64_t delta)
+bool TrustLineWrapper::NonIssuerImpl::addBalance(LedgerTxnHeader const& header,
+                                                 int64_t delta)
 {
     return stellar::addBalance(header, mEntry, delta);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::getBuyingLiabilities(
+int64_t TrustLineWrapper::NonIssuerImpl::getBuyingLiabilities(
     LedgerTxnHeader const& header)
 {
     return stellar::getBuyingLiabilities(header, mEntry);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::getSellingLiabilities(
+int64_t TrustLineWrapper::NonIssuerImpl::getSellingLiabilities(
     LedgerTxnHeader const& header)
 {
     return stellar::getSellingLiabilities(header, mEntry);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::addBuyingLiabilities(
+int64_t TrustLineWrapper::NonIssuerImpl::addBuyingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
     return stellar::addBuyingLiabilities(header, mEntry, delta);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::addSellingLiabilities(
+int64_t TrustLineWrapper::NonIssuerImpl::addSellingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
     return stellar::addSellingLiabilities(header, mEntry, delta);
 }
 
-bool
-TrustLineWrapper::NonIssuerImpl::isAuthorized() const
+bool TrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
     return stellar::isAuthorized(mEntry);
 }
 
-bool
-TrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+bool TrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
 {
     return stellar::isAuthorizedToMaintainLiabilities(mEntry);
 }
 
-bool
-TrustLineWrapper::NonIssuerImpl::isClawbackEnabled() const
+bool TrustLineWrapper::NonIssuerImpl::isClawbackEnabled() const
 {
     return stellar::isClawbackEnabledOnTrustline(mEntry);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::getAvailableBalance(
+int64_t TrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
 {
     return stellar::getAvailableBalance(header, mEntry);
 }
 
-int64_t
-TrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
+int64_t TrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
     LedgerTxnHeader const& header) const
 {
     return stellar::getMaxAmountReceive(header, mEntry);
@@ -293,80 +270,68 @@ TrustLineWrapper::IssuerImpl::IssuerImpl(AccountID const& accountID,
 {
 }
 
-TrustLineWrapper::IssuerImpl::
-operator bool() const
+TrustLineWrapper::IssuerImpl::operator bool() const
 {
     return true;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::getBalance() const
+int64_t TrustLineWrapper::IssuerImpl::getBalance() const
 {
     return INT64_MAX;
 }
 
-bool
-TrustLineWrapper::IssuerImpl::addBalance(LedgerTxnHeader const& header,
-                                         int64_t delta)
+bool TrustLineWrapper::IssuerImpl::addBalance(LedgerTxnHeader const& header,
+                                              int64_t delta)
 {
     return true;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::getBuyingLiabilities(
+int64_t TrustLineWrapper::IssuerImpl::getBuyingLiabilities(
     LedgerTxnHeader const& header)
 {
     return 0;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::getSellingLiabilities(
+int64_t TrustLineWrapper::IssuerImpl::getSellingLiabilities(
     LedgerTxnHeader const& header)
 {
     return 0;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::addBuyingLiabilities(
+int64_t TrustLineWrapper::IssuerImpl::addBuyingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
     return true;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::addSellingLiabilities(
+int64_t TrustLineWrapper::IssuerImpl::addSellingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
     return true;
 }
 
-bool
-TrustLineWrapper::IssuerImpl::isAuthorized() const
+bool TrustLineWrapper::IssuerImpl::isAuthorized() const
 {
     return true;
 }
 
-bool
-TrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
+bool TrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
 {
     return true;
 }
 
-bool
-TrustLineWrapper::IssuerImpl::isClawbackEnabled() const
+bool TrustLineWrapper::IssuerImpl::isClawbackEnabled() const
 {
     throw std::runtime_error("issuer cannot clawback from itself");
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::getAvailableBalance(
+int64_t TrustLineWrapper::IssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
 {
     return INT64_MAX;
 }
 
-int64_t
-TrustLineWrapper::IssuerImpl::getMaxAmountReceive(
+int64_t TrustLineWrapper::IssuerImpl::getMaxAmountReceive(
     LedgerTxnHeader const& header) const
 {
     return INT64_MAX;
@@ -443,26 +408,22 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(ConstLedgerTxnEntry&& entry)
     }
 }
 
-ConstTrustLineWrapper::
-operator bool() const
+ConstTrustLineWrapper::operator bool() const
 {
     return (bool)mImpl && (bool)(*mImpl);
 }
 
-int64_t
-ConstTrustLineWrapper::getBalance() const
+int64_t ConstTrustLineWrapper::getBalance() const
 {
     return getImpl()->getBalance();
 }
 
-bool
-ConstTrustLineWrapper::isAuthorized() const
+bool ConstTrustLineWrapper::isAuthorized() const
 {
     return getImpl()->isAuthorized();
 }
 
-bool
-ConstTrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+bool ConstTrustLineWrapper::isAuthorizedToMaintainLiabilities() const
 {
     return getImpl()->isAuthorizedToMaintainLiabilities();
 }
@@ -495,78 +456,68 @@ ConstTrustLineWrapper::NonIssuerImpl::NonIssuerImpl(ConstLedgerTxnEntry&& entry)
 {
 }
 
-ConstTrustLineWrapper::NonIssuerImpl::
-operator bool() const
+ConstTrustLineWrapper::NonIssuerImpl::operator bool() const
 {
     return (bool)mEntry;
 }
 
-int64_t
-ConstTrustLineWrapper::NonIssuerImpl::getBalance() const
+int64_t ConstTrustLineWrapper::NonIssuerImpl::getBalance() const
 {
     return mEntry.current().data.trustLine().balance;
 }
 
-bool
-ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
+bool ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
     return stellar::isAuthorized(mEntry);
 }
 
-bool
-ConstTrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+bool ConstTrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities()
+    const
 {
     return stellar::isAuthorizedToMaintainLiabilities(mEntry);
 }
 
-int64_t
-ConstTrustLineWrapper::NonIssuerImpl::getAvailableBalance(
+int64_t ConstTrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
 {
     return stellar::getAvailableBalance(header, mEntry);
 }
 
-int64_t
-ConstTrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
+int64_t ConstTrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
     LedgerTxnHeader const& header) const
 {
     return stellar::getMaxAmountReceive(header, mEntry);
 }
 
 // Implementation of ConstTrustLineWrapper::IssuerImpl ------------------------
-ConstTrustLineWrapper::IssuerImpl::
-operator bool() const
+ConstTrustLineWrapper::IssuerImpl::operator bool() const
 {
     return true;
 }
 
-int64_t
-ConstTrustLineWrapper::IssuerImpl::getBalance() const
+int64_t ConstTrustLineWrapper::IssuerImpl::getBalance() const
 {
     return INT64_MAX;
 }
 
-bool
-ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
+bool ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
 {
     return true;
 }
 
-bool
-ConstTrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
+bool ConstTrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities()
+    const
 {
     return true;
 }
 
-int64_t
-ConstTrustLineWrapper::IssuerImpl::getAvailableBalance(
+int64_t ConstTrustLineWrapper::IssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
 {
     return INT64_MAX;
 }
 
-int64_t
-ConstTrustLineWrapper::IssuerImpl::getMaxAmountReceive(
+int64_t ConstTrustLineWrapper::IssuerImpl::getMaxAmountReceive(
     LedgerTxnHeader const& header) const
 {
     return INT64_MAX;

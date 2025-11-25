@@ -54,8 +54,7 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
                           : std::make_shared<LedgerEntry const>(offers.front());
 }
 
-std::vector<LedgerEntry>
-LedgerTxnRoot::Impl::loadAllOffers() const
+std::vector<LedgerEntry> LedgerTxnRoot::Impl::loadAllOffers() const
 {
     ZoneScoped;
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
@@ -101,11 +100,9 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     }
 }
 
-std::deque<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
-                                    Asset const& buying, Asset const& selling,
-                                    OfferDescriptor const& worseThan,
-                                    size_t numOffers) const
+std::deque<LedgerEntry>::const_iterator LedgerTxnRoot::Impl::loadBestOffers(
+    std::deque<LedgerEntry>& offers, Asset const& buying, Asset const& selling,
+    OfferDescriptor const& worseThan, size_t numOffers) const
 {
     ZoneScoped;
     // ManageOffer and related operations won't work correctly with an offerID
@@ -164,8 +161,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     }
 }
 
-bool
-isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
+bool isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
 {
     double lhsPrice = double(lhs.price.n) / double(lhs.price.d);
     double rhsPrice = double(rhs.price.n) / double(rhs.price.d);
@@ -183,8 +179,7 @@ isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
     }
 }
 
-bool
-isBetterOffer(OfferDescriptor const& lhs, LedgerEntry const& rhsEntry)
+bool isBetterOffer(OfferDescriptor const& lhs, LedgerEntry const& rhsEntry)
 {
     auto const& rhs = rhsEntry.data.offer();
     return isBetterOffer(lhs, {rhs.price, rhs.offerID});
@@ -192,8 +187,7 @@ isBetterOffer(OfferDescriptor const& lhs, LedgerEntry const& rhsEntry)
 
 // Note: The order induced by this function must match the order used in the
 // SQL query for loadBestOffers above.
-bool
-isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
+bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
 {
     auto const& lhs = lhsEntry.data.offer();
     auto const& rhs = rhsEntry.data.offer();
@@ -241,8 +235,7 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
     return offers;
 }
 
-static Asset
-processAsset(std::string const& asset)
+static Asset processAsset(std::string const& asset)
 {
     Asset res;
     std::vector<uint8_t> assetOpaque;
@@ -252,8 +245,8 @@ processAsset(std::string const& asset)
 }
 
 template <typename T>
-static typename T::const_iterator
-loadOffersHelper(StatementContext& prep, T& offers)
+static typename T::const_iterator loadOffersHelper(StatementContext& prep,
+                                                   T& offers)
 {
     ZoneScoped;
 
@@ -341,8 +334,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
     std::vector<std::string> mExtensions;
     std::vector<std::string> mLedgerExtensions;
 
-    void
-    accumulateEntry(LedgerEntry const& entry)
+    void accumulateEntry(LedgerEntry const& entry)
     {
         releaseAssert(entry.data.type() == OFFER);
         auto const& offer = entry.data.offer();
@@ -422,8 +414,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
         }
     }
 
-    void
-    doSociGenericOperation()
+    void doSociGenericOperation()
     {
         std::string sql =
             "INSERT INTO offers ( "
@@ -469,15 +460,14 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
         }
     }
 
-    void
-    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    void doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
         doSociGenericOperation();
     }
 
 #ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    void doPostgresSpecificOperation(
+        soci::postgresql_session_backend* pg) override
     {
 
         std::string strSellerIDs, strOfferIDs, strSellingAssets,
@@ -583,8 +573,7 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
         }
     }
 
-    void
-    doSociGenericOperation()
+    void doSociGenericOperation()
     {
         std::string sql = "DELETE FROM offers WHERE offerid = :id";
         auto prep = mDB.getPreparedStatement(sql, mSession);
@@ -602,15 +591,14 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
         }
     }
 
-    void
-    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    void doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
         doSociGenericOperation();
     }
 
 #ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    void doPostgresSpecificOperation(
+        soci::postgresql_session_backend* pg) override
     {
         PGconn* conn = pg->conn_;
         std::string strOfferIDs;
@@ -637,8 +625,8 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
 #endif
 };
 
-void
-LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
+void LedgerTxnRoot::Impl::bulkUpsertOffers(
+    std::vector<EntryIterator> const& entries)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
@@ -646,9 +634,8 @@ LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
     mApp.getDatabase().doDatabaseTypeSpecificOperation(getSession(), op);
 }
 
-void
-LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
-                                      LedgerTxnConsistency cons)
+void LedgerTxnRoot::Impl::bulkDeleteOffers(
+    std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
@@ -657,8 +644,7 @@ LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
     mApp.getDatabase().doDatabaseTypeSpecificOperation(getSession(), op);
 }
 
-void
-LedgerTxnRoot::Impl::dropOffers()
+void LedgerTxnRoot::Impl::dropOffers()
 {
     throwIfChild();
     mEntryCache.clear();
@@ -711,8 +697,7 @@ class BulkLoadOffersOperation
     std::vector<int64_t> mOfferIDs;
     UnorderedSet<LedgerKey> mKeys;
 
-    std::vector<LedgerEntry>
-    executeAndFetch(soci::statement& st)
+    std::vector<LedgerEntry> executeAndFetch(soci::statement& st)
     {
         std::string sellerID, sellingAsset, buyingAsset;
         int64_t amount;

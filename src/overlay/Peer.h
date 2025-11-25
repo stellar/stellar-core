@@ -98,8 +98,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         uint32_t mNumQueries{0};
     };
 
-    static inline int
-    format_as(PeerState const& s)
+    static inline int format_as(PeerState const& s)
     {
         return static_cast<int>(s);
     }
@@ -110,8 +109,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
-    static inline std::string
-    format_as(PeerRole const& r)
+    static inline std::string format_as(PeerRole const& r)
     {
         return (r == REMOTE_CALLED_US) ? "REMOTE_CALLED_US"
                                        : "WE_CALLED_REMOTE";
@@ -207,8 +205,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool canRead() const;
     // helper method to acknowledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
-    virtual bool
-    useBackgroundThread() const
+    virtual bool useBackgroundThread() const
     {
         return mAppConnector.getConfig().BACKGROUND_OVERLAY_PROCESSING;
     }
@@ -225,8 +222,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         REQUIRES(mStateMutex);
     void setState(RecursiveLockGuard const& stateGuard, PeerState newState)
         REQUIRES(mStateMutex);
-    PeerState
-    getState(RecursiveLockGuard const& stateGuard) const REQUIRES(mStateMutex)
+    PeerState getState(RecursiveLockGuard const& stateGuard) const
+        REQUIRES(mStateMutex)
     {
         return mState;
     }
@@ -240,8 +237,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // background. Otherwise, synchronously execute on the main thread.
     void maybeExecuteInBackground(std::string const& jobName,
                                   std::function<void(std::shared_ptr<Peer>)> f);
-    VirtualTimer&
-    getRecurrentTimer()
+    VirtualTimer& getRecurrentTimer()
     {
         releaseAssert(threadIsMain());
         return mRecurringTimer;
@@ -328,8 +324,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
                              std::shared_ptr<StellarMessage const> msg) = 0;
     virtual void scheduleRead() = 0;
-    virtual void
-    connected()
+    virtual void connected()
     {
     }
 
@@ -367,8 +362,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual void sendMessage(std::shared_ptr<StellarMessage const> msg,
                              bool log = true);
 
-    PeerRole
-    getRole() const
+    PeerRole getRole() const
     {
         releaseAssert(threadIsMain());
         return mRole;
@@ -377,29 +371,25 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::seconds getLifeTime() const;
     std::chrono::milliseconds getPing() const;
 
-    std::string const&
-    getRemoteVersion() const
+    std::string const& getRemoteVersion() const
     {
         releaseAssert(threadIsMain());
         return mRemoteVersion;
     }
 
-    uint32_t
-    getRemoteOverlayVersion() const
+    uint32_t getRemoteOverlayVersion() const
     {
         releaseAssert(threadIsMain());
         return mRemoteOverlayVersion;
     }
 
-    PeerBareAddress const&
-    getAddress()
+    PeerBareAddress const& getAddress()
     {
         releaseAssert(threadIsMain());
         return mAddress;
     }
 
-    NodeID
-    getPeerID() const
+    NodeID getPeerID() const
     {
         releaseAssert(threadIsMain());
         return mPeerID;
@@ -435,15 +425,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isAuthenticated(RecursiveLockGuard const& stateGuard) const
         REQUIRES(mStateMutex);
 
-    PeerMetrics&
-    getPeerMetrics()
+    PeerMetrics& getPeerMetrics()
     {
         // PeerMetrics is thread-safe
         return mPeerMetrics;
     }
 
-    PeerMetrics const&
-    getPeerMetrics() const
+    PeerMetrics const& getPeerMetrics() const
     {
         return mPeerMetrics;
     }
@@ -455,29 +443,25 @@ class Peer : public std::enable_shared_from_this<Peer>,
     friend class CapacityTrackedMessage;
 
 #ifdef BUILD_TESTS
-    std::shared_ptr<FlowControl>
-    getFlowControl() const
+    std::shared_ptr<FlowControl> getFlowControl() const
     {
         return mFlowControl;
     }
     bool isAuthenticatedForTesting() const;
     bool shouldAbortForTesting() const;
     bool isConnectedForTesting() const;
-    void
-    sendAuthenticatedMessageForTesting(
+    void sendAuthenticatedMessageForTesting(
         std::shared_ptr<StellarMessage const> msg)
     {
         sendAuthenticatedMessage(std::move(msg));
     }
-    void
-    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
-                             std::shared_ptr<StellarMessage const> msg)
+    void sendXdrMessageForTesting(xdr::msg_ptr xdrBytes,
+                                  std::shared_ptr<StellarMessage const> msg)
     {
         sendMessage(std::move(xdrBytes), msg);
     }
 
-    std::string
-    getDropReason() const
+    std::string getDropReason() const
     {
         RecursiveLockGuard guard(mStateMutex);
         return mDropReason;
@@ -490,8 +474,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 #endif
 
     // Public thread-safe methods that access Peer's state
-    void
-    assertShuttingDown() const
+    void assertShuttingDown() const
     {
         RecursiveLockGuard guard(mStateMutex);
         releaseAssert(mState == CLOSING);
@@ -501,15 +484,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // loaded, but once it's loaded, there are no guarantees on its value. If
     // the code block depends on isAuthenticated value being constant, use
     // `doIfAuthenticated`
-    bool
-    isAuthenticatedAtomic() const
+    bool isAuthenticatedAtomic() const
     {
         RecursiveLockGuard guard(mStateMutex);
         return isAuthenticated(guard);
     }
 
-    void
-    doIfAuthenticated(std::function<void()> f)
+    void doIfAuthenticated(std::function<void()> f)
     {
         RecursiveLockGuard guard(mStateMutex);
         if (isAuthenticated(guard))
@@ -539,8 +520,7 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
     StellarMessage const& getMessage() const;
     ~CapacityTrackedMessage();
     std::optional<Hash> maybeGetHash() const;
-    std::unordered_map<Hash, TransactionFrameBasePtr> const&
-    getTxMap() const
+    std::unordered_map<Hash, TransactionFrameBasePtr> const& getTxMap() const
     {
         return mTxsMap;
     }
