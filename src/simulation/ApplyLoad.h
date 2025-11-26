@@ -44,7 +44,7 @@ class ApplyLoad
     // writes). This will do a binary search from APPLY_LOAD_MAX_SAC_TPS_MIN_TPS
     // to APPLY_LOAD_MAX_SAC_TPS_MAX_TPS, attempting to find the largest
     // transaction set we can execute in under
-    // APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS.
+    // APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC.
     void findMaxSacTps();
 
     // Returns the % of transactions that succeeded during apply time. The range
