@@ -485,57 +485,16 @@ getHotArchiveListBalanceForAsset(Application& app,
                                  AssetContractInfo const& assetContractInfo,
                                  int64_t& runningBalance)
 {
-    // hot archive buckets
-    std::vector<Hash> hotHashes;
-    for (uint32_t i = 0; i < has.hotArchiveBuckets.size(); ++i)
-    {
-        HistoryStateBucket<HotArchiveBucket> const& hsb =
-            has.hotArchiveBuckets.at(i);
-        hotHashes.emplace_back(hexToBin256(hsb.curr));
-        hotHashes.emplace_back(hexToBin256(hsb.snap));
-    }
-
     auto& bm = app.getBucketManager();
 
-    std::unordered_set<LedgerKey> seenKeys;
-    for (auto const& hash : hotHashes)
+    std::map<LedgerKey, LedgerEntry> archived =
+        app.getBucketManager().loadCompleteHotArchiveState(has);
+    for (auto const& [_, entry] : archived)
     {
-        if (isZero(hash))
+        auto balance = getAssetBalance(entry, asset, assetContractInfo);
+        if (!balance || !addBalance(runningBalance, *balance))
         {
-            continue;
-        }
-        auto b = bm.getBucketByHash<HotArchiveBucket>(hash);
-        if (!b)
-        {
-            throw std::runtime_error(std::string("missing bucket: ") +
-                                     binToHex(hash));
-        }
-
-        for (HotArchiveBucketInputIterator in(b); in; ++in)
-        {
-            auto const& be = *in;
-            if (be.type() != HOT_ARCHIVE_ARCHIVED)
-            {
-                if (be.type() == HOT_ARCHIVE_LIVE)
-                {
-                    seenKeys.emplace(be.key());
-                }
-                continue;
-            }
-            if (seenKeys.emplace(LedgerEntryKey(be.archivedEntry())).second ==
-                false)
-            {
-                // duplicate key, skip
-                continue;
-            }
-
-            auto balance =
-                getAssetBalance(be.archivedEntry(), asset, assetContractInfo);
-            if (!balance || !addBalance(runningBalance, *balance))
-            {
-                throw std::runtime_error(
-                    "Total asset balance overflowed int64_t");
-            }
+            throw std::runtime_error("Total asset balance overflowed int64_t");
         }
     }
 }
