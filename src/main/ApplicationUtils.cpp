@@ -564,8 +564,8 @@ calculateAssetSupply(Config cfg, Asset const& asset)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
     auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
 
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto assetContractInfo = getAssetContractInfo(asset, app->getNetworkID());
