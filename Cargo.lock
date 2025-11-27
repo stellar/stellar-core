@@ -1540,14 +1540,14 @@ dependencies = [
 [[package]]
 name = "stellar-quorum-analyzer"
 version = "0.1.0"
-source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=58ac6e60c6cdc7bf1e8a6564c8439d9605431091#58ac6e60c6cdc7bf1e8a6564c8439d9605431091"
+source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=de80f85128feb560a626c4d3abc9704d3d32e2a2#de80f85128feb560a626c4d3abc9704d3d32e2a2"
 dependencies = [
  "batsat",
  "itertools 0.10.5",
  "log",
  "petgraph",
  "stellar-strkey 0.0.13",
- "stellar-xdr 24.0.1",
+ "stellar-xdr 25.0.0-rc.1",
 ]
 
 [[package]]
@@ -1646,6 +1646,21 @@ version = "24.0.1"
 source = "git+https://github.com/stellar/rs-stellar-xdr?rev=89cc1cbadf1b9a16843826954dede7fec514d8e7#89cc1cbadf1b9a16843826954dede7fec514d8e7"
 dependencies = [
  "base64 0.22.1",
+ "cfg_eval",
+ "crate-git-revision",
+ "escape-bytes",
+ "ethnum",
+ "hex",
+ "sha2",
+ "stellar-strkey 0.0.13",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "25.0.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61c30bd79b4a537c007b8be631e5147723fa50dcbde487a0684437e564afc81e"
+dependencies = [
  "cfg_eval",
  "crate-git-revision",
  "escape-bytes",
