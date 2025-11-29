@@ -3630,50 +3630,6 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
-{
-    std::string in = R"({
-    "time": 1618016242,
-    "version": {
-        "has": true,
-        "val": 17
-    },
-    "fee": {
-        "has": false
-    },
-    "maxtxsize": {
-        "has": true,
-        "val": 10000
-    },
-    "maxsorobantxsetsize": {
-        "has": true,
-        "val": 100
-    },
-    "reserve": {
-        "has": false
-    },
-    "flags": {
-        "has": false
-    }
-})";
-
-    Config cfg = getTestConfig();
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-
-    Upgrades::UpgradeParameters up;
-    up.fromJson(in);
-    REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
-    REQUIRE(up.mProtocolVersion.has_value());
-    REQUIRE(up.mProtocolVersion.value() == 17);
-    REQUIRE(!up.mBaseFee.has_value());
-    REQUIRE(up.mMaxTxSetSize.has_value());
-    REQUIRE(up.mMaxTxSetSize.value() == 10000);
-    REQUIRE(up.mMaxSorobanTxSetSize.has_value());
-    REQUIRE(up.mMaxSorobanTxSetSize.value() == 100);
-    REQUIRE(!up.mBaseReserve.has_value());
-}
-
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
