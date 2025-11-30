@@ -17,8 +17,10 @@ namespace stellar
 {
 
 class AppConnector;
+class InMemorySorobanState;
 class LiveBucket;
 enum LedgerEntryType : std::int32_t;
+struct LedgerCommitState;
 struct LedgerTxnDelta;
 struct Operation;
 struct OperationResult;
@@ -73,13 +75,10 @@ class Invariant
     }
 
     virtual std::string
-    checkOnLedgerCommit(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
-        std::vector<LedgerEntry> const& persitentEvictedFromLive,
-        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
-        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+    checkOnLedgerCommit(SearchableSnapshotConstPtr lclLiveState,
+                        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+                        LedgerCommitState const& commitState,
+                        InMemorySorobanState const& inMemorySorobanState)
     {
         return std::string{};
     }

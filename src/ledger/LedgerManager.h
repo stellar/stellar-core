@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
@@ -11,6 +12,7 @@
 #include "main/ApplicationImpl.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionMeta.h"
+#include "util/NonCopyable.h"
 #include <memory>
 
 namespace stellar
@@ -156,6 +158,28 @@ class InMemorySorobanState;
 // the actions taken and variables updated by the main thread _after_ apply, and
 // the term "apply" to refer to actions taken and variables updated by the apply
 // thread.
+
+// Entries committed to the Live BucketList during ledger apply
+struct BucketListCommitEntries
+{
+    std::vector<LedgerEntry> initEntries;
+    std::vector<LedgerEntry> liveEntries;
+    std::vector<LedgerKey> deadEntries;
+};
+
+// Consolidated state for ledger commit operations
+struct LedgerCommitState : public NonCopyable
+{
+    BucketListCommitEntries bucketListEntries;
+    EvictedStateVectors evictedVectors;
+
+    // Maps an entry that has been restored to its original restoration value.
+    // Note that the entry may have been modified after restoration, so this may
+    // not represent the current state of a given key.
+    UnorderedMap<LedgerKey, LedgerEntry> restoredFromArchive;
+    UnorderedMap<LedgerKey, LedgerEntry> restoredFromLiveState;
+};
+
 class LedgerManager
 {
 
