@@ -31,7 +31,7 @@ class SearchableLiveBucketListSnapshot
              std::string const& label) const;
 
     std::unique_ptr<EvictionResultCandidates> scanForEviction(
-        uint32_t ledgerSeq, EvictionMetrics& counters, EvictionIterator iter,
+        uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator iter,
         std::shared_ptr<EvictionStatistics> stats,
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
 
