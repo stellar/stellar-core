@@ -3,13 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/ConservationOfLumens.h"
-#include "crypto/SHA.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
-#include "util/GlobalChecks.h"
-#include <fmt/format.h>
+#include "util/LogSlowExecution.h"
 #include <numeric>
 
 namespace stellar
@@ -174,5 +173,181 @@ ConservationOfLumens::checkOnOperationApply(
         }
     }
     return {};
+}
+
+// Helper function that processes an entry if it hasn't been seen before.
+// Returns true on success, false on error (with error logged).
+static bool
+processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
+                  std::unordered_set<LedgerKey>& countedKeys,
+                  Asset const& asset,
+                  AssetContractInfo const& assetContractInfo,
+                  int64_t& sumBalance)
+{
+    if (countedKeys.count(key) != 0)
+    {
+        return true;
+    }
+
+    auto result = getAssetBalance(entry, asset, assetContractInfo);
+
+    if (result.overflowed)
+    {
+        CLOG_ERROR(Tx,
+                   "ConservationOfLumens: getAssetBalance overflow for key: {}",
+                   xdrToCerealString(key, "ledger_key"));
+        return false;
+    }
+
+    if (!result.assetMatched)
+    {
+        return true; // Asset doesn't match, skip
+    }
+
+    if (!result.balance || !addBalance(sumBalance, *result.balance))
+    {
+        CLOG_ERROR(Tx,
+                   "ConservationOfLumens: Overflow adding balance for key: {}",
+                   xdrToCerealString(key, "ledger_key"));
+        return false;
+    }
+
+    countedKeys.emplace(key);
+
+    return true;
+}
+
+static Loop
+scanLiveBucket(LiveBucketSnapshot const& bucket,
+               std::unordered_set<LedgerKey>& countedKeys, Asset const& asset,
+               AssetContractInfo const& assetContractInfo, int64_t& sumBalance)
+{
+    for (LiveBucketInputIterator iter(bucket.getRawBucket()); iter; ++iter)
+    {
+        auto const& be = *iter;
+        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+        {
+            if (!canHoldAsset(be.liveEntry().data.type(), asset))
+            {
+                continue;
+            }
+            if (!processEntryIfNew(be.liveEntry(),
+                                   LedgerEntryKey(be.liveEntry()), countedKeys,
+                                   asset, assetContractInfo, sumBalance))
+            {
+                return Loop::COMPLETE;
+            }
+        }
+        else if (be.type() == DEADENTRY &&
+                 canHoldAsset(be.deadEntry().type(), asset))
+        {
+            countedKeys.emplace(be.deadEntry());
+        }
+    }
+    return Loop::INCOMPLETE;
+}
+
+static Loop
+scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
+                     std::unordered_set<LedgerKey>& countedKeys,
+                     Asset const& asset,
+                     AssetContractInfo const& assetContractInfo,
+                     int64_t& sumBalance)
+{
+    for (HotArchiveBucketInputIterator iter(bucket.getRawBucket()); iter;
+         ++iter)
+    {
+        auto const& be = *iter;
+        if (be.type() == HOT_ARCHIVE_ARCHIVED)
+        {
+            if (!canHoldAsset(be.archivedEntry().data.type(), asset))
+            {
+                continue;
+            }
+            if (!processEntryIfNew(
+                    be.archivedEntry(), LedgerEntryKey(be.archivedEntry()),
+                    countedKeys, asset, assetContractInfo, sumBalance))
+            {
+                return Loop::COMPLETE;
+            }
+        }
+        else if (be.type() == HOT_ARCHIVE_LIVE &&
+                 canHoldAsset(be.key().type(), asset))
+        {
+            // HOT_ARCHIVE_LIVE means entry was restored from archive,
+            // so mark it as seen (shadowing any archived versions)
+            countedKeys.emplace(be.key());
+        }
+    }
+    return Loop::INCOMPLETE;
+}
+
+std::string
+ConservationOfLumens::checkSnapshot(
+    CompleteConstLedgerStatePtr ledgerState,
+    InMemorySorobanState const& inMemorySnapshot)
+{
+    CLOG_ERROR(Tx, "Running ConservationOfLumens invariant snapshot check");
+    LogSlowExecution logSlow("ConservationOfLumens::checkSnapshot",
+                             LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
+                             std::chrono::seconds(90));
+
+    auto liveSnapshot = ledgerState->getBucketSnapshot();
+    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
+    auto const& header = liveSnapshot->getLedgerHeader();
+
+    // This invariant can fail prior to v24 due to bugs
+    if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_24))
+    {
+        return std::string{};
+    }
+
+    Asset nativeAsset(ASSET_TYPE_NATIVE);
+
+    int64_t sumBalance = 0;
+
+    // Start with the fee pool from the ledger header
+    if (!addBalance(sumBalance, header.feePool))
+    {
+        return fmt::format(
+            FMT_STRING("ConservationOfLumens invariant failed: "
+                       "Fee pool balance overflowed when added to total. "
+                       "Current sum: {}, Fee pool: {}"),
+            sumBalance, header.feePool);
+    }
+
+    // Scan the Live BucketList for native balances using loopAllBuckets
+    {
+        std::unordered_set<LedgerKey> countedKeys;
+        liveSnapshot->loopAllBuckets([&countedKeys, &nativeAsset, &sumBalance,
+                                      this](LiveBucketSnapshot const& bucket) {
+            return scanLiveBucket(bucket, countedKeys, nativeAsset,
+                                  mLumenContractInfo, sumBalance);
+        });
+    }
+
+    // Scan the Hot Archive for native balances using loopAllBuckets
+    {
+        std::unordered_set<LedgerKey> countedKeys;
+        hotArchiveSnapshot->loopAllBuckets(
+            [&countedKeys, &nativeAsset, &sumBalance,
+             this](HotArchiveBucketSnapshot const& bucket) {
+                return scanHotArchiveBucket(bucket, countedKeys, nativeAsset,
+                                            mLumenContractInfo, sumBalance);
+            });
+    }
+
+    // Compare the calculated total with totalCoins from the ledger header
+    if (sumBalance != header.totalCoins)
+    {
+        return fmt::format(
+            FMT_STRING("ConservationOfLumens invariant failed: "
+                       "Total native asset supply mismatch. "
+                       "Calculated from buckets: {}, Expected (totalCoins): "
+                       "{}, Difference: {}"),
+            sumBalance, header.totalCoins, header.totalCoins - sumBalance);
+    }
+    CLOG_ERROR(Tx, "!!!Finished ConservationOfLumens invariant snapshot check");
+    return std::string{};
 }
 }
