@@ -1305,11 +1305,6 @@ ApplicationImpl::syncOwnMetrics()
     }
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
-
-    // Update simple timer metrics. This both updates the current value of the
-    // "max" metrics to be the max for the current period and starts a new
-    // period.
-    mMetrics->syncSimpleTimerStats();
 }
 
 void
@@ -1318,6 +1313,10 @@ ApplicationImpl::syncAllMetrics()
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
     mLedgerApplyManager->syncMetrics();
+    // Update simple timer metrics. This both updates the current value of the
+    // "max" metrics to be the max for the current period and starts a new
+    // period.
+    mMetrics->syncSimpleTimerStats();
     syncOwnMetrics();
 }
 

@@ -22,7 +22,12 @@ class MetricsRegistry : public medida::MetricsRegistry
         std::chrono::nanoseconds durationUnit = std::chrono::milliseconds{1});
 
     // Call syncMax() on each simple timer--i.e., set max metric to the tracked
-    // max, and reset max tracking.
+    // max, and reset max tracking. That is, consistent periods are created by
+    // calling this method at regular intervals. In the normal workflow, we
+    // expect this to be called when the `/metrics` endpoint is hit
+    // (equivalently when `ApplicationImpl::syncAllMetrics` is called). This
+    // should happen regularly: at the time of writing, this is done by the core
+    // prometheus exporter.
     void syncSimpleTimerStats();
 };
 }

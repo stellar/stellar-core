@@ -48,8 +48,9 @@ class SimpleTimer
     std::chrono::nanoseconds const mDurationUnit;
 
   public:
-    SimpleTimer(MetricsRegistry& registry, SimpleTimerName const& name,
-                std::chrono::nanoseconds durationUnit);
+    SimpleTimer(
+        MetricsRegistry& registry, SimpleTimerName const& name,
+        std::chrono::nanoseconds durationUnit = std::chrono::milliseconds{1});
 
     // Update the value of the max metric to the value of the tracked max and
     // reset the tracked max
