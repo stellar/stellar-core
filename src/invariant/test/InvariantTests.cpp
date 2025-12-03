@@ -674,11 +674,13 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             auto const& codeEntry = it->second;
             LedgerEntry modifiedEntry = *codeEntry.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
+            auto ttlData = codeEntry.ttlData;
+            auto sizeBytes = codeEntry.sizeBytes;
             modifiedState.mContractCodeEntries.erase(it);
             modifiedState.mContractCodeEntries.emplace(
                 keyHash, ContractCodeMapEntryT(
                              std::make_shared<LedgerEntry const>(modifiedEntry),
-                             codeEntry.ttlData, codeEntry.sizeBytes));
+                             ttlData, sizeBytes));
         }
         else
         {
@@ -686,9 +688,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             auto const& entryData = it->get();
             LedgerEntry modifiedEntry = *entryData.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
+            auto ttlData = entryData.ttlData;
             modifiedState.mContractDataEntries.erase(it);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(modifiedEntry, entryData.ttlData));
+                InternalContractDataMapEntry(modifiedEntry, ttlData));
         }
 
         REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
@@ -776,6 +779,19 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
             *app, lm.getLastClosedLedgerHeader().header, {phantomTTL}, {}, {});
+
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().runStateSnapshotInvariant(
+                getLedgerState(), lm.getInMemorySorobanStateForTesting()),
+            InvariantDoesNotHold);
+    }
+
+    SECTION("Live entry also in hot archive")
+    {
+        // Add one of the live entries to the hot archive - this violates
+        // the invariant that no entry can be live in both BucketLists
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, lm.getLastClosedLedgerHeader().header, {dataEntry1}, {});
 
         REQUIRE_THROWS_AS(
             app->getInvariantManager().runStateSnapshotInvariant(
