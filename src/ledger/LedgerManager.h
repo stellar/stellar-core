@@ -278,6 +278,8 @@ class LedgerManager
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
     virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
+    virtual CompleteConstLedgerStatePtr
+    getLastClosedLedgerStateForTesting() = 0;
     virtual void
     rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache>
