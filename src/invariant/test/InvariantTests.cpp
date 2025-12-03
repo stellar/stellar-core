@@ -14,6 +14,8 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
@@ -34,6 +36,46 @@ using namespace stellar;
 
 namespace InvariantTests
 {
+
+namespace
+{
+std::pair<LedgerEntry, LedgerEntry>
+createContractDataWithTTL(ContractDataDurability durability, uint32_t ttlLedger,
+                          uint32_t valU32 = 0)
+{
+    LedgerEntry entry =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+    entry.data.contractData().durability = durability;
+    entry.lastModifiedLedgerSeq = 1;
+    entry.data.contractData().val.type(SCV_U32);
+    entry.data.contractData().val.u32() = valU32;
+
+    LedgerEntry ttl;
+    ttl.data.type(TTL);
+    ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+    ttl.data.ttl().liveUntilLedgerSeq = ttlLedger;
+    ttl.lastModifiedLedgerSeq = entry.lastModifiedLedgerSeq;
+
+    return std::make_pair(entry, ttl);
+}
+
+// Helper to create a CONTRACT_CODE entry with its associated TTL entry
+std::pair<LedgerEntry, LedgerEntry>
+createContractCodeWithTTL(uint32_t ttlLedger)
+{
+    LedgerEntry entry =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+    entry.lastModifiedLedgerSeq = 1;
+
+    LedgerEntry ttl;
+    ttl.data.type(TTL);
+    ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+    ttl.data.ttl().liveUntilLedgerSeq = ttlLedger;
+    ttl.lastModifiedLedgerSeq = entry.lastModifiedLedgerSeq;
+
+    return std::make_pair(entry, ttl);
+}
+}
 
 class TestInvariant : public Invariant
 {
@@ -303,25 +345,6 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             app->getLedgerManager();
         uint32_t const evictionLedger = 16;
 
-        auto createContractDataWithTTL = [&](ContractDataDurability durability,
-                                             uint32_t ttlLedger,
-                                             uint32_t valU32 = 0) {
-            LedgerEntry entry =
-                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
-            entry.data.contractData().durability = durability;
-            entry.lastModifiedLedgerSeq = 1;
-            entry.data.contractData().val.type(SCV_U32);
-            entry.data.contractData().val.u32() = valU32;
-
-            LedgerEntry ttl;
-            ttl.data.type(TTL);
-            ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
-            ttl.data.ttl().liveUntilLedgerSeq = ttlLedger;
-            ttl.lastModifiedLedgerSeq = entry.lastModifiedLedgerSeq;
-
-            return std::make_pair(entry, ttl);
-        };
-
         // Create test entries that will be evicted
         auto [tempEntry, tempTTL] =
             createContractDataWithTTL(TEMPORARY, evictionLedger, 1);
@@ -565,4 +588,198 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             }
         }
     });
+}
+
+TEST_CASE("BucketList state consistency invariant", "[invariant]")
+{
+    // Disable invariants so we can run them manually
+    auto cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+
+    VirtualClock clock;
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+    BucketTestUtils::LedgerManagerForBucketTests& lm = app->getLedgerManager();
+
+    auto [dataEntry1, dataTTL1] = createContractDataWithTTL(PERSISTENT, 1000);
+    auto [dataEntry2, dataTTL2] = createContractDataWithTTL(TEMPORARY, 1000);
+    auto [codeEntry1, codeTTL1] = createContractCodeWithTTL(1000);
+    auto [codeEntry2, codeTTL2] = createContractCodeWithTTL(1000);
+
+    lm.setNextLedgerEntryBatchForBucketTesting(
+        {dataEntry1, dataTTL1, dataEntry2, dataTTL2, codeEntry1, codeTTL1,
+         codeEntry2, codeTTL2},
+        {}, {});
+    closeLedger(*app);
+
+    auto getLedgerState = [&]() {
+        auto liveBL = app->getBucketManager()
+                          .getBucketSnapshotManager()
+                          .copySearchableLiveBucketListSnapshot();
+        auto hotArchive = app->getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
+        return std::make_shared<CompleteConstLedgerState>(
+            liveBL, hotArchive, lm.getLastClosedLedgerHeader(),
+            lm.getLastClosedLedgerHAS());
+    };
+
+    app->getInvariantManager().enableInvariant("BucketListStateConsistency");
+
+    SECTION("Valid state passes invariant")
+    {
+        REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
+            getLedgerState(), lm.getInMemorySorobanStateForTesting()));
+    }
+
+    auto testLiveEntryNotInCache = [&](bool isContractCode) {
+        InMemorySorobanState modifiedState =
+            lm.getInMemorySorobanStateForTesting();
+
+        if (isContractCode)
+        {
+            modifiedState.mContractCodeEntries.erase(
+                modifiedState.mContractCodeEntries.begin());
+        }
+        else
+        {
+            modifiedState.mContractDataEntries.erase(
+                modifiedState.mContractDataEntries.begin());
+        }
+
+        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
+                              getLedgerState(), modifiedState),
+                          InvariantDoesNotHold);
+    };
+
+    SECTION("Live CONTRACT_DATA entry not in cache")
+    {
+        testLiveEntryNotInCache(false);
+    }
+
+    SECTION("Live CONTRACT_CODE entry not in cache")
+    {
+        testLiveEntryNotInCache(true);
+    }
+
+    auto testEntryWrongValue = [&](bool isContractCode) {
+        InMemorySorobanState modifiedState =
+            lm.getInMemorySorobanStateForTesting();
+
+        // Get entry, modify it, and replace in the appropriate map
+        if (isContractCode)
+        {
+            auto it = modifiedState.mContractCodeEntries.begin();
+            auto keyHash = it->first;
+            auto const& codeEntry = it->second;
+            LedgerEntry modifiedEntry = *codeEntry.ledgerEntry;
+            modifiedEntry.lastModifiedLedgerSeq += 100;
+            modifiedState.mContractCodeEntries.erase(it);
+            modifiedState.mContractCodeEntries.emplace(
+                keyHash, ContractCodeMapEntryT(
+                             std::make_shared<LedgerEntry const>(modifiedEntry),
+                             codeEntry.ttlData, codeEntry.sizeBytes));
+        }
+        else
+        {
+            auto it = modifiedState.mContractDataEntries.begin();
+            auto const& entryData = it->get();
+            LedgerEntry modifiedEntry = *entryData.ledgerEntry;
+            modifiedEntry.lastModifiedLedgerSeq += 100;
+            modifiedState.mContractDataEntries.erase(it);
+            modifiedState.mContractDataEntries.emplace(
+                InternalContractDataMapEntry(modifiedEntry, entryData.ttlData));
+        }
+
+        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
+                              getLedgerState(), modifiedState),
+                          InvariantDoesNotHold);
+    };
+
+    SECTION("CONTRACT_DATA entry in cache has wrong value")
+    {
+        testEntryWrongValue(false);
+    }
+
+    SECTION("CONTRACT_CODE entry in cache has wrong value")
+    {
+        testEntryWrongValue(true);
+    }
+
+    auto testExtraEntryInCache = [&](bool isContractCode) {
+        InMemorySorobanState modifiedState =
+            lm.getInMemorySorobanStateForTesting();
+
+        // Create a new entry that doesn't exist in the BL and add it to the
+        // cache
+        if (isContractCode)
+        {
+            auto [extraEntry, extraTTL] = createContractCodeWithTTL(1000);
+            auto ttlKey = getTTLKey(extraEntry);
+            TTLData ttlData(extraTTL.data.ttl().liveUntilLedgerSeq, 1);
+            modifiedState.mContractCodeEntries.emplace(
+                ttlKey.ttl().keyHash,
+                ContractCodeMapEntryT(
+                    std::make_shared<LedgerEntry const>(extraEntry), ttlData,
+                    100));
+        }
+        else
+        {
+            auto [extraEntry, extraTTL] =
+                createContractDataWithTTL(PERSISTENT, 1000);
+            TTLData ttlData(extraTTL.data.ttl().liveUntilLedgerSeq, 1);
+            modifiedState.mContractDataEntries.emplace(
+                InternalContractDataMapEntry(extraEntry, ttlData));
+        }
+
+        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
+                              getLedgerState(), modifiedState),
+                          InvariantDoesNotHold);
+    };
+
+    SECTION("Extra CONTRACT_DATA entry in cache not in BL")
+    {
+        testExtraEntryInCache(false);
+    }
+
+    SECTION("Extra CONTRACT_CODE entry in cache not in BL")
+    {
+        testExtraEntryInCache(true);
+    }
+
+    SECTION("TTL mismatch between cache and BL")
+    {
+        InMemorySorobanState modifiedState =
+            lm.getInMemorySorobanStateForTesting();
+
+        // Corrupt TTL of an entry in the cache
+        auto it = modifiedState.mContractDataEntries.begin();
+        auto const& entryData = it->get();
+        LedgerEntry entryCopy = *entryData.ledgerEntry;
+
+        TTLData wrongTTL(42, 1);
+        modifiedState.mContractDataEntries.erase(it);
+        modifiedState.mContractDataEntries.emplace(
+            InternalContractDataMapEntry(entryCopy, wrongTTL));
+
+        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
+                              getLedgerState(), modifiedState),
+                          InvariantDoesNotHold);
+    }
+
+    SECTION("Orphan TTL in BL without Soroban entry")
+    {
+        // Add an orphan TTL directly to the BucketList without going
+        // through the normal ledger path to avoid hitting cache asserts
+        auto [phantomEntry, phantomTTL] =
+            createContractDataWithTTL(PERSISTENT, 1000);
+
+        BucketTestUtils::addLiveBatchAndUpdateSnapshot(
+            *app, lm.getLastClosedLedgerHeader().header, {phantomTTL}, {}, {});
+
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().runStateSnapshotInvariant(
+                getLedgerState(), lm.getInMemorySorobanStateForTesting()),
+            InvariantDoesNotHold);
+    }
 }
