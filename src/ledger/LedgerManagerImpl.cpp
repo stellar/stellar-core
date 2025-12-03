@@ -855,6 +855,12 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
     return mApplyState.getInMemorySorobanStateForTesting();
 }
 
+CompleteConstLedgerStatePtr
+LedgerManagerImpl::getLastClosedLedgerStateForTesting()
+{
+    return mLastClosedLedgerState;
+}
+
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {

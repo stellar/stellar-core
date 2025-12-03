@@ -12,7 +12,9 @@
 #include "main/Application.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include <numeric>
 #include <random>
@@ -20,6 +22,7 @@
 
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
+using namespace stellar::txtest;
 
 namespace
 {
@@ -299,5 +302,65 @@ TEST_CASE("Inflation changes are consistent",
             auto updates = makeUpdateList(entries2, entries1);
             REQUIRE(store(*app, updates, &ltx, &opRes));
         }
+    }
+}
+
+TEST_CASE("Snapshot invariant validates total lumens",
+          "[invariant][conservationoflumens]")
+{
+    auto cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
+    cfg.INVARIANT_EXTRA_CHECKS = true;
+
+    SorobanTest test(cfg);
+
+    auto& app = test.getApp();
+    auto& root = test.getRoot();
+
+    // Create an account with some native lumens
+    auto const minBalance = app.getLedgerManager().getLastMinBalance(2);
+    auto a1 = root.create("a1", minBalance);
+
+    // Transfer native lumens to a contract address
+    AssetContractTestClient client(test, makeNativeAsset());
+    auto contractAddr = makeContractAddress(sha256("contract"));
+    REQUIRE(client.transfer(a1, contractAddr, 100));
+
+    // Note: We should figure out how to force the eviction of an SAC contract
+    // balance. The SAC auto extends balances, so simply waiting for TTL to
+    // expire is not practical. We need to update the in memory ttl to a lower
+    // value for testing.
+
+    // Verify the snapshot invariant passes
+    {
+        auto ledgerState =
+            app.getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto& inMemoryState =
+            app.getLedgerManager().getInMemorySorobanStateForTesting();
+
+        REQUIRE_NOTHROW(app.getInvariantManager().runStateSnapshotInvariant(
+            ledgerState, inMemoryState));
+    }
+
+    // Now, manually modify totalCoins to be inconsistent. The invariant should
+    // trigger.
+    {
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            ltx.loadHeader().current().totalCoins += 1;
+            ltx.commit();
+        }
+
+        closeLedger(test.getApp());
+
+        auto ledgerState =
+            app.getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto& inMemoryState =
+            app.getLedgerManager().getInMemorySorobanStateForTesting();
+
+        REQUIRE_THROWS_AS(
+            app.getInvariantManager().runStateSnapshotInvariant(
+                ledgerState, inMemoryState, []() { return false; }),
+            InvariantDoesNotHold);
     }
 }
