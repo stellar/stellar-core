@@ -428,6 +428,12 @@ class InMemorySorobanState
     // Returns the entry for the given key, or nullptr if not found.
     std::shared_ptr<LedgerEntry const> get(LedgerKey const& ledgerKey) const;
 
+    // Returns the number of CONTRACT_DATA entries stored.
+    size_t getContractDataEntryCount() const;
+
+    // Returns the number of CONTRACT_CODE entries stored.
+    size_t getContractCodeEntryCount() const;
+
     // The following functions are not read-only and must never be called
     // concurrently. It is the caller's responsibility to ensure that no thread
     // is reading state when these functions are called.

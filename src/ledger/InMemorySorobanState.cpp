@@ -355,6 +355,18 @@ InMemorySorobanState::isEmpty() const
            mPendingTTLs.empty();
 }
 
+size_t
+InMemorySorobanState::getContractDataEntryCount() const
+{
+    return mContractDataEntries.size();
+}
+
+size_t
+InMemorySorobanState::getContractCodeEntryCount() const
+{
+    return mContractCodeEntries.size();
+}
+
 uint32_t
 InMemorySorobanState::getLedgerSeq() const
 {
