@@ -3,15 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/BucketListStateConsistency.h"
-#include "bucket/BucketSnapshot.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/LedgerCmp.h"
-#include "crypto/Hex.h"
+#include "bucket/LiveBucket.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
-#include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
@@ -26,9 +23,9 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // BucketList, along with other important properties. We check these properties:
 // 1. Every live entry in the BL is reflected in the in-memory cache
 // 2. No entry exists in the cache, but not the BL
-// Additionally, we check these invariants on BucketList state:
 // 3. Each live soroban entry also has a live TTL entry associated with it
 // 4. No TTL entry exists without a corresponding soroban entry
+// 5. No live entry in the live BL is also present in the hot archive BL
 std::string
 BucketListStateConsistency::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
@@ -39,6 +36,7 @@ BucketListStateConsistency::checkSnapshot(
                              std::chrono::minutes(2));
 
     auto liveSnapshot = ledgerState->getBucketSnapshot();
+    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
     auto const& header = liveSnapshot->getLedgerHeader();
 
     if (protocolVersionIsBefore(header.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
@@ -51,13 +49,19 @@ BucketListStateConsistency::checkSnapshot(
     // entry is live. We also track all live keys we see for checking TTL
     // properties later. We will check property 1 for TTL entries later when we
     // iterate through TTL entries.
+    // Additionally, if persistent eviction is supported, check property 5 by
+    // verifying that each live entry is not in the hot archive.
+    bool checkHotArchive = protocolVersionStartsFrom(
+        header.ledgerVersion,
+        LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
 
     UnorderedSet<LedgerKey> seenLiveNonTTLKeys;
     UnorderedSet<LedgerKey> seenDeadKeys;
     std::string errorMsg;
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
-                           &inMemorySnapshot](BucketEntry const& be) {
+                           &inMemorySnapshot, &hotArchiveSnapshot,
+                           checkHotArchive](BucketEntry const& be) {
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
             auto lk = LedgerEntryKey(be.liveEntry());
@@ -89,9 +93,20 @@ BucketListStateConsistency::checkSnapshot(
                     FMT_STRING("BucketListStateConsistency invariant failed: "
                                "Entry mismatch for key {}. BucketList entry: "
                                "{}, InMemory entry: {}"),
-                    xdrToCerealString(lk, "entry_key"),
+                    xdrToCerealString(lk, "lk"),
                     xdrToCerealString(be.liveEntry(), "bucketEntry"),
                     xdrToCerealString(*inMemoryEntry, "inMemoryEntry"));
+                return Loop::COMPLETE;
+            }
+
+            // Check property 5: live entry should not exist in hot archive
+            if (checkHotArchive && hotArchiveSnapshot->load(lk))
+            {
+                errorMsg = fmt::format(
+                    FMT_STRING("BucketListStateConsistency invariant failed: "
+                               "Live entry is present in both live and "
+                               "archived BucketList: {}"),
+                    xdrToCerealString(lk, "entryKey"));
                 return Loop::COMPLETE;
             }
 
