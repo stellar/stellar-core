@@ -80,7 +80,7 @@ DownloadBucketsWork::onSuccessCb(Application& app, FileTransferInfo const& ft,
     // To avoid dangling references, maintain a map of index pointers
     // and do a lookup inside the callback instead of capturing anything
     // by reference.
-    std::unique_ptr<typename BucketT::IndexT const> index;
+    std::shared_ptr<typename BucketT::IndexT const> index;
     std::filesystem::path bucketPath;
     {
         // Lock for indexMap access

@@ -44,7 +44,7 @@ class HotArchiveBucket
     {
     }
     HotArchiveBucket(std::string const& filename, Hash const& hash,
-                     std::unique_ptr<HotArchiveBucketIndex const>&& index);
+                     std::shared_ptr<HotArchiveBucketIndex const>&& index);
     uint32_t getBucketVersion() const;
 
     static std::shared_ptr<HotArchiveBucket>

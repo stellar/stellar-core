@@ -74,7 +74,7 @@ class BucketBase : public NonMovableOrCopyable
     Hash const mHash;
     size_t mSize{0};
 
-    std::unique_ptr<IndexT const> mIndex{};
+    std::shared_ptr<IndexT const> mIndex{};
 
     // Returns index, throws if index not yet initialized
     IndexT const& getIndex() const;
@@ -94,7 +94,7 @@ class BucketBase : public NonMovableOrCopyable
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
     BucketBase(std::string const& filename, Hash const& hash,
-               std::unique_ptr<IndexT const>&& index);
+               std::shared_ptr<IndexT const>&& index);
 
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;
@@ -109,7 +109,18 @@ class BucketBase : public NonMovableOrCopyable
     bool isIndexed() const;
 
     // Sets index, throws if index is already set
-    void setIndex(std::unique_ptr<IndexT const>&& index);
+    void setIndex(std::shared_ptr<IndexT const> index);
+
+    // Returns the bucket's index if it exists, otherwise
+    // nullptr. This is used by background merges to grab a shared_ptr to an
+    // existing index, preventing a race where GC could free the index between
+    // checking the index and adopting the finished merge result.
+    static std::shared_ptr<IndexT const>
+    maybeGetIndexForMerge(std::shared_ptr<BucketT> const& bucket)
+    {
+        releaseAssert(bucket);
+        return bucket->mIndex;
+    }
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
     // are overridden in the fresh bucket by keywise-equal entries in
