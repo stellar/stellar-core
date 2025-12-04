@@ -1924,7 +1924,7 @@ getAssetContractID(Hash const& networkID, Asset const& asset)
     return xdrSha256(preImage);
 }
 
-std::optional<int64_t>
+AssetBalanceResult
 getAssetBalance(LedgerEntry const& le, Asset const& asset,
                 AssetContractInfo const& assetContractInfo)
 {
@@ -1933,7 +1933,7 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
     case ACCOUNT:
         if (asset.type() == ASSET_TYPE_NATIVE)
         {
-            return le.data.account().balance;
+            return {false, true, le.data.account().balance};
         }
         break;
     case TRUSTLINE:
@@ -1941,7 +1941,7 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
         auto const& tl = le.data.trustLine();
         if (compareAsset(tl.asset, asset))
         {
-            return tl.balance;
+            return {false, true, tl.balance};
         }
         break;
     }
@@ -1953,7 +1953,7 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
     {
         if (compareAsset(le.data.claimableBalance().asset, asset))
         {
-            return le.data.claimableBalance().amount;
+            return {false, true, le.data.claimableBalance().amount};
         }
         break;
     }
@@ -1962,11 +1962,11 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
         auto const& body = le.data.liquidityPool().body.constantProduct();
         if (compareAsset(body.params.assetA, asset))
         {
-            return body.reserveA;
+            return {false, true, body.reserveA};
         }
         if (compareAsset(body.params.assetB, asset))
         {
-            return body.reserveB;
+            return {false, true, body.reserveB};
         }
         break;
     }
@@ -1979,14 +1979,14 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
             contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
             contractData.key.vec().size() == 0)
         {
-            return 0;
+            break;
         }
 
         // The balanceSymbol should be the first entry in the SCVec
         if (!(contractData.key.vec()->at(0) ==
               assetContractInfo.mBalanceSymbol))
         {
-            return 0;
+            break;
         }
 
         auto const& val = le.data.contractData().val;
@@ -2003,13 +2003,13 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
                                  std::numeric_limits<int64_t>::max()) ||
                         hi > 0)
                     {
-                        return std::nullopt;
+                        return {true, true, 0};
                     }
-                    return static_cast<int64_t>(lo);
+                    return {false, true, static_cast<int64_t>(lo)};
                 }
             }
         }
-        return 0;
+        return {false, true, 0};
     }
     case CONTRACT_CODE:
         break;
@@ -2018,7 +2018,7 @@ getAssetBalance(LedgerEntry const& le, Asset const& asset,
     case TTL:
         break;
     }
-    return 0;
+    return {false, false, 0};
 }
 
 SCVal
@@ -2172,6 +2172,25 @@ isIssuer(SCAddress const& addr, Asset const& asset)
 
     default:
         return false;
+    }
+}
+
+bool
+canHoldAsset(LedgerEntryType type, Asset const& asset)
+{
+    if (type == CLAIMABLE_BALANCE || type == LIQUIDITY_POOL ||
+        type == CONTRACT_DATA)
+    {
+        return true;
+    }
+
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return type == ACCOUNT;
+    }
+    else
+    {
+        return type == TRUSTLINE;
     }
 }
 

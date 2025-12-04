@@ -492,7 +492,12 @@ getHotArchiveListBalanceForAsset(Application& app,
     for (auto const& [_, entry] : archived)
     {
         auto balance = getAssetBalance(entry, asset, assetContractInfo);
-        if (!balance || !addBalance(runningBalance, *balance))
+        if (balance.overflowed)
+        {
+            throw std::runtime_error("Total asset balance overflowed int64_t");
+        }
+        if (balance.assetMatched &&
+            !addBalance(runningBalance, balance.balance))
         {
             throw std::runtime_error("Total asset balance overflowed int64_t");
         }
@@ -534,25 +539,41 @@ getLiveBucketListBalanceForAsset(Application& app,
             auto const& be = *in;
             if (be.type() != LIVEENTRY && be.type() != INITENTRY)
             {
-                if (be.type() == DEADENTRY)
+                if (be.type() == DEADENTRY &&
+                    canHoldAsset(be.deadEntry().type(), asset))
                 {
                     seenKeys.emplace(be.deadEntry());
                 }
                 continue;
             }
+
             LedgerKey k = LedgerEntryKey(be.liveEntry());
-            if (seenKeys.emplace(k).second == false)
+
+            if (!canHoldAsset(be.liveEntry().data.type(), asset) ||
+                seenKeys.count(k) != 0)
             {
-                // duplicate key, skip
                 continue;
             }
+
             auto balance =
                 getAssetBalance(be.liveEntry(), asset, assetContractInfo);
-            if (!balance || !addBalance(runningBalance, *balance))
+
+            if (balance.overflowed)
             {
                 throw std::runtime_error(
                     "Total asset balance overflowed int64_t");
             }
+            if (!balance.assetMatched)
+            {
+                continue;
+            }
+            if (!addBalance(runningBalance, balance.balance))
+            {
+                throw std::runtime_error(
+                    "Total asset balance overflowed int64_t");
+            }
+
+            seenKeys.emplace(k);
         }
     }
 }

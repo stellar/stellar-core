@@ -23,19 +23,20 @@ calculateDeltaBalance(AssetContractInfo const& lumenContractInfo,
     auto currentBalance =
         current ? getAssetBalance(*current, Asset(ASSET_TYPE_NATIVE),
                                   lumenContractInfo)
-                : std::optional<int64_t>{0};
+                : AssetBalanceResult{false, true, 0};
     auto previousBalance =
         previous ? getAssetBalance(*previous, Asset(ASSET_TYPE_NATIVE),
                                    lumenContractInfo)
-                 : std::optional<int64_t>{0};
-    if (!currentBalance || !previousBalance)
+                 : AssetBalanceResult{false, true, 0};
+
+    if (currentBalance.overflowed || previousBalance.overflowed)
     {
-        // something went wrong trying to get the balance. Fail the invariant.
+        // Overflow detected. Fail the invariant.
         return std::nullopt;
     }
 
-    return (currentBalance ? *currentBalance : 0) -
-           (previousBalance ? *previousBalance : 0);
+    return (currentBalance.assetMatched ? currentBalance.balance : 0) -
+           (previousBalance.assetMatched ? previousBalance.balance : 0);
 }
 
 static std::optional<int64_t>
