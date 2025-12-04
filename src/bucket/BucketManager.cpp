@@ -23,6 +23,7 @@
 #include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -1209,7 +1210,19 @@ BucketManager::resolveBackgroundEvictionScan(
         // If the TTL has not been modified this ledger, we can evict the entry
         if (modifiedKeys.find(getTTLKey(iter->entry)) == modifiedKeys.end())
         {
-            ++iter;
+            auto maybeEntryIt = modifiedKeys.find(LedgerEntryKey(iter->entry));
+            if (maybeEntryIt != modifiedKeys.end())
+            {
+                CLOG_FATAL(Bucket, "Eviction attempted on modified entry: {}",
+                           xdr::xdr_to_string(LedgerEntryKey(iter->entry)));
+                CLOG_FATAL(Bucket, "{}", REPORT_INTERNAL_BUG);
+
+                eligibleEntries.erase(iter++);
+            }
+            else
+            {
+                ++iter;
+            }
         }
         else
         {
