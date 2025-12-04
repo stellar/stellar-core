@@ -492,10 +492,9 @@ LiveBucket::freshInMemoryOnly(BucketManager& bucketManager,
 
     // This is just a "shell" bucket for in-memory merges, so we'll forgo the
     // expensive BucketOutputIterator construction and just directly populate
-    // the in-memory state of an empty bucket.
-    auto b = std::make_shared<LiveBucket>();
-    b->setInMemoryEntries(std::move(entries));
-    return b;
+    // the in-memory state only.
+    return std::make_shared<LiveBucket>(
+        std::make_unique<std::vector<BucketEntry>>(std::move(entries)));
 }
 
 void
@@ -514,15 +513,22 @@ LiveBucket::checkProtocolLegality(BucketEntry const& entry,
 }
 
 LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
-                       std::shared_ptr<LiveBucket::IndexT const>&& index)
+                       std::shared_ptr<LiveBucket::IndexT const>&& index,
+                       std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
     : BucketBase(filename, hash, std::move(index))
+    , mEntries(std::move(inMemoryState))
 {
 }
 
 LiveBucket::LiveBucket() : BucketBase()
 {
     // Empty bucket is trivially stored in memory
-    mEntries = std::vector<BucketEntry>();
+    mEntries = std::make_unique<std::vector<BucketEntry>>();
+}
+
+LiveBucket::LiveBucket(std::unique_ptr<std::vector<BucketEntry>> entries)
+    : BucketBase(), mEntries(std::move(entries))
+{
 }
 
 uint32_t
@@ -601,7 +607,9 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
 
     // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
-    return out.getBucket(bucketManager, nullptr, std::move(mergedEntries));
+    return out.getBucket(
+        bucketManager, nullptr,
+        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)));
 }
 
 BucketEntryCounters const&
