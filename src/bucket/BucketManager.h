@@ -120,7 +120,7 @@ class BucketManager : NonMovableOrCopyable
     medida::Meter& mCacheMissMeter;
     medida::Counter& mLiveBucketIndexCacheEntries;
     medida::Counter& mLiveBucketIndexCacheBytes;
-    EvictionCounters mBucketListEvictionCounters;
+    EvictionMetrics mBucketListEvictionMetrics;
     MergeCounters mLiveMergeCounters;
     MergeCounters mHotArchiveMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
