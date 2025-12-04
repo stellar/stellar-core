@@ -460,23 +460,26 @@ template <>
 std::shared_ptr<LiveBucket>
 BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::shared_ptr<LiveBucket::IndexT const> index)
+    std::shared_ptr<LiveBucket::IndexT const> index,
+    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
     RecursiveMutexLocker lock(mBucketMutex);
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
-                                     mSharedLiveBuckets, mLiveBucketFutures);
+                                     mSharedLiveBuckets, mLiveBucketFutures,
+                                     std::move(inMemoryState));
 }
 
 template <>
 std::shared_ptr<HotArchiveBucket>
 BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::shared_ptr<HotArchiveBucket::IndexT const> index)
+    std::shared_ptr<HotArchiveBucket::IndexT const> index,
+    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
     RecursiveMutexLocker lock(mBucketMutex);
-    return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
-                                     mSharedHotArchiveBuckets,
-                                     mHotArchiveBucketFutures);
+    return adoptFileAsBucketInternal(
+        filename, hash, mergeKey, std::move(index), mSharedHotArchiveBuckets,
+        mHotArchiveBucketFutures, std::move(inMemoryState));
 }
 
 template <typename BucketT>
@@ -484,7 +487,8 @@ std::shared_ptr<BucketT>
 BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::shared_ptr<typename BucketT::IndexT const> index,
-    BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
+    BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
+    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
@@ -542,11 +546,19 @@ BucketManager::adoptFileAsBucketInternal(
             }
         }
 
-        b = std::make_shared<BucketT>(canonicalName, hash, std::move(index));
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
-            bucketMap.emplace(hash, b);
-            updateSharedBucketSize();
+            b = std::make_shared<BucketT>(canonicalName, hash, std::move(index),
+                                          std::move(inMemoryState));
         }
+        else
+        {
+            b = std::make_shared<BucketT>(canonicalName, hash,
+                                          std::move(index));
+        }
+
+        bucketMap.emplace(hash, b);
+        updateSharedBucketSize();
     }
     releaseAssert(b);
     if (mergeKey)
