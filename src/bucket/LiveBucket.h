@@ -54,7 +54,7 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     {
     }
     LiveBucket(std::string const& filename, Hash const& hash,
-               std::unique_ptr<LiveBucketIndex const>&& index);
+               std::shared_ptr<LiveBucketIndex const>&& index);
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.

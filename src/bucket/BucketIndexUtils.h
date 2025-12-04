@@ -101,7 +101,7 @@ std::streamoff getPageSizeFromConfig(Config const& cfg);
 // Note: Constructor does not initialize the cache for live bucket indexes,
 // as this must be done when the Bucket is being added to the BucketList
 template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
+std::shared_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
             Hash const& hash, asio::io_context& ctx, SHA256* hasher);
 
@@ -110,7 +110,7 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
 // Note: Constructor does not initialize the cache for live bucket indexes,
 // as this must be done when the Bucket is being added to the BucketList
 template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
+std::shared_ptr<typename BucketT::IndexT const>
 loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
           std::size_t fileSize);
 }

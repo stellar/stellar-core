@@ -28,7 +28,7 @@ getPageSizeFromConfig(Config const& cfg)
 }
 
 template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
+std::shared_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
             Hash const& hash, asio::io_context& ctx, SHA256* hasher)
 {
@@ -39,7 +39,7 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
 
     try
     {
-        return std::unique_ptr<typename BucketT::IndexT const>(
+        return std::shared_ptr<typename BucketT::IndexT const>(
             new typename BucketT::IndexT(bm, filename, hash, ctx, hasher));
     }
     // BucketIndex throws if BucketManager shuts down before index finishes,
@@ -51,7 +51,7 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
 }
 
 template <class BucketT>
-std::unique_ptr<typename BucketT::IndexT const>
+std::shared_ptr<typename BucketT::IndexT const>
 loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
           std::size_t fileSize)
 {
@@ -80,25 +80,25 @@ loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
         return {};
     }
 
-    return std::unique_ptr<typename BucketT::IndexT const>(
+    return std::shared_ptr<typename BucketT::IndexT const>(
         new typename BucketT::IndexT(bm, ar, pageSize));
 }
 
-template std::unique_ptr<typename LiveBucket::IndexT const>
+template std::shared_ptr<typename LiveBucket::IndexT const>
 createIndex<LiveBucket>(BucketManager& bm,
                         std::filesystem::path const& filename, Hash const& hash,
                         asio::io_context& ctx, SHA256* hasher);
-template std::unique_ptr<typename HotArchiveBucket::IndexT const>
+template std::shared_ptr<typename HotArchiveBucket::IndexT const>
 createIndex<HotArchiveBucket>(BucketManager& bm,
                               std::filesystem::path const& filename,
                               Hash const& hash, asio::io_context& ctx,
                               SHA256* hasher);
 
-template std::unique_ptr<typename LiveBucket::IndexT const>
+template std::shared_ptr<typename LiveBucket::IndexT const>
 loadIndex<LiveBucket>(BucketManager const& bm,
                       std::filesystem::path const& filename,
                       std::size_t fileSize);
-template std::unique_ptr<typename HotArchiveBucket::IndexT const>
+template std::shared_ptr<typename HotArchiveBucket::IndexT const>
 loadIndex<HotArchiveBucket>(BucketManager const& bm,
                             std::filesystem::path const& filename,
                             std::size_t fileSize);

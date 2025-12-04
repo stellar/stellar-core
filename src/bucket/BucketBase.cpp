@@ -50,7 +50,7 @@ BucketBase<BucketT, IndexT>::isIndexed() const
 
 template <class BucketT, class IndexT>
 void
-BucketBase<BucketT, IndexT>::setIndex(std::unique_ptr<IndexT const>&& index)
+BucketBase<BucketT, IndexT>::setIndex(std::shared_ptr<IndexT const> index)
 {
     releaseAssertOrThrow(!mIndex);
     mIndex = std::move(index);
@@ -59,7 +59,7 @@ BucketBase<BucketT, IndexT>::setIndex(std::unique_ptr<IndexT const>&& index)
 template <class BucketT, class IndexT>
 BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
                                         Hash const& hash,
-                                        std::unique_ptr<IndexT const>&& index)
+                                        std::shared_ptr<IndexT const>&& index)
     : mFilename(filename), mHash(hash), mIndex(std::move(index))
 {
     releaseAssert(filename.empty() || fs::exists(filename));
@@ -113,7 +113,7 @@ template <class BucketT, class IndexT>
 void
 BucketBase<BucketT, IndexT>::freeIndex()
 {
-    mIndex.reset(nullptr);
+    mIndex.reset();
 }
 
 template <class BucketT, class IndexT>

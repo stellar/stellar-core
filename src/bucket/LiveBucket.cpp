@@ -514,7 +514,7 @@ LiveBucket::checkProtocolLegality(BucketEntry const& entry,
 }
 
 LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
-                       std::unique_ptr<LiveBucket::IndexT const>&& index)
+                       std::shared_ptr<LiveBucket::IndexT const>&& index)
     : BucketBase(filename, hash, std::move(index))
 {
 }
