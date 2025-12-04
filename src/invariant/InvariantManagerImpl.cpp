@@ -331,7 +331,8 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
     CompleteConstLedgerStatePtr ledgerState,
-    InMemorySorobanState const& inMemorySnapshot)
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
 {
     // Reset our trigger flag and mark the invariant as running.
     mStateSnapshotInvariantRunning = true;
@@ -342,7 +343,8 @@ InvariantManagerImpl::runStateSnapshotInvariant(
 
     for (auto const& invariant : mEnabled)
     {
-        auto result = invariant->checkSnapshot(ledgerState, inMemorySnapshot);
+        auto result =
+            invariant->checkSnapshot(ledgerState, inMemorySnapshot, isStopping);
         if (!result.empty())
         {
             auto ledgerSeq =

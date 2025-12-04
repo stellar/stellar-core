@@ -44,6 +44,7 @@ class ArchivedStateConsistency : public Invariant
 
     virtual std::string
     checkSnapshot(CompleteConstLedgerStatePtr ledgerState,
-                  InMemorySorobanState const& inMemorySnapshot) override;
+                  InMemorySorobanState const& inMemorySnapshot,
+                  std::function<bool()> isStopping) override;
 };
 }

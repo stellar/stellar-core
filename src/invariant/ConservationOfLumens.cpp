@@ -220,10 +220,17 @@ processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
 static Loop
 scanLiveBucket(LiveBucketSnapshot const& bucket,
                std::unordered_set<LedgerKey>& countedKeys, Asset const& asset,
-               AssetContractInfo const& assetContractInfo, int64_t& sumBalance)
+               AssetContractInfo const& assetContractInfo, int64_t& sumBalance,
+               std::function<bool()> const& isStopping)
 {
     for (LiveBucketInputIterator iter(bucket.getRawBucket()); iter; ++iter)
     {
+        // Allow early termination if application is stopping
+        if (isStopping())
+        {
+            return Loop::COMPLETE;
+        }
+
         auto const& be = *iter;
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
@@ -252,11 +259,18 @@ scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
                      std::unordered_set<LedgerKey>& countedKeys,
                      Asset const& asset,
                      AssetContractInfo const& assetContractInfo,
-                     int64_t& sumBalance)
+                     int64_t& sumBalance,
+                     std::function<bool()> const& isStopping)
 {
     for (HotArchiveBucketInputIterator iter(bucket.getRawBucket()); iter;
          ++iter)
     {
+        // Allow early termination if application is stopping
+        if (isStopping())
+        {
+            return Loop::COMPLETE;
+        }
+
         auto const& be = *iter;
         if (be.type() == HOT_ARCHIVE_ARCHIVED)
         {
@@ -285,9 +299,9 @@ scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
 std::string
 ConservationOfLumens::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
-    InMemorySorobanState const& inMemorySnapshot)
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
 {
-    CLOG_ERROR(Tx, "Running ConservationOfLumens invariant snapshot check");
     LogSlowExecution logSlow("ConservationOfLumens::checkSnapshot",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::seconds(90));
@@ -320,21 +334,35 @@ ConservationOfLumens::checkSnapshot(
     {
         std::unordered_set<LedgerKey> countedKeys;
         liveSnapshot->loopAllBuckets([&countedKeys, &nativeAsset, &sumBalance,
+                                      &isStopping,
                                       this](LiveBucketSnapshot const& bucket) {
             return scanLiveBucket(bucket, countedKeys, nativeAsset,
-                                  mLumenContractInfo, sumBalance);
+                                  mLumenContractInfo, sumBalance, isStopping);
         });
+    }
+
+    // Check if we should stop before scanning hot archive
+    if (isStopping())
+    {
+        return std::string{};
     }
 
     // Scan the Hot Archive for native balances using loopAllBuckets
     {
         std::unordered_set<LedgerKey> countedKeys;
         hotArchiveSnapshot->loopAllBuckets(
-            [&countedKeys, &nativeAsset, &sumBalance,
+            [&countedKeys, &nativeAsset, &sumBalance, &isStopping,
              this](HotArchiveBucketSnapshot const& bucket) {
                 return scanHotArchiveBucket(bucket, countedKeys, nativeAsset,
-                                            mLumenContractInfo, sumBalance);
+                                            mLumenContractInfo, sumBalance,
+                                            isStopping);
             });
+    }
+
+    // We stopped early, so it's likely we didn't finish scanning everything
+    if (isStopping())
+    {
+        return std::string{};
     }
 
     // Compare the calculated total with totalCoins from the ledger header
@@ -347,7 +375,6 @@ ConservationOfLumens::checkSnapshot(
                        "{}, Difference: {}"),
             sumBalance, header.totalCoins, header.totalCoins - sumBalance);
     }
-    CLOG_ERROR(Tx, "!!!Finished ConservationOfLumens invariant snapshot check");
     return std::string{};
 }
 }

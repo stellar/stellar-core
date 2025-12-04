@@ -777,7 +777,8 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     auto cb = [ledgerState = ledgerState, &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant);
+            ledgerState, *inMemorySnapshotForInvariant,
+            [&app]() { return app.isStopping(); });
     };
 
     if (runInParallel)

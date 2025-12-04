@@ -86,7 +86,8 @@ class Invariant
 
     virtual std::string
     checkSnapshot(CompleteConstLedgerStatePtr ledgerState,
-                  InMemorySorobanState const& inMemorySnapshot)
+                  InMemorySorobanState const& inMemorySnapshot,
+                  std::function<bool()> isStopping)
     {
         return std::string{};
     }
