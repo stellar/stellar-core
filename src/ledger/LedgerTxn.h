@@ -187,6 +187,7 @@ namespace stellar
 {
 
 class InMemorySorobanState;
+struct BucketListCommitEntries;
 
 /* LedgerEntryPtr holds a shared_ptr to a InternalLedgerEntry along with
   information about the state of the entry (or lack thereof)
@@ -665,9 +666,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
-    virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                               std::vector<LedgerEntry>& liveEntries,
-                               std::vector<LedgerKey>& deadEntries) = 0;
+    virtual BucketListCommitEntries getAllEntries() = 0;
 
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
@@ -803,9 +802,7 @@ class LedgerTxn : public AbstractLedgerTxn
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    void getAllEntries(std::vector<LedgerEntry>& initEntries,
-                       std::vector<LedgerEntry>& liveEntries,
-                       std::vector<LedgerKey>& deadEntries) override;
+    BucketListCommitEntries getAllEntries() override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>

@@ -1593,41 +1593,40 @@ TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
 {
     // Get the list of ledger entries created during setup to place into
     // mStoredLedgerKeys.
-    std::vector<LedgerEntry> init, live;
-    std::vector<LedgerKey> dead;
-    ltx.getAllEntries(init, live, dead);
+    auto entries = ltx.getAllEntries();
 
     // getAllEntries() does not guarantee anything about the order in which
     // entries are returned, so to minimize non-determinism in fuzzing setup, we
     // sort them.
-    std::sort(init.begin(), init.end());
+    std::sort(entries.initEntries.begin(), entries.initEntries.end());
 
     // Setup should only create entries; there should be no dead entries, and
     // at most one "live" (modified) one:  the root account.
-    assert(dead.empty());
-    if (live.size() == 1)
+    assert(entries.deadEntries.empty());
+    if (entries.liveEntries.size() == 1)
     {
-        assert(live[0].data.type() == ACCOUNT);
-        assert(live[0].data.account().accountID ==
+        assert(entries.liveEntries[0].data.type() == ACCOUNT);
+        assert(entries.liveEntries[0].data.account().accountID ==
                txtest::getRoot(mApp->getNetworkID()).getPublicKey());
     }
     else
     {
-        assert(live.empty());
+        assert(entries.liveEntries.empty());
     }
 
     // If we ever create more ledger entries during setup than we have room for
     // in mStoredLedgerEntries, then we will have to do something further.
-    assert(init.size() <= FuzzUtils::NUM_VALIDATED_LEDGER_KEYS);
+    assert(entries.initEntries.size() <= FuzzUtils::NUM_VALIDATED_LEDGER_KEYS);
 
     // Store the ledger entries created during setup in mStoredLedgerKeys.
-    auto firstGeneratedLedgerKey = std::transform(
-        init.cbegin(), init.cend(), mStoredLedgerKeys.begin(), LedgerEntryKey);
+    auto firstGeneratedLedgerKey =
+        std::transform(entries.initEntries.cbegin(), entries.initEntries.cend(),
+                       mStoredLedgerKeys.begin(), LedgerEntryKey);
 
     stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
                                                  mStoredLedgerKeys.end());
 
-    storeSetupPoolIDs(ltx, init);
+    storeSetupPoolIDs(ltx, entries.initEntries);
 }
 
 void
