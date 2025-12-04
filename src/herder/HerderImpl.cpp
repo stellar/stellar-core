@@ -1122,6 +1122,12 @@ HerderImpl::getSorobanTransactionQueue()
     releaseAssert(mSorobanTransactionQueue);
     return *mSorobanTransactionQueue;
 }
+
+Upgrades const&
+HerderImpl::getUpgrades() const
+{
+    return mUpgrades;
+}
 #endif
 
 std::chrono::milliseconds
