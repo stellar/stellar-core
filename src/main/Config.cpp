@@ -1734,10 +1734,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_NUM_LEDGERS",
                  [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
-                {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS",
+                {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC",
                  [&]() {
-                     APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS =
-                         readInt<uint32_t>(item, 10);
+                     APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC =
+                         readInt<uint32_t>(item, 1);
                  }},
                 {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
                  [&]() {
