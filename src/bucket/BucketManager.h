@@ -161,8 +161,9 @@ class BucketManager : NonMovableOrCopyable
     template <class BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-        std::unique_ptr<typename BucketT::IndexT const> index,
-        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap)
+        std::shared_ptr<typename BucketT::IndexT const> index,
+        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
+        std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
         REQUIRES(mBucketMutex);
 
     template <class BucketT>
@@ -260,10 +261,10 @@ class BucketManager : NonMovableOrCopyable
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
     template <class BucketT>
-    std::shared_ptr<BucketT>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      MergeKey* mergeKey,
-                      std::unique_ptr<typename BucketT::IndexT const> index);
+    std::shared_ptr<BucketT> adoptFileAsBucket(
+        std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+        std::shared_ptr<typename BucketT::IndexT const> index,
+        std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
@@ -335,7 +336,7 @@ class BucketManager : NonMovableOrCopyable
     // this function, otherwise use BucketBase::setIndex().
     template <class BucketT>
     void maybeSetIndex(std::shared_ptr<BucketT> b,
-                       std::unique_ptr<typename BucketT::IndexT const>&& index);
+                       std::shared_ptr<typename BucketT::IndexT const> index);
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
