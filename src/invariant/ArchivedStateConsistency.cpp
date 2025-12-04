@@ -30,7 +30,8 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 std::string
 ArchivedStateConsistency::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
-    InMemorySorobanState const& inMemorySnapshot)
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
 {
     LogSlowExecution logSlow("ArchivedStateConsistency::stateSnapshotInvariant",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",

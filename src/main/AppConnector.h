@@ -66,6 +66,7 @@ class AppConnector
     bool threadIsType(Application::ThreadType type) const;
 
     medida::MetricsRegistry& getMetrics() const;
+    bool isStopping() const;
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
 
