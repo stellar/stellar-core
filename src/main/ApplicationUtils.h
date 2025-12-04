@@ -28,6 +28,8 @@ int mergeBucketList(Config cfg, std::string const& outputDir);
 // currently in the BucketList, number of bytes of evicted entries, etc.
 int dumpStateArchivalStatistics(Config cfg);
 
+int calculateAssetSupply(Config cfg, Asset const& asset);
+
 int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<std::string> filterQuery,
                std::optional<uint32_t> lastModifiedLedgerCount,
