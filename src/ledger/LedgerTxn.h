@@ -669,8 +669,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
 
-    // Returns all TTL keys that have been modified (create, update, and
-    // delete), but does not cause the AbstractLedgerTxn or update last
+    // Returns all keys that have been modified (created, updated, or deleted),
+    // but does not cause the AbstractLedgerTxn to be sealed or update last
     // modified.
     virtual LedgerKeySet getAllKeysWithoutSealing() const = 0;
 
