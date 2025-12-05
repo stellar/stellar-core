@@ -8,9 +8,9 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "medida/timer_context.h"
+#include "util/LogSlowExecution.h"
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
-#include "xdr/Stellar-ledger-entries.h"
 #include <optional>
 #include <thread>
 
@@ -245,6 +245,11 @@ class ApplicationImpl : public Application
 
     bool mStarted;
     std::atomic<bool> mStopping;
+
+    void runBackgroundWork(std::function<void()> const& f,
+                           std::string const& jobName,
+                           LogSlowExecution const& isSlow,
+                           medida::Timer& timer);
 
 #ifdef BUILD_TESTS
     bool mRunInOverlayOnlyMode;
