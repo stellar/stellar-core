@@ -21,6 +21,7 @@
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -340,15 +341,26 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     auto reset =
         gsl::finally([this]() { mStateSnapshotInvariantRunning = false; });
 
-    for (auto const& invariant : mEnabled)
+    try
     {
-        auto result = invariant->checkSnapshot(ledgerState, inMemorySnapshot);
-        if (!result.empty())
+        for (auto const& invariant : mEnabled)
         {
-            auto ledgerSeq =
-                ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
-            onInvariantFailure(invariant, result, ledgerSeq);
+            auto result =
+                invariant->checkSnapshot(ledgerState, inMemorySnapshot);
+            if (!result.empty())
+            {
+                auto ledgerSeq =
+                    ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+                onInvariantFailure(invariant, result, ledgerSeq);
+            }
         }
+    }
+    catch (std::exception const& e)
+    {
+        // Snapshot-based invariants run in a background thread. Abort on
+        // failure to match the behavior of strict invariants on the main
+        // thread.
+        printErrorAndAbort("Exception in state snapshot invariant: ", e.what());
     }
 }
 
