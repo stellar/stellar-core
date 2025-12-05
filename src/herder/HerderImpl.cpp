@@ -2429,11 +2429,12 @@ HerderImpl::trackingHeartBeat()
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
     mTrackingTimer.async_wait(
         [this]() {
-            if (mApp.getLedgerManager().isApplying())
+            auto const& lm = mApp.getLedgerManager();
+            if (lm.isApplying() || lm.isBooting())
             {
-                // if we're applying a ledger, it's possible that we're just
-                // slow and the timer expired; reset the timer and wait until we
-                // finished application
+                // if we're applying a ledger or still booting, it's possible
+                // that we're just slow and the timer expired; reset the timer
+                // and wait until we finished application
                 trackingHeartBeat();
             }
             else

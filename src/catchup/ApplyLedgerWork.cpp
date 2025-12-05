@@ -16,7 +16,26 @@ ApplyLedgerWork::ApplyLedgerWork(Application& app,
           app, "apply-ledger-" + std::to_string(ledgerCloseData.getLedgerSeq()),
           BasicWork::RETRY_NEVER)
     , mLedgerCloseData(ledgerCloseData)
+    , mLedgerManagerReadyTimer(app)
 {
+}
+
+void
+ApplyLedgerWork::waitForLedgerManager()
+{
+    mLedgerManagerReadyTimer.expires_from_now(std::chrono::seconds{1});
+    mLedgerManagerReadyTimer.async_wait(
+        [this] {
+            if (mApp.getLedgerManager().isBooting())
+            {
+                waitForLedgerManager();
+            }
+            else
+            {
+                wakeUp();
+            }
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 BasicWork::State
@@ -25,12 +44,7 @@ ApplyLedgerWork::onRun()
     ZoneScoped;
     if (mApp.getLedgerManager().isBooting())
     {
-        mApp.postOnBackgroundThread(
-            [this] {
-                mApp.getLedgerManager().waitForBoot();
-                wakeUp();
-            },
-            "Wait for LedgerManager to finish booting");
+        waitForLedgerManager();
         return BasicWork::State::WORK_WAITING;
     }
     mApp.getLedgerManager().applyLedger(mLedgerCloseData,

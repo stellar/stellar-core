@@ -183,8 +183,15 @@ class LedgerManager
         // Loading state from database, not yet active
         LM_BOOTING_STATE,
 
+        // Not yet active; when finished loading, will transition to
+        // LM_CATCHING_UP_STATE
+        LM_BOOTING_CATCHUP_STATE,
+
+        // Finished loading state from database, active
+        LM_BOOTED_STATE,
+
         // local state is in sync with view of consensus coming from herder
-        // desynchronization will cause transition to LM_BOOTING_STATE.
+        // desynchronization will cause transition to LM_CATCHING_UP_STATE.
         LM_SYNCED_STATE,
 
         // local state doesn't match view of consensus from herder
@@ -198,8 +205,13 @@ class LedgerManager
     virtual void beginApply() = 0;
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
-    virtual bool isBooting() const = 0;
-    virtual void waitForBoot() = 0;
+
+    bool
+    isBooting() const
+    {
+        auto state = getState();
+        return state == LM_BOOTING_STATE || state == LM_BOOTING_CATCHUP_STATE;
+    }
 
     bool
     isSynced() const

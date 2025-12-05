@@ -75,7 +75,6 @@
 #include "LedgerManagerImpl.h"
 #include <chrono>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -361,8 +360,29 @@ void
 LedgerManagerImpl::setState(State s)
 {
     releaseAssert(threadIsMain());
-    if (s != getState())
+    if (s != mState)
     {
+        // TODO--I plan to switch this to a switch statement, but I'm leaving
+        // this as a set while figuring out what the state machine should look
+        // like
+        static std::set<std::pair<State, State>> valid{
+            {LM_BOOTING_STATE, LM_BOOTED_STATE},
+            {LM_BOOTING_STATE, LM_BOOTING_CATCHUP_STATE},
+            {LM_BOOTING_CATCHUP_STATE, LM_CATCHING_UP_STATE},
+            {LM_BOOTED_STATE, LM_SYNCED_STATE},
+            {LM_CATCHING_UP_STATE, LM_SYNCED_STATE},
+            {LM_SYNCED_STATE, LM_CATCHING_UP_STATE},
+            {LM_BOOTED_STATE, LM_CATCHING_UP_STATE},
+            {LM_CATCHING_UP_STATE, LM_BOOTING_CATCHUP_STATE},
+        };
+        if (valid.find({mState, s}) == valid.end())
+        {
+            std::string oldState = getStateHuman();
+            mState = s;
+            CLOG_FATAL(Ledger, "Tried to change from {} -> {}", oldState,
+                       getStateHuman());
+            releaseAssert(false);
+        };
         std::string oldState = getStateHuman();
         mState = s;
         mApp.syncOwnMetrics();
@@ -384,25 +404,9 @@ std::string
 LedgerManagerImpl::getStateHuman() const
 {
     static std::array<const char*, LM_NUM_STATE> stateStrings = std::array{
-        "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
+        "LM_BOOTING_STATE", "LM_BOOTING_CATCHUP_STATE", "LM_BOOTED_STATE",
+        "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
     return std::string(stateStrings[getState()]);
-}
-
-bool
-LedgerManagerImpl::isBooting() const
-{
-    std::lock_guard guard{mBootingLock};
-    return mIsBooting;
-}
-
-void
-LedgerManagerImpl::waitForBoot()
-{
-    std::unique_lock<std::mutex> lk{mBootingLock};
-    if (mIsBooting)
-    {
-        mBootingCV.wait(lk, [this] { return !mIsBooting; });
-    }
 }
 
 LedgerHeader
@@ -522,6 +526,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 {
     ZoneScoped;
     mApplyState.assertSetupPhase();
+    releaseAssert(mState == LM_BOOTING_STATE);
 
     // Step 1. Load LCL state from the DB and extract latest ledger hash
     string lastLedger = mApp.getPersistentState().getState(
@@ -606,20 +611,20 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     {
         mApplyState.compileAllContractsInLedger(
             snapshot, latestLedgerHeader.ledgerVersion);
-        mBootingLock.lock();
-        mIsBooting = true;
-        mBootingLock.unlock();
-        mApp.postOnBackgroundThread(
-            [=] {
-                mApplyState.populateInMemorySorobanState(
-                    snapshot, latestLedgerHeader.ledgerVersion);
+        mShouldReportOnMain = true;
+        mApp.postOnLedgerCloseThread(
+            [this, snapshot, ledgerVersion{latestLedgerHeader.ledgerVersion}] {
+                mApplyState.populateInMemorySorobanState(snapshot,
+                                                         ledgerVersion);
                 mApp.postOnMainThread(
-                    [=] {
-                        mBootingLock.lock();
-                        mIsBooting = false;
-                        mBootingLock.unlock();
-                        mBootingCV.notify_all();
-                        mApplyState.markEndOfSetupPhase();
+                    [this] {
+                        if (mShouldReportOnMain)
+                        {
+                            mApplyState.markEndOfSetupPhase();
+                            setState(mState == LM_BOOTING_CATCHUP_STATE
+                                         ? LM_CATCHING_UP_STATE
+                                         : LM_BOOTED_STATE);
+                        }
                     },
                     "Finish populating in-memory Soroban state");
             },
@@ -628,6 +633,8 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     else
     {
         mApplyState.markEndOfSetupPhase();
+        setState(mState == LM_BOOTING_CATCHUP_STATE ? LM_CATCHING_UP_STATE
+                                                    : LM_BOOTED_STATE);
     }
 }
 
@@ -1227,6 +1234,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
 
     auto st = getState();
     if (st != LedgerManager::LM_BOOTING_STATE &&
+        st != LedgerManager::LM_BOOTING_CATCHUP_STATE &&
+        st != LedgerManager::LM_BOOTED_STATE &&
         st != LedgerManager::LM_CATCHING_UP_STATE &&
         st != LedgerManager::LM_SYNCED_STATE)
     {
@@ -1240,16 +1249,17 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
     if (res == LedgerApplyManager::ProcessLedgerResult::
                    WAIT_TO_APPLY_BUFFERED_OR_CATCHUP)
     {
-        if (mState != LM_CATCHING_UP_STATE)
+        if (mState != LM_CATCHING_UP_STATE &&
+            mState != LM_BOOTING_CATCHUP_STATE)
         {
             // Out of sync, buffer what we just heard and start catchup.
             CLOG_INFO(Ledger,
                       "Lost sync, local LCL is {}, network closed ledger {}",
                       getLastClosedLedgerHeader().header.ledgerSeq,
                       ledgerData.getLedgerSeq());
+            setState(mState == LM_BOOTING_STATE ? LM_BOOTING_CATCHUP_STATE
+                                                : LM_CATCHING_UP_STATE);
         }
-
-        setState(LM_CATCHING_UP_STATE);
     }
 }
 
@@ -1258,7 +1268,9 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
-    setState(LM_CATCHING_UP_STATE);
+    releaseAssert(mState == LM_BOOTING_STATE || mState == LM_BOOTED_STATE);
+    setState(mState == LM_BOOTING_STATE ? LM_BOOTING_CATCHUP_STATE
+                                        : LM_CATCHING_UP_STATE);
     mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
@@ -1474,6 +1486,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     mLastLedgerCloseMeta.reset();
 #endif
     ZoneScoped;
+    releaseAssert(!isBooting());
     mApplyState.markStartOfApplying();
 
     auto ledgerTime = mApplyState.getMetrics().mLedgerClose.TimeScope();
@@ -1865,6 +1878,9 @@ LedgerManagerImpl::setLastClosedLedger(
     ZoneScoped;
     releaseAssert(threadIsMain());
     mApplyState.assertSetupPhase();
+    releaseAssert(mState == LM_CATCHING_UP_STATE ||
+                  mState == LM_BOOTING_CATCHUP_STATE);
+    setState(LM_BOOTING_CATCHUP_STATE);
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
@@ -1885,6 +1901,10 @@ LedgerManagerImpl::setLastClosedLedger(
 
     if (rebuildInMemoryState)
     {
+        // If we happen to still be doing the initial boot, we don't want to
+        // mark as ready to apply until we have finished the population from
+        // this method
+        mShouldReportOnMain = false;
         // This should not be additionally conditionalized on lv >= anything,
         // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
         //
@@ -1894,20 +1914,18 @@ LedgerManagerImpl::setLastClosedLedger(
         // a snapshot _from_ the LCL state.
         auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
         mApplyState.compileAllContractsInLedger(snapshot, ledgerVersion);
-        mBootingLock.lock();
-        mIsBooting = true;
-        mBootingLock.unlock();
-        mApp.postOnBackgroundThread(
-            [=] {
+        // Note: it's okay if we haven't finished populating our initial
+        // in-memory Soroban state by this point because we post the work on the
+        // same thread, so this will only run after we finish.
+        mApp.postOnLedgerCloseThread(
+            [this, snapshot, ledgerVersion] {
                 mApplyState.populateInMemorySorobanState(snapshot,
                                                          ledgerVersion);
                 mApp.postOnMainThread(
-                    [=] {
-                        mBootingLock.lock();
-                        mIsBooting = false;
-                        mBootingLock.unlock();
-                        mBootingCV.notify_all();
+                    [this] {
+                        releaseAssert(mState == LM_BOOTING_CATCHUP_STATE);
                         mApplyState.markEndOfSetupPhase();
+                        setState(LM_CATCHING_UP_STATE);
                     },
                     "Finish populating in-memory Soroban state");
             },
@@ -1916,6 +1934,7 @@ LedgerManagerImpl::setLastClosedLedger(
     else
     {
         mApplyState.markEndOfSetupPhase();
+        setState(LM_CATCHING_UP_STATE);
     }
 }
 

@@ -99,9 +99,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
-    , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
-                                ? std::make_unique<asio::io_context>(1)
-                                : nullptr)
+    , mLedgerCloseIOContext(std::make_unique<asio::io_context>(1))
     , mLedgerCloseWork(
           mLedgerCloseIOContext
               ? std::make_unique<asio::io_context::work>(*mLedgerCloseIOContext)
@@ -199,12 +197,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
-    if (mConfig.parallelLedgerClose())
-    {
-        mLedgerCloseThread = std::make_unique<std::thread>(
-            [this]() { mLedgerCloseIOContext->run(); });
-        mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
-    }
+    mLedgerCloseThread = std::make_unique<std::thread>(
+        [this]() { mLedgerCloseIOContext->run(); });
+    mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
 }
 
 static void

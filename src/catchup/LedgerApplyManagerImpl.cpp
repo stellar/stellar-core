@@ -149,15 +149,24 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     mLargestLedgerSeqHeard =
         std::max(mLargestLedgerSeqHeard, lastReceivedLedgerSeq);
 
+    if (mApp.getLedgerManager().getState() == LedgerManager::LM_BOOTING_STATE)
+    {
+        CLOG_INFO(Ledger,
+                  "LedgerManager still booting: close of ledger {} buffered. "
+                  "mSyncingLedgers has {} ledgers",
+                  ledgerData.getLedgerSeq(), mSyncingLedgers.size());
+        return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
+    }
+
     // 1. CatchupWork is not running yet
-    // 2. LedgerApplyManager received  ledger that should be immediately applied
+    // 2. LedgerApplyManager received ledger that should be immediately applied
     // by LedgerManager: check if we have any sequential ledgers. If so, attempt
     // to apply mSyncingLedgers and possibly get back in sync
-    if (((!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1) ||
-         mTMP_TODO) &&
-        !mApp.getLedgerManager().isBooting())
+    if (!mCatchupWork &&
+        mSyncingLedgers.begin()->first == *mLastQueuedToApply + 1 &&
+        mApp.getLedgerManager().getState() !=
+            LedgerManager::LM_BOOTING_CATCHUP_STATE)
     {
-        mTMP_TODO = false;
         tryApplySyncingLedgers();
         return ProcessLedgerResult::PROCESSED_ALL_LEDGERS_SEQUENTIALLY;
     }
@@ -175,13 +184,6 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     CLOG_INFO(Ledger,
               "Close of ledger {} buffered. mSyncingLedgers has {} ledgers",
               ledgerData.getLedgerSeq(), mSyncingLedgers.size());
-
-    if (mApp.getLedgerManager().isBooting())
-    {
-        mTMP_TODO = true;
-        return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
-    }
-    mTMP_TODO = false;
 
     // First: if CatchupWork has started, just buffer and return early.
     if (mCatchupWork)
@@ -523,7 +525,7 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
         // If we have too many ledgers queued to apply, just stop scheduling
         // more and let the node gracefully go into catchup.
         releaseAssert(mLastQueuedToApply >= lcl);
-        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT && false)
+        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
         {
             CLOG_INFO(History,
                       "Next ledger to apply is {}, but LCL {} is too far "
