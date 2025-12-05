@@ -422,12 +422,12 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
         if (prevLe)
         {
             changes.emplace_back(LEDGER_ENTRY_STATE);
-            changes.back().state() = *prevLe;
+            changes.back().state() = threadState.scope_read_entry(*prevLe);
 
             if (le)
             {
                 changes.emplace_back(LEDGER_ENTRY_UPDATED);
-                changes.back().updated() = *le;
+                changes.back().updated() = res.scope_read_entry(*le);
             }
             else
             {
@@ -455,7 +455,7 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
             else
             {
                 changes.emplace_back(LEDGER_ENTRY_CREATED);
-                changes.back().created() = *le;
+                changes.back().created() = res.scope_read_entry(*le);
             }
         }
     }
