@@ -1500,16 +1500,37 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
 }
 
 void
+ApplicationImpl::runBackgroundWork(std::function<void()> const& f,
+                                   std::string const& jobName,
+                                   LogSlowExecution const& isSlow,
+                                   medida::Timer& timer)
+{
+    JITTER_INJECT_DELAY();
+    timer.Update(isSlow.checkElapsedTime());
+    try
+    {
+        f();
+    }
+    catch (std::exception const& e)
+    {
+        // If a background thread throws an exception, we need to log it and
+        // post a graceful shutdown to the main thread.
+        CLOG_FATAL(Bucket, "Fatal exception in background thread '{}': {}",
+                   jobName, e.what());
+        asio::post(mVirtualClock.getIOContext(), [this]() { gracefulStop(); });
+    }
+}
+
+void
 ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName)
 {
     JITTER_INJECT_DELAY();
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{jobName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
-        JITTER_INJECT_DELAY();
-        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
+    asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow,
+                                      jobName = std::move(jobName)]() {
+        runBackgroundWork(f, jobName, isSlow, mPostOnBackgroundThreadDelay);
     });
 }
 
@@ -1518,13 +1539,11 @@ ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName)
 {
     JITTER_INJECT_DELAY();
-
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{jobName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
-        JITTER_INJECT_DELAY();
-        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
+    asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow,
+                                        jobName = std::move(jobName)]() {
+        runBackgroundWork(f, jobName, isSlow, mPostOnBackgroundThreadDelay);
     });
 }
 
@@ -1534,12 +1553,11 @@ ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
 {
     JITTER_INJECT_DELAY();
     releaseAssert(mOverlayIOContext);
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{jobName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
-        JITTER_INJECT_DELAY();
-        mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
+    asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow,
+                                    jobName = std::move(jobName)]() {
+        runBackgroundWork(f, jobName, isSlow, mPostOnOverlayThreadDelay);
     });
 }
 
@@ -1550,12 +1568,11 @@ ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
     JITTER_INJECT_DELAY();
     releaseAssert(mLedgerCloseIOContext);
     getClock().newBackgroundWork();
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{jobName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
-        JITTER_INJECT_DELAY();
-        mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
+    asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow,
+                                        jobName = std::move(jobName)]() {
+        runBackgroundWork(f, jobName, isSlow, mPostOnLedgerCloseThreadDelay);
         getClock().finishedBackgroundWork();
     });
 }
