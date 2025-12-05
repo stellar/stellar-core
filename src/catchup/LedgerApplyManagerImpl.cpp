@@ -155,7 +155,7 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
                   "LedgerManager still booting: close of ledger {} buffered. "
                   "mSyncingLedgers has {} ledgers",
                   ledgerData.getLedgerSeq(), mSyncingLedgers.size());
-        return ProcessLedgerResult::WAIT_TO_APPLY_BUFFERED_OR_CATCHUP;
+        return ProcessLedgerResult::WAIT_FOR_STATE_REBUILD;
     }
 
     // 1. CatchupWork is not running yet
