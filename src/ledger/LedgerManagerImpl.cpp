@@ -367,6 +367,7 @@ LedgerManagerImpl::setState(State s)
         // like
         static std::set<std::pair<State, State>> valid{
             {LM_BOOTING_STATE, LM_BOOTED_STATE},
+            {LM_BOOTED_STATE, LM_BOOTING_CATCHUP_STATE},
             {LM_BOOTING_STATE, LM_BOOTING_CATCHUP_STATE},
             {LM_BOOTING_CATCHUP_STATE, LM_CATCHING_UP_STATE},
             {LM_BOOTED_STATE, LM_SYNCED_STATE},
@@ -611,19 +612,16 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     {
         mApplyState.compileAllContractsInLedger(
             snapshot, latestLedgerHeader.ledgerVersion);
-        mShouldReportOnMain = true;
         mApp.postOnLedgerCloseThread(
             [this, snapshot, ledgerVersion{latestLedgerHeader.ledgerVersion}] {
                 mApplyState.populateInMemorySorobanState(snapshot,
                                                          ledgerVersion);
                 mApp.postOnMainThread(
                     [this] {
-                        if (mShouldReportOnMain)
+                        if (mState == LM_BOOTING_STATE)
                         {
                             mApplyState.markEndOfSetupPhase();
-                            setState(mState == LM_BOOTING_CATCHUP_STATE
-                                         ? LM_CATCHING_UP_STATE
-                                         : LM_BOOTED_STATE);
+                            setState(LM_BOOTED_STATE);
                         }
                     },
                     "Finish populating in-memory Soroban state");
@@ -633,8 +631,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     else
     {
         mApplyState.markEndOfSetupPhase();
-        setState(mState == LM_BOOTING_CATCHUP_STATE ? LM_CATCHING_UP_STATE
-                                                    : LM_BOOTED_STATE);
+        setState(LM_BOOTED_STATE);
     }
 }
 
@@ -1257,8 +1254,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
                       "Lost sync, local LCL is {}, network closed ledger {}",
                       getLastClosedLedgerHeader().header.ledgerSeq,
                       ledgerData.getLedgerSeq());
-            setState(mState == LM_BOOTING_STATE ? LM_BOOTING_CATCHUP_STATE
-                                                : LM_CATCHING_UP_STATE);
+            releaseAssert(mState != LM_BOOTING_STATE);
+            setState(LM_CATCHING_UP_STATE);
         }
     }
 }
@@ -1268,9 +1265,10 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
-    releaseAssert(mState == LM_BOOTING_STATE || mState == LM_BOOTED_STATE);
-    setState(mState == LM_BOOTING_STATE ? LM_BOOTING_CATCHUP_STATE
-                                        : LM_CATCHING_UP_STATE);
+    if (mState == LM_BOOTED_STATE)
+    {
+        setState(LM_CATCHING_UP_STATE);
+    }
     mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
@@ -1879,7 +1877,7 @@ LedgerManagerImpl::setLastClosedLedger(
     releaseAssert(threadIsMain());
     mApplyState.assertSetupPhase();
     releaseAssert(mState == LM_CATCHING_UP_STATE ||
-                  mState == LM_BOOTING_CATCHUP_STATE);
+                  mState == LM_BOOTING_STATE || mState == LM_BOOTED_STATE);
     setState(LM_BOOTING_CATCHUP_STATE);
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -1904,7 +1902,6 @@ LedgerManagerImpl::setLastClosedLedger(
         // If we happen to still be doing the initial boot, we don't want to
         // mark as ready to apply until we have finished the population from
         // this method
-        mShouldReportOnMain = false;
         // This should not be additionally conditionalized on lv >= anything,
         // since we want to support SOROBAN_TEST_EXTRA_PROTOCOL > lv.
         //

@@ -409,7 +409,6 @@ class LedgerManagerImpl : public LedgerManager
                                     Config const& config);
 
     State mState;
-    bool mShouldReportOnMain;
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
