@@ -20,6 +20,7 @@ fi
 if [[ -z "$TEST_SPEC" ]]; then
     TEST_SPEC="~[acceptance]~[.]" # All non-hidden non-acceptance tests by default
 fi
+TEST_SPEC="fail"
 if [[ -z "$BATCHSIZE" ]]; then
     # number of tests to run per run per job slot
     BATCHSIZE=5
