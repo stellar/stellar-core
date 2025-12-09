@@ -68,7 +68,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScopeID
     bool operator==(LedgerEntryScopeID const& other) const;
     bool operator!=(LedgerEntryScopeID const& other) const;
 
-    friend std::ostream& ::operator<<(std::ostream& os,
+    friend std::ostream& ::operator<<(std::ostream & os,
                                       LedgerEntryScopeID const& obj);
 };
 
@@ -120,6 +120,30 @@ using ThreadLedgerEntry =
 using TxLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
 
+// Defines valid scope transitions as (DEST, SOURCE) pairs for compile-time
+// enforcement.
+#define FOR_EACH_VALID_SCOPE_ADOPTION(MACRO) \
+    MACRO(GLOBAL_PAR_APPLY_STATE, THREAD_PAR_APPLY_STATE) \
+    MACRO(THREAD_PAR_APPLY_STATE, GLOBAL_PAR_APPLY_STATE) \
+    MACRO(THREAD_PAR_APPLY_STATE, TX_PAR_APPLY_STATE) \
+    MACRO(TX_PAR_APPLY_STATE, THREAD_PAR_APPLY_STATE)
+
+template <StaticLedgerEntryScope Dest, StaticLedgerEntryScope Source>
+struct IsValidScopeAdoption : std::false_type
+{
+};
+
+#define VALID_ADOPTION_SPECIALIZATION(DEST_SCOPE, SOURCE_SCOPE) \
+    template <> \
+    struct IsValidScopeAdoption<StaticLedgerEntryScope::DEST_SCOPE, \
+                                StaticLedgerEntryScope::SOURCE_SCOPE> \
+        : std::true_type \
+    { \
+    };
+
+FOR_EACH_VALID_SCOPE_ADOPTION(VALID_ADOPTION_SPECIALIZATION)
+#undef VALID_ADOPTION_SPECIALIZATION
+
 template <StaticLedgerEntryScope S> class LedgerEntryScope
 {
     mutable bool mActive{true};
@@ -156,10 +180,38 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     template <StaticLedgerEntryScope OtherScope>
     EntryT
     scope_adopt_entry_from(ScopedLedgerEntry<OtherScope> const& entry,
-                           LedgerEntryScope<OtherScope> const& scope) const;
+                           LedgerEntryScope<OtherScope> const& scope) const
+    {
+        static_assert(
+            IsValidScopeAdoption<S, OtherScope>::value,
+            "Invalid scope adoption: this transition is not allowed. "
+            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
+            "for the list of valid transitions.");
+        return scope_adopt_entry_from_impl(entry, scope);
+    }
 
     template <StaticLedgerEntryScope OtherScope>
-    std::optional<EntryT> scope_adopt_entry_from(
+    std::optional<EntryT>
+    scope_adopt_entry_from(
+        std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
+        LedgerEntryScope<OtherScope> const& scope) const
+    {
+        static_assert(
+            IsValidScopeAdoption<S, OtherScope>::value,
+            "Invalid scope adoption: this transition is not allowed. "
+            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
+            "for the list of valid transitions.");
+        return scope_adopt_entry_from_impl(entry, scope);
+    }
+
+  private:
+    template <StaticLedgerEntryScope OtherScope>
+    EntryT scope_adopt_entry_from_impl(
+        ScopedLedgerEntry<OtherScope> const& entry,
+        LedgerEntryScope<OtherScope> const& scope) const;
+
+    template <StaticLedgerEntryScope OtherScope>
+    std::optional<EntryT> scope_adopt_entry_from_impl(
         std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
         LedgerEntryScope<OtherScope> const& scope) const;
 };
@@ -173,23 +225,6 @@ template <StaticLedgerEntryScope S> class DeactivateScopeGuard
     ~DeactivateScopeGuard();
 };
 
-#define ADOPT_OTHER_SCOPE_METHODS(OUTER_SCOPE, INNER_SCOPE) \
-    extern template ScopedLedgerEntry<StaticLedgerEntryScope::OUTER_SCOPE> \
-    LedgerEntryScope<StaticLedgerEntryScope::OUTER_SCOPE>:: \
-        scope_adopt_entry_from<StaticLedgerEntryScope::INNER_SCOPE>( \
-            ScopedLedgerEntry<StaticLedgerEntryScope::INNER_SCOPE> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE> const& \
-                scope) const; \
-\
-    extern template std::optional< \
-        ScopedLedgerEntry<StaticLedgerEntryScope::OUTER_SCOPE>> \
-    LedgerEntryScope<StaticLedgerEntryScope::OUTER_SCOPE>:: \
-        scope_adopt_entry_from<StaticLedgerEntryScope::INNER_SCOPE>( \
-            std::optional<ScopedLedgerEntry< \
-                StaticLedgerEntryScope::INNER_SCOPE>> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE> const& \
-                scope) const;
-
 #define STATIC_SCOPE_MACRO(OUTER_SCOPE) \
     extern template class LedgerEntryScopeID< \
         StaticLedgerEntryScope::OUTER_SCOPE>; \
@@ -201,8 +236,6 @@ template <StaticLedgerEntryScope S> class DeactivateScopeGuard
         StaticLedgerEntryScope::OUTER_SCOPE>; \
     FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(OUTER_SCOPE, \
                                             ADOPT_OTHER_SCOPE_METHODS)
-
-FOREACH_STATIC_LEDGER_ENTRY_SCOPE(STATIC_SCOPE_MACRO)
 
 #undef STATIC_SCOPE_MACRO
 #undef ADOPT_OTHER_SCOPE_METHODS
