@@ -13,7 +13,7 @@
 
 template <stellar::StaticLedgerEntryScope S>
 std::ostream&
-operator<<(std::ostream& os, const stellar::LedgerEntryScopeID<S>& obj)
+operator<<(std::ostream& os, stellar::LedgerEntryScopeID<S> const& obj)
 {
     switch (S)
     {
@@ -279,7 +279,7 @@ LedgerEntryScope<S>::scope_adopt_entry(
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
 ScopedLedgerEntry<S>
-LedgerEntryScope<S>::scope_adopt_entry_from(
+LedgerEntryScope<S>::scope_adopt_entry_from_impl(
     ScopedLedgerEntry<OtherScope> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
@@ -300,7 +300,7 @@ LedgerEntryScope<S>::scope_adopt_entry_from(
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
 std::optional<ScopedLedgerEntry<S>>
-LedgerEntryScope<S>::scope_adopt_entry_from(
+LedgerEntryScope<S>::scope_adopt_entry_from_impl(
     std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
@@ -311,34 +311,33 @@ LedgerEntryScope<S>::scope_adopt_entry_from(
     return std::nullopt;
 }
 
-#define ADOPT_OTHER_SCOPE_METHODS(OUTER_SCOPE, INNER_SCOPE) \
-    template ScopedLedgerEntry<StaticLedgerEntryScope::OUTER_SCOPE> \
-    LedgerEntryScope<StaticLedgerEntryScope::OUTER_SCOPE>:: \
-        scope_adopt_entry_from<StaticLedgerEntryScope::INNER_SCOPE>( \
-            ScopedLedgerEntry<StaticLedgerEntryScope::INNER_SCOPE> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE> const&) \
-            const; \
-\
-    template std::optional< \
-        ScopedLedgerEntry<StaticLedgerEntryScope::OUTER_SCOPE>> \
-    LedgerEntryScope<StaticLedgerEntryScope::OUTER_SCOPE>:: \
-        scope_adopt_entry_from<StaticLedgerEntryScope::INNER_SCOPE>( \
-            std::optional<ScopedLedgerEntry< \
-                StaticLedgerEntryScope::INNER_SCOPE>> const&, \
-            LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE> const&) \
-            const;
-
-#define STATIC_SCOPE_MACRO(SCOPE_NAME) \
+#define INSTANTIATE_SCOPE_CLASSES(SCOPE_NAME) \
     template class LedgerEntryScopeID<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class LedgerEntryScope<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class ScopedLedgerEntry<StaticLedgerEntryScope::SCOPE_NAME>; \
-    template class DeactivateScopeGuard<StaticLedgerEntryScope::SCOPE_NAME>; \
-    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(SCOPE_NAME, \
-                                            ADOPT_OTHER_SCOPE_METHODS)
+    template class DeactivateScopeGuard<StaticLedgerEntryScope::SCOPE_NAME>;
 
-FOREACH_STATIC_LEDGER_ENTRY_SCOPE(STATIC_SCOPE_MACRO)
+FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
+#undef INSTANTIATE_SCOPE_CLASSES
 
-#undef STATIC_SCOPE_MACRO
-#undef ADOPT_OTHER_SCOPE_METHODS
+#define INSTANTIATE_ADOPT_METHODS(DEST_SCOPE, SOURCE_SCOPE) \
+    template ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
+    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
+        scope_adopt_entry_from_impl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
+            ScopedLedgerEntry<StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
+            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
+            const; \
+\
+    template std::optional< \
+        ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE>> \
+    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
+        scope_adopt_entry_from_impl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
+            std::optional<ScopedLedgerEntry< \
+                StaticLedgerEntryScope::SOURCE_SCOPE>> const&, \
+            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
+            const;
+
+FOR_EACH_VALID_SCOPE_ADOPTION(INSTANTIATE_ADOPT_METHODS)
+#undef INSTANTIATE_ADOPT_METHODS
 
 }
