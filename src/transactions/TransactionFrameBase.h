@@ -49,8 +49,7 @@ using TransactionFrameBaseConstPtr =
 // updated with the entries from the TxModifiedEntryMap.
 using TxLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
-using TxModifiedEntryMap =
-    UnorderedMap<LedgerKey, std::optional<TxLedgerEntry>>;
+using TxModifiedEntryMap = UnorderedMap<LedgerKey, TxOptionalLedgerEntry>;
 
 // Used to track the current state of an entry during parallel apply phases. Can
 // be updated by successful transactions.
@@ -58,40 +57,25 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
 {
     // Will not be set if the entry doesn't exist, or if no tx was able to load
     // it due to hitting read limits.
-    std::optional<ScopedLedgerEntry<S>> mLedgerEntry;
+    ScopedOptionalLedgerEntry<S> mLedgerEntry;
     bool mIsDirty;
     static ParallelApplyEntry
-    cleanPopulated(ScopedLedgerEntry<S> const& e)
+    clean(ScopedOptionalLedgerEntry<S> const& e)
     {
         return ParallelApplyEntry{e, false};
     }
     static ParallelApplyEntry
-    dirtyPopulated(ScopedLedgerEntry<S> const& e)
+    dirty(ScopedOptionalLedgerEntry<S> const& e)
     {
         return ParallelApplyEntry{e, true};
-    }
-    static ParallelApplyEntry
-    cleanEmpty()
-    {
-        return ParallelApplyEntry{std::nullopt, false};
-    }
-    static ParallelApplyEntry
-    dirtyEmpty()
-    {
-        return ParallelApplyEntry{std::nullopt, true};
     }
     template <StaticLedgerEntryScope S2>
     ParallelApplyEntry<S2>
     rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) const
     {
-        if (mLedgerEntry)
-        {
-            auto adoptedEntry =
-                s2.scope_adopt_entry_from(mLedgerEntry.value(), s1);
-            return ParallelApplyEntry<S2>{std::make_optional(adoptedEntry),
-                                          mIsDirty};
-        }
-        return ParallelApplyEntry<S2>{std::nullopt, mIsDirty};
+        auto adoptedEntry =
+            s2.scope_adopt_optional_entry_from(mLedgerEntry, s1);
+        return ParallelApplyEntry<S2>{adoptedEntry, mIsDirty};
     }
 };
 using GlobalParallelApplyEntry =
