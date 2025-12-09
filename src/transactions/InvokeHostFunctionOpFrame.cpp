@@ -1064,9 +1064,10 @@ class InvokeHostFunctionParallelApplyHelper
             else
             {
                 // Entry exists in the live BucketList if we get to this point
-                auto ttlLeOpt = mTxState.getLiveEntryOpt(ttlKey);
+                auto scopedTtlLeOpt = mTxState.getLiveEntryOpt(ttlKey);
+                auto ttlLeOpt = scopedTtlLeOpt.read_in_scope(mTxState);
                 releaseAssertOrThrow(ttlLeOpt);
-                ttlEntry = mTxState.scope_read_entry(*ttlLeOpt);
+                ttlEntry = ttlLeOpt.value();
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
                 mTxState.upsertEntry(ttlKey, ttlEntry,

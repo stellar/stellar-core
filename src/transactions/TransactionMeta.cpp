@@ -414,20 +414,21 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     auto const& liveRestores = res.getRestoredEntries().liveBucketList;
 
     LedgerEntryChanges changes;
-    for (auto const& [lk, le] : res.getModifiedEntryMap())
+    for (auto const& [lk, scopedLeOpt] : res.getModifiedEntryMap())
     {
-
-        auto prevLe = threadState.getLiveEntryOpt(lk);
+        auto leOpt = scopedLeOpt.read_in_scope(res);
+        auto prevLe =
+            threadState.getLiveEntryOpt(lk).read_in_scope(threadState);
 
         if (prevLe)
         {
             changes.emplace_back(LEDGER_ENTRY_STATE);
-            changes.back().state() = threadState.scope_read_entry(*prevLe);
+            changes.back().state() = prevLe.value();
 
-            if (le)
+            if (leOpt)
             {
                 changes.emplace_back(LEDGER_ENTRY_UPDATED);
-                changes.back().updated() = res.scope_read_entry(*le);
+                changes.back().updated() = leOpt.value();
             }
             else
             {
@@ -437,7 +438,7 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
         }
         else
         {
-            if (!le)
+            if (!leOpt)
             {
                 // If this is a delete, and an entry cannot be found in the live
                 // snapshot of initialEntryMap, it means that this entry was
@@ -455,7 +456,7 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
             else
             {
                 changes.emplace_back(LEDGER_ENTRY_CREATED);
-                changes.back().created() = res.scope_read_entry(*le);
+                changes.back().created() = leOpt.value();
             }
         }
     }

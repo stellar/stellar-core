@@ -117,9 +117,9 @@ class ThreadParallelApplyLedgerState
     void upsertEntry(LedgerKey const& key, ThreadLedgerEntry const& entry,
                      uint32_t ledgerSeq);
     void eraseEntry(LedgerKey const& key);
-    void commitChangeFromSuccessfulTx(
-        LedgerKey const& key, std::optional<ThreadLedgerEntry> const& entryOpt,
-        UnorderedSet<LedgerKey> const& roTTLSet);
+    void commitChangeFromSuccessfulTx(LedgerKey const& key,
+                                      ThreadOptionalLedgerEntry const& entryOpt,
+                                      UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -155,7 +155,7 @@ class ThreadParallelApplyLedgerState
 
     RestoredEntries const& getRestoredEntries() const;
 
-    std::optional<EntryT> getLiveEntryOpt(LedgerKey const& key) const;
+    OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
     void setEffectsDeltaFromSuccessfulTx(ParallelTxReturnVal const& res,
@@ -308,7 +308,7 @@ class TxParallelApplyLedgerState
 
   public:
     TxParallelApplyLedgerState(ThreadParallelApplyLedgerState const& parent);
-    std::optional<EntryT> getLiveEntryOpt(LedgerKey const& key) const;
+    OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
 
     // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
     // sequence number.

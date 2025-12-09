@@ -11,6 +11,10 @@
 #include <fmt/ostream.h>
 #include <stdexcept>
 
+/////////////////////////////////////
+// LedgerEntryScopeID
+/////////////////////////////////////
+
 template <stellar::StaticLedgerEntryScope S>
 std::ostream&
 operator<<(std::ostream& os, stellar::LedgerEntryScopeID<S> const& obj)
@@ -72,49 +76,9 @@ LedgerEntryScopeID<S>::operator!=(LedgerEntryScopeID<S> const& other) const
     return !(*this == other);
 }
 
-template <StaticLedgerEntryScope S>
-LedgerEntryScope<S>::LedgerEntryScope(LedgerEntryScopeID<S> scopeID)
-    : mScopeID(scopeID)
-{
-}
-
-template <StaticLedgerEntryScope S>
-void
-LedgerEntryScope<S>::scope_activate() const
-{
-    if (mActive)
-    {
-        throw std::runtime_error(fmt::format(
-            "LedgerEntryScope::scope_activate: scope {} already active",
-            mScopeID));
-    }
-    mActive = true;
-}
-
-template <StaticLedgerEntryScope S>
-void
-LedgerEntryScope<S>::scope_deactivate() const
-{
-    if (!mActive)
-    {
-        throw std::runtime_error(fmt::format(
-            "LedgerEntryScope::scope_deactivate: scope {} already inactive",
-            mScopeID));
-    }
-    mActive = false;
-}
-
-template <StaticLedgerEntryScope S>
-DeactivateScopeGuard<S>::DeactivateScopeGuard(LedgerEntryScope<S> const& scope)
-    : mScope(scope)
-{
-    mScope.scope_deactivate();
-}
-template <StaticLedgerEntryScope S>
-DeactivateScopeGuard<S>::~DeactivateScopeGuard()
-{
-    mScope.scope_activate();
-}
+/////////////////////////////////////
+// ScopedLedgerEntry
+/////////////////////////////////////
 
 template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>::ScopedLedgerEntry(ScopeIdT scopeID,
@@ -224,6 +188,175 @@ ScopedLedgerEntry<S>::operator<(ScopedLedgerEntry<S> const& other) const
     return mEntry < other.mEntry;
 }
 
+/////////////////////////////////////
+// ScopedOptionalLedgerEntry
+/////////////////////////////////////
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopeIdT scopeID, std::optional<LedgerEntry> const& entry)
+    : mEntry(entry), mScopeID(scopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopeIdT scopeID, std::optional<LedgerEntry>&& entry)
+    : mEntry(std::move(entry)), mScopeID(scopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopedOptionalLedgerEntry<S> const& other)
+    : mEntry(other.mEntry), mScopeID(other.mScopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopedOptionalLedgerEntry<S>&& other)
+    : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopedLedgerEntry<S> const& other)
+    : mEntry(other.mEntry), mScopeID(other.mScopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+    ScopedLedgerEntry<S>&& other)
+    : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>&
+ScopedOptionalLedgerEntry<S>::operator=(
+    ScopedOptionalLedgerEntry<S> const& other)
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+    if (other.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("operator=: scope ID '{}' != entry scope ID '{}'",
+                        mScopeID, other.mScopeID));
+    }
+    mEntry = other.mEntry;
+    return *this;
+}
+
+template <StaticLedgerEntryScope S>
+ScopedOptionalLedgerEntry<S>&
+ScopedOptionalLedgerEntry<S>::operator=(ScopedOptionalLedgerEntry<S>&& other)
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+    if (other.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("move operator=: scope ID '{}' != entry scope ID '{}'",
+                        mScopeID, other.mScopeID));
+    }
+    mEntry = std::move(other.mEntry);
+    return *this;
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerKey>
+ScopedOptionalLedgerEntry<S>::key() const
+{
+    return mEntry ? std::make_optional(LedgerEntryKey(*mEntry)) : std::nullopt;
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry> const&
+ScopedOptionalLedgerEntry<S>::read_in_scope(
+    LedgerEntryScope<S> const& scope) const
+{
+    return scope.scope_read_optional_entry(*this);
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>&
+ScopedOptionalLedgerEntry<S>::modify_in_scope(LedgerEntryScope<S> const& scope)
+{
+    return scope.scope_modify_optional_entry(*this);
+}
+
+template <StaticLedgerEntryScope S>
+bool
+ScopedOptionalLedgerEntry<S>::operator==(
+    ScopedOptionalLedgerEntry<S> const& other) const
+{
+    if (mScopeID != other.mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("operator==: scope ID '{}' != other scope ID '{}'",
+                        mScopeID, other.mScopeID));
+    }
+    return mEntry == other.mEntry;
+}
+
+template <StaticLedgerEntryScope S>
+bool
+ScopedOptionalLedgerEntry<S>::operator<(
+    ScopedOptionalLedgerEntry<S> const& other) const
+{
+    if (mScopeID != other.mScopeID)
+    {
+        throw std::runtime_error(
+            fmt::format("operator<: scope ID '{}' != other scope ID '{}'",
+                        mScopeID, other.mScopeID));
+    }
+    return mEntry < other.mEntry;
+}
+
+/////////////////////////////////////
+// LedgerEntryScope
+/////////////////////////////////////
+
+template <StaticLedgerEntryScope S>
+LedgerEntryScope<S>::LedgerEntryScope(LedgerEntryScopeID<S> scopeID)
+    : mScopeID(scopeID)
+{
+}
+
+template <StaticLedgerEntryScope S>
+void
+LedgerEntryScope<S>::scope_activate() const
+{
+    if (mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "LedgerEntryScope::scope_activate: scope {} already active",
+            mScopeID));
+    }
+    mActive = true;
+}
+
+template <StaticLedgerEntryScope S>
+void
+LedgerEntryScope<S>::scope_deactivate() const
+{
+    if (!mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "LedgerEntryScope::scope_deactivate: scope {} already inactive",
+            mScopeID));
+    }
+    mActive = false;
+}
+
 template <StaticLedgerEntryScope S>
 LedgerEntry const&
 LedgerEntryScope<S>::scope_read_entry(ScopedLedgerEntry<S> const& w) const
@@ -251,6 +384,34 @@ LedgerEntryScope<S>::scope_modify_entry(ScopedLedgerEntry<S>& w) const
 }
 
 template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry> const&
+LedgerEntryScope<S>::scope_read_optional_entry(
+    ScopedOptionalLedgerEntry<S> const& w) const
+{
+    if (w.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(fmt::format(
+            "scope_read_optional_entry: scope ID '{}' != entry scope ID '{}'",
+            mScopeID, w.mScopeID));
+    }
+    return w.mEntry;
+}
+
+template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>&
+LedgerEntryScope<S>::scope_modify_optional_entry(
+    ScopedOptionalLedgerEntry<S>& w) const
+{
+    if (w.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(fmt::format(
+            "scope_modify_optional_entry: scope ID '{}' != entry scope ID '{}'",
+            mScopeID, w.mScopeID));
+    }
+    return w.mEntry;
+}
+
+template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>
 LedgerEntryScope<S>::scope_adopt_entry(LedgerEntry&& entry) const
 {
@@ -265,15 +426,11 @@ LedgerEntryScope<S>::scope_adopt_entry(LedgerEntry const& entry) const
 }
 
 template <StaticLedgerEntryScope S>
-std::optional<ScopedLedgerEntry<S>>
-LedgerEntryScope<S>::scope_adopt_entry(
+ScopedOptionalLedgerEntry<S>
+LedgerEntryScope<S>::scope_adopt_optional_entry(
     std::optional<LedgerEntry> const& entry) const
 {
-    if (entry)
-    {
-        return ScopedLedgerEntry(mScopeID, *entry);
-    }
-    return std::nullopt;
+    return ScopedOptionalLedgerEntry(mScopeID, entry);
 }
 
 template <StaticLedgerEntryScope S>
@@ -299,22 +456,44 @@ LedgerEntryScope<S>::scope_adopt_entry_from_impl(
 
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
-std::optional<ScopedLedgerEntry<S>>
-LedgerEntryScope<S>::scope_adopt_entry_from_impl(
-    std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
+ScopedOptionalLedgerEntry<S>
+LedgerEntryScope<S>::scope_adopt_optional_entry_from_impl(
+    ScopedOptionalLedgerEntry<OtherScope> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
-    if (entry)
+    if (scope.mActive)
     {
-        return scope_adopt_entry_from(*entry, scope);
+        throw std::runtime_error(
+            fmt::format("scope_adopt_optional_entry_from: adopting entry with "
+                        "scope ID {} from "
+                        "still-active scope ID '{}'",
+                        entry.mScopeID, scope.mScopeID));
     }
-    return std::nullopt;
+    return ScopedOptionalLedgerEntry<S>{mScopeID, entry.mEntry};
+}
+
+/////////////////////////////////
+// DeactivateScopeGuard
+/////////////////////////////////
+
+template <StaticLedgerEntryScope S>
+DeactivateScopeGuard<S>::DeactivateScopeGuard(LedgerEntryScope<S> const& scope)
+    : mScope(scope)
+{
+    mScope.scope_deactivate();
+}
+template <StaticLedgerEntryScope S>
+DeactivateScopeGuard<S>::~DeactivateScopeGuard()
+{
+    mScope.scope_activate();
 }
 
 #define INSTANTIATE_SCOPE_CLASSES(SCOPE_NAME) \
     template class LedgerEntryScopeID<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class LedgerEntryScope<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class ScopedLedgerEntry<StaticLedgerEntryScope::SCOPE_NAME>; \
+    template class ScopedOptionalLedgerEntry< \
+        StaticLedgerEntryScope::SCOPE_NAME>; \
     template class DeactivateScopeGuard<StaticLedgerEntryScope::SCOPE_NAME>;
 
 FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
@@ -328,12 +507,12 @@ FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const; \
 \
-    template std::optional< \
-        ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE>> \
+    template ScopedOptionalLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
     LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
-        scope_adopt_entry_from_impl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
-            std::optional<ScopedLedgerEntry< \
-                StaticLedgerEntryScope::SOURCE_SCOPE>> const&, \
+        scope_adopt_optional_entry_from_impl< \
+            StaticLedgerEntryScope::SOURCE_SCOPE>( \
+            ScopedOptionalLedgerEntry< \
+                StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const;
 

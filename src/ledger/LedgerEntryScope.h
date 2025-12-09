@@ -68,7 +68,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScopeID
     bool operator==(LedgerEntryScopeID const& other) const;
     bool operator!=(LedgerEntryScopeID const& other) const;
 
-    friend std::ostream& ::operator<<(std::ostream & os,
+    friend std::ostream& ::operator<<(std::ostream& os,
                                       LedgerEntryScopeID const& obj);
 };
 
@@ -79,6 +79,7 @@ static_assert(
     "Unexpected size for LedgerEntryScopeID");
 
 template <StaticLedgerEntryScope T> class LedgerEntryScope;
+template <StaticLedgerEntryScope S> class ScopedOptionalLedgerEntry;
 
 template <StaticLedgerEntryScope S> class ScopedLedgerEntry
 {
@@ -88,6 +89,7 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     LedgerEntry mEntry;
 
     friend class LedgerEntryScope<S>;
+    friend class ScopedOptionalLedgerEntry<S>;
 #define FRIEND_MACRO(OUTER_SCOPE, INNER_SCOPE) \
     friend class LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE>;
     FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(S, FRIEND_MACRO)
@@ -98,6 +100,9 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
 
   public:
     LedgerEntryScopeID<S> const mScopeID;
+
+    // Must construct with a scope.
+    ScopedLedgerEntry<S>() = delete;
 
     ScopedLedgerEntry(ScopedLedgerEntry<S> const& other);
     ScopedLedgerEntry(ScopedLedgerEntry<S>&& other);
@@ -113,12 +118,64 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     bool operator<(ScopedLedgerEntry const& other) const;
 };
 
+template <StaticLedgerEntryScope S> class ScopedOptionalLedgerEntry
+{
+    static constexpr StaticLedgerEntryScope staticScope = S;
+    using ScopeIdT = LedgerEntryScopeID<S>;
+    using ScopeT = LedgerEntryScope<S>;
+    std::optional<LedgerEntry> mEntry;
+
+    friend class LedgerEntryScope<S>;
+#define FRIEND_MACRO(OUTER_SCOPE, INNER_SCOPE) \
+    friend class LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE>;
+    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(S, FRIEND_MACRO)
+#undef FRIEND_MACRO
+
+    ScopedOptionalLedgerEntry(ScopeIdT scopeID,
+                              std::optional<LedgerEntry> const& entry);
+    ScopedOptionalLedgerEntry(ScopeIdT scopeID,
+                              std::optional<LedgerEntry>&& entry);
+
+  public:
+    LedgerEntryScopeID<S> const mScopeID;
+
+    // Must construct with a scope.
+    ScopedOptionalLedgerEntry<S>() = delete;
+
+    ScopedOptionalLedgerEntry(ScopedOptionalLedgerEntry<S> const& other);
+    ScopedOptionalLedgerEntry(ScopedOptionalLedgerEntry<S>&& other);
+    ScopedOptionalLedgerEntry<S>&
+    operator=(ScopedOptionalLedgerEntry<S> const& other);
+    ScopedOptionalLedgerEntry<S>&
+    operator=(ScopedOptionalLedgerEntry<S>&& other);
+
+    ScopedOptionalLedgerEntry(ScopedLedgerEntry<S> const& other);
+    ScopedOptionalLedgerEntry(ScopedLedgerEntry<S>&& other);
+
+    std::optional<LedgerKey> key() const;
+
+    std::optional<LedgerEntry> const&
+    read_in_scope(LedgerEntryScope<S> const& scope) const;
+    std::optional<LedgerEntry>&
+    modify_in_scope(LedgerEntryScope<S> const& scope);
+
+    bool operator==(ScopedOptionalLedgerEntry const& other) const;
+    bool operator<(ScopedOptionalLedgerEntry const& other) const;
+};
+
 using GlobalLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
 using ThreadLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
 using TxLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
+
+using GlobalOptionalLedgerEntry =
+    ScopedOptionalLedgerEntry<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
+using ThreadOptionalLedgerEntry =
+    ScopedOptionalLedgerEntry<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
+using TxOptionalLedgerEntry =
+    ScopedOptionalLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
 
 // Defines valid scope transitions as (DEST, SOURCE) pairs for compile-time
 // enforcement.
@@ -157,6 +214,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     static constexpr StaticLedgerEntryScope staticScope = S;
     using ScopeIdT = LedgerEntryScopeID<S>;
     using EntryT = ScopedLedgerEntry<S>;
+    using OptionalEntryT = ScopedOptionalLedgerEntry<S>;
     LedgerEntryScopeID<S> const mScopeID;
 
     LedgerEntryScope(ScopeIdT scopeID);
@@ -172,10 +230,15 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     LedgerEntry const& scope_read_entry(EntryT const& w) const;
     LedgerEntry& scope_modify_entry(EntryT& w) const;
 
+    std::optional<LedgerEntry> const&
+    scope_read_optional_entry(OptionalEntryT const& w) const;
+    std::optional<LedgerEntry>&
+    scope_modify_optional_entry(OptionalEntryT& w) const;
+
     EntryT scope_adopt_entry(LedgerEntry&& entry) const;
     EntryT scope_adopt_entry(LedgerEntry const& entry) const;
-    std::optional<EntryT>
-    scope_adopt_entry(std::optional<LedgerEntry> const& entry) const;
+    OptionalEntryT
+    scope_adopt_optional_entry(std::optional<LedgerEntry> const& entry) const;
 
     template <StaticLedgerEntryScope OtherScope>
     EntryT
@@ -191,9 +254,9 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     }
 
     template <StaticLedgerEntryScope OtherScope>
-    std::optional<EntryT>
-    scope_adopt_entry_from(
-        std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
+    OptionalEntryT
+    scope_adopt_optional_entry_from(
+        ScopedOptionalLedgerEntry<OtherScope> const& entry,
         LedgerEntryScope<OtherScope> const& scope) const
     {
         static_assert(
@@ -201,7 +264,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
             "Invalid scope adoption: this transition is not allowed. "
             "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
             "for the list of valid transitions.");
-        return scope_adopt_entry_from_impl(entry, scope);
+        return scope_adopt_optional_entry_from_impl(entry, scope);
     }
 
   private:
@@ -211,8 +274,8 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
         LedgerEntryScope<OtherScope> const& scope) const;
 
     template <StaticLedgerEntryScope OtherScope>
-    std::optional<EntryT> scope_adopt_entry_from_impl(
-        std::optional<ScopedLedgerEntry<OtherScope>> const& entry,
+    OptionalEntryT scope_adopt_optional_entry_from_impl(
+        ScopedOptionalLedgerEntry<OtherScope> const& entry,
         LedgerEntryScope<OtherScope> const& scope) const;
 };
 
