@@ -226,6 +226,11 @@ LiveBucketSnapshot::scanForEviction(
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
+            // Note: load from a stale snapshot here. Expired entries should
+            // never be modified by the ltx, unless they're getting restored.
+            // `resolveBackgroundEviction` checks that entries loaded from the
+            // snapshot are indeed not touched by the ltx, so it should be safe
+            // to evict these candidates.
             keysToSearch, bl.loadKeys(keysToSearch, "eviction"));
         for (auto& e : maybeEvictQueue)
         {

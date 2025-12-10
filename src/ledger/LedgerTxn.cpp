@@ -1674,21 +1674,23 @@ LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
 }
 
 LedgerKeySet
-LedgerTxn::getAllTTLKeysWithoutSealing() const
+LedgerTxn::getAllKeysWithoutSealing() const
 {
-    return getImpl()->getAllTTLKeysWithoutSealing();
+    return getImpl()->getAllKeysWithoutSealing();
 }
 
 LedgerKeySet
-LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
+LedgerTxn::Impl::getAllKeysWithoutSealing() const
 {
-    abortIfWrongThread("getAllTTLKeysWithoutSealing");
+    abortIfWrongThread("getAllKeysWithoutSealing");
     throwIfNotExactConsistency();
     LedgerKeySet result;
+    // Subtle: mEntry contains only *modified* entries in this LedgerTxn.
+    // Callers rely on this — for example, to enforce that expired entries
+    // (which cannot be modified) are never present here.
     for (auto const& [k, v] : mEntry)
     {
-        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
-            k.ledgerKey().type() == TTL)
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY)
         {
             result.emplace(k.ledgerKey());
         }

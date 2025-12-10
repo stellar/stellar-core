@@ -2819,7 +2819,7 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     {
         {
             auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
-            auto keys = ltx.getAllTTLKeysWithoutSealing();
+            auto keys = ltx.getAllKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
             auto evictedState =
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
