@@ -233,18 +233,16 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                     }
                 }
 
-                LedgerTxn ltxEvictions(ltx);
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        lclSnapshot, ltxEvictions, keys);
+                        lclSnapshot, ltx, keys);
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
                     std::vector<LedgerKey> restoredKeys;
-                    auto restoredEntriesMap =
-                        ltxEvictions.getRestoredHotArchiveKeys();
+                    auto restoredEntriesMap = ltx.getRestoredHotArchiveKeys();
                     for (auto const& [key, entry] : restoredEntriesMap)
                     {
                         // Hot Archive does not track TTLs
@@ -269,8 +267,6 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 {
                     ledgerCloseMeta->populateEvictedEntries(evictedState);
                 }
-
-                ltxEvictions.commit();
             }
             SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
                 lh.ledgerSeq,
