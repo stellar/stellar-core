@@ -9,7 +9,7 @@ concurrency:
 
 jobs:
   build:
-    uses: stellar/quickstart/.github/workflows/build.yml@800ece0aeb0db89746e45d5585dfbdbfba3a2c57
+    uses: stellar/quickstart/.github/workflows/build.yml@582974c4748dfb4fa09499d5bb2f26f0a3269c8c
     with:
       images: |
         [
