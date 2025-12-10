@@ -1,0 +1,32 @@
+name: Quickstart (nightly)
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    uses: stellar/quickstart/.github/workflows/build.yml@main
+    with:
+      images: |
+        [
+          {
+            "tag": "pr",
+            "inherit": "nightly",
+            "config": {
+              "protocol_version_default": 25
+            },
+            "deps": [
+              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
+            ]
+          }
+        ]
+      archs: '["amd64"]'
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: stellar/quickstart@main
+        with:
+          artifact: image-quickstart-pr-amd64.tar
+          tag: pr-amd64
