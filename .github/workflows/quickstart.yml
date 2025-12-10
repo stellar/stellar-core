@@ -23,7 +23,7 @@ jobs:
             "deps": [
               { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
             ]
-          }
+          },
           {
             "tag": "nightly-with-pr",
             "inherit": "nightly",
@@ -33,7 +33,7 @@ jobs:
             "deps": [
               { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
             ]
-          }
+          },
           {
             "tag": "nightly-next-with-pr",
             "inherit": "nightly-next",
