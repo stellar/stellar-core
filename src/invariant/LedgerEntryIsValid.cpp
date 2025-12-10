@@ -23,7 +23,7 @@ signerCompare(Signer const& s1, Signer const& s2)
 }
 
 LedgerEntryIsValid::LedgerEntryIsValid(
-    LumenContractInfo const& lumenContractInfo)
+    AssetContractInfo const& lumenContractInfo)
     : Invariant(false), mLumenContractInfo(lumenContractInfo)
 {
 }
@@ -31,7 +31,8 @@ LedgerEntryIsValid::LedgerEntryIsValid(
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
-    auto lumenInfo = getLumenContractInfo(app.getNetworkID());
+    Asset native(ASSET_TYPE_NATIVE);
+    auto lumenInfo = getAssetContractInfo(native, app.getNetworkID());
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
         lumenInfo);
 }
@@ -503,7 +504,7 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
 {
     // Lumen contract validation
     if (cde.contract.type() == SC_ADDRESS_TYPE_CONTRACT &&
-        cde.contract.contractId() == mLumenContractInfo.mLumenContractID)
+        cde.contract.contractId() == mLumenContractInfo.mAssetContractID)
     {
         // Identify balance entries
         if (cde.key.type() == SCV_VEC && cde.key.vec() &&
