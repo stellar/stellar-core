@@ -166,7 +166,7 @@ BucketManager::BucketManager(AppConnector& appConnector)
           {"bucketlistDB", "cache", "entries"}))
     , mLiveBucketIndexCacheBytes(appConnector.getMetrics().NewCounter(
           {"bucketlistDB", "cache", "bytes"}))
-    , mBucketListEvictionCounters(appConnector)
+    , mBucketListEvictionMetrics(appConnector)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     , mConfig(appConnector.getConfig())
 {
@@ -1093,7 +1093,7 @@ BucketManager::getBucketHashesInBucketDirForTesting() const
 medida::Counter&
 BucketManager::getEntriesEvictedCounter() const
 {
-    return mBucketListEvictionCounters.entriesEvicted;
+    return mBucketListEvictionMetrics.entriesEvicted;
 }
 #endif
 
@@ -1166,7 +1166,7 @@ BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq,
     // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
         [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
-         ledgerVers, sas, &counters = mBucketListEvictionCounters,
+         ledgerVers, sas, &counters = mBucketListEvictionMetrics,
          stats = mEvictionStatistics] {
             return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
                                        ledgerVers);
@@ -1202,6 +1202,8 @@ BucketManager::resolveBackgroundEvictionScan(
         startBackgroundEvictionScan(ledgerSeq, ledgerVers, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
+
+    auto timer = mBucketListEvictionMetrics.time.TimeScope();
 
     auto& eligibleEntries = evictionCandidates->eligibleEntries;
 
@@ -1263,7 +1265,7 @@ BucketManager::resolveBackgroundEvictionScan(
 
         auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
         mEvictionStatistics->recordEvictedEntry(age);
-        mBucketListEvictionCounters.entriesEvicted.inc();
+        mBucketListEvictionMetrics.entriesEvicted.inc();
 
         newEvictionIterator = entryToEvictIter->iter;
         entryToEvictIter = eligibleEntries.erase(entryToEvictIter);
