@@ -25,10 +25,10 @@
  * context): JITTER_INJECT_DELAY();  // 10% chance of small delay
  *
  * 2. Custom probability:
- *    JITTER_INJECT_DELAY_PROBABILITY(0.5);  // 50% chance
+ *    JITTER_INJECT_DELAY_PROBABILITY(50);  // 50% chance
  *
- * 3. Custom delay range (in milliseconds):
- *    JITTER_INJECT_DELAY_CUSTOM(0.5, 10, 100);  // 50% chance, 10-100ms
+ * 3. Custom delay range (in microseconds):
+ *    JITTER_INJECT_DELAY_CUSTOM(50, 10'000, 100'000);  // 50% chance, 10-100ms
  *
  * 4. Force context switch without delay:
  *    JITTER_YIELD();  // Always yields, no delay
@@ -76,9 +76,9 @@ class JitterInjector
         // Default 10% chance of delay at each injection point
         int32_t defaultProbability{10};
 
-        // Default delay range in nanoseconds
-        uint32_t minDelayNs{100000};
-        uint32_t maxDelayNs{10000000}; // 100 microseconds - 10 milliseconds
+        // Default delay range in microseconds
+        uint64_t minDelayUsec{100};
+        uint64_t maxDelayUsec{10'000}; // 100 microseconds - 10 milliseconds
     };
 
     // Initialize the jitter framework with current test seed
@@ -106,9 +106,9 @@ class JitterInjector
 
     // Main injection point: probabilistically delay with random duration
     // Returns true if a delay was injected, false otherwise
-    // delay range is in nanoseconds
-    static bool injectDelay(int32_t probability = -1, uint32_t minNs = 0,
-                            uint32_t maxNs = 0);
+    // delay range is in microseconds
+    static bool injectDelay(int32_t probability = -1, uint64_t minUsec = 0,
+                            uint64_t maxUsec = 0);
 
     // Force a context switch without additional delay
     static void yield();
@@ -128,18 +128,19 @@ class JitterInjector
 
 /**
  * Jitter injection with custom probability (0 - 100)
- * Example: JITTER_INJECT_DELAY_PROBABILITY(0.25)  // 25% chance
+ * Example: JITTER_INJECT_DELAY_PROBABILITY(25)  // 25% chance
  */
 #define JITTER_INJECT_DELAY_PROBABILITY(prob) \
     stellar::JitterInjector::injectDelay(prob)
 
 /**
  * Jitter injection with full customization
- * Usage: JITTER_INJECT_DELAY_CUSTOM(probability, min_ns, max_ns)
- * Example: JITTER_INJECT_DELAY_CUSTOM(0.5, 5000000, 50000000)
+ * Usage: JITTER_INJECT_DELAY_CUSTOM(probability, minUsec, maxUsec)
+ * Example: JITTER_INJECT_DELAY_CUSTOM(50, 5'000, 50'000)  // 50% chance,
+ * 5ms-50ms
  */
-#define JITTER_INJECT_DELAY_CUSTOM(prob, minNs, maxNs) \
-    stellar::JitterInjector::injectDelay(prob, minNs, maxNs)
+#define JITTER_INJECT_DELAY_CUSTOM(prob, minUsec, maxUsec) \
+    stellar::JitterInjector::injectDelay(prob, minUsec, maxUsec)
 
 /**
  * Force a context switch without delay
@@ -152,7 +153,7 @@ class JitterInjector
 // Non-jitter builds: compile away to nothing
 #define JITTER_INJECT_DELAY()
 #define JITTER_INJECT_DELAY_PROBABILITY(prob)
-#define JITTER_INJECT_DELAY_CUSTOM(prob, minNs, maxNs)
+#define JITTER_INJECT_DELAY_CUSTOM(prob, minUsec, maxUsec)
 #define JITTER_YIELD()
 
 #endif // BUILD_THREAD_JITTER
