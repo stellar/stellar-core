@@ -11,6 +11,7 @@ jobs:
   build:
     uses: stellar/quickstart/.github/workflows/build.yml@582974c4748dfb4fa09499d5bb2f26f0a3269c8c
     with:
+      ref: 582974c4748dfb4fa09499d5bb2f26f0a3269c8c
       images: |
         [
           {
