@@ -17,7 +17,7 @@ jobs:
             "tag": "testing-with-pr",
             "inherit": "testing",
             "config": {
-              "protocol_version_default": 25
+              "horizon_skip_protocol_version_check": true
             },
             "deps": [
               { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
@@ -27,7 +27,7 @@ jobs:
             "tag": "nightly-with-pr",
             "inherit": "nightly",
             "config": {
-              "protocol_version_default": 25
+              "horizon_skip_protocol_version_check": true
             },
             "deps": [
               { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
@@ -37,7 +37,6 @@ jobs:
             "tag": "nightly-next-with-pr",
             "inherit": "nightly-next",
             "config": {
-              "protocol_version_default": 26,
               "horizon_skip_protocol_version_check": true
             },
             "deps": [
