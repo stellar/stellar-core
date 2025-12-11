@@ -552,7 +552,6 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
 void
 HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
 {
-
     auto timersIt = mSCPTimers.find(slotIndex);
     if (timersIt == mSCPTimers.end())
     {
@@ -764,7 +763,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             releaseAssert(cApplicableTxSet);
             if (cTxSet->previousLedgerHash() == lcl.hash)
             {
-
                 if (!highestTxSet ||
                     compareTxSets(*highestApplicableTxSet, *cApplicableTxSet,
                                   highest->txSetHash, sv.txSetHash,
@@ -1082,7 +1080,6 @@ HerderSCPDriver::getExternalizeLag(NodeID const& id) const
 void
 HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 {
-
     auto& timing = mSCPExecutionTimes[slotIndex];
     VirtualClock::time_point start = mApp.getClock().now();
 
@@ -1385,7 +1382,6 @@ size_t
 HerderSCPDriver::TxSetValidityKeyHash::operator()(
     TxSetValidityKey const& key) const
 {
-
     size_t res = std::hash<Hash>()(std::get<0>(key));
     hashMix(res, std::hash<Hash>()(std::get<1>(key)));
     hashMix(res, std::get<2>(key));

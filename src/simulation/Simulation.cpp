@@ -439,7 +439,6 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
 std::size_t
 Simulation::crankAllNodes(int nbTicks)
 {
-
     std::size_t count = 0;
 
     VirtualTimer mainQuantumTimer(*mIdleApp);

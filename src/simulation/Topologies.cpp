@@ -384,7 +384,6 @@ Topologies::asymmetric(Simulation::Mode mode, Hash const& networkID,
                        Simulation::ConfigGen confGen, int connections,
                        Simulation::QuorumSetAdjuster qSetAdjust)
 {
-
     Simulation::pointer s =
         Topologies::core(10, 0.7, mode, networkID, confGen, qSetAdjust);
     auto node = s->getNodes()[0];

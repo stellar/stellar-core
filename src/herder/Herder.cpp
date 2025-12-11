@@ -1,4 +1,3 @@
-
 #include "herder/Herder.h"
 
 namespace stellar

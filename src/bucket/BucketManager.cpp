@@ -259,7 +259,6 @@ BucketManager::getBucketDir() const
 
 BucketManager::~BucketManager()
 {
-
     deleteTmpDirAndUnlockBucketDir();
 }
 
@@ -1291,7 +1290,6 @@ BucketManager::resolveBackgroundEvictionScan(
 void
 BucketManager::calculateSkipValues(LedgerHeader& currentHeader)
 {
-
     if ((currentHeader.ledgerSeq % SKIP_1) == 0)
     {
         int v = currentHeader.ledgerSeq - SKIP_1;
@@ -1303,7 +1301,6 @@ BucketManager::calculateSkipValues(LedgerHeader& currentHeader)
                 v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
                 if (v > 0 && (v % SKIP_4) == 0)
                 {
-
                     currentHeader.skipList[3] = currentHeader.skipList[2];
                 }
                 currentHeader.skipList[2] = currentHeader.skipList[1];

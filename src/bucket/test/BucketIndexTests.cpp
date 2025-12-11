@@ -89,7 +89,6 @@ class BucketIndexTest
             }
             else if (sorobanOnly)
             {
-
                 entries =
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
                         {CONTRACT_DATA, CONTRACT_CODE}, 10, mGeneratedKeys);

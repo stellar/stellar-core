@@ -105,7 +105,6 @@ TestAccount::exists() const
 void
 TestAccount::applyOpsBatch(std::vector<Operation> const& ops)
 {
-
     for (int i = 0; i < ops.size(); i += MAX_OPS_PER_TX)
     {
         std::vector<Operation> txOps(

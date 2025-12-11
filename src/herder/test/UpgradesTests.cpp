@@ -924,7 +924,6 @@ TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
 
     SECTION("ledger close time changes after config upgrade")
     {
-
         // Verify initial ledger close time
         auto initialCloseTime = simulation->getExpectedLedgerCloseTime();
         REQUIRE(initialCloseTime ==

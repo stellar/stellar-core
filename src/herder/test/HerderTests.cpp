@@ -3148,7 +3148,6 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                                 .txsMaybeDiscountedFee()
                                 .baseFee)
                         {
-
                             baseFee = *phase.v0Components()
                                            .at(0)
                                            .txsMaybeDiscountedFee()
@@ -5163,7 +5162,6 @@ TEST_CASE("do not flood too many transactions with DEX separation",
             auto& source = accs[accountIndex];
             if (isDex)
             {
-
                 Asset asset1(ASSET_TYPE_CREDIT_ALPHANUM4);
                 strToAssetCode(asset1.alphaNum4().assetCode, "USD");
                 Asset asset2(ASSET_TYPE_NATIVE);
@@ -6835,7 +6833,6 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
 
 TEST_CASE("detect dead nodes in quorum set", "[herder]")
 {
-
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::core(
         3, 0.5, Simulation::OVER_LOOPBACK, networkID,

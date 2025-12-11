@@ -217,7 +217,6 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum,
             int64_t addResourceFee)
 {
-
     validateConfigUpgradeSet(upgradeSet);
 
     TransactionEnvelope txEnv;

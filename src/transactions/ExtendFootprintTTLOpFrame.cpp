@@ -60,7 +60,6 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 
 class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
 {
-
   protected:
     AppConnector& mApp;
     OperationResult& mRes;

@@ -91,7 +91,6 @@ TEST_CASE("database on-disk smoketest", "[db]")
 void
 checkMVCCIsolation(Application::pointer app)
 {
-
     int v0 = 1;
 
     // Values we insert/update in different txs

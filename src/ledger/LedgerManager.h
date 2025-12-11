@@ -158,7 +158,6 @@ class InMemorySorobanState;
 // thread.
 class LedgerManager
 {
-
   protected:
     friend void ApplicationImpl::initialize(bool createNewDB,
                                             bool forceRebuild);

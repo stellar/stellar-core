@@ -46,7 +46,6 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             meta.ledgerVersion,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
-
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             BucketEntry bme;

@@ -1401,7 +1401,6 @@ BallotProtocol::attemptBump()
     ZoneScoped;
     if (mPhase == SCP_PHASE_PREPARE || mPhase == SCP_PHASE_CONFIRM)
     {
-
         // First check to see if this condition applies at all. If there
         // is no v-blocking set ahead of the local node, there's nothing
         // to do, return early.

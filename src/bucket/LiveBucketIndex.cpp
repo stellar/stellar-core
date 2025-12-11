@@ -51,7 +51,6 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
     auto pageSize = getPageSize(bm.getConfig(), fs::size(filename.string()));
     if (pageSize == 0)
     {
-
         CLOG_DEBUG(Bucket,
                    "LiveBucketIndex::createIndex() using in-memory index for "
                    "bucket {}",

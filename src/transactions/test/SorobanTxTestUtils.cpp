@@ -1794,7 +1794,6 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
     auto postTransferToBalance = getBalance(toAddr);
     if (success)
     {
-
         if (!fromIsIssuer)
         {
             int64_t expectedBalance = preTransferFromBalance - amount;
@@ -2141,7 +2140,6 @@ ContractStorageTestClient::del(std::string const& key,
                                ContractDataDurability durability,
                                std::optional<SorobanInvocationSpec> spec)
 {
-
     auto invocation = delInvocation(key, durability, spec);
     invocation.withExactNonRefundableResourceFee().invoke();
     return *invocation.getResultCode();

@@ -57,7 +57,6 @@ RestoreFootprintOpFrame::RestoreFootprintOpFrame(
 
 class RestoreFootprintApplyHelper : virtual public LedgerAccessHelper
 {
-
   protected:
     AppConnector& mApp;
     OperationResult& mRes;
@@ -382,7 +381,6 @@ RestoreFootprintOpFrame::doParallelApply(
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
-
     releaseAssertOrThrow(
         protocolVersionStartsFrom(ledgerInfo.getLedgerVersion(),
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));

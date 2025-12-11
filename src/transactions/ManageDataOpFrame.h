@@ -12,7 +12,6 @@ class AbstractLedgerTxn;
 
 class ManageDataOpFrame : public OperationFrame
 {
-
     ManageDataResult&
     innerResult(OperationResult& res) const
     {

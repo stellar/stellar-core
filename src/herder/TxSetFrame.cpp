@@ -729,7 +729,6 @@ checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
         }
         if (*fee < lclHeader.baseFee)
         {
-
             CLOG_DEBUG(Herder,
                        "Got bad txSet: {} has too low component "
                        "base fee {}",
@@ -1361,7 +1360,6 @@ TxSetPhaseFrame::Iterator::Iterator(TxStageFrameList const& txs,
 TransactionFrameBasePtr
 TxSetPhaseFrame::Iterator::operator*() const
 {
-
     if (mStageIndex >= mStages.size() ||
         mClusterIndex >= mStages[mStageIndex].size() ||
         mTxIndex >= mStages[mStageIndex][mClusterIndex].size())
@@ -1674,7 +1672,6 @@ TxSetPhaseFrame::getSequentialTxs() const
 void
 TxSetPhaseFrame::toXDR(TransactionPhase& xdrPhase) const
 {
-
     if (isParallel())
     {
         parallelPhaseToXdr(mStages, *mInclusionFeeMap, xdrPhase);
@@ -1967,7 +1964,6 @@ TxSetPhaseFrame::txsAreValid(Application& app,
                                        upperBoundCloseTimeOffset, diagnostics);
         if (!txResult->isSuccess())
         {
-
             CLOG_DEBUG(
                 Herder, "Got bad txSet: tx invalid tx: {} result: {}",
                 xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),

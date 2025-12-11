@@ -15,7 +15,6 @@ ApplyStage::Iterator::Iterator(std::vector<Cluster> const& clusters,
 TxBundle const&
 ApplyStage::Iterator::operator*() const
 {
-
     if (mClusterIndex >= mClusters.size() ||
         mTxIndex >= mClusters[mClusterIndex].size())
     {

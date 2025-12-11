@@ -401,7 +401,6 @@ struct QBitSet
 // recursive cases.
 class MinQuorumEnumerator
 {
-
     // Set of nodes "committed to" in this branch of the recurrence. In other
     // words: set of nodes that this enumerator and its children will definitely
     // include in every subset S of the powerset that they examine. This set
@@ -449,7 +448,6 @@ class MinQuorumEnumerator
 // MinQuorumEnumerator to recursively scan the powerset.
 class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
 {
-
     std::optional<stellar::Config> const mCfg;
 
     struct Stats

@@ -391,7 +391,6 @@ TEST_CASE("percentile calculation - uniform", "[percentile][medida_math]")
 
 TEST_CASE("percentile calculation - gamma", "[percentile][medida_math]")
 {
-
     auto snap = sampleFrom<gamma_dbl>(4.0, 100.0);
     gamma_4_100_pct.checkAgainst(snap);
 }

@@ -172,7 +172,6 @@ class OverlayManagerTests
         size_t i = 0;
         for (auto it = rs.begin(); it != rs.end(); ++it, ++i)
         {
-
             PeerBareAddress pba{it->get<std::string>(0),
                                 static_cast<unsigned short>(it->get<int>(1))};
             auto type = it->get<int>(2);

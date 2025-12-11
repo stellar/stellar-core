@@ -111,7 +111,6 @@ bool
 BucketListBase<BucketT>::shouldMergeWithEmptyCurr(uint32_t ledger,
                                                   uint32_t level)
 {
-
     if (level != 0)
     {
         // Round down the current ledger to when the merge was started, and

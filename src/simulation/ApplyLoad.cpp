@@ -203,7 +203,6 @@ ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
 LedgerKey
 ApplyLoad::getKeyForArchivedEntry(uint64_t index)
 {
-
     static const SCAddress hotArchiveContractID = [] {
         SCAddress addr;
         addr.type(SC_ADDRESS_TYPE_CONTRACT);

@@ -2877,7 +2877,6 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                                size_t bufferThreshold,
                                LedgerTxnConsistency cons)
 {
-
     auto& upsertOffers = bleca.getOffersToUpsert();
     if (upsertOffers.size() > bufferThreshold)
     {

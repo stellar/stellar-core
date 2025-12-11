@@ -168,7 +168,6 @@ SetTrustLineFlagsOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
                                                 bool& authRevocable,
                                                 OperationResult& res) const
 {
-
     // Load the source account entry
     LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
     auto header = ltxSource.loadHeader();

@@ -116,7 +116,6 @@ testFilter(double expectedFalsePositiveRate)
 
 TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 {
-
     SECTION("8 bit")
     {
         auto epsilon = 1ul << 8;
