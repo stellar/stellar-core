@@ -310,6 +310,12 @@ ConservationOfLumens::checkSnapshot(
     auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
     auto const& header = liveSnapshot->getLedgerHeader();
 
+    // This invariant can fail prior to v24 due to bugs
+    if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_24))
+    {
+        return std::string{};
+    }
+
     Asset nativeAsset(ASSET_TYPE_NATIVE);
 
     int64_t sumBalance = 0;
