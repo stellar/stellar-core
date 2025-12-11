@@ -55,7 +55,8 @@ JitterInjector::configure(const Config& cfg)
 }
 
 bool
-JitterInjector::injectDelay(int32_t probability, uint32_t minNs, uint32_t maxNs)
+JitterInjector::injectDelay(int32_t probability, uint64_t minUsec,
+                            uint64_t maxUsec)
 {
     // Initialize RNG on first use for this thread
     if (!gJitterRandEngineInitialized)
@@ -69,16 +70,16 @@ JitterInjector::injectDelay(int32_t probability, uint32_t minNs, uint32_t maxNs)
     {
         probability = gJitterConfig.defaultProbability;
     }
-    if (minNs == 0)
+    if (minUsec == 0)
     {
-        minNs = gJitterConfig.minDelayNs;
+        minUsec = gJitterConfig.minDelayUsec;
     }
-    if (maxNs == 0)
+    if (maxUsec == 0)
     {
-        maxNs = gJitterConfig.maxDelayNs;
+        maxUsec = gJitterConfig.maxDelayUsec;
     }
 
-    if (maxNs < minNs)
+    if (maxUsec < minUsec)
     {
         throw std::invalid_argument(
             "JitterInjector::injectDelay invalid delay range");
@@ -97,15 +98,16 @@ JitterInjector::injectDelay(int32_t probability, uint32_t minNs, uint32_t maxNs)
         return false;
     }
 
-    uint32_t delayNs = rand_uniform<uint32_t>(minNs, maxNs, gJitterRandEngine);
-    uint32_t delayMs = delayNs / 1'000'000;
+    uint64_t delayUsec =
+        rand_uniform<uint64_t>(minUsec, maxUsec, gJitterRandEngine);
+    uint64_t delayMs = delayUsec / 1'000;
 
-    CLOG_DEBUG(Test, "Jitter delay injected: {}ms (probability {})", delayMs,
-               probability);
+    CLOG_DEBUG(Test, "Jitter delay injected: {}ms (probability {}, usec {})",
+               delayMs, probability, delayUsec);
 
     sDelayCount++;
 
-    std::this_thread::sleep_for(std::chrono::nanoseconds(delayNs));
+    std::this_thread::sleep_for(std::chrono::microseconds(delayUsec));
     return true;
 }
 

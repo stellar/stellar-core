@@ -371,7 +371,7 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
     // subset of the restored key maps.
     UnorderedMap<LedgerKey, LedgerEntry> opRestoredLiveBucketListKeys{};
     auto allRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
-    auto opModifiedTTLKeys = opLtx.getAllTTLKeysWithoutSealing();
+    auto opModifiedKeys = opLtx.getAllKeysWithoutSealing();
     if (mOp.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
     {
         for (auto const& [key, entry] : allRestoredLiveBucketListKeys)
@@ -379,7 +379,7 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
             if (isSorobanEntry(key))
             {
                 auto ttlKey = getTTLKey(key);
-                if (opModifiedTTLKeys.find(ttlKey) != opModifiedTTLKeys.end())
+                if (opModifiedKeys.find(ttlKey) != opModifiedKeys.end())
                 {
                     opRestoredLiveBucketListKeys[key] = entry;
                     opRestoredLiveBucketListKeys[ttlKey] =

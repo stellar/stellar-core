@@ -3358,12 +3358,12 @@ TEST_CASE("randomized parallel features with jitter injection",
 
     // Define jitter configurations for each iteration
     std::vector<JitterInjector::Config> jitterConfigs = {
-        {100, 100'000, 1'000'000},   // 100% prob, 100µs-1ms
-        {80, 500'000, 2'000'000},    // 80% prob, 0.5ms-2ms
-        {50, 1'000'000, 5'000'000},  // 50% prob, 1ms-5ms
-        {20, 1'000'000, 10'000'000}, // 20% prob, 1ms-10ms
-        {10, 1'000'000, 50'000'000}, // 10% prob, 1ms-50ms
-        {1, 1'000'000, 100'000'000}, // 1% prob, 1ms-100ms
+        {100, 100, 1'000},   // 100% prob, 100µs-1ms
+        {80, 500, 2'000},    // 80% prob, 0.5ms-2ms
+        {50, 1'000, 5'000},  // 50% prob, 1ms-5ms
+        {20, 1'000, 10'000}, // 20% prob, 1ms-10ms
+        {10, 1'000, 50'000}, // 10% prob, 1ms-50ms
+        {1, 1'000, 100'000}, // 1% prob, 1ms-100ms
     };
 
     for (uint32_t iteration = 0; iteration < jitterConfigs.size(); ++iteration)
@@ -3481,8 +3481,8 @@ TEST_CASE("randomized parallel features with jitter injection",
                       "applied (probability={}, delay range: {}-{}ms)",
                       iteration, injectionCount, delayCount,
                       jitterConfigs[iteration].defaultProbability,
-                      jitterConfigs[iteration].minDelayNs / 1'000'000,
-                      jitterConfigs[iteration].maxDelayNs / 1'000'000);
+                      jitterConfigs[iteration].minDelayUsec / 1'000,
+                      jitterConfigs[iteration].maxDelayUsec / 1'000);
         }
     }
 }

@@ -478,6 +478,163 @@ processArchivalMetrics(
     }
 }
 
+void
+getHotArchiveListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo,
+                                 int64_t& runningBalance)
+{
+    auto& bm = app.getBucketManager();
+
+    std::map<LedgerKey, LedgerEntry> archived =
+        app.getBucketManager().loadCompleteHotArchiveState(has);
+    for (auto const& [_, entry] : archived)
+    {
+        auto balance = getAssetBalance(entry, asset, assetContractInfo);
+        if (balance.overflowed)
+        {
+            throw std::runtime_error("Total asset balance overflowed int64_t");
+        }
+        if (balance.assetMatched &&
+            (!balance.balance || !addBalance(runningBalance, *balance.balance)))
+        {
+            throw std::runtime_error("Total asset balance overflowed int64_t");
+        }
+    }
+}
+
+void
+getLiveBucketListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo,
+                                 int64_t& runningBalance)
+{
+    std::vector<Hash> liveHashes;
+    std::unordered_set<LedgerKey> seenKeys;
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
+        liveHashes.emplace_back(hexToBin256(hsb.curr));
+        liveHashes.emplace_back(hexToBin256(hsb.snap));
+    }
+
+    auto& bm = app.getBucketManager();
+    for (auto const& hash : liveHashes)
+    {
+        if (isZero(hash))
+        {
+            continue;
+        }
+        auto b = bm.getBucketByHash<LiveBucket>(hash);
+        if (!b)
+        {
+            throw std::runtime_error(std::string("missing bucket: ") +
+                                     binToHex(hash));
+        }
+
+        for (LiveBucketInputIterator in(b); in; ++in)
+        {
+            auto const& be = *in;
+            if (be.type() != LIVEENTRY && be.type() != INITENTRY)
+            {
+                if (be.type() == DEADENTRY &&
+                    canHoldAsset(be.deadEntry().type(), asset))
+                {
+                    seenKeys.emplace(be.deadEntry());
+                }
+                continue;
+            }
+
+            LedgerKey k = LedgerEntryKey(be.liveEntry());
+
+            if (!canHoldAsset(be.liveEntry().data.type(), asset) ||
+                seenKeys.count(k) != 0)
+            {
+                continue;
+            }
+
+            auto balance =
+                getAssetBalance(be.liveEntry(), asset, assetContractInfo);
+
+            if (balance.overflowed)
+            {
+                throw std::runtime_error(
+                    "Total asset balance overflowed int64_t");
+            }
+            if (!balance.assetMatched)
+            {
+                continue;
+            }
+            if (!balance.balance ||
+                !addBalance(runningBalance, *balance.balance))
+            {
+                throw std::runtime_error(
+                    "Total asset balance overflowed int64_t");
+            }
+
+            seenKeys.emplace(k);
+        }
+    }
+}
+
+int
+calculateAssetSupply(Config cfg, Asset const& asset)
+{
+    ZoneScoped;
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
+
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+    auto assetContractInfo = getAssetContractInfo(asset, app->getNetworkID());
+
+    int64_t sumBalance = 0;
+
+    // For native asset, include the fee pool
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto feePool = lm.getLastClosedLedgerHeader().header.feePool;
+        sumBalance = feePool;
+        CLOG_INFO(Bucket, "Fee pool balance: {}", feePool);
+    }
+
+    getLiveBucketListBalanceForAsset(*app, has, asset, assetContractInfo,
+                                     sumBalance);
+
+    getHotArchiveListBalanceForAsset(*app, has, asset, assetContractInfo,
+                                     sumBalance);
+
+    CLOG_INFO(
+        Bucket,
+        "Total asset supply in Hot/Live buckets (and feePool for XLM): {}",
+        sumBalance);
+
+    // For native asset, validate against totalCoins
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto totalCoins = lm.getLastClosedLedgerHeader().header.totalCoins;
+        CLOG_INFO(Bucket, "Total Coins in ledgerHeader: {}", totalCoins);
+
+        if (sumBalance != totalCoins)
+        {
+            CLOG_WARNING(Bucket,
+                         "Total XLM mismatch! totalCoins-bucketBalance: {}",
+                         totalCoins - sumBalance);
+            return 1;
+        }
+        else
+        {
+            CLOG_INFO(Bucket, "Total XLM matches");
+        }
+    }
+
+    return 0;
+}
+
 int
 dumpStateArchivalStatistics(Config cfg)
 {

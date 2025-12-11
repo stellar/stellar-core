@@ -672,7 +672,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // Returns all TTL keys that have been modified (create, update, and
     // delete), but does not cause the AbstractLedgerTxn or update last
     // modified.
-    virtual LedgerKeySet getAllTTLKeysWithoutSealing() const = 0;
+    virtual LedgerKeySet getAllKeysWithoutSealing() const = 0;
 
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
@@ -806,7 +806,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
-    LedgerKeySet getAllTTLKeysWithoutSealing() const override;
+    LedgerKeySet getAllKeysWithoutSealing() const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const override;
