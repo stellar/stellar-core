@@ -1776,10 +1776,13 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     JITTER_INJECT_DELAY();
 
     // Step 4
-    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(
+            appliedLedgerState->getLastClosedLedgerHeader()
+                .header.ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getBucketManager().startBackgroundEvictionScan(
-            ledgerSeq + 1, initialLedgerVers,
+            appliedLedgerState->getBucketSnapshot(),
             appliedLedgerState->getSorobanConfig());
     }
 
@@ -2817,76 +2820,70 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        // In `getAllTTLKeysWithoutSealing` it is important not to seal ltx,
+        // because it is still being modified by the eviction flow.
+        // `getAllTTLKeysWithoutSealing` must be called at the right time
+        // _after_ all operations have been applied, but _before_ evictions.
+        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
+        auto evictedState =
+            mApp.getBucketManager().resolveBackgroundEvictionScan(
+                lclSnapshot, ltx, ltx.getAllKeysWithoutSealing());
+
+        if (protocolVersionStartsFrom(
+                initialLedgerVers,
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
-            auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
-            auto keys = ltx.getAllKeysWithoutSealing();
-            LedgerTxn ltxEvictions(ltx);
-            auto evictedState =
-                mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers,
-                    sorobanConfig);
+            std::vector<LedgerKey> restoredHotArchiveKeys;
 
-            if (protocolVersionStartsFrom(
-                    initialLedgerVers,
-                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            auto const& restoredHotArchiveKeyMap =
+                ltx.getRestoredHotArchiveKeys();
+            for (auto const& [key, entry] : restoredHotArchiveKeyMap)
             {
-                std::vector<LedgerKey> restoredHotArchiveKeys;
-
-                auto const& restoredHotArchiveKeyMap =
-                    ltxEvictions.getRestoredHotArchiveKeys();
-                for (auto const& [key, entry] : restoredHotArchiveKeyMap)
+                // TTL keys are not recorded in the hot archive BucketList
+                if (key.type() == CONTRACT_DATA || key.type() == CONTRACT_CODE)
                 {
-                    // TTL keys are not recorded in the hot archive BucketList
-                    if (key.type() == CONTRACT_DATA ||
-                        key.type() == CONTRACT_CODE)
-                    {
-                        restoredHotArchiveKeys.push_back(key);
-                    }
-                }
-
-                mApp.getInvariantManager().checkOnLedgerCommit(
-                    lclSnapshot, lclHotArchiveSnapshot,
-                    evictedState.archivedEntries, evictedState.deletedKeys,
-                    restoredHotArchiveKeyMap,
-                    ltxEvictions.getRestoredLiveBucketListKeys());
-
-                bool isP24UpgradeLedger =
-                    protocolVersionIsBefore(initialLedgerVers,
-                                            ProtocolVersion::V_24) &&
-                    protocolVersionStartsFrom(lh.ledgerVersion,
-                                              ProtocolVersion::V_24);
-                if (isP24UpgradeLedger && gIsProductionNetwork)
-                {
-                    p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
-                        ltxEvictions, mApp, lh, evictedState.archivedEntries,
-                        restoredHotArchiveKeys);
-                }
-                else
-                {
-                    mApp.getBucketManager().addHotArchiveBatch(
-                        mApp, lh, evictedState.archivedEntries,
-                        restoredHotArchiveKeys);
-                    // Validate evicted entries against Protocol 23 corruption
-                    // data if configured
-                    if (mApp.getProtocol23CorruptionDataVerifier())
-                    {
-                        mApp.getProtocol23CorruptionDataVerifier()
-                            ->verifyArchivalOfCorruptedEntry(evictedState, mApp,
-                                                             lh.ledgerSeq,
-                                                             lh.ledgerVersion);
-                    }
+                    restoredHotArchiveKeys.push_back(key);
                 }
             }
 
-            if (ledgerCloseMeta)
+            mApp.getInvariantManager().checkOnLedgerCommit(
+                lclSnapshot, lclHotArchiveSnapshot,
+                evictedState.archivedEntries, evictedState.deletedKeys,
+                restoredHotArchiveKeyMap, ltx.getRestoredLiveBucketListKeys());
+
+            bool isP24UpgradeLedger =
+                protocolVersionIsBefore(initialLedgerVers,
+                                        ProtocolVersion::V_24) &&
+                protocolVersionStartsFrom(lh.ledgerVersion,
+                                          ProtocolVersion::V_24);
+            if (isP24UpgradeLedger && gIsProductionNetwork)
             {
-                ledgerCloseMeta->populateEvictedEntries(evictedState);
+                p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
+                    ltx, mApp, lh, evictedState.archivedEntries,
+                    restoredHotArchiveKeys);
             }
-
-            mApplyState.evictFromModuleCache(lh.ledgerVersion, evictedState);
-
-            ltxEvictions.commit();
+            else
+            {
+                mApp.getBucketManager().addHotArchiveBatch(
+                    mApp, lh, evictedState.archivedEntries,
+                    restoredHotArchiveKeys);
+                // Validate evicted entries against Protocol 23 corruption
+                // data if configured
+                if (mApp.getProtocol23CorruptionDataVerifier())
+                {
+                    mApp.getProtocol23CorruptionDataVerifier()
+                        ->verifyArchivalOfCorruptedEntry(
+                            evictedState, mApp, lh.ledgerSeq, lh.ledgerVersion);
+                }
+            }
         }
+
+        if (ledgerCloseMeta)
+        {
+            ledgerCloseMeta->populateEvictedEntries(evictedState);
+        }
+
+        mApplyState.evictFromModuleCache(lh.ledgerVersion, evictedState);
 
         // Subtle: we snapshot the state size *before* flushing the updated
         // entries into in-memory state (doing that after would be really
