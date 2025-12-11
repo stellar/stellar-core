@@ -411,7 +411,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION;
 
     // MAX_SAC_TPS mode specific parameters
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC = 1;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
     uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
     uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
 

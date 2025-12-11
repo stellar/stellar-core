@@ -293,8 +293,9 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
         mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                       config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC *
-                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
+                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
+                       config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS /
+                       1000.0;
         break;
     }
     setup();
@@ -1018,54 +1019,69 @@ ApplyLoad::findMaxSacTps()
             std::ceil(static_cast<double>(MIN_TXS_PER_STEP) / txsPerStep) *
             txsPerStep;
     }
-    // Round min and max TPS to be multiple of txsPerStep. Round both down to
-    // not exceed the number of accounts and include the lower bound.
-    uint32_t minTpsSteps =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS / txsPerStep;
-    uint32_t maxTpsSteps =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS / txsPerStep;
+    uint32_t stepsPerSecond = 1000 / ApplyLoad::MAX_SAC_TPS_TIME_STEP_MS;
+    // Round min and max rate of txs per step of MAX_SAC_TPS_TIME_STEP_MS
+    // duration to be multiple of txsPerStep.
+    uint32_t minTxRateSteps =
+        std::max(1u, mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS /
+                         stepsPerSecond / txsPerStep);
+    uint32_t maxTxRateSteps = std::ceil(
+        static_cast<double>(mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS) /
+        stepsPerSecond / txsPerStep);
     uint32_t bestTps = 0;
 
-    uint32_t applySeconds =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC;
-    double targetCloseTime =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_SEC * 1000.0;
+    double targetCloseTimeMs =
+        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS;
+    uint32_t targetCloseTimeSteps =
+        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS /
+        ApplyLoad::MAX_SAC_TPS_TIME_STEP_MS;
+
+    auto txsPerLedgerToTPS =
+        [targetCloseTimeMs](uint32_t txsPerLedger) -> uint32_t {
+        double targetCloseTimeSec = targetCloseTimeMs / 1000.0;
+        return txsPerLedger / targetCloseTimeSec;
+    };
 
     CLOG_WARNING(Perf,
                  "Starting MAX_SAC_TPS binary search between {} and {} TPS "
                  "with search step of {} txs",
-                 minTpsSteps * txsPerStep, maxTpsSteps * txsPerStep,
-                 txsPerStep);
-    CLOG_WARNING(Perf, "Target close time: {}ms", targetCloseTime);
+                 txsPerLedgerToTPS(minTxRateSteps * txsPerStep),
+                 txsPerLedgerToTPS(maxTxRateSteps * txsPerStep), txsPerStep);
+    CLOG_WARNING(Perf, "Target close time: {}ms", targetCloseTimeMs);
     CLOG_WARNING(Perf, "Num parallel clusters: {}",
                  mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
-    while (minTpsSteps <= maxTpsSteps)
+    while (minTxRateSteps <= maxTxRateSteps)
     {
-        uint32_t testTpsSteps = (minTpsSteps + maxTpsSteps) / 2;
-        uint32_t testTps = testTpsSteps * txsPerStep;
+        uint32_t testTxRateSteps = (minTxRateSteps + maxTxRateSteps) / 2;
+        uint32_t testTxRate = testTxRateSteps * txsPerStep;
 
         // Calculate transactions per ledger based on target close time
-        uint32_t txsPerLedger = applySeconds * testTps /
+        uint32_t txsPerLedger = targetCloseTimeSteps * testTxRate /
                                 mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+        uint32_t testTps = txsPerLedgerToTPS(
+            txsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
 
-        CLOG_WARNING(Perf, "Testing {} TPS with {} TXs per ledger.", testTps,
-                     txsPerLedger);
+        CLOG_WARNING(
+            Perf,
+            "Testing {} TPS with {} batched TXs per ledger ({} transfers).",
+            testTps, txsPerLedger,
+            txsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
 
         upgradeSettingsForMaxTPS(txsPerLedger);
 
         double avgCloseTime = benchmarkSacTps(txsPerLedger);
 
-        if (avgCloseTime <= targetCloseTime)
+        if (avgCloseTime <= targetCloseTimeMs)
         {
             bestTps = testTps;
-            minTpsSteps = testTpsSteps + 1;
+            minTxRateSteps = testTxRateSteps + 1;
             CLOG_WARNING(Perf, "Success: {} TPS (avg total tx apply: {:.2f}ms)",
                          testTps, avgCloseTime);
         }
         else
         {
-            maxTpsSteps = testTpsSteps - 1;
+            maxTxRateSteps = testTxRateSteps - 1;
             CLOG_WARNING(Perf, "Failed: {} TPS (avg total tx apply: {:.2f}ms)",
                          testTps, avgCloseTime);
         }
