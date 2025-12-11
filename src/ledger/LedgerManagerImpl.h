@@ -436,7 +436,9 @@ class LedgerManagerImpl : public LedgerManager
     // cache, etc).
     // Full state building should not be skipped in any flows where new ledgers
     // have to actually be closed.
-    void loadLastKnownLedgerInternal(bool skipBuildingFullState);
+    void
+    loadLastKnownLedgerInternal(bool skipBuildingFullState,
+                                std::optional<std::function<void()>> callback);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -521,7 +523,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger() override;
+    void loadLastKnownLedger(std::function<void()> callback) override;
     void partiallyLoadLastKnownLedgerForUtils() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;

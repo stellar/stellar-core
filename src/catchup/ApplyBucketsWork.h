@@ -53,6 +53,9 @@ class ApplyBucketsWork : public Work
     void startBucket();
     void prepareForNextBucket();
 
+    VirtualTimer mLedgerManagerReadyTimer;
+    void waitForLedgerManager();
+
   public:
     ApplyBucketsWork(
         Application& app,
