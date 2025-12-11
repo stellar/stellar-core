@@ -241,9 +241,13 @@ HerderImpl::bootstrap()
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
-    setupTriggerNextLedger();
-    newSlotExternalized(
-        true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (trackingConsensusLedgerIndex() == lcl.header.ledgerSeq)
+    {
+        setupTriggerNextLedger();
+        newSlotExternalized(
+            true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+    }
 }
 
 void
