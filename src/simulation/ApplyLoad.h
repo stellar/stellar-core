@@ -68,6 +68,10 @@ class ApplyLoad
     static LedgerKey getKeyForArchivedEntry(uint64_t index);
     static uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 
+    // The target time to close a ledger when running in MAX_SAC_TPS mode must
+    // be a multiple of MAX_SAC_TPS_TIME_STEP_MS.
+    static uint32_t const MAX_SAC_TPS_TIME_STEP_MS = 50;
+
   private:
     void setup();
 
