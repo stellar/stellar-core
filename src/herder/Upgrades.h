@@ -119,7 +119,6 @@ class Upgrades
                    uint64_t time, bool& updated);
 
     static void dropAll(Database& db);
-    static void dropSupportUpgradeHistory(Database& db);
 
   private:
     UpgradeParameters mParams;

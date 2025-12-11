@@ -661,12 +661,6 @@ Upgrades::dropAll(Database& db)
         << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
 }
 
-void
-Upgrades::dropSupportUpgradeHistory(Database& db)
-{
-    db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
-}
-
 static void
 addLiabilities(std::map<Asset, std::unique_ptr<int64_t>>& liabilities,
                AccountID const& accountID, Asset const& asset, int64_t delta)

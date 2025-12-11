@@ -30,7 +30,7 @@ using PreparedStatementCache =
     std::map<std::string, std::shared_ptr<soci::statement>>;
 
 // smallest schema version supported
-static constexpr unsigned long MIN_SCHEMA_VERSION = 21;
+static constexpr unsigned long MIN_SCHEMA_VERSION = 25;
 static constexpr unsigned long SCHEMA_VERSION = 25;
 
 /**

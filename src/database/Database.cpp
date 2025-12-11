@@ -208,17 +208,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession.session());
     switch (vers)
     {
-    case 22:
-        dropSupportTransactionFeeHistory(*this);
-        break;
-    case 23:
-        mApp.getHistoryManager().dropSQLBasedPublish();
-        Upgrades::dropSupportUpgradeHistory(*this);
-        break;
-    case 24:
-        getRawSession() << "DROP TABLE IF EXISTS pubsub;";
-        mApp.getPersistentState().migrateToSlotStateTable();
-        break;
     case 25:
         // Remove deprecated dbbackend entry from storestate table
         getRawSession() << "DELETE FROM storestate WHERE statename = "
@@ -439,13 +428,9 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    Upgrades::dropSupportUpgradeHistory(*this);
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
-    // No need to re-create txhistory, will be dropped during
-    // upgradeToCurrentSchema anyway
-    dropSupportTxHistory(*this);
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);
