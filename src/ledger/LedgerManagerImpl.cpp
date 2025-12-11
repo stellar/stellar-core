@@ -76,7 +76,6 @@
 #include "LedgerManagerImpl.h"
 #include <chrono>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <regex>
 #include <sstream>
@@ -362,8 +361,25 @@ void
 LedgerManagerImpl::setState(State s)
 {
     releaseAssert(threadIsMain());
-    if (s != getState())
+    if (s != mState)
     {
+        switch (mState)
+        {
+        case LM_BOOTING_STATE:
+            releaseAssert(s == LM_BOOTED_STATE);
+            break;
+        case LedgerManager::LM_BOOTED_STATE:
+            releaseAssert(s == LM_SYNCED_STATE || s == LM_CATCHING_UP_STATE);
+            break;
+        case LedgerManager::LM_SYNCED_STATE:
+            releaseAssert(s == LM_CATCHING_UP_STATE);
+            break;
+        case LedgerManager::LM_CATCHING_UP_STATE:
+            releaseAssert(s == LM_SYNCED_STATE);
+            break;
+        default:
+            releaseAssert(false);
+        }
         std::string oldState = getStateHuman();
         mState = s;
         mApp.syncOwnMetrics();
@@ -384,8 +400,9 @@ LedgerManagerImpl::getState() const
 std::string
 LedgerManagerImpl::getStateHuman() const
 {
-    static std::array<char const*, LM_NUM_STATE> stateStrings = std::array{
-        "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
+    static std::array<char const*, LM_NUM_STATE> stateStrings =
+        std::array{"LM_BOOTING_STATE", "LM_BOOTED_STATE", "LM_SYNCED_STATE",
+                   "LM_CATCHING_UP_STATE"};
     return std::string(stateStrings[getState()]);
 }
 
@@ -502,9 +519,11 @@ LedgerManagerImpl::startNewLedger()
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
+LedgerManagerImpl::loadLastKnownLedgerInternal(
+    bool skipBuildingFullState, std::optional<std::function<void()>> callback)
 {
     ZoneScoped;
+    releaseAssert(mState == LM_BOOTING_STATE);
     mApplyState.assertSetupPhase();
 
     // Step 1. Load LCL state from the DB and extract latest ledger hash
@@ -527,7 +546,6 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
     // earlier, or verify we're at genesis if in no-history mode
-    std::optional<LedgerHeader> latestLedgerHeader;
     auto currentLedger =
         LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
     if (!currentLedger)
@@ -544,9 +562,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
               ledgerAbbrev(*currentLedger));
     setLedgerTxnHeader(*currentLedger, mApp);
-    latestLedgerHeader = *currentLedger;
-
-    releaseAssert(latestLedgerHeader.has_value());
+    LedgerHeader latestLedgerHeader = *currentLedger;
 
     auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
     auto pubmissing =
@@ -563,12 +579,12 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     // (standalone offline commands, in-memory setup) do not need to
     // spin up expensive merge processes.
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-        has, latestLedgerHeader->ledgerVersion,
+        has, latestLedgerHeader.ledgerVersion,
         /* restartMerges */ !skipBuildingFullState);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
         CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                  ledgerAbbrev(*latestLedgerHeader));
+                  ledgerAbbrev(latestLedgerHeader));
     }
     else
     {
@@ -578,44 +594,63 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     // Step 4. Restore LedgerManager's LCL state
     advanceLastClosedLedgerState(
-        advanceBucketListSnapshotAndMakeLedgerState(*latestLedgerHeader, has));
+        advanceBucketListSnapshotAndMakeLedgerState(latestLedgerHeader, has));
 
     // Maybe truncate checkpoint files if we're restarting after a crash
     // in applyLedger (in which case any modifications to the ledger state have
     // been rolled back)
-    mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader->ledgerSeq);
+    mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader.ledgerSeq);
 
     // Prime module cache with LCL state, not apply-state. This is acceptable
     // here because we just started and there is no apply-state yet and no apply
     // thread to hold such state.
     auto const& snapshot = mLastClosedLedgerState->getBucketSnapshot();
-    if (!skipBuildingFullState)
+    if (skipBuildingFullState)
     {
-        mApplyState.compileAllContractsInLedger(
-            snapshot, latestLedgerHeader->ledgerVersion);
-        mApplyState.populateInMemorySorobanState(
-            snapshot, latestLedgerHeader->ledgerVersion);
+        mApplyState.markEndOfSetupPhase();
+        setState(LM_BOOTED_STATE);
+        if (callback)
+        {
+            mApp.postOnMainThread([callback(*callback)] { callback(); },
+                                  "Finished loadLastKnownLedger");
+        }
+        return;
     }
+    mApplyState.compileAllContractsInLedger(snapshot,
+                                            latestLedgerHeader.ledgerVersion);
+    mApp.postOnLedgerCloseThread(
+        [this, snapshot, ledgerVersion{latestLedgerHeader.ledgerVersion},
+         callback] {
+            mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
 
-    if (!skipBuildingFullState)
-    {
-        maybeRunSnapshotInvariantFromLedgerState(
-            mLastClosedLedgerState, maybeCopySorobanStateForInvariant(),
-            /* runInParallel */ false);
-    }
-    mApplyState.markEndOfSetupPhase();
+            mApp.postOnMainThread(
+                [this, callback] {
+                    mApplyState.markEndOfSetupPhase();
+                    setState(LM_BOOTED_STATE);
+                    maybeRunSnapshotInvariantFromLedgerState(
+                        mLastClosedLedgerState,
+                        maybeCopySorobanStateForInvariant(),
+                        /* runInParallel */ false);
+                    if (callback)
+                    {
+                        (*callback)();
+                    }
+                },
+                "Finish populating in-memory Soroban state");
+        },
+        "Populate in-memory Soroban state");
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger()
+LedgerManagerImpl::loadLastKnownLedger(std::function<void()> callback)
 {
-    loadLastKnownLedgerInternal(/* skipBuildingFullState */ false);
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ false, callback);
 }
 
 void
 LedgerManagerImpl::partiallyLoadLastKnownLedgerForUtils()
 {
-    loadLastKnownLedgerInternal(/* skipBuildingFullState */ true);
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ true, std::nullopt);
 }
 
 Database&
@@ -974,7 +1009,9 @@ void
 LedgerManagerImpl::ApplyState::populateInMemorySorobanState(
     SearchableSnapshotConstPtr snap, uint32_t ledgerVersion)
 {
-    assertSetupPhase();
+    // We don't use assertSetupPhase() because we don't expect the thread
+    // invariant to hold when we're populating state in the background
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     mInMemorySorobanState.initializeStateFromSnapshot(snap, ledgerVersion);
 }
 
@@ -1187,6 +1224,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
 
     auto st = getState();
     if (st != LedgerManager::LM_BOOTING_STATE &&
+        st != LedgerManager::LM_BOOTED_STATE &&
         st != LedgerManager::LM_CATCHING_UP_STATE &&
         st != LedgerManager::LM_SYNCED_STATE)
     {
@@ -1207,9 +1245,9 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
                       "Lost sync, local LCL is {}, network closed ledger {}",
                       getLastClosedLedgerHeader().header.ledgerSeq,
                       ledgerData.getLedgerSeq());
+            releaseAssert(mState != LM_BOOTING_STATE);
+            setState(LM_CATCHING_UP_STATE);
         }
-
-        setState(LM_CATCHING_UP_STATE);
     }
 }
 
@@ -1218,7 +1256,13 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
-    setState(LM_CATCHING_UP_STATE);
+    // This should only be called during offline catchup, so it's okay to be
+    // slightly inaccurate and to only report the state as BOOTING/BOOTED if we
+    // haven't finished booting by the time this is called
+    if (mState != LM_BOOTING_STATE)
+    {
+        setState(LM_CATCHING_UP_STATE);
+    }
     mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 
@@ -1421,6 +1465,7 @@ void
 LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                bool calledViaExternalize)
 {
+    releaseAssert(mState != LM_BOOTING_STATE);
     if (mApp.isStopping())
     {
         return;

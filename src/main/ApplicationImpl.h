@@ -100,7 +100,6 @@ class ApplicationImpl : public Application
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) override;
     virtual void start() override;
-    void startServices();
 
     // Stops the worker io_context, which should cause the threads to exit once
     // they finish running any work-in-progress. If you want a more abrupt exit

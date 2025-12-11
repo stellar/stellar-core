@@ -183,8 +183,11 @@ class LedgerManager
         // Loading state from database, not yet active
         LM_BOOTING_STATE,
 
+        // Finished loading state from database, active
+        LM_BOOTED_STATE,
+
         // local state is in sync with view of consensus coming from herder
-        // desynchronization will cause transition to LM_BOOTING_STATE.
+        // desynchronization will cause transition to LM_CATCHING_UP_STATE
         LM_SYNCED_STATE,
 
         // local state doesn't match view of consensus from herder
@@ -297,8 +300,11 @@ class LedgerManager
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
 
-    // loads the last ledger information from the database
-    virtual void loadLastKnownLedger() = 0;
+    // loads the last ledger information from the database with the following
+    // parameter:
+    //  * callback: function to call on main thread once ledger load has
+    //    completed (in particular, Soroban in-memory state is loaded)
+    virtual void loadLastKnownLedger(std::function<void()> callback) = 0;
 
     // Helper for a faster load of the last closed ledger used only for various
     // diagnostics utils outside of the main application flow. This skips
