@@ -19,15 +19,6 @@
     MACRO(EVICTION_SCAN) \
     MACRO(LIVE_SOROBAN_IN_MEMORY_STATE)
 
-#define FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(OUTER_SCOPE, MACRO) \
-    MACRO(OUTER_SCOPE, GLOBAL_PAR_APPLY_STATE) \
-    MACRO(OUTER_SCOPE, THREAD_PAR_APPLY_STATE) \
-    MACRO(OUTER_SCOPE, TX_PAR_APPLY_STATE) \
-    MACRO(OUTER_SCOPE, LIVE_BUCKET_LIST) \
-    MACRO(OUTER_SCOPE, HOT_ARCHIVE_BUCKET_LIST) \
-    MACRO(OUTER_SCOPE, EVICTION_SCAN) \
-    MACRO(OUTER_SCOPE, LIVE_SOROBAN_IN_MEMORY_STATE)
-
 namespace stellar
 {
 
@@ -90,9 +81,9 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
 
     friend class LedgerEntryScope<S>;
     friend class ScopedOptionalLedgerEntry<S>;
-#define FRIEND_MACRO(OUTER_SCOPE, INNER_SCOPE) \
-    friend class LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE>;
-    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(S, FRIEND_MACRO)
+#define FRIEND_MACRO(SCOPE) \
+    friend class LedgerEntryScope<StaticLedgerEntryScope::SCOPE>;
+    FOREACH_STATIC_LEDGER_ENTRY_SCOPE(FRIEND_MACRO)
 #undef FRIEND_MACRO
 
     ScopedLedgerEntry(ScopeIdT scopeID, LedgerEntry const& entry);
@@ -126,9 +117,9 @@ template <StaticLedgerEntryScope S> class ScopedOptionalLedgerEntry
     std::optional<LedgerEntry> mEntry;
 
     friend class LedgerEntryScope<S>;
-#define FRIEND_MACRO(OUTER_SCOPE, INNER_SCOPE) \
-    friend class LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE>;
-    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(S, FRIEND_MACRO)
+#define FRIEND_MACRO(SCOPE) \
+    friend class LedgerEntryScope<StaticLedgerEntryScope::SCOPE>;
+    FOREACH_STATIC_LEDGER_ENTRY_SCOPE(FRIEND_MACRO)
 #undef FRIEND_MACRO
 
     ScopedOptionalLedgerEntry(ScopeIdT scopeID,
@@ -205,9 +196,9 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
 {
     mutable bool mActive{true};
 
-#define FRIEND_MACRO(OUTER_SCOPE, INNER_SCOPE) \
-    friend class LedgerEntryScope<StaticLedgerEntryScope::INNER_SCOPE>;
-    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(S, FRIEND_MACRO)
+#define FRIEND_MACRO(SCOPE) \
+    friend class LedgerEntryScope<StaticLedgerEntryScope::SCOPE>;
+    FOREACH_STATIC_LEDGER_ENTRY_SCOPE(FRIEND_MACRO)
 #undef FRIEND_MACRO
 
   public:
@@ -288,19 +279,15 @@ template <StaticLedgerEntryScope S> class DeactivateScopeGuard
     ~DeactivateScopeGuard();
 };
 
-#define STATIC_SCOPE_MACRO(OUTER_SCOPE) \
-    extern template class LedgerEntryScopeID< \
-        StaticLedgerEntryScope::OUTER_SCOPE>; \
-    extern template class LedgerEntryScope< \
-        StaticLedgerEntryScope::OUTER_SCOPE>; \
-    extern template class ScopedLedgerEntry< \
-        StaticLedgerEntryScope::OUTER_SCOPE>; \
-    extern template class DeactivateScopeGuard< \
-        StaticLedgerEntryScope::OUTER_SCOPE>; \
-    FOREACH_STATIC_LEDGER_ENTRY_SCOPE_INNER(OUTER_SCOPE, \
-                                            ADOPT_OTHER_SCOPE_METHODS)
+#define DECLARE_EXTERN_TEMPLATES(SCOPE) \
+    extern template class LedgerEntryScopeID<StaticLedgerEntryScope::SCOPE>; \
+    extern template class LedgerEntryScope<StaticLedgerEntryScope::SCOPE>; \
+    extern template class ScopedLedgerEntry<StaticLedgerEntryScope::SCOPE>; \
+    extern template class ScopedOptionalLedgerEntry< \
+        StaticLedgerEntryScope::SCOPE>; \
+    extern template class DeactivateScopeGuard<StaticLedgerEntryScope::SCOPE>;
+FOREACH_STATIC_LEDGER_ENTRY_SCOPE(DECLARE_EXTERN_TEMPLATES)
 
-#undef STATIC_SCOPE_MACRO
-#undef ADOPT_OTHER_SCOPE_METHODS
+#undef DECLARE_EXTERN_TEMPLATES
 
 }
