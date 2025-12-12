@@ -47,9 +47,9 @@ using TransactionFrameBaseConstPtr =
 // Tracks entry updates within a transaction during parallel apply phases. If
 // the transaction succeeds, the thread's ParallelApplyEntryMap should be
 // updated with the entries from the TxModifiedEntryMap.
-using TxLedgerEntry =
-    ScopedLedgerEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
-using TxModifiedEntryMap = UnorderedMap<LedgerKey, TxOptionalLedgerEntry>;
+using TxParApplyLedgerEntry =
+    ScopedLedgerEntry<StaticLedgerEntryScope::TxParApply>;
+using TxModifiedEntryMap = UnorderedMap<LedgerKey, TxParApplyLedgerEntryOpt>;
 
 // Used to track the current state of an entry during parallel apply phases. Can
 // be updated by successful transactions.
@@ -57,15 +57,15 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
 {
     // Will not be set if the entry doesn't exist, or if no tx was able to load
     // it due to hitting read limits.
-    ScopedOptionalLedgerEntry<S> mLedgerEntry;
+    ScopedLedgerEntryOpt<S> mLedgerEntry;
     bool mIsDirty;
     static ParallelApplyEntry
-    clean(ScopedOptionalLedgerEntry<S> const& e)
+    clean(ScopedLedgerEntryOpt<S> const& e)
     {
         return ParallelApplyEntry{e, false};
     }
     static ParallelApplyEntry
-    dirty(ScopedOptionalLedgerEntry<S> const& e)
+    dirty(ScopedLedgerEntryOpt<S> const& e)
     {
         return ParallelApplyEntry{e, true};
     }
@@ -79,11 +79,11 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     }
 };
 using GlobalParallelApplyEntry =
-    ParallelApplyEntry<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
+    ParallelApplyEntry<StaticLedgerEntryScope::GlobalParApply>;
 using ThreadParallelApplyEntry =
-    ParallelApplyEntry<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
+    ParallelApplyEntry<StaticLedgerEntryScope::ThreadParApply>;
 using TxParallelApplyEntry =
-    ParallelApplyEntry<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
+    ParallelApplyEntry<StaticLedgerEntryScope::TxParApply>;
 
 // This is a map of all entries that will be read and/or written during parallel
 // apply phases: there is one such "global" map which disjoint per-thread maps
@@ -93,17 +93,17 @@ using TxParallelApplyEntry =
 template <StaticLedgerEntryScope S>
 using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry<S>>;
 using GlobalParallelApplyEntryMap =
-    ParallelApplyEntryMap<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>;
+    ParallelApplyEntryMap<StaticLedgerEntryScope::GlobalParApply>;
 using ThreadParallelApplyEntryMap =
-    ParallelApplyEntryMap<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>;
+    ParallelApplyEntryMap<StaticLedgerEntryScope::ThreadParApply>;
 using TxParallelApplyEntryMap =
-    ParallelApplyEntryMap<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>;
+    ParallelApplyEntryMap<StaticLedgerEntryScope::TxParApply>;
 
 // Returned by each parallel transaction. It will contain the entries modified
 // by the transaction, the success status of the transaction, and the keys
 // restored.
 class ParallelTxReturnVal
-    : public LedgerEntryScope<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>
+    : public LedgerEntryScope<StaticLedgerEntryScope::TxParApply>
 {
   public:
     ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
