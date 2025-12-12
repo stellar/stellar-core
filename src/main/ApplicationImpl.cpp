@@ -1232,6 +1232,7 @@ ApplicationImpl::getState() const
         switch (mLedgerManager->getState())
         {
         case LedgerManager::LM_BOOTING_STATE:
+        case LedgerManager::LM_BOOTED_STATE:
             s = APP_CONNECTED_STANDBY_STATE;
             break;
         case LedgerManager::LM_CATCHING_UP_STATE:
