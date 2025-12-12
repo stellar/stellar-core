@@ -12,6 +12,7 @@
 #include "util/asio.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/test/BucketTestUtils.h"
@@ -1952,4 +1953,79 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
             REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
         }
     });
+}
+
+// This test simulates a race condition in index creation during merge.
+//
+// The race occurs when:
+// 1. Some bucket B exists in BucketManager with an index, but is not currently
+//    in the BucketList (e.g., it left level 0 snap and will re-enter at level 2
+//    curr after a merge completes)
+// 2. A background merge starts that will produce the same bucket hash B
+// 3. The background merge checks if B exists and is indexed
+// 4. Before the background merge calls adoptFileAsBucket and "commits" the
+//    bucket, GC runs on main thread
+// 5. GC sees B has use_count==1 (since background merge has not adopted the
+//    bucket yet), so B's index is freed
+// 6. Background merge calls adoptFileAsBucket, which returns the existing
+//    bucket B
+// 7. But B's index has been freed, the returned bucket is missing its index.
+//
+TEST_CASE("bucket index race condition with GC", "[bucket][bucketmanager]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+
+    Application::pointer app = createTestApplication(clock, cfg);
+    BucketManager& bm = app->getBucketManager();
+    auto vers = getAppLedgerVersion(app);
+
+    std::vector<LedgerEntry> entries =
+        LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10);
+
+    Hash bucketHash;
+    {
+        auto bucket1 =
+            LiveBucket::fresh(bm, vers, {}, entries, {},
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+        REQUIRE(bucket1);
+        REQUIRE(bucket1->isIndexed());
+        bucketHash = bucket1->getHash();
+
+        // Keep bucket alive in BucketManager but drop our reference
+        // so use_count == 1 (only BucketManager's map)
+    }
+
+    std::shared_ptr<LiveBucket> bucket2;
+    std::atomic<bool> futureBucketStarted{false};
+
+    // Run fresh() on a background thread to simulate FutureBucket recreating
+    // the same bucket
+    std::thread futureBucketThread([&]() {
+        futureBucketStarted = true;
+        bucket2 =
+            LiveBucket::fresh(bm, vers, {}, entries, {},
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+    });
+
+    while (!futureBucketStarted)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    // Give it time to reach the jitter injection point
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    // Now run GC while getBucket is paused to free the index
+    bm.forgetUnreferencedBuckets(
+        app->getLedgerManager().getLastClosedLedgerHAS());
+
+    futureBucketThread.join();
+
+    // Make sure the bucket from background thread is indexed
+    REQUIRE(bucket2);
+    REQUIRE(bucket2->getHash() == bucketHash);
+    REQUIRE(bucket2->isIndexed());
 }
