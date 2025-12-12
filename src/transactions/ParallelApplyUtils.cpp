@@ -557,7 +557,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     // collect all the keys that are in the global state map. For any keys
     // we need not in the global state, we will fetch them from the live
     // snapshot, in memory soroban state, or the hot archive later.
-    auto const& globalEntryMap = global.getGlobalEntryMap();
+    GlobalParallelApplyEntryMap const& globalEntryMap = global.getGlobalEntryMap();
 
     auto fetchFromGlobal = [&](LedgerKey const& key) {
         if (mThreadEntryMap.find(key) != mThreadEntryMap.end())
@@ -568,12 +568,10 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
         auto entryIt = globalEntryMap.find(key);
         if (entryIt != globalEntryMap.end())
         {
-            std::optional<LedgerEntry> const& globalLe =
-                entryIt->second.mLedgerEntry.read_in_scope(global);
-
-            mThreadEntryMap.emplace(key,
-                                    ThreadParallelApplyEntry::clean(
-                                        scope_adopt_optional_entry(globalLe)));
+            mThreadEntryMap.emplace(
+                key,
+                ThreadParallelApplyEntry::clean(scope_adopt_optional_entry_from(
+                    entryIt->second.mLedgerEntry, global)));
         }
     };
 
