@@ -607,21 +607,18 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         // Add our value if we haven't added any votes yet.
         if (mVotes.empty())
         {
-            if (overUpgradeTimeoutLimit)
-            {
-                stripUpgrades(value);
-            }
             shouldVoteForValue = true;
         }
-        else if (overUpgradeTimeoutLimit)
+
+        if (overUpgradeTimeoutLimit)
         {
-            // We have votes, but we've exceeded the upgrade timeout limit.
-            // First, check whether all of our votes have upgrades. We only want
-            // to add a new value with stripped upgrades if there's a chance
-            // that it will help alleviate timeouts due to contentious upgrades.
-            // If we're already voting for a value without upgrades, then adding
-            // another is unlikely to help, as we are likely in one of the two
-            // following scenarios:
+            // We've exceeded the upgrade timeout limit.  First, check whether
+            // all of our votes have upgrades. We only want to add a new value
+            // with stripped upgrades if there's a chance that it will help
+            // alleviate timeouts due to contentious upgrades.  If we're already
+            // voting for a value without upgrades, then adding another is
+            // unlikely to help, as we are likely in one of the two following
+            // scenarios:
             // 1. The current timeout situation is unrelated to upgrades
             // 2. We just happened to add a value without upgrades earlier in
             //    this function
