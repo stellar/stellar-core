@@ -182,55 +182,51 @@ ScopedLedgerEntry<S>::operator<(ScopedLedgerEntry<S> const& other) const
 }
 
 /////////////////////////////////////
-// ScopedOptionalLedgerEntry
+// ScopedLedgerEntryOpt
 /////////////////////////////////////
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
     ScopeIdT scopeID, std::optional<LedgerEntry> const& entry)
     : mEntry(entry), mScopeID(scopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
     ScopeIdT scopeID, std::optional<LedgerEntry>&& entry)
     : mEntry(std::move(entry)), mScopeID(scopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
-    ScopedOptionalLedgerEntry<S> const& other)
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(
+    ScopedLedgerEntryOpt<S> const& other)
     : mEntry(other.mEntry), mScopeID(other.mScopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
-    ScopedOptionalLedgerEntry<S>&& other)
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntryOpt<S>&& other)
     : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
-    ScopedLedgerEntry<S> const& other)
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntry<S> const& other)
     : mEntry(other.mEntry), mScopeID(other.mScopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>::ScopedOptionalLedgerEntry(
-    ScopedLedgerEntry<S>&& other)
+ScopedLedgerEntryOpt<S>::ScopedLedgerEntryOpt(ScopedLedgerEntry<S>&& other)
     : mEntry(std::move(other.mEntry)), mScopeID(other.mScopeID)
 {
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>&
-ScopedOptionalLedgerEntry<S>::operator=(
-    ScopedOptionalLedgerEntry<S> const& other)
+ScopedLedgerEntryOpt<S>&
+ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S> const& other)
 {
     if (this == &other)
     {
@@ -247,8 +243,8 @@ ScopedOptionalLedgerEntry<S>::operator=(
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>&
-ScopedOptionalLedgerEntry<S>::operator=(ScopedOptionalLedgerEntry<S>&& other)
+ScopedLedgerEntryOpt<S>&
+ScopedLedgerEntryOpt<S>::operator=(ScopedLedgerEntryOpt<S>&& other)
 {
     if (this == &other)
     {
@@ -266,23 +262,21 @@ ScopedOptionalLedgerEntry<S>::operator=(ScopedOptionalLedgerEntry<S>&& other)
 
 template <StaticLedgerEntryScope S>
 std::optional<LedgerEntry> const&
-ScopedOptionalLedgerEntry<S>::read_in_scope(
-    LedgerEntryScope<S> const& scope) const
+ScopedLedgerEntryOpt<S>::read_in_scope(LedgerEntryScope<S> const& scope) const
 {
     return scope.scope_read_optional_entry(*this);
 }
 
 template <StaticLedgerEntryScope S>
 std::optional<LedgerEntry>&
-ScopedOptionalLedgerEntry<S>::modify_in_scope(LedgerEntryScope<S> const& scope)
+ScopedLedgerEntryOpt<S>::modify_in_scope(LedgerEntryScope<S> const& scope)
 {
     return scope.scope_modify_optional_entry(*this);
 }
 
 template <StaticLedgerEntryScope S>
 bool
-ScopedOptionalLedgerEntry<S>::operator==(
-    ScopedOptionalLedgerEntry<S> const& other) const
+ScopedLedgerEntryOpt<S>::operator==(ScopedLedgerEntryOpt<S> const& other) const
 {
     if (mScopeID != other.mScopeID)
     {
@@ -295,8 +289,7 @@ ScopedOptionalLedgerEntry<S>::operator==(
 
 template <StaticLedgerEntryScope S>
 bool
-ScopedOptionalLedgerEntry<S>::operator<(
-    ScopedOptionalLedgerEntry<S> const& other) const
+ScopedLedgerEntryOpt<S>::operator<(ScopedLedgerEntryOpt<S> const& other) const
 {
     if (mScopeID != other.mScopeID)
     {
@@ -372,7 +365,7 @@ LedgerEntryScope<S>::scope_modify_entry(ScopedLedgerEntry<S>& w) const
 template <StaticLedgerEntryScope S>
 std::optional<LedgerEntry> const&
 LedgerEntryScope<S>::scope_read_optional_entry(
-    ScopedOptionalLedgerEntry<S> const& w) const
+    ScopedLedgerEntryOpt<S> const& w) const
 {
     if (w.mScopeID != mScopeID)
     {
@@ -386,7 +379,7 @@ LedgerEntryScope<S>::scope_read_optional_entry(
 template <StaticLedgerEntryScope S>
 std::optional<LedgerEntry>&
 LedgerEntryScope<S>::scope_modify_optional_entry(
-    ScopedOptionalLedgerEntry<S>& w) const
+    ScopedLedgerEntryOpt<S>& w) const
 {
     if (w.mScopeID != mScopeID)
     {
@@ -412,11 +405,11 @@ LedgerEntryScope<S>::scope_adopt_entry(LedgerEntry const& entry) const
 }
 
 template <StaticLedgerEntryScope S>
-ScopedOptionalLedgerEntry<S>
+ScopedLedgerEntryOpt<S>
 LedgerEntryScope<S>::scope_adopt_optional_entry(
     std::optional<LedgerEntry> const& entry) const
 {
-    return ScopedOptionalLedgerEntry(mScopeID, entry);
+    return ScopedLedgerEntryOpt(mScopeID, entry);
 }
 
 template <StaticLedgerEntryScope S>
@@ -442,9 +435,9 @@ LedgerEntryScope<S>::scope_adopt_entry_from_impl(
 
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
-ScopedOptionalLedgerEntry<S>
+ScopedLedgerEntryOpt<S>
 LedgerEntryScope<S>::scope_adopt_optional_entry_from_impl(
-    ScopedOptionalLedgerEntry<OtherScope> const& entry,
+    ScopedLedgerEntryOpt<OtherScope> const& entry,
     LedgerEntryScope<OtherScope> const& scope) const
 {
     if (scope.mActive)
@@ -455,7 +448,7 @@ LedgerEntryScope<S>::scope_adopt_optional_entry_from_impl(
                         "still-active scope ID '{}'",
                         entry.mScopeID, scope.mScopeID));
     }
-    return ScopedOptionalLedgerEntry<S>{mScopeID, entry.mEntry};
+    return ScopedLedgerEntryOpt<S>{mScopeID, entry.mEntry};
 }
 
 /////////////////////////////////
@@ -478,8 +471,7 @@ DeactivateScopeGuard<S>::~DeactivateScopeGuard()
     template class LedgerEntryScopeID<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class LedgerEntryScope<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class ScopedLedgerEntry<StaticLedgerEntryScope::SCOPE_NAME>; \
-    template class ScopedOptionalLedgerEntry< \
-        StaticLedgerEntryScope::SCOPE_NAME>; \
+    template class ScopedLedgerEntryOpt<StaticLedgerEntryScope::SCOPE_NAME>; \
     template class DeactivateScopeGuard<StaticLedgerEntryScope::SCOPE_NAME>;
 
 FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
@@ -493,12 +485,11 @@ FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const; \
 \
-    template ScopedOptionalLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
+    template ScopedLedgerEntryOpt<StaticLedgerEntryScope::DEST_SCOPE> \
     LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
         scope_adopt_optional_entry_from_impl< \
             StaticLedgerEntryScope::SOURCE_SCOPE>( \
-            ScopedOptionalLedgerEntry< \
-                StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
+            ScopedLedgerEntryOpt<StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const;
 
