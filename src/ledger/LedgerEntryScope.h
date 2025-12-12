@@ -100,8 +100,6 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     ScopedLedgerEntry<S>& operator=(ScopedLedgerEntry<S> const& other);
     ScopedLedgerEntry<S>& operator=(ScopedLedgerEntry<S>&& other);
 
-    LedgerKey key() const;
-
     LedgerEntry const& read_in_scope(LedgerEntryScope<S> const& scope) const;
     LedgerEntry& modify_in_scope(LedgerEntryScope<S> const& scope);
 
@@ -142,8 +140,6 @@ template <StaticLedgerEntryScope S> class ScopedOptionalLedgerEntry
 
     ScopedOptionalLedgerEntry(ScopedLedgerEntry<S> const& other);
     ScopedOptionalLedgerEntry(ScopedLedgerEntry<S>&& other);
-
-    std::optional<LedgerKey> key() const;
 
     std::optional<LedgerEntry> const&
     read_in_scope(LedgerEntryScope<S> const& scope) const;

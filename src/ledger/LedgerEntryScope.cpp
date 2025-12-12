@@ -142,13 +142,6 @@ ScopedLedgerEntry<S>::operator=(ScopedLedgerEntry<S>&& other)
 }
 
 template <StaticLedgerEntryScope S>
-LedgerKey
-ScopedLedgerEntry<S>::key() const
-{
-    return LedgerEntryKey(mEntry);
-}
-
-template <StaticLedgerEntryScope S>
 LedgerEntry const&
 ScopedLedgerEntry<S>::read_in_scope(LedgerEntryScope<S> const& scope) const
 {
@@ -269,13 +262,6 @@ ScopedOptionalLedgerEntry<S>::operator=(ScopedOptionalLedgerEntry<S>&& other)
     }
     mEntry = std::move(other.mEntry);
     return *this;
-}
-
-template <StaticLedgerEntryScope S>
-std::optional<LedgerKey>
-ScopedOptionalLedgerEntry<S>::key() const
-{
-    return mEntry ? std::make_optional(LedgerEntryKey(*mEntry)) : std::nullopt;
 }
 
 template <StaticLedgerEntryScope S>
