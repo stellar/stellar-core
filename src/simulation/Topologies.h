@@ -48,6 +48,13 @@ class Topologies
              Simulation::ConfigGen confGen = nullptr,
              Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
+    // nNodes with automatic quorum generation where all nodes are high-quality
+    // validators
+    static Simulation::pointer
+    separateAllHighQuality(int nNodes, Simulation::Mode mode,
+                           Hash const& networkID,
+                           Simulation::ConfigGen confGen);
+
     // multi-tier quorum (core4 + mid-tier nodes that depend on 2 nodes of
     // core4) mid-tier connected round-robin to core4
     static Simulation::pointer hierarchicalQuorum(

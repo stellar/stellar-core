@@ -22,6 +22,7 @@
 #include "ledger/NetworkConfig.h"
 #include "ledger/P23HotArchiveBug.h"
 #include "ledger/TrustLineWrapper.h"
+#include "main/CommandHandler.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
@@ -3595,7 +3596,8 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     SECTION("remove expired upgrades")
     {
         header.scpValue.closeTime = VirtualClock::to_time_t(
-            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS);
+            cfg.TESTING_UPGRADE_DATETIME +
+            Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES);
 
         bool updated = false;
         auto upgrades = Upgrades{cfg}.removeUpgrades(
@@ -3613,7 +3615,8 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     SECTION("upgrades not yet expired")
     {
         header.scpValue.closeTime = VirtualClock::to_time_t(
-            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS -
+            cfg.TESTING_UPGRADE_DATETIME +
+            Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES -
             std::chrono::seconds(1));
 
         bool updated = false;
@@ -3663,6 +3666,8 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
         REQUIRE(!restoredUpgrades.mMaxSorobanTxSetSize);
 
         REQUIRE(!restoredUpgrades.mFlags);
+        REQUIRE(!restoredUpgrades.mNominationTimeoutLimit);
+        REQUIRE(!restoredUpgrades.mExpirationMinutes);
 
         REQUIRE(restoredUpgrades.mConfigUpgradeSetKey ==
                 initUpgrades.mConfigUpgradeSetKey);
@@ -3687,6 +3692,9 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
          "nullopt" : false
       }
    },
+   "expirationminutes" : {
+      "nullopt" : true
+   },
    "fee" : {
       "data" : 10000,
       "nullopt" : false
@@ -3700,10 +3708,14 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
    "maxtxsize" : {
       "nullopt" : true
    },
+   "nominationtimeoutlimit" : {
+      "nullopt" : true
+   },
    "reserve" : {
       "nullopt" : true
    },
    "time" : 1666464812,
+   "upgradeversion" : 1,
    "version" : {
       "data" : 20,
       "nullopt" : false
@@ -4027,5 +4039,69 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
         auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
         auto actual = hotArchiveSnapshot->load(removedKey);
         REQUIRE(!actual);
+    }
+}
+
+TEST_CASE("upgrades endpoint sets nomination timeout and expiration minutes",
+          "[upgrades][commandhandler]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& ch = app->getCommandHandler();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    SECTION("set upgrades with nominationtimeoutlimit and expirationminutes")
+    {
+        std::string retStr;
+
+        // Set upgrades via HTTP endpoint with both parameters
+        ch.upgrades("?mode=set&upgradetime=2017-01-01T00:00:00Z"
+                    "&basefee=10000"
+                    "&nominationtimeoutlimit=5"
+                    "&expirationminutes=10",
+                    retStr);
+
+        {
+            // Verify via getUpgrades() that parameters were propagated to
+            // Herder
+            auto const& params = herder.getUpgrades().getParameters();
+
+            REQUIRE(params.mBaseFee.value() == 10000);
+            REQUIRE(params.mNominationTimeoutLimit.value() == 5);
+            REQUIRE(params.mExpirationMinutes.value() ==
+                    std::chrono::minutes(10));
+        }
+
+        // Test clearing upgrades
+        ch.upgrades("?mode=clear", retStr);
+
+        auto const& params = herder.getUpgrades().getParameters();
+        REQUIRE(!params.mBaseFee.has_value());
+        REQUIRE(!params.mNominationTimeoutLimit.has_value());
+        REQUIRE(!params.mExpirationMinutes.has_value());
+    }
+
+    SECTION("get upgrades returns JSON with parameters")
+    {
+        std::string setResult;
+
+        // Set upgrades
+        ch.upgrades("?mode=set&upgradetime=2017-01-01T00:00:00Z"
+                    "&basefee=10000"
+                    "&nominationtimeoutlimit=7"
+                    "&expirationminutes=20",
+                    setResult);
+
+        // Get upgrades as JSON
+        std::string getResult;
+        ch.upgrades("?mode=get", getResult);
+
+        // Deserialize and verify parameters set properly
+        Upgrades::UpgradeParameters deserialized;
+        deserialized.fromJson(getResult);
+        REQUIRE(deserialized.mBaseFee.value() == 10000);
+        REQUIRE(deserialized.mNominationTimeoutLimit.value() == 7);
+        REQUIRE(deserialized.mExpirationMinutes.value() ==
+                std::chrono::minutes(20));
     }
 }

@@ -218,6 +218,9 @@ class HerderImpl : public Herder
     ClassicTransactionQueue& getTransactionQueue() override;
     SorobanTransactionQueue& getSorobanTransactionQueue() override;
     bool sourceAccountPending(AccountID const& accountID) const override;
+
+    // Test only helper to get the active upgrades
+    Upgrades const& getUpgrades() const;
 #endif
 
     // helper function to verify envelopes are signed

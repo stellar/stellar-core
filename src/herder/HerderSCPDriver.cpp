@@ -810,6 +810,40 @@ HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
     return true;
 }
 
+bool
+HerderSCPDriver::hasUpgrades(Value const& v)
+{
+    StellarValue sv;
+    if (!toStellarValue(v, sv))
+    {
+        return false;
+    }
+    return !sv.upgrades.empty();
+}
+
+ValueWrapperPtr
+HerderSCPDriver::stripAllUpgrades(Value const& v)
+{
+    StellarValue sv;
+    if (!toStellarValue(v, sv))
+    {
+        return nullptr;
+    }
+
+    // Remove all upgrades
+    sv.upgrades.clear();
+
+    // Serialize back to Value
+    return wrapStellarValue(sv);
+}
+
+uint32_t
+HerderSCPDriver::getUpgradeNominationTimeoutLimit() const
+{
+    return mUpgrades.getParameters().mNominationTimeoutLimit.value_or(
+        std::numeric_limits<uint32_t>::max());
+}
+
 void
 HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {
@@ -1460,4 +1494,18 @@ HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
     releaseAssert(homeDomainSizeIt->second > 0);
     return qualityWeightIt->second / homeDomainSizeIt->second;
 }
+
+#ifdef BUILD_TESTS
+std::optional<int64_t>
+HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
+{
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        return it->second.mNominationTimeoutCount;
+    }
+    return std::nullopt;
+}
+#endif
+
 }

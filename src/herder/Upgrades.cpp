@@ -37,14 +37,24 @@
 #include <optional>
 #include <xdrpp/marshal.h>
 
+namespace
+{
+// The current version of the upgrade parameters serialization.
+constexpr const uint32_t UPGRADE_VERSION = 1;
+
+// The version of upgrade parameters serialization that introduced the
+// nominationtimeoutlimit and expirationminutes fields.
+constexpr const uint32_t UPGRADE_VERSION_WITH_NOMINATION_STRIPPING = 1;
+}
+
 namespace cereal
 {
-template <class Archive>
 void
-save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+save(JSONOutputArchive& ar, stellar::Upgrades::UpgradeParameters const& p)
 {
     // Avoid using field names "has" or "val", or serializing any text fields
     // that might have embedded/quoted JSON.
+    ar(make_nvp("upgradeversion", UPGRADE_VERSION));
     ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
     ar(make_nvp("version", p.mProtocolVersion));
     ar(make_nvp("fee", p.mBaseFee));
@@ -60,30 +70,69 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     }
     ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
     ar(make_nvp("maxsorobantxsetsize", p.mMaxSorobanTxSetSize));
+    ar(make_nvp("nominationtimeoutlimit", p.mNominationTimeoutLimit));
+
+    auto const expirationMinutesUint =
+        p.mExpirationMinutes.has_value()
+            ? std::make_optional<uint32_t>(
+                  static_cast<uint32_t>(p.mExpirationMinutes->count()))
+            : std::nullopt;
+    ar(make_nvp("expirationminutes", expirationMinutesUint));
 }
 
-template <class Archive>
-void
-load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+namespace
 {
+// Load an individual named value pair, optionally throwing if it is not found.
+template <typename V>
+void
+load_nvp(JSONInputArchive& ar, std::string const& name, V& out,
+         bool throwOnFail = true)
+{
+    try
+    {
+        ar(make_nvp(name, out));
+    }
+    catch (cereal::Exception&)
+    {
+        // field not found
+        if (throwOnFail)
+        {
+            CLOG_ERROR(Herder,
+                       "Expected upgrade parameter '{}' missing during load",
+                       name);
+            throw;
+        }
+    }
+}
+
+} // namespace
+
+void
+load(JSONInputArchive& ar, stellar::Upgrades::UpgradeParameters& o)
+{
+    // Load the upgrade version first, to know which fields to expect. If there
+    // is no upgrade version specified, then it is version 0.
+    uint32_t upgradeVersion = 0;
+    load_nvp(ar, "upgradeversion", upgradeVersion, /*throwOnFail*/ false);
+
     time_t t;
-    ar(make_nvp("time", t));
+    load_nvp(ar, "time", t);
     o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
-    ar(make_nvp("version", o.mProtocolVersion));
-    ar(make_nvp("fee", o.mBaseFee));
-    ar(make_nvp("maxtxsize", o.mMaxTxSetSize));
-    ar(make_nvp("reserve", o.mBaseReserve));
+    load_nvp(ar, "version", o.mProtocolVersion);
+    load_nvp(ar, "fee", o.mBaseFee);
+    load_nvp(ar, "maxtxsize", o.mMaxTxSetSize);
+    load_nvp(ar, "reserve", o.mBaseReserve);
+
+    load_nvp(ar, "flags", o.mFlags);
+    load_nvp(ar, "maxsorobantxsetsize", o.mMaxSorobanTxSetSize);
+
+    std::optional<std::string> configUpgradeKeyStr;
+    load_nvp(ar, "configupgradesetkey", configUpgradeKeyStr);
 
     // the flags and configupgrade upgrades were added after the fields above,
     // so it's possible for them not to exist in the database
     try
     {
-        ar(make_nvp("flags", o.mFlags));
-        ar(make_nvp("maxsorobantxsetsize", o.mMaxSorobanTxSetSize));
-
-        std::optional<std::string> configUpgradeKeyStr;
-        ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
-
         if (configUpgradeKeyStr)
         {
             std::vector<uint8_t> buffer;
@@ -98,13 +147,24 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
             o.mConfigUpgradeSetKey.reset();
         }
     }
-    catch (cereal::Exception&)
-    {
-        // flags or configupgrade name not found
-    }
     catch (std::exception&)
     {
         // Invalid base64 or xdr for configupgrade
+        CLOG_ERROR(Herder, "Upgrade parameter 'configupgradesetkey' contains "
+                           "invalid base64 or XDR. ");
+        o.mConfigUpgradeSetKey.reset();
+    }
+
+    if (upgradeVersion >= UPGRADE_VERSION_WITH_NOMINATION_STRIPPING)
+    {
+        load_nvp(ar, "nominationtimeoutlimit", o.mNominationTimeoutLimit);
+
+        std::optional<uint32_t> expirationMinutesUint;
+        load_nvp(ar, "expirationminutes", expirationMinutesUint);
+        o.mExpirationMinutes = expirationMinutesUint.has_value()
+                                   ? std::make_optional<std::chrono::minutes>(
+                                         expirationMinutesUint.value())
+                                   : std::nullopt;
     }
 }
 } // namespace cereal
@@ -137,7 +197,7 @@ upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
         maxTxSetSize;
 }
 } // namespace
-std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
+std::chrono::minutes const Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES(15);
 
 std::string
 Upgrades::UpgradeParameters::toJson() const
@@ -411,13 +471,14 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     updated = false;
     UpgradeParameters res = mParams;
 
-    // If the upgrade time has been surpassed by more than X hours, then remove
-    // all upgrades.  This is done so nodes that come up with outdated upgrades
-    // don't attempt to change the network
-    if (res.mUpgradeTime + Upgrades::UPDGRADE_EXPIRATION_HOURS <=
+    // If the upgrade time has been surpassed by more than X minutes, then
+    // remove all upgrades.  This is done so nodes that come up with outdated
+    // upgrades don't attempt to change the network
+    if (res.mUpgradeTime + res.mExpirationMinutes.value_or(
+                               DEFAULT_UPGRADE_EXPIRATION_MINUTES) <=
         VirtualClock::from_time_t(closeTime))
     {
-        auto resetParamIfSet = [&](std::optional<uint32>& o) {
+        auto resetParamIfSet = [&](auto& o) {
             if (o)
             {
                 o.reset();
@@ -431,6 +492,8 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mMaxSorobanTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
+        resetParamIfSet(res.mNominationTimeoutLimit);
+        resetParamIfSet(res.mExpirationMinutes);
         if (res.mConfigUpgradeSetKey)
         {
             res.mConfigUpgradeSetKey.reset();

@@ -516,6 +516,23 @@ NominationProtocol::getStatementValues(SCPStatement const& st)
     return res;
 }
 
+void
+NominationProtocol::stripUpgrades(ValueWrapperPtr& value) const
+{
+    ZoneScoped;
+    ValueWrapperPtr const newValue =
+        mSlot.getSCPDriver().stripAllUpgrades(value->getValue());
+    if (newValue != nullptr && newValue->getValue() != value->getValue())
+    {
+        CLOG_WARNING(SCP,
+                     "Due to high timeouts, stripping upgrades from "
+                     "nominated value: {} -> {}",
+                     mSlot.getSCP().getValueString(value->getValue()),
+                     mSlot.getSCP().getValueString(newValue->getValue()));
+        value = newValue;
+    }
+}
+
 // attempts to nominate a value for consensus
 bool
 NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
@@ -577,17 +594,60 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         }
     }
 
-    // if we're leader, add our value if we haven't added any votes yet
+    // Check if we are a leader for this round
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
-            mRoundLeaders.end() &&
-        mVotes.empty())
+        mRoundLeaders.end())
     {
-        auto ins = mVotes.insert(value);
-        if (ins.second)
+        // Check whether we've exceeded the upgrade timeout limit for this slot
+        bool const overUpgradeTimeoutLimit =
+            mTimerExpCount >=
+            mSlot.getSCPDriver().getUpgradeNominationTimeoutLimit();
+
+        bool shouldVoteForValue = false;
+        // Add our value if we haven't added any votes yet.
+        if (mVotes.empty())
         {
-            updated = true;
-            mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
-                                                 value->getValue());
+            shouldVoteForValue = true;
+        }
+
+        if (overUpgradeTimeoutLimit)
+        {
+            // We've exceeded the upgrade timeout limit.  First, check whether
+            // all of our votes have upgrades. We only want to add a new value
+            // with stripped upgrades if there's a chance that it will help
+            // alleviate timeouts due to contentious upgrades.  If we're already
+            // voting for a value without upgrades, then adding another is
+            // unlikely to help, as we are likely in one of the two following
+            // scenarios:
+            // 1. The current timeout situation is unrelated to upgrades
+            // 2. We just happened to add a value without upgrades earlier in
+            //    this function
+            // In either case, adding a new value without upgrades will not
+            // help, and may make things worse by putting more strain on the
+            // network.
+            bool const allVotesHaveUpgrades = std::all_of(
+                mVotes.begin(), mVotes.end(), [&](ValueWrapperPtr const& v) {
+                    return mSlot.getSCPDriver().hasUpgrades(v->getValue());
+                });
+
+            if (allVotesHaveUpgrades)
+            {
+                // All votes have upgrades, so strip upgrades from `value` and
+                // vote for it.
+                stripUpgrades(value);
+                shouldVoteForValue = true;
+            }
+        }
+
+        if (shouldVoteForValue)
+        {
+            auto ins = mVotes.insert(value);
+            if (ins.second)
+            {
+                updated = true;
+                mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
+                                                     value->getValue());
+            }
         }
     }
 

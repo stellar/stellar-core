@@ -38,6 +38,8 @@ class Simulation
     using pointer = std::shared_ptr<Simulation>;
     using ConfigGen = std::function<Config(int i)>;
     using QuorumSetAdjuster = std::function<SCPQuorumSet(SCPQuorumSet const&)>;
+    using QuorumSetSpec =
+        std::variant<SCPQuorumSet, std::vector<ValidatorEntry>>;
 
     Simulation(Mode mode, Hash const& networkID, ConfigGen = nullptr,
                QuorumSetAdjuster = nullptr);
@@ -49,7 +51,10 @@ class Simulation
 
     // Add new node to the simulation. This function does not start the node.
     // Callers are expected to call `start` or `startAllNodes` manually.
-    Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
+    // QuorumSetSpec can be either an explicit SCPQuorumSet, or a vector of
+    // ValidatorEntry for automatic quorum set generation. Automatic quorum set
+    // configuration is incompatible with QuorumSetAdjuster.
+    Application::pointer addNode(SecretKey nodeKey, QuorumSetSpec qSet,
                                  Config const* cfg = nullptr,
                                  bool newDB = true);
     Application::pointer getNode(NodeID nodeID);
@@ -60,6 +65,10 @@ class Simulation
     // `addNode`, but before `startAllNodes`. No-op if the simulation is already
     // started.
     void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
+
+    // Create pending connections between all pairs of nodes
+    void fullyConnectAllPending();
+
     // Returns LoopbackPeerConnection given initiator, acceptor pair or nullptr
     std::shared_ptr<LoopbackPeerConnection>
     getLoopbackConnection(NodeID const& initiator, NodeID const& acceptor);
