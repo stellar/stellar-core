@@ -276,7 +276,7 @@ class Application
     // states. In particular: either reload or reinitialize the database, and
     // either restart or begin reacquiring SCP consensus (as instructed by
     // Config).
-    virtual void start() = 0;
+    virtual void start(bool asyncPopulateInMemoryState = false) = 0;
 
     // Stop the io_contexts, which should cause the threads to exit once they
     // finish running any work-in-progress.

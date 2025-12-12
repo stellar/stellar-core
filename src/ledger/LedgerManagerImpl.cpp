@@ -520,7 +520,8 @@ LedgerManagerImpl::startNewLedger()
 
 void
 LedgerManagerImpl::loadLastKnownLedgerInternal(
-    bool skipBuildingFullState, std::optional<std::function<void()>> callback)
+    bool skipBuildingFullState, std::optional<std::function<void()>> callback,
+    bool asyncPopulateInMemoryState)
 {
     ZoneScoped;
     releaseAssert(mState == LM_BOOTING_STATE);
@@ -618,39 +619,62 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(
     }
     mApplyState.compileAllContractsInLedger(snapshot,
                                             latestLedgerHeader.ledgerVersion);
-    mApp.postOnLedgerCloseThread(
-        [this, snapshot, ledgerVersion{latestLedgerHeader.ledgerVersion},
-         callback] {
-            mApplyState.populateInMemorySorobanState(snapshot, ledgerVersion);
+    if (asyncPopulateInMemoryState)
+    {
+        mApp.postOnLedgerCloseThread(
+            [this, snapshot, ledgerVersion{latestLedgerHeader.ledgerVersion},
+             callback] {
+                mApplyState.populateInMemorySorobanState(snapshot,
+                                                         ledgerVersion);
 
-            mApp.postOnMainThread(
-                [this, callback] {
-                    mApplyState.markEndOfSetupPhase();
-                    setState(LM_BOOTED_STATE);
-                    maybeRunSnapshotInvariantFromLedgerState(
-                        mLastClosedLedgerState,
-                        maybeCopySorobanStateForInvariant(),
-                        /* runInParallel */ false);
-                    if (callback)
-                    {
-                        (*callback)();
-                    }
-                },
-                "Finish populating in-memory Soroban state");
-        },
-        "Populate in-memory Soroban state");
+                mApp.postOnMainThread(
+                    [this, callback] {
+                        mApplyState.markEndOfSetupPhase();
+                        setState(LM_BOOTED_STATE);
+                        maybeRunSnapshotInvariantFromLedgerState(
+                            mLastClosedLedgerState,
+                            maybeCopySorobanStateForInvariant(),
+                            /* runInParallel */ false);
+                        if (callback)
+                        {
+                            (*callback)();
+                        }
+                    },
+                    "Finish populating in-memory Soroban state");
+            },
+            "Populate in-memory Soroban state");
+    }
+    else
+    {
+        mApplyState.populateInMemorySorobanState(
+            snapshot, latestLedgerHeader.ledgerVersion);
+        mApplyState.markEndOfSetupPhase();
+        setState(LM_BOOTED_STATE);
+        maybeRunSnapshotInvariantFromLedgerState(
+            mLastClosedLedgerState, maybeCopySorobanStateForInvariant(),
+            /* runInParallel */ false);
+        if (callback)
+        {
+            mApp.postOnMainThread([callback(*callback)] { callback(); },
+                                  "Finished loadLastKnownLedger");
+        }
+    }
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(std::function<void()> callback)
+LedgerManagerImpl::loadLastKnownLedger(
+    std::optional<std::function<void()>> callback,
+    bool asyncPopulateInMemoryState)
 {
-    loadLastKnownLedgerInternal(/* skipBuildingFullState */ false, callback);
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ false, callback,
+                                asyncPopulateInMemoryState);
 }
 
 void
 LedgerManagerImpl::partiallyLoadLastKnownLedgerForUtils()
 {
-    loadLastKnownLedgerInternal(/* skipBuildingFullState */ true, std::nullopt);
+    loadLastKnownLedgerInternal(/* skipBuildingFullState */ true, std::nullopt,
+                                /* asyncPopulateInMemoryState */ false);
 }
 
 Database&
@@ -1256,13 +1280,8 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
-    // This should only be called during offline catchup, so it's okay to be
-    // slightly inaccurate and to only report the state as BOOTING/BOOTED if we
-    // haven't finished booting by the time this is called
-    if (mState != LM_BOOTING_STATE)
-    {
-        setState(LM_CATCHING_UP_STATE);
-    }
+    releaseAssert(mState != LM_BOOTING_STATE);
+    setState(LM_CATCHING_UP_STATE);
     mApp.getLedgerApplyManager().startCatchup(configuration, archive);
 }
 

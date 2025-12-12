@@ -754,7 +754,7 @@ ApplicationImpl::validateAndLogConfig()
 }
 
 void
-ApplicationImpl::start()
+ApplicationImpl::start(bool asyncPopulateInMemoryState)
 {
     if (mStarted)
     {
@@ -765,7 +765,7 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    mLedgerManager->loadLastKnownLedger([this] {
+    auto load = [this] {
         auto npub = mHistoryManager->publishQueuedHistory();
         if (npub != 0)
         {
@@ -789,7 +789,16 @@ ApplicationImpl::start()
         {
             mHerder->setUpgrades(mConfig);
         }
-    });
+    };
+
+    if (asyncPopulateInMemoryState)
+    {
+        mLedgerManager->loadLastKnownLedger(load, true);
+    }
+    else
+    {
+        mLedgerManager->loadLastKnownLedger(std::nullopt, false);
+    }
 
     // Check if we're already on protocol V_24 or later and enable Rust Dalek
     auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
@@ -807,6 +816,11 @@ ApplicationImpl::start()
     if (mConfig.MODE_AUTO_STARTS_OVERLAY)
     {
         mOverlayManager->start();
+    }
+
+    if (!asyncPopulateInMemoryState)
+    {
+        load();
     }
 }
 
