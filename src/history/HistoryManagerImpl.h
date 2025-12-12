@@ -56,7 +56,6 @@ class HistoryManagerImpl : public HistoryManager
     size_t publishQueuedHistory() override;
 
     void maybeCheckpointComplete(uint32_t lcl) override;
-    void dropSQLBasedPublish() override;
 
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;

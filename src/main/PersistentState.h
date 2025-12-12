@@ -43,10 +43,8 @@ class PersistentState
                   SessionWrapper& session);
 
     // Special methods for SCP state (multiple slots)
-    std::unordered_map<uint32_t, std::string>
-    getSCPStateAllSlots(std::string table = kSlotTableName);
-    std::unordered_map<Hash, std::string>
-    getTxSetsForAllSlots(std::string table = kSlotTableName);
+    std::unordered_map<uint32_t, std::string> getSCPStateAllSlots();
+    std::unordered_map<Hash, std::string> getTxSetsForAllSlots();
     std::unordered_set<Hash> getTxSetHashesForAllSlots();
 
     void
@@ -58,9 +56,7 @@ class PersistentState
     void setRebuildForOfferTable();
 
     bool hasTxSet(Hash const& txSetHash);
-    void deleteTxSets(std::unordered_set<Hash> hashesToDelete,
-                      std::string table = kSlotTableName);
-    void migrateToSlotStateTable();
+    void deleteTxSets(std::unordered_set<Hash> hashesToDelete);
 
   private:
     static std::string kSQLCreateStatement;

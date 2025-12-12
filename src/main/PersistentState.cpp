@@ -46,8 +46,7 @@ PersistentState::PersistentState(Application& app) : mApp(app)
 }
 
 void
-PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
-                              std::string table)
+PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
 {
     releaseAssert(threadIsMain());
     soci::transaction tx(mApp.getDatabase().getRawSession());
@@ -55,7 +54,7 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
     {
         auto name = getStoreStateNameForTxSet(hash);
         auto prep = mApp.getDatabase().getPreparedStatement(
-            fmt::format("DELETE FROM {} WHERE statename = :n;", table),
+            fmt::format("DELETE FROM {} WHERE statename = :n;", kSlotTableName),
             mApp.getDatabase().getSession());
 
         auto& st = prep.statement();
@@ -64,66 +63,6 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete,
         st.execute(true);
     }
     tx.commit();
-}
-
-void
-PersistentState::migrateToSlotStateTable()
-{
-    // No soci::transaction needed, because the migration in Database.cpp wraps
-    // everything in one transaction anyway.
-    releaseAssert(threadIsMain());
-    auto& db = mApp.getDatabase();
-
-    // First, create the new table
-    db.getRawSession() << PersistentState::kSQLCreateSCPStatement;
-
-    // Migrate all the tx sets
-    auto txSets = getTxSetsForAllSlots(kLCLTableName);
-    std::unordered_set<Hash> keysToDelete;
-    for (auto const& txSet : txSets)
-    {
-        CLOG_INFO(Herder, "Migrating tx set {} to slotstate",
-                  hexAbbrev(txSet.first));
-        updateDb(getStoreStateNameForTxSet(txSet.first), txSet.second,
-                 db.getSession(), kSlotTableName);
-        keysToDelete.insert(txSet.first);
-    }
-
-    // Cleanup tx sets from the previous table
-    deleteTxSets(keysToDelete, kLCLTableName);
-
-    // Migrate all SCP slot data
-    auto scpStates = getSCPStateAllSlots(kLCLTableName);
-    for (auto const& [i, scpState] : scpStates)
-    {
-        CLOG_INFO(Herder, "Migrating SCP state for slot {} to slotstate", i);
-        setSCPStateForSlot(i, scpState);
-        auto prep = mApp.getDatabase().getPreparedStatement(
-            "DELETE FROM storestate WHERE statename = :n;",
-            mApp.getDatabase().getSession());
-        auto name = getStoreStateName(kLastSCPDataXDR, i);
-
-        auto& st = prep.statement();
-        st.exchange(soci::use(name));
-        st.define_and_bind();
-        st.execute(true);
-    }
-
-    // Migrate upgrade data
-    auto upgradeName = getStoreStateName(kLedgerUpgrades);
-    auto upgrades = getFromDb(upgradeName, db.getSession(), kLCLTableName);
-    if (!upgrades.empty())
-    {
-        updateDb(upgradeName, upgrades, db.getSession(), kSlotTableName);
-        auto prep = mApp.getDatabase().getPreparedStatement(
-            "DELETE FROM storestate WHERE statename = :n;",
-            mApp.getDatabase().getSession());
-
-        auto& st = prep.statement();
-        st.exchange(soci::use(upgradeName));
-        st.define_and_bind();
-        st.execute(true);
-    }
 }
 
 void
@@ -210,7 +149,7 @@ PersistentState::setState(PersistentState::Entry entry,
 }
 
 std::unordered_map<uint32_t, std::string>
-PersistentState::getSCPStateAllSlots(std::string table)
+PersistentState::getSCPStateAllSlots()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -220,7 +159,7 @@ PersistentState::getSCPStateAllSlots(std::string table)
     for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
     {
         auto val = getFromDb(getStoreStateName(kLastSCPDataXDR, i),
-                             mApp.getDatabase().getSession(), table);
+                             mApp.getDatabase().getSession(), kSlotTableName);
         if (!val.empty())
         {
             states.emplace(i, val);
@@ -332,7 +271,7 @@ PersistentState::updateDb(std::string const& entry, std::string const& value,
 }
 
 std::unordered_map<Hash, std::string>
-PersistentState::getTxSetsForAllSlots(std::string table)
+PersistentState::getTxSetsForAllSlots()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -342,8 +281,9 @@ PersistentState::getTxSetsForAllSlots(std::string table)
     std::string val;
 
     std::string pattern = mapping[kTxSet] + "%";
-    std::string statementStr = fmt::format(
-        "SELECT statename, state FROM {} WHERE statename LIKE :n;", table);
+    std::string statementStr =
+        fmt::format("SELECT statename, state FROM {} WHERE statename LIKE :n;",
+                    kSlotTableName);
     auto& db = mApp.getDatabase();
     auto prep = db.getPreparedStatement(statementStr, db.getSession());
     auto& st = prep.statement();

@@ -346,10 +346,6 @@ class HistoryManager
     // Prepare checkpoint files for publishing
     virtual void maybeCheckpointComplete(uint32_t lcl) = 0;
 
-    // Migrate SQL-based publish queue to the new file format
-    // (one-time call during database schema upgrade path)
-    virtual void dropSQLBasedPublish() = 0;
-
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue that are not present in the BucketManager. These need to be
     // fetched from somewhere before publishing can begin again.
