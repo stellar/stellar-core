@@ -214,7 +214,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     if (ps.shouldRebuildForOfferTable())
     {
         app.getDatabase().clearPreparedStatementCache(
-            app.getDatabase().getSession(), true);
+            app.getDatabase().getSession());
         soci::transaction tx(app.getDatabase().getRawSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
         app.getLedgerTxnRoot().dropOffers();
