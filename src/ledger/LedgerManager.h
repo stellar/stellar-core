@@ -301,10 +301,15 @@ class LedgerManager
     virtual void startNewLedger() = 0;
 
     // loads the last ledger information from the database with the following
-    // parameter:
+    // parameters:
     //  * callback: function to call on main thread once ledger load has
-    //    completed (in particular, Soroban in-memory state is loaded)
-    virtual void loadLastKnownLedger(std::function<void()> callback) = 0;
+    //    completed (in particular, Soroban in-memory state is loaded). Note
+    //    that this is always posted as a task to the main thread.
+    //  * asyncPopulateInMemoryState: whether or not to populate in-memory
+    //  Soroban state asynchronously.
+    virtual void
+    loadLastKnownLedger(std::optional<std::function<void()>> callback,
+                        bool asyncPopulateInMemoryState = false) = 0;
 
     // Helper for a faster load of the last closed ledger used only for various
     // diagnostics utils outside of the main application flow. This skips

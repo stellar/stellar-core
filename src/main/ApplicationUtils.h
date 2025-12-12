@@ -17,7 +17,7 @@ class CatchupConfiguration;
 
 // Create application and validate its configuration
 Application::pointer setupApp(Config& cfg, VirtualClock& clock);
-int runApp(Application::pointer app);
+int runApp(Application::pointer app, bool asyncPopulateInMemoryState = false);
 void setForceSCPFlag();
 void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
