@@ -26,6 +26,7 @@
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -463,6 +464,8 @@ BucketManager::adoptFileAsBucket(
     std::shared_ptr<LiveBucket::IndexT const> index,
     std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
+    // Delay bucket adoption 100us to 2s to expose race conditions
+    JITTER_INJECT_DELAY_CUSTOM(100, 100, 500'000);
     RecursiveMutexLocker lock(mBucketMutex);
     return adoptFileAsBucketInternal(filename, hash, mergeKey, std::move(index),
                                      mSharedLiveBuckets, mLiveBucketFutures,
@@ -476,6 +479,8 @@ BucketManager::adoptFileAsBucket(
     std::shared_ptr<HotArchiveBucket::IndexT const> index,
     std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
+    // Delay bucket adoption 100us to 2s to expose race conditions
+    JITTER_INJECT_DELAY_CUSTOM(100, 100, 2'000'000);
     RecursiveMutexLocker lock(mBucketMutex);
     return adoptFileAsBucketInternal(
         filename, hash, mergeKey, std::move(index), mSharedHotArchiveBuckets,

@@ -208,7 +208,7 @@ BucketOutputIterator<BucketT>::getBucket(
     // By grabbing the index as a shared_ptr here, we hold a reference that
     // prevents GC from freeing it. If the bucket doesn't exist or isn't
     // indexed, we create a new index. Note that we're not worried about GC
-    // deleteing the actual Bucket file, as merge creates a temp file regardless
+    // deleting the actual Bucket file, as merge creates a temp file regardless
     // of existence and does an atomic rename as part of adopt.
     std::shared_ptr<typename BucketT::IndexT const> index{};
     if (auto existingBucket = bucketManager.getBucketIfExists<BucketT>(hash);
