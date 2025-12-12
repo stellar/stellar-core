@@ -3715,6 +3715,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
       "nullopt" : true
    },
    "time" : 1666464812,
+   "upgradeversion" : 1,
    "version" : {
       "data" : 20,
       "nullopt" : false
