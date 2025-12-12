@@ -5716,7 +5716,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             auto& db = node->getDatabase();
             auto prep = db.getPreparedStatement(
                 "SELECT envelope FROM scphistory WHERE ledgerseq = :l",
-                db.getSession());
+                db.getMiscSession());
             auto& st = prep.statement();
             st.exchange(soci::use(ledgerNum));
             std::string envStr;

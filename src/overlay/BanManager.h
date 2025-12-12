@@ -15,12 +15,13 @@ namespace stellar
 
 class Application;
 class Database;
+class SessionWrapper;
 
 class BanManager
 {
   public:
     static std::unique_ptr<BanManager> create(Application& app);
-    static void dropAll(Database& db);
+    static void dropAll(SessionWrapper& sess);
 
     // Ban given node
     virtual void banNode(NodeID nodeID) = 0;

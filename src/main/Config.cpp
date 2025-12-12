@@ -1115,7 +1115,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
                 {"EXPERIMENTAL_PARALLEL_LEDGER_APPLY",
                  [&]() {
-                     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = readBool(item);
+                     CLOG_WARNING(Ledger,
+                                  "EXPERIMENTAL_PARALLEL_LEDGER_APPLY has been "
+                                  "renamed. This config will cause an error in "
+                                  "the future. Remove it and "
+                                  "configure PARALLEL_LEDGER_APPLY instead.");
                  }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
@@ -1961,10 +1965,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         if (EXPERIMENTAL_PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
             std::string msg =
-                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_APPLY "
-                "does not support SQLite or RUN_STANDALONE mode. Either switch "
-                "to Postgres or set "
-                "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
+                "Invalid configuration: PARALLEL_LEDGER_APPLY "
+                "does not support RUN_STANDALONE or in-memory database modes.";
             throw std::runtime_error(msg);
         }
 

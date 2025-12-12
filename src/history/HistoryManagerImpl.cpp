@@ -49,20 +49,6 @@ namespace stellar
 
 using namespace std;
 
-static std::string kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS publishqueue ("
-    "ledger   INTEGER PRIMARY KEY,"
-    "state    TEXT"
-    "); ";
-
-void
-HistoryManager::dropAll(Database& db)
-{
-    db.getRawSession() << "DROP TABLE IF EXISTS publishqueue;";
-    soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
-    st.execute(true);
-}
-
 std::filesystem::path
 HistoryManager::publishQueuePath(Config const& cfg)
 {

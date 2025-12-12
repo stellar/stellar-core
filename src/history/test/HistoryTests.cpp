@@ -1689,7 +1689,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         // of data, so last ledger trimmed is (5 * 8 - 1) - 8 = 31
         uint32_t publishedCount = 30;
         auto scp = app1->getHerderPersistence().copySCPHistoryToStream(
-            app1->getDatabase().getRawSession(),
+            app1->getDatabase().getRawMiscSession(),
             LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, out);
         REQUIRE(scp == 0);
 

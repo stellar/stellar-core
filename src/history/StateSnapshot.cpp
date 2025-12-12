@@ -55,11 +55,11 @@ StateSnapshot::writeSCPMessages() const
 {
     ZoneScoped;
     std::unique_ptr<soci::session> snapSess(
-        mApp.getDatabase().canUsePool()
-            ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
-            : nullptr);
+        (mApp.getDatabase().canUsePool()
+             ? std::make_unique<soci::session>(mApp.getDatabase().getMiscPool())
+             : nullptr));
     soci::session& sess(snapSess ? *snapSess
-                                 : mApp.getDatabase().getRawSession());
+                                 : mApp.getDatabase().getRawMiscSession());
     soci::transaction tx(sess);
 
     // The current "history block" is stored in _four_ files, one just ledger

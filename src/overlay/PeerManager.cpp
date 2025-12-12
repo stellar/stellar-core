@@ -96,7 +96,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     size = std::max(size, BATCH_SIZE);
 
     // if we ever start removing peers from db, we may need to enable this
-    // soci::transaction sqltx(mApp.getDatabase().getSession());
+    // soci::transaction sqltx(mApp.getDatabase().getMiscSession());
     // mApp.getDatabase().setCurrentTransactionReadOnly();
 
     std::vector<std::string> conditions;
@@ -181,7 +181,7 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
         }
 
         auto prep =
-            db.getPreparedStatement(sql, mApp.getDatabase().getSession());
+            db.getPreparedStatement(sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         st.exchange(use(minNumFailures));
@@ -239,7 +239,7 @@ PeerManager::load(PeerBareAddress const& address)
         auto prep = mApp.getDatabase().getPreparedStatement(
             "SELECT numfailures, nextattempt, type FROM peers "
             "WHERE ip = :v1 AND port = :v2",
-            mApp.getDatabase().getSession());
+            mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
         st.exchange(into(result.mNumFailures));
         st.exchange(into(result.mNextAttempt));
@@ -297,7 +297,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
     try
     {
         auto prep = mApp.getDatabase().getPreparedStatement(
-            query, mApp.getDatabase().getSession());
+            query, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
         st.exchange(use(peerRecord.mNextAttempt));
         st.exchange(use(peerRecord.mNumFailures));
@@ -513,7 +513,7 @@ PeerManager::countPeers(std::string const& where,
         std::string sql = "SELECT COUNT(*) FROM peers WHERE " + where;
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         bind(st);
@@ -544,7 +544,7 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
                           where + " LIMIT :limit OFFSET :offset";
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         bind(st);
@@ -579,10 +579,10 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
 }
 
 void
-PeerManager::dropAll(Database& db)
+PeerManager::dropAll(SessionWrapper& db)
 {
-    db.getRawSession() << "DROP TABLE IF EXISTS peers;";
-    db.getRawSession() << kSQLCreateStatement;
+    db.session() << "DROP TABLE IF EXISTS peers;";
+    db.session() << kSQLCreateStatement;
 }
 
 std::vector<std::pair<PeerBareAddress, PeerRecord>>
@@ -600,7 +600,7 @@ PeerManager::loadAllPeers()
         PeerRecord record;
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         st.exchange(into(ip));
@@ -633,7 +633,7 @@ void
 PeerManager::storePeers(
     std::vector<std::pair<PeerBareAddress, PeerRecord>> peers)
 {
-    soci::transaction tx(mApp.getDatabase().getRawSession());
+    soci::transaction tx(mApp.getDatabase().getRawMiscSession());
     for (auto const& peer : peers)
     {
         store(peer.first, peer.second, /* inDatabase */ false);
