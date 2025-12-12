@@ -29,7 +29,10 @@ class PersistentState
         kDatabaseSchema,
         kNetworkPassphrase,
         kRebuildLedger,
+        kLastEntryMain,
+
         // SCP-related entries
+        kMiscDatabaseSchema,
         kLedgerUpgrades,
         kLastSCPDataXDR,
         kTxSet,
@@ -37,6 +40,7 @@ class PersistentState
     };
 
     static void dropAll(Database& db);
+    static void dropMisc(Database& db);
 
     std::string getState(Entry stateName, SessionWrapper& session);
     void setState(Entry stateName, std::string const& value,
@@ -57,17 +61,18 @@ class PersistentState
 
     bool hasTxSet(Hash const& txSetHash);
     void deleteTxSets(std::unordered_set<Hash> hashesToDelete);
+    static std::string getStoreStateName(Entry n, uint32 subscript = 0);
 
   private:
     static std::string kSQLCreateStatement;
     static std::string kSQLCreateSCPStatement;
-    static std::string mapping[kLastEntry];
+    static std::string mainMapping[kLastEntryMain];
+    static std::string miscMapping[kLastEntry];
     static std::string kLCLTableName;
     static std::string kSlotTableName;
 
     Application& mApp;
 
-    static std::string getStoreStateName(Entry n, uint32 subscript = 0);
     static std::string getStoreStateNameForTxSet(Hash const& txSetHash);
 
     void setSCPStateForSlot(uint64 slot, std::string const& value);

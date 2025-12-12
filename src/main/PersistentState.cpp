@@ -18,11 +18,13 @@ namespace stellar
 
 using namespace std;
 
-std::string PersistentState::mapping[kLastEntry] = {
-    "lastclosedledger", "historyarchivestate",
-    "databaseschema",   "networkpassphrase",
-    "rebuildledger",    "ledgerupgrades",
-    "lastscpdataxdr",   "txset"};
+std::string PersistentState::mainMapping[kLastEntryMain] = {
+    "lastclosedledger", "historyarchivestate", "databaseschema",
+    "networkpassphrase", "rebuildledger"};
+
+std::string PersistentState::miscMapping[kLastEntry] = {
+    "lastscpdata", "ledgerupgrades", "lastscpdataxdr", "txset",
+    "miscdatabaseschema"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
@@ -49,13 +51,13 @@ void
 PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
 {
     releaseAssert(threadIsMain());
-    soci::transaction tx(mApp.getDatabase().getRawSession());
+    soci::transaction tx(mApp.getDatabase().getRawMiscSession());
     for (auto const& hash : hashesToDelete)
     {
         auto name = getStoreStateNameForTxSet(hash);
         auto prep = mApp.getDatabase().getPreparedStatement(
             fmt::format("DELETE FROM {} WHERE statename = :n;", kSlotTableName),
-            mApp.getDatabase().getSession());
+            mApp.getDatabase().getMiscSession());
 
         auto& st = prep.statement();
         st.exchange(soci::use(name));
@@ -69,13 +71,25 @@ void
 PersistentState::dropAll(Database& db)
 {
     releaseAssert(threadIsMain());
-    db.getRawSession() << "DROP TABLE IF EXISTS storestate;";
-    soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
-    st.execute(true);
+    auto drop = [](SessionWrapper& session, std::string tableName,
+                   std::string const& createStmt) {
+        session.session() << fmt::format("DROP TABLE IF EXISTS {};", tableName);
+        soci::statement st = session.session().prepare << createStmt;
+        st.execute(true);
+    };
 
-    db.getRawSession() << "DROP TABLE IF EXISTS slotstate;";
-    soci::statement st2 = db.getRawSession().prepare << kSQLCreateSCPStatement;
-    st2.execute(true);
+    drop(db.getSession(), kLCLTableName, kSQLCreateStatement);
+    drop(db.getMiscSession(), kSlotTableName, kSQLCreateSCPStatement);
+}
+
+void
+PersistentState::dropMisc(Database& db)
+{
+    db.getRawMiscSession() << fmt::format("DROP TABLE IF EXISTS {};",
+                                          kSlotTableName);
+    soci::statement st = db.getRawMiscSession().prepare
+                         << kSQLCreateSCPStatement;
+    st.execute(true);
 }
 
 std::string
@@ -85,7 +99,17 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
     {
         throw out_of_range("unknown entry");
     }
-    auto res = mapping[n];
+
+    std::string res;
+    if (n < kLastEntryMain)
+    {
+        res = mainMapping[n];
+    }
+    else
+    {
+        res = miscMapping[n - kLastEntryMain - 1];
+    }
+
     if ((n == kLastSCPDataXDR && subscript > 0) || n == kRebuildLedger)
     {
         res += std::to_string(subscript);
@@ -96,7 +120,7 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
 std::string
 PersistentState::getStoreStateNameForTxSet(Hash const& txSetHash)
 {
-    auto res = mapping[kTxSet];
+    auto res = miscMapping[kTxSet - kLastEntryMain - 1];
     res += binToHex(txSetHash);
     return res;
 }
@@ -112,7 +136,7 @@ PersistentState::hasTxSet(Hash const& txSetHash)
     auto& db = mApp.getDatabase();
     auto prep = db.getPreparedStatement(
         "SELECT COUNT(*) FROM slotstate WHERE statename = :n;",
-        db.getSession());
+        db.getMiscSession());
     auto& st = prep.statement();
     st.exchange(soci::into(res));
     st.exchange(soci::use(entry));
@@ -158,8 +182,9 @@ PersistentState::getSCPStateAllSlots()
     std::unordered_map<uint32_t, std::string> states;
     for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
     {
-        auto val = getFromDb(getStoreStateName(kLastSCPDataXDR, i),
-                             mApp.getDatabase().getSession(), kSlotTableName);
+        auto val =
+            getFromDb(getStoreStateName(kLastSCPDataXDR, i),
+                      mApp.getDatabase().getMiscSession(), kSlotTableName);
         if (!val.empty())
         {
             states.emplace(i, val);
@@ -178,7 +203,7 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
     auto slotIdx = static_cast<uint32>(
         slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
     updateDb(getStoreStateName(kLastSCPDataXDR, slotIdx), value,
-             mApp.getDatabase().getSession(), kSlotTableName);
+             mApp.getDatabase().getMiscSession(), kSlotTableName);
 }
 
 void
@@ -186,15 +211,13 @@ PersistentState::setSCPStateV1ForSlot(
     uint64 slot, std::string const& value,
     std::unordered_map<Hash, std::string> const& txSets)
 {
-    releaseAssert(threadIsMain());
-
-    soci::transaction tx(mApp.getDatabase().getRawSession());
+    soci::transaction tx(mApp.getDatabase().getRawMiscSession());
     setSCPStateForSlot(slot, value);
 
     for (auto const& txSet : txSets)
     {
         updateDb(getStoreStateNameForTxSet(txSet.first), txSet.second,
-                 mApp.getDatabase().getSession(), kSlotTableName);
+                 mApp.getDatabase().getMiscSession(), kSlotTableName);
     }
     tx.commit();
 }
@@ -280,12 +303,12 @@ PersistentState::getTxSetsForAllSlots()
     std::string key;
     std::string val;
 
-    std::string pattern = mapping[kTxSet] + "%";
+    std::string pattern = miscMapping[kTxSet - kLastEntryMain - 1] + "%";
     std::string statementStr =
         fmt::format("SELECT statename, state FROM {} WHERE statename LIKE :n;",
                     kSlotTableName);
     auto& db = mApp.getDatabase();
-    auto prep = db.getPreparedStatement(statementStr, db.getSession());
+    auto prep = db.getPreparedStatement(statementStr, db.getMiscSession());
     auto& st = prep.statement();
     st.exchange(soci::into(key));
     st.exchange(soci::into(val));
@@ -301,8 +324,10 @@ PersistentState::getTxSetsForAllSlots()
 
     while (st.got_data())
     {
-        result.emplace(hexToBin256(key.substr(mapping[kTxSet].size(), len)),
-                       val);
+        result.emplace(
+            hexToBin256(key.substr(
+                miscMapping[kTxSet - kLastEntryMain - 1].size(), len)),
+            val);
         st.fetch();
     }
 
@@ -318,21 +343,21 @@ PersistentState::getTxSetHashesForAllSlots()
     std::unordered_set<Hash> result;
     std::string val;
 
-    std::string pattern = mapping[kTxSet] + "%";
+    std::string pattern = miscMapping[kTxSet - kLastEntryMain - 1] + "%";
     std::string statementStr =
         "SELECT statename FROM slotstate WHERE statename LIKE :n;";
     auto& db = mApp.getDatabase();
-    auto prep = db.getPreparedStatement(statementStr, db.getSession());
+    auto prep = db.getPreparedStatement(statementStr, db.getMiscSession());
     auto& st = prep.statement();
     st.exchange(soci::into(val));
     st.exchange(soci::use(pattern));
     st.define_and_bind();
     {
-        ZoneNamedN(selectStoreStateZone, "select storestate", true);
+        ZoneNamedN(selectStoreStateZone, "select slotstate", true);
         st.execute(true);
     }
 
-    size_t offset = mapping[kTxSet].size();
+    size_t offset = miscMapping[kTxSet - kLastEntryMain - 1].size();
     Hash hash;
     size_t len = binToHex(hash).size();
 
