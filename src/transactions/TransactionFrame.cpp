@@ -2021,8 +2021,7 @@ TransactionFrame::parallelApply(
         return ParallelTxReturnVal{
             false,
             {},
-            LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0,
-                                                                           0)};
+            LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
     }
 
     if (!maybeAdoptFailedReplayResult(txResult))
@@ -2030,8 +2029,7 @@ TransactionFrame::parallelApply(
         return ParallelTxReturnVal{
             false,
             {},
-            LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0,
-                                                                           0)};
+            LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
     }
 
     bool reportInternalErrOnException = true;
@@ -2123,7 +2121,7 @@ TransactionFrame::parallelApply(
     return ParallelTxReturnVal{
         false,
         {},
-        LedgerEntryScopeID<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>(0, 0)};
+        LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
 }
 
 bool

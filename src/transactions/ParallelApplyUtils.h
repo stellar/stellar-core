@@ -68,7 +68,7 @@ class ParallelLedgerInfo
 };
 
 class ThreadParallelApplyLedgerState
-    : public LedgerEntryScope<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>
+    : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
     // Copies of snapshots from the global state.
     SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
@@ -114,12 +114,14 @@ class ThreadParallelApplyLedgerState
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
-    void upsertEntry(LedgerKey const& key, ThreadLedgerEntry const& entry,
+    void upsertEntry(LedgerKey const& key,
+                     ThreadParApplyLedgerEntry const& entry,
                      uint32_t ledgerSeq);
     void eraseEntry(LedgerKey const& key);
-    void commitChangeFromSuccessfulTx(LedgerKey const& key,
-                                      ThreadOptionalLedgerEntry const& entryOpt,
-                                      UnorderedSet<LedgerKey> const& roTTLSet);
+    void
+    commitChangeFromSuccessfulTx(LedgerKey const& key,
+                                 ThreadParApplyLedgerEntryOpt const& entryOpt,
+                                 UnorderedSet<LedgerKey> const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -177,7 +179,7 @@ class ThreadParallelApplyLedgerState
 };
 
 class GlobalParallelApplyLedgerState
-    : public LedgerEntryScope<StaticLedgerEntryScope::GLOBAL_PAR_APPLY_STATE>
+    : public LedgerEntryScope<StaticLedgerEntryScope::GlobalParApply>
 {
     // Contains the hot archive state from the start of the ledger close. If a
     // key is in here, it is "evicted". An invariant is that if a key is in here
@@ -275,7 +277,7 @@ class GlobalParallelApplyLedgerState
 };
 
 class TxParallelApplyLedgerState
-    : public LedgerEntryScope<StaticLedgerEntryScope::TX_PAR_APPLY_STATE>
+    : public LedgerEntryScope<StaticLedgerEntryScope::TxParApply>
 {
     // Read-only access to the parent stage-spanning state.
     ThreadParallelApplyLedgerState const& mThreadState;
@@ -284,7 +286,7 @@ class TxParallelApplyLedgerState
     // mThreadState while this tx state is alive, to prevent accidental
     // access to stale data. Any access must scope_adopt_entry_from the thread
     // state first.
-    DeactivateScopeGuard<StaticLedgerEntryScope::THREAD_PAR_APPLY_STATE>
+    DeactivateScopeGuard<StaticLedgerEntryScope::ThreadParApply>
         mThreadStateDeactivateGuard;
 
     // Contains keys restored during this tx. As with the thread RestoredEntries
