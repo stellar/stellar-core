@@ -290,10 +290,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         std::ostringstream dbname;
         switch (mode)
         {
-        case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_IN_MEMORY:
             dbname << "sqlite3://:memory:";
             break;
+        case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
             dbname << "sqlite3://" << rootDir << "test.db";
             thisConfig.DISABLE_XDR_FSYNC = false;

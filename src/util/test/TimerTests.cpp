@@ -104,7 +104,7 @@ TEST_CASE("virtual time with background work", "[timer]")
     // virtual time mode, i.e. we don't forward the time while background work
     // is outstanding.
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
-    cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+    cfg.PARALLEL_LEDGER_APPLY = true;
     cfg.RUN_STANDALONE = false;
     // Disable extra checks to prevent timers from spinning indefinitely
     cfg.INVARIANT_EXTRA_CHECKS = false;
