@@ -4,11 +4,8 @@ on:
   pull_request:
   merge_group:
   push:
-    branches:
-      - master
-      - prod
-      - testnet
-      - acceptance-test-pass
+    branches-ignore:
+      - 'gh-readonly-queue/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
