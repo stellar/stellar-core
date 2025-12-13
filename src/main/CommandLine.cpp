@@ -1702,7 +1702,7 @@ run(CommandLineArgs const& args)
 
             // Finally, run the application outside of catch block so that we
             // properly capture crashes
-            return runApp(app);
+            return runApp(app, true);
         });
 }
 

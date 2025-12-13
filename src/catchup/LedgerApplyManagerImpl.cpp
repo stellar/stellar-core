@@ -149,14 +149,24 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
     mLargestLedgerSeqHeard =
         std::max(mLargestLedgerSeqHeard, lastReceivedLedgerSeq);
 
+    if (mApp.getLedgerManager().getState() == LedgerManager::LM_BOOTING_STATE)
+    {
+        CLOG_INFO(Ledger,
+                  "LedgerManager still booting: close of ledger {} buffered. "
+                  "mSyncingLedgers has {} ledgers",
+                  ledgerData.getLedgerSeq(), mSyncingLedgers.size());
+        return ProcessLedgerResult::WAIT_FOR_STATE_REBUILD;
+    }
+
     // 1. CatchupWork is not running yet
-    // 2. LedgerApplyManager received  ledger that should be immediately applied
-    // by LedgerManager: check if we have any sequential ledgers. If so, attempt
-    // to apply mSyncingLedgers and possibly get back in sync
-    if (!mCatchupWork && lastReceivedLedgerSeq == *mLastQueuedToApply + 1)
+    if (!mCatchupWork)
     {
         tryApplySyncingLedgers();
-        return ProcessLedgerResult::PROCESSED_ALL_LEDGERS_SEQUENTIALLY;
+        // 2. We successfully applied all of mSyncingLedgers
+        if (mSyncingLedgers.empty())
+        {
+            return ProcessLedgerResult::PROCESSED_ALL_LEDGERS_SEQUENTIALLY;
+        }
     }
 
     // For the rest of this method: we know LCL has fallen behind the network
