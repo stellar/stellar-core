@@ -172,7 +172,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+    PARALLEL_LEDGER_APPLY = true;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
@@ -315,7 +315,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
         100 * 1024 * 1024; // 100 MiB
 
-    DATABASE = SecretValue{"sqlite3://:memory:"};
+    DATABASE = SecretValue{"sqlite3://stellar.db"};
 
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
@@ -1121,6 +1121,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                                   "the future. Remove it and "
                                   "configure PARALLEL_LEDGER_APPLY instead.");
                  }},
+                {"PARALLEL_LEDGER_APPLY",
+                 [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
@@ -1962,12 +1964,21 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (EXPERIMENTAL_PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
-            std::string msg =
-                "Invalid configuration: PARALLEL_LEDGER_APPLY "
-                "does not support RUN_STANDALONE or in-memory database modes.";
-            throw std::runtime_error(msg);
+            if (RUN_STANDALONE)
+            {
+                LOG_WARNING(DEFAULT_LOG, "RUN_STANDALONE is enabled, disabling "
+                                         "PARALLEL_LEDGER_APPLY");
+                PARALLEL_LEDGER_APPLY = false;
+            }
+            else
+            {
+                std::string msg =
+                    "Invalid configuration: PARALLEL_LEDGER_APPLY "
+                    "does not support in-memory database modes.";
+                throw std::runtime_error(msg);
+            }
         }
 
         if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
@@ -2256,9 +2267,9 @@ Config::logBasicInfo() const
              "{}",
              BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
     LOG_INFO(DEFAULT_LOG,
-             "EXPERIMENTAL_PARALLEL_LEDGER_APPLY="
+             "PARALLEL_LEDGER_APPLY="
              "{}",
-             EXPERIMENTAL_PARALLEL_LEDGER_APPLY ? "true" : "false");
+             PARALLEL_LEDGER_APPLY ? "true" : "false");
 }
 
 void
@@ -2537,9 +2548,8 @@ bool
 Config::parallelLedgerClose() const
 {
     // Standalone mode expects synchronous ledger application
-    return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           DATABASE.value.find("sqlite3://") == std::string::npos &&
-           !RUN_STANDALONE;
+    return PARALLEL_LEDGER_APPLY && !RUN_STANDALONE &&
+           DATABASE.value != "sqlite3://:memory:";
 }
 
 void
