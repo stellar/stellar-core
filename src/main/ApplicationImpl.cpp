@@ -839,6 +839,10 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
     // idempotent, the extra call is harmless.
     shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
 
+    if (mCommandHandler)
+    {
+        mCommandHandler->shutdown();
+    }
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();

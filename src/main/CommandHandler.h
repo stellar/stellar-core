@@ -43,6 +43,8 @@ class CommandHandler
   public:
     CommandHandler(Application& app);
 
+    void shutdown();
+
     std::string manualCmd(std::string const& cmd);
 
     void fileNotFound(std::string const& params, std::string& retStr);

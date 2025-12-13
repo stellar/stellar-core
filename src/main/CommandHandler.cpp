@@ -140,6 +140,19 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 }
 
 void
+CommandHandler::shutdown()
+{
+    if (mServer)
+    {
+        mServer->shutdown();
+    }
+    if (mQueryServer)
+    {
+        mQueryServer->shutdown();
+    }
+}
+
+void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
 
