@@ -30,7 +30,7 @@ class DownloadBucketsWork : public BatchWork
         // create the indexes, but DownloadBucketsWork needs to maintain actual
         // ownership of the pointers so that the success callback can pass them
         // to the BucketManager. Must be protected by mutex.
-        std::map<int, std::unique_ptr<typename BucketT::IndexT const>> indexMap;
+        std::map<int, std::shared_ptr<typename BucketT::IndexT const>> indexMap;
 
         std::mutex mutex;
         int indexId{0};

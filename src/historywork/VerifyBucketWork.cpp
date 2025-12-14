@@ -25,7 +25,7 @@ namespace stellar
 template <typename BucketT>
 VerifyBucketWork<BucketT>::VerifyBucketWork(
     Application& app, std::string const& bucketFile, uint256 const& hash,
-    std::unique_ptr<typename BucketT::IndexT const>& index,
+    std::shared_ptr<typename BucketT::IndexT const>& index,
     OnFailureCallback failureCb)
     : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBucketFile(bucketFile)
@@ -88,7 +88,7 @@ VerifyBucketWork<BucketT>::spawnVerifier()
                 return;
             }
 
-            std::unique_ptr<typename BucketT::IndexT const> index;
+            std::shared_ptr<typename BucketT::IndexT const> index;
             try
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);
