@@ -1140,7 +1140,6 @@ class InvokeHostFunctionParallelApplyHelper
     bool
     checkIfReadWriteEntryIsMarkedForAutorestore(uint32_t index)
     {
-
         // If the autorestore vector is empty, there
         // are no entries to restore
         if (mAutorestoredEntries.empty())

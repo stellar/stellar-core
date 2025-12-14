@@ -56,7 +56,6 @@ class TestNominationSCP : public SCPDriver
     {
         if (mQuorumSets.find(qSetHash) != mQuorumSets.end())
         {
-
             return mQuorumSets[qSetHash];
         }
         return SCPQuorumSetPtr();

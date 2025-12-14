@@ -479,7 +479,6 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-
         std::string strSellerIDs, strOfferIDs, strSellingAssets,
             strBuyingAssets, strAmounts, strPriceNs, strPriceDs, strPrices,
             strFlags, strLastModifieds, strExtensions, strLedgerExtensions;

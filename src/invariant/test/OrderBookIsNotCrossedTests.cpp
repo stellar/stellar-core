@@ -186,7 +186,6 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
 TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
           "[invariant][OrderBookIsNotCrossed]")
 {
-
     VirtualClock clock;
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     // When testing the order book not crossed invariant, enable it and no other

@@ -1566,7 +1566,6 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
 
             if (isIssuer(accountID, assetInPool))
             {
-
                 opEventManager.newBurnEvent(
                     assetInPool, makeLiquidityPoolAddress(poolID), amount);
 

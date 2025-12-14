@@ -695,7 +695,6 @@ std::vector<LedgerEntry>
 generateValidLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
-
     if (n > 1000)
     {
         throw "generateValidLedgerEntryWithExclusions: must generate <= 1000 "
@@ -857,7 +856,6 @@ generateValidUniqueLedgerKeysWithTypes(
     res.reserve(n);
     while (res.size() < n)
     {
-
         auto entry = generateValidLedgerEntryWithTypes(types);
         auto key = LedgerEntryKey(entry);
         if (seenKeys.find(key) != seenKeys.end())

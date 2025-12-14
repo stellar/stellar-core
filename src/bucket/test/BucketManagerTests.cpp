@@ -46,7 +46,6 @@ namespace BucketManagerTests
 static void
 clearFutures(Application::pointer app, LiveBucketList& bl)
 {
-
     // First go through the BL and mop up all the FutureBuckets.
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {

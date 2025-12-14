@@ -108,7 +108,6 @@ TestMarket::addOffer(TestAccount& account, OfferState const& state,
     {
         if (mLastAddedID != 0)
         {
-
             REQUIRE(offerId == mLastAddedID + 1);
         }
         mLastAddedID = offerId;

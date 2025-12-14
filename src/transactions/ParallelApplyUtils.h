@@ -19,7 +19,6 @@ class GlobalParallelApplyLedgerState;
 
 class ParallelLedgerInfo
 {
-
   public:
     ParallelLedgerInfo(uint32_t version, uint32_t seq, uint32_t reserve,
                        TimePoint time, Hash const& id)
@@ -348,7 +347,6 @@ class PreV23LedgerAccessHelper : virtual public LedgerAccessHelper
 
 class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
 {
-
   protected:
     ParallelLedgerAccessHelper(
         ThreadParallelApplyLedgerState const& threadState,

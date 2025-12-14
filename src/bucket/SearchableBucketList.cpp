@@ -195,7 +195,6 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     // Check if we need to sort the voteCount by number of votes
     if (voteCount.size() > maxWinners)
     {
-
         // Sort Inflation winners by vote count in descending order
         std::map<int64_t, UnorderedMap<AccountID, int64_t>::const_iterator,
                  std::greater<int64_t>>

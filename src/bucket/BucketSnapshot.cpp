@@ -130,7 +130,6 @@ BucketSnapshotBase<BucketT>::loadKeys(
         std::shared_ptr<typename BucketT::EntryT const> entryOp;
         switch (indexRes.getState())
         {
-
         // Index had entry in cache
         case IndexReturnState::CACHE_HIT:
             if constexpr (std::is_same_v<BucketT, LiveBucket>)

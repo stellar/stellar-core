@@ -531,7 +531,6 @@ logSecretKey(std::ostream& s, SecretKey const& sk)
 void
 StrKeyUtils::logKey(std::ostream& s, std::string const& key)
 {
-
     // see if it's a public key
     try
     {

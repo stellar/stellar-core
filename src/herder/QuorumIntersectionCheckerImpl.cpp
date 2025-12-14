@@ -71,7 +71,6 @@ MinQuorumEnumerator::pickSplitNode(
     size_t maxDegree = 0;
     for (size_t i = 0; mRemaining.nextSet(i); ++i)
     {
-
         // Heuristic opportunity: biasing towards cross-org edges and
         // away from intra-org edges seems to help; work out some way
         // to make this a robust bias.

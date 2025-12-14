@@ -67,7 +67,6 @@ class CapacityTrackedMessage;
 class Peer : public std::enable_shared_from_this<Peer>,
              public NonMovableOrCopyable
 {
-
   public:
     static constexpr std::chrono::seconds PEER_SEND_MODE_IDLE_TIMEOUT =
         std::chrono::seconds(60);

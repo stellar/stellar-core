@@ -857,7 +857,6 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     while ((status = execute(tx, cfg.mode, code)) !=
            TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         if (cfg.mode != LoadGenMode::PAY_PREGENERATED && cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
@@ -1422,7 +1421,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         mApp.getHerder().recvTransaction(txf, true, isPregeneratedTx);
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         auto resultStr = addResult.txResult
                              ? xdrToCerealString(addResult.txResult->getXDR(),
                                                  "TransactionResult")

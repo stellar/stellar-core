@@ -155,7 +155,6 @@ CommandHandler::shutdown()
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
-
     mServer->addRoute(
         name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
 }
@@ -1260,7 +1259,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             cfg.setMinSorobanPercentSuccess(minPercentSuccess);
             if (cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
             {
-
                 auto& sorobanCfg = cfg.getMutSorobanConfig();
                 sorobanCfg.nInstances =
                     parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);

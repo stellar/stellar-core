@@ -416,7 +416,6 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     LedgerEntryChanges changes;
     for (auto const& [lk, le] : res.getModifiedEntryMap())
     {
-
         auto prevLe = threadState.getLiveEntryOpt(lk);
 
         if (prevLe)

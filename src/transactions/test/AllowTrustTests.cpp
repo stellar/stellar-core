@@ -43,7 +43,6 @@ namespace detail
 
 template <int V> struct TestStub
 {
-
     static void
     for_versions(uint32 from, uint32 to, Application& app,
                  std::function<void()> const& f)

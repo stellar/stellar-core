@@ -14,7 +14,6 @@ class MutableTransactionResultBase;
 
 class ExtendFootprintTTLOpFrame : public OperationFrame
 {
-
     ExtendFootprintTTLOp const& mExtendFootprintTTLOp;
 
   public:

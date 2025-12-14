@@ -220,7 +220,6 @@ Slot::abandonBallot()
 bool
 Slot::bumpState(Value const& value, bool force)
 {
-
     return mBallotProtocol.bumpState(value, force);
 }
 
