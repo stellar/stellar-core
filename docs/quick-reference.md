@@ -89,7 +89,7 @@ synthetic traffic.
 
 ### Playing with history
 
-You can interact with history archives with [stellar-archivist](https://github.com/stellar/go/tree/master/tools/stellar-archivist).
+You can interact with history archives with [stellar-archivist](https://github.com/stellar/go-stellar-sdk/tree/main/tools/stellar-archivist).
 
 #### Command line catchup
 
