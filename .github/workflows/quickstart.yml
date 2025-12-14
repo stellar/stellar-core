@@ -1,0 +1,47 @@
+name: Quickstart
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: stellar/quickstart/.github/workflows/build.yml@main
+    with:
+      images: |
+        [
+          {
+            "tag": "testing-with-pr",
+            "inherit": "testing",
+            "config": {
+              "horizon_skip_protocol_version_check": true
+            },
+            "deps": [
+              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
+            ]
+          },
+          {
+            "tag": "nightly-with-pr",
+            "inherit": "nightly",
+            "config": {
+              "horizon_skip_protocol_version_check": true
+            },
+            "deps": [
+              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
+            ]
+          },
+          {
+            "tag": "nightly-next-with-pr",
+            "inherit": "nightly-next",
+            "config": {
+              "horizon_skip_protocol_version_check": true
+            },
+            "deps": [
+              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
+            ]
+          }
+        ]
+      archs: '["amd64"]'
