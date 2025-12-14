@@ -25,7 +25,7 @@
 namespace stellar
 {
 
-const uint32_t LedgerApplyManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
+uint32_t const LedgerApplyManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
 
 LedgerApplyManagerImpl::CatchupMetrics::CatchupMetrics()
     : mHistoryArchiveStatesDownloaded{0}
@@ -71,7 +71,7 @@ operator-(LedgerApplyManager::CatchupMetrics const& x,
 }
 
 template <typename T>
-T
+static T
 findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
 {
     return std::find_if(begin, end,

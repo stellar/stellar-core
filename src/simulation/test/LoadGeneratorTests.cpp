@@ -259,8 +259,8 @@ TEST_CASE("modify soroban network config", "[loadgen][soroban]")
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
-    const uint32_t ledgerMaxTxCount = 42;
-    const uint32_t liveSorobanStateSizeWindowSampleSize = 99;
+    uint32_t const ledgerMaxTxCount = 42;
+    uint32_t const liveSorobanStateSizeWindowSampleSize = 99;
     // Upgrade the network config.
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
@@ -776,8 +776,8 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
     uint32_t constexpr baseSize = 148;
     uint32_t constexpr opSize = 56;
     uint32_t constexpr frameSize = baseSize + opSize * 3;
-    Simulation::pointer simulation = Topologies::pair(
-        Simulation::OVER_LOOPBACK, networkID, [frameSize](int i) {
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
             cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {frameSize};

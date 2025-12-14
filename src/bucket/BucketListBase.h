@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
@@ -253,7 +253,7 @@ namespace stellar
 //
 // If you are going to do an upgrade to the BL, you may need to wait for a time
 // related to either of these two tables. If you do an upgrade driven by the
-// "trickling down" of protcol changes, you need to wait for the duration of a
+// "trickling down" of protocol changes, you need to wait for the duration of a
 // new object post-upgrade to arrive in the lowest level, which is one ledger
 // beyond the age of the oldest object in the second-lowest level (or about 60
 // days).

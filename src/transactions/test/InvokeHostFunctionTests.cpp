@@ -234,10 +234,10 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
         REQUIRE(client.transfer(root, accAddr, 10));
         REQUIRE(client.mint(issuer, accAddr, 10));
 
-        // Now mint by transfering from issuer
+        // Now mint by transferring from issuer
         REQUIRE(client.transfer(issuer, accAddr, 10));
 
-        // Now burn by transfering to the issuer and by using burn function
+        // Now burn by transferring to the issuer and by using burn function
         REQUIRE(client.transfer(acc, makeAccountAddress(issuer.getPublicKey()),
                                 10));
         REQUIRE(client.burn(acc, 10));
@@ -250,7 +250,7 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
         REQUIRE(client.transfer(root, contractAddr, 10));
         REQUIRE(client.mint(issuer, contractAddr, 10));
 
-        // Now mint by transfering from issuer
+        // Now mint by transferring from issuer
         REQUIRE(client.transfer(issuer, contractAddr, 10));
 
         // Now clawback
@@ -598,7 +598,7 @@ TEST_CASE_VERSIONS("multiple soroban ops in a tx", "[tx][soroban]")
         SorobanTest test(app);
         ContractStorageTestClient client(test);
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto& root = test.getRoot();
@@ -1626,9 +1626,9 @@ TEST_CASE_VERSIONS("Soroban non-refundable resource fees are stable",
 
         {
             INFO("footprint entries");
-            // Fee for additonal 6 footprint entries (6 * 36 = 216 bytes)
+            // Fee for additional 6 footprint entries (6 * 36 = 216 bytes)
             // ceil(216 * 6000 / 1024) + ceil(216 * 8000 / 1024) == 2954
-            const int64_t additionalTxSizeFee = 2954;
+            int64_t const additionalTxSizeFee = 2954;
             {
                 INFO("RO only");
                 SorobanResources resources;
@@ -1724,7 +1724,7 @@ TEST_CASE_VERSIONS("refund account merged", "[tx][soroban][merge]")
         SorobanTest test(app);
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -1779,7 +1779,7 @@ TEST_CASE_VERSIONS("fee bump refund account merged", "[tx][soroban][merge]")
         SorobanTest test(app);
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -1851,7 +1851,7 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
         SorobanTest test(app);
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -1905,7 +1905,7 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         SorobanTest test(app);
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -1959,7 +1959,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         SorobanTest test(app);
         auto ledgerVersion = test.getLedgerVersion();
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -2197,7 +2197,7 @@ TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
 {
     SorobanTest test;
 
-    const int64_t startingBalance =
+    int64_t const startingBalance =
         test.getApp().getLedgerManager().getLastMinBalance(50);
 
     auto a1 = test.getRoot().create("A", startingBalance);
@@ -4107,7 +4107,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
                     .setWriteBytes(5000)
                     .setRefundableResourceFee(1'000'000);
 
-            auto createRestoreTx = [&](const LedgerKey& keyToRestore,
+            auto createRestoreTx = [&](LedgerKey const& keyToRestore,
                                        TestAccount* sourceAccount = nullptr) {
                 SorobanResources resources;
                 resources.footprint.readWrite = {keyToRestore};
@@ -5543,7 +5543,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         cfg.mTxMaxWriteBytes = 5000;
     });
 
-    const int64_t startingBalance =
+    int64_t const startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
     auto a1 = root->create("A", startingBalance);
@@ -5990,7 +5990,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     {
         auto costEntryIter =
             find_if(upgradeSet.updatedEntry.begin(),
-                    upgradeSet.updatedEntry.end(), [](const auto& entry) {
+                    upgradeSet.updatedEntry.end(), [](auto const& entry) {
                         return entry.configSettingID() ==
                                CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
                     });
@@ -7114,11 +7114,11 @@ wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
     return true;
 }
 
-static const int64_t INVOKE_ADD_UNCACHED_COST_PASS = 500'000;
-static const int64_t INVOKE_ADD_UNCACHED_COST_FAIL = 400'000;
+static int64_t const INVOKE_ADD_UNCACHED_COST_PASS = 500'000;
+static int64_t const INVOKE_ADD_UNCACHED_COST_FAIL = 400'000;
 
-static const int64_t INVOKE_ADD_CACHED_COST_PASS = 300'000;
-static const int64_t INVOKE_ADD_CACHED_COST_FAIL = 200'000;
+static int64_t const INVOKE_ADD_CACHED_COST_PASS = 300'000;
+static int64_t const INVOKE_ADD_CACHED_COST_FAIL = 200'000;
 
 TEST_CASE("reusable module cache", "[soroban][modulecache]")
 {
@@ -7721,7 +7721,7 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         REQUIRE(isSuccessResult(txResults.results[2].result));
     }
 }
-UnorderedMap<uint32_t /*ledgerSeq*/, LedgerCloseMeta>
+static UnorderedMap<uint32_t /*ledgerSeq*/, LedgerCloseMeta>
 readParallelMeta(std::string const& metaPath)
 {
     UnorderedMap<uint32_t, LedgerCloseMeta> res;
@@ -7758,7 +7758,7 @@ TEST_CASE_VERSIONS("source account of first tx is in second txs footprint",
 
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -7807,7 +7807,7 @@ TEST_CASE_VERSIONS("non-fee source account is recipient of payment in both "
         SorobanTest test(app);
         AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -7864,7 +7864,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a0 = root.create("a0", startingBalance);
@@ -8257,7 +8257,7 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
             sorobanTxs.emplace_back(tx);
         }
 
-        // Save a map of tx hashs to extensions so we can do a lookup against
+        // Save a map of tx hashes to extensions so we can do a lookup against
         // the ordering of tx results to determine where the readWrite
         // transaction was applied.
         UnorderedMap<Hash, uint32_t> txHashToExtendTO;
@@ -8406,7 +8406,7 @@ TEST_CASE("Failed write still causes ttl observation",
 
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -8504,7 +8504,7 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
 
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -8598,7 +8598,7 @@ TEST_CASE("delete non existent entry with parallel apply",
     auto& app = test.getApp();
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -8629,7 +8629,7 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
         SorobanTest test(app);
         AssetContractTestClient assetClient(test, txtest::makeNativeAsset());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -8757,7 +8757,7 @@ TEST_CASE_VERSIONS("trustline deletion then SAC payment",
         Asset idr = makeAsset(issuerKey, "IDR");
         AssetContractTestClient assetClient(test, idr);
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto issuer = test.getRoot().create("issuer", startingBalance);
@@ -8816,7 +8816,7 @@ TEST_CASE("create in first stage delete in second stage",
     auto& app = test.getApp();
 
     auto& lm = app.getLedgerManager();
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -8856,7 +8856,7 @@ TEST_CASE("delete in first stage extend in second stage",
     auto& app = test.getApp();
 
     auto& lm = app.getLedgerManager();
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -8904,7 +8904,7 @@ TEST_CASE("put in first stage and then update value in second stage",
     auto& app = test.getApp();
 
     auto& lm = app.getLedgerManager();
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
     auto a1 = root.create("a1", startingBalance);
@@ -9073,7 +9073,7 @@ TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
 
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     // Advance ledger until the contract expires
     auto expirationLedger =
@@ -9131,7 +9131,7 @@ TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
     test.invokeExtendOp(client.getContract().getKeys(), 10'000);
 
     auto& lm = test.getApp().getLedgerManager();
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     auto& root = test.getRoot();
 
@@ -9191,7 +9191,7 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
 
     auto& lm = app.getLedgerManager();
 
-    const int64_t startingBalance = lm.getLastMinBalance(50);
+    int64_t const startingBalance = lm.getLastMinBalance(50);
 
     REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, 1) ==
             INVOKE_HOST_FUNCTION_SUCCESS);
@@ -9272,7 +9272,7 @@ TEST_CASE_VERSIONS(
 
         auto ledgerVersion = getLclProtocolVersion(test.getApp());
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto a1 = test.getRoot().create("A", startingBalance);
@@ -9849,7 +9849,7 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
         ContractStorageTestClient client(test);
 
         auto& lm = test.getApp().getLedgerManager();
-        const int64_t startingBalance = lm.getLastMinBalance(50);
+        int64_t const startingBalance = lm.getLastMinBalance(50);
         auto& root = test.getRoot();
 
         // Create test accounts
@@ -10085,7 +10085,7 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
     for_versions_from(21, *app, [&] {
         SorobanTest test(app);
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         auto innerAccount = test.getRoot().create("inner", startingBalance);
@@ -10166,7 +10166,7 @@ TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
         SorobanTest test(app);
         auto ledgerVersion = test.getLedgerVersion();
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         // Create accounts
@@ -10245,7 +10245,7 @@ TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
         SorobanTest test(app);
         auto ledgerVersion = test.getLedgerVersion();
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         // Create accounts
@@ -10339,7 +10339,7 @@ TEST_CASE_VERSIONS(
         SorobanTest test(app);
         auto ledgerVersion = test.getLedgerVersion();
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         // Create accounts
@@ -10440,7 +10440,7 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
         SorobanTest test(app);
         auto ledgerVersion = test.getLedgerVersion();
 
-        const int64_t startingBalance =
+        int64_t const startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 
         // Create accounts

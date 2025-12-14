@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2016 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 /**
  * @class Tracker
@@ -76,7 +76,7 @@ class Tracker
     /**
      * Return list of envelopes this tracker is waiting for.
      */
-    const std::vector<std::pair<Hash, SCPEnvelope>>&
+    std::vector<std::pair<Hash, SCPEnvelope>> const&
     waitingEnvelopes() const
     {
         return mWaitingEnvelopes;
@@ -114,12 +114,12 @@ class Tracker
      * Add @p env to list of envelopes that will be resend to Herder when data
      * is received.
      */
-    void listen(const SCPEnvelope& env);
+    void listen(SCPEnvelope const& env);
 
     /**
      * Stops tracking envelope @p env.
      */
-    void discard(const SCPEnvelope& env);
+    void discard(SCPEnvelope const& env);
 
     /**
      * Stop the timer, stop requesting the item as we have it.

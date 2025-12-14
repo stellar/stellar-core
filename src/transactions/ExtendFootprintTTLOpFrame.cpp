@@ -109,7 +109,7 @@ class ExtendFootprintTTLApplyHelper : virtual public LedgerAccessHelper
         rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
         rustEntryRentChanges.reserve(footprint.readOnly.size());
         // Extend for `extendTo` more ledgers since the current
-        // ledger. Current ledger has to be payed for in order for entry
+        // ledger. Current ledger has to be paid for in order for entry
         // to be extendable, hence don't include it.
         uint32_t newLiveUntilLedgerSeq =
             getLedgerSeq() + mOpFrame.mExtendFootprintTTLOp.extendTo;

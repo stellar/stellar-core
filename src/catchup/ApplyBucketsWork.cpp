@@ -104,7 +104,7 @@ ApplyBucketsWork::doReset()
         // The current size of this set is 1.6 million during BucketApply
         // (as of 12/20/23). There's not a great way to estimate this, so
         // reserving with some extra wiggle room
-        static const size_t estimatedOfferKeyCount = 2'000'000;
+        static size_t const estimatedOfferKeyCount = 2'000'000;
         mSeenKeys.reserve(estimatedOfferKeyCount);
 
         auto addBucket = [this](std::shared_ptr<LiveBucket> const& bucket) {
@@ -192,7 +192,7 @@ ApplyBucketsWork::doWork()
 
     // Step 0: Applying Buckets resets DB state, so we need to make sure
     // LedgerManager apply state phase == `SETTING_UP_STATE`. We'll do this with
-    // step 1 below for convience.
+    // step 1 below for convenience.
 
     // Step 1: index live buckets. Step 2: apply buckets. Step 3: assume state
     if (!mIndexBucketsWork)

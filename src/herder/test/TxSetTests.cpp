@@ -1984,7 +1984,7 @@ TEST_CASE("txset nomination", "[txset]")
             VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg, false);
             std::vector<std::pair<TestAccount, int64_t>> accounts;
-            for (const auto& [key, seqNo] : accountKeys)
+            for (auto const& [key, seqNo] : accountKeys)
             {
                 accounts.emplace_back(TestAccount{*app, key, seqNo}, seqNo + 1);
             }
@@ -3188,7 +3188,7 @@ TEST_CASE("parallel tx set building benchmark",
     auto runBenchmark = [&](double mean_conflicts_per_tx,
                             double mean_ro_txs_per_conflict,
                             double mean_rw_txs_per_conflict) {
-        const int iterCount = 5;
+        int const iterCount = 5;
         std::vector<TxFrameList> allTxs;
         for (int i = 0; i < iterCount; ++i)
         {

@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
@@ -235,11 +235,11 @@ class LoadGenerator
                                             LoadGenMode mode,
                                             TransactionResultCode& code);
 
-    static const uint32_t STEP_MSECS;
-    static const uint32_t TX_SUBMIT_MAX_TRIES;
-    static const uint32_t TIMEOUT_NUM_LEDGERS;
-    static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
-    static const uint32_t MIN_UNIQUE_ACCOUNT_MULTIPLIER;
+    static uint32_t const STEP_MSECS;
+    static uint32_t const TX_SUBMIT_MAX_TRIES;
+    static uint32_t const TIMEOUT_NUM_LEDGERS;
+    static uint32_t const COMPLETION_TIMEOUT_WITHOUT_CHECKS;
+    static uint32_t const MIN_UNIQUE_ACCOUNT_MULTIPLIER;
 
     TxGenerator mTxGenerator;
     Application& mApp;

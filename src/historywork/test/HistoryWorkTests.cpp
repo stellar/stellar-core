@@ -60,7 +60,7 @@ TEST_CASE("write verified checkpoint hashes", "[historywork][acceptance]")
         }
     }
 
-    auto checkFileContents = [](const auto& pairs, auto startingPairIdx,
+    auto checkFileContents = [](auto const& pairs, auto startingPairIdx,
                                 std::string file) {
         for (size_t i = 0; i < pairs.size(); ++i)
         {

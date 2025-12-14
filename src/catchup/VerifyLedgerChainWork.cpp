@@ -85,7 +85,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
 }
 
 template <typename T>
-void
+static void
 trySetFuture(std::promise<T>& promise, T value)
 {
     try

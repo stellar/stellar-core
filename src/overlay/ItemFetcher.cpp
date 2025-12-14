@@ -20,7 +20,7 @@ ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
 }
 
 void
-ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
+ItemFetcher::fetch(Hash const& itemHash, SCPEnvelope const& envelope)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "fetch {}", hexAbbrev(itemHash));
@@ -44,7 +44,7 @@ void
 ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
 {
     ZoneScoped;
-    const auto& iter = mTrackers.find(itemHash);
+    auto const& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
         auto const& tracker = iter->second;
@@ -127,7 +127,7 @@ void
 ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
     ZoneScoped;
-    const auto& iter = mTrackers.find(itemHash);
+    auto const& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
         iter->second->doesntHave(peer);
@@ -138,7 +138,7 @@ void
 ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 {
     ZoneScoped;
-    const auto& iter = mTrackers.find(itemHash);
+    auto const& iter = mTrackers.find(itemHash);
 
     if (iter != mTrackers.end())
     {

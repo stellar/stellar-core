@@ -28,7 +28,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     auto gateway = root->create("gate", paymentAmount);
     Asset idr = makeAsset(gateway, "IDR");
@@ -181,7 +181,7 @@ TEST_CASE_VERSIONS("payment events", "[tx][event]")
     SECTION("memo order of precedence")
     {
         // test memo order of precedence
-        // in a transfer event, if both the receipient memo (toMemoID) and the
+        // in a transfer event, if both the recipient memo (toMemoID) and the
         // transaction memo are set, it follows order of precedence and the
         // toMemoID will be taken
         auto a = root->create("A", paymentAmount);

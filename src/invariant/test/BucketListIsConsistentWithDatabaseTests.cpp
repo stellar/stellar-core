@@ -33,6 +33,8 @@ using namespace stellar;
 
 namespace BucketListIsConsistentWithDatabaseTests
 {
+namespace
+{
 
 struct BucketListGenerator
 {
@@ -210,7 +212,7 @@ struct BucketListGenerator
 
 bool
 doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
-                  const BucketEntry& be)
+                  BucketEntry const& be)
 {
     for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
@@ -223,7 +225,7 @@ doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
 }
 
 bool
-doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
+doesBucketListContain(LiveBucketList& bl, BucketEntry const& be)
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
@@ -452,7 +454,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         return r;
     }
 };
-}
+} // namespace
+} // namespace BucketListIsConsistentWithDatabaseTests
 
 using namespace BucketListIsConsistentWithDatabaseTests;
 

@@ -21,7 +21,7 @@ static auto ledgerKeyGenerator = autocheck::such_that(
     autocheck::generator<LedgerKey>());
 
 template <class FilterT>
-void
+static void
 testFilter(double expectedFalsePositiveRate)
 {
     LedgerKeySet keys;

@@ -10,7 +10,8 @@ namespace stellar
 
 namespace txtest
 {
-
+namespace
+{
 void
 throwIf(CreateAccountResult const& result)
 {
@@ -560,6 +561,7 @@ throwIf(RestoreFootprintResult const& result)
         throw ex_UNKNOWN{};
     }
 }
+} // namespace
 
 void
 throwIf(TransactionResult const& result)
@@ -685,5 +687,5 @@ throwIf(TransactionResult const& result)
         break;
     }
 }
-}
-}
+} // namespace txset
+} // namespace stellar

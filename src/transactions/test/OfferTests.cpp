@@ -50,7 +50,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     int64_t txfee = app->getLedgerManager().getLastTxFee();
 
     // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 =
+    int64_t const minBalance2 =
         app->getLedgerManager().getLastMinBalance(2) + 20 * txfee;
 
     // sets up issuer account
@@ -59,7 +59,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     auto idr = issuer.asset("IDR");
     auto usd = issuer.asset("USD");
 
-    const Price oneone(1, 1);
+    Price const oneone(1, 1);
 
     SECTION("passive offer")
     {
@@ -616,8 +616,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     auto const base2 =
                         app->getLedgerManager().getLastMinBalance(2);
 
-                    const int64 delta = 100;
-                    const int64 payment = 1000;
+                    int64 const delta = 100;
+                    int64 const payment = 1000;
                     auto offerAmount = a1IDrs + payment;
 
                     int64 bStartingBalance;
@@ -1358,7 +1358,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("offers with limit when buying")
         {
-            const int64_t assetMultiplier = 1000000;
+            int64_t const assetMultiplier = 1000000;
 
             auto c1 = root->create("C", minBalance3 + 1000);
 

@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2023 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "lib/json/json.h"
 #include "medida/timer.h"
@@ -216,7 +216,7 @@ class FlowControl
 
     // A function to be called once a batch of messages is sent (typically, this
     // is called once async_write completes and invokes a handler that calls
-    // this function). This function will appropriatly trim outbound queues and
+    // this function). This function will appropriately trim outbound queues and
     // release capacity used by the messages that were sent.
     void
     processSentMessages(FloodQueues<ConstStellarMessagePtr> const& sentMessages)

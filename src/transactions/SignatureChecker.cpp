@@ -44,7 +44,7 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     }
 
     auto signers =
-        split(signersV, [](const Signer& s) { return s.key.type(); });
+        split(signersV, [](Signer const& s) { return s.key.type(); });
 
     // calculate the weight of the signatures
     int totalWeight = 0;

@@ -26,7 +26,8 @@ namespace stellar
 {
 namespace LedgerTestUtils
 {
-
+namespace
+{
 template <typename T>
 void
 clampLow(T low, T& v)
@@ -46,6 +47,7 @@ clampHigh(T high, T& v)
         v = high;
     }
 }
+} // namespace
 
 // mutate string such that it doesn't contain control characters
 // and is at least minSize characters long
@@ -72,7 +74,9 @@ template void replaceControlCharacters(std::string& s, int minSize);
 template void replaceControlCharacters(string32& s, int minSize);
 template void replaceControlCharacters(string64& s, int minSize);
 
-static bool
+namespace
+{
+bool
 signerEqual(Signer const& s1, Signer const& s2)
 {
     return s1.key == s2.key;
@@ -87,6 +91,7 @@ generateOpaqueVector()
     auto vec = vecgen(distr(autocheck::rng()));
     return xdr::xvector<uint8_t, MAX_SIZE>(vec.begin(), vec.end());
 }
+} // namespace
 
 void
 randomlyModifyEntry(LedgerEntry& e)
@@ -357,7 +362,7 @@ makeValid(ContractDataEntry& cde)
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES)
     {
         // make the key small to prevent hitting the limit
-        static const uint32_t key_limit =
+        static uint32_t const key_limit =
             InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES - 50;
         auto small_bytes =
             autocheck::generator<xdr::opaque_vec<key_limit>>()(5);
@@ -438,7 +443,7 @@ makeValid(TTLEntry& cce)
 {
 }
 
-void
+static void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
           LedgerHeaderHistoryEntry firstLedger,
           HistoryManager::LedgerVerificationStatus state)

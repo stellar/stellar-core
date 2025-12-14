@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2018 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/LiveBucketList.h"
 #include "ledger/InternalLedgerEntry.h"
@@ -180,7 +180,7 @@
 //     responsibility of the caller to ensure that no two threads
 //     access the same LedgerTxn simultaneously.
 //   - LedgerTxn preserves the following invariant: it must always be accessed
-//   from the _same_ thread, before it is commited or rolled back. If the
+//   from the _same_ thread, before it is committed or rolled back. If the
 //   invariant is violated, the program aborts.
 
 namespace stellar
@@ -238,7 +238,7 @@ class LedgerEntryPtr
 // incoming work (if it is otherwise unbounded) into transactions of the
 // same number of entries. It does no semantic harm to pick a different
 // size, just fail to batch quite as evenly.
-static const size_t LEDGER_ENTRY_BATCH_COMMIT_SIZE = 0xfff;
+static size_t const LEDGER_ENTRY_BATCH_COMMIT_SIZE = 0xfff;
 
 // If a LedgerTxn has had an eraseWithoutLoading call, the usual "exact"
 // level of consistency that a LedgerTxn maintains with the database will
@@ -533,7 +533,7 @@ class AbstractLedgerTxnParent
     // Returns map of TTL and corresponding contract/data keys that have been
     // restored from the Hot Archive/Live Bucket List. Note that this returns
     // all keys that have been restored this ledger, including those that have
-    // been restored via earlier LedgerTxns commited to the same parent.
+    // been restored via earlier LedgerTxns committed to the same parent.
     virtual UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const = 0;
     virtual UnorderedMap<LedgerKey, LedgerEntry>

@@ -755,10 +755,12 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     }
 }
 
-static char const* TESTKEY_PROTOCOL_VERSION = "!cfg protocol version";
-static char const* TESTKEY_RNG_SEED = "!rng seed";
-static char const* TESTKEY_ALL_VERSIONS = "!test all versions";
-static char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
+namespace
+{
+char const* TESTKEY_PROTOCOL_VERSION = "!cfg protocol version";
+char const* TESTKEY_RNG_SEED = "!rng seed";
+char const* TESTKEY_ALL_VERSIONS = "!test all versions";
+char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
 
 template <typename T>
 void
@@ -784,6 +786,7 @@ checkTestKeyVals(std::string const& k, T const& expected, T const& got,
                                              fmt::join(got, ", "), path));
     }
 }
+} // namespace
 
 static void
 loadTestTxMeta(stdfs::path const& dir)

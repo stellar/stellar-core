@@ -47,9 +47,9 @@
 namespace stellar
 {
 
-const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
+uint64_t const TransactionQueue::FEE_MULTIPLIER = 10;
 
-std::array<const char*,
+std::array<char const*,
            static_cast<int>(TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING = std::array{"PENDING", "DUPLICATE", "ERROR",
                                   "TRY_AGAIN_LATER", "FILTERED"};

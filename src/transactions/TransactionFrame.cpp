@@ -1863,7 +1863,7 @@ TransactionFrame::apply(
 #endif
 
 #ifdef BUILD_TESTS
-void
+static void
 maybeTriggerTestInternalError(TransactionEnvelope const& env)
 {
     auto memo =

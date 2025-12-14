@@ -1396,7 +1396,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     // failed check because we expect most cost types in v21. Those new cost
     // types will be created in this case, but that'll happen later in
     // createCostTypesForV21.
-    static const uint32_t versionToValidateAgainst = 20;
+    static uint32_t const versionToValidateAgainst = 20;
 
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,

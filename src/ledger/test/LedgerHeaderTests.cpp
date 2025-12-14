@@ -103,7 +103,7 @@ TEST_CASE_VERSIONS("base reserve", "[ledger]")
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     REQUIRE(lcl.header.baseReserve == 100000000);
-    const uint32 n = 20000;
+    uint32 const n = 20000;
     int64 expectedReserve = 2000200000000ll;
 
     for_versions_to(8, *app, [&]() {

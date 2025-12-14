@@ -158,10 +158,12 @@ outOfMemory()
 // Rust hashes in checkXDRFileIdentity.
 namespace stellar
 {
-extern const std::vector<std::pair<std::filesystem::path, std::string>>
+extern std::vector<std::pair<std::filesystem::path, std::string>> const
     XDR_FILES_SHA256;
 }
 
+namespace
+{
 void
 checkXDRFileIdentity()
 {
@@ -279,6 +281,7 @@ checkStellarCoreMajorVersionProtocolIdentity()
                   << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
 }
+} // namespace
 
 #ifdef USE_TRACY_MEMORY_TRACKING
 

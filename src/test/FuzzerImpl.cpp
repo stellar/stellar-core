@@ -37,6 +37,8 @@ namespace stellar
 {
 namespace FuzzUtils
 {
+namespace
+{
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
@@ -313,7 +315,8 @@ emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
         ops.emplace_back(endSponsoringOp);
     }
 }
-}
+} // namespace
+} // namespace FuzzUtils
 }
 
 namespace xdr
@@ -503,7 +506,7 @@ struct xdr_fuzzer_compactor
 };
 
 template <typename... Args>
-opaque_vec<>
+static opaque_vec<>
 xdr_to_fuzzer_opaque(Args const&... args)
 {
     opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
@@ -790,7 +793,7 @@ struct xdr_fuzzer_unpacker
 };
 
 template <typename Bytes, typename... Args>
-auto
+static auto
 xdr_from_fuzzer_opaque(
     stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
     stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs, Bytes const& m,
@@ -821,7 +824,7 @@ generator_t::operator()(stellar::PublicKey& t) const
 }
 
 static int RECURSION_COUNT = 0;
-static const int RECURSION_LIMIT = 50;
+static int const RECURSION_LIMIT = 50;
 
 template <>
 void
@@ -833,7 +836,7 @@ generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
         val = v;
         return;
     }
-    const auto& vals = stellar::SCVal::_xdr_case_values();
+    auto const& vals = stellar::SCVal::_xdr_case_values();
     stellar::SCValType v;
 
     uint32_t n = 0;
@@ -989,6 +992,8 @@ class FuzzTransactionFrame : public TransactionFrame
     }
 };
 
+namespace
+{
 std::shared_ptr<FuzzTransactionFrame>
 createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
                            PublicKey const& sourceAccountID,
@@ -1029,7 +1034,7 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 // Empties "ops" as operations are applied.  Throws if any operations fail.
 // Handles breaking up the list of operations into multiple transactions, if the
 // caller provides more operations than fit in a single transaction.
-static void
+void
 applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                      xdr::xvector<Operation>::const_iterator begin,
                      xdr::xvector<Operation>::const_iterator end,
@@ -1091,7 +1096,7 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 
 // Requires a set of operations small enough to fit in a single transaction.
 // Tolerates the failure of transaction application.
-static void
+void
 applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                     xdr::xvector<Operation>::const_iterator begin,
                     xdr::xvector<Operation>::const_iterator end,
@@ -1101,6 +1106,7 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                                                  app.getNetworkID());
     txFramePtr->attemptApplication(app, ltx);
 }
+} // namespace
 
 // Unlike Asset, this can be a constexpr.
 struct AssetID

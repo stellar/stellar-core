@@ -225,7 +225,7 @@ HerderImpl::syncMetrics()
 std::string
 HerderImpl::getStateHuman(State st) const
 {
-    static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
+    static std::array<char const*, HERDER_NUM_STATE> stateStrings = {
         "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
         "HERDER_TRACKING_NETWORK_STATE"};
     return std::string(stateStrings[st]);
@@ -399,7 +399,7 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
     }
 }
 
-void
+static void
 recordExternalizeAndCheckCloseTimeDrift(
     uint64 slotIndex, StellarValue const& value,
     std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
@@ -437,7 +437,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
     ZoneScoped;
-    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+    int const DUMP_SCP_TIMEOUT_SECONDS = 20;
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -915,7 +915,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
+                            SCPQuorumSet const& qset,
                             StellarMessage const& txset)
 {
     auto txSetFrame =
@@ -996,7 +996,7 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     // Checkpoint ledgers are special cased to be allowed to be outside this
     // range, but to determine if a message is a checkpoint message, the node
     // needs the correct trackingConsensusLedgerIndex. We send the checkpoint
-    // message after a delay so that the recieving node has time to process the
+    // message after a delay so that the receiving node has time to process the
     // initially sent messages and establish trackingConsensusLedgerIndex
     if (checkpoint < firstSequentialLedgerSeq)
     {
@@ -1028,8 +1028,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         return maxSlots != 0;
     });
 
-    // Out of sync node needs to recieve latest messages to determine network
-    // state before recieving checkpoint message. Delay sending checkpoint
+    // Out of sync node needs to receive latest messages to determine network
+    // state before receiving checkpoint message. Delay sending checkpoint
     // ledger to achieve this
     if (delayCheckpoint)
     {
@@ -1295,7 +1295,7 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 }
 
 bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
+HerderImpl::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
@@ -1494,7 +1494,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
 
     // New proposed tx set must be valid, so we explicitly populate tx set
-    // validity cache so SCP can re-use the result.
+    // validity cache so SCP can reuse the result.
     mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
                                      upperBoundCloseTimeOffset);
 
@@ -2043,7 +2043,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                 app.postOnMainThread([hState, &app] { hState->reset(app); },
                                      "QuorumIntersectionChecker interrupted");
             }
-            catch (const RustQuorumCheckerError& e)
+            catch (RustQuorumCheckerError const& e)
             {
                 CLOG_DEBUG(Herder,
                            "Quorum transitive closure analysis failed due to "

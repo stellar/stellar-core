@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2018 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include <xdrpp/endian.h>
 #include <xdrpp/marshal.h>
@@ -76,7 +76,7 @@ template <typename Derived> struct XDRHasher
 
     template <typename T>
     typename std::enable_if<xdr::xdr_traits<T>::is_bytes>::type
-    operator()(const T& t)
+    operator()(T const& t)
     {
         size_t len = t.size();
         if (xdr::xdr_traits<T>::variable_nelem)
@@ -97,7 +97,7 @@ template <typename Derived> struct XDRHasher
     template <typename T>
     typename std::enable_if<xdr::xdr_traits<T>::is_class ||
                             xdr::xdr_traits<T>::is_container>::type
-    operator()(const T& t)
+    operator()(T const& t)
     {
         xdr::xdr_traits<T>::save(*this, t);
     }

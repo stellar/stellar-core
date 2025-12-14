@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "medida/timer_context.h"
@@ -140,7 +140,7 @@ class Database : NonMovableOrCopyable
     // Save `vers` as schema version.
     void putSchemaVersion(unsigned long vers);
 
-    // Prepared statements cache may be accessed by mutliple threads (each using
+    // Prepared statements cache may be accessed by multiple threads (each using
     // a different session), so use a mutex to synchronize access.
     std::mutex mutable mStatementsMutex;
 

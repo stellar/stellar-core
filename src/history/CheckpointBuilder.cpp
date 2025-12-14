@@ -174,6 +174,8 @@ CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
     mLedgerHeaders->flush();
 }
 
+namespace
+{
 uint32_t
 getLedgerSeq(TransactionHistoryEntry const& entry)
 {
@@ -191,6 +193,7 @@ getLedgerSeq(LedgerHeaderHistoryEntry const& entry)
 {
     return entry.header.ledgerSeq;
 }
+} // namespace
 
 void
 CheckpointBuilder::cleanup(uint32_t lcl)

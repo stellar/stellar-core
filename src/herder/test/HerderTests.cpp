@@ -84,9 +84,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         auto c1 = TestAccount{*app, getAccount("C")};
 
         auto txfee = app->getLedgerManager().getLastTxFee();
-        const int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
-        const int64_t paymentAmount = 100;
-        const int64_t startingBalance =
+        int64_t const minBalance = app->getLedgerManager().getLastMinBalance(0);
+        int64_t const paymentAmount = 100;
+        int64_t const startingBalance =
             minBalance + (paymentAmount + txfee) * 3;
 
         SECTION("basic ledger close on valid txs")
@@ -251,11 +251,11 @@ testTxSet(uint32 protocolVersion)
     // set up world
     auto root = app->getRoot();
 
-    const int nbAccounts = 3;
+    int const nbAccounts = 3;
 
     std::vector<TestAccount> accounts;
 
-    const int64_t minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+    int64_t const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
 
     int64_t accountBalance =
         app->getLedgerManager().getLastTxFee() + minBalance0;
@@ -2272,7 +2272,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             return secretKey.getPublicKey();
         };
 
-        auto makeSingleton = [](const PublicKey& key) {
+        auto makeSingleton = [](PublicKey const& key) {
             auto result = SCPQuorumSet{};
             result.threshold = 1;
             result.validators.push_back(key);
@@ -2874,7 +2874,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& lam = static_cast<LedgerApplyManagerImpl&>(
             outOfSync->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil([&]() { return lam.isCatchupInitialized(); },
                                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
@@ -2901,7 +2901,7 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
         auto& cm2 = static_cast<LedgerApplyManagerImpl&>(
             outOfSync2->getLedgerApplyManager());
 
-        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // Crank until outOfSync node has received checkpoint ledger and started
         // catchup
         simulation->crankUntil(
             [&]() {
@@ -3679,7 +3679,9 @@ TEST_CASE("soroban txs accepted by the network",
     }
 }
 
-static void
+namespace
+{
+void
 checkSynced(Application& app)
 {
     REQUIRE(app.getLedgerManager().isSynced());
@@ -3695,7 +3697,7 @@ checkInvariants(Application& app, HerderImpl& herder)
     REQUIRE(herder.trackingConsensusLedgerIndex() >= lcl);
 }
 
-static void
+void
 checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
             uint32_t ledger)
 {
@@ -3740,7 +3742,7 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
 // The nice thing about this test is that because we fully control the messages
 // received by a node, we fully control the state of Herder and LM (and whether
 // each component is in sync or out of sync)
-static void
+void
 herderExternalizesValuesWithProtocol(uint32_t version,
                                      bool parallelLedgerClose = false,
                                      uint32_t delayCloseMs = 0)
@@ -3762,7 +3764,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             if (parallelLedgerClose)
             {
                 cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
-                // Add artifical delay to ledger close to increase chances of
+                // Add artificial delay to ledger close to increase chances of
                 // conflicts
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(delayCloseMs);
@@ -4193,6 +4195,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         }
     }
 }
+} // namespace
 
 TEST_CASE("herder externalizes values", "[herder]")
 {
@@ -4459,10 +4462,10 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                     lhe.hash = header.previousLedgerHash;
                 }
 
-                // This test excerises a race where we start applying ledger N +
+                // This test exercises a race where we start applying ledger N +
                 // 1 before we publish the result of N. This shouldn't violate
                 // any ApplyState invariants. ApplyState should already be
-                // commited and up to date via the apply thread, even if the
+                // committed and up to date via the apply thread, even if the
                 // main thread has not yet published the result to the rest of
                 // core.
                 if (enableParallelApply)
@@ -6302,10 +6305,12 @@ TEST_CASE("Fair nomination win rates", "[herder]")
     }
 }
 
+namespace
+{
 // Returns a new `Topology` with the last org in `t` replaced with a new org
 // with 3 validators. Requires that the last org in `t` have 3 validators and be
 // contiguous at the back of the validators vecto.
-static Topology
+Topology
 replaceOneOrg(Topology const& t)
 {
     Topology t2(t); // Copy the topology
@@ -6345,7 +6350,7 @@ replaceOneOrg(Topology const& t)
 
 // Add `orgsToAdd` new orgs to the topology `t`. Each org will have 3
 // validators.
-static Topology
+Topology
 addOrgs(int orgsToAdd, Topology const& t)
 {
     Topology t2(t); // Copy the topology
@@ -6538,6 +6543,7 @@ testAsymmetricTimeouts(Topology const& qs1, Topology const& qs2,
         }
     }
 }
+} // namespace
 
 // Test timeouts with asymmetric quorums. This test serves two purposes:
 // 1. It contains assertions checking for moderate (10%) deviations from the
@@ -6577,7 +6583,7 @@ TEST_CASE("Asymmetric quorum timeouts", "[herder]")
 // Test that the nomination algorithm behaves as expected when a random
 // `numUnresponsive` set of nodes in `qs` are unresponsive.  Runs simulation for
 // `numLedgers` slots.
-void
+static void
 testUnresponsiveTimeouts(Topology const& qs, int numUnresponsive,
                          int const numLedgers)
 {

@@ -35,7 +35,7 @@ dbgAbort()
 }
 
 void
-printErrorAndAbort(const char* s1)
+printErrorAndAbort(char const* s1)
 {
     std::fprintf(stderr, "%s\n", s1);
     std::fflush(stderr);
@@ -45,7 +45,7 @@ printErrorAndAbort(const char* s1)
 }
 
 void
-printErrorAndAbort(const char* s1, const char* s2)
+printErrorAndAbort(char const* s1, char const* s2)
 {
     std::fprintf(stderr, "%s%s\n", s1, s2);
     std::fflush(stderr);
@@ -55,7 +55,7 @@ printErrorAndAbort(const char* s1, const char* s2)
 }
 
 void
-printAssertFailureAndAbort(const char* s1, const char* file, int line)
+printAssertFailureAndAbort(char const* s1, char const* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);
@@ -65,7 +65,7 @@ printAssertFailureAndAbort(const char* s1, const char* file, int line)
 }
 
 void
-printAssertFailureAndThrow(const char* s1, const char* file, int line)
+printAssertFailureAndThrow(char const* s1, char const* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);

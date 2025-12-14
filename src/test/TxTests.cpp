@@ -679,7 +679,7 @@ getAccountSigners(PublicKey const& k, Application& app)
 TransactionTestFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee,
+                            std::vector<Operation> const& ops, uint32_t fee,
                             std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
@@ -807,7 +807,7 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 TransactionTestFramePtr
 paddedTransactionFromOperations(Application& app, SecretKey const& from,
                                 SequenceNumber seq,
-                                const std::vector<Operation>& ops, uint32_t fee,
+                                std::vector<Operation> const& ops, uint32_t fee,
                                 uint32_t desiredSize)
 {
     auto ledgerVersion =
@@ -823,7 +823,7 @@ paddedTransactionFromOperations(Application& app, SecretKey const& from,
 
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq, const std::vector<Operation>& ops,
+                          SequenceNumber seq, std::vector<Operation> const& ops,
                           uint32_t fee, std::optional<Memo> memo)
 {
     auto ledgerVersion =

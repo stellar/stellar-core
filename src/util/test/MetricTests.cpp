@@ -26,7 +26,7 @@ using gamma_dbl = std::gamma_distribution<double>;
 using uniform_u64 = stellar::uniform_int_distribution<uint64_t>;
 
 // how much data to keep in memory when comparing datasets
-static std::chrono::seconds const sampleCutoff(60 * 5);
+std::chrono::seconds const sampleCutoff(60 * 5);
 
 void
 sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
@@ -212,9 +212,8 @@ Percentiles const gamma_4_100_pct(367.2061, 510.9427, 775.3657, 908.4115,
 
 // These are private constants in the implementation of Histogram,
 // but we want to reuse them here for testing SlidingWindowTester.
-static const std::uint64_t kDefaultSampleSize = 1028;
-static const std::chrono::seconds kDefaultWindowTime =
-    std::chrono::seconds(5 * 60);
+std::uint64_t const kDefaultSampleSize = 1028;
+std::chrono::seconds const kDefaultWindowTime = std::chrono::seconds(5 * 60);
 
 // Check that the rate-limiting of the SlidingWindowSample doesn't
 // interfere with a "true" 5-minute-long (with arbitrary event count)
@@ -358,7 +357,6 @@ class SlidingWindowTester
         snp.checkAgainst(getSnapshot());
     }
 };
-}
 
 /*****************************************************************
  * Snapshot / percentile tests
@@ -376,6 +374,7 @@ sampleFrom(Args... args)
     }
     return medida::stats::Snapshot(sample);
 }
+} // namespace
 
 TEST_CASE("percentile calculation - constant", "[percentile][medida_math]")
 {
@@ -573,7 +572,7 @@ TEST_CASE("sums of nanoseconds do not overflow", "[medida_math]")
 }
 
 template <typename Dist, typename... Args>
-void
+static void
 testCKMSSample(int const count, Args... args)
 {
     auto const windowSize = std::chrono::seconds(5);

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #pragma once
+
 #include "main/Application.h"
 #include "simulation/TxGenerator.h"
 #include "test/TestAccount.h"
@@ -90,7 +91,7 @@ class ApplyLoad
     uint64_t calculateInstructionsPerTx() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
-    // BucketListDB cache. Note that this should be run everytime an account
+    // BucketListDB cache. Note that this should be run every time an account
     // entry is modified.
     void warmAccountCache();
 

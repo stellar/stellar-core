@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "lib/json/json-forwards.h"
 #include "scp/SCP.h"
@@ -40,7 +40,7 @@ class BallotProtocol
         SCP_PHASE_NUM
     };
     // human readable names matching SCPPhase
-    static std::array<const char*, SCP_PHASE_NUM> phaseNames;
+    static std::array<char const*, SCP_PHASE_NUM> phaseNames;
 
     class SCPBallotWrapper
     {

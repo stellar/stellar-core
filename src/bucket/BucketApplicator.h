@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketInputIterator.h"
 #include "bucket/LiveBucket.h"
@@ -39,10 +39,10 @@ class BucketApplicator
             uint64_t numDeleted;
         };
 
-        // We avoid using medida metrics here here because BucketApplicator
-        // activity is typically a rare thing that happens only during catchup
-        // and we don't want to pollute the regular operational metrics
-        // interface with these counts.
+        // We avoid using medida metrics here because BucketApplicator activity
+        // is typically a rare thing that happens only during catchup and we
+        // don't want to pollute the regular operational metrics interface with
+        // these counts.
         VirtualClock::time_point mStarted;
         std::map<LedgerEntryType, CounterEntry> mCounters;
 
