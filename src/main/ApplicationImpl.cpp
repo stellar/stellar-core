@@ -27,6 +27,7 @@
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/ArchivedStateConsistency.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
+#include "invariant/BucketListStateConsistency.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/ConstantProductInvariant.h"
 #include "invariant/EventsAreConsistentWithEntryDiffs.h"
@@ -324,6 +325,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     ConstantProductInvariant::registerInvariant(*this);
     EventsAreConsistentWithEntryDiffs::registerInvariant(*this);
     ArchivedStateConsistency::registerInvariant(*this);
+    BucketListStateConsistency::registerInvariant(*this);
 
     enableInvariantsFromConfig();
 
