@@ -355,6 +355,6 @@ TEST_CASE("schema test", "[db]")
     Application::pointer app = createTestApplication(clock, cfg);
 
     auto& db = app->getDatabase();
-    auto dbv = db.getDBSchemaVersion();
+    auto dbv = db.getMainDBSchemaVersion();
     REQUIRE(dbv == SCHEMA_VERSION);
 }
