@@ -63,7 +63,7 @@ void
 populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 {
     ZoneScoped;
-    releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+    releaseAssert(app.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
     auto& snapshot = app.getOverlayThreadSnapshot();
@@ -184,9 +184,9 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
 
     // Whether to check transaction signatures in the background, adding them to
     // the signature cache in the process.
-    bool const checkTxSig = self->mAppConnector.getConfig()
-                                .EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
-                            self->useBackgroundThread();
+    bool const checkTxSig =
+        self->mAppConnector.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
+        self->useBackgroundThread();
 
     if (mMsg.type() == TRANSACTION)
     {
