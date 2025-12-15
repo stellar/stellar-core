@@ -54,7 +54,8 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
-    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+    bool waitForLedgerManager)
     : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -64,6 +65,7 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mCounters(app.getClock().now())
     , mIsApplyInvariantEnabled(
           app.getInvariantManager().isBucketApplyInvariantEnabled())
+    , mWaitForLedgerManager{waitForLedgerManager}
     , mLedgerManagerReadyTimer(app)
 {
 }
@@ -236,8 +238,8 @@ ApplyBucketsWork::doWork()
 
     if (!mAssumeStateWork)
     {
-        if (mApp.getLedgerManager().getState() ==
-            LedgerManager::LM_BOOTING_STATE)
+        if (mWaitForLedgerManager && mApp.getLedgerManager().getState() ==
+                                         LedgerManager::LM_BOOTING_STATE)
         {
             waitForLedgerManager();
             return BasicWork::State::WORK_WAITING;

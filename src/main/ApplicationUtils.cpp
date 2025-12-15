@@ -186,7 +186,7 @@ applyBucketsForLCL(Application& app)
 
     std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
-        buckets, has, maxProtocolVersion);
+        buckets, has, maxProtocolVersion, false);
 
     while (app.getClock().crank(true) && !work->isDone())
         ;
