@@ -177,7 +177,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
 
     SECTION("trustline on native asset")
     {
-        const auto nativeAsset = makeNativeAsset();
+        auto const nativeAsset = makeNativeAsset();
         for_versions_to(9, *app, [&] {
             REQUIRE_THROWS_AS(gateway.changeTrust(nativeAsset, INT64_MAX - 1),
                               ex_txINTERNAL_ERROR);

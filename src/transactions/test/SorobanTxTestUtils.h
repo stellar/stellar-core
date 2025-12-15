@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2023 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -46,12 +46,12 @@ ContractEvent makeContractEvent(Hash const& contractId,
                                 std::vector<SCVal> const& topics,
                                 SCVal const& data);
 ContractEvent
-makeTransferEvent(const stellar::Hash& contractId, Asset const& asset,
+makeTransferEvent(stellar::Hash const& contractId, Asset const& asset,
                   SCAddress const& from, SCAddress const& to, int64_t amount,
                   std::optional<SCMapEntry> toMemoEntry = std::nullopt);
 
 ContractEvent
-makeMintOrBurnEvent(bool isMint, const stellar::Hash& contractId,
+makeMintOrBurnEvent(bool isMint, stellar::Hash const& contractId,
                     Asset const& asset, SCAddress const& addr, int64 amount,
                     std::optional<SCMapEntry> memoEntry = std::nullopt);
 

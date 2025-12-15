@@ -254,7 +254,7 @@ processOpLedgerEntryChanges(
         ++iter;
     }
 
-    // In order to maintain propper change ordering for a given key (i.e.
+    // In order to maintain proper change ordering for a given key (i.e.
     // CREATE/STATE/RESTORE before UPDATE/DELETE), aggregate all the restore
     // changes we need to insert.
     std::unordered_map<LedgerKey, LedgerEntryChange> restoreChangesToInsert;

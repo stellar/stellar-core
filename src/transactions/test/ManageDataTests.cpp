@@ -34,7 +34,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t minBalance =
+    int64_t const minBalance =
         app->getLedgerManager().getLastMinBalance(3) - 100;
 
     auto gateway = root->create("gw", minBalance);

@@ -13,12 +13,12 @@ namespace stellar
 namespace metautils
 {
 
-const std::string META_DEBUG_DIRNAME{"meta-debug"};
-const std::string DEBUG_TX_SET_FILENAME{"debug-tx-set.xdr"};
-const std::string META_DEBUG_FILE_FMT_STR{"meta-debug-{:08x}-{}.xdr"};
-const std::regex META_DEBUG_FILE_REGEX{
+std::string const META_DEBUG_DIRNAME{"meta-debug"};
+std::string const DEBUG_TX_SET_FILENAME{"debug-tx-set.xdr"};
+std::string const META_DEBUG_FILE_FMT_STR{"meta-debug-{:08x}-{}.xdr"};
+std::regex const META_DEBUG_FILE_REGEX{
     "meta-debug-[[:xdigit:]]+-[[:xdigit:]]+\\.xdr(\\.gz)?"};
-const std::regex META_DEBUG_ZIP_FILE_REGEX{
+std::regex const META_DEBUG_ZIP_FILE_REGEX{
     "meta-debug-[[:xdigit:]]+-[[:xdigit:]]+\\.xdr\\.gz?"};
 
 // This number can be changed in the future without any coordination,
@@ -26,7 +26,7 @@ const std::regex META_DEBUG_ZIP_FILE_REGEX{
 //
 // 256 ledgers == ~21 minutes. At time of writing, ~5mb meta / minute
 // gives ~105mb meta / segment, which should compress to ~20mb.
-const uint32_t META_DEBUG_LEDGER_SEGMENT_SIZE = 256;
+uint32_t const META_DEBUG_LEDGER_SEGMENT_SIZE = 256;
 
 std::filesystem::path
 getMetaDebugFilePath(std::filesystem::path const& bucketDir, uint32_t seqNum);

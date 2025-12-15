@@ -229,6 +229,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "<p>Have fun!</p>";
 }
 
+namespace
+{
 template <typename T>
 std::optional<T>
 parseOptionalParam(std::map<std::string, std::string> const& map,
@@ -303,6 +305,7 @@ parseRequiredParam(std::map<std::string, std::string> const& map,
     }
     return *res;
 }
+} // namespace
 
 void
 CommandHandler::manualClose(std::string const& params, std::string& retStr)

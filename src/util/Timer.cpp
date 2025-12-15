@@ -17,9 +17,9 @@ namespace stellar
 
 using namespace std;
 
-static const std::chrono::milliseconds CRANK_TIME_SLICE(500);
-static const size_t CRANK_EVENT_SLICE = 100;
-const std::chrono::seconds SCHEDULER_LATENCY_WINDOW(5);
+static std::chrono::milliseconds const CRANK_TIME_SLICE(500);
+static size_t const CRANK_EVENT_SLICE = 100;
+std::chrono::seconds const SCHEDULER_LATENCY_WINDOW(5);
 
 VirtualClock::VirtualClock(Mode mode)
     : mMode(mode)

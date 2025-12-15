@@ -16,7 +16,7 @@ namespace stellar
 {
 
 // Certs expire every hour, are reissued every half hour.
-static const uint64_t expirationLimit = 3600;
+static uint64_t const expirationLimit = 3600;
 
 static AuthCert
 makeAuthCert(Application& app, Curve25519Public const& pub)

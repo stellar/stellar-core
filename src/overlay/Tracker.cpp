@@ -222,7 +222,7 @@ matchEnvelope(SCPEnvelope const& env)
 }
 
 void
-Tracker::listen(const SCPEnvelope& env)
+Tracker::listen(SCPEnvelope const& env)
 {
     ZoneScoped;
     mLastSeenSlotIndex = std::max(env.statement.slotIndex, mLastSeenSlotIndex);
@@ -248,7 +248,7 @@ Tracker::listen(const SCPEnvelope& env)
 }
 
 void
-Tracker::discard(const SCPEnvelope& env)
+Tracker::discard(SCPEnvelope const& env)
 {
     ZoneScoped;
     auto matcher = matchEnvelope(env);

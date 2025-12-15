@@ -18,7 +18,7 @@
 namespace stellar
 {
 
-static const uint32 allAccountAuthFlags =
+static uint32 const allAccountAuthFlags =
     (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG |
      AUTH_CLAWBACK_ENABLED_FLAG);
 

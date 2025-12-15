@@ -101,7 +101,7 @@ getAssetFromEvent(ContractEvent const& event, Hash const& networkID)
     return asset;
 }
 
-SCVal
+static SCVal
 getPossibleMuxedData(SCAddress const& to, int64 amount, Memo const& memo,
                      bool allowMuxedIdOrMemo)
 {

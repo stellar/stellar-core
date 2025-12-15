@@ -76,6 +76,8 @@ HistoryManager::createPublishQueueDir(Config const& cfg)
     fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
 }
 
+namespace
+{
 std::filesystem::path
 publishQueueFileName(uint32_t seq)
 {
@@ -133,6 +135,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
             HistoryManager::publishQueuePath(app.getConfig()).string());
     }
 }
+} // namespace
 
 std::unique_ptr<HistoryManager>
 HistoryManager::create(Application& app)
@@ -200,6 +203,8 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
     }
 }
 
+namespace
+{
 bool
 isPublishFile(std::string const& name)
 {
@@ -246,6 +251,7 @@ forEveryTmpCheckpoint(std::string const& dir,
 {
     iterateOverCheckpoints(fs::findfiles(dir, isPublishTmpFile), f);
 }
+} // namespace
 
 size_t
 HistoryManager::publishQueueLength(Config const& cfg)
@@ -409,7 +415,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
-HistoryArchiveState
+static HistoryArchiveState
 loadCheckpointHAS(std::string const& filename)
 {
     HistoryArchiveState has;

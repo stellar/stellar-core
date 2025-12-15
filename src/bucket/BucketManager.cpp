@@ -186,7 +186,7 @@ BucketManager::BucketManager(AppConnector& appConnector)
     }
 }
 
-const std::string BucketManager::kLockFilename = "stellar-core.lock";
+std::string const BucketManager::kLockFilename = "stellar-core.lock";
 
 namespace
 {

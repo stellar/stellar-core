@@ -115,6 +115,8 @@ isStringValid(std::string const& str)
     return true;
 }
 
+namespace
+{
 bool
 isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
 {
@@ -140,6 +142,7 @@ isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
            isAssetValid<Asset>(cp.assetB, ledgerVersion) &&
            cp.assetA < cp.assetB && cp.fee == LIQUIDITY_POOL_FEE_V18;
 }
+} // namespace
 
 template <typename T>
 bool
@@ -262,7 +265,7 @@ unsignedToSigned(uint64_t v)
 std::string
 formatSize(size_t size)
 {
-    const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
+    std::vector<std::string> const suffixes = {"B", "KB", "MB", "GB"};
     double dsize = static_cast<double>(size);
 
     size_t i = 0;

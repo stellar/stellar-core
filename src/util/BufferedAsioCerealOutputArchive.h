@@ -1,3 +1,7 @@
+// Copyright 2024 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #pragma once
 
 #include "util/XDRStream.h"
@@ -35,7 +39,7 @@ class BufferedAsioOutputArchive
 
     // Writes size bytes of data to the output stream
     void
-    saveBinary(const void* data, std::streamsize size)
+    saveBinary(void const* data, std::streamsize size)
     {
         itsStream.writeBytes(static_cast<char const*>(data), size);
     }

@@ -32,8 +32,8 @@ operator<(OfferKey const& x, OfferKey const& y)
     return x.offerID < y.offerID;
 }
 
-const OfferState OfferState::SAME{};
-const OfferState OfferState::DELETED{makeNativeAsset(), makeNativeAsset(),
+OfferState const OfferState::SAME{};
+OfferState const OfferState::DELETED{makeNativeAsset(), makeNativeAsset(),
                                      Price{1, 1}, 0};
 
 OfferState::OfferState(OfferEntry const& entry)

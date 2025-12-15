@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2025 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketUtils.h"
 #include "bucket/DiskIndex.h"
@@ -51,7 +51,7 @@ class HotArchiveBucketIndex : public NonMovableOrCopyable
     DiskIndex<HotArchiveBucket> const mDiskIndex;
 
   public:
-    inline static const uint32_t BUCKET_INDEX_VERSION = 0;
+    inline static uint32_t const BUCKET_INDEX_VERSION = 0;
 
     using IterT = DiskIndex<HotArchiveBucket>::IterT;
 

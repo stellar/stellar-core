@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "ByteSlice.h"
 #include "util/Logging.h"
@@ -55,7 +55,7 @@ template <uint32_t N>
 xdr::opaque_vec<N>
 curve25519Encrypt(Curve25519Public const& remotePublic, ByteSlice const& bin)
 {
-    const uint64_t CIPHERTEXT_LEN = crypto_box_SEALBYTES + bin.size();
+    uint64_t const CIPHERTEXT_LEN = crypto_box_SEALBYTES + bin.size();
     if (CIPHERTEXT_LEN > N)
     {
         throw std::runtime_error(fmt::format(

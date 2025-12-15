@@ -365,7 +365,7 @@ LocalNode::toJson(SCPQuorumSet const& qSet,
             }
             entries.append(strKey);
         }
-        catch (const std::exception& e)
+        catch (std::exception const& e)
         {
             throw std::runtime_error("Failed to convert validator to string: " +
                                      std::string(e.what()));
@@ -412,7 +412,7 @@ LocalNode::fromJson(Json::Value const& qSetJson)
                 ret.validators.push_back(
                     KeyUtils::fromStrKey<NodeID>(entry.asString()));
             }
-            catch (const std::exception& e)
+            catch (std::exception const& e)
             {
                 throw std::runtime_error(
                     "Invalid validator key in 'v' array: " +

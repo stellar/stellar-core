@@ -20,7 +20,7 @@ namespace stellar
 
 namespace
 {
-static const CxxI128 I128ZERO{0, 0};
+static CxxI128 const I128ZERO{0, 0};
 
 struct AggregatedEvents
 {

@@ -102,7 +102,7 @@ TEST_CASE("asymmetric topology report cost", "[simulation][!hide]")
 {
     // Ensure we close enough ledgers to start purging slots
     // (which is when cost gets reported)
-    const int nLedgers = 20;
+    int const nLedgers = 20;
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
@@ -172,7 +172,7 @@ resilienceTest(Simulation::pointer sim)
 
     // bring network to a good place
     uint32 targetLedger = LedgerManager::GENESIS_LEDGER_SEQ + 1;
-    const uint32 nbLedgerStep = 2;
+    uint32 const nbLedgerStep = 2;
 
     auto crankForward = [&](uint32 step, uint32 maxGap) {
         targetLedger += step;
@@ -357,7 +357,7 @@ TEST_CASE("core nodes with outer nodes", "[simulation][acceptance]")
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {
-    const int nLedgers = 10;
+    int const nLedgers = 10;
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::cycle4(networkID);

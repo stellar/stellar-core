@@ -22,7 +22,7 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-LedgerEntry
+static LedgerEntry
 updateAccountWithRandomBalance(LedgerEntry le, Application& app,
                                bool exceedsMinimum, int32_t direction)
 {

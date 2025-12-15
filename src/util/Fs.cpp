@@ -343,7 +343,7 @@ findfiles(std::string const& p,
 }
 
 bool
-mkpath(const std::string& path)
+mkpath(std::string const& path)
 {
     ZoneScoped;
     auto p = stdfs::path(path);
@@ -360,7 +360,7 @@ hexStr(uint32_t checkpointNum)
 std::string
 hexDir(std::string const& hexStr)
 {
-    static const std::regex rx(
+    static std::regex const rx(
         "([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
     std::smatch sm;
     bool matched = std::regex_match(hexStr, sm, rx);
@@ -392,7 +392,7 @@ remoteName(std::string const& type, std::string const& hexStr,
 void
 checkGzipSuffix(std::string const& filename)
 {
-    static const std::string suf(".gz");
+    static std::string const suf(".gz");
     if (std::filesystem::path(filename).extension().string() != suf)
     {
         throw std::runtime_error("filename does not end in .gz");
@@ -402,7 +402,7 @@ checkGzipSuffix(std::string const& filename)
 void
 checkNoGzipSuffix(std::string const& filename)
 {
-    static const std::string suf(".gz");
+    static std::string const suf(".gz");
     if (std::filesystem::path(filename).extension().string() == suf)
     {
         throw std::runtime_error("filename ends in .gz");

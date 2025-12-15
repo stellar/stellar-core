@@ -1169,11 +1169,11 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     // as there is only a single stage, it is tricky to match it when
     // there are multiple stages. The normalization also allows us to
     // randomly merge clusters in order to improve test coverage.
-    std::sort(allTxs.begin(), allTxs.end(), [](const auto& a, const auto& b) {
+    std::sort(allTxs.begin(), allTxs.end(), [](auto const& a, auto const& b) {
         return a->getFullHash() < b->getFullHash();
     });
     std::sort(resultSet.results.begin(), resultSet.results.end(),
-              [](const auto& a, const auto& b) {
+              [](auto const& a, auto const& b) {
                   return a.transactionHash < b.transactionHash;
               });
     auto lcm = test.getLastLcm();

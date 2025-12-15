@@ -23,7 +23,7 @@ getRevokeSponsorshipResultCode(TransactionTestFramePtr tx, size_t i)
     return opRes.tr().revokeSponsorshipResult().code();
 }
 
-Claimant
+static Claimant
 getClaimant(TestAccount const& account)
 {
     ClaimPredicate pred;

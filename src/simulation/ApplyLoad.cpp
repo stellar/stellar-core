@@ -204,7 +204,7 @@ LedgerKey
 ApplyLoad::getKeyForArchivedEntry(uint64_t index)
 {
 
-    static const SCAddress hotArchiveContractID = [] {
+    static SCAddress const hotArchiveContractID = [] {
         SCAddress addr;
         addr.type(SC_ADDRESS_TYPE_CONTRACT);
         addr.contractId() = sha256("archived-entry");

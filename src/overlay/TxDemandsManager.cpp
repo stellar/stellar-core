@@ -159,9 +159,9 @@ TxDemandsManager::demand()
 
     UnorderedMap<Peer::pointer, std::pair<TxDemandVector, std::list<Hash>>>
         demandMap;
-    bool anyNewDemand = false;
+    bool anyNewDemand = true;
     auto maxDemandSize = getMaxDemandSize();
-    do
+    while (anyNewDemand)
     {
         anyNewDemand = false;
         for (auto const& peer : peers)
@@ -206,10 +206,10 @@ TxDemandsManager::demand()
                     break;
                 }
             }
-            anyNewDemand |= addedNewDemand;
+            anyNewDemand = anyNewDemand || addedNewDemand;
         }
         // Loop again if we added one new demand to any peer
-    } while (anyNewDemand);
+    }
 
     for (auto const& peer : peers)
     {

@@ -617,7 +617,7 @@ TEST_CASE("History publish", "[history][publish]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 }
 
-void
+static void
 validateCheckpointFiles(Application& app, uint32_t ledger, bool isFinalized)
 {
     auto const& cfg = app.getConfig();
@@ -1139,9 +1139,9 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     // This test makes sure that we are able to catch up to the network
     // even when some ledgers get trimmed from mSyncingLedgers.
 
-    const auto bufferLedgers = 200;
-    const auto initLedger = 1000;
-    const auto numCheckpointsAvailable = 20;
+    auto const bufferLedgers = 200;
+    auto const initLedger = 1000;
+    auto const numCheckpointsAvailable = 20;
 
     auto checkpointLedger =
         catchupSimulation.getLastCheckpointLedger(numCheckpointsAvailable);
@@ -1184,11 +1184,11 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    const uint32_t firstLedgerInCheckpoint =
+    uint32_t const firstLedgerInCheckpoint =
         HistoryManager::firstLedgerAfterCheckpointContaining(initLedger,
                                                              app->getConfig());
 
-    const uint32_t triggerLedger = HistoryManager::ledgerToTriggerCatchup(
+    uint32_t const triggerLedger = HistoryManager::ledgerToTriggerCatchup(
         firstLedgerInCheckpoint, app->getConfig());
 
     // 1. The app hears initLedger, ..., dividingLedger - 1.

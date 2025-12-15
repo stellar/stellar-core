@@ -91,9 +91,9 @@ SCPDriver::toShortString(NodeID const& pk) const
 }
 
 // values used to switch hash function between priority and neighborhood checks
-static const uint32 hash_N = 1;
-static const uint32 hash_P = 2;
-static const uint32 hash_K = 3;
+static uint32 const hash_N = 1;
+static uint32 const hash_P = 2;
+static uint32 const hash_K = 3;
 
 uint64
 SCPDriver::hashHelper(

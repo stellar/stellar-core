@@ -568,7 +568,7 @@ HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
     }
 }
 
-static const uint32_t MAX_TIMEOUT_MS = (30 * 60) * 1000;
+static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
 
 std::chrono::milliseconds
 HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
@@ -1081,7 +1081,7 @@ Json::Value
 HerderSCPDriver::getMaybeDeadNodes(bool fullKeys)
 {
     Json::Value maybeDeadNodes(Json::arrayValue);
-    for (const auto& node : mDeadNodes)
+    for (auto const& node : mDeadNodes)
     {
         maybeDeadNodes.append(mApp.getConfig().toStrKey(node, fullKeys));
     }
@@ -1094,7 +1094,7 @@ HerderSCPDriver::startCheckForDeadNodesInterval()
     mDeadNodes = std::move(mMissingNodes);
     mMissingNodes.clear();
     LocalNode::forAllNodes(getSCP().getLocalNode()->getQuorumSet(),
-                           [this](const NodeID& nodeId) {
+                           [this](NodeID const& nodeId) {
                                mMissingNodes.insert(nodeId);
                                return true;
                            });

@@ -7,15 +7,15 @@
 #include "xdr/Stellar-contract.h"
 
 void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, stellar::PublicKey const& s,
+                char const* field)
 {
     xdr::archive(ar, stellar::KeyUtils::toStrKey<stellar::PublicKey>(s), field);
 }
 
 void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, stellar::SCAddress const& addr,
+                char const* field)
 {
     switch (addr.type())
     {
@@ -71,7 +71,7 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
 
 void
 cereal_override(cereal::JSONOutputArchive& ar,
-                const stellar::ConfigUpgradeSetKey& key, const char* field)
+                stellar::ConfigUpgradeSetKey const& key, char const* field)
 {
     ar.setNextName(field);
     ar.startNode();
@@ -88,7 +88,7 @@ cereal_override(cereal::JSONOutputArchive& ar,
 
 void
 cereal_override(cereal::JSONOutputArchive& ar,
-                const stellar::MuxedAccount& muxedAccount, const char* field)
+                stellar::MuxedAccount const& muxedAccount, char const* field)
 {
     switch (muxedAccount.type())
     {
@@ -112,22 +112,22 @@ cereal_override(cereal::JSONOutputArchive& ar,
 }
 
 void
-cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
-                const char* field)
+cerealPoolAsset(cereal::JSONOutputArchive& ar, stellar::Asset const& asset,
+                char const* field)
 {
     xdr::archive(ar, std::string("INVALID"), field);
 }
 
 void
 cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                const stellar::TrustLineAsset& asset, const char* field)
+                stellar::TrustLineAsset const& asset, char const* field)
 {
     cereal_override(ar, asset.liquidityPoolID(), field);
 }
 
 void
 cerealPoolAsset(cereal::JSONOutputArchive& ar,
-                const stellar::ChangeTrustAsset& asset, const char* field)
+                stellar::ChangeTrustAsset const& asset, char const* field)
 {
     auto const& cp = asset.liquidityPool().constantProduct();
 

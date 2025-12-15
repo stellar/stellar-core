@@ -21,6 +21,8 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
+namespace
+{
 int64_t
 getTotalBalance(std::vector<LedgerEntry> const& entries)
 {
@@ -111,6 +113,7 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app)
     int64_t newTotalCoins = dist(getGlobalRandomEngine());
     return updateBalances(entries, app, newTotalCoins - totalCoins, true);
 }
+} // namespace
 
 TEST_CASE("Total coins change without inflation",
           "[invariant][conservationoflumens]")

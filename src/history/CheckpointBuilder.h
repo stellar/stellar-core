@@ -41,7 +41,7 @@ valid publish state based on the LCL. For publish queue files, this means
 deleting any checkpoints with ledger sequence greater than LCL. For the rest of
 the files, this means extracting a history prefix of a checkpoint up until and
 including the LCL, and truncating the rest (including malformed data). If a
-crash before commit occurrs on a first ledger in a checkpoint, the dirty file is
+crash before commit occurs on a first ledger in a checkpoint, the dirty file is
 simply deleted on startup. This ensures core always starts with a valid publish
 state.
  */

@@ -278,7 +278,7 @@ Logging::setLoggingColor(bool color)
 }
 
 void
-Logging::setLogLevel(LogLevel level, const char* partition)
+Logging::setLogLevel(LogLevel level, char const* partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     if (partition)

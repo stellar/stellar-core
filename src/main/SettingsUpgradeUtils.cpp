@@ -186,7 +186,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
-void
+static void
 validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 {
     for (auto const& entry : upgradeSet.updatedEntry)
@@ -244,7 +244,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     addr.contractId() = contractID;
     invokeHF.invokeContract().contractAddress = addr;
 
-    const std::string& functionNameStr = "write";
+    std::string const& functionNameStr = "write";
     SCSymbol functionName;
     functionName.assign(functionNameStr.begin(), functionNameStr.end());
     invokeHF.invokeContract().functionName = functionName;

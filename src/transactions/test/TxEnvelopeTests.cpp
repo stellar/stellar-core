@@ -48,7 +48,7 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
 
     // set up world
     auto root = app->getRoot();
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     auto a1 = root->create("a1", paymentAmount);
     auto b1 = root->create("b1", paymentAmount);
@@ -87,7 +87,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     SECTION("ed25519 payload signer")
     {

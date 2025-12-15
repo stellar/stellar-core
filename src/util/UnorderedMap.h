@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #pragma once
+
 #include "util/RandHasher.h"
 #include <unordered_map>
 

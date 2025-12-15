@@ -302,7 +302,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         }
 
         // TODO: (if enableClassicEvents) consider generating more interesting
-        // event-emitting opeartions for classic
+        // event-emitting operations for classic
 
         // LedgerNum that we will examine the meta at
         uint32_t targetSeq;

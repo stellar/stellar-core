@@ -498,7 +498,7 @@ ColumnList::getColumnNames() const
 }
 
 inline std::string
-format_as(const NullField&)
+format_as(NullField const&)
 {
     return "<notset>";
 }
