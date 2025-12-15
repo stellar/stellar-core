@@ -334,7 +334,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mApplyState(app)
     , mLastClosedLedgerState(std::make_shared<CompleteConstLedgerState>(
-          nullptr, nullptr, LedgerHeaderHistoryEntry(), HistoryArchiveState()))
+          SearchableSnapshotConstPtr{}, SearchableHotArchiveSnapshotConstPtr{},
+          LedgerHeaderHistoryEntry(), HistoryArchiveState()))
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))

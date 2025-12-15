@@ -27,8 +27,6 @@ class AppConnector;
 class LiveBucket;
 class HotArchiveBucket;
 template <class BucketT> class BucketListSnapshot;
-class SearchableLiveBucketListSnapshot;
-class SearchableHotArchiveBucketListSnapshot;
 
 #define BUCKET_TYPE_ASSERT(BucketT) \
     static_assert(std::is_same_v<BucketT, LiveBucket> || \
@@ -38,10 +36,6 @@ class SearchableHotArchiveBucketListSnapshot;
 // BucketList types
 template <class BucketT>
 using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
-using SearchableSnapshotConstPtr =
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
-using SearchableHotArchiveSnapshotConstPtr =
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
 
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not

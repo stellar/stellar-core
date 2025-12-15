@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "history/HistoryArchive.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"

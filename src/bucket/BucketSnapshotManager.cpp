@@ -12,11 +12,98 @@
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
 
-#include <shared_mutex>
 #include <xdrpp/types.h>
 
 namespace stellar
 {
+
+// ============================================================================
+// SearchableSnapshotPtrBase template implementation
+// ============================================================================
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::SearchableSnapshotPtrBase() = default;
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::~SearchableSnapshotPtrBase() = default;
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::SearchableSnapshotPtrBase(
+    std::unique_ptr<SnapshotT const> ptr)
+    : mPtr(std::move(ptr))
+{
+}
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::SearchableSnapshotPtrBase(
+    SearchableSnapshotPtrBase&& other) noexcept = default;
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>&
+SearchableSnapshotPtrBase<SnapshotT>::operator=(
+    SearchableSnapshotPtrBase&& other) noexcept = default;
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::SearchableSnapshotPtrBase(
+    SearchableSnapshotPtrBase const& other)
+    : mPtr(other.mPtr ? std::make_unique<SnapshotT>(*other.mPtr) : nullptr)
+{
+}
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>&
+SearchableSnapshotPtrBase<SnapshotT>::operator=(
+    SearchableSnapshotPtrBase const& other)
+{
+    if (this != &other)
+    {
+        mPtr = other.mPtr ? std::make_unique<SnapshotT>(*other.mPtr) : nullptr;
+    }
+    return *this;
+}
+
+template <typename SnapshotT>
+SnapshotT const*
+SearchableSnapshotPtrBase<SnapshotT>::get() const noexcept
+{
+    return mPtr.get();
+}
+
+template <typename SnapshotT>
+SnapshotT const&
+SearchableSnapshotPtrBase<SnapshotT>::operator*() const
+{
+    return *mPtr;
+}
+
+template <typename SnapshotT>
+SnapshotT const*
+SearchableSnapshotPtrBase<SnapshotT>::operator->() const noexcept
+{
+    return mPtr.get();
+}
+
+template <typename SnapshotT>
+SearchableSnapshotPtrBase<SnapshotT>::operator bool() const noexcept
+{
+    return mPtr != nullptr;
+}
+
+template <typename SnapshotT>
+void
+SearchableSnapshotPtrBase<SnapshotT>::reset() noexcept
+{
+    mPtr.reset();
+}
+
+// Explicit instantiations
+template class SearchableSnapshotPtrBase<SearchableLiveBucketListSnapshot>;
+template class SearchableSnapshotPtrBase<
+    SearchableHotArchiveBucketListSnapshot>;
+
+// ============================================================================
+// BucketSnapshotManager implementation
+// ============================================================================
 
 namespace
 {
@@ -73,13 +160,13 @@ SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
     SharedLockShared const& guard) const
 {
-    // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(
-            *this, mAppConnector,
-            std::make_unique<BucketListSnapshot<LiveBucket>>(
-                *mCurrLiveSnapshot),
-            copyHistoricalSnapshots(mLiveHistoricalSnapshots)));
+    return SearchableSnapshotConstPtr(
+        std::unique_ptr<SearchableLiveBucketListSnapshot const>(
+            new SearchableLiveBucketListSnapshot(
+                *this, mAppConnector,
+                std::make_unique<BucketListSnapshot<LiveBucket>>(
+                    *mCurrLiveSnapshot),
+                copyHistoricalSnapshots(mLiveHistoricalSnapshots))));
 }
 
 SearchableHotArchiveSnapshotConstPtr
@@ -87,21 +174,23 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     SharedLockShared const& guard) const
 {
     releaseAssert(mCurrHotArchiveSnapshot);
-    // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
-        new SearchableHotArchiveBucketListSnapshot(
-            *this, mAppConnector,
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                *mCurrHotArchiveSnapshot),
-            copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots)));
+    return SearchableHotArchiveSnapshotConstPtr(
+        std::unique_ptr<SearchableHotArchiveBucketListSnapshot const>(
+            new SearchableHotArchiveBucketListSnapshot(
+                *this, mAppConnector,
+                std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                    *mCurrHotArchiveSnapshot),
+                copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots))));
 }
 
 namespace
 {
-template <typename T, typename U>
+// Helper to check if a snapshot wrapper needs updating based on ledger seq.
+// Works with both SearchableSnapshotConstPtr and
+// SearchableHotArchiveSnapshotConstPtr.
+template <typename WrapperT, typename BucketT>
 bool
-needsUpdate(std::shared_ptr<T const> const& snapshot,
-            SnapshotPtrT<U> const& curr)
+needsUpdate(WrapperT const& snapshot, SnapshotPtrT<BucketT> const& curr)
 {
     return !snapshot || snapshot->getLedgerSeq() < curr->getLedgerSeq();
 }

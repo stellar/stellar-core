@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include <xdrpp/printer.h>
 

@@ -19,6 +19,10 @@ class SearchableLiveBucketListSnapshot
         std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots);
 
   public:
+    // Creates a deep copy with fresh IO streams
+    SearchableLiveBucketListSnapshot(
+        SearchableLiveBucketListSnapshot const& other);
+
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                              Asset const& asset) const;
@@ -55,6 +59,10 @@ class SearchableHotArchiveBucketListSnapshot
             historicalSnapshots);
 
   public:
+    // Creates a deep copy with fresh IO streams
+    SearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveBucketListSnapshot const& other);
+
     std::vector<HotArchiveBucketEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 

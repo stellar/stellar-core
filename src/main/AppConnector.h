@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"

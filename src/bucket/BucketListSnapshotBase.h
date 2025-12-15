@@ -69,9 +69,13 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
 //
 // Any thread that needs to perform BucketList lookups should retrieve
 // a single SearchableBucketListSnapshot instance from
-// BucketListSnapshotManager.
-template <class BucketT>
-class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
+// BucketListSnapshotManager. The searchable snapshot itself is NOT thread-safe,
+// each thread must have its own snapshot copy.
+//
+// This class is copy-constructible to allow creating independent copies with
+// fresh IO streams. Each copy has its own file streams, making concurrent
+// use of copies safe.
+template <class BucketT> class SearchableBucketListSnapshotBase
 {
     BUCKET_TYPE_ASSERT(BucketT);
 
@@ -81,6 +85,19 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
   protected:
     virtual ~SearchableBucketListSnapshotBase() = 0;
+
+    // Creates a deep copy with fresh IO streams.
+    SearchableBucketListSnapshotBase(
+        SearchableBucketListSnapshotBase const& other);
+
+    // Only allow the copy constructor to encourage each thread to maintain its
+    // own snapshot copy.
+    SearchableBucketListSnapshotBase&
+    operator=(SearchableBucketListSnapshotBase const&) = delete;
+    SearchableBucketListSnapshotBase(SearchableBucketListSnapshotBase&&) =
+        delete;
+    SearchableBucketListSnapshotBase&
+    operator=(SearchableBucketListSnapshotBase&&) = delete;
 
     BucketSnapshotManager const& mSnapshotManager;
 
@@ -107,6 +124,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
         BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<BucketT>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots);
+
+    void initializeMetrics();
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,

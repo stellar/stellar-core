@@ -8,6 +8,7 @@
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
 #include <cstdint>
+#include <medida/counter.h>
 
 namespace stellar
 {

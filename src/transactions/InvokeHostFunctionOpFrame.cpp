@@ -982,11 +982,11 @@ class InvokeHostFunctionPreV23ApplyHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
-        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame,
-                                        sorobanConfig,
-                                        nullptr, // No hot archive before p23
-                                        moduleCache)
+        : InvokeHostFunctionApplyHelper(
+              app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
+              opFrame, sorobanConfig,
+              // No hot archive before p23
+              SearchableHotArchiveSnapshotConstPtr{}, moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }

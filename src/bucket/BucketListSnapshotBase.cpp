@@ -180,6 +180,24 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 }
 
 template <class BucketT>
+void
+SearchableBucketListSnapshotBase<BucketT>::initializeMetrics()
+{
+    // Initialize point load timers for each LedgerEntry type
+    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
+            static_cast<LedgerEntryType>(t));
+        auto& metric = mAppConnector.getMetrics().NewCounter(
+            {BucketT::METRIC_STRING, label, "sum"});
+        mPointAccumulators.emplace(static_cast<LedgerEntryType>(t), metric);
+        auto& counter = mAppConnector.getMetrics().NewCounter(
+            {BucketT::METRIC_STRING, label, "count"});
+        mPointCounters.emplace(static_cast<LedgerEntryType>(t), counter);
+    }
+}
+
+template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     BucketSnapshotManager const& snapshotManager, AppConnector const& app,
     SnapshotPtrT<BucketT>&& snapshot,
@@ -195,18 +213,33 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     , mBloomLookups(app.getMetrics().NewMeter(
           {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom"))
 {
-    // Initialize point load timers for each LedgerEntry type
-    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    initializeMetrics();
+}
+
+// Creates a deep copy with fresh IO streams.
+// The underlying BucketListSnapshot copy constructor will cascade down to
+// BucketSnapshotBase, which sets mStream to nullptr, ensuring each copy
+// has its own lazy-initialized file streams.
+template <class BucketT>
+SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
+    SearchableBucketListSnapshotBase const& other)
+    : mSnapshotManager(other.mSnapshotManager)
+    , mSnapshot(std::make_unique<BucketListSnapshot<BucketT>>(*other.mSnapshot))
+    , mAppConnector(other.mAppConnector)
+    , mBulkLoadMeter(other.mAppConnector.getMetrics().NewMeter(
+          {BucketT::METRIC_STRING, "query", "loads"}, "query"))
+    , mBloomMisses(other.mAppConnector.getMetrics().NewMeter(
+          {BucketT::METRIC_STRING, "bloom", "misses"}, "bloom"))
+    , mBloomLookups(other.mAppConnector.getMetrics().NewMeter(
+          {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom"))
+{
+    for (auto const& [seq, snap] : other.mHistoricalSnapshots)
     {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
-            static_cast<LedgerEntryType>(t));
-        auto& metric =
-            app.getMetrics().NewCounter({BucketT::METRIC_STRING, label, "sum"});
-        mPointAccumulators.emplace(static_cast<LedgerEntryType>(t), metric);
-        auto& counter = app.getMetrics().NewCounter(
-            {BucketT::METRIC_STRING, label, "count"});
-        mPointCounters.emplace(static_cast<LedgerEntryType>(t), counter);
+        mHistoricalSnapshots.emplace(
+            seq, std::make_unique<BucketListSnapshot<BucketT>>(*snap));
     }
+
+    initializeMetrics();
 }
 
 template <class BucketT>

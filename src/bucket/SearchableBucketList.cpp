@@ -249,6 +249,12 @@ SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
 {
 }
 
+SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
+    SearchableLiveBucketListSnapshot const& other)
+    : SearchableBucketListSnapshotBase<LiveBucket>(other)
+{
+}
+
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager,
     AppConnector const& appConnector, SnapshotPtrT<HotArchiveBucket>&& snapshot,
@@ -256,6 +262,12 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     : SearchableBucketListSnapshotBase<HotArchiveBucket>(
           snapshotManager, appConnector, std::move(snapshot),
           std::move(historicalSnapshots))
+{
+}
+
+SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
+    SearchableHotArchiveBucketListSnapshot const& other)
+    : SearchableBucketListSnapshotBase<HotArchiveBucket>(other)
 {
 }
 

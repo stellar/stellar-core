@@ -4,10 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketManager.h"
-#include "bucket/HotArchiveBucket.h"
-#include "bucket/LiveBucket.h"
-#include "main/AppConnector.h"
 #include "util/NonCopyable.h"
 #include "util/ThreadAnnotations.h"
 
@@ -25,6 +21,9 @@ class Timer;
 namespace stellar
 {
 
+class AppConnector;
+class LiveBucket;
+class HotArchiveBucket;
 class LiveBucketList;
 template <class BucketT> class BucketListSnapshot;
 class SearchableLiveBucketListSnapshot;
@@ -32,10 +31,45 @@ class SearchableHotArchiveBucketListSnapshot;
 
 template <class BucketT>
 using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
+
+// Wrapper around searchable bucket list snapshots that provides safe copy
+// semantics. Each copy creates a new snapshot with fresh IO streams, ensuring
+// thread-safe concurrent use of copies. This replaces the previous shared_ptr
+// type alias to prevent accidental sharing of non-thread-safe IO state.
+template <typename SnapshotT> class SearchableSnapshotPtrBase
+{
+    std::unique_ptr<SnapshotT const> mPtr;
+
+  public:
+    SearchableSnapshotPtrBase();
+    ~SearchableSnapshotPtrBase();
+
+    explicit SearchableSnapshotPtrBase(std::unique_ptr<SnapshotT const> ptr);
+
+    // Move operations
+    SearchableSnapshotPtrBase(SearchableSnapshotPtrBase&& other) noexcept;
+    SearchableSnapshotPtrBase&
+    operator=(SearchableSnapshotPtrBase&& other) noexcept;
+
+    // Copy creates new snapshot with fresh IO
+    SearchableSnapshotPtrBase(SearchableSnapshotPtrBase const& other);
+    SearchableSnapshotPtrBase&
+    operator=(SearchableSnapshotPtrBase const& other);
+
+    // Pointer-like interface
+    SnapshotT const* get() const noexcept;
+    SnapshotT const& operator*() const;
+    SnapshotT const* operator->() const noexcept;
+    explicit operator bool() const noexcept;
+
+    // Reset to empty (like shared_ptr::reset())
+    void reset() noexcept;
+};
+
 using SearchableSnapshotConstPtr =
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
+    SearchableSnapshotPtrBase<SearchableLiveBucketListSnapshot>;
 using SearchableHotArchiveSnapshotConstPtr =
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
+    SearchableSnapshotPtrBase<SearchableHotArchiveBucketListSnapshot>;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
