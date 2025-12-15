@@ -1781,9 +1781,14 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                 .header.ledgerVersion,
             SOROBAN_PROTOCOL_VERSION))
     {
+        // Copy the snapshot directly from `appliedLedgerState`, which holds
+        // the latest committed state, to avoid relying on
+        // BucketSnapshotManager.
+        auto latestSnapshot =
+            BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+                appliedLedgerState->getBucketSnapshot());
         mApp.getBucketManager().startBackgroundEvictionScan(
-            appliedLedgerState->getBucketSnapshot(),
-            appliedLedgerState->getSorobanConfig());
+            latestSnapshot, appliedLedgerState->getSorobanConfig());
     }
 
     // At this point, we've committed all changes to the Apply State for this

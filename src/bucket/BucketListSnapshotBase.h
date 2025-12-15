@@ -82,8 +82,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
   protected:
     virtual ~SearchableBucketListSnapshotBase() = 0;
 
-    BucketSnapshotManager const& mSnapshotManager;
-
     // Snapshot managed by SnapshotManager
     SnapshotPtrT<BucketT> mSnapshot{};
     std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
@@ -104,7 +102,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     medida::Meter& mBloomLookups;
 
     SearchableBucketListSnapshotBase(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<BucketT>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots);
 
@@ -136,6 +133,18 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     }
 
     LedgerHeader const& getLedgerHeader() const;
+
+    BucketListSnapshot<BucketT> const&
+    getSnapshot() const
+    {
+        return *mSnapshot;
+    }
+
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const&
+    getHistoricalSnapshots() const
+    {
+        return mHistoricalSnapshots;
+    }
 
     // Loads inKeys from the specified historical snapshot. Returns
     // load_result_vec if the snapshot for the given ledger is

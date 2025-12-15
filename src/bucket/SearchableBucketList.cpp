@@ -240,22 +240,18 @@ SearchableLiveBucketListSnapshot::loadKeys(
 }
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager,
     AppConnector const& appConnector, SnapshotPtrT<LiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<LiveBucket>(
-          snapshotManager, appConnector, std::move(snapshot),
-          std::move(historicalSnapshots))
+          appConnector, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager,
     AppConnector const& appConnector, SnapshotPtrT<HotArchiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<HotArchiveBucket>(
-          snapshotManager, appConnector, std::move(snapshot),
-          std::move(historicalSnapshots))
+          appConnector, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 

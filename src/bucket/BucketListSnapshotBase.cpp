@@ -181,11 +181,9 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 
 template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
-    BucketSnapshotManager const& snapshotManager, AppConnector const& app,
-    SnapshotPtrT<BucketT>&& snapshot,
+    AppConnector const& app, SnapshotPtrT<BucketT>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots)
-    : mSnapshotManager(snapshotManager)
-    , mSnapshot(std::move(snapshot))
+    : mSnapshot(std::move(snapshot))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
     , mAppConnector(app)
     , mBulkLoadMeter(app.getMetrics().NewMeter(
