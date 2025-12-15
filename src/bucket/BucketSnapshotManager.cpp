@@ -76,10 +76,23 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
-            *this, mAppConnector,
+            mAppConnector,
             std::make_unique<BucketListSnapshot<LiveBucket>>(
                 *mCurrLiveSnapshot),
             copyHistoricalSnapshots(mLiveHistoricalSnapshots)));
+}
+
+SearchableSnapshotConstPtr
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    SearchableSnapshotConstPtr const& snapshot)
+{
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
+        new SearchableLiveBucketListSnapshot(
+            snapshot->mAppConnector,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(
+                snapshot->getSnapshot()),
+            copyHistoricalSnapshots(snapshot->getHistoricalSnapshots())));
 }
 
 SearchableHotArchiveSnapshotConstPtr
@@ -90,7 +103,7 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(
-            *this, mAppConnector,
+            mAppConnector,
             std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
                 *mCurrHotArchiveSnapshot),
             copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots)));

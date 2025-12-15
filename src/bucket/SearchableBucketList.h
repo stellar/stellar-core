@@ -14,7 +14,6 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<LiveBucket>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots);
 
@@ -42,13 +41,16 @@ class SearchableLiveBucketListSnapshot
     friend SearchableSnapshotConstPtr
     BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
         SharedLockShared const& guard) const;
+
+    friend SearchableSnapshotConstPtr
+    BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+        SearchableSnapshotConstPtr const& snapshot);
 };
 
 class SearchableHotArchiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<HotArchiveBucket>
 {
     SearchableHotArchiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector,
         SnapshotPtrT<HotArchiveBucket>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&&
