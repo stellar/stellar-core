@@ -106,7 +106,7 @@ HotArchiveBucket::getBucketVersion() const
 
 HotArchiveBucket::HotArchiveBucket(
     std::string const& filename, Hash const& hash,
-    std::unique_ptr<HotArchiveBucket::IndexT const>&& index)
+    std::shared_ptr<HotArchiveBucket::IndexT const>&& index)
     : BucketBase(filename, hash, std::move(index))
 {
 }

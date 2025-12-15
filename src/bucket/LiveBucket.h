@@ -36,7 +36,7 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // appear in the bucket file for level 0 entries. Because level 0 merges
     // block the main thread when we write to the BucketList, we use the
     // in-memory entries to produce the new bucket instead of file IO.
-    std::optional<std::vector<BucketEntry>> mEntries{};
+    std::unique_ptr<std::vector<BucketEntry>> mEntries{};
 
   public:
     // Entry type that this bucket stores
@@ -50,11 +50,19 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     static inline constexpr char const* METRIC_STRING = "bucketlistDB-live";
 
     LiveBucket();
+
+    // Creates an in-memory only bucket with the given entries (no file or
+    // index). This should only be used as a temporary bucket for level 0
+    // merges.
+    LiveBucket(std::unique_ptr<std::vector<BucketEntry>> entries);
+
     virtual ~LiveBucket()
     {
     }
-    LiveBucket(std::string const& filename, Hash const& hash,
-               std::unique_ptr<LiveBucketIndex const>&& index);
+    LiveBucket(
+        std::string const& filename, Hash const& hash,
+        std::shared_ptr<LiveBucketIndex const>&& index,
+        std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.
@@ -163,19 +171,13 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     bool
     hasInMemoryEntries() const
     {
-        return mEntries.has_value();
-    }
-
-    void
-    setInMemoryEntries(std::vector<BucketEntry>&& entries)
-    {
-        mEntries = std::move(entries);
+        return static_cast<bool>(mEntries);
     }
 
     std::vector<BucketEntry> const&
     getInMemoryEntries() const
     {
-        releaseAssertOrThrow(mEntries.has_value());
+        releaseAssertOrThrow(mEntries);
         return *mEntries;
     }
 

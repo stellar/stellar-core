@@ -28,7 +28,7 @@ template <typename BucketT> class VerifyBucketWork : public BasicWork
     uint256 mHash;
     bool mDone{false};
     std::error_code mEc;
-    std::unique_ptr<typename BucketT::IndexT const>& mIndex;
+    std::shared_ptr<typename BucketT::IndexT const>& mIndex;
     void spawnVerifier();
 
     OnFailureCallback mOnFailure;
@@ -36,7 +36,7 @@ template <typename BucketT> class VerifyBucketWork : public BasicWork
   public:
     VerifyBucketWork(Application& app, std::string const& bucketFile,
                      uint256 const& hash,
-                     std::unique_ptr<typename BucketT::IndexT const>& index,
+                     std::shared_ptr<typename BucketT::IndexT const>& index,
                      OnFailureCallback failureCb);
     ~VerifyBucketWork() = default;
 
