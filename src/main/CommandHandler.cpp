@@ -692,8 +692,7 @@ CommandHandler::dumpProposedSettings(std::string const& params,
             return;
         }
 
-        retStr = xdrToCerealString(ptr->toXDR().updatedEntry,
-                                   "ConfigSettingsEntries");
+        retStr = xdrToJson(ptr->toXDR().updatedEntry);
     }
     else
     {
@@ -926,7 +925,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 entries.emplace_back(entry.current().data.configSetting());
             }
 
-            retStr = xdrToCerealString(entries, "ConfigSettingsEntries");
+            retStr = xdrToJson(entries);
         }
         else if (format == "upgrade_xdr")
         {
@@ -1486,8 +1485,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             releaseAssert(addResult.txResult);
-            root["detail"] = xdrToCerealString(
-                addResult.txResult->getResultCode(), "TransactionResultCode");
+            root["detail"] = xdrToJson(addResult.txResult->getResultCode());
         }
     }
     else

@@ -36,7 +36,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     {
         std::string s{
             "Inconsistent state between objects (not found in database): "};
-        s += xdrToCerealString(entry, "live");
+        s += xdrToJson(entry);
         return s;
     }
 
@@ -47,8 +47,8 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     else
     {
         std::string s{"Inconsistent state between objects: "};
-        s += xdrToCerealString(fromDb.current(), "db");
-        s += xdrToCerealString(entry, "live");
+        s += xdrToJson(fromDb.current());
+        s += xdrToJson(entry);
         return s;
     }
 }
@@ -63,7 +63,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
     }
 
     std::string s = "Entry with type DEADENTRY found in database ";
-    s += xdrToCerealString(fromDb.current(), "db");
+    s += xdrToJson(fromDb.current());
     return s;
 }
 
@@ -257,8 +257,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 !BucketEntryIdCmp<LiveBucket>{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
-                s += xdrToCerealString(previousEntry, "previous");
-                s += xdrToCerealString(e, "current");
+                s += "previous " + xdrToJson(previousEntry);
+                s += "current " + xdrToJson(e);
                 return s;
             }
             previousEntry = e;
@@ -272,7 +272,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                         FMT_STRING("lastModifiedLedgerSeq beneath lower"
                                    " bound for this bucket ({:d} < {:d}): "),
                         e.liveEntry().lastModifiedLedgerSeq, oldestLedger);
-                    s += xdrToCerealString(e.liveEntry(), "live");
+                    s += xdrToJson(e.liveEntry());
                     return s;
                 }
                 if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
@@ -281,7 +281,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                         FMT_STRING("lastModifiedLedgerSeq above upper"
                                    " bound for this bucket ({:d} > {:d}): "),
                         e.liveEntry().lastModifiedLedgerSeq, newestLedger);
-                    s += xdrToCerealString(e.liveEntry(), "live");
+                    s += xdrToJson(e.liveEntry());
                     return s;
                 }
 

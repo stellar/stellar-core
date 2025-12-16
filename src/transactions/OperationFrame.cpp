@@ -146,7 +146,7 @@ OperationFrame::apply(
     OperationMetaBuilder& opMeta) const
 {
     ZoneScoped;
-    CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
+    CLOG_TRACE(Tx, "{}", xdrToJson(mOperation));
 
     LedgerSnapshot ltxState(ltx);
     bool applyRes = checkValid(
@@ -166,7 +166,7 @@ OperationFrame::apply(
             applyRes = doApply(app, ltx, res, opMeta);
         }
 
-        CLOG_TRACE(Tx, "{}", xdrToCerealString(res, "OperationResult"));
+        CLOG_TRACE(Tx, "{}", xdrToJson(res));
     }
 
     return applyRes;
@@ -181,7 +181,7 @@ OperationFrame::parallelApply(
     OperationMetaBuilder& opMeta, Hash const& txPrngSeed) const
 {
     ZoneScoped;
-    CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
+    CLOG_TRACE(Tx, "{}", xdrToJson(mOperation));
     // checkValid is called earlier in preParallelApply
 
     return doParallelApply(app, threadState, config, txPrngSeed, ledgerInfo,

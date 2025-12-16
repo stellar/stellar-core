@@ -18,6 +18,9 @@ rustc-simple-version = "=0.1.0"
 # will complain if it does not match)
 rand = "=0.8.5"
 
+stellar-xdr = { version = "=25.0.0-rc.1", default-features = true, features = ["serde"] }
+serde_json = "=1.0"
+
 itertools = "=0.10.5"
 
 # ed25519-dalek for faster signature verification

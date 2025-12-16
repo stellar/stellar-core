@@ -792,7 +792,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 CLOG_INFO(
                     Ledger,
                     "Event Reconciliation - autorestore event, Entry = {}",
-                    xdrToCerealString(events.back(), "event"));
+                    xdrToJson(events.back()));
             }
 
             std::move(success.events.begin(), success.events.end(),

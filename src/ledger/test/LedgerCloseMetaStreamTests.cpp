@@ -521,7 +521,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                     isSoroban ? "-soroban" : ""));
                 normalizeMeta(lcm);
-                std::string have = xdrToCerealString(lcm, "LedgerCloseMeta");
+                std::string have = xdrToJson(lcm);
                 if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
                 {
                     std::ofstream outJson(refJsonPath);

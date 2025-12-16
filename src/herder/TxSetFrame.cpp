@@ -1968,10 +1968,8 @@ TxSetPhaseFrame::txsAreValid(Application& app,
         if (!txResult->isSuccess())
         {
 
-            CLOG_DEBUG(
-                Herder, "Got bad txSet: tx invalid tx: {} result: {}",
-                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
-                txResult->getResultCode());
+            CLOG_DEBUG(Herder, "Got bad txSet: tx invalid tx: {} result: {}",
+                       xdrToJson(tx->getEnvelope()), txResult->getResultCode());
             return false;
         }
     }

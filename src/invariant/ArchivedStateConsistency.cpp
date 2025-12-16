@@ -68,8 +68,8 @@ ArchivedStateConsistency::checkSnapshot(
                     errorMsg = fmt::format(
                         FMT_STRING("ArchivedStateConsistency invariant failed: "
                                    "Live entry is present in both live and "
-                                   "archived state: {}"),
-                        xdrToCerealString(lk, "entry_key"));
+                                   "archived state: entry_key: {}"),
+                        xdrToJson(lk));
                     return Loop::COMPLETE;
                 }
             }
@@ -236,8 +236,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
             return fmt::format(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Archived entry already present in archive: {}"),
-                xdrToCerealString(preexistingEntry->second.archivedEntry(),
-                                  "entry"));
+                xdrToJson(preexistingEntry->second.archivedEntry()));
         }
 
         // Archived entry exists in live state
@@ -247,7 +246,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
             return fmt::format(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Evicted entry does not exist in live state: {}"),
-                xdrToCerealString(lk, "entry_key"));
+                xdrToJson(lk));
         }
 
         // TTL for archived entry exists in live state and is appropriately
@@ -260,8 +259,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "TTL for persistent entry does not exist. "
                            "Entry key: {}, TTL key: {}"),
-                xdrToCerealString(lk, "entry_key"),
-                xdrToCerealString(ttlKey, "ttl_key"));
+                xdrToJson(lk), xdrToJson(ttlKey));
         }
 
         // Check that entry is actually expired
@@ -271,8 +269,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Evicted TTL is still live. "
                            "Entry key: {}, TTL entry: {}"),
-                xdrToCerealString(lk, "entry_key"),
-                xdrToCerealString(ttlIter->second, "ttl_entry"));
+                xdrToJson(lk), xdrToJson(ttlIter->second));
         }
 
         // Check that we're evicting the most up to date version. Only check
@@ -284,11 +281,10 @@ ArchivedStateConsistency::checkEvictionInvariants(
             std::string errorMsg = fmt::format(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Outdated entry evicted. Key: {}"),
-                xdrToCerealString(lk, "entry_key"));
+                xdrToJson(lk));
             errorMsg += fmt::format(
                 FMT_STRING("\nEvicted entry: {}\nCorrect value: {}"),
-                xdrToCerealString(archivedEntry, "evicted"),
-                xdrToCerealString(entryIter->second, "correct"));
+                xdrToJson(archivedEntry), xdrToJson(entryIter->second));
             return errorMsg;
         }
     }
@@ -312,7 +308,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
                     FMT_STRING(
                         "ArchivedStateConsistency invariant failed: "
                         "Evicted temp key does not exist in live state: {}"),
-                    xdrToCerealString(lk, "key"));
+                    xdrToJson(lk));
             }
 
             auto ttlLk = getTTLKey(lk);
@@ -324,8 +320,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
                                "TTL for temp entry does not exist in live "
                                "state. Entry key: {}, "
                                "TTL key: {}"),
-                    xdrToCerealString(lk, "entry_key"),
-                    xdrToCerealString(ttlLk, "ttl_key"));
+                    xdrToJson(lk), xdrToJson(ttlLk));
             }
             else if (isLive(ttlIter->second, ledgerSeq))
             {
@@ -334,8 +329,7 @@ ArchivedStateConsistency::checkEvictionInvariants(
                                "Evicted TTL for temp entry is still live. "
                                "Entry key: {}, "
                                "TTL entry: {}"),
-                    xdrToCerealString(lk, "entry_key"),
-                    xdrToCerealString(ttlIter->second, "ttl_entry"));
+                    xdrToJson(lk), xdrToJson(ttlIter->second));
             }
         }
         else
@@ -384,7 +378,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from live state is not a persistent "
                            "entry: {}"),
-                xdrToCerealString(key, "key"));
+                xdrToJson(key));
         }
         else if (restoredFromLiveState.find(getTTLKey(key)) ==
                  restoredFromLiveState.end())
@@ -393,7 +387,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING(
                     "ArchivedStateConsistency invariant failed: "
                     "TTL for restored entry from live state is missing: {}"),
-                xdrToCerealString(getTTLKey(key), "ttl_key"));
+                xdrToJson(getTTLKey(key)));
         }
     }
 
@@ -412,7 +406,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from archive is not a persistent "
                            "entry: {}"),
-                xdrToCerealString(key, "key"));
+                xdrToJson(key));
         }
         else if (restoredFromArchive.find(getTTLKey(key)) ==
                  restoredFromArchive.end())
@@ -421,7 +415,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING(
                     "ArchivedStateConsistency invariant failed: "
                     "TTL for restored entry from archive is missing: {}"),
-                xdrToCerealString(getTTLKey(key), "ttl_key"));
+                xdrToJson(getTTLKey(key)));
         }
     }
 
@@ -435,7 +429,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING(
                     "ArchivedStateConsistency invariant failed: "
                     "Restored entry from archive is still in live state: {}"),
-                xdrToCerealString(key, "key"));
+                xdrToJson(key));
         }
 
         if (key.type() == TTL)
@@ -450,7 +444,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from archive does not exist in hot "
                            "archive: {}"),
-                xdrToCerealString(key, "key"));
+                xdrToJson(key));
         }
         // Skip this check prior to protocol 24, since there was a bug in 23
         // Don't check lastModifiedLedgerSeq, since it may have been updated by
@@ -467,9 +461,8 @@ ArchivedStateConsistency::checkRestoreInvariants(
                                "Restored entry from archive has incorrect "
                                "value: Entry to "
                                "Restore: {}, Hot Archive Entry: {}"),
-                    xdrToCerealString(entry, "entry_to_restore"),
-                    xdrToCerealString(hotArchiveEntry->second.archivedEntry(),
-                                      "hot_archive_entry"));
+                    xdrToJson(entry),
+                    xdrToJson(hotArchiveEntry->second.archivedEntry()));
             }
         }
     }
@@ -486,9 +479,8 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from live BucketList exists in hot "
                            "archive: Live Entry: {}, Hot Archive Entry: {}"),
-                xdrToCerealString(entry, "live_entry"),
-                xdrToCerealString(hotArchiveEntry->second.archivedEntry(),
-                                  "hot_archive_entry"));
+                xdrToJson(entry),
+                xdrToJson(hotArchiveEntry->second.archivedEntry()));
         }
 
         auto liveEntry = preloadedLiveEntries.find(key);
@@ -498,7 +490,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from live BucketList does not exist "
                            "in live state: {}"),
-                xdrToCerealString(key, "key"));
+                xdrToJson(key));
         }
         else if (liveEntry->second != entry)
         {
@@ -506,8 +498,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from live BucketList has incorrect "
                            "value: Live Entry: {}, Entry to Restore: {}"),
-                xdrToCerealString(liveEntry->second.data, "live_entry"),
-                xdrToCerealString(entry, "entry_to_restore"));
+                xdrToJson(liveEntry->second.data), xdrToJson(entry));
         }
 
         if (key.type() == TTL && isLive(entry, ledgerSeq))
@@ -516,8 +507,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
                            "Restored entry from live BucketList is not "
                            "expired: Entry: {}, TTL Entry: {}"),
-                xdrToCerealString(entry, "entry"),
-                xdrToCerealString(entry, "ttl_entry"));
+                xdrToJson(entry), xdrToJson(entry));
         }
     }
 

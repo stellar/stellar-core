@@ -14,10 +14,9 @@ namespace Catch
 std::string
 StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 {
-    return fmt::format("{}, {}, {}, amount: {}, type: {}",
-                       xdrToCerealString(os.selling, "selling"),
-                       xdrToCerealString(os.buying, "buying"),
-                       xdrToCerealString(os.price, "price"), os.amount,
+    return fmt::format("selling {}, buying {}, price {}, amount: {}, type: {}",
+                       xdrToJson(os.selling), xdrToJson(os.buying),
+                       xdrToJson(os.price), os.amount,
                        os.type == stellar::OfferType::PASSIVE ? "passive"
                                                               : "active");
 }

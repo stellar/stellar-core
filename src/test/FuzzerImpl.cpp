@@ -1056,8 +1056,7 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                 fmt::format(FMT_STRING("Error {} while setting up fuzzing -- "
                                        "{}"),
                             txFramePtr->getResultCode(),
-                            xdrToCerealString(txFramePtr->getResult(),
-                                              "TransactionResult"));
+                            xdrToJson(txFramePtr->getResult()));
             LOG_FATAL(DEFAULT_LOG, "{}", msg);
             throw std::runtime_error(msg);
         }
@@ -1085,8 +1084,7 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                 auto const msg = fmt::format(
                     FMT_STRING("Manage offer result {} while setting "
                                "up fuzzing -- {}"),
-                    xdrToCerealString(tr, "Operation"),
-                    xdrToCerealString(op, "Operation"));
+                    xdrToJson(tr), xdrToJson(op));
                 LOG_FATAL(DEFAULT_LOG, "{}", msg);
                 throw std::runtime_error(msg);
             }
@@ -2026,8 +2024,7 @@ TransactionFuzzer::inject(std::string const& filename)
     }
 
     resetTxInternalState(*mApp);
-    LOG_TRACE(DEFAULT_LOG, "{}",
-              xdrToCerealString(ops, fmt::format("Fuzz ops ({})", ops.size())));
+    LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({})", ops.size(), xdrToJson(ops));
 
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);

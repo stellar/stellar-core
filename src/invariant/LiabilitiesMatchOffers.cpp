@@ -101,10 +101,9 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
 
                 if (sellingLiabilitiesInc || buyingLiabilitiesInc)
                 {
-                    return fmt::format(
-                        FMT_STRING("Liabilities increased on "
-                                   "unauthorized trust line {}"),
-                        xdrToCerealString(trust, "TrustLineEntry"));
+                    return fmt::format(FMT_STRING("Liabilities increased on "
+                                                  "unauthorized trust line {}"),
+                                       xdrToJson(trust));
                 }
             }
             else
@@ -115,7 +114,7 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
                     return fmt::format(
                         FMT_STRING(
                             "Unauthorized trust line has liabilities {}"),
-                        xdrToCerealString(trust, "TrustLineEntry"));
+                        xdrToJson(trust));
                 }
             }
         }
@@ -264,7 +263,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
                 return fmt::format(
                     FMT_STRING(
                         "Balance not compatible with liabilities for {}"),
-                    xdrToCerealString(account, "AccountEntry"));
+                    xdrToJson(account));
             }
         }
     }
@@ -282,7 +281,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
         {
             return fmt::format(
                 FMT_STRING("Balance not compatible with liabilities for {}"),
-                xdrToCerealString(trust, "TrustLineEntry"));
+                xdrToJson(trust));
         }
     }
     return {};
@@ -356,8 +355,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(
                                    "change in total buying liabilities of "
                                    "offers by {:d} for {} in {}"),
                         assetLiabilities.second.buying,
-                        xdrToCerealString(accLiabilities.first, "account"),
-                        xdrToCerealString(assetLiabilities.first, "asset"));
+                        xdrToJson(accLiabilities.first),
+                        xdrToJson(assetLiabilities.first));
                 }
                 else if (assetLiabilities.second.selling != 0)
                 {
@@ -367,8 +366,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(
                             "change in total selling liabilities of "
                             "offers by {:d} for {} in {}"),
                         assetLiabilities.second.selling,
-                        xdrToCerealString(accLiabilities.first, "account"),
-                        xdrToCerealString(assetLiabilities.first, "asset"));
+                        xdrToJson(accLiabilities.first),
+                        xdrToJson(assetLiabilities.first));
                 }
             }
         }
