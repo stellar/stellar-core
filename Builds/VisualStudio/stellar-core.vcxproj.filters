@@ -1275,7 +1275,7 @@
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp">
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
@@ -1336,9 +1336,6 @@
     <ClCompile Include="..\..\src\bucket\BucketListBase.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketListSnapshotBase.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\HotArchiveBucket.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -1349,9 +1346,6 @@
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\LiveBucketList.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\SearchableBucketList.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketManager.cpp">
@@ -2382,9 +2376,6 @@
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketSnapshot.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
       <Filter>bucket</Filter>
     </ClInclude>
@@ -2442,7 +2433,7 @@
     <ClInclude Include="..\..\src\bucket\BucketListBase.h">
       <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketListSnapshotBase.h">
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\HotArchiveBucket.h">
@@ -2455,9 +2446,6 @@
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\LiveBucketList.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\SearchableBucketList.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketUtils.h">

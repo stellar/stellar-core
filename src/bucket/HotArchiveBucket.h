@@ -94,6 +94,6 @@ class HotArchiveBucket
     convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
                          std::vector<LedgerKey> const& restoredEntries);
 
-    friend class HotArchiveBucketSnapshot;
+    friend class SearchableHotArchiveBucketListSnapshot;
 };
 }

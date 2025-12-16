@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/OverlayManagerImpl.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
