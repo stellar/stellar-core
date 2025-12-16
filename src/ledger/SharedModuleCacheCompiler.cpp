@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/SharedModuleCacheCompiler.h"
-#include "bucket/SearchableBucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "rust/RustBridge.h"

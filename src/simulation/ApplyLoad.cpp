@@ -20,7 +20,10 @@
 
 #include "herder/HerderImpl.h"
 
-#include "bucket/BucketListSnapshotBase.h"
+#include "medida/metrics_registry.h"
+
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

@@ -1,13 +1,12 @@
+#pragma once
+
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#pragma once
-
-#include "bucket/BucketManager.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
-#include "main/AppConnector.h"
 #include "util/NonCopyable.h"
 #include "util/ThreadAnnotations.h"
 
@@ -25,17 +24,9 @@ class Timer;
 namespace stellar
 {
 
+class AppConnector;
 class LiveBucketList;
-template <class BucketT> class BucketListSnapshot;
-class SearchableLiveBucketListSnapshot;
-class SearchableHotArchiveBucketListSnapshot;
-
-template <class BucketT>
-using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
-using SearchableSnapshotConstPtr =
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
-using SearchableHotArchiveSnapshotConstPtr =
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
+class HotArchiveBucketList;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
@@ -51,14 +42,17 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
     // snapshot, they will copy this snapshot.
-    SnapshotPtrT<LiveBucket> mCurrLiveSnapshot GUARDED_BY(mSnapshotMutex){};
-    SnapshotPtrT<HotArchiveBucket>
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const>
+        mCurrLiveSnapshot GUARDED_BY(mSnapshotMutex){};
+    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>
         mCurrHotArchiveSnapshot GUARDED_BY(mSnapshotMutex){};
 
     // ledgerSeq that the snapshot is based on -> snapshot
-    std::map<uint32_t, SnapshotPtrT<LiveBucket>>
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
         mLiveHistoricalSnapshots GUARDED_BY(mSnapshotMutex);
-    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
         mHotArchiveHistoricalSnapshots GUARDED_BY(mSnapshotMutex);
 
     uint32_t const mNumHistoricalSnapshots;
@@ -66,17 +60,17 @@ class BucketSnapshotManager : NonMovableOrCopyable
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
-    void
-    updateCurrentSnapshot(SnapshotPtrT<LiveBucket>&& liveSnapshot,
-                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
+    void updateCurrentSnapshot(LiveBucketList const& liveBL,
+                               HotArchiveBucketList const& hotArchiveBL,
+                               LedgerHeader const& header)
         LOCKS_EXCLUDED(mSnapshotMutex);
 
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].
-    BucketSnapshotManager(AppConnector& app,
-                          SnapshotPtrT<LiveBucket>&& snapshot,
-                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
+    BucketSnapshotManager(AppConnector& app, LiveBucketList const& liveBL,
+                          HotArchiveBucketList const& hotArchiveBL,
+                          LedgerHeader const& header,
                           uint32_t numHistoricalLedgers);
 
     // Copy the most recent snapshot for the live bucket list
@@ -85,7 +79,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     // Create a deep copy from an existing searchable snapshot
     static SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot(
-        SearchableSnapshotConstPtr const& snapshot);
+        SearchableSnapshotConstPtr const& snapshot,
+        medida::MetricsRegistry& metrics);
 
     // Create a deep copy from an existing searchable hot archive snapshot
     static SearchableHotArchiveSnapshotConstPtr
