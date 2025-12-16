@@ -1,4 +1,5 @@
 #include "main/AppConnector.h"
+#include "bucket/BucketManager.h"
 #include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"

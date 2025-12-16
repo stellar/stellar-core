@@ -10,6 +10,7 @@
 
 #include <limits>
 
+#include "bucket/BucketManager.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"

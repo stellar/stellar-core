@@ -774,10 +774,24 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
 
     // Note: No race condition acquiring app by reference, as all worker
     // threads are joined before application destruction.
-    auto cb = [ledgerState = ledgerState, &app = mApp,
+    //
+    // Create fresh snapshot copies for the background thread, since snapshots
+    // themselves aren't thread safe.
+    auto liveSnapshotCopy =
+        BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+            liveBLSnapshot, mApp.getMetrics());
+    auto hotArchiveSnapshotCopy =
+        BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+            hotArchiveSnapshot, mApp.getMetrics());
+    auto ledgerStateCopy = std::make_shared<CompleteConstLedgerState const>(
+        std::move(liveSnapshotCopy), std::move(hotArchiveSnapshotCopy),
+        ledgerState->getLastClosedLedgerHeader(),
+        ledgerState->getLastClosedHistoryArchiveState());
+
+    auto cb = [ledgerStateCopy = std::move(ledgerStateCopy), &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant);
+            ledgerStateCopy, *inMemorySnapshotForInvariant);
     };
 
     if (runInParallel)
@@ -1048,7 +1062,7 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
         }
     }
     mCompiler = std::make_unique<SharedModuleCacheCompiler>(
-        snap, mNumCompilationThreads, versions);
+        snap, mAppConnector.getMetrics(), mNumCompilationThreads, versions);
     mCompiler->start();
 }
 
@@ -1789,7 +1803,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // BucketSnapshotManager.
         auto latestSnapshot =
             BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-                appliedLedgerState->getBucketSnapshot());
+                appliedLedgerState->getBucketSnapshot(), mApp.getMetrics());
         mApp.getBucketManager().startBackgroundEvictionScan(
             latestSnapshot, appliedLedgerState->getSorobanConfig());
     }
@@ -2069,14 +2083,9 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     lcl.hash = ledgerHash;
 
     auto& bm = mApp.getBucketManager();
-    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-        bm.getLiveBucketList(), header);
-    auto hotArchiveSnapshot =
-        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-            bm.getHotArchiveBucketList(), header);
     // Updating BL snapshot is thread-safe
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
-        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+        bm.getLiveBucketList(), bm.getHotArchiveBucketList(), header);
 
     return std::make_shared<CompleteConstLedgerState const>(
         bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),

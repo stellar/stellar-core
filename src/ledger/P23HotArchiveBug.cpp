@@ -7,11 +7,13 @@
 #include <array>
 #include <string>
 
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
-#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include <xdrpp/printer.h>
 

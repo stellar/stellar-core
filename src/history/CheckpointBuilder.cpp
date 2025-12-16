@@ -1,4 +1,5 @@
 #include "history/CheckpointBuilder.h"
+#include "bucket/BucketManager.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
