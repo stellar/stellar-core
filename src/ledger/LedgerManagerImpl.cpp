@@ -774,10 +774,24 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
 
     // Note: No race condition acquiring app by reference, as all worker
     // threads are joined before application destruction.
-    auto cb = [ledgerState = ledgerState, &app = mApp,
+    //
+    // Create fresh snapshot copies for the background thread, since snapshots
+    // themselves aren't thread safe.
+    auto liveSnapshotCopy =
+        BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+            liveBLSnapshot, mApp.getMetrics());
+    auto hotArchiveSnapshotCopy =
+        BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+            hotArchiveSnapshot, mApp.getMetrics());
+    auto ledgerStateCopy = std::make_shared<CompleteConstLedgerState const>(
+        std::move(liveSnapshotCopy), std::move(hotArchiveSnapshotCopy),
+        ledgerState->getLastClosedLedgerHeader(),
+        ledgerState->getLastClosedHistoryArchiveState());
+
+    auto cb = [ledgerStateCopy = std::move(ledgerStateCopy), &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant);
+            ledgerStateCopy, *inMemorySnapshotForInvariant);
     };
 
     if (runInParallel)
@@ -1048,7 +1062,7 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
         }
     }
     mCompiler = std::make_unique<SharedModuleCacheCompiler>(
-        snap, mNumCompilationThreads, versions);
+        snap, mAppConnector.getMetrics(), mNumCompilationThreads, versions);
     mCompiler->start();
 }
 

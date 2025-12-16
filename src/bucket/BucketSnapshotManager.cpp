@@ -71,6 +71,18 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+    SearchableHotArchiveSnapshotConstPtr const& snapshot,
+    medida::MetricsRegistry& metrics)
+{
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
+        new SearchableHotArchiveBucketListSnapshot(
+            metrics, snapshot->getSnapshotData(),
+            snapshot->getHistoricalSnapshots()));
+}
+
+SearchableHotArchiveSnapshotConstPtr
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     SharedLockShared const& guard) const
 {
     releaseAssert(mCurrHotArchiveSnapshot);
