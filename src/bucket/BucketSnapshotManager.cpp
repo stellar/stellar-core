@@ -71,15 +71,14 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
-    SearchableHotArchiveSnapshotConstPtr const& snapshot)
+    SearchableHotArchiveSnapshotConstPtr const& snapshot,
+    medida::MetricsRegistry& metrics)
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(
-            snapshot->mAppConnector,
-            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                snapshot->getSnapshot()),
-            copyHistoricalSnapshots(snapshot->getHistoricalSnapshots())));
+            metrics, snapshot->getSnapshotData(),
+            snapshot->getHistoricalSnapshots()));
 }
 
 SearchableHotArchiveSnapshotConstPtr

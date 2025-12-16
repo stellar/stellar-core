@@ -19,11 +19,14 @@ namespace stellar
 size_t const SharedModuleCacheCompiler::BUFFERED_WASM_CAPACITY =
     100 * 1024 * 1024;
 
+// The snapshot is copied here to ensure the background loading thread has its
+// own instance since snapshots themselves aren't thread safe.
 SharedModuleCacheCompiler::SharedModuleCacheCompiler(
-    SearchableSnapshotConstPtr snap, size_t numThreads,
-    std::vector<uint32_t> const& ledgerVersions)
+    SearchableSnapshotConstPtr snap, medida::MetricsRegistry& metrics,
+    size_t numThreads, std::vector<uint32_t> const& ledgerVersions)
     : mModuleCache(rust_bridge::new_module_cache())
-    , mSnap(snap)
+    , mSnap(BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+          snap, metrics))
     , mNumThreads(numThreads)
     , mLedgerVersions(ledgerVersions)
     , mStarted(std::chrono::steady_clock::now())
@@ -146,6 +149,7 @@ SharedModuleCacheCompiler::start()
         ZoneScopedN("load wasm contracts");
         std::unordered_set<Hash> seenContracts;
         size_t liveContracts{0};
+        // Note: this access is safe since we only have a single loading thread.
         this->mSnap->scanForEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 Hash h;

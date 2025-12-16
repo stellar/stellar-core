@@ -1067,7 +1067,7 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
         }
     }
     mCompiler = std::make_unique<SharedModuleCacheCompiler>(
-        snap, mNumCompilationThreads, versions);
+        snap, mAppConnector.getMetrics(), mNumCompilationThreads, versions);
     mCompiler->start();
 }
 
