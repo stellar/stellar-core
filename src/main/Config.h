@@ -535,8 +535,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Check signatures in the background for transactions received
     // over the network. Does nothing if `BACKGROUND_OVERLAY_PROCESSING` is not
-    // also enabled. (experimental)
-    bool EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION;
+    // also enabled.
+    bool BACKGROUND_TX_SIG_VERIFICATION;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.

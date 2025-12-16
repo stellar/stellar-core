@@ -3273,7 +3273,7 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
                 auto cfg = getTestConfig(i);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
                 cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
                 return cfg;
             });
@@ -3384,7 +3384,7 @@ TEST_CASE("randomized parallel features with jitter injection",
                         auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
-                        cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                        cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
                         cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
@@ -3404,7 +3404,7 @@ TEST_CASE("randomized parallel features with jitter injection",
                         auto cfg = getTestConfig(i);
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
-                        cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+                        cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
                         cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;

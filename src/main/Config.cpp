@@ -171,7 +171,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKGROUND_OVERLAY_PROCESSING = true;
     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
-    EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = false;
+    BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
@@ -1120,9 +1120,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
-                     EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION =
-                         readBool(item);
+                     CLOG_WARNING(Overlay,
+                                  "EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION "
+                                  "has been renamed. Please use "
+                                  "BACKGROUND_TX_SIG_VERIFICATION instead.");
                  }},
+                {"BACKGROUND_TX_SIG_VERIFICATION",
+                 [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =

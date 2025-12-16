@@ -3096,7 +3096,7 @@ TEST_CASE("background signature verification with missing account",
         Simulation::OVER_TCP, networkID, [](int i) {
             Config cfg = getTestConfig(i);
             cfg.BACKGROUND_OVERLAY_PROCESSING = true;
-            cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+            cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
             return cfg;
         });
 
@@ -3166,7 +3166,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
     // Common test setup
     VirtualClock clock;
     Config cfg = getTestConfig();
-    cfg.EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = true;
+    cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
     auto app = createTestApplication(clock, cfg);
 
     constexpr int64_t INITIAL_BALANCE = 10000000000;
