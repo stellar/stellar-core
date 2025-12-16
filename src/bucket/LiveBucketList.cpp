@@ -115,7 +115,7 @@ bool
 LiveBucketList::updateEvictionIterAndRecordStats(
     EvictionIterator& iter, EvictionIterator startIter,
     uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-    std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters)
+    std::shared_ptr<EvictionStatistics> stats, EvictionMetrics& metrics)
 {
     releaseAssert(stats);
 
@@ -140,7 +140,7 @@ LiveBucketList::updateEvictionIterAndRecordStats(
             iter.bucketListLevel = configFirstScanLevel;
 
             // Record then reset metrics at beginning of new eviction cycle
-            stats->submitMetricsAndRestartCycle(ledgerSeq, counters);
+            stats->submitMetricsAndRestartCycle(ledgerSeq, metrics);
         }
     }
 
@@ -158,7 +158,7 @@ void
 LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
                                            uint32_t scanSize,
                                            std::shared_ptr<LiveBucket const> b,
-                                           EvictionCounters& counters)
+                                           EvictionMetrics& metrics)
 {
     // Check to see if we can finish scanning the new bucket before it
     // receives an update
@@ -168,7 +168,7 @@ LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
     {
         CLOG_WARNING(Bucket,
                      "Bucket too large for current eviction scan size.");
-        counters.incompleteBucketScan.inc();
+        metrics.incompleteBucketScan.inc();
     }
 }
 }

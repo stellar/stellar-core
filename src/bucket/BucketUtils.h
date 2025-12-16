@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <list>
 #include <map>
+#include <medida/timer.h>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -149,15 +150,17 @@ struct EvictedStateVectors
     std::vector<LedgerEntry> archivedEntries;
 };
 
-struct EvictionCounters
+struct EvictionMetrics
 {
     medida::Counter& entriesEvicted;
     medida::Counter& bytesScannedForEviction;
     medida::Counter& incompleteBucketScan;
     medida::Counter& evictionCyclePeriod;
     medida::Counter& averageEvictedEntryAge;
+    medida::Timer& blockingTime;
+    medida::Timer& backgroundTime;
 
-    EvictionCounters(AppConnector& app);
+    EvictionMetrics(AppConnector& app);
 };
 
 class EvictionStatistics
@@ -177,7 +180,7 @@ class EvictionStatistics
     void recordEvictedEntry(uint64_t age);
 
     void submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
-                                      EvictionCounters& counters);
+                                      EvictionMetrics& metrics);
 };
 
 // Enum for more granular LedgerEntry types for Bucket metric reporting.
