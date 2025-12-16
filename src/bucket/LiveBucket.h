@@ -188,6 +188,6 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
 
     BucketEntryCounters const& getBucketEntryCounters() const;
 
-    friend class LiveBucketSnapshot;
+    friend class SearchableLiveBucketListSnapshot;
 };
 }

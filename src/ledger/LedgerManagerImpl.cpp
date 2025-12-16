@@ -1786,7 +1786,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // BucketSnapshotManager.
         auto latestSnapshot =
             BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-                appliedLedgerState->getBucketSnapshot());
+                appliedLedgerState->getBucketSnapshot(), mApp.getMetrics());
         mApp.getBucketManager().startBackgroundEvictionScan(
             latestSnapshot, appliedLedgerState->getSorobanConfig());
     }
@@ -2066,14 +2066,9 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     lcl.hash = ledgerHash;
 
     auto& bm = mApp.getBucketManager();
-    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-        bm.getLiveBucketList(), header);
-    auto hotArchiveSnapshot =
-        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-            bm.getHotArchiveBucketList(), header);
     // Updating BL snapshot is thread-safe
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
-        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+        bm.getLiveBucketList(), bm.getHotArchiveBucketList(), header);
 
     return std::make_shared<CompleteConstLedgerState const>(
         bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),

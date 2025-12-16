@@ -26,7 +26,6 @@ class Application;
 class AppConnector;
 class LiveBucket;
 class HotArchiveBucket;
-template <class BucketT> class BucketListSnapshot;
 class SearchableLiveBucketListSnapshot;
 class SearchableHotArchiveBucketListSnapshot;
 
@@ -35,9 +34,6 @@ class SearchableHotArchiveBucketListSnapshot;
                       std::is_same_v<BucketT, HotArchiveBucket>, \
                   "BucketT must be a Bucket type")
 
-// BucketList types
-template <class BucketT>
-using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
 using SearchableSnapshotConstPtr =
     std::shared_ptr<SearchableLiveBucketListSnapshot const>;
 using SearchableHotArchiveSnapshotConstPtr =

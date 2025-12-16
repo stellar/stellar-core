@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <xdrpp/printer.h>
 
+#include "bucket/BucketManager.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"

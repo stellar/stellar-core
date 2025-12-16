@@ -20,6 +20,8 @@ class io_context;
 namespace stellar
 {
 
+template <class BucketT> class SearchableBucketListSnapshot;
+
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
  * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>
@@ -156,6 +158,6 @@ class BucketBase : public NonMovableOrCopyable
 
 #endif // BUILD_TESTS
 
-    template <class T> friend class BucketSnapshotBase;
+    template <class T> friend class SearchableBucketListSnapshot;
 };
 }

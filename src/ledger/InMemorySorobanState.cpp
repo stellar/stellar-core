@@ -3,11 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/InMemorySorobanState.h"
-#include "bucket/SearchableBucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
 #include <cstdint>
+#include <medida/counter.h>
 
 namespace stellar
 {

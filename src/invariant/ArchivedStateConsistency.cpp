@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/ArchivedStateConsistency.h"
-#include "bucket/BucketSnapshot.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LedgerCmp.h"
