@@ -101,18 +101,33 @@ jobs:
             ~/.cargo
             build-${{matrix.toolchain}}-${{matrix.protocol}}
 
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: ./install-rust.sh
 
       - name: install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: rustup component add rustfmt
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-cache
           version: 0.8.3
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-sweep
           version: 0.7.0
@@ -120,6 +135,7 @@ jobs:
       # Restore original modification time of files based on the date of the most
       # recent commit that modified them as mtimes affect the Go test cache.
       - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         shell: bash
         run: |
           # Set a base, fixed modification time of all directories.
@@ -135,6 +151,7 @@ jobs:
           git restore-mtime
 
       - name: Build
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             export CC='gcc'
@@ -145,6 +162,11 @@ jobs:
           fi
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+
+      - name: Record successful test commit
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
 
   build-mac:
     runs-on:
@@ -164,23 +186,38 @@ jobs:
             ~/.cargo
             build-clang-current
 
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-clang-current/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: install prerequisites and uninstall brew rust, add rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
           brew uninstall rust rustup
           brew install rustup
 
       - name: install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           rustup-init -y
           rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-cache
           version: 0.8.3
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-sweep
           version: 0.7.0
@@ -188,6 +225,7 @@ jobs:
       # Restore original modification time of files based on the date of the most
       # recent commit that modified them as mtimes affect the Go test cache.
       - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         shell: bash
         run: |
           # Set a base, fixed modification time of all directories.
@@ -201,6 +239,7 @@ jobs:
           git restore-mtime
 
       - name: Build
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
@@ -210,3 +249,8 @@ jobs:
           export CLANG_VERSION=none
           export SKIP_FORMAT_CHECK=1
           ./ci-build.sh --disable-postgres --protocol current
+
+      - name: Record successful test commit
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"
