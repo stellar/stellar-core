@@ -253,7 +253,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
     if (initNewDB)
     {
-        mBucketManager->dropAll();
+        mBucketManager->maybeDropAndCreateNew();
     }
 
     mDatabase = createDatabase();

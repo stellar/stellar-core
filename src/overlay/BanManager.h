@@ -21,7 +21,7 @@ class BanManager
 {
   public:
     static std::unique_ptr<BanManager> create(Application& app);
-    static void dropAll(SessionWrapper& sess);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
 
     // Ban given node
     virtual void banNode(NodeID nodeID) = 0;

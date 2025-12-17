@@ -35,6 +35,6 @@ void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count);
 size_t copyToStream(soci::session& sess, uint32_t ledgerSeq,
                     uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder);
 
-void dropAll(Database& db);
+void maybeDropAndCreateNew(Database& db);
 }
 }
