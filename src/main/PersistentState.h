@@ -39,7 +39,7 @@ class PersistentState
         kLastEntry,
     };
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(Database& db);
     static void createMisc(Database& db);
 
     std::string getState(Entry stateName, SessionWrapper& session);

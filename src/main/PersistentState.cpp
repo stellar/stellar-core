@@ -71,7 +71,7 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
 }
 
 void
-PersistentState::dropAll(Database& db)
+PersistentState::maybeDropAndCreateNew(Database& db)
 {
     releaseAssert(threadIsMain());
     db.getRawSession() << "DROP TABLE IF EXISTS storestate;";

@@ -115,7 +115,7 @@ BanManagerImpl::getBans()
 }
 
 void
-BanManager::dropAll(SessionWrapper& sess)
+BanManager::maybeDropAndCreateNew(SessionWrapper& sess)
 {
     sess.session() << "DROP TABLE IF EXISTS ban";
 

@@ -299,10 +299,10 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
     {
     case 1:
         // Create tables for the first time.
-        OverlayManager::dropAll(mMiscSession);
+        OverlayManager::maybeDropAndCreateNew(mMiscSession);
         PersistentState::createMisc(*this);
-        HerderPersistence::dropAll(mMiscSession.session());
-        BanManager::dropAll(mMiscSession);
+        HerderPersistence::maybeDropAndCreateNew(mMiscSession.session());
+        BanManager::maybeDropAndCreateNew(mMiscSession);
         // Copy contents from the main DB.
         populateMiscDatabase();
         break;
@@ -608,12 +608,12 @@ Database::initialize()
     // consolidating changes found in applySchemaUpgrade here
 
     // Note: once the network is on schema version 26+, session parameter in
-    // dropAll methods can be removed.
-    OverlayManager::dropAll(mSession);
-    PersistentState::dropAll(*this);
-    LedgerHeaderUtils::dropAll(*this);
-    HerderPersistence::dropAll(mSession.session());
-    BanManager::dropAll(mSession);
+    // maybeDropAndCreateNew methods can be removed.
+    OverlayManager::maybeDropAndCreateNew(mSession);
+    PersistentState::maybeDropAndCreateNew(*this);
+    LedgerHeaderUtils::maybeDropAndCreateNew(*this);
+    HerderPersistence::maybeDropAndCreateNew(mSession.session());
+    BanManager::maybeDropAndCreateNew(mSession);
     putMainSchemaVersion(MIN_SCHEMA_VERSION);
 
     LOG_INFO(DEFAULT_LOG, "* ");

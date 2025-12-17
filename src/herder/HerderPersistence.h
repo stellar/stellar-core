@@ -46,7 +46,7 @@ class HerderPersistence
     static SCPQuorumSetPtr getQuorumSet(soci::session& sess,
                                         Hash const& qSetHash);
 
-    static void dropAll(soci::session& sess);
+    static void maybeDropAndCreateNew(soci::session& sess);
     static void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq,
                                  uint32_t count);
 };

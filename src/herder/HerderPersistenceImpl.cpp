@@ -376,7 +376,7 @@ HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
 }
 
 void
-HerderPersistence::dropAll(soci::session& sess)
+HerderPersistence::maybeDropAndCreateNew(soci::session& sess)
 {
     ZoneScoped;
     sess << "DROP TABLE IF EXISTS scphistory";

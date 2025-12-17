@@ -77,7 +77,7 @@ class PeerManager
         INCREASE
     };
 
-    static void dropAll(SessionWrapper& sess);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
 
     explicit PeerManager(Application& app);
 

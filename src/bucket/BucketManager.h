@@ -226,7 +226,7 @@ class BucketManager : NonMovableOrCopyable
     virtual ~BucketManager();
 
     void initialize();
-    void dropAll();
+    void maybeDropAndCreateNew();
     std::string bucketIndexFilename(Hash const& hash) const;
     std::string const& getTmpDir();
     TmpDirManager& getTmpDirManager();

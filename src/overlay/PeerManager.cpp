@@ -579,7 +579,7 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
 }
 
 void
-PeerManager::dropAll(SessionWrapper& db)
+PeerManager::maybeDropAndCreateNew(SessionWrapper& db)
 {
     db.session() << "DROP TABLE IF EXISTS peers;";
     db.session() << kSQLCreateStatement;
