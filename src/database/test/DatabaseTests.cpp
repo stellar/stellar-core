@@ -11,6 +11,9 @@
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/PersistentState.h"
+#include "overlay/BanManager.h"
+#include "overlay/OverlayManager.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -357,4 +360,219 @@ TEST_CASE("schema test", "[db]")
     auto& db = app->getDatabase();
     auto dbv = db.getMainDBSchemaVersion();
     REQUIRE(dbv == SCHEMA_VERSION);
+}
+
+TEST_CASE("getMiscDBName handles various file extensions", "[db]")
+{
+    SECTION("Standard .db extension")
+    {
+        std::string result = Database::getMiscDBName("stellar.db");
+        REQUIRE(result == "stellar-misc.db");
+    }
+
+    SECTION("SQLite3 extension")
+    {
+        std::string result = Database::getMiscDBName("stellar.sqlite3");
+        REQUIRE(result == "stellar-misc.sqlite3");
+    }
+
+    SECTION("SQLite extension")
+    {
+        std::string result = Database::getMiscDBName("stellar.sqlite");
+        REQUIRE(result == "stellar-misc.sqlite");
+    }
+
+    SECTION("No extension")
+    {
+        std::string result = Database::getMiscDBName("stellar");
+        REQUIRE(result == "stellar-misc.db");
+    }
+
+    SECTION("Multiple dots in filename")
+    {
+        std::string result = Database::getMiscDBName("stellar.backup.db");
+        REQUIRE(result == "stellar.backup-misc.db");
+    }
+
+    SECTION("Path with directories")
+    {
+        std::string result = Database::getMiscDBName("/path/to/stellar.db");
+        REQUIRE(result == "/path/to/stellar-misc.db");
+    }
+}
+
+TEST_CASE("Database splitting migration works correctly", "[db]")
+{
+    TmpDir tmpDir("db-migration-test");
+    Config cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    cfg.DATABASE = SecretValue{"sqlite3://" + tmpDir.getName() + "/test.db"};
+
+    VirtualClock clock;
+    // Set startApp to false to trigger migration manually
+    Application::pointer app = createTestApplication(
+        clock, cfg, /* newDB */ true, /* startApp */ false);
+
+    releaseAssert(app->getDatabase().canUseMiscDB());
+
+    SECTION("Fresh database creates misc DB correctly")
+    {
+        app->getDatabase().initialize();
+        app->getDatabase().upgradeToCurrentSchema();
+
+        // Verify schema versions
+        REQUIRE(app->getDatabase().getMainDBSchemaVersion() == SCHEMA_VERSION);
+        REQUIRE(app->getDatabase().getMiscDBSchemaVersion() ==
+                MISC_SCHEMA_VERSION);
+    }
+
+    SECTION("Migrate data to Misc DB")
+    {
+        app->getDatabase().initialize();
+
+        auto& db = app->getDatabase();
+
+        // Helper to execute SQL on a session
+        auto execSQL = [&](std::string const& sql, SessionWrapper& session) {
+            auto prep = db.getPreparedStatement(sql, session);
+            auto& st = prep.statement();
+            st.define_and_bind();
+            st.execute(true);
+        };
+
+        // Helper to count rows in a table
+        auto countRows = [&](std::string const& table,
+                             SessionWrapper& session) {
+            int count = 0;
+            auto prep = db.getPreparedStatement("SELECT COUNT(*) FROM " + table,
+                                                session);
+            auto& st = prep.statement();
+            st.exchange(soci::into(count));
+            st.define_and_bind();
+            st.execute(true);
+            return count;
+        };
+
+        // Helper to check if table exists in a session
+        auto tableExists = [&](std::string const& table,
+                               SessionWrapper& session) {
+            int count = 0;
+            auto prep = db.getPreparedStatement(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND "
+                "name='" +
+                    table + "'",
+                session);
+            auto& st = prep.statement();
+            st.exchange(soci::into(count));
+            st.define_and_bind();
+            st.execute(true);
+            return count > 0;
+        };
+
+        // Insert test data into all tables that should be migrated
+        execSQL("INSERT INTO peers (ip, port, nextattempt, numfailures, type) "
+                "VALUES ('127.0.0.1', 11625, '2024-01-01 00:00:00', 0, 1)",
+                db.getSession());
+        execSQL("INSERT INTO ban (nodeid) VALUES "
+                "('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF')",
+                db.getSession());
+        execSQL("INSERT INTO scphistory (nodeid, ledgerseq, envelope) VALUES "
+                "('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', "
+                "100, 'test_envelope')",
+                db.getSession());
+        execSQL(
+            "INSERT INTO scpquorums (qsethash, lastledgerseq, qset) VALUES "
+            "('abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
+            "', 100, 'test_qset')",
+            db.getSession());
+        execSQL(
+            "INSERT INTO quoruminfo (nodeid, qsethash) VALUES "
+            "('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', "
+            "'abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234'"
+            ")",
+            db.getSession());
+        execSQL("INSERT INTO slotstate (statename, state) VALUES "
+                "('ledgerupgrades', 'testvalue')",
+                db.getSession());
+
+        // Insert test data that should stay in main DB
+        execSQL("INSERT INTO storestate (statename, state) VALUES "
+                "('lastclosedledger', 'maintestvalue')",
+                db.getSession());
+
+        // Verify data exists in main before migration
+        REQUIRE(countRows("peers", db.getSession()) == 1);
+        REQUIRE(countRows("ban", db.getSession()) == 1);
+        REQUIRE(countRows("scphistory", db.getSession()) == 1);
+        REQUIRE(countRows("scpquorums", db.getSession()) == 1);
+        REQUIRE(countRows("quoruminfo", db.getSession()) == 1);
+        REQUIRE(countRows("slotstate", db.getSession()) == 1);
+
+        // Trigger migration
+        db.upgradeToCurrentSchema();
+
+        // Verify main DB still has main data
+        {
+            std::string result;
+            auto prep = db.getPreparedStatement(
+                "SELECT state FROM storestate WHERE statename = "
+                "'lastclosedledger'",
+                db.getSession());
+            auto& st = prep.statement();
+            st.exchange(soci::into(result));
+            st.define_and_bind();
+            st.execute(true);
+            REQUIRE(result == "maintestvalue");
+        }
+
+        // Verify storestate table still exists in main DB
+        REQUIRE(tableExists("storestate", db.getSession()));
+
+        // Verify main-only data did NOT get migrated to misc DB
+        REQUIRE_FALSE(tableExists("storestate", db.getMiscSession()));
+
+        // Verify all misc tables are dropped from main
+        std::vector<std::string> migratedTables = {"peers",      "ban",
+                                                   "scphistory", "scpquorums",
+                                                   "quoruminfo", "slotstate"};
+        for (auto const& table : migratedTables)
+        {
+            REQUIRE_FALSE(tableExists(table, db.getSession()));
+        }
+
+        // Verify data was migrated to misc DB
+        // Note: slotstate has 2 rows (test data + miscdatabaseschema)
+        REQUIRE(countRows("peers", db.getMiscSession()) == 1);
+        REQUIRE(countRows("ban", db.getMiscSession()) == 1);
+        REQUIRE(countRows("scphistory", db.getMiscSession()) == 1);
+        REQUIRE(countRows("scpquorums", db.getMiscSession()) == 1);
+        REQUIRE(countRows("quoruminfo", db.getMiscSession()) == 1);
+        REQUIRE(countRows("slotstate", db.getMiscSession()) == 2);
+
+        // Verify specific data values in misc DB
+        {
+            std::string ip;
+            int port = 0;
+            auto prep = db.getPreparedStatement("SELECT ip, port FROM peers",
+                                                db.getMiscSession());
+            auto& st = prep.statement();
+            st.exchange(soci::into(ip));
+            st.exchange(soci::into(port));
+            st.define_and_bind();
+            st.execute(true);
+            REQUIRE(ip == "127.0.0.1");
+            REQUIRE(port == 11625);
+        }
+        {
+            std::string state;
+            auto prep = db.getPreparedStatement(
+                "SELECT state FROM slotstate WHERE statename = "
+                "'ledgerupgrades'",
+                db.getMiscSession());
+            auto& st = prep.statement();
+            st.exchange(soci::into(state));
+            st.define_and_bind();
+            st.execute(true);
+            REQUIRE(state == "testvalue");
+        }
+    }
 }
