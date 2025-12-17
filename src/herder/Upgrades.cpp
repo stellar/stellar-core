@@ -1493,6 +1493,8 @@ ConfigUpgradeSetFrame::isValidForApply() const
                                                              mLedgerVersion) ||
             SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(cfg))
         {
+            CLOG_DEBUG(Herder, "Got bad ConfigSettingEntry {}",
+                       xdrToCerealString(cfg, "cfg"));
             return Upgrades::UpgradeValidity::INVALID;
         }
     }
