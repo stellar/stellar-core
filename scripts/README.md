@@ -83,8 +83,8 @@ then parse the path of log files, bucket directory, and SQL DB. All these fields
 - Prequisites - `stellar-xdr` and `stellar-core`
 - Description - This is a script to help with the [Soroban Settings Upgrade](../docs/software/soroban-settings.md). It's important to be aware of how the underlying process works
 in case the script has some issues, so please read through that doc before attempting to use this script. This script should be run from the directory that contains your stellar-core binary. This script also queries the SDF Horizon for the sequence number of the account, so if the SDF Horizon instance is unavailable, then you'll need to provide the account's sequence number manually.
-- Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network passphrase, and the third is 
-the path to the JSON file with the proposed settings.
+- Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json 100`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network passphrase, the third is 
+the path to the JSON file with the proposed settings, and the fourth is any additional resource fee you want to add to your transactions.
 
 ### Histogram Generator
 - Name - `HistogramGenerator.py`
