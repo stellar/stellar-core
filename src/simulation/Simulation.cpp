@@ -14,6 +14,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/finally.h"
 #include "util/types.h"
 

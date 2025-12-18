@@ -5,12 +5,12 @@
 #include <numeric>
 
 #include "main/Application.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 
 #include <numeric>
 

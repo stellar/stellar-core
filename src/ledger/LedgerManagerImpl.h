@@ -82,7 +82,7 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
-        LedgerApplyMetrics(medida::MetricsRegistry& registry);
+        LedgerApplyMetrics(MetricsRegistry& registry);
     };
 
     // LedgerManager thread model is as follows. There is a "primary apply

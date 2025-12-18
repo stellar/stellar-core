@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "process/ProcessManager.h"
 #include "rust/RustBridge.h"
+#include "util/MetricsRegistry.h"
 #include <optional>
 
 namespace Json
@@ -39,7 +40,7 @@ struct QuorumCheckerMetrics
     QuorumCheckerMetrics();
     QuorumCheckerMetrics(Json::Value const& value);
     Json::Value toJson();
-    void flush(medida::MetricsRegistry& metrics);
+    void flush(MetricsRegistry& metrics);
 };
 
 // In-process quorum intersection checker that directly calls the Rust

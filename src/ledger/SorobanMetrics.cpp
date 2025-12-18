@@ -1,12 +1,11 @@
 #include "ledger/SorobanMetrics.h"
+#include "util/MetricsRegistry.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
-SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
+SorobanMetrics::SorobanMetrics(MetricsRegistry& metrics)
     : /* ledger-wide metrics */
     mLedgerTxCount(metrics.NewHistogram({"soroban", "ledger", "tx-count"}))
     , mLedgerCpuInsn(metrics.NewHistogram({"soroban", "ledger", "cpu-insn"}))

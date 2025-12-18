@@ -8,7 +8,6 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "main/ApplicationImpl.h"
-#include "medida/metrics_registry.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/Tracker.h"
@@ -17,6 +16,7 @@
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/MetricsRegistry.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar

@@ -217,7 +217,7 @@ class LoadGenerator
         medida::Meter& mTxnBytes;
         medida::Meter& mNativePaymentBytes;
 
-        TxMetrics(medida::MetricsRegistry& m);
+        TxMetrics(MetricsRegistry& m);
         void report();
     };
 

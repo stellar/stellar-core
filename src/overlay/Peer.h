@@ -188,7 +188,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerRole const mRole;
     OverlayMetrics& mOverlayMetrics;
-    // No need for GUARDED_BY, PeerMettrics is thread-safe
+    // No need for GUARDED_BY, PeerMetrics is thread-safe
     PeerMetrics mPeerMetrics;
 #ifdef BUILD_TESTS
     std::string mDropReason GUARDED_BY(mStateMutex);

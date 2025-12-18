@@ -19,6 +19,7 @@
 #include "scp/Slot.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -27,7 +28,6 @@
 #include <algorithm>
 #include <cmath>
 #include <fmt/format.h>
-#include <medida/metrics_registry.h>
 #include <numeric>
 #include <optional>
 #include <stdexcept>

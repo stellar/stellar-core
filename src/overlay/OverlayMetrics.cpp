@@ -1,7 +1,7 @@
 #include "overlay/OverlayMetrics.h"
 #include "main/Application.h"
 
-#include "medida/metrics_registry.h"
+#include "util/MetricsRegistry.h"
 
 namespace stellar
 {
@@ -47,10 +47,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvGetTxSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
     , mRecvTxSetTimer(app.getMetrics().NewTimer({"overlay", "recv", "txset"}))
-    , mRecvTransactionAccumulator(
-          app.getMetrics().NewCounter({"overlay", "recv-transaction", "sum"}))
-    , mRecvTransactionCounter(
-          app.getMetrics().NewCounter({"overlay", "recv-transaction", "count"}))
+    , mRecvTransactionTimer(app.getMetrics().NewSimpleTimer(
+          {"overlay", "recv-transaction", ""}, std::chrono::microseconds{1}))
     , mRecvGetSCPQuorumSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-qset"}))
     , mRecvSCPQuorumSetTimer(

@@ -8,12 +8,12 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayUtils.h"
 #include "overlay/SurveyDataManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar

@@ -54,7 +54,7 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
     return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
-medida::MetricsRegistry&
+MetricsRegistry&
 AppConnector::getMetrics() const
 {
     return mApp.getMetrics();

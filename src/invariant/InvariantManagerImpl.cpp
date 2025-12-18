@@ -20,8 +20,8 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <condition_variable>

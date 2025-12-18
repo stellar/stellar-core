@@ -15,10 +15,6 @@
 namespace asio
 {
 }
-namespace medida
-{
-class MetricsRegistry;
-}
 
 namespace stellar
 {
@@ -56,6 +52,8 @@ class Protocol23CorruptionEventReconciler;
 class LoadGenerator;
 class TestAccount;
 #endif
+
+class MetricsRegistry;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -206,7 +204,7 @@ class Application
 
     // Get the registry of metrics owned by this application. Metrics are
     // reported through the administrative HTTP interface, see CommandHandler.
-    virtual medida::MetricsRegistry& getMetrics() = 0;
+    virtual MetricsRegistry& getMetrics() = 0;
 
     // Ensure any App-local metrics that are "current state" gauge-like counters
     // reflect the current reality as best as possible.

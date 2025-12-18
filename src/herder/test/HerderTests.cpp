@@ -40,6 +40,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/TransactionTestFrame.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"

@@ -22,6 +22,7 @@
 #include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/TarjanSCCCalculator.h"
 #include "util/XDROperators.h"
@@ -33,7 +34,6 @@
 #include <functional>
 #include <limits>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 #include <medida/timer.h>
 #include <numeric>
 #include <optional>
@@ -131,10 +131,8 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
     mQueueMetrics = std::make_unique<QueueMetrics>(
         sizeByAge,
         app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "count"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "self-sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-txs", "self-count"}),
+        app.getMetrics().NewSimpleTimer({"herder", "pending-txs"}),
+        app.getMetrics().NewSimpleTimer({"herder", "pending-txs", "self-"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
@@ -782,17 +780,12 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                     if (transaction->mTx->getFullHash() ==
                         appliedTx->getFullHash())
                     {
-                        auto elapsed = std::chrono::duration_cast<
-                            std::chrono::milliseconds>(
-                            now - transaction->mInsertionTime);
-                        mQueueMetrics->mTransactionsDelayAccumulator.inc(
-                            elapsed.count());
-                        mQueueMetrics->mTransactionsDelayCounter.inc();
+                        auto elapsed = now - transaction->mInsertionTime;
+                        mQueueMetrics->mTransactionsDelay.Update(elapsed);
                         if (transaction->mSubmittedFromSelf)
                         {
-                            mQueueMetrics->mTransactionsSelfDelayAccumulator
-                                .inc(elapsed.count());
-                            mQueueMetrics->mTransactionsSelfDelayCounter.inc();
+                            mQueueMetrics->mTransactionsSelfDelay.Update(
+                                elapsed);
                         }
                     }
 
@@ -1088,12 +1081,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         sizeByAge,
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "banned"}),
-        app.getMetrics().NewCounter({"herder", "pending-soroban-txs", "sum"}),
-        app.getMetrics().NewCounter({"herder", "pending-soroban-txs", "count"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "self-sum"}),
-        app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "self-count"}),
+        app.getMetrics().NewSimpleTimer({"herder", "pending-soroban-txs"}),
+        app.getMetrics().NewSimpleTimer(
+            {"herder", "pending-soroban-txs", "self-"}),
         app.getMetrics().NewCounter(
             {"herder", "pending-soroban-txs", "evicted-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
