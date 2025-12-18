@@ -282,7 +282,11 @@ jobs:
 
   build-without-tests:
     runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-gcc-no-tests
+      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-gcc-no-tests-${{ matrix.protocol }}
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: ["current", "next"]
     steps:
       - name: Fix kernel mmap rnd bits
         # Asan in llvm provided in some ubuntu versions is incompatible with
@@ -301,12 +305,12 @@ jobs:
         with:
           path: |
             ~/.cargo
-            build-gcc-no-tests
+            build-gcc-no-tests-${{ matrix.protocol }}
 
       - name: Check if commit already tested
         id: check-last-tested-commit
         run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-gcc-no-tests/.last-tested-commit-sha"
+          LAST_TESTED_COMMIT_SHA_FILE="build-gcc-no-tests-${{ matrix.protocol }}/.last-tested-commit-sha"
           if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
             echo "Commit ${{ github.sha }} already tested successfully, skipping build"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -358,9 +362,9 @@ jobs:
           export CC='gcc'
           export CXX='g++'
           echo Building with $CC and $CXX with --disable-tests
-          ./ci-build.sh --disable-tests --protocol current
+          ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
 
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
-          echo "${{ github.sha }}" > "build-gcc-no-tests/.last-tested-commit-sha"
+          echo "${{ github.sha }}" > "build-gcc-no-tests-${{ matrix.protocol }}/.last-tested-commit-sha"
