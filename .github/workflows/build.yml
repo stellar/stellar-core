@@ -18,60 +18,85 @@ jobs:
 
   complete:
     if: always()
-    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build-linux, build-mac]
+    needs: [static-checks, build-linux, build-mac]
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
-      - nscloud-cache-exp-do-not-commit
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
       run: exit 1
 
-  fmt:
+  static-checks:
     runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-small
-      - nscloud-cache-exp-do-not-commit
+      - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
     steps:
       - uses: namespacelabs/nscloud-checkout-action@v7
         with:
           fetch-depth: 1
           submodules: recursive
-      - run: rustup component add rustfmt
-      - run: rustup update
-      - run: cargo fmt --all --check
 
-  cargo-deny:
-    runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-small
-      - nscloud-cache-exp-do-not-commit
-    strategy:
-      matrix:
-        checks:
-          - advisories
-          - bans licenses sources
-    # Prevent sudden announcement of a new advisory from failing ci:
-    continue-on-error: ${{ matrix.checks == 'advisories' }}
-    steps:
-      - uses: namespacelabs/nscloud-checkout-action@v7
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          fetch-depth: 1
-          submodules: recursive
-      - uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+          path: |
+            ~/.cargo
+            build-static-checks
+
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-static-checks/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: ./install-rust.sh
+
+      - name: Update rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: rustup update
+
+      - name: Install rustfmt
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: rustup component add rustfmt
+
+      - name: Check git rev deps
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        uses: stellar/actions/rust-check-git-rev-deps@main
+
+      - name: Check formatting
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: cargo fmt --all --check
+
+      - name: Check cargo-deny advisories
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        # Prevent sudden announcement of a new advisory from failing ci:
+        continue-on-error: true
+        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
         with:
-          command: check ${{ matrix.checks }}
+          command: check advisories
           # leave arguments empty so we don't test --all-features
           # which will see conflicting env versions
           arguments:
 
-  rust-check-git-rev-deps:
-    runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-small
-      - nscloud-cache-exp-do-not-commit
-    steps:
-      - uses: namespacelabs/nscloud-checkout-action@v7
+      - name: Check cargo-deny bans licenses sources
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
         with:
-          fetch-depth: 1
-          submodules: recursive
-      - uses: stellar/actions/rust-check-git-rev-deps@main
+          command: check bans licenses sources
+          # leave arguments empty so we don't test --all-features
+          # which will see conflicting env versions
+          arguments:
+
+      - name: Record successful test commit
+        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+        run: |
+          mkdir -p build-static-checks
+          echo "${{ github.sha }}" > "build-static-checks/.last-tested-commit-sha"
 
   build-linux:
     runs-on:
@@ -83,7 +108,7 @@ jobs:
         protocol: ["current", "next"]
     steps:
       - name: Fix kernel mmap rnd bits
-        # Asan in llvm provided in some ubuntus is incompatible with
+        # Asan in llvm provided in some ubuntu versions is incompatible with
         # high-entropy ASLR in much newer kernels that GitHub runners are
         # using leading to random crashes: https://reviews.llvm.org/D148280
         run: sudo sysctl vm.mmap_rnd_bits=28
@@ -101,18 +126,33 @@ jobs:
             ~/.cargo
             build-${{matrix.toolchain}}-${{matrix.protocol}}
 
-      - name: install rustup
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: ./install-rust.sh
 
-      - name: install rustup components
+      - name: Install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: rustup component add rustfmt
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-cache
           version: 0.8.3
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-sweep
           version: 0.7.0
@@ -120,6 +160,7 @@ jobs:
       # Restore original modification time of files based on the date of the most
       # recent commit that modified them as mtimes affect the Go test cache.
       - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         shell: bash
         run: |
           # Set a base, fixed modification time of all directories.
@@ -135,6 +176,7 @@ jobs:
           git restore-mtime
 
       - name: Build
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             export CC='gcc'
@@ -145,6 +187,11 @@ jobs:
           fi
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+
+      - name: Record successful test commit
+        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+        run: |
+          echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
 
   build-mac:
     runs-on:
@@ -164,23 +211,38 @@ jobs:
             ~/.cargo
             build-clang-current
 
-      - name: install prerequisites and uninstall brew rust, add rustup
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-clang-current/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install prerequisites and uninstall brew rust, add rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
           brew uninstall rust rustup
           brew install rustup
 
-      - name: install rustup components
+      - name: Install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           rustup-init -y
           rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-cache
           version: 0.8.3
 
       - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
           name: cargo-sweep
           version: 0.7.0
@@ -188,6 +250,7 @@ jobs:
       # Restore original modification time of files based on the date of the most
       # recent commit that modified them as mtimes affect the Go test cache.
       - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         shell: bash
         run: |
           # Set a base, fixed modification time of all directories.
@@ -201,6 +264,7 @@ jobs:
           git restore-mtime
 
       - name: Build
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
           export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
@@ -210,3 +274,8 @@ jobs:
           export CLANG_VERSION=none
           export SKIP_FORMAT_CHECK=1
           ./ci-build.sh --disable-postgres --protocol current
+
+      - name: Record successful test commit
+        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+        run: |
+          echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"
