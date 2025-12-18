@@ -13,6 +13,7 @@ export TEMP_POSTGRES=0
 
 PROTOCOL_CONFIG=""
 DISABLE_POSTGRES=""
+DISABLE_TESTS=""
 
 while [[ -n "$1" ]]; do
     COMMAND="$1"
@@ -21,6 +22,7 @@ while [[ -n "$1" ]]; do
     case "${COMMAND}" in
     "--disable-tests")
             WITH_TESTS=0
+            DISABLE_TESTS='--disable-tests'
             echo Disabling tests
             ;;
     "--use-temp-db")
@@ -118,7 +120,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES} ${DISABLE_TESTS}"
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="$CFLAGS"
 
