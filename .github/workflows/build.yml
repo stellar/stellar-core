@@ -357,7 +357,7 @@ jobs:
         run: |
           export CC='gcc'
           export CXX='g++'
-          echo Build with $CC and $CXX with --disable-tests
+          echo Building with $CC and $CXX with --disable-tests
           ./ci-build.sh --disable-tests --protocol current
 
       - name: Record successful test commit
