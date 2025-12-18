@@ -12,6 +12,7 @@
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
+#include "simulation/ApplyLoad.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -1741,7 +1742,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS",
                  [&]() {
                      APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS =
-                         readInt<uint32_t>(item, 10);
+                         readInt<uint32_t>(item, 1);
+                     if (APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS %
+                             ApplyLoad::MAX_SAC_TPS_TIME_STEP_MS !=
+                         0)
+                     {
+                         throw std::invalid_argument(
+                             fmt::format(FMT_STRING("APPLY_LOAD_MAX_SAC_TPS_"
+                                                    "TARGET_CLOSE_TIME_MS must "
+                                                    "be a multiple of {}."),
+                                         ApplyLoad::MAX_SAC_TPS_TIME_STEP_MS));
+                     }
                  }},
                 {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
                  [&]() {
