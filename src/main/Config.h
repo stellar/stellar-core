@@ -386,7 +386,15 @@ class Config : public std::enable_shared_from_this<Config>
 
     uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
+    // Number of ledgers to apply in apply-load.
+    // Depending on the mode this represents either the total number of ledgers
+    // to close for benchmarking, or the number of ledgers to apply per
+    // iteration of binary search for modes that perform search.
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
+
+    // Target ledger close time in milliseconds for modes that perform binary
+    // search of TPS or limits.
+    uint32_t APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1000;
 
     // Number of classic transactions to include in each ledger in ledger limit
     // based apply-load mode.
@@ -412,7 +420,6 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION;
 
     // MAX_SAC_TPS mode specific parameters
-    uint32_t APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1000;
     uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
     uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
 

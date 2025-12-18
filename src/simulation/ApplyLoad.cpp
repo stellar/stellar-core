@@ -26,6 +26,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
+#include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 
 namespace stellar
@@ -33,7 +34,7 @@ namespace stellar
 namespace
 {
 SorobanUpgradeConfig
-getUpgradeConfig(Config const& cfg)
+getUpgradeConfig(Config const& cfg, bool validate = true)
 {
     SorobanUpgradeConfig upgradeConfig;
     upgradeConfig.maxContractSizeBytes = 65536;
@@ -81,20 +82,23 @@ getUpgradeConfig(Config const& cfg)
 
     // These values are set above using values from Config, so the assertions
     // will fail if the config file is missing any of these values.
-    releaseAssert(*upgradeConfig.ledgerMaxInstructions > 0);
-    releaseAssert(*upgradeConfig.txMaxInstructions > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxDiskReadEntries > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxDiskReadBytes > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxWriteLedgerEntries > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxWriteBytes > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxTxCount > 0);
-    releaseAssert(*upgradeConfig.txMaxDiskReadEntries > 0);
-    releaseAssert(*upgradeConfig.txMaxDiskReadBytes > 0);
-    releaseAssert(*upgradeConfig.txMaxWriteLedgerEntries > 0);
-    releaseAssert(*upgradeConfig.txMaxWriteBytes > 0);
-    releaseAssert(*upgradeConfig.txMaxContractEventsSizeBytes > 0);
-    releaseAssert(*upgradeConfig.ledgerMaxTransactionsSizeBytes > 0);
-    releaseAssert(*upgradeConfig.txMaxSizeBytes > 0);
+    if (validate)
+    {
+        releaseAssert(*upgradeConfig.ledgerMaxInstructions > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxDiskReadEntries > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxDiskReadBytes > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxWriteLedgerEntries > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxWriteBytes > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxTransactionsSizeBytes > 0);
+        releaseAssert(*upgradeConfig.ledgerMaxTxCount > 0);
+        releaseAssert(*upgradeConfig.txMaxInstructions > 0);
+        releaseAssert(*upgradeConfig.txMaxDiskReadEntries > 0);
+        releaseAssert(*upgradeConfig.txMaxDiskReadBytes > 0);
+        releaseAssert(*upgradeConfig.txMaxWriteLedgerEntries > 0);
+        releaseAssert(*upgradeConfig.txMaxWriteBytes > 0);
+        releaseAssert(*upgradeConfig.txMaxContractEventsSizeBytes > 0);
+        releaseAssert(*upgradeConfig.txMaxSizeBytes > 0);
+    }
     return upgradeConfig;
 }
 
@@ -221,7 +225,8 @@ ApplyLoad::getKeyForArchivedEntry(uint64_t index)
 }
 
 uint32_t
-ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
+ApplyLoad::calculateRequiredHotArchiveEntries(ApplyLoadMode mode,
+                                              Config const& cfg)
 {
     // If no RO entries are configured, return 0
     if (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.empty())
@@ -255,15 +260,21 @@ ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
     // to scale the expected number of restores by the transaction queue size.
     totalExpectedRestores *= cfg.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
 
+    if (mode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
+    {
+        totalExpectedRestores *= log2(cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+    }
+
     // Add some generous buffer since actual distributions may vary.
     return totalExpectedRestores * 1.5;
 }
 
 ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
     : mApp(app)
+    , mMode(mode)
     , mRoot(app.getRoot())
     , mTotalHotArchiveEntries(
-          calculateRequiredHotArchiveEntries(app.getConfig()))
+          calculateRequiredHotArchiveEntries(mode, app.getConfig()))
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "apply-load", "tx-count"}))
     , mInstructionUtilization(mApp.getMetrics().NewHistogram(
@@ -278,13 +289,14 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
           {"soroban", "apply-load", "disk-read-entry"}))
     , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
           {"soroban", "apply-load", "write-entry"}))
-    , mMode(mode)
     , mTxGenerator(app, mTotalHotArchiveEntries)
 {
     auto const& config = mApp.getConfig();
+
     switch (mMode)
     {
     case ApplyLoadMode::LIMIT_BASED:
+    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
                            config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
                        config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER *
@@ -292,11 +304,15 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
                        2;
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
-        mNumAccounts =
-            config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-            (config.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS / 1000) *
-            config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
+        mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
+                       (config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000) *
+                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
         break;
+    }
+    if (config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS == 0)
+    {
+        throw std::runtime_error(
+            "APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS cannot be zero");
     }
     setup();
 }
@@ -326,15 +342,17 @@ ApplyLoad::setup()
 
     setupUpgradeContract();
 
-    if (mMode == ApplyLoadMode::MAX_SAC_TPS)
+    switch (mMode)
     {
+    case ApplyLoadMode::MAX_SAC_TPS:
+    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         // Just upgrade to a placeholder number of TXs, we'll
         // upgrade again before each TPS run.
         upgradeSettingsForMaxTPS(100000);
-    }
-    else
-    {
+        break;
+    case ApplyLoadMode::LIMIT_BASED:
         upgradeSettings();
+        break;
     }
 
     setupLoadContract();
@@ -344,7 +362,8 @@ ApplyLoad::setup()
     {
         setupBatchTransferContracts();
     }
-    if (mMode == ApplyLoadMode::LIMIT_BASED)
+    if (mMode == ApplyLoadMode::LIMIT_BASED ||
+        mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
     {
         setupBucketList();
     }
@@ -359,7 +378,6 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 
     if (recordSorobanUtilization)
     {
-        releaseAssert(mMode == ApplyLoadMode::LIMIT_BASED);
         auto ledgerResources = mApp.getLedgerManager().maxLedgerResources(true);
         auto txSetResources =
             txSet.second->getPhases()
@@ -399,6 +417,23 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                                           upgrades, mApp.getConfig().NODE_SEED);
 
     stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
+}
+
+void
+ApplyLoad::execute()
+{
+    switch (mMode)
+    {
+    case ApplyLoadMode::LIMIT_BASED:
+        benchmarkLimits();
+        break;
+    case ApplyLoadMode::MAX_SAC_TPS:
+        findMaxSacTps();
+        break;
+    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
+        findMaxLimitsForModelTransaction();
+        break;
+    }
 }
 
 void
@@ -478,9 +513,27 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
     resources.diskReadBytes = 0;
     resources.writeBytes = 3'100;
 
-    auto invokeTx = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
-        lm.getLastClosedLedgerNum() + 1, 0, upgradeBytes, mUpgradeCodeKey,
-        mUpgradeInstanceKey, std::nullopt, resources);
+    auto [_, invokeTx] = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        upgradeBytes, mUpgradeCodeKey, mUpgradeInstanceKey, std::nullopt,
+        resources);
+    {
+        LedgerSnapshot ls(mApp);
+        auto diagnostics =
+            DiagnosticEventManager::createForValidation(mApp.getConfig());
+        auto validationRes = invokeTx->checkValid(mApp.getAppConnector(), ls, 0,
+                                                  0, 0, diagnostics);
+        if (!validationRes->isSuccess())
+        {
+            if (validationRes->getResultCode() == txSOROBAN_INVALID)
+            {
+                diagnostics.debugLogEvents();
+            }
+            CLOG_FATAL(Perf, "Created invalid upgrade settings transaction: {}",
+                       validationRes->getResultCode());
+            releaseAssert(validationRes->isSuccess());
+        }
+    }
 
     auto upgradeSetKey = mTxGenerator.getConfigUpgradeSetKey(
         upgradeConfig,
@@ -492,7 +545,7 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
     auto v = xdr::xdr_to_opaque(ledgerUpgrade);
     upgrade.push_back(UpgradeType{v.begin(), v.end()});
 
-    closeLedger({invokeTx.second}, upgrade);
+    closeLedger({invokeTx}, upgrade);
 
     releaseAssert(mTxGenerator.getApplySorobanSuccess().count() -
                       currApplySorobanSuccess ==
@@ -603,8 +656,8 @@ ApplyLoad::setupBatchTransferContracts()
         wasmBytes, contractCodeLedgerKey, std::nullopt, uploadResources);
     closeLedger({uploadTx.second});
 
-    // Since we transfer from the batch transfer contract balance, deploy one
-    // contract for each cluster to maximize parallelism
+    // Since we transfer from the batch transfer contract balance, deploy
+    // one contract for each cluster to maximize parallelism
     uint32_t numClusters =
         mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
     mBatchTransferInstances.reserve(numClusters);
@@ -714,7 +767,8 @@ ApplyLoad::setupBucketList()
     LedgerEntry baseHotArchiveEntry = baseLiveEntry;
 
     // Hot archive entries are added every APPLY_LOAD_BL_WRITE_FREQUENCY
-    // ledgers, but save one batch for the last batch to populate upper levels.
+    // ledgers, but save one batch for the last batch to populate upper
+    // levels.
     uint32_t totalBatchCount =
         cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS / cfg.APPLY_LOAD_BL_WRITE_FREQUENCY;
     releaseAssertOrThrow(totalBatchCount > 0);
@@ -728,9 +782,10 @@ ApplyLoad::setupBucketList()
     // remaining entries over APPLY_LOAD_BL_LAST_BATCH_LEDGERS ledgers.
     uint32_t hotArchiveLastBatchSize =
         mTotalHotArchiveEntries > 0
-            ? (mTotalHotArchiveEntries -
-               (hotArchiveBatchSize * hotArchiveBatchCount)) /
-                  cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS
+            ? ceil(static_cast<double>(
+                       mTotalHotArchiveEntries -
+                       (hotArchiveBatchSize * hotArchiveBatchCount)) /
+                   cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS)
             : 0;
 
     CLOG_INFO(Perf,
@@ -748,11 +803,10 @@ ApplyLoad::setupBucketList()
 
             if (mTotalHotArchiveEntries > 0)
             {
-                logBucketListStats(
-                    fmt::format(
-                        "Generating hot archive BL ledger {}, levels thus far",
-                        i),
-                    hotArchiveBl);
+                logBucketListStats(fmt::format("Generating hot archive BL "
+                                               "ledger {}, levels thus far",
+                                               i),
+                                   hotArchiveBl);
             }
         }
         lh.ledgerSeq++;
@@ -839,23 +893,126 @@ ApplyLoad::setupBucketList()
 }
 
 void
-ApplyLoad::benchmark()
+ApplyLoad::benchmarkLimits()
 {
-    releaseAssertOrThrow(mMode != ApplyLoadMode::MAX_SAC_TPS);
+    auto& ledgerClose =
+        mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
+    ledgerClose.Clear();
+
+    auto& cpuInsRatio = mApp.getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+    cpuInsRatio.Clear();
+
+    auto& cpuInsRatioExclVm = mApp.getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+    cpuInsRatioExclVm.Clear();
+
+    auto& ledgerCpuInsRatio = mApp.getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+    ledgerCpuInsRatio.Clear();
+
+    auto& ledgerCpuInsRatioExclVm = mApp.getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+    ledgerCpuInsRatioExclVm.Clear();
+
+    auto& totalTxApplyTime =
+        mApp.getMetrics().NewTimer({"ledger", "transaction", "total-apply"});
+    totalTxApplyTime.Clear();
+
+    for (size_t i = 0; i < mApp.getConfig().APPLY_LOAD_NUM_LEDGERS; ++i)
+    {
+        benchmarkLimitsIteration();
+    }
+    CLOG_INFO(Perf,
+              "Ledger close min/avg/max: {}/{}/{} milliseconds "
+              "(stddev={})",
+              ledgerClose.min(), ledgerClose.mean(), ledgerClose.max(),
+              ledgerClose.std_dev());
+    CLOG_INFO(Perf,
+              "Tx apply time min/avg/max: {}/{}/{} milliseconds "
+              "(stddev={})",
+              totalTxApplyTime.min(), totalTxApplyTime.mean(),
+              totalTxApplyTime.max(), totalTxApplyTime.std_dev());
+
+    CLOG_INFO(Perf, "Max CPU ins ratio: {}", cpuInsRatio.max() / 1000000);
+    CLOG_INFO(Perf, "Mean CPU ins ratio:  {}", cpuInsRatio.mean() / 1000000);
+
+    CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+              cpuInsRatioExclVm.max() / 1000000);
+    CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+              cpuInsRatioExclVm.mean() / 1000000);
+    CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+              cpuInsRatioExclVm.std_dev() / 1000000);
+
+    CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+              ledgerCpuInsRatio.max() / 1000000);
+    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+              ledgerCpuInsRatio.mean() / 1000000);
+    CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+              ledgerCpuInsRatio.std_dev() / 1000000);
+
+    CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+              ledgerCpuInsRatioExclVm.max() / 1000000);
+    CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+              ledgerCpuInsRatioExclVm.mean() / 1000000);
+    CLOG_INFO(Perf, "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+              ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+    CLOG_INFO(Perf, "Tx count utilization min/avg/max {}/{}/{}%",
+              getTxCountUtilization().min() / 1000.0,
+              getTxCountUtilization().mean() / 1000.0,
+              getTxCountUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Instruction utilization min/avg/max {}/{}/{}%",
+              getInstructionUtilization().min() / 1000.0,
+              getInstructionUtilization().mean() / 1000.0,
+              getInstructionUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Tx size utilization min/avg/max {}/{}/{}%",
+              getTxSizeUtilization().min() / 1000.0,
+              getTxSizeUtilization().mean() / 1000.0,
+              getTxSizeUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Disk read bytes utilization min/avg/max {}/{}/{}%",
+              getDiskReadByteUtilization().min() / 1000.0,
+              getDiskReadByteUtilization().mean() / 1000.0,
+              getDiskReadByteUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Write bytes utilization min/avg/max {}/{}/{}%",
+              getDiskWriteByteUtilization().min() / 1000.0,
+              getDiskWriteByteUtilization().mean() / 1000.0,
+              getDiskWriteByteUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Disk read entry utilization min/avg/max {}/{}/{}%",
+              getDiskReadEntryUtilization().min() / 1000.0,
+              getDiskReadEntryUtilization().mean() / 1000.0,
+              getDiskReadEntryUtilization().max() / 1000.0);
+    CLOG_INFO(Perf, "Write entry utilization min/avg/max {}/{}/{}%",
+              getWriteEntryUtilization().min() / 1000.0,
+              getWriteEntryUtilization().mean() / 1000.0,
+              getWriteEntryUtilization().max() / 1000.0);
+
+    CLOG_INFO(Perf, "Tx Success Rate: {:f}%", successRate() * 100);
+}
+
+void
+ApplyLoad::benchmarkLimitsIteration()
+{
+    releaseAssert(mMode != ApplyLoadMode::MAX_SAC_TPS);
+
+    mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
+    releaseAssert(
+        mApp.getBucketManager().getLiveBucketList().futuresAllResolved());
 
     auto& lm = mApp.getLedgerManager();
     auto const& config = mApp.getConfig();
     std::vector<TransactionFrameBasePtr> txs;
 
     auto maxResourcesToGenerate = lm.maxLedgerResources(true);
-    // The TxSet validation will compare the ledger instruction limit against
-    // the sum of the instructions of the slowest cluster in each stage, so we
-    // just multiply the instructions limit by the max number of clusters.
+    // The TxSet validation will compare the ledger instruction limit
+    // against the sum of the instructions of the slowest cluster in each
+    // stage, so we just multiply the instructions limit by the max number
+    // of clusters.
     maxResourcesToGenerate.setVal(
         Resource::Type::INSTRUCTIONS,
         maxResourcesToGenerate.getVal(Resource::Type::INSTRUCTIONS) *
             config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
-    // Scale the resources by the tx queue multipler to emulate filled mempool.
+    // Scale the resources by the tx queue multipler to emulate filled
+    // mempool.
     maxResourcesToGenerate =
         multiplyByDouble(maxResourcesToGenerate,
                          config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
@@ -865,7 +1022,8 @@ ApplyLoad::benchmark()
     auto resourcesLeft = maxResourcesToGenerate;
 
     auto const& accounts = mTxGenerator.getAccounts();
-    std::vector<uint64_t> shuffledAccounts(accounts.size());
+    // Omit root account
+    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1);
     std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
@@ -943,6 +1101,243 @@ ApplyLoad::benchmark()
     closeLedger(txs, {}, /* recordSorobanUtilization */ true);
 }
 
+void
+ApplyLoad::findMaxLimitsForModelTransaction()
+{
+    uint64_t const INSTRUCTIONS_ROUNDING_STEP = 5'000'000;
+    uint64_t const SIZE_ROUNDING_STEP = 500;
+    uint64_t const ENTRIES_ROUNDING_STEP = 10;
+
+    auto const& config = mApp.getConfig();
+
+    auto validateTxParam = [&config](std::string const& paramName,
+                                     auto const& values, auto const& weights,
+                                     bool allowZeroValue = false) {
+        if (values.size() != 1)
+        {
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("{} must have exactly one entry for "
+                                       "'limits-for-model-tx' mode"),
+                            paramName));
+        }
+        if (!allowZeroValue && values[0] == 0)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("{} cannot be zero for 'limits-for-model-tx' mode"),
+                paramName));
+        }
+        if (weights.size() != 1 || weights[0] != 1)
+        {
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("{}_DISTRIBUTION must have exactly one "
+                                       "entry with the value of 1 for "
+                                       "'limits-for-model-tx' mode"),
+                            paramName));
+        }
+    };
+    validateTxParam("APPLY_LOAD_INSTRUCTIONS", config.APPLY_LOAD_INSTRUCTIONS,
+                    config.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION);
+    validateTxParam("APPLY_LOAD_TX_SIZE_BYTES", config.APPLY_LOAD_TX_SIZE_BYTES,
+                    config.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION);
+    validateTxParam("APPLY_LOAD_NUM_DISK_READ_ENTRIES",
+                    config.APPLY_LOAD_NUM_DISK_READ_ENTRIES,
+                    config.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION, true);
+    validateTxParam("APPLY_LOAD_NUM_RW_ENTRIES",
+                    config.APPLY_LOAD_NUM_RW_ENTRIES,
+                    config.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION);
+    validateTxParam("APPLY_LOAD_EVENT_COUNT", config.APPLY_LOAD_EVENT_COUNT,
+                    config.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION, true);
+
+    auto roundDown = [](uint64_t value, uint64_t step) {
+        return value - value % step;
+    };
+
+    auto updateSettingsForTxCount = [&](uint64_t txsPerLedger) {
+        uint64_t insns =
+            roundDown(txsPerLedger * config.APPLY_LOAD_INSTRUCTIONS[0] /
+                          config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS,
+                      INSTRUCTIONS_ROUNDING_STEP);
+        uint64_t txSize =
+            roundDown(txsPerLedger * config.APPLY_LOAD_TX_SIZE_BYTES[0],
+                      SIZE_ROUNDING_STEP);
+
+        uint64_t writeEntries =
+            roundDown(txsPerLedger * config.APPLY_LOAD_NUM_RW_ENTRIES[0],
+                      ENTRIES_ROUNDING_STEP);
+        uint64_t writeBytes =
+            roundDown(writeEntries * config.APPLY_LOAD_DATA_ENTRY_SIZE,
+                      SIZE_ROUNDING_STEP);
+
+        uint64_t diskReadEntries =
+            roundDown(txsPerLedger * config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0],
+                      ENTRIES_ROUNDING_STEP);
+        uint64_t diskReadBytes =
+            roundDown(diskReadEntries * config.APPLY_LOAD_DATA_ENTRY_SIZE,
+                      SIZE_ROUNDING_STEP);
+
+        if (diskReadEntries == 0)
+        {
+            diskReadEntries =
+                MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+            diskReadBytes = MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        }
+
+        uint64_t actualMaxTxs = txsPerLedger;
+        actualMaxTxs = std::min(
+            actualMaxTxs,
+            insns * config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS /
+                config.APPLY_LOAD_INSTRUCTIONS[0]);
+        actualMaxTxs =
+            std::min(actualMaxTxs, txSize / config.APPLY_LOAD_TX_SIZE_BYTES[0]);
+        if (config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] > 0)
+        {
+            actualMaxTxs = std::min(
+                actualMaxTxs,
+                diskReadEntries / config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0]);
+            actualMaxTxs = std::min(
+                actualMaxTxs,
+                diskReadBytes / (config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] *
+                                 config.APPLY_LOAD_DATA_ENTRY_SIZE));
+        }
+        actualMaxTxs = std::min(
+            actualMaxTxs, writeEntries / config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
+
+        actualMaxTxs = std::min(
+            actualMaxTxs, writeBytes / (config.APPLY_LOAD_NUM_RW_ENTRIES[0] *
+                                        config.APPLY_LOAD_DATA_ENTRY_SIZE));
+        CLOG_INFO(Perf,
+                  "Resources after rounding for testing {} actual max txs per "
+                  "ledger: "
+                  "instructions {}, tx size {}, disk read entries {}, "
+                  "disk read bytes {}, rw entries {}, rw bytes {}",
+                  actualMaxTxs, insns, txSize, diskReadEntries, diskReadBytes,
+                  writeEntries, writeBytes);
+
+        auto upgradeConfig = getUpgradeConfig(mApp.getConfig(),
+                                              /* validate */ false);
+        // Set tx limits to the respective resources of the 'model'
+        // transaction.
+        upgradeConfig.txMaxInstructions =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS,
+                     config.APPLY_LOAD_INSTRUCTIONS[0]);
+        upgradeConfig.txMaxSizeBytes =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES,
+                     config.APPLY_LOAD_TX_SIZE_BYTES[0]);
+        upgradeConfig.txMaxDiskReadEntries =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES,
+                     config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0]);
+        upgradeConfig.txMaxWriteLedgerEntries =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES,
+                     config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
+        upgradeConfig.txMaxDiskReadBytes =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES,
+                     config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] *
+                         config.APPLY_LOAD_DATA_ENTRY_SIZE);
+        upgradeConfig.txMaxWriteBytes =
+            std::max(MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES,
+                     config.APPLY_LOAD_NUM_RW_ENTRIES[0] *
+                         config.APPLY_LOAD_DATA_ENTRY_SIZE);
+        upgradeConfig.txMaxContractEventsSizeBytes = std::max(
+            MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES,
+            config.APPLY_LOAD_EVENT_COUNT[0] *
+                    TxGenerator::SOROBAN_LOAD_V2_EVENT_SIZE_BYTES +
+                100);
+        upgradeConfig.txMaxFootprintEntries =
+            *upgradeConfig.txMaxDiskReadEntries +
+            *upgradeConfig.txMaxWriteLedgerEntries;
+
+        // Set the ledger-wide limits to the compute values calculated above.
+        // Note, that in theory we could end up with ledger limits lower than
+        // the transaction limits, but in normally would be just
+        // mis-configuration (using a model transaction that is too large to
+        // be applied within the target close time).
+        upgradeConfig.ledgerMaxInstructions = insns;
+        upgradeConfig.ledgerMaxTransactionsSizeBytes = txSize;
+        upgradeConfig.ledgerMaxDiskReadEntries = diskReadEntries;
+        upgradeConfig.ledgerMaxWriteLedgerEntries = writeEntries;
+        upgradeConfig.ledgerMaxDiskReadBytes = diskReadBytes;
+        upgradeConfig.ledgerMaxWriteBytes = writeBytes;
+
+        return std::make_pair(upgradeConfig, actualMaxTxs);
+    };
+
+    auto& ledgerCloseTime =
+        mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
+
+    uint64_t minTxsPerLedger = 1;
+    uint64_t maxTxsPerLedger = mApp.getConfig().APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
+    SorobanUpgradeConfig maxLimitsConfig;
+    uint64_t maxLimitsTxsPerLedger = 0;
+    uint64_t prevTxsPerLedger = 0;
+
+    double targetTimeMs = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
+
+    while (minTxsPerLedger <= maxTxsPerLedger)
+    {
+        uint64_t testTxsPerLedger = (minTxsPerLedger + maxTxsPerLedger) / 2;
+
+        CLOG_INFO(Perf,
+                  "Testing ledger max model txs: {}, generated limits: "
+                  "instructions {}, tx size {}, disk read entries {}, rw "
+                  "entries {}",
+                  testTxsPerLedger,
+                  testTxsPerLedger * config.APPLY_LOAD_INSTRUCTIONS[0],
+                  testTxsPerLedger * config.APPLY_LOAD_TX_SIZE_BYTES[0],
+                  testTxsPerLedger * config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0],
+                  testTxsPerLedger * config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
+        auto [upgradeConfig, actualMaxTxsPerLedger] =
+            updateSettingsForTxCount(testTxsPerLedger);
+        // Break when due to rounding we've arrived at the same actual txs to
+        // test as in the previous iteration, or at the value lower than the
+        // best found so far.
+        if (actualMaxTxsPerLedger == prevTxsPerLedger ||
+            actualMaxTxsPerLedger <= maxLimitsTxsPerLedger)
+        {
+            CLOG_INFO(Perf, "No change in generated limits after update due to "
+                            "rounding, ending search.");
+            break;
+        }
+        applyConfigUpgrade(upgradeConfig);
+
+        prevTxsPerLedger = actualMaxTxsPerLedger;
+        ledgerCloseTime.Clear();
+        for (size_t i = 0; i < mApp.getConfig().APPLY_LOAD_NUM_LEDGERS; ++i)
+        {
+            benchmarkLimitsIteration();
+        }
+        releaseAssert(successRate() == 1.0);
+        if (ledgerCloseTime.mean() > targetTimeMs)
+        {
+            CLOG_INFO(
+                Perf,
+                "Failed: {} model txs per ledger (avg close time: {:.2f}ms)",
+                actualMaxTxsPerLedger, ledgerCloseTime.mean());
+            maxTxsPerLedger = testTxsPerLedger - 1;
+        }
+        else
+        {
+            CLOG_INFO(Perf,
+                      "Success: {} model txs per ledger (avg close time: "
+                      "{:.2f}ms)",
+                      actualMaxTxsPerLedger, ledgerCloseTime.mean());
+            minTxsPerLedger = testTxsPerLedger + 1;
+            maxLimitsTxsPerLedger = actualMaxTxsPerLedger;
+            maxLimitsConfig = upgradeConfig;
+        }
+    }
+    CLOG_INFO(Perf,
+              "Maximum limits found for model transaction ({} TPL): "
+              "instructions {}, "
+              "tx size {}, disk read entries {}, disk read bytes {}, "
+              "write entries {}, write bytes {}",
+              maxLimitsTxsPerLedger, *maxLimitsConfig.ledgerMaxInstructions,
+              *maxLimitsConfig.ledgerMaxTransactionsSizeBytes,
+              *maxLimitsConfig.ledgerMaxDiskReadEntries,
+              *maxLimitsConfig.ledgerMaxDiskReadBytes,
+              *maxLimitsConfig.ledgerMaxWriteLedgerEntries,
+              *maxLimitsConfig.ledgerMaxWriteBytes);
+}
+
 double
 ApplyLoad::successRate()
 {
@@ -1013,8 +1408,7 @@ ApplyLoad::findMaxSacTps()
     uint32_t bestTps = 0;
     uint32_t numClusters =
         mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
-    double targetCloseTime =
-        mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS;
+    double targetCloseTime = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
 
     CLOG_WARNING(Perf,
                  "Starting MAX_SAC_TPS binary search between {} and {} TPS",
@@ -1031,8 +1425,8 @@ ApplyLoad::findMaxSacTps()
         uint32_t txsPerLedger = static_cast<uint32_t>(
             static_cast<double>(testTps) * (targetCloseTime / 1000.0));
 
-        // Round down to nearest multiple of cluster count so each cluster has
-        // an even distribution
+        // Round down to nearest multiple of cluster count so each cluster
+        // has an even distribution
         if (mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
         {
             txsPerLedger =
@@ -1074,9 +1468,9 @@ double
 ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
 {
     // For timing, we just want to track the TX application itself. This
-    // includes charging fees, applying transactions, and post apply work (like
-    // meta). It does not include writing the results to disk.
-    // When APPLY_LOAD_TIME_WRITES is true, use the ledger close timer instead
+    // includes charging fees, applying transactions, and post apply work
+    // (like meta). It does not include writing the results to disk. When
+    // APPLY_LOAD_TIME_WRITES is true, use the ledger close timer instead
     // which includes database writes.
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES
@@ -1108,8 +1502,8 @@ ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
 
         CLOG_WARNING(Perf, "  Ledger {}/{} completed", iter + 1, numLedgers);
 
-        // Check transaction success rate. We should never have any failures,
-        // and all TXs should have been executed.
+        // Check transaction success rate. We should never have any
+        // failures, and all TXs should have been executed.
         int64_t newSuccessCount =
             mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
 
@@ -1158,24 +1552,24 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
             mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
         releaseAssert(mBatchTransferInstances.size() == numClusters);
 
-        // Calculate how many batch transfer transactions we need. Wrt to TPS,
-        // here we consider one transfer a "transaction"
+        // Calculate how many batch transfer transactions we need. Wrt to
+        // TPS, here we consider one transfer a "transaction"
         uint32_t txsPerCluster = count / numClusters;
 
         for (uint32_t clusterId = 0; clusterId < numClusters; ++clusterId)
         {
             for (uint32_t i = 0; i < txsPerCluster; ++i)
             {
-                // Use a different source account for each transaction to avoid
-                // conflicts
+                // Use a different source account for each transaction to
+                // avoid conflicts
                 uint32_t accountIdx =
                     (clusterId * txsPerCluster + i) % mNumAccounts;
 
                 auto it = accounts.find(accountIdx);
                 releaseAssert(it != accounts.end());
 
-                // Make sure all destination addresses are unique to avoid rw
-                // conflicts
+                // Make sure all destination addresses are unique to avoid
+                // rw conflicts
                 std::vector<SCAddress> destinations;
                 destinations.reserve(batchSize);
                 for (uint32_t j = 0; j < batchSize; ++j)
@@ -1204,7 +1598,8 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
             toAddress.contractId() = sha256(
                 fmt::format("dest_{}_{}", i, lm.getLastClosedLedgerNum()));
 
-            // Use a different account for each transaction to avoid conflicts
+            // Use a different account for each transaction to avoid
+            // conflicts
             uint32_t accountIdx = i % mNumAccounts;
             auto it = accounts.find(accountIdx);
             releaseAssert(it != accounts.end());

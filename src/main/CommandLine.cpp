@@ -1903,6 +1903,11 @@ applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
             mode = ApplyLoadMode::MAX_SAC_TPS;
             return "";
         }
+        if (iequals(modeArg, "limits-for-model-tx"))
+        {
+            mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
+            return "";
+        }
         return "Unrecognized apply-load mode. Please select 'ledger-limits' "
                "or 'max-sac-tps'.";
     };
@@ -1931,7 +1936,11 @@ runApplyLoad(CommandLineArgs const& args)
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-
+            if (config.APPLY_LOAD_NUM_LEDGERS == 0)
+            {
+                throw std::runtime_error(
+                    "APPLY_LOAD_NUM_LEDGERS must be greater than 0");
+            }
             if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
                 if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
@@ -2024,109 +2033,7 @@ runApplyLoad(CommandLineArgs const& args)
                     {"ledger", "transaction", "total-apply"});
                 totalTxApplyTime.Clear();
 
-                if (mode == ApplyLoadMode::MAX_SAC_TPS)
-                {
-                    al.findMaxSacTps();
-                    return 0;
-                }
-
-                if (config.APPLY_LOAD_NUM_LEDGERS == 0)
-                {
-                    throw std::runtime_error(
-                        "APPLY_LOAD_NUM_LEDGERS must be greater than 0");
-                }
-
-                for (size_t i = 0; i < config.APPLY_LOAD_NUM_LEDGERS; ++i)
-                {
-                    app.getBucketManager()
-                        .getLiveBucketList()
-                        .resolveAllFutures();
-                    releaseAssert(app.getBucketManager()
-                                      .getLiveBucketList()
-                                      .futuresAllResolved());
-                    al.benchmark();
-                }
-
-                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                          ledgerClose.max());
-                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
-                          ledgerClose.min());
-                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                          ledgerClose.mean());
-                CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-                          ledgerClose.std_dev());
-
-                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                          cpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                          cpuInsRatio.mean() / 1000000);
-
-                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                          cpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                          cpuInsRatioExclVm.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                          ledgerCpuInsRatio.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.mean() / 1000000);
-                CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                          ledgerCpuInsRatio.std_dev() / 1000000);
-
-                CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                          ledgerCpuInsRatioExclVm.max() / 1000000);
-                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                          ledgerCpuInsRatioExclVm.mean() / 1000000);
-                CLOG_INFO(
-                    Perf,
-                    "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                    ledgerCpuInsRatioExclVm.std_dev() / 1000000);
-                // Utilization metrics are relevant only in limit-based
-                // mode.
-                if (mode == ApplyLoadMode::LIMIT_BASED)
-                {
-                    CLOG_INFO(Perf,
-                              "Tx count utilization min/avg/max {}/{}/{}%",
-                              al.getTxCountUtilization().min() / 1000.0,
-                              al.getTxCountUtilization().mean() / 1000.0,
-                              al.getTxCountUtilization().max() / 1000.0);
-                    CLOG_INFO(Perf,
-                              "Instruction utilization min/avg/max {}/{}/{}%",
-                              al.getInstructionUtilization().min() / 1000.0,
-                              al.getInstructionUtilization().mean() / 1000.0,
-                              al.getInstructionUtilization().max() / 1000.0);
-                    CLOG_INFO(Perf, "Tx size utilization min/avg/max {}/{}/{}%",
-                              al.getTxSizeUtilization().min() / 1000.0,
-                              al.getTxSizeUtilization().mean() / 1000.0,
-                              al.getTxSizeUtilization().max() / 1000.0);
-                    CLOG_INFO(
-                        Perf,
-                        "Disk read bytes utilization min/avg/max {}/{}/{}%",
-                        al.getDiskReadByteUtilization().min() / 1000.0,
-                        al.getDiskReadByteUtilization().mean() / 1000.0,
-                        al.getDiskReadByteUtilization().max() / 1000.0);
-                    CLOG_INFO(Perf,
-                              "Write bytes utilization min/avg/max {}/{}/{}%",
-                              al.getDiskWriteByteUtilization().min() / 1000.0,
-                              al.getDiskWriteByteUtilization().mean() / 1000.0,
-                              al.getDiskWriteByteUtilization().max() / 1000.0);
-                    CLOG_INFO(
-                        Perf,
-                        "Disk read entry utilization min/avg/max {}/{}/{}%",
-                        al.getDiskReadEntryUtilization().min() / 1000.0,
-                        al.getDiskReadEntryUtilization().mean() / 1000.0,
-                        al.getDiskReadEntryUtilization().max() / 1000.0);
-                    CLOG_INFO(Perf,
-                              "Write entry utilization min/avg/max {}/{}/{}%",
-                              al.getWriteEntryUtilization().min() / 1000.0,
-                              al.getWriteEntryUtilization().mean() / 1000.0,
-                              al.getWriteEntryUtilization().max() / 1000.0);
-                }
-
-                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
-                          al.successRate() * 100);
+                al.execute();
             }
 
             return 0;
