@@ -9,9 +9,169 @@
 #include <iosfwd>
 #include <optional>
 
-// Defines the static set of scopes. Each of these turns into a static enum
-// entry in StaticLedgerEntryScope as well as a bunch of type synonyms for
-// scoped ledger entries parameterized by the enums.
+// Overview:
+// ~~~~~~~~~
+//
+// This file defines ScopedLedgerEntry and ScopedLedgerEntryOpt which
+// are wrappers around LedgerEntry and std::optional<LedgerEntry>, as
+// well as a number of LedgerEntryScope<S> mixin-classes that such
+// ScopedLedgerEntries can belong to.
+//
+// The purpose of these is to catch _unintentional misuses_ of
+// LedgerEntries in a number of common ways:
+//
+//    - Ledger skew: using an LE state in ledger X in ledger X+1.
+//
+//    - Thread races: using an LE partitioned to thread X in thread Y.
+//
+//    - Stale reads: reading an LE from an outer ledger scope when
+//      there's an active inner tx-local LE that should supercede it.
+//
+//    - Lost writes: writing an LE to an outer ledger scope when
+//      there's an active inner tx-local LE that will overwrite it
+//      when the inner scope commits its changes.
+//
+// Some of this was formerly handled by the machinery of the LedgerTxn
+// classes but these have a fairly brittle structure and are not
+// threadsafe, so are not being used as much in new code (eg. parallel
+// ledger apply, bucketlist eviction, etc.)
+//
+//
+// Scope IDs:
+// ~~~~~~~~~~
+//
+// Each ScopedLedgerEntry (SLE) and each LedgerEntryScope is assigned
+// a LedgerEntryScopeID.
+//
+// A LedgerEntryScopeID contains both a static component and a dynamic
+// component:
+//
+//     - The static component is an enum class called
+//       StaticLedgerEntryScope (generated from the macro
+//       FOREACH_STATIC_LEDGER_ENTRY_SCOPE) which has one enum variant
+//       for each broad static context in the program that deals with
+//       LedgerEntries (global-parallel-apply, tx-parallel-apply, LCL
+//       snapshot, etc.) This enum class is provided as a constant
+//       template parameter to all the other classes in this file --
+//       SLEs and scopes -- such that misusing an SLE from scope X in
+//       scope Y will not even compile.
+//
+//     - The dynamic component is a pair of numbers, one of which is
+//       always the ledger and the other of which is left as a generic
+//       "index" number with per-scope meaning (for example the
+//       "index" is the parallel-apply thread-number in the scope used
+//       for parallel-apply threads). These numbers are checked
+//       _dynamically_ so misusing an SLE from scope X in scope Y will
+//       still compile, but will fail at runtime.
+//
+//
+// Scope classes:
+// ~~~~~~~~~~~~~~
+//
+// Each _conceptual_ scope (identified by some scope S taken from the
+// StaticLedgerEntryScope enum) typically has one or more _specific
+// classes_ in the program that hold, track, or otherwise work-with
+// LedgerEntries (usually in hashmaps). These specific classes should
+// all inherit from the mixin-class LedgerEntryScope<S>, which will
+// provide them with 3 things:
+//
+//     - A field member `LedgerEntryScopeID<S> mScopeID` that will
+//       need to be initialized with dynamic values for its dynamic
+//       components at class-construction time.
+//
+//     - The ability to "activate" or "deactivate" the scope. See
+//       below.
+//
+//     - Methods for reading, writing and moving SLEs associated with
+//       that scope. these methods all begin with `scope_` and are
+//       the main interface for connecting SLEs to scopes. See below.
+//
+//
+//
+// Scope activation:
+// ~~~~~~~~~~~~~~~~~
+//
+// In addition to having a "scope ID", each scope has a boolean
+// "activation status". When active, SLEs can be read and written
+// using the scope's read/write methods. When inactive, SLEs
+// cannot be read/written, only adopted (moved) to other scopes.
+//
+// The point of "activation" is to allow _deactivation_ of a
+// conceptual "outer" scope when some conceptual "inner" scope is
+// active, to prevent stale reads from (or lost writes to) the
+// outer scope until the inner scope completes.
+//
+// Since stellar-core uses exceptions in more than a few places,
+// you should use the helper DeactivateScopeGuard class which
+// deactivates an outer scope on construction and re-activates
+// it on destruction.
+//
+//
+// Reading and writing LedgerEntries from ScopedLedgerEntries:
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//
+// When you sctually want to _use_ an SLE (i.e. read or write the LE
+// it is wrapped around, or any fields inside the LE) you must
+// _provide the scope_ that you want to read or write with, using the
+// methods `scope_read_entry` or `scope_modify_entry`. The scope will
+// be checked (both statically and dynamically) for compatibility with
+// the SLE.
+//
+// The SLEs themselves have methods on them that might make this
+// slightly easier to read -- `read_in_scope` and `modify_in_scope` --
+// but they call through to the same methods on the scope.
+//
+//
+// Creating and moving ScopedLedgerEntries:
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//
+// Of course LEs do frequently have to _move_ between scopes! The
+// point of all this machinery is not to fundamentally prevent you
+// from doing so, only to catch _accidental_ uses across scope
+// boundaries.
+//
+// To turn an LE into an SLE in a given scope, call `scope_adopt_entry`.
+//
+// To move an SLE from one scope to another, call `scope_adopt_entry_from`.
+//
+// There is a strict "allow list" (defined by the macro
+// FOR_EACH_VALID_SCOPE_ADOPTION) of scope-to-scope movements that are
+// allowed. Again, this is just to catch misuses: if you have a
+// legitimate reason to move an SLE from one scope to another that's
+// not in the list, you can add it below.
+//
+//
+// Optional SLEs:
+// ~~~~~~~~~~~~~~
+//
+// All of the above is duplicated for _optional_ LEs and SLEs. That
+// is: rather than use std::optional<ScopedLedgerEntry<S>>, there is a
+// special class ScopedLedgerEntryOpt<S>. The reason for this to exist
+// is that we want the scope checking to happen _even when_ we are
+// reading/writing/moving `nullopt` values around. The
+// ScopedLedgerEntryOpt type equips all optional LEs -- even nullopts
+// -- with scope tracking, whereas an std::optional<SLE> would not.
+//
+//
+// Type aliases:
+// ~~~~~~~~~~~~~
+//
+// To make things easier, this file also defines a number of type
+// aliases for each of the scopes. So rather than writing:
+//
+//     ScopedLedgerEntry<StaticLedgerEntryScope::GlobalParApply>
+//
+// one can write:
+//
+//     GlobalParApplyLedgerEntry
+//
+// and so forth. The alias list is defined by SCOPE_ALIAS.
+
+
+// This macro defines the _static_ set of scopes. Each of these turns
+// into a static enum entry in StaticLedgerEntryScope as well as a
+// bunch of type synonyms for scoped ledger entries parameterized by
+// the enums.
 
 #define FOREACH_STATIC_LEDGER_ENTRY_SCOPE(MACRO) \
     MACRO(GlobalParApply) \
@@ -21,9 +181,10 @@
     MACRO(HotArchive) \
     MACRO(RawBucket)
 
-// Defines valid scope transitions as (DEST, SOURCE) pairs for compile-time
-// enforcement. The "adopt" methods only allow ScopedLedgerEntries to
-// be adopted between pairs of scopes listed here.
+// This macro defines valid scope transitions as (DEST, SOURCE) pairs
+// for compile-time enforcement. The "adopt" methods only allow
+// ScopedLedgerEntries to be adopted between pairs of scopes listed
+// here.
 #define FOR_EACH_VALID_SCOPE_ADOPTION(MACRO) \
     MACRO(GlobalParApply, ThreadParApply) \
     MACRO(ThreadParApply, GlobalParApply) \
@@ -155,6 +316,14 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
     bool operator==(ScopedLedgerEntryOpt const& other) const;
     bool operator<(ScopedLedgerEntryOpt const& other) const;
 };
+
+// These are just type synonyms for different ScopedLedgerEntry<S>
+// and ScopedLedgerEntryOpt<S> specializations. For example
+// GlobalParApplyLedgerEntry is just an abbreviation for
+// ScopedLedgerEntry<StaticLedgerEntryScope::GlobalParApply>.
+//
+// The full list of such specialization is driven by the macro
+// above: FOREACH_STATIC_LEDGER_ENTRY_SCOPE.
 
 #define SCOPE_ALIAS(SCOPE) \
     using SCOPE##LedgerEntry = \
