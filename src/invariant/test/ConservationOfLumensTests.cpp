@@ -2,12 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/test/BucketTestUtils.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/Catch2.h"
@@ -362,5 +364,202 @@ TEST_CASE("Snapshot invariant validates total lumens",
             app.getInvariantManager().runStateSnapshotInvariant(
                 ledgerState, inMemoryState, []() { return false; }),
             InvariantDoesNotHold);
+    }
+}
+
+TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
+          "[invariant][conservationoflumens]")
+{
+    auto cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {}; // Disable automatic invariant checks because we
+                               // will invoke it manually
+
+    VirtualClock clock;
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+
+    BucketTestUtils::LedgerManagerForBucketTests& lm = app->getLedgerManager();
+
+    // Create test accounts with native balances
+    auto acc1 = LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT);
+    acc1.data.account().accountID = txtest::getAccount("acc1").getPublicKey();
+    acc1.data.account().balance = 1000;
+
+    auto acc2 = LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT);
+    acc2.data.account().accountID = txtest::getAccount("acc2").getPublicKey();
+    acc2.data.account().balance = 2000;
+
+    SECTION("Invariant passes with correct bucket state")
+    {
+        // Get initial totalCoins before adding test accounts
+        int64_t initialTotal = app->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.totalCoins;
+
+        // Add entries to live bucket
+        lm.setNextLedgerEntryBatchForBucketTesting({acc1, acc2}, // init entries
+                                                   {},           // live entries
+                                                   {});          // dead entries
+        ::closeLedger(*app);
+
+        // Calculate expected totalCoins: initial + acc1 + acc2
+        int64_t expectedTotal = initialTotal + acc1.data.account().balance +
+                                acc2.data.account().balance;
+
+        // Update header to match
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.loadHeader().current().totalCoins = expectedTotal;
+            ltx.commit();
+        }
+
+        ::closeLedger(*app);
+
+        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+
+        auto ledgerState =
+            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto& inMemoryState =
+            app->getLedgerManager().getInMemorySorobanStateForTesting();
+
+        REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
+            ledgerState, inMemoryState, []() { return false; }));
+    }
+
+    SECTION("Invariant fails when bucket balance doesn't match totalCoins")
+    {
+        // Get initial totalCoins before adding test accounts
+        int64_t initialTotal = app->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.totalCoins;
+
+        // Add entries to live bucket
+        lm.setNextLedgerEntryBatchForBucketTesting({acc1, acc2}, // init entries
+                                                   {},           // live entries
+                                                   {});          // dead entries
+        ::closeLedger(*app);
+
+        // Set totalCoins to incorrect value (off by 9999)
+        int64_t incorrectTotal = initialTotal + acc1.data.account().balance +
+                                 acc2.data.account().balance + 9999;
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.loadHeader().current().totalCoins = incorrectTotal;
+            ltx.commit();
+        }
+
+        ::closeLedger(*app);
+
+        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+
+        auto ledgerState =
+            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto& inMemoryState =
+            app->getLedgerManager().getInMemorySorobanStateForTesting();
+
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().runStateSnapshotInvariant(
+                ledgerState, inMemoryState, []() { return false; }),
+            InvariantDoesNotHold);
+    }
+
+    SECTION("Invariant handles shadowing correctly")
+    {
+        // Get initial totalCoins
+        int64_t initialTotal = app->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.totalCoins;
+
+        // Add acc1 as INIT entry in older level
+        lm.setNextLedgerEntryBatchForBucketTesting({acc1}, // init entries
+                                                   {},     // live entries
+                                                   {});    // dead entries
+        ::closeLedger(*app);
+
+        // Create modified version of acc1 with different balance
+        auto acc1Modified = acc1;
+        acc1Modified.data.account().balance = 5000;
+
+        // Add modified acc1 as LIVE entry (shadows the INIT entry)
+        lm.setNextLedgerEntryBatchForBucketTesting(
+            {},             // init entries
+            {acc1Modified}, // live entries (shadows acc1 INIT)
+            {});            // dead entries
+        ::closeLedger(*app);
+
+        // The invariant should only count acc1Modified's balance (5000), not
+        // the original (1000)
+        int64_t expectedTotal =
+            initialTotal + acc1Modified.data.account().balance;
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.loadHeader().current().totalCoins = expectedTotal;
+            ltx.commit();
+        }
+
+        ::closeLedger(*app);
+
+        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+
+        auto ledgerState =
+            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto& inMemoryState =
+            app->getLedgerManager().getInMemorySorobanStateForTesting();
+
+        REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
+            ledgerState, inMemoryState, []() { return false; }));
+    }
+
+    SECTION("Invariant detects corrupted native balance in hot archive")
+    {
+        // Wrap the existing app in SorobanTest to use contract utilities
+        SorobanTest sorobanTest(app, cfg, true, [](SorobanNetworkConfig&) {});
+
+        auto& root = sorobanTest.getRoot();
+        auto minBalance = app->getLedgerManager().getLastMinBalance(2);
+        auto acc1 = root.create("acc1", minBalance + 10000);
+
+        // Deploy native asset contract and create a balance
+        AssetContractTestClient client(sorobanTest, makeNativeAsset());
+        auto contractAddr = makeContractAddress(sha256("test_contract"));
+
+        // Transfer creates the native balance CONTRACT_DATA entry
+        REQUIRE(client.transfer(acc1, contractAddr, 5000));
+        ::closeLedger(*app);
+
+        // Extract the balance entry from live state
+        LedgerEntry balanceEntry;
+        LedgerKey balanceKey;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            balanceKey = client.makeBalanceKey(contractAddr);
+            auto ltxe = ltx.load(balanceKey);
+            REQUIRE(ltxe);
+            balanceEntry = ltxe.current();
+        }
+
+        // Corrupt: add 123 stroops to the balance value
+        balanceEntry.data.contractData().val.map()->at(0).val.i128().lo += 123;
+
+        // Remove from live buckets and inject corrupted entry into hot archive
+        lm.setNextLedgerEntryBatchForBucketTesting({}, {}, {balanceKey});
+        lm.setNextArchiveBatchForBucketTesting({balanceEntry}, {});
+        ::closeLedger(*app);
+
+        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+
+        {
+            auto ledgerState =
+                app->getLedgerManager().getLastClosedLedgerStateForTesting();
+            auto& inMemoryState =
+                app->getLedgerManager().getInMemorySorobanStateForTesting();
+
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().runStateSnapshotInvariant(
+                    ledgerState, inMemoryState, []() { return false; }),
+                InvariantDoesNotHold);
+        }
     }
 }
