@@ -149,10 +149,11 @@ ScopedLedgerEntry<S>::read_in_scope(LedgerEntryScope<S> const& scope) const
 }
 
 template <StaticLedgerEntryScope S>
-LedgerEntry&
-ScopedLedgerEntry<S>::modify_in_scope(LedgerEntryScope<S> const& scope)
+void
+ScopedLedgerEntry<S>::modify_in_scope(LedgerEntryScope<S> const& scope,
+                                      std::function<void(LedgerEntry&)> func)
 {
-    return scope.scope_modify_entry(*this);
+    scope.scope_modify_entry(*this, func);
 }
 
 template <StaticLedgerEntryScope S>
@@ -268,10 +269,12 @@ ScopedLedgerEntryOpt<S>::read_in_scope(LedgerEntryScope<S> const& scope) const
 }
 
 template <StaticLedgerEntryScope S>
-std::optional<LedgerEntry>&
-ScopedLedgerEntryOpt<S>::modify_in_scope(LedgerEntryScope<S> const& scope)
+void
+ScopedLedgerEntryOpt<S>::modify_in_scope(
+    LedgerEntryScope<S> const& scope,
+    std::function<void(std::optional<LedgerEntry>&)> func)
 {
-    return scope.scope_modify_optional_entry(*this);
+    scope.scope_modify_optional_entry(*this, func);
 }
 
 template <StaticLedgerEntryScope S>
@@ -350,8 +353,9 @@ LedgerEntryScope<S>::scope_read_entry(ScopedLedgerEntry<S> const& w) const
 }
 
 template <StaticLedgerEntryScope S>
-LedgerEntry&
-LedgerEntryScope<S>::scope_modify_entry(ScopedLedgerEntry<S>& w) const
+void
+LedgerEntryScope<S>::scope_modify_entry(
+    ScopedLedgerEntry<S>& w, std::function<void(LedgerEntry&)> func) const
 {
     if (w.mScopeID != mScopeID)
     {
@@ -359,7 +363,7 @@ LedgerEntryScope<S>::scope_modify_entry(ScopedLedgerEntry<S>& w) const
             "scope_modify_entry: scope ID '{}' != entry scope ID '{}'",
             mScopeID, w.mScopeID));
     }
-    return w.mEntry;
+    func(w.mEntry);
 }
 
 template <StaticLedgerEntryScope S>
@@ -377,9 +381,10 @@ LedgerEntryScope<S>::scope_read_optional_entry(
 }
 
 template <StaticLedgerEntryScope S>
-std::optional<LedgerEntry>&
+void
 LedgerEntryScope<S>::scope_modify_optional_entry(
-    ScopedLedgerEntryOpt<S>& w) const
+    ScopedLedgerEntryOpt<S>& w,
+    std::function<void(std::optional<LedgerEntry>&)> func) const
 {
     if (w.mScopeID != mScopeID)
     {
@@ -387,7 +392,7 @@ LedgerEntryScope<S>::scope_modify_optional_entry(
             "scope_modify_optional_entry: scope ID '{}' != entry scope ID '{}'",
             mScopeID, w.mScopeID));
     }
-    return w.mEntry;
+    func(w.mEntry);
 }
 
 template <StaticLedgerEntryScope S>

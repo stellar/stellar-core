@@ -475,20 +475,22 @@ GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps(
     // don't have merge special casing.
     std::optional<LedgerEntry> const& newLe =
         newEntry.mLedgerEntry.read_in_scope(*this);
-    std::optional<LedgerEntry>& oldLe =
-        oldEntry.mLedgerEntry.modify_in_scope(*this);
-    if (newLe && oldLe && key.type() == TTL)
-    {
-        releaseAssertOrThrow(newLe.value().data.type() == TTL);
-        releaseAssertOrThrow(oldLe.value().data.type() == TTL);
-        if (readWriteSet.find(key) == readWriteSet.end())
-        {
-            auto const& newTTL = newLe.value().data.ttl().liveUntilLedgerSeq;
-            auto& oldTTL = oldLe.value().data.ttl().liveUntilLedgerSeq;
-            oldTTL = std::max(oldTTL, newTTL);
-            return true;
-        }
-    }
+    oldEntry.mLedgerEntry.modify_in_scope(
+        *this, [&](std::optional<LedgerEntry>& oldLe) {
+            if (newLe && oldLe && key.type() == TTL)
+            {
+                releaseAssertOrThrow(newLe.value().data.type() == TTL);
+                releaseAssertOrThrow(oldLe.value().data.type() == TTL);
+                if (readWriteSet.find(key) == readWriteSet.end())
+                {
+                    auto const& newTTL =
+                        newLe.value().data.ttl().liveUntilLedgerSeq;
+                    auto& oldTTL = oldLe.value().data.ttl().liveUntilLedgerSeq;
+                    oldTTL = std::max(oldTTL, newTTL);
+                    return true;
+                }
+            }
+        });
     return false;
 }
 
@@ -636,14 +638,15 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
             // erased the TTL key from mRoTTLBumps.
             ThreadParApplyLedgerEntryOpt scopedTtlEntryOpt =
                 getLiveEntryOpt(ttlKey);
-            std::optional<LedgerEntry>& ttlEntryOpt =
-                scopedTtlEntryOpt.modify_in_scope(*this);
-            releaseAssertOrThrow(ttlEntryOpt);
-            LedgerEntry& ttlEntry = ttlEntryOpt.value();
-            releaseAssertOrThrow(ttl(ttlEntry) <= b->second);
-            ttl(ttlEntry) = b->second;
-            upsertEntry(ttlKey, scope_adopt_entry(ttlEntry),
-                        getSnapshotLedgerSeq() + 1);
+            scopedTtlEntryOpt.modify_in_scope(
+                *this, [&](std::optional<LedgerEntry>& ttlEntryOpt) {
+                    releaseAssertOrThrow(ttlEntryOpt);
+                    LedgerEntry& ttlEntry = ttlEntryOpt.value();
+                    releaseAssertOrThrow(ttl(ttlEntry) <= b->second);
+                    ttl(ttlEntry) = b->second;
+                    upsertEntry(ttlKey, scope_adopt_entry(ttlEntry),
+                                getSnapshotLedgerSeq() + 1);
+                });
             mRoTTLBumps.erase(b);
         }
     }
@@ -652,21 +655,25 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
 void
 ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
 {
-    for (auto const& [lk, ttlBump] : mRoTTLBumps)
+    for (auto const& kvp : mRoTTLBumps)
     {
+        auto const& lk = kvp.first;
+        auto const& ttlBump = kvp.second;
         ThreadParApplyLedgerEntryOpt scopedEntryOpt = getLiveEntryOpt(lk);
         // The entry should always exist. If the entry was deleted,
         // then we would've erased the TTL key from roTTLBumps.
-        std::optional<LedgerEntry>& entryOpt =
-            scopedEntryOpt.modify_in_scope(*this);
-        releaseAssertOrThrow(entryOpt);
-        LedgerEntry& entry = entryOpt.value();
-        if (ttl(entry) < ttlBump)
-        {
-            ttl(entry) = ttlBump;
-            upsertEntry(lk, scope_adopt_entry(entry),
-                        getSnapshotLedgerSeq() + 1);
-        }
+        scopedEntryOpt.modify_in_scope(
+            *this, [&](std::optional<LedgerEntry>& entryOpt) {
+                releaseAssertOrThrow(entryOpt);
+                releaseAssertOrThrow(entryOpt);
+                LedgerEntry& entry = entryOpt.value();
+                if (ttl(entry) < ttlBump)
+                {
+                    ttl(entry) = ttlBump;
+                    upsertEntry(lk, scope_adopt_entry(entry),
+                                getSnapshotLedgerSeq() + 1);
+                }
+            });
     }
 }
 
@@ -728,9 +735,11 @@ ThreadParallelApplyLedgerState::upsertEntry(
 {
     // Weird syntax avoid extra map lookup
     auto parAppEntry = ThreadParallelApplyEntry::dirty(entry);
-    parAppEntry.mLedgerEntry.modify_in_scope(*this)
-        .value()
-        .lastModifiedLedgerSeq = ledgerSeq;
+    parAppEntry.mLedgerEntry.modify_in_scope(
+        *this, [&](std::optional<LedgerEntry>& le) {
+            releaseAssertOrThrow(le);
+            le.value().lastModifiedLedgerSeq = ledgerSeq;
+        });
     mThreadEntryMap.insert_or_assign(key, parAppEntry);
 }
 void
@@ -934,8 +943,11 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
 
     auto [mapEntry, _] =
         mTxEntryMap.insert_or_assign(key, scope_adopt_optional_entry(entry));
-    mapEntry->second.modify_in_scope(*this).value().lastModifiedLedgerSeq =
-        ledgerSeq;
+    mapEntry->second.modify_in_scope(
+        *this, [&](std::optional<LedgerEntry>& le) {
+            releaseAssertOrThrow(le);
+            le.value().lastModifiedLedgerSeq = ledgerSeq;
+        });
     return !liveEntryExistedAlready;
 }
 
