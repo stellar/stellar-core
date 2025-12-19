@@ -760,6 +760,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
     <ClCompile Include="..\..\src\util\RandHasher.cpp" />
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
+    <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
     <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
@@ -1178,6 +1179,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\numeric128.h" />
     <ClInclude Include="..\..\src\util\RandHasher.h" />
     <ClInclude Include="..\..\src\util\Scheduler.h" />
+    <ClInclude Include="..\..\src\util\SimpleTimer.h" />
     <ClInclude Include="..\..\src\util\TxResource.h" />
     <ClInclude Include="..\..\src\util\UnorderedMap.h" />
     <ClInclude Include="..\..\src\util\UnorderedSet.h" />

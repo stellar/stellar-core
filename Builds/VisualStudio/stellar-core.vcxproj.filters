@@ -1429,6 +1429,9 @@
     <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\SimpleTimer.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2535,6 +2538,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h">
       <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SimpleTimer.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

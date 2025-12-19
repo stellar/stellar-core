@@ -40,7 +40,7 @@ SimpleTimer::count() const
 void
 SimpleTimer::Update(std::chrono::nanoseconds d)
 {
-    auto converted = d / mDurationUnit;
+    int64_t converted = d / mDurationUnit;
     mSum.inc(converted);
     mSampleCount.inc(1);
     {
