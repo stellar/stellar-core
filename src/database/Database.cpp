@@ -13,6 +13,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/Timer.h"
 #include "util/types.h"
 #include <error.h>
@@ -31,7 +32,6 @@
 #include "transactions/TransactionSQL.h"
 
 #include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "xdr/Stellar-ledger-entries.h"
 

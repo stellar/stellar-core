@@ -8,7 +8,6 @@
 #include "herder/HerderUtils.h"
 #include "herder/QuorumIntersectionChecker.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "process/ProcessManager.h"
 #include "rust/RustBridge.h"
 #include "scp/LocalNode.h"
@@ -330,7 +329,7 @@ QuorumCheckerMetrics::toJson()
 }
 
 void
-QuorumCheckerMetrics::flush(medida::MetricsRegistry& metrics)
+QuorumCheckerMetrics::flush(MetricsRegistry& metrics)
 {
     metrics.NewCounter({"scp", "qic", "successful-run"}).inc(mSuccessfulRun);
     metrics.NewCounter({"scp", "qic", "failed-run"}).inc(mFailedRun);

@@ -16,11 +16,11 @@ class Timer;
 class Meter;
 class Counter;
 class Histogram;
-class MetricsRegistry;
 }
 
 namespace stellar
 {
+class MetricsRegistry;
 
 class SorobanMetrics
 {
@@ -125,7 +125,7 @@ class SorobanMetrics
     medida::Counter& mContractCodeEntryCount;
     medida::Counter& mContractDataEntryCount;
 
-    SorobanMetrics(medida::MetricsRegistry& metrics);
+    SorobanMetrics(MetricsRegistry& metrics);
 
     void accumulateModelledCpuInsns(uint64_t insnsCount,
                                     uint64_t insnsExclVmCount,

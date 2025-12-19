@@ -30,6 +30,7 @@
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
+#include "util/MetricsRegistry.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"

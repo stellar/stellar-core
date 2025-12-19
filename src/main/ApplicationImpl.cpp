@@ -45,7 +45,6 @@
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
@@ -57,6 +56,7 @@
 #include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include "util/Thread.h"
@@ -116,8 +116,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 #endif
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
-    , mMetrics(
-          std::make_unique<medida::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
+    , mMetrics(std::make_unique<MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
@@ -1266,7 +1265,7 @@ ApplicationImpl::getClock()
     return mVirtualClock;
 }
 
-medida::MetricsRegistry&
+MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
@@ -1327,6 +1326,10 @@ ApplicationImpl::syncAllMetrics()
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
     mLedgerApplyManager->syncMetrics();
+    // Update simple timer metrics. This both updates the current value of the
+    // "max" metrics to be the max for the current period and starts a new
+    // period.
+    mMetrics->syncSimpleTimerStats();
     syncOwnMetrics();
 }
 

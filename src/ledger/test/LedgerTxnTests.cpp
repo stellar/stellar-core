@@ -19,6 +19,7 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDROperators.h"

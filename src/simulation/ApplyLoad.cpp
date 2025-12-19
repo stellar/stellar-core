@@ -15,11 +15,10 @@
 #include "test/TxTests.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
+#include "util/MetricsRegistry.h"
 #include "util/types.h"
 
 #include "herder/HerderImpl.h"
-
-#include "medida/metrics_registry.h"
 
 #include "bucket/BucketListSnapshotBase.h"
 #include "bucket/BucketSnapshotManager.h"
