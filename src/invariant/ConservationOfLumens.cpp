@@ -219,41 +219,54 @@ processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
     return true;
 }
 
-static Loop
-scanLiveBucket(LiveBucketSnapshot const& bucket,
-               std::unordered_set<LedgerKey>& countedKeys, Asset const& asset,
-               AssetContractInfo const& assetContractInfo, int64_t& sumBalance,
-               std::string& errorMsg, std::function<bool()> const& isStopping)
+// Scan live bucket list for entries that can hold the native asset
+static void
+scanLiveBuckets(
+    std::shared_ptr<SearchableLiveBucketListSnapshot const> const& liveSnapshot,
+    Asset const& asset, AssetContractInfo const& assetContractInfo,
+    int64_t& sumBalance, std::string& errorMsg,
+    std::function<bool()> const& isStopping)
 {
-    for (LiveBucketInputIterator iter(bucket.getRawBucket()); iter; ++iter)
+    // Scan all entry types that can hold the native asset
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
-        // Allow early termination if application is stopping
-        if (isStopping())
+        LedgerEntryType type = static_cast<LedgerEntryType>(let);
+        if (!canHoldAsset(type, asset))
         {
-            return Loop::COMPLETE;
+            continue;
         }
 
-        auto const& be = *iter;
-        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+        std::unordered_set<LedgerKey> countedKeys;
+
+        liveSnapshot->scanForEntriesOfType(
+            type, [&](BucketEntry const& be) -> Loop {
+                if (isStopping())
+                {
+                    return Loop::COMPLETE;
+                }
+
+                if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+                {
+                    if (!processEntryIfNew(
+                            be.liveEntry(), LedgerEntryKey(be.liveEntry()),
+                            countedKeys, asset, assetContractInfo, sumBalance,
+                            errorMsg))
+                    {
+                        return Loop::COMPLETE;
+                    }
+                }
+                else if (be.type() == DEADENTRY)
+                {
+                    countedKeys.emplace(be.deadEntry());
+                }
+                return Loop::INCOMPLETE;
+            });
+
+        if (!errorMsg.empty())
         {
-            if (!canHoldAsset(be.liveEntry().data.type(), asset))
-            {
-                continue;
-            }
-            if (!processEntryIfNew(
-                    be.liveEntry(), LedgerEntryKey(be.liveEntry()), countedKeys,
-                    asset, assetContractInfo, sumBalance, errorMsg))
-            {
-                return Loop::COMPLETE;
-            }
-        }
-        else if (be.type() == DEADENTRY &&
-                 canHoldAsset(be.deadEntry().type(), asset))
-        {
-            countedKeys.emplace(be.deadEntry());
+            return;
         }
     }
-    return Loop::INCOMPLETE;
 }
 
 static Loop
@@ -335,20 +348,13 @@ ConservationOfLumens::checkSnapshot(
     }
 
     // Scan the Live BucketList for native balances using loopAllBuckets
-    {
-        std::unordered_set<LedgerKey> countedKeys;
-        liveSnapshot->loopAllBuckets([&countedKeys, &nativeAsset, &sumBalance,
-                                      &errorMsg, &isStopping,
-                                      this](LiveBucketSnapshot const& bucket) {
-            return scanLiveBucket(bucket, countedKeys, nativeAsset,
-                                  mLumenContractInfo, sumBalance, errorMsg,
-                                  isStopping);
-        });
 
-        if (!errorMsg.empty())
-        {
-            return errorMsg;
-        }
+    scanLiveBuckets(liveSnapshot, nativeAsset, mLumenContractInfo, sumBalance,
+                    errorMsg, isStopping);
+
+    if (!errorMsg.empty())
+    {
+        return errorMsg;
     }
 
     // Check if we should stop before scanning hot archive
