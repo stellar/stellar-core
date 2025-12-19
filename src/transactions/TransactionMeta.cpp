@@ -416,9 +416,8 @@ OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     LedgerEntryChanges changes;
     for (auto const& [lk, scopedLeOpt] : res.getModifiedEntryMap())
     {
-        auto leOpt = scopedLeOpt.read_in_scope(res);
-        auto prevLe =
-            threadState.getLiveEntryOpt(lk).read_in_scope(threadState);
+        auto leOpt = scopedLeOpt.readInScope(res);
+        auto prevLe = threadState.getLiveEntryOpt(lk).readInScope(threadState);
 
         if (prevLe)
         {

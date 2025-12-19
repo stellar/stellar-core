@@ -73,8 +73,7 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     ParallelApplyEntry<S2>
     rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) const
     {
-        auto adoptedEntry =
-            s2.scope_adopt_optional_entry_from(mLedgerEntry, s1);
+        auto adoptedEntry = s2.scopeAdoptEntryOptFrom(mLedgerEntry, s1);
         return ParallelApplyEntry<S2>{adoptedEntry, mIsDirty};
     }
 };
@@ -113,10 +112,10 @@ class ParallelTxReturnVal
         , mModifiedEntryMap(std::move(modifiedEntryMap))
     {
         // The ModifiedEntryMap should not be used for reading entries, only
-        // to serve as a source for thread state to scope_adopt_entry_from. So
+        // to serve as a source for thread state to scopeAdoptEntryFrom. So
         // we deactivate ourselves as a LedgerEntryScope on construction, to
         // prevent accidental reads.
-        scope_deactivate();
+        scopeDeactivate();
     }
     ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
                         RestoredEntries&& restoredEntries, ScopeIdT txScopeID)
@@ -125,7 +124,7 @@ class ParallelTxReturnVal
         , mModifiedEntryMap(std::move(modifiedEntryMap))
         , mRestoredEntries(std::move(restoredEntries))
     {
-        scope_deactivate();
+        scopeDeactivate();
     }
 
     bool
