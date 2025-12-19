@@ -284,7 +284,7 @@ class TxParallelApplyLedgerState
 
     // Guard that _deactivates reading_ ScopedLedgerEntries from the
     // mThreadState while this tx state is alive, to prevent accidental
-    // access to stale data. Any access must scope_adopt_entry_from the thread
+    // access to stale data. Any access must scopeAdoptEntryFrom the thread
     // state first.
     DeactivateScopeGuard<StaticLedgerEntryScope::ThreadParApply>
         mThreadStateDeactivateGuard;

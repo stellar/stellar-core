@@ -84,7 +84,7 @@
 //       below.
 //
 //     - Methods for reading, writing and moving SLEs associated with
-//       that scope. these methods all begin with `scope_` and are
+//       that scope. these methods all begin with `scope` and are
 //       the main interface for connecting SLEs to scopes. See below.
 //
 //
@@ -114,12 +114,12 @@
 // When you sctually want to _use_ an SLE (i.e. read or write the LE
 // it is wrapped around, or any fields inside the LE) you must
 // _provide the scope_ that you want to read or write with, using the
-// methods `scope_read_entry` or `scope_modify_entry`. The scope will
+// methods `scopeReadEntry` or `scopeModifyEntry`. The scope will
 // be checked (both statically and dynamically) for compatibility with
 // the SLE.
 //
 // The SLEs themselves have methods on them that might make this
-// slightly easier to read -- `read_in_scope` and `modify_in_scope` --
+// slightly easier to read -- `readInScope` and `modifyInScope` --
 // but they call through to the same methods on the scope.
 //
 //
@@ -131,9 +131,9 @@
 // from doing so, only to catch _accidental_ uses across scope
 // boundaries.
 //
-// To turn an LE into an SLE in a given scope, call `scope_adopt_entry`.
+// To turn an LE into an SLE in a given scope, call `scopeAdoptEntry`.
 //
-// To move an SLE from one scope to another, call `scope_adopt_entry_from`.
+// To move an SLE from one scope to another, call `scopeAdoptEntryFrom`.
 //
 // There is a strict "allow list" (defined by the macro
 // FOR_EACH_VALID_SCOPE_ADOPTION) of scope-to-scope movements that are
@@ -231,7 +231,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScopeID
     bool operator==(LedgerEntryScopeID const& other) const;
     bool operator!=(LedgerEntryScopeID const& other) const;
 
-    friend std::ostream& ::operator<<(std::ostream & os,
+    friend std::ostream& ::operator<<(std::ostream& os,
                                       LedgerEntryScopeID const& obj);
 };
 
@@ -270,10 +270,10 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     ScopedLedgerEntry<S>& operator=(ScopedLedgerEntry<S> const& other);
     ScopedLedgerEntry<S>& operator=(ScopedLedgerEntry<S>&& other);
 
-    LedgerEntry const& read_in_scope(LedgerEntryScope<S> const& scope) const;
-    LedgerEntry& modify_in_scope(LedgerEntryScope<S> const& scope);
-    void modify_in_scope(LedgerEntryScope<S> const& scope,
-                         std::function<void(LedgerEntry&)> func);
+    LedgerEntry const& readInScope(LedgerEntryScope<S> const& scope) const;
+    LedgerEntry& modifyInScope(LedgerEntryScope<S> const& scope);
+    void modifyInScope(LedgerEntryScope<S> const& scope,
+                       std::function<void(LedgerEntry&)> func);
 
     bool operator==(ScopedLedgerEntry const& other) const;
     bool operator<(ScopedLedgerEntry const& other) const;
@@ -311,11 +311,10 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
     ScopedLedgerEntryOpt(ScopedLedgerEntry<S>&& other);
 
     std::optional<LedgerEntry> const&
-    read_in_scope(LedgerEntryScope<S> const& scope) const;
-    std::optional<LedgerEntry>&
-    modify_in_scope(LedgerEntryScope<S> const& scope);
-    void modify_in_scope(LedgerEntryScope<S> const& scope,
-                         std::function<void(std::optional<LedgerEntry>&)> func);
+    readInScope(LedgerEntryScope<S> const& scope) const;
+    std::optional<LedgerEntry>& modifyInScope(LedgerEntryScope<S> const& scope);
+    void modifyInScope(LedgerEntryScope<S> const& scope,
+                       std::function<void(std::optional<LedgerEntry>&)> func);
 
     bool operator==(ScopedLedgerEntryOpt const& other) const;
     bool operator<(ScopedLedgerEntryOpt const& other) const;
@@ -376,27 +375,40 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     // logically immutable (e.g. a const ref to a scope passed into a function)
     // but we want to go a step further and dynamically deactivate _reading_
     // from it to prevent accidental access to stale data.
-    void scope_activate() const;
-    void scope_deactivate() const;
+    void scopeActivate() const;
+    void scopeDeactivate() const;
 
-    LedgerEntry const& scope_read_entry(EntryT const& w) const;
-    void scope_modify_entry(EntryT& w,
-                            std::function<void(LedgerEntry&)> func) const;
+    LedgerEntry const& scopeReadEntry(EntryT const& w) const;
+    void scopeModifyEntry(EntryT& w,
+                          std::function<void(LedgerEntry&)> func) const;
 
     std::optional<LedgerEntry> const&
-    scope_read_optional_entry(OptionalEntryT const& w) const;
-    void scope_modify_optional_entry(
+    scopeReadOptionalEntry(OptionalEntryT const& w) const;
+    void scopeModifyOptionalEntry(
         OptionalEntryT& w,
         std::function<void(std::optional<LedgerEntry>&)> func) const;
 
-    EntryT scope_adopt_entry(LedgerEntry&& entry) const;
-    EntryT scope_adopt_entry(LedgerEntry const& entry) const;
+    EntryT scopeAdoptEntry(LedgerEntry&& entry) const;
+    EntryT scopeAdoptEntry(LedgerEntry const& entry) const;
     OptionalEntryT
-    scope_adopt_optional_entry(std::optional<LedgerEntry> const& entry) const;
+    scopeAdoptEntryOpt(std::optional<LedgerEntry> const& entry) const;
 
     template <StaticLedgerEntryScope OtherScope>
     EntryT
-    scope_adopt_entry_from(ScopedLedgerEntry<OtherScope> const& entry,
+    scopeAdoptEntryFrom(ScopedLedgerEntry<OtherScope> const& entry,
+                        LedgerEntryScope<OtherScope> const& scope) const
+    {
+        static_assert(
+            IsValidScopeAdoption<S, OtherScope>::value,
+            "Invalid scope adoption: this transition is not allowed. "
+            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
+            "for the list of valid transitions.");
+        return scopeAdoptEntryFromImpl(entry, scope);
+    }
+
+    template <StaticLedgerEntryScope OtherScope>
+    OptionalEntryT
+    scopeAdoptEntryOptFrom(ScopedLedgerEntryOpt<OtherScope> const& entry,
                            LedgerEntryScope<OtherScope> const& scope) const
     {
         static_assert(
@@ -404,33 +416,19 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
             "Invalid scope adoption: this transition is not allowed. "
             "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
             "for the list of valid transitions.");
-        return scope_adopt_entry_from_impl(entry, scope);
-    }
-
-    template <StaticLedgerEntryScope OtherScope>
-    OptionalEntryT
-    scope_adopt_optional_entry_from(
-        ScopedLedgerEntryOpt<OtherScope> const& entry,
-        LedgerEntryScope<OtherScope> const& scope) const
-    {
-        static_assert(
-            IsValidScopeAdoption<S, OtherScope>::value,
-            "Invalid scope adoption: this transition is not allowed. "
-            "Check FOR_EACH_VALID_SCOPE_ADOPTION in LedgerEntryScope.h "
-            "for the list of valid transitions.");
-        return scope_adopt_optional_entry_from_impl(entry, scope);
+        return scopeAdoptEntryOptFromImpl(entry, scope);
     }
 
   private:
     template <StaticLedgerEntryScope OtherScope>
-    EntryT scope_adopt_entry_from_impl(
-        ScopedLedgerEntry<OtherScope> const& entry,
-        LedgerEntryScope<OtherScope> const& scope) const;
+    EntryT
+    scopeAdoptEntryFromImpl(ScopedLedgerEntry<OtherScope> const& entry,
+                            LedgerEntryScope<OtherScope> const& scope) const;
 
     template <StaticLedgerEntryScope OtherScope>
-    OptionalEntryT scope_adopt_optional_entry_from_impl(
-        ScopedLedgerEntryOpt<OtherScope> const& entry,
-        LedgerEntryScope<OtherScope> const& scope) const;
+    OptionalEntryT
+    scopeAdoptEntryOptFromImpl(ScopedLedgerEntryOpt<OtherScope> const& entry,
+                               LedgerEntryScope<OtherScope> const& scope) const;
 };
 
 template <StaticLedgerEntryScope S> class DeactivateScopeGuard
