@@ -170,8 +170,7 @@ CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
     LedgerHeaderHistoryEntry lhe;
     lhe.header = header;
     lhe.hash = xdrSha256(header);
-    mLedgerHeaders->writeOne(lhe);
-    mLedgerHeaders->flush();
+    mLedgerHeaders->durableWriteOne(lhe);
 }
 
 namespace
@@ -289,7 +288,7 @@ CheckpointBuilder::cleanup(uint32_t lcl)
                                   ft.localPath_nogz_dirty(), lcl);
                         break;
                     }
-                    out.writeOne(entry);
+                    out.durableWriteOne(entry);
                 }
                 catch (xdr::xdr_runtime_error const& e)
                 {
