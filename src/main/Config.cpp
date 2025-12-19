@@ -10,15 +10,17 @@
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
 #include "main/StellarCoreVersion.h"
+#include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
-#include "simulation/ApplyLoad.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-
-#include "overlay/OverlayManager.h"
 #include "util/UnorderedSet.h"
+#ifdef BUILD_TESTS
+#include "simulation/ApplyLoad.h"
+#endif
+
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <functional>
@@ -1583,6 +1585,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
+#ifdef BUILD_TESTS
                 {"APPLY_LOAD_DATA_ENTRY_SIZE",
                  [&]() {
                      APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
@@ -1768,6 +1771,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"APPLY_LOAD_TIME_WRITES",
                  [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+#endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
