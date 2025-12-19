@@ -6,6 +6,7 @@
 
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
+#include <functional>
 #include <iosfwd>
 #include <optional>
 
@@ -167,7 +168,6 @@
 //
 // and so forth. The alias list is defined by SCOPE_ALIAS.
 
-
 // This macro defines the _static_ set of scopes. Each of these turns
 // into a static enum entry in StaticLedgerEntryScope as well as a
 // bunch of type synonyms for scoped ledger entries parameterized by
@@ -231,7 +231,7 @@ template <StaticLedgerEntryScope S> class LedgerEntryScopeID
     bool operator==(LedgerEntryScopeID const& other) const;
     bool operator!=(LedgerEntryScopeID const& other) const;
 
-    friend std::ostream& ::operator<<(std::ostream& os,
+    friend std::ostream& ::operator<<(std::ostream & os,
                                       LedgerEntryScopeID const& obj);
 };
 
@@ -272,6 +272,8 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
 
     LedgerEntry const& read_in_scope(LedgerEntryScope<S> const& scope) const;
     LedgerEntry& modify_in_scope(LedgerEntryScope<S> const& scope);
+    void modify_in_scope(LedgerEntryScope<S> const& scope,
+                         std::function<void(LedgerEntry&)> func);
 
     bool operator==(ScopedLedgerEntry const& other) const;
     bool operator<(ScopedLedgerEntry const& other) const;
@@ -312,6 +314,8 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
     read_in_scope(LedgerEntryScope<S> const& scope) const;
     std::optional<LedgerEntry>&
     modify_in_scope(LedgerEntryScope<S> const& scope);
+    void modify_in_scope(LedgerEntryScope<S> const& scope,
+                         std::function<void(std::optional<LedgerEntry>&)> func);
 
     bool operator==(ScopedLedgerEntryOpt const& other) const;
     bool operator<(ScopedLedgerEntryOpt const& other) const;
@@ -376,12 +380,14 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     void scope_deactivate() const;
 
     LedgerEntry const& scope_read_entry(EntryT const& w) const;
-    LedgerEntry& scope_modify_entry(EntryT& w) const;
+    void scope_modify_entry(EntryT& w,
+                            std::function<void(LedgerEntry&)> func) const;
 
     std::optional<LedgerEntry> const&
     scope_read_optional_entry(OptionalEntryT const& w) const;
-    std::optional<LedgerEntry>&
-    scope_modify_optional_entry(OptionalEntryT& w) const;
+    void scope_modify_optional_entry(
+        OptionalEntryT& w,
+        std::function<void(std::optional<LedgerEntry>&)> func) const;
 
     EntryT scope_adopt_entry(LedgerEntry&& entry) const;
     EntryT scope_adopt_entry(LedgerEntry const& entry) const;
