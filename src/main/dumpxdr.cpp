@@ -184,7 +184,7 @@ printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
 {
     T tmp;
     xdr::xdr_from_opaque(o, tmp);
-    std::cout << xdrToCerealString(tmp, desc, compact) << std::endl;
+    std::cout << desc << ": " << xdrToJson(tmp, compact) << std::endl;
 }
 
 void
@@ -193,8 +193,7 @@ printTransactionMeta(xdr::opaque_vec<> const& o, bool compact)
     TransactionMeta tmp;
     xdr::xdr_from_opaque(o, tmp);
     normalizeMeta(tmp);
-    std::cout << xdrToCerealString(tmp, "TransactionMeta", compact)
-              << std::endl;
+    std::cout << xdrToJson(tmp, compact) << std::endl;
 }
 } // namespace
 

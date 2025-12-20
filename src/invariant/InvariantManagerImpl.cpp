@@ -162,8 +162,7 @@ InvariantManagerImpl::checkOnOperationApply(
 
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on operation: {}{}{})"),
-            invariant->getName(), result, "\n",
-            xdrToCerealString(operation, "Operation"));
+            invariant->getName(), result, "\n", xdrToJson(operation));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
     }

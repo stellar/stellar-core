@@ -412,9 +412,7 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     case LEDGER_UPGRADE_FLAGS:
         return fmt::format(FMT_STRING("flags={:d}"), upgrade.newFlags());
     case LEDGER_UPGRADE_CONFIG:
-        return fmt::format(
-            FMT_STRING("{}"),
-            xdrToCerealString(upgrade.newConfig(), "configupgradesetkey"));
+        return fmt::format(FMT_STRING("{}"), xdrToJson(upgrade.newConfig()));
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
         return fmt::format(FMT_STRING("maxsorobantxsetsize={:d}"),
                            upgrade.newMaxSorobanTxSetSize());
@@ -457,8 +455,7 @@ Upgrades::toString() const
     {
         maybePrintUpgradeTime();
         r << fmt::format(FMT_STRING(", {}"),
-                         xdrToCerealString(*mParams.mConfigUpgradeSetKey,
-                                           "configupgradesetkey"));
+                         xdrToJson(*mParams.mConfigUpgradeSetKey));
     }
     return r.str();
 }

@@ -771,7 +771,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
         if (!entry)
         {
             throw std::runtime_error("No TTL entry found for key: " +
-                                     xdrToCerealString(key, "key"));
+                                     xdrToJson(key));
         }
         return entry->data.ttl().liveUntilLedgerSeq;
     };
@@ -842,12 +842,12 @@ dumpLedger(Config cfg, std::string const& outputFile,
                                   isSorobanEntry(entry.data);
                     if (!addTTL)
                     {
-                        ofs << xdrToCerealString(entry, "entry") << std::endl;
+                        ofs << xdrToJson(entry) << std::endl;
                     }
                     else
                     {
                         uint32_t liveUntilLedger = ttlGetter(getTTLKey(entry));
-                        std::string s = xdrToCerealString(entry, "entry");
+                        std::string s = xdrToJson(entry);
                         s.erase(s.size() - 3, 2); // remove '\n}'
                         ofs << s << ",\n    \"liveUntilLedgerSeq\": "
                             << liveUntilLedger << "\n}\n";

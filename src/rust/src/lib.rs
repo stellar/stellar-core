@@ -36,6 +36,7 @@ mod quorum_checker;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;
+mod xdr_to_json;
 
 #[cfg(feature = "testutils")]
 mod soroban_test_extra_protocol;

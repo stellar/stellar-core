@@ -179,6 +179,8 @@ pub(crate) mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+        // Returns empty string on error
+        fn xdr_to_json(buf: &CxxVector<u8>, xdr_type: &CxxString, compact: bool) -> String;
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
 
         // Ed25519 signature verification using dalek library.
@@ -396,3 +398,4 @@ use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;
 use crate::soroban_test_wasm::*;
+use crate::xdr_to_json::*;

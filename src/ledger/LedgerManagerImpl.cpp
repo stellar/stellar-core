@@ -1501,7 +1501,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                 txSet->previousLedgerHash()),
                    ledgerAbbrev(prevHeader));
 
-        CLOG_ERROR(Ledger, "{}", xdrToCerealString(prevHeader, "Full LCL"));
+        CLOG_ERROR(Ledger, "{}", xdrToJson(prevHeader));
         CLOG_ERROR(Ledger, "{}", POSSIBLY_CORRUPTED_LOCAL_DATA);
 
         throw std::runtime_error("txset mismatch");
@@ -1642,7 +1642,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         case Upgrades::UpgradeValidity::INVALID:
         {
             CLOG_ERROR(Ledger, "Invalid upgrade at index {}: {}", i,
-                       xdrToCerealString(lupgrade, "LedgerUpgrade"));
+                       xdrToJson(lupgrade));
             continue;
         }
         }

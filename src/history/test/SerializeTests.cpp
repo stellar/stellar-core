@@ -5,6 +5,7 @@
 #include "history/HistoryArchive.h"
 #include "test/Catch2.h"
 #include "test/test.h"
+#include "xdr/Stellar-contract-env-meta.h"
 
 #include <fstream>
 #include <string>

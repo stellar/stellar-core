@@ -321,12 +321,11 @@ ApplyCheckpointWork::onRun()
         {
             auto& lm = mApp.getLedgerManager();
 
-            CLOG_DEBUG(History, "{}",
-                       xdrToCerealString(lm.getLastClosedLedgerHeader(),
-                                         "LedgerManager LCL"));
+            CLOG_DEBUG(History, "LedgerManagerLCL {}",
+                       xdrToJson(lm.getLastClosedLedgerHeader()));
 
-            CLOG_DEBUG(History, "{}",
-                       xdrToCerealString(mHeaderHistoryEntry, "Replay header"));
+            CLOG_DEBUG(History, "Replay header {}",
+                       xdrToJson(mHeaderHistoryEntry));
             if (lm.getLastClosedLedgerHeader().hash != mHeaderHistoryEntry.hash)
             {
                 throw std::runtime_error(fmt::format(
