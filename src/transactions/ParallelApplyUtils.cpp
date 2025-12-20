@@ -475,6 +475,7 @@ GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps(
     // don't have merge special casing.
     std::optional<LedgerEntry> const& newLe =
         newEntry.mLedgerEntry.readInScope(*this);
+    auto merged = false;
     oldEntry.mLedgerEntry.modifyInScope(
         *this, [&](std::optional<LedgerEntry>& oldLe) {
             if (newLe && oldLe && key.type() == TTL)
@@ -483,15 +484,14 @@ GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps(
                 releaseAssertOrThrow(oldLe.value().data.type() == TTL);
                 if (readWriteSet.find(key) == readWriteSet.end())
                 {
-                    auto const& newTTL =
-                        newLe.value().data.ttl().liveUntilLedgerSeq;
-                    auto& oldTTL = oldLe.value().data.ttl().liveUntilLedgerSeq;
+                    uint32_t const& newTTL = ttl(newLe);
+                    uint32_t& oldTTL = ttl(oldLe);
                     oldTTL = std::max(oldTTL, newTTL);
-                    return true;
+                    merged = true;
                 }
             }
         });
-    return false;
+    return merged;
 }
 
 void
