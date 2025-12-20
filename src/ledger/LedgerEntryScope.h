@@ -271,7 +271,6 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     ScopedLedgerEntry<S>& operator=(ScopedLedgerEntry<S>&& other);
 
     LedgerEntry const& readInScope(LedgerEntryScope<S> const& scope) const;
-    LedgerEntry& modifyInScope(LedgerEntryScope<S> const& scope);
     void modifyInScope(LedgerEntryScope<S> const& scope,
                        std::function<void(LedgerEntry&)> func);
 
@@ -312,7 +311,6 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
 
     std::optional<LedgerEntry> const&
     readInScope(LedgerEntryScope<S> const& scope) const;
-    std::optional<LedgerEntry>& modifyInScope(LedgerEntryScope<S> const& scope);
     void modifyInScope(LedgerEntryScope<S> const& scope,
                        std::function<void(std::optional<LedgerEntry>&)> func);
 
