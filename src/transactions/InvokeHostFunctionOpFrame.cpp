@@ -381,11 +381,11 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 // handleArchivedEntry may need to load the TTL key to write the
                 // restored TTL, so make sure any TTL ltxe destructs before
                 // calling handleArchivedEntry
-                auto ttlEntryOp = getLedgerEntryOpt(ttlKey);
+                auto ttlEntryOpt = getLedgerEntryOpt(ttlKey);
 
-                if (ttlEntryOp)
+                if (ttlEntryOpt)
                 {
-                    if (!isLive(ttlEntryOp.value(), ledgerSeq))
+                    if (!isLive(ttlEntryOpt.value(), ledgerSeq))
                     {
                         // For temporary entries, treat the expired entry as
                         // if the key did not exist
@@ -406,7 +406,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                     else
                     {
                         sorobanEntryLive = true;
-                        ttlEntry = ttlEntryOp->data.ttl();
+                        ttlEntry = ttlEntryOpt->data.ttl();
                     }
                 }
                 // Starting from protocol 23, check the hot archive for this
@@ -1054,24 +1054,25 @@ class InvokeHostFunctionParallelApplyHelper
             LedgerEntry ttlEntry;
             if (isHotArchiveEntry)
             {
-                mOpState.upsertEntry(lk, le, mLedgerInfo.getLedgerSeq());
+                mTxState.upsertEntry(lk, le, mLedgerInfo.getLedgerSeq());
                 ttlEntry =
                     getTTLEntryForTTLKey(ttlKey, restoredLiveUntilLedger);
-                mOpState.upsertEntry(ttlKey, ttlEntry,
+                mTxState.upsertEntry(ttlKey, ttlEntry,
                                      mLedgerInfo.getLedgerSeq());
-                mOpState.addHotArchiveRestore(lk, le, ttlKey, ttlEntry);
+                mTxState.addHotArchiveRestore(lk, le, ttlKey, ttlEntry);
             }
             else
             {
                 // Entry exists in the live BucketList if we get to this point
-                auto ttlLeOpt = mOpState.getLiveEntryOpt(ttlKey);
+                auto scopedTtlLeOpt = mTxState.getLiveEntryOpt(ttlKey);
+                auto ttlLeOpt = scopedTtlLeOpt.readInScope(mTxState);
                 releaseAssertOrThrow(ttlLeOpt);
-                ttlEntry = *ttlLeOpt;
+                ttlEntry = ttlLeOpt.value();
                 ttlEntry.data.ttl().liveUntilLedgerSeq =
                     restoredLiveUntilLedger;
-                mOpState.upsertEntry(ttlKey, ttlEntry,
+                mTxState.upsertEntry(ttlKey, ttlEntry,
                                      mLedgerInfo.getLedgerSeq());
-                mOpState.addLiveBucketlistRestore(lk, le, ttlKey, ttlEntry);
+                mTxState.addLiveBucketlistRestore(lk, le, ttlKey, ttlEntry);
             }
 
             // Finally, add the entries to the Cxx buffer as if they were live.
@@ -1130,7 +1131,7 @@ class InvokeHostFunctionParallelApplyHelper
     bool
     previouslyRestoredFromHotArchive(LedgerKey const& lk) override
     {
-        return mOpState.entryWasRestored(lk);
+        return mTxState.entryWasRestored(lk);
     }
 
     // Returns true if the given key is marked for
@@ -1201,11 +1202,11 @@ class InvokeHostFunctionParallelApplyHelper
     {
         if (applySucceeded)
         {
-            return mOpState.takeSuccess();
+            return mTxState.takeSuccess();
         }
         else
         {
-            return mOpState.takeFailure();
+            return mTxState.takeFailure();
         }
     }
 };
