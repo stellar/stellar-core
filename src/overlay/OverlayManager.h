@@ -60,7 +60,7 @@ class OverlayManager
     static std::unique_ptr<OverlayManager> create(Application& app);
 
     // Drop all PeerRecords from the Database
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
     static bool isFloodMessage(StellarMessage const& msg);
     static std::shared_ptr<StellarMessage> createTxBatch();
     static uint32_t getFlowControlBytesBatch(Config const& cfg);

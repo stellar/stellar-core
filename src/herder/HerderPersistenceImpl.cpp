@@ -48,7 +48,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
 
     auto usedQSets = UnorderedMap<Hash, SCPQuorumSetPtr>{};
     auto& db = mApp.getDatabase();
-    auto& sess = db.getSession();
+    auto& sess = db.getMiscSession();
 
     soci::transaction txscope(sess.session());
 
@@ -376,37 +376,35 @@ HerderPersistence::getQuorumSet(soci::session& sess, Hash const& qSetHash)
 }
 
 void
-HerderPersistence::dropAll(Database& db)
+HerderPersistence::maybeDropAndCreateNew(soci::session& sess)
 {
     ZoneScoped;
-    db.getRawSession() << "DROP TABLE IF EXISTS scphistory";
+    sess << "DROP TABLE IF EXISTS scphistory";
 
-    db.getRawSession() << "DROP TABLE IF EXISTS scpquorums";
+    sess << "DROP TABLE IF EXISTS scpquorums";
 
-    db.getRawSession() << "CREATE TABLE scphistory ("
-                          "nodeid      CHARACTER(56) NOT NULL,"
-                          "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
-                          "envelope    TEXT NOT NULL"
-                          ")";
+    sess << "CREATE TABLE scphistory ("
+            "nodeid      CHARACTER(56) NOT NULL,"
+            "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+            "envelope    TEXT NOT NULL"
+            ")";
 
-    db.getRawSession() << "CREATE INDEX scpenvsbyseq ON scphistory(ledgerseq)";
+    sess << "CREATE INDEX scpenvsbyseq ON scphistory(ledgerseq)";
 
-    db.getRawSession()
-        << "CREATE TABLE scpquorums ("
-           "qsethash      CHARACTER(64) NOT NULL,"
-           "lastledgerseq INT NOT NULL CHECK (lastledgerseq >= 0),"
-           "qset          TEXT NOT NULL,"
-           "PRIMARY KEY (qsethash)"
-           ")";
+    sess << "CREATE TABLE scpquorums ("
+            "qsethash      CHARACTER(64) NOT NULL,"
+            "lastledgerseq INT NOT NULL CHECK (lastledgerseq >= 0),"
+            "qset          TEXT NOT NULL,"
+            "PRIMARY KEY (qsethash)"
+            ")";
 
-    db.getRawSession()
-        << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
+    sess << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
 
-    db.getRawSession() << "DROP TABLE IF EXISTS quoruminfo";
-    db.getRawSession() << "CREATE TABLE quoruminfo ("
-                          "nodeid      CHARACTER(56) NOT NULL,"
-                          "qsethash    CHARACTER(64) NOT NULL,"
-                          "PRIMARY KEY (nodeid))";
+    sess << "DROP TABLE IF EXISTS quoruminfo";
+    sess << "CREATE TABLE quoruminfo ("
+            "nodeid      CHARACTER(56) NOT NULL,"
+            "qsethash    CHARACTER(64) NOT NULL,"
+            "PRIMARY KEY (nodeid))";
 }
 
 void

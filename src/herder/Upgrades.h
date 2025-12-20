@@ -126,7 +126,7 @@ class Upgrades
                    std::vector<UpgradeType>::const_iterator endUpdates,
                    uint64_t time, bool& updated);
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(Database& db);
 
   private:
     UpgradeParameters mParams;

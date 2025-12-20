@@ -3289,7 +3289,6 @@ TEST_CASE("overlay parallel processing", "[herder][parallel]")
             Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
                 cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                     std::chrono::milliseconds(500);
                 cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
@@ -3386,7 +3385,7 @@ TEST_CASE("randomized parallel features with jitter injection",
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
                         cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
-                        cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+                        cfg.PARALLEL_LEDGER_APPLY = true;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
                         // Tight DB tuning to trigger cache
@@ -3406,7 +3405,7 @@ TEST_CASE("randomized parallel features with jitter injection",
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
                         cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
-                        cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+                        cfg.PARALLEL_LEDGER_APPLY = false;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
                         // Tight DB tuning to trigger cache
@@ -3745,31 +3744,14 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
 // each component is in sync or out of sync)
 void
 herderExternalizesValuesWithProtocol(uint32_t version,
-                                     bool parallelLedgerClose = false,
                                      uint32_t delayCloseMs = 0)
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             Config::TestDbMode dbMode = Config::TESTDB_BUCKET_DB_PERSISTENT;
-            if (parallelLedgerClose)
-            {
-#ifdef USE_POSTGRES
-                dbMode = Config::TESTDB_POSTGRESQL;
-#else
-                FAIL("Parallel ledger apply requires postgres");
-#endif
-            }
             auto cfg = getTestConfig(i, dbMode);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
-            if (parallelLedgerClose)
-            {
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
-                // Add artificial delay to ledger close to increase chances of
-                // conflicts
-                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
-                    std::chrono::milliseconds(delayCloseMs);
-            }
             return cfg;
         });
 
@@ -4393,7 +4375,7 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 {
                     cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
                 }
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = enableParallelApply;
+                cfg.PARALLEL_LEDGER_APPLY = enableParallelApply;
                 return cfg;
             });
 
@@ -4743,6 +4725,9 @@ TEST_CASE("do not flood too many soroban transactions",
             cfg.FLOOD_SOROBAN_RATE_PER_LEDGER = 2.0;
             cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                 std::chrono::seconds(0);
+            // make ledger close synchronous to ensure we can tightly control
+            // the execution flow
+            cfg.PARALLEL_LEDGER_APPLY = false;
             return cfg;
         });
 
@@ -5716,7 +5701,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             auto& db = node->getDatabase();
             auto prep = db.getPreparedStatement(
                 "SELECT envelope FROM scphistory WHERE ledgerseq = :l",
-                db.getSession());
+                db.getMiscSession());
             auto& st = prep.statement();
             st.exchange(soci::use(ledgerNum));
             std::string envStr;
@@ -6760,7 +6745,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
         simulation = Topologies::core(
             3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = true;
+                cfg.PARALLEL_LEDGER_APPLY = true;
                 return cfg;
             });
     }
@@ -6770,7 +6755,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
         simulation = Topologies::core(
             3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-                cfg.EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+                cfg.PARALLEL_LEDGER_APPLY = false;
                 return cfg;
             });
     }

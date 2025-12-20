@@ -819,9 +819,9 @@ ApplyLoad::setupBucketList()
 
     HistoryArchiveState has;
     has.currentLedger = lh.ledgerSeq;
-    mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
-                                       has.toString(),
-                                       mApp.getDatabase().getSession());
+    mApp.getPersistentState().setMainState(
+        PersistentState::kHistoryArchiveState, has.toString(),
+        mApp.getDatabase().getSession());
     mApp.getBucketManager().snapshotLedger(lh);
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());

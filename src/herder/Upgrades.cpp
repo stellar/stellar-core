@@ -710,7 +710,7 @@ Upgrades::timeForUpgrade(uint64_t time) const
 }
 
 void
-Upgrades::dropAll(Database& db)
+Upgrades::maybeDropAndCreateNew(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
     db.getRawSession() << "CREATE TABLE upgradehistory ("

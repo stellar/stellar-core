@@ -26,9 +26,9 @@ validateNetworkPassphrase(Application::pointer app)
         PersistentState::kNetworkPassphrase, app->getDatabase().getSession());
     if (prevNetworkPassphrase.empty())
     {
-        persistentState.setState(PersistentState::kNetworkPassphrase,
-                                 networkPassphrase,
-                                 app->getDatabase().getSession());
+        persistentState.setMainState(PersistentState::kNetworkPassphrase,
+                                     networkPassphrase,
+                                     app->getDatabase().getSession());
     }
     else if (networkPassphrase != prevNetworkPassphrase)
     {

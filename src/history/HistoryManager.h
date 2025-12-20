@@ -208,7 +208,6 @@ class HistoryManager
     static std::unique_ptr<HistoryManager> create(Application& app);
 
     // Initialize DB table for persistent publishing queue.
-    static void dropAll(Database& db);
     static std::filesystem::path publishQueuePath(Config const& cfg);
     static void createPublishQueueDir(Config const& cfg);
 

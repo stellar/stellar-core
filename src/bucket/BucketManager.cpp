@@ -122,7 +122,7 @@ BucketManager::initialize()
 }
 
 void
-BucketManager::dropAll()
+BucketManager::maybeDropAndCreateNew()
 {
     ZoneScoped;
     deleteEntireBucketDir();

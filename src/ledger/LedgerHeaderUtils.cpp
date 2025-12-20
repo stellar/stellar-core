@@ -230,7 +230,7 @@ copyToStream(soci::session& sess, uint32_t ledgerSeq, uint32_t ledgerCount,
 }
 
 void
-dropAll(Database& db)
+maybeDropAndCreateNew(Database& db)
 {
     std::string coll = db.getSimpleCollationClause();
 
