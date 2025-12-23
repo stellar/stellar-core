@@ -357,12 +357,6 @@ ConservationOfLumens::checkSnapshot(
         return errorMsg;
     }
 
-    // Check if we should stop before scanning hot archive
-    if (isStopping())
-    {
-        return std::string{};
-    }
-
     // Scan the Hot Archive for native balances using loopAllBuckets
     {
         std::unordered_set<LedgerKey> countedKeys;
