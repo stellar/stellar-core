@@ -80,9 +80,9 @@ class InvariantManagerImpl : public InvariantManager
 
     bool shouldRunInvariantSnapshot() const override;
 
-    void runStateSnapshotInvariant(
-        CompleteConstLedgerStatePtr ledgerState,
-        InMemorySorobanState const& inMemorySnapshot) override;
+    void runStateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
+                                   InMemorySorobanState const& inMemorySnapshot,
+                                   std::function<bool()> isStopping) override;
 
 #ifdef BUILD_TESTS
     void snapshotForFuzzer() override;

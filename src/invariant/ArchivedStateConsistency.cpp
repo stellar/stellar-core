@@ -30,7 +30,8 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 std::string
 ArchivedStateConsistency::checkSnapshot(
     CompleteConstLedgerStatePtr ledgerState,
-    InMemorySorobanState const& inMemorySnapshot)
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
 {
     LogSlowExecution logSlow("ArchivedStateConsistency::stateSnapshotInvariant",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
@@ -54,33 +55,39 @@ ArchivedStateConsistency::checkSnapshot(
     // For each entry in the Live BucketList, check if we have seen it in a
     // previous level. If not, this entry is the newest version, so check if it
     // exists in the Hot Archive.
-    auto checkIfLiveEntryInArchive =
-        [&seenKeys, &errorMsg, &hotArchiveSnapshot](BucketEntry const& be) {
-            if (be.type() == LIVEENTRY || be.type() == INITENTRY)
-            {
-                auto lk = LedgerEntryKey(be.liveEntry());
-                auto [_, wasInserted] = seenKeys.emplace(lk);
+    auto checkIfLiveEntryInArchive = [&seenKeys, &errorMsg, &hotArchiveSnapshot,
+                                      &isStopping](BucketEntry const& be) {
+        // Allow early termination if application is stopping
+        if (isStopping())
+        {
+            return Loop::COMPLETE;
+        }
 
-                // If this BucketEntry is not shadowed, and the key exists in
-                // the Hot Archive, we have an error.
-                if (wasInserted && hotArchiveSnapshot->load(lk))
-                {
-                    errorMsg = fmt::format(
-                        FMT_STRING("ArchivedStateConsistency invariant failed: "
-                                   "Live entry is present in both live and "
-                                   "archived state: {}"),
-                        xdrToCerealString(lk, "entry_key"));
-                    return Loop::COMPLETE;
-                }
-            }
-            // Mark DEADENTRY as seen, but the key does not exist wrt ledger
-            // state, so we don't need to check the Hot Archive.
-            else if (be.type() == DEADENTRY)
+        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+        {
+            auto lk = LedgerEntryKey(be.liveEntry());
+            auto [_, wasInserted] = seenKeys.emplace(lk);
+
+            // If this BucketEntry is not shadowed, and the key exists in
+            // the Hot Archive, we have an error.
+            if (wasInserted && hotArchiveSnapshot->load(lk))
             {
-                seenKeys.emplace(be.deadEntry());
+                errorMsg = fmt::format(
+                    FMT_STRING("ArchivedStateConsistency invariant failed: "
+                               "Live entry is present in both live and "
+                               "archived state: {}"),
+                    xdrToCerealString(lk, "entry_key"));
+                return Loop::COMPLETE;
             }
-            return Loop::INCOMPLETE;
-        };
+        }
+        // Mark DEADENTRY as seen, but the key does not exist wrt ledger
+        // state, so we don't need to check the Hot Archive.
+        else if (be.type() == DEADENTRY)
+        {
+            seenKeys.emplace(be.deadEntry());
+        }
+        return Loop::INCOMPLETE;
+    };
 
     // We just need to check for Soroban types that are stored in the Hot
     // Archive

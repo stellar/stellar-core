@@ -777,7 +777,8 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     auto cb = [ledgerState = ledgerState, &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant);
+            ledgerState, *inMemorySnapshotForInvariant,
+            [&app]() { return app.isStopping(); });
     };
 
     if (runInParallel)
@@ -853,6 +854,12 @@ InMemorySorobanState const&
 LedgerManagerImpl::getInMemorySorobanStateForTesting()
 {
     return mApplyState.getInMemorySorobanStateForTesting();
+}
+
+CompleteConstLedgerStatePtr
+LedgerManagerImpl::getLastClosedLedgerStateForTesting()
+{
+    return mLastClosedLedgerState;
 }
 
 void

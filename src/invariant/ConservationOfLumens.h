@@ -33,6 +33,11 @@ class ConservationOfLumens : public Invariant
         LedgerTxnDelta const& ltxDelta,
         std::vector<ContractEvent> const& events, AppConnector& app) override;
 
+    virtual std::string
+    checkSnapshot(CompleteConstLedgerStatePtr ledgerState,
+                  InMemorySorobanState const& inMemorySnapshot,
+                  std::function<bool()> isStopping) override;
+
   private:
     AssetContractInfo const mLumenContractInfo;
 };

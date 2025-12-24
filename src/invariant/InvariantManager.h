@@ -68,7 +68,8 @@ class InvariantManager
     // INVARIANT_EXTRA_CHECKS is enabled.
     virtual void
     runStateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
-                              InMemorySorobanState const& inMemorySnapshot) = 0;
+                              InMemorySorobanState const& inMemorySnapshot,
+                              std::function<bool()> isStopping) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
