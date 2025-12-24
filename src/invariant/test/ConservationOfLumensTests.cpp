@@ -307,8 +307,12 @@ TEST_CASE("Inflation changes are consistent",
     }
 }
 
-TEST_CASE("Snapshot invariant validates total lumens",
-          "[invariant][conservationoflumens]")
+// This test ensures that the invariant is called in the right path,
+// while the next test corrups the bucket list and calls into the invariant
+// directly.
+TEST_CASE(
+    "ConservationOfLumens snapshot invariant validates corrupted total lumens",
+    "[invariant][conservationoflumens]")
 {
     auto cfg = getTestConfig();
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
@@ -327,11 +331,6 @@ TEST_CASE("Snapshot invariant validates total lumens",
     AssetContractTestClient client(test, makeNativeAsset());
     auto contractAddr = makeContractAddress(sha256("contract"));
     REQUIRE(client.transfer(a1, contractAddr, 100));
-
-    // Note: We should figure out how to force the eviction of an SAC contract
-    // balance. The SAC auto extends balances, so simply waiting for TTL to
-    // expire is not practical. We need to update the in memory ttl to a lower
-    // value for testing.
 
     // Verify the snapshot invariant passes
     {
@@ -400,7 +399,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         lm.setNextLedgerEntryBatchForBucketTesting({acc1, acc2}, // init entries
                                                    {},           // live entries
                                                    {});          // dead entries
-        ::closeLedger(*app);
+        BucketTestUtils::closeLedger(*app);
 
         // Calculate expected totalCoins: initial + acc1 + acc2
         int64_t expectedTotal = initialTotal + acc1.data.account().balance +
@@ -413,7 +412,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             ltx.commit();
         }
 
-        ::closeLedger(*app);
+        BucketTestUtils::closeLedger(*app);
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
@@ -437,7 +436,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         lm.setNextLedgerEntryBatchForBucketTesting({acc1, acc2}, // init entries
                                                    {},           // live entries
                                                    {});          // dead entries
-        ::closeLedger(*app);
+        BucketTestUtils::closeLedger(*app);
 
         // Set totalCoins to incorrect value (off by 9999)
         int64_t incorrectTotal = initialTotal + acc1.data.account().balance +
@@ -449,7 +448,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             ltx.commit();
         }
 
-        ::closeLedger(*app);
+        BucketTestUtils::closeLedger(*app);
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
@@ -475,7 +474,13 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         lm.setNextLedgerEntryBatchForBucketTesting({acc1}, // init entries
                                                    {},     // live entries
                                                    {});    // dead entries
-        ::closeLedger(*app);
+
+        // Close enough ledgers so acc1 is pushed down to a different bucket.
+        // We'll add a acc1 update to curr after this.
+        for (size_t i = 0; i < 8; ++i)
+        {
+            BucketTestUtils::closeLedger(*app);
+        }
 
         // Create modified version of acc1 with different balance
         auto acc1Modified = acc1;
@@ -486,7 +491,8 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             {},             // init entries
             {acc1Modified}, // live entries (shadows acc1 INIT)
             {});            // dead entries
-        ::closeLedger(*app);
+
+        BucketTestUtils::closeLedger(*app);
 
         // The invariant should only count acc1Modified's balance (5000), not
         // the original (1000)
@@ -499,7 +505,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             ltx.commit();
         }
 
-        ::closeLedger(*app);
+        BucketTestUtils::closeLedger(*app);
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
@@ -523,32 +529,62 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         // Deploy native asset contract and create a balance
         AssetContractTestClient client(sorobanTest, makeNativeAsset());
-        auto contractAddr = makeContractAddress(sha256("test_contract"));
+        auto contractAddr1 = makeContractAddress(sha256("test_contract1"));
+        auto contractAddr2 = makeContractAddress(sha256("test_contract2"));
 
         // Transfer creates the native balance CONTRACT_DATA entry
-        REQUIRE(client.transfer(acc1, contractAddr, 5000));
-        ::closeLedger(*app);
+        REQUIRE(client.transfer(acc1, contractAddr1, 5000));
+        REQUIRE(client.transfer(acc1, contractAddr2, 1));
+        BucketTestUtils::closeLedger(*app);
 
         // Extract the balance entry from live state
-        LedgerEntry balanceEntry;
-        LedgerKey balanceKey;
+        LedgerEntry balanceEntry1;
+        LedgerEntry balanceEntry2;
+        LedgerKey balanceKey1;
+        LedgerKey balanceKey2;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            balanceKey = client.makeBalanceKey(contractAddr);
-            auto ltxe = ltx.load(balanceKey);
-            REQUIRE(ltxe);
-            balanceEntry = ltxe.current();
+            balanceKey1 = client.makeBalanceKey(contractAddr1);
+            balanceKey2 = client.makeBalanceKey(contractAddr2);
+
+            auto ltxe1 = ltx.load(balanceKey1);
+            auto ltxe2 = ltx.load(balanceKey2);
+
+            REQUIRE(ltxe1);
+            REQUIRE(ltxe2);
+
+            balanceEntry1 = ltxe1.current();
+            balanceEntry2 = ltxe2.current();
         }
 
-        // Corrupt: add 123 stroops to the balance value
-        balanceEntry.data.contractData().val.map()->at(0).val.i128().lo += 123;
+        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+
+        // Remove from live buckets and inject valid entry into hot archive
+        lm.setNextLedgerEntryBatchForBucketTesting(
+            {}, {}, {balanceKey1, getTTLKey(balanceKey1)});
+        lm.setNextArchiveBatchForBucketTesting({balanceEntry1}, {});
+        BucketTestUtils::closeLedger(*app);
+
+        {
+            auto ledgerState =
+                app->getLedgerManager().getLastClosedLedgerStateForTesting();
+            auto& inMemoryState =
+                app->getLedgerManager().getInMemorySorobanStateForTesting();
+
+            REQUIRE_NOTHROW(
+                app->getInvariantManager().runStateSnapshotInvariant(
+                    ledgerState, inMemoryState, []() { return false; }));
+        }
+
+        // Corrupt the other live balance by adding 123 stroops to the balance
+        // value
+        balanceEntry2.data.contractData().val.map()->at(0).val.i128().lo += 123;
 
         // Remove from live buckets and inject corrupted entry into hot archive
-        lm.setNextLedgerEntryBatchForBucketTesting({}, {}, {balanceKey});
-        lm.setNextArchiveBatchForBucketTesting({balanceEntry}, {});
-        ::closeLedger(*app);
-
-        app->getInvariantManager().enableInvariant("ConservationOfLumens");
+        lm.setNextLedgerEntryBatchForBucketTesting(
+            {}, {}, {balanceKey2, getTTLKey(balanceKey2)});
+        lm.setNextArchiveBatchForBucketTesting({balanceEntry2}, {});
+        BucketTestUtils::closeLedger(*app);
 
         {
             auto ledgerState =
