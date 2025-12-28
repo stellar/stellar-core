@@ -269,7 +269,7 @@ std::size_t connection_pool::lease()
     assert(success);    
     if (!success)
     {
-        // TODO: anything to report? --mloskot
+        // No additional diagnostics to report here.
     }
 
     return pos;
@@ -289,7 +289,7 @@ bool connection_pool::try_lease(std::size_t & pos, int timeout)
         assert(success);
         if (!success)
         {
-            // TODO: anything to report? --mloskot
+            // No additional diagnostics to report here.
         }
 
         pimpl_->sessions_[pos].first = false;
