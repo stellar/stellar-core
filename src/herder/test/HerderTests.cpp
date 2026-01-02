@@ -2559,7 +2559,7 @@ TEST_CASE("SCP State", "[herder]")
                 }
                 for (auto const& msg : msgs)
                 {
-                    for (auto const& h : getTxSetHashes(msg))
+                    for (auto const& h : getValidatedTxSetHashes(msg))
                     {
                         REQUIRE(herder.getPendingEnvelopes().getTxSet(h));
                         REQUIRE(app->getPersistentState().hasTxSet(h));
@@ -3721,8 +3721,8 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
             {
                 StellarValue sv;
                 auto& pe = herder.getPendingEnvelopes();
-                herder.getHerderSCPDriver().toStellarValue(
-                    env.statement.pledges.externalize().commit.value, sv);
+                toStellarValue(env.statement.pledges.externalize().commit.value,
+                               sv);
                 auto txset = pe.getTxSet(sv.txSetHash);
                 REQUIRE(txset);
                 validatorSCPMessages[seq] =

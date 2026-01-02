@@ -17,9 +17,23 @@ struct SCPEnvelope;
 struct SCPStatement;
 struct StellarValue;
 
-std::vector<Hash> getTxSetHashes(SCPEnvelope const& envelope);
+// converts a Value into a StellarValue
+// returns false on error
+bool toStellarValue(Value const& v, StellarValue& sv);
 
-std::vector<StellarValue> getStellarValues(SCPStatement const& envelope);
+// Extract the transaction set hashes present in `envelope`.
+// Returns nullopt if any of the values in the envelope cannot be parsed.
+std::optional<std::vector<Hash>> getTxSetHashes(SCPEnvelope const& envelope);
+
+// Like `getTxSetHashes`, but throws if any of the values in the envelope cannot
+// be parsed. Use only when it shouldn't be possible for the envelope to contain
+// values that cannot be parsed.
+std::vector<Hash> getValidatedTxSetHashes(SCPEnvelope const& envelope);
+
+// Extract the values present in `envelope`.
+// Returns nullopt if any of the values in the envelope cannot be parsed.
+std::optional<std::vector<StellarValue>>
+getStellarValues(SCPStatement const& envelope);
 
 std::string toShortString(std::optional<Config> const& cfg, NodeID const& id);
 
