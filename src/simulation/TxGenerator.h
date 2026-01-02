@@ -95,6 +95,7 @@ class TxGenerator
     // Instructions per SAC transaction
     static constexpr uint64_t SAC_TX_INSTRUCTIONS = 250'000;
     static constexpr uint64_t BATCH_TRANSFER_TX_INSTRUCTIONS = 500'000;
+    static constexpr uint32_t SOROBAN_LOAD_V2_EVENT_SIZE_BYTES = 80;
 
     // Special account ID to represent the root account
     static uint64_t const ROOT_ACCOUNT_ID;

@@ -559,7 +559,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     // functions (maybe with a small constant factor as well).
     uint32_t const baseInstructionCount = 737'119;
     uint32_t const baselineTxSizeBytes = 256;
-    uint32_t const eventSize = 80;
+    uint32_t const eventSize = TxGenerator::SOROBAN_LOAD_V2_EVENT_SIZE_BYTES;
     uint32_t const instructionsPerGuestCycle = 40;
     uint32_t const instructionsPerHostCycle = 4'875;
     uint32_t const instructionsPerAuthByte = 35;
@@ -656,6 +656,9 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t targetInstructions =
         sampleDiscrete(appCfg.APPLY_LOAD_INSTRUCTIONS,
                        appCfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION, 0u);
+    resources.instructions = targetInstructions;
+    resources.writeBytes = entriesWriteSize;
+    resources.diskReadBytes = dataEntrySize * archiveEntriesToRestore;
 
     auto numEntries =
         (rwEntries + archiveEntriesToRestore + instance.readOnlyKeys.size());
@@ -707,14 +710,7 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
 
-    resources.writeBytes = entriesWriteSize;
-    resources.diskReadBytes = dataEntrySize * archiveEntriesToRestore;
-
     increaseOpSize(op, paddingBytes);
-
-    resources.instructions = instructionsWithoutCpuLoad +
-                             hostCycles * instructionsPerHostCycle +
-                             guestCycles * instructionsPerGuestCycle;
 
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes,
