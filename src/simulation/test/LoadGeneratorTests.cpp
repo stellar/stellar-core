@@ -884,6 +884,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
 
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
@@ -936,18 +937,19 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 8198;
     cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 50;
 
-    cfg.APPLY_LOAD_NUM_LEDGERS = 100;
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
 
     cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
-    ApplyLoad al(*app);
+    ApplyLoad al(*app, ApplyLoadMode::LIMIT_BASED);
 
     // Sample a few indices to verify hot archive is properly initialized
     uint32_t expectedArchivedEntries =
-        ApplyLoad::calculateRequiredHotArchiveEntries(cfg);
+        ApplyLoad::calculateRequiredHotArchiveEntries(
+            ApplyLoadMode::LIMIT_BASED, cfg);
     std::vector<uint32_t> sampleIndices = {0, expectedArchivedEntries / 2,
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
@@ -964,68 +966,71 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     auto sampleEntries = hotArchive->loadKeys(sampleKeys);
     REQUIRE(sampleEntries.size() == sampleKeys.size());
 
-    auto& ledgerClose =
-        app->getMetrics().NewTimer({"ledger", "ledger", "close"});
-    ledgerClose.Clear();
+    al.execute();
 
-    auto& cpuInsRatio = app->getMetrics().NewHistogram(
-        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
-    cpuInsRatio.Clear();
-
-    auto& cpuInsRatioExclVm = app->getMetrics().NewHistogram(
-        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-    cpuInsRatioExclVm.Clear();
-
-    auto& declaredInsnsUsageRatio = app->getMetrics().NewHistogram(
-        {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"});
-    declaredInsnsUsageRatio.Clear();
-
-    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_LEDGERS; ++i)
-    {
-        app->getBucketManager().getLiveBucketList().resolveAllFutures();
-        releaseAssert(
-            app->getBucketManager().getLiveBucketList().futuresAllResolved());
-
-        al.benchmark();
-    }
     REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
-    CLOG_INFO(Perf, "Max ledger close: {} milliseconds", ledgerClose.max());
-    CLOG_INFO(Perf, "Min ledger close: {} milliseconds", ledgerClose.min());
-    CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds", ledgerClose.mean());
-    CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-              ledgerClose.std_dev());
+}
 
-    CLOG_INFO(Perf, "Max CPU ins ratio: {}", cpuInsRatio.max() / 1000000);
-    CLOG_INFO(Perf, "Mean CPU ins ratio:  {}", cpuInsRatio.mean() / 1000000);
+TEST_CASE("apply load find max limits for model tx",
+          "[loadgen][applyload][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
 
-    CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-              cpuInsRatioExclVm.max() / 1000000);
-    CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-              cpuInsRatioExclVm.mean() / 1000000);
-    CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-              cpuInsRatioExclVm.std_dev() / 1000000);
+    // Also generate that many classic simple payments.
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
-    CLOG_INFO(Perf, "Min CPU declared insns ratio: {}",
-              declaredInsnsUsageRatio.min() / 1000000.0);
-    CLOG_INFO(Perf, "Mean CPU declared insns ratio:  {}",
-              declaredInsnsUsageRatio.mean() / 1000000.0);
-    CLOG_INFO(Perf, "stddev CPU declared insns ratio:  {}",
-              declaredInsnsUsageRatio.std_dev() / 1000000.0);
+    // Close 3 ledgers per iteration.
+    cfg.APPLY_LOAD_NUM_LEDGERS = 3;
+    // The target close time is 500ms.
+    cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 500;
 
-    CLOG_INFO(Perf, "Tx count utilization {}%",
-              al.getTxCountUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Instruction utilization {}%",
-              al.getInstructionUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Tx size utilization {}%",
-              al.getTxSizeUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Read bytes utilization {}%",
-              al.getDiskReadByteUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Write bytes utilization {}%",
-              al.getDiskWriteByteUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Read entry utilization {}%",
-              al.getDiskReadEntryUtilization().mean() / 1000.0);
-    CLOG_INFO(Perf, "Write entry utilization {}%",
-              al.getWriteEntryUtilization().mean() / 1000.0);
+    // Size of each data entry to be used in the test.
+    cfg.APPLY_LOAD_DATA_ENTRY_SIZE = 100;
+
+    // BL generation parameters
+    cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 1000;
+    cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
+    cfg.APPLY_LOAD_BL_BATCH_SIZE = 1000;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
+
+    // Load generation parameters
+    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {1};
+    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {1};
+
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES = {4};
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {1};
+
+    cfg.APPLY_LOAD_EVENT_COUNT = {2};
+    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION = {1};
+
+    cfg.APPLY_LOAD_TX_SIZE_BYTES = {1000};
+    cfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION = {1};
+
+    cfg.APPLY_LOAD_INSTRUCTIONS = {2'000'000};
+    cfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION = {1};
+
+    // Only a few ledger limits need to be specified, the rest will be found by
+    // the benchmark itself.
+    // Number of soroban txs per ledger is the upper bound of the binary
+    // search for the number of the model txs to include in each ledger.
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 1000;
+    // Use 2 clusters/threads.
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app, ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX);
+
+    al.execute();
+
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
 }
 
 TEST_CASE("basic MAX_SAC_TPS functionality",
@@ -1039,7 +1044,7 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
 
     // Configure test parameters for MAX_SAC_TPS mode
-    cfg.APPLY_LOAD_MAX_SAC_TPS_TARGET_CLOSE_TIME_MS = 1500;
+    cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1500;
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 1;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 1000;
@@ -1052,7 +1057,7 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     ApplyLoad al(*app, ApplyLoadMode::MAX_SAC_TPS);
 
     // Run the MAX_SAC_TPS test
-    al.findMaxSacTps();
+    al.execute();
 
     // Verify that we actually applied something in parallel
     auto& maxClustersMetric = app->getMetrics().NewCounter(

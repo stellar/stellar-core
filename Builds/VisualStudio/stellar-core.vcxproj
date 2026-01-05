@@ -756,6 +756,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp" />
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
+    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp" />
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
     <ClCompile Include="..\..\src\util\RandHasher.cpp" />
@@ -1175,6 +1176,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\BufferedAsioCerealOutputArchive.h" />
     <ClInclude Include="..\..\src\util\DebugMetaUtils.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
+    <ClInclude Include="..\..\src\util\MetricsRegistry.h" />
     <ClInclude Include="..\..\src\util\ProtocolVersion.h" />
     <ClInclude Include="..\..\src\util\numeric128.h" />
     <ClInclude Include="..\..\src\util\RandHasher.h" />
