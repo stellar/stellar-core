@@ -60,6 +60,12 @@ AppConnector::getMetrics() const
     return mApp.getMetrics();
 }
 
+bool
+AppConnector::isStopping() const
+{
+    return mApp.isStopping();
+}
+
 SorobanMetrics&
 AppConnector::getSorobanMetrics() const
 {

@@ -69,6 +69,9 @@ class AppConnector
     bool threadIsType(Application::ThreadType type) const;
 
     MetricsRegistry& getMetrics() const;
+
+    bool isStopping() const;
+
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
 
