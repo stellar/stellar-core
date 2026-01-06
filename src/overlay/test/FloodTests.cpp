@@ -198,6 +198,11 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // adjust delayed tx flooding and how often to pull
             cfg.FLOOD_TX_PERIOD_MS = 10;
             cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(10);
+
+            // Disable ConservationOfLumens because this test pushes accounts
+            // directly into the bucket list.
+            cfg.INVARIANT_CHECKS = {
+                "(?!EventsAreConsistentWithEntryDiffs|ConservationOfLumens).*"};
             return cfg;
         };
         SECTION("core")
@@ -224,6 +229,11 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 // While there's no strict requirement for batching,
                 // it seems more useful to test more realistic settings.
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+
+                // Disable ConservationOfLumens because this test pushes
+                // accounts directly into the bucket list.
+                cfg.INVARIANT_CHECKS = {"(?!EventsAreConsistentWithEntryDiffs|"
+                                        "ConservationOfLumens).*"};
                 return cfg;
             };
             SECTION("pull mode with 2 nodes")
