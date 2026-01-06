@@ -240,6 +240,10 @@ pub(crate) mod rust_bridge {
         // filesystem path of the current running executable.
         fn current_exe() -> Result<String>;
 
+        // Use Rust's superior-to-raw-libunwind backtrace machinery to
+        // get a backtrace of the C++ caller's context.
+        fn capture_cxx_backtrace() -> String;
+
         // Return the soroban versions linked into this binary. Panics
         // if the protocol version is not supported.
         fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo>;
