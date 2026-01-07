@@ -22,6 +22,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -2281,7 +2282,7 @@ LedgerManagerImpl::applyThread(
 
         if (res.getSuccess())
         {
-            threadState->commitChangesFromSuccessfulOp(res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(res, txBundle);
         }
         else
         {
@@ -2316,11 +2317,13 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
 
+    DeactivateScopeGuard globalStateDeactivateGuard(globalState);
+
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
         auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster);
+            app, globalState, cluster, i);
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
             std::ref(app), std::move(threadStatePtr), std::cref(cluster),
