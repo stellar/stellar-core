@@ -5,8 +5,8 @@
     },
     {
       "contract_compute_v0": {
-        "ledger_max_instructions": "100000000",
-        "tx_max_instructions": "100000000",
+        "ledger_max_instructions": "600000000",
+        "tx_max_instructions": "600000000",
         "fee_rate_per_instructions_increment": "25",
         "tx_memory_limit": 41943040
       }
