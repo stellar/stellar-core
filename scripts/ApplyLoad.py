@@ -10,8 +10,8 @@ INSTANCE_TYPE = 'c5d.2xlarge'
 
 # Key pair name and file for SSH access
 # TODO: Fill these in with the proper values
-KEY_NAME = 'TODO'
-KEY_FILE = 'TODO.pem'
+KEY_NAME = 'max-sac-test-key'
+KEY_FILE = 'max-sac-test-key.pem'
 
 # Directory containing helper files for this script
 APPLY_LOAD_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "apply_load")
@@ -43,6 +43,17 @@ def run_capture_output(command):
     except subprocess.CalledProcessError as e:
         print(f"Command '{command}' failed with exit code {e.returncode}")
         exit(1)
+
+def create_key_pair(region):
+    """ Create an EC2 key pair and save the private key to KEY_FILE. """
+    print("Creating EC2 key pair...")
+    cmd = ["aws", "ec2", "create-key-pair", "--key-name", KEY_NAME,
+           "--query", "KeyMaterial", "--output", "text", "--region", region]
+    private_key = run_capture_output(cmd).decode().strip()
+    with open(KEY_FILE, "w") as key_file:
+        key_file.write(private_key)
+    os.chmod(KEY_FILE, 0o400)
+    print(f"Saved private key to {KEY_FILE}")
 
 # TODO: If anything fails AFTER starting the instance, we should terminate it.
 # That could be done in this script, or in the Jenkinsfile that calls this
@@ -114,6 +125,9 @@ def local_aws_init():
 
 def aws_init(ami, region, security_group):
     """ Create and initialize an AWS instance for running apply-load. """
+    # Create key pair
+    create_key_pair(region)
+
     # Start instance
     instance_id = start_ec2_instance(ami, region, security_group)
 
