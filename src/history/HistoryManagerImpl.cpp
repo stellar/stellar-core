@@ -316,6 +316,14 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
         return false;
     }
 
+    if (mCheckpointBuilder.skipIncompleteFirstCheckpointSinceRestart())
+    {
+        CLOG_INFO(
+            History,
+            "Skipping incomplete checkpoint, publish was previously disabled");
+        return false;
+    }
+
     queueCurrentHistory(lcl, ledgerVers);
     return true;
 }
