@@ -29,7 +29,8 @@ ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
 // that no entry is live in both BucketLists simultaneously.
 std::string
 ArchivedStateConsistency::checkSnapshot(
-    CompleteConstLedgerStatePtr ledgerState,
+    SearchableSnapshotConstPtr liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -37,8 +38,6 @@ ArchivedStateConsistency::checkSnapshot(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::seconds(30));
 
-    auto liveSnapshot = ledgerState->getBucketSnapshot();
-    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
     auto const& header = liveSnapshot->getLedgerHeader();
     if (protocolVersionIsBefore(
             header.ledgerVersion,

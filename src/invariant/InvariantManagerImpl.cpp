@@ -330,7 +330,8 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 // required state, then call this function in a background thread.
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
-    CompleteConstLedgerStatePtr ledgerState,
+    SearchableSnapshotConstPtr liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -343,12 +344,11 @@ InvariantManagerImpl::runStateSnapshotInvariant(
 
     for (auto const& invariant : mEnabled)
     {
-        auto result =
-            invariant->checkSnapshot(ledgerState, inMemorySnapshot, isStopping);
+        auto result = invariant->checkSnapshot(liveSnapshot, hotArchiveSnapshot,
+                                               inMemorySnapshot, isStopping);
         if (!result.empty())
         {
-            auto ledgerSeq =
-                ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+            auto ledgerSeq = liveSnapshot->getLedgerSeq();
             onInvariantFailure(invariant, result, ledgerSeq);
         }
     }
