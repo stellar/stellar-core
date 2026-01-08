@@ -1,9 +1,9 @@
 #ifndef AUTOCHECK_DISTRIBUTION_HPP
 #define AUTOCHECK_DISTRIBUTION_HPP
 
-#include <vector>
-#include <tuple>
 #include <string>
+#include <tuple>
+#include <vector>
 
 namespace autocheck {
 
