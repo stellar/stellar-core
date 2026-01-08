@@ -767,18 +767,23 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
 
     // Verify consistency of all snapshot state.
     auto ledgerSeq = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
-    auto liveBLSnapshot = ledgerState->getBucketSnapshot();
-    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
-    releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() == ledgerSeq);
-    releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() == ledgerSeq);
     inMemorySnapshotForInvariant->assertLastClosedLedger(ledgerSeq);
+
+    // Copy snapshots to avoid sharing with apply/main thread (thread-safety).
+    auto liveSnapshotCopy =
+        mApp.getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto hotArchiveSnapshotCopy =
+        mApp.getAppConnector().copySearchableHotArchiveBucketListSnapshot();
+    releaseAssertOrThrow(liveSnapshotCopy->getLedgerSeq() == ledgerSeq);
+    releaseAssertOrThrow(hotArchiveSnapshotCopy->getLedgerSeq() == ledgerSeq);
 
     // Note: No race condition acquiring app by reference, as all worker
     // threads are joined before application destruction.
-    auto cb = [ledgerState = ledgerState, &app = mApp,
+    auto cb = [liveSnapshot = liveSnapshotCopy,
+               hotArchiveSnapshot = hotArchiveSnapshotCopy, &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant,
+            liveSnapshot, hotArchiveSnapshot, *inMemorySnapshotForInvariant,
             [&app]() { return app.isStopping(); });
     };
 

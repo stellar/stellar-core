@@ -340,7 +340,9 @@ TEST_CASE(
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     // Now, manually modify totalCoins to be inconsistent. The invariant should
@@ -359,10 +361,11 @@ TEST_CASE(
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
-        REQUIRE_THROWS_AS(
-            app.getInvariantManager().runStateSnapshotInvariant(
-                ledgerState, inMemoryState, []() { return false; }),
-            InvariantDoesNotHold);
+        REQUIRE_THROWS_AS(app.getInvariantManager().runStateSnapshotInvariant(
+                              ledgerState->getBucketSnapshot(),
+                              ledgerState->getHotArchiveSnapshot(),
+                              inMemoryState, []() { return false; }),
+                          InvariantDoesNotHold);
     }
 }
 
@@ -422,7 +425,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     SECTION("Invariant fails when bucket balance doesn't match totalCoins")
@@ -457,10 +462,11 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().runStateSnapshotInvariant(
-                ledgerState, inMemoryState, []() { return false; }),
-            InvariantDoesNotHold);
+        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
+                              ledgerState->getBucketSnapshot(),
+                              ledgerState->getHotArchiveSnapshot(),
+                              inMemoryState, []() { return false; }),
+                          InvariantDoesNotHold);
     }
 
     SECTION("Invariant handles shadowing correctly")
@@ -515,7 +521,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     SECTION("Invariant detects corrupted native balance in hot archive")
@@ -573,7 +581,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
             REQUIRE_NOTHROW(
                 app->getInvariantManager().runStateSnapshotInvariant(
-                    ledgerState, inMemoryState, []() { return false; }));
+                    ledgerState->getBucketSnapshot(),
+                    ledgerState->getHotArchiveSnapshot(), inMemoryState,
+                    []() { return false; }));
         }
 
         // Corrupt the other live balance by adding 123 stroops to the balance
@@ -594,7 +604,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
             REQUIRE_THROWS_AS(
                 app->getInvariantManager().runStateSnapshotInvariant(
-                    ledgerState, inMemoryState, []() { return false; }),
+                    ledgerState->getBucketSnapshot(),
+                    ledgerState->getHotArchiveSnapshot(), inMemoryState,
+                    []() { return false; }),
                 InvariantDoesNotHold);
         }
     }
