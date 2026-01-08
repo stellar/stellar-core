@@ -531,7 +531,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool BACKGROUND_OVERLAY_PROCESSING;
 
     // Enable parallel block application (experimental)
-    bool EXPERIMENTAL_PARALLEL_LEDGER_APPLY;
+    bool PARALLEL_LEDGER_APPLY;
 
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;

@@ -1387,7 +1387,7 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
 #endif
 
     mApp.getDatabase().clearPreparedStatementCache(
-        mApp.getDatabase().getSession(), false);
+        mApp.getDatabase().getSession());
 
     // Perform LCL->appliedLedgerState transition on the _main_ thread, and kick
     // off publishing, cleanup bucket files, notify herder to trigger next
@@ -2781,8 +2781,8 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     Hash hash = xdrSha256(header);
     releaseAssert(!isZero(hash));
     auto& sess = mApp.getLedgerTxnRoot().getSession();
-    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
-                                       binToHex(hash), sess);
+    mApp.getPersistentState().setMainState(PersistentState::kLastClosedLedger,
+                                           binToHex(hash), sess);
 
     if (mApp.getConfig().ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING.count() >
         0)
@@ -2810,8 +2810,8 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
                                   mApp.getConfig().NETWORK_PASSPHRASE);
     }
 
-    mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
-                                       has.toString(), sess);
+    mApp.getPersistentState().setMainState(
+        PersistentState::kHistoryArchiveState, has.toString(), sess);
     LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
     if (appendToCheckpoint)
     {

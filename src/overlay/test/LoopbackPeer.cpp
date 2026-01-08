@@ -384,7 +384,7 @@ LoopbackPeer::deliverAll()
 }
 
 void
-LoopbackPeer::dropAll()
+LoopbackPeer::maybeDropAndCreateNew()
 {
     mOutQueue.clear();
 }

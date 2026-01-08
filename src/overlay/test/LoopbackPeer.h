@@ -79,7 +79,7 @@ class LoopbackPeer : public Peer
 
     void deliverOne() NO_THREAD_SAFETY_ANALYSIS;
     void deliverAll();
-    void dropAll();
+    void maybeDropAndCreateNew();
     size_t getBytesQueued() const;
     size_t getMessagesQueued() const;
 

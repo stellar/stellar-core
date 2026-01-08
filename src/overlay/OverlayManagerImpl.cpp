@@ -1287,9 +1287,9 @@ OverlayManagerImpl::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
 }
 
 void
-OverlayManager::dropAll(Database& db)
+OverlayManager::maybeDropAndCreateNew(SessionWrapper& sess)
 {
-    PeerManager::dropAll(db);
+    PeerManager::maybeDropAndCreateNew(sess);
 }
 
 std::set<Peer::pointer>

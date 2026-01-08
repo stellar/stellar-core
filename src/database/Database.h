@@ -26,12 +26,14 @@ class Counter;
 namespace stellar
 {
 class Application;
-using PreparedStatementCache =
-    std::map<std::string, std::shared_ptr<soci::statement>>;
 
 // smallest schema version supported
 static constexpr unsigned long MIN_SCHEMA_VERSION = 25;
-static constexpr unsigned long SCHEMA_VERSION = 25;
+static constexpr unsigned long SCHEMA_VERSION = 26;
+static constexpr unsigned long FIRST_MAIN_VERSION_WITH_MISC = 26;
+// Misc schema version 0 means no misc table exists yet
+static constexpr unsigned long MIN_MISC_SCHEMA_VERSION = 0;
+static constexpr unsigned long MISC_SCHEMA_VERSION = 1;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -80,7 +82,6 @@ class SessionWrapper : NonCopyable
         : mSession(pool), mSessionName(std::move(sessionName))
     {
     }
-
     soci::session&
     session()
     {
@@ -122,9 +123,20 @@ class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
+
+    // SQLite locks the entire database file during writes, which prevents
+    // parallelism between ledger apply and consensus/mempool. To work around
+    // this, we split into two database files that can handle independent
+    // writes:
+    //   - Main: ledger state, touched on startup and during apply
+    //   - Misc: consensus data, overlay data, upgrades
+    // Postgres concurrency model allows concurrent writes to different tables,
+    // so this only applies to SQLite.
     SessionWrapper mSession;
+    SessionWrapper mMiscSession;
 
     std::unique_ptr<soci::connection_pool> mPool;
+    std::unique_ptr<soci::connection_pool> mMiscPool;
 
     // Cache key -> session name <> query
     using PreparedStatementCache =
@@ -136,13 +148,18 @@ class Database : NonMovableOrCopyable
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
+    void applyMiscSchemaUpgrade(unsigned long vers);
     void open();
-    // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
 
     // Prepared statements cache may be accessed by multiple threads (each using
     // a different session), so use a mutex to synchronize access.
     std::mutex mutable mStatementsMutex;
+    // Save `vers` as schema version of main DB.
+    void putMainSchemaVersion(unsigned long vers);
+    // Save `vers` as schema version of misc DB.
+    void putMiscSchemaVersion(unsigned long vers);
+    void populateMiscDatabase();
+    std::string getSQLiteDBLocation(soci::session& session);
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
@@ -163,9 +180,7 @@ class Database : NonMovableOrCopyable
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
-    // `assertOnlySession` asserts that no other DB sessions are using the cache
-    void clearPreparedStatementCache(SessionWrapper& session,
-                                     bool assertOnlySession);
+    void clearPreparedStatementCache(SessionWrapper& session);
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
@@ -183,6 +198,10 @@ class Database : NonMovableOrCopyable
 
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
+
+    // Return true if the Database can use a miscellaneous database, which is
+    // supported only for on-disk SQLite
+    bool canUseMiscDB() const;
 
     // Return an optional SQL COLLATION clause to use for text-typed columns in
     // this database, in order to ensure they're compared "simply" using
@@ -204,8 +223,10 @@ class Database : NonMovableOrCopyable
     // by the new-db command on stellar-core.
     void initialize();
 
-    // Get current schema version in DB.
-    unsigned long getDBSchemaVersion();
+    // Get current schema version of main DB.
+    unsigned long getMainDBSchemaVersion();
+    // Get current schema version of misc DB.
+    unsigned long getMiscDBSchemaVersion();
 
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
@@ -214,13 +235,19 @@ class Database : NonMovableOrCopyable
 
     // Soci named session wrapper
     SessionWrapper& getSession();
+    SessionWrapper& getMiscSession();
     // Access the underlying SOCI session object
     // Use these to directly access the soci session object
     soci::session& getRawSession();
+    soci::session& getRawMiscSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+    soci::connection_pool& getMiscPool();
+
+    // Exposed for testing
+    static std::string getMiscDBName(std::string const& mainDB);
 };
 
 template <typename T>

@@ -213,7 +213,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     if (ps.shouldRebuildForOfferTable())
     {
         app.getDatabase().clearPreparedStatementCache(
-            app.getDatabase().getSession(), true);
+            app.getDatabase().getSession());
         soci::transaction tx(app.getDatabase().getRawSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
         app.getLedgerTxnRoot().dropOffers();
@@ -231,11 +231,12 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
             {
                 throw std::runtime_error("Could not rebuild ledger tables");
             }
-            LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
         }
         LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
 
+    app.getDatabase().clearPreparedStatementCache(
+        app.getDatabase().getSession());
     ps.clearRebuildForOfferTable();
 }
 
@@ -252,7 +253,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
     if (initNewDB)
     {
-        mBucketManager->dropAll();
+        mBucketManager->maybeDropAndCreateNew();
     }
 
     mDatabase = createDatabase();
