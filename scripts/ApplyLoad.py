@@ -166,14 +166,14 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
-    aws_init = subparsers.add_parser(
+    aws_init_parser = subparsers.add_parser(
         "aws-init",
         help="Create and initialize an AWS instance for running apply-load.")
-    aws_init.add_argument(
+    aws_init_parser.add_argument(
         "--ubuntu-ami", type=str,
         help="AMI ID to use. Must be an Ubuntu image.")
-    aws_init.add_argument("--region", type=str, help="AWS region to use.")
-    aws_init.add_argument("--security-group", type=str,
+    aws_init_parser.add_argument("--region", type=str, help="AWS region to use.")
+    aws_init_parser.add_argument("--security-group", type=str,
                          help="AWS security group to use.")
 
     subparsers.add_parser(
