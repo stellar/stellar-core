@@ -401,7 +401,6 @@ class LedgerManagerImpl : public LedgerManager
     // If runInParallel is false, runs on the calling thread (this is useful in
     // certain scenarios such as startup)
     void maybeRunSnapshotInvariantFromLedgerState(
-        CompleteConstLedgerStatePtr const& ledgerState,
         std::shared_ptr<InMemorySorobanState const>
             inMemorySnapshotForInvariant,
         bool runInParallel = true) const;

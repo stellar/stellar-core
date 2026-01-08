@@ -601,7 +601,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     if (!skipBuildingFullState)
     {
         maybeRunSnapshotInvariantFromLedgerState(
-            mLastClosedLedgerState, maybeCopySorobanStateForInvariant(),
+            maybeCopySorobanStateForInvariant(),
             /* runInParallel */ false);
     }
     mApplyState.markEndOfSetupPhase();
@@ -753,7 +753,6 @@ LedgerManagerImpl::maybeCopySorobanStateForInvariant() const
 
 void
 LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
-    CompleteConstLedgerStatePtr const& ledgerState,
     std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant,
     bool runInParallel) const
 {
@@ -766,7 +765,7 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     }
 
     // Verify consistency of all snapshot state.
-    auto ledgerSeq = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
+    auto ledgerSeq = getLastClosedLedgerNum();
     inMemorySnapshotForInvariant->assertLastClosedLedger(ledgerSeq);
 
     // Copy snapshots to avoid sharing with apply/main thread (thread-safety).
@@ -1337,8 +1336,7 @@ LedgerManagerImpl::ledgerCloseComplete(
     releaseAssert(threadIsMain());
 
     // Kick off the snapshot invariant, if enabled
-    maybeRunSnapshotInvariantFromLedgerState(mLastClosedLedgerState,
-                                             inMemorySnapshotForInvariant);
+    maybeRunSnapshotInvariantFromLedgerState(inMemorySnapshotForInvariant);
     uint32_t latestHeardFromNetwork =
         mApp.getLedgerApplyManager().getLargestLedgerSeqHeard();
     uint32_t latestQueuedToApply =
