@@ -138,22 +138,12 @@ class Database : NonMovableOrCopyable
     std::unique_ptr<soci::connection_pool> mPool;
     std::unique_ptr<soci::connection_pool> mMiscPool;
 
-    // Cache key -> session name <> query
-    using PreparedStatementCache =
-        std::unordered_map<std::string, std::shared_ptr<soci::statement>>;
-    std::unordered_map<std::string, PreparedStatementCache> mCaches;
-
-    medida::Counter& mStatementsSize;
-
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
     void applyMiscSchemaUpgrade(unsigned long vers);
     void open();
 
-    // Prepared statements cache may be accessed by multiple threads (each using
-    // a different session), so use a mutex to synchronize access.
-    std::mutex mutable mStatementsMutex;
     // Save `vers` as schema version of main DB.
     void putMainSchemaVersion(unsigned long vers);
     // Save `vers` as schema version of misc DB.
@@ -172,15 +162,10 @@ class Database : NonMovableOrCopyable
 
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
-    // is created if necessary before borrowing, and reset (unbound from data)
-    // when the statement context is destroyed. Prepared statements caches are
-    // per DB session.
+    // is created and reset (unbound from data) when the statement context
+    // is destroyed.
     StatementContext getPreparedStatement(std::string const& query,
                                           SessionWrapper& session);
-
-    // Purge all cached prepared statements, closing their handles with the
-    // database.
-    void clearPreparedStatementCache(SessionWrapper& session);
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,

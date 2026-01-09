@@ -212,8 +212,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     auto& ps = app.getPersistentState();
     if (ps.shouldRebuildForOfferTable())
     {
-        app.getDatabase().clearPreparedStatementCache(
-            app.getDatabase().getSession());
         soci::transaction tx(app.getDatabase().getRawSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
         app.getLedgerTxnRoot().dropOffers();
@@ -235,8 +233,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
         LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
 
-    app.getDatabase().clearPreparedStatementCache(
-        app.getDatabase().getSession());
     ps.clearRebuildForOfferTable();
 }
 
