@@ -495,6 +495,8 @@ CatchupWork::runCatchupStep()
                 // will unnecessarily rebuild the ledger but the buckets are
                 // persistently available locally so it will return us to the
                 // correct state.
+                mApp.getDatabase().clearPreparedStatementCache(
+                    mApp.getDatabase().getSession());
                 auto& ps = mApp.getPersistentState();
                 ps.clearRebuildForOfferTable();
             }
