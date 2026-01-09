@@ -2933,11 +2933,6 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
         // but maybe we would like one?
         TracyPlot("ledger.entry.commit", counter);
 
-        // NB: we want to clear the prepared statement cache _before_
-        // committing; on postgres this doesn't matter but on SQLite the passive
-        // WAL-auto-checkpointing-at-commit behaviour will starve if there are
-        // still prepared statements open at commit time.
-        mApp.getDatabase().clearPreparedStatementCache(getSession());
         ZoneNamedN(commitZone, "SOCI commit", true);
         mTransaction->commit();
     }
@@ -3681,7 +3676,6 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
             mTransaction.reset();
             if (mSession)
             {
-                mApp.getDatabase().clearPreparedStatementCache(*mSession);
                 mSession.reset();
             }
         }

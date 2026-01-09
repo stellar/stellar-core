@@ -898,8 +898,6 @@ resetTxInternalState(Application& app)
     app.getLedgerTxnRoot().resetForFuzzer();
     app.getInvariantManager().resetForFuzzer();
 #endif // BUILD_TESTS
-    app.getDatabase().clearPreparedStatementCache(
-        app.getDatabase().getSession());
 }
 
 // FuzzTransactionFrame is a specialized TransactionFrame that includes

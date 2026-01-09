@@ -282,8 +282,6 @@ class LedgerTxn::Impl
 
     // getDeltaVotes has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::map<AccountID, int64_t> getDeltaVotes() const;
 
@@ -346,8 +344,6 @@ class LedgerTxn::Impl
 
     // create has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry create(LedgerTxn& self, InternalLedgerEntry const& entry);
 
@@ -359,36 +355,26 @@ class LedgerTxn::Impl
 
     // erase has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     void erase(InternalLedgerKey const& key);
 
     // markRestoredFromHotArchive has the basic exception safety guarantee. If
     // it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     void markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
                                     LedgerEntry const& ttlEntry);
 
     // restoreFromLiveBucketList has the basic exception safety guarantee. If it
     // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     LedgerTxnEntry restoreFromLiveBucketList(LedgerTxn& self,
                                              LedgerEntry const& entry,
                                              uint32_t ttl);
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified.
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers();
 
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, modified or even
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
@@ -403,29 +389,20 @@ class LedgerTxn::Impl
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerEntryChanges getChanges();
 
     // getDelta has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnDelta getDelta();
 
-    // getOffersByAccountAndAsset has the basic exception safety guarantee. If
-    // it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // getOffersByAccountAndAsset has the basic exception safety guarantee.
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
 
     // getPoolShareTrustLinesByAccountAndAsset has the basic exception safety
     // guarantee. If it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, modified.
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
@@ -434,17 +411,11 @@ class LedgerTxn::Impl
     // getHeader does not throw
     LedgerHeader const& getHeader() const;
 
-    // getInflationWinners has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // getInflationWinners has the basic exception safety guarantee.
     std::vector<InflationWinner> getInflationWinners(size_t maxWinners,
                                                      int64_t minBalance);
 
-    // queryInflationWinners has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // queryInflationWinners has the basic exception safety guarantee.
     std::vector<InflationWinner> queryInflationWinners(size_t maxWinners,
                                                        int64_t minBalance);
 
@@ -461,24 +432,18 @@ class LedgerTxn::Impl
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const;
 
     // getNewestVersionBelowRoot has the basic exception safety guarantee. If it
     // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
     getNewestVersionBelowRoot(InternalLedgerKey const& key) const;
 
     // load has the basic exception safety guarantee. If it throws an exception,
     // then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, InternalLedgerKey const& key);
 
@@ -496,16 +461,12 @@ class LedgerTxn::Impl
 
     // loadAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::map<AccountID, std::vector<LedgerTxnEntry>>
     loadAllOffers(LedgerTxn& self);
 
     // loadBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, modified or even
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
@@ -518,8 +479,6 @@ class LedgerTxn::Impl
 
     // loadOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(LedgerTxn& self, AccountID const& accountID,
@@ -527,16 +486,12 @@ class LedgerTxn::Impl
 
     // loadPoolShareTrustLinesByAccountAndAsset has the basic exception safety
     // guarantee. If it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, modified.
     std::vector<LedgerTxnEntry> loadPoolShareTrustLinesByAccountAndAsset(
         LedgerTxn& self, AccountID const& account, Asset const& asset);
 
     // loadWithoutRecord has the basic exception safety guarantee. If it throws
     // an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     ConstLedgerTxnEntry loadWithoutRecord(LedgerTxn& self,
                                           InternalLedgerKey const& key);
@@ -770,16 +725,11 @@ class LedgerTxnRoot::Impl
     void resetForFuzzer();
 #endif // BUILD_TESTS
 
-    // getAllOffers has the basic exception safety guarantee. If it throws an
-    // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified.
+    // getAllOffers has the basic exception safety guarantee.
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers();
 
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, modified or even
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
@@ -788,17 +738,12 @@ class LedgerTxnRoot::Impl
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const* worseThan);
 
-    // getOffersByAccountAndAsset has the basic exception safety guarantee. If
-    // it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // getOffersByAccountAndAsset has the basic exception safety guarantee.
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
 
     // getPoolShareTrustLinesByAccountAndAsset has the basic exception safety
-    // guarantee. If it throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // guarantee.
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                             Asset const& asset);
@@ -806,17 +751,12 @@ class LedgerTxnRoot::Impl
     // getHeader does not throw
     LedgerHeader const& getHeader() const;
 
-    // getInflationWinners has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
+    // getInflationWinners has the basic exception safety guarantee.
     std::vector<InflationWinner> getInflationWinners(size_t maxWinners,
                                                      int64_t minBalance);
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const;

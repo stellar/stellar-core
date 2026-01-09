@@ -203,8 +203,6 @@ Database::Database(Application& app)
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mSession("main")
     , mMiscSession("misc")
-    , mStatementsSize(
-          app.getMetrics().NewCounter({"database", "memory", "statements"}))
 {
     registerDrivers();
 
@@ -293,7 +291,6 @@ Database::populateMiscDatabase()
 void
 Database::applyMiscSchemaUpgrade(unsigned long vers)
 {
-    clearPreparedStatementCache(mMiscSession);
     soci::transaction tx(mMiscSession.session());
     switch (vers)
     {
@@ -330,8 +327,6 @@ dropMiscTablesFromMain(Application& app)
 void
 Database::applySchemaUpgrade(unsigned long vers)
 {
-    clearPreparedStatementCache(mSession);
-
     soci::transaction tx(mSession.session());
     switch (vers)
     {
@@ -561,24 +556,8 @@ Database::canUseMiscDB() const
 }
 
 void
-Database::clearPreparedStatementCache(SessionWrapper& session)
-{
-    std::lock_guard<std::mutex> lock(mStatementsMutex);
-
-    // Flush all prepared statements; in sqlite they represent open cursors
-    // and will conflict with any DROP TABLE commands issued below
-    for (auto st : mCaches[session.getSessionName()])
-    {
-        st.second->clean_up(true);
-        mStatementsSize.dec();
-    }
-    mCaches.erase(session.getSessionName());
-}
-
-void
 Database::initialize()
 {
-    clearPreparedStatementCache(mSession);
     if (isSqlite())
     {
         auto cleanup = [&](soci::session& sess) {
@@ -710,24 +689,9 @@ StatementContext
 Database::getPreparedStatement(std::string const& query,
                                SessionWrapper& session)
 {
-    std::lock_guard<std::mutex> lock(mStatementsMutex);
-
-    auto& cache = mCaches[session.getSessionName()];
-    auto i = cache.find(query);
-    std::shared_ptr<soci::statement> p;
-    if (i == cache.end())
-    {
-        p = std::make_shared<soci::statement>(session.session());
-        p->alloc();
-        p->prepare(query);
-        cache.insert(std::make_pair(query, p));
-        mStatementsSize.inc();
-    }
-    else
-    {
-        p = i->second;
-    }
-    StatementContext sc(p);
-    return sc;
+    auto p = std::make_shared<soci::statement>(session.session());
+    p->alloc();
+    p->prepare(query);
+    return StatementContext(p);
 }
 }
