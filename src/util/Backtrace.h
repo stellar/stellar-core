@@ -6,20 +6,5 @@
 
 namespace stellar
 {
-
-// Idempotent RAII guard object that sets up and tears down a static
-// malloc-buffer used for backtrace-printing. Should establish one of these
-// before calling printCurrentBacktrace(), though it will do so itself if you
-// forget to. If missing there's a slightly larger chance of backtrace failure
-// because of malloc() happening during a backtrace.
-class BacktraceManager
-{
-    bool doFree{false};
-
-  public:
-    BacktraceManager();
-    ~BacktraceManager();
-};
-
 void printCurrentBacktrace();
 }

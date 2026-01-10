@@ -19,6 +19,7 @@ rustc-simple-version = "=0.1.0"
 rand = "=0.8.5"
 
 itertools = "=0.10.5"
+backtrace = { version = "=0.3.76", features = [ "cpp_demangle" ] }
 
 # ed25519-dalek for faster signature verification
 ed25519-dalek = "2.1.1"

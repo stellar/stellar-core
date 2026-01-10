@@ -50,6 +50,43 @@ pub(crate) fn current_exe() -> Result<String, Box<dyn std::error::Error>> {
         .map_err(|e| format!("Failed to convert path to string: {:?}", e).into())
 }
 
+pub(crate) fn capture_cxx_backtrace() -> String {
+    use backtrace::{Backtrace, BacktraceFrame};
+    fn frame_name_matches(frame: &BacktraceFrame, pat: &str) -> bool {
+        for sym in frame.symbols() {
+            match sym.name() {
+                Some(sn) if format!("{:}", sn).contains(pat) => {
+                    return true;
+                }
+                _ => (),
+            }
+        }
+        false
+    }
+
+    fn frame_is_libc_start(frame: &BacktraceFrame) -> bool {
+        frame_name_matches(frame, "__libc_start")
+    }
+
+    fn frame_is_initial_error_plumbing(frame: &BacktraceFrame) -> bool {
+        frame_name_matches(frame, "capture_cxx_backtrace")
+            || frame_name_matches(frame, "cxx::unwind::prevent_unwind")
+            || frame_name_matches(frame, "backtrace::")
+            || frame_name_matches(frame, "rust_stellar_core::")
+    }
+    let mut bt = Backtrace::new();
+    bt.resolve();
+    let frames: Vec<BacktraceFrame> = bt
+        .frames()
+        .iter()
+        .skip_while(|f| frame_is_initial_error_plumbing(f))
+        .take_while(|f| !frame_is_libc_start(f))
+        .cloned()
+        .collect();
+    let bt: Backtrace = frames.into();
+    format!("{bt:?}")
+}
+
 fn compare_xdr_files_sha256(
     crate1: &str,
     files1: &[(&str, &str)],

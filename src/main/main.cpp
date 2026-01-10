@@ -344,7 +344,6 @@ int
 main(int argc, char* const* argv)
 {
     using namespace stellar;
-    BacktraceManager btGuard;
 
     // Abort when out of memory
     std::set_new_handler(outOfMemory);

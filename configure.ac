@@ -32,7 +32,10 @@ if test -z "${WFLAGS+set}"; then
    WFLAGS="$WFLAGS -Werror=unused-result"
 fi
 
-test "${CFLAGS+set}" || CFLAGS="-g -O2 -fno-omit-frame-pointer"
+# NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
+# it produces the highest-fidelity backtraces with our current
+# rust/gimli-backed backtrace system.
+test "${CFLAGS+set}" || CFLAGS="-gdwarf-3 -O2 -fno-omit-frame-pointer"
 test "${CXXFLAGS+set}" || CXXFLAGS="$CFLAGS"
 
 AC_PROG_CC([clang gcc cc])
@@ -417,52 +420,6 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
         [Enable next protocol version UNSAFE FOR PRODUCTION]))
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
-
-AC_ARG_ENABLE(libunwind,
-    AS_HELP_STRING([--disable-libunwind],
-        [Disable backtraces using libunwind]))
-if test x"$enable_libunwind" != xno; then
-    case "${host_os}" in
-        *darwin*)
-            # libunwind comes standard with the command-line tools on macos
-            AC_MSG_NOTICE([using platform-native libunwind])
-            AC_DEFINE([HAVE_LIBUNWIND], [1],
-                [Define to 1 if you have the <libunwind.h> header file])
-            ;;
-        *)
-            # There are *two separate* libraries that implement the HP libunwind
-            # API: the original HP libunwind, and the LLVM project's own
-            # separate implementation of the same API.
-            #
-            # At the moment on linux, or at least ubuntu, the packaging of the
-            # LLVM libunwind is broken: it links against libgcc, and in some way
-            # this causes the unwinder to consistently fail to resolve symbols
-            # (possibly this is some low level C++ ABI support issue, unclear).
-            #
-            # Any time you're compiling with libc++, you're going to get linked
-            # to this libunwind, so we _should_ disable it in that case. But it
-            # turns out that even when you're compiling with libstdc++, if
-            # you've installed the LLVM libc++ package, you may still be using
-            # the LLVM libunwind at runtime. The OS packaging is now such that
-            # the HP libunwind and LLVM libunwind packages are marked as
-            # mutually exclusive, so if you have the LLVM libc++ package
-            # installed at all, it kicks out the HP libunwind and you're going
-            # to get the LLVM libunwind (and failures to resolve symbols) at
-            # runtime.
-            #
-            # Luckily this condition also manifests as a configure-time failure
-            # when the pkg-config lookup for libunwind fails, because LLVM does
-            # not ship with a pkg-config file, so we can detect that alone here
-            # and disable libunwind support any time LLVM libunwind is installed
-            # at all.
-            PKG_CHECK_MODULES(libunwind, libunwind,
-                AC_DEFINE([HAVE_LIBUNWIND], [1], [have libunwind]),
-                AC_MSG_NOTICE([libunwind disabled due to missing pkg-config]))
-            ;;
-    esac
-else
-  AC_MSG_NOTICE([not using libunwind as it was not requested])
-fi
 
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
