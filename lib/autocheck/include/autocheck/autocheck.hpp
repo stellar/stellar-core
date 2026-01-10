@@ -1,5 +1,4 @@
-#include "ostream.hpp"
-#include "sequence.hpp"
-#include "tuple.hpp"
-#include "check.hpp"
-
+#include <autocheck/check.hpp>
+#include <autocheck/ostream.hpp>
+#include <autocheck/sequence.hpp>
+#include <autocheck/tuple.hpp>

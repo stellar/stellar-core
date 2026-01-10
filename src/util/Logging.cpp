@@ -109,7 +109,7 @@ Logging::init(bool truncate)
             VirtualClock clock(VirtualClock::REAL_TIME);
             std::time_t time = VirtualClock::to_time_t(clock.system_now());
             auto filename =
-                fmt::format(mLastFilenamePattern,
+                fmt::format(fmt::runtime(mLastFilenamePattern),
                             fmt::arg("datetime", fmt::localtime(time)));
 
             // NB: We do _not_ pass 'truncate' through to spdlog here -- spdlog

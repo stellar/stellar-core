@@ -429,9 +429,10 @@ PUBLIC_KEY="GCWD2OTEJXLIDSOFSTWDPM5IDY27ZGEXIUIBGGA45Q2VXGQ2QAEBG7ZS"
         ++i;
         DYNAMIC_SECTION(t[0] << " " << i)
         {
-            auto other2 = fmt::format(t[5], fmt::arg("QUALITY_G", t[6]));
+            auto other2 =
+                fmt::format(fmt::runtime(t[5]), fmt::arg("QUALITY_G", t[6]));
             auto newConfig = fmt::format(
-                configPattern, fmt::arg("NODE_HOME_DOMAIN", t[1]),
+                fmt::runtime(configPattern), fmt::arg("NODE_HOME_DOMAIN", t[1]),
                 fmt::arg("A1_HOME_DOMAIN", t[2]), fmt::arg("A1_HISTORY", t[3]),
                 fmt::arg("A1_QUALITY", t[4]),
                 fmt::arg("OTHER_VALIDATORS", other2));
@@ -487,8 +488,9 @@ VALIDATORS=[
     for (uint32 nestingLevel = 0; nestingLevel < 10; nestingLevel++)
     {
         configNesting += fmt::format(
-            quorumSetTemplate, quorumSetNumber, makePublicKey(nestingLevel * 2),
-            char('A' + nestingLevel * 2), makePublicKey(nestingLevel * 2 + 1),
+            fmt::runtime(quorumSetTemplate), quorumSetNumber,
+            makePublicKey(nestingLevel * 2), char('A' + nestingLevel * 2),
+            makePublicKey(nestingLevel * 2 + 1),
             char('A' + nestingLevel * 2 + 1));
         SECTION(fmt::format("nesting level = {}", nestingLevel))
         {

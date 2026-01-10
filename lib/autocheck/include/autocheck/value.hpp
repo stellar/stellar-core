@@ -1,6 +1,8 @@
 #ifndef AUTOCHECK_VALUE_HPP
 #define AUTOCHECK_VALUE_HPP
 
+#include <autocheck/ostream.hpp>
+
 #include <cassert>
 
 template <typename T>
@@ -10,17 +12,30 @@ namespace autocheck {
 
   template <typename T>
   class value {
-    private:
+    private:  
+      // Visual Studio before 2015 doesn't support unrestricted unions.
+      // However, if we declare `T object` as a member,
+      // then we must declare the allocation as `Static`,
+      // or else `object` will leak when we start to generate test values.
       enum {
         None,
         Static,
         Heap
-      }    allocation = None;
+      }    allocation =
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+                        None;
+#else
+                        Static;
+#endif
 
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
       union {
+#endif
         T* pointer = nullptr;
         T  object;
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
       };
+#endif
 
     public:
       value() {}

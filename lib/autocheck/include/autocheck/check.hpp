@@ -1,13 +1,14 @@
 #ifndef AUTOCHECK_CHECK_HPP
 #define AUTOCHECK_CHECK_HPP
 
-#include <sstream>
+#include <autocheck/arbitrary.hpp>
+#include <autocheck/classifier.hpp>
+#include <autocheck/function.hpp>
+#include <autocheck/reporter.hpp>
+#include <autocheck/tuple.hpp>
 
-#include "function.hpp"
-#include "arbitrary.hpp"
-#include "tuple.hpp"
-#include "reporter.hpp"
-#include "classifier.hpp"
+#include <sstream>
+#include <tuple>
 
 namespace autocheck {
 
@@ -67,4 +68,3 @@ namespace autocheck {
 }
 
 #endif
-

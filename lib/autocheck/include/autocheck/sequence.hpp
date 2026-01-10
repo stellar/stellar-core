@@ -1,7 +1,7 @@
 #ifndef AUTOCHECK_SEQUENCE_HPP
 #define AUTOCHECK_SEQUENCE_HPP
 
-#include "ostream.hpp"
+#include <autocheck/ostream.hpp>
 
 namespace autocheck {
 

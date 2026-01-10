@@ -1,7 +1,7 @@
 #ifndef AUTOCHECK_TUPLE_HPP
 #define AUTOCHECK_TUPLE_HPP
 
-#include "ostream.hpp"
+#include <autocheck/ostream.hpp>
 
 namespace autocheck {
   namespace detail {
