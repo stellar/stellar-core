@@ -577,6 +577,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
+    <ClCompile Include="..\..\src\invariant\BucketListStateConsistency.cpp" />
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp" />
     <ClCompile Include="..\..\src\invariant\ConstantProductInvariant.cpp" />
     <ClCompile Include="..\..\src\invariant\EventsAreConsistentWithEntryDiffs.cpp" />
@@ -1044,6 +1045,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
+    <ClInclude Include="..\..\src\invariant\BucketListStateConsistency.h" />
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h" />
     <ClInclude Include="..\..\src\invariant\ConstantProductInvariant.h" />
     <ClInclude Include="..\..\src\invariant\EventsAreConsistentWithEntryDiffs.h" />
