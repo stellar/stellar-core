@@ -230,9 +230,6 @@ template <StaticLedgerEntryScope S> class LedgerEntryScopeID
 
     bool operator==(LedgerEntryScopeID const& other) const;
     bool operator!=(LedgerEntryScopeID const& other) const;
-
-    friend std::ostream& ::operator<<(std::ostream& os,
-                                      LedgerEntryScopeID const& obj);
 };
 
 static_assert(
