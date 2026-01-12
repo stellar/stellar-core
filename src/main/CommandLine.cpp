@@ -1897,19 +1897,20 @@ runApplyLoad(CommandLineArgs const& args)
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            if (config.APPLY_LOAD_NUM_LEDGERS == 0)
+            if (config.APPLY_LOAD_NUM_LEDGERS < 30)
             {
                 throw std::runtime_error(
-                    "APPLY_LOAD_NUM_LEDGERS must be greater than 0");
+                    "APPLY_LOAD_NUM_LEDGERS must be at least 30");
             }
             if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
-                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
+                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >
                     config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
                 {
                     throw std::runtime_error(
-                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must be less than "
-                        "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
+                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must not be greater "
+                        "than APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps "
+                        "mode");
                 }
 
                 // For now, metrics are expensive at high, parallel load. We
