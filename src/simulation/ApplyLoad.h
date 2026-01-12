@@ -102,9 +102,13 @@ class ApplyLoad
     // APPLY_LOAD_TARGET_CLOSE_TIME_MS.
     void findMaxSacTps();
 
-    // Run iterations at the given TPS. Reports average time over all runs, in
-    // milliseconds.
-    double benchmarkSacTps(uint32_t targetTps);
+    // Run a single ledger benchmark at the given TPS. Returns the close time
+    // in milliseconds for that ledger.
+    double benchmarkSacTpsSingleLedger(uint32_t txsPerLedger);
+
+    // Run a single ledger benchmark for the model transaction mode. Returns
+    // the close time in milliseconds for that ledger.
+    double benchmarkLimitsIterationTimed();
 
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
@@ -178,5 +182,14 @@ class ApplyLoad
     // Counter for generating unique destination addresses for SAC payments
     uint32_t mDestCounter = 0;
 };
+
+#ifdef BUILD_TESTS
+std::pair<uint32_t, uint32_t> noisyBinarySearch(
+    std::function<double(uint32_t)> const& f, double targetA, uint32_t xMin,
+    uint32_t xMax, double confidence, uint32_t xTolerance,
+    size_t maxSamplesPerPoint,
+    std::function<void(uint32_t)> const& prepareIteration = nullptr,
+    std::function<void(uint32_t, bool)> const& iterationResult = nullptr);
+#endif
 
 }
