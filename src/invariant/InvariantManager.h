@@ -80,6 +80,11 @@ class InvariantManager
 
     virtual bool shouldRunInvariantSnapshot() const = 0;
 
+    // Mark the start of a snapshot invariant run. Should be called when a
+    // snapshot for a scan is first created to prevent expensive redundant
+    // copies.
+    virtual void markStartOfInvariantSnapshot() = 0;
+
 #ifdef BUILD_TESTS
     virtual void snapshotForFuzzer() = 0;
     virtual void resetForFuzzer() = 0;

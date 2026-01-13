@@ -612,24 +612,27 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         {}, {});
     closeLedger(*app);
 
-    auto getLedgerState = [&]() {
-        auto liveBL = app->getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableLiveBucketListSnapshot();
-        auto hotArchive = app->getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-        return std::make_shared<CompleteConstLedgerState>(
-            liveBL, hotArchive, lm.getLastClosedLedgerHeader(),
-            lm.getLastClosedLedgerHAS());
+    auto getLiveSnapshot = [&]() {
+        return app->getBucketManager()
+            .getBucketSnapshotManager()
+            .copySearchableLiveBucketListSnapshot();
     };
+
+    auto getHotArchiveSnapshot = [&]() {
+        return app->getBucketManager()
+            .getBucketSnapshotManager()
+            .copySearchableHotArchiveBucketListSnapshot();
+    };
+
+    auto noopIsStopping = []() { return false; };
 
     app->getInvariantManager().enableInvariant("BucketListStateConsistency");
 
     SECTION("Valid state passes invariant")
     {
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            getLedgerState(), lm.getInMemorySorobanStateForTesting()));
+            getLiveSnapshot(), getHotArchiveSnapshot(),
+            lm.getInMemorySorobanStateForTesting(), noopIsStopping));
     }
 
     auto testLiveEntryNotInCache = [&](bool isContractCode) {
@@ -648,7 +651,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLedgerState(), modifiedState),
+                              getLiveSnapshot(), getHotArchiveSnapshot(),
+                              modifiedState, noopIsStopping),
                           InvariantDoesNotHold);
     };
 
@@ -695,7 +699,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLedgerState(), modifiedState),
+                              getLiveSnapshot(), getHotArchiveSnapshot(),
+                              modifiedState, noopIsStopping),
                           InvariantDoesNotHold);
     };
 
@@ -736,7 +741,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLedgerState(), modifiedState),
+                              getLiveSnapshot(), getHotArchiveSnapshot(),
+                              modifiedState, noopIsStopping),
                           InvariantDoesNotHold);
     };
 
@@ -766,7 +772,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             InternalContractDataMapEntry(entryCopy, wrongTTL));
 
         REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLedgerState(), modifiedState),
+                              getLiveSnapshot(), getHotArchiveSnapshot(),
+                              modifiedState, noopIsStopping),
                           InvariantDoesNotHold);
     }
 
@@ -782,7 +789,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         REQUIRE_THROWS_AS(
             app->getInvariantManager().runStateSnapshotInvariant(
-                getLedgerState(), lm.getInMemorySorobanStateForTesting()),
+                getLiveSnapshot(), getHotArchiveSnapshot(),
+                lm.getInMemorySorobanStateForTesting(), noopIsStopping),
             InvariantDoesNotHold);
     }
 
@@ -795,7 +803,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         REQUIRE_THROWS_AS(
             app->getInvariantManager().runStateSnapshotInvariant(
-                getLedgerState(), lm.getInMemorySorobanStateForTesting()),
+                getLiveSnapshot(), getHotArchiveSnapshot(),
+                lm.getInMemorySorobanStateForTesting(), noopIsStopping),
             InvariantDoesNotHold);
     }
 }
