@@ -134,11 +134,11 @@ setupApp(Config& cfg, VirtualClock& clock)
 }
 
 int
-runApp(Application::pointer app)
+runApp(Application::pointer app, bool asyncPopulateInMemoryState)
 {
     // Certain in-memory modes in core may start the app before reaching this
     // point, but since start is idempotent, second call will just no-op
-    app->start();
+    app->start(asyncPopulateInMemoryState);
 
     // Perform additional startup procedures (must be done after the app is
     // setup) and run the app
@@ -186,7 +186,7 @@ applyBucketsForLCL(Application& app)
 
     std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
-        buckets, has, maxProtocolVersion);
+        buckets, has, maxProtocolVersion, false);
 
     while (app.getClock().crank(true) && !work->isDone())
         ;
