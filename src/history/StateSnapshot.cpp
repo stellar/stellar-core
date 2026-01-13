@@ -54,9 +54,12 @@ bool
 StateSnapshot::writeSCPMessages() const
 {
     ZoneScoped;
+    bool canUseMisc = mApp.getDatabase().canUseMiscDB();
     std::unique_ptr<soci::session> snapSess(
         (mApp.getDatabase().canUsePool()
-             ? std::make_unique<soci::session>(mApp.getDatabase().getMiscPool())
+             ? std::make_unique<soci::session>(
+                   canUseMisc ? mApp.getDatabase().getMiscPool()
+                              : mApp.getDatabase().getPool())
              : nullptr));
     soci::session& sess(snapSess ? *snapSess
                                  : mApp.getDatabase().getRawMiscSession());
