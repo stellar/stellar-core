@@ -1435,6 +1435,9 @@
     <ClCompile Include="..\..\src\util\MetricsRegistry.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntryScope.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2547,6 +2550,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\MetricsRegistry.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

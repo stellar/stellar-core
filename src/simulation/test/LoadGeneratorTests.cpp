@@ -777,8 +777,8 @@ TEST_CASE("Multi-byte payment transactions are valid", "[loadgen]")
     uint32_t constexpr baseSize = 148;
     uint32_t constexpr opSize = 56;
     uint32_t constexpr frameSize = baseSize + opSize * 3;
-    Simulation::pointer simulation = Topologies::pair(
-        Simulation::OVER_LOOPBACK, networkID, [frameSize](int i) {
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
             cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
             cfg.LOADGEN_BYTE_COUNT_FOR_TESTING = {frameSize};
