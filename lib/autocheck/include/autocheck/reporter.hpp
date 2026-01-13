@@ -1,11 +1,13 @@
 #ifndef AUTOCHECK_REPORTER_HPP
 #define AUTOCHECK_REPORTER_HPP
 
+#include <autocheck/distribution.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <cmath>
 #include <iostream>
 #include <sstream>
-#include <cmath>
-
-#include "distribution.hpp"
 
 namespace autocheck {
 
@@ -63,8 +65,8 @@ namespace autocheck {
       ostream_reporter(std::ostream& out = std::cout) : out(out) {}
 
       virtual void success(size_t tests, size_t max_tests,
-          size_t trivial, distribution&& dist) const
-      {
+          size_t trivial, distribution&& dist) const 
+	  {
         report_success(out, tests, max_tests, trivial, std::move(dist));
       }
 
@@ -93,6 +95,26 @@ namespace autocheck {
   };
 
 #endif // ASSERT_TRUE
+
+#if defined(TEST_CASE) || defined(CATCH_TEST_CASE)
+
+  class catch_reporter : public reporter {
+    public:
+      virtual void success(size_t tests, size_t max_tests,
+          size_t trivial, distribution&& dist) const
+      {
+        report_success(std::clog, tests, max_tests, trivial, std::move(dist));
+        REQUIRE(true);
+      }
+
+      virtual void failure(size_t tests, const char* reason) const {
+        std::ostringstream out;
+        report_failure(out, tests, reason);
+        FAIL(out.str());
+      }
+  };
+
+#endif // TEST_CASE
 
 }
 

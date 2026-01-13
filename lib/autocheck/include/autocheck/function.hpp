@@ -2,6 +2,7 @@
 #define AUTOCHECK_FUNCTION_HPP
 
 #include <functional>
+#include <utility>
 
 namespace autocheck {
 

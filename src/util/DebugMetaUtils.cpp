@@ -22,8 +22,8 @@ getMetaDebugDirPath(std::filesystem::path const& bucketDir)
 std::filesystem::path
 getMetaDebugFilePath(std::filesystem::path const& bucketDir, uint32_t seqNum)
 {
-    auto file =
-        fmt::format(META_DEBUG_FILE_FMT_STR, seqNum, binToHex(randomBytes(8)));
+    auto file = fmt::format(fmt::runtime(META_DEBUG_FILE_FMT_STR), seqNum,
+                            binToHex(randomBytes(8)));
     return getMetaDebugDirPath(bucketDir) / file;
 }
 
