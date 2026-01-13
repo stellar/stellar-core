@@ -1096,16 +1096,6 @@ TEST_CASE("Publish throttles catchup", "[history][catchup][acceptance]")
 TEST_CASE("History catchup with different modes",
           "[history][catchup][acceptance]")
 {
-    CatchupSimulation catchupSimulation{};
-
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
-
-    std::vector<Application::pointer> apps;
-
-    std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
-                                    60};
-
     std::vector<Config::TestDbMode> dbModes = {
         Config::TESTDB_BUCKET_DB_PERSISTENT};
 #ifdef USE_POSTGRES
@@ -1115,14 +1105,31 @@ TEST_CASE("History catchup with different modes",
 
     for (auto dbMode : dbModes)
     {
-        for (auto count : counts)
+        SECTION(std::string("DB mode: ") + dbModeName(dbMode))
         {
-            auto a = catchupSimulation.createCatchupApplication(
-                count, dbMode,
-                std::string("full, ") + resumeModeName(count) + ", " +
-                    dbModeName(dbMode));
-            REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger, 5));
-            apps.push_back(a);
+            CatchupSimulation catchupSimulation{
+                VirtualClock::VIRTUAL_TIME,
+                std::make_shared<TmpDirHistoryConfigurator>(), true, dbMode};
+
+            auto checkpointLedger =
+                catchupSimulation.getLastCheckpointLedger(3);
+            catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+            std::vector<Application::pointer> apps;
+
+            std::vector<uint32_t> counts = {
+                0, std::numeric_limits<uint32_t>::max(), 60};
+
+            for (auto count : counts)
+            {
+                auto a = catchupSimulation.createCatchupApplication(
+                    count, dbMode,
+                    std::string("full, ") + resumeModeName(count) + ", " +
+                        dbModeName(dbMode));
+                REQUIRE(
+                    catchupSimulation.catchupOnline(a, checkpointLedger, 5));
+                apps.push_back(a);
+            }
         }
     }
 }
