@@ -336,10 +336,6 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
-    // Reset our trigger flag and mark the invariant as running.
-    mStateSnapshotInvariantRunning = true;
-    mShouldRunStateSnapshotInvariant = false;
-
     auto reset =
         gsl::finally([this]() { mStateSnapshotInvariantRunning = false; });
 
@@ -407,6 +403,18 @@ InvariantManagerImpl::shouldRunInvariantSnapshot() const
     }
 
     return mShouldRunStateSnapshotInvariant;
+}
+
+void
+InvariantManagerImpl::markStartOfInvariantSnapshot()
+{
+    // Safe to call from any thread since both flags are atomic. Since we check
+    // mSTateSnapshotInvariantRunning before setting
+    // mShouldRunStateSnapshotInvariant in mStateSnapshotInvariantRunning, make
+    // sure we reset mStateSnapshotInvariantRunning first to prevent mutiple
+    // snapshot triggers.
+    mStateSnapshotInvariantRunning = true;
+    mShouldRunStateSnapshotInvariant = false;
 }
 
 #ifdef BUILD_TESTS

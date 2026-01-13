@@ -737,12 +737,16 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 }
 
 std::shared_ptr<InMemorySorobanState const>
-LedgerManagerImpl::maybeCopySorobanStateForInvariant() const
+LedgerManagerImpl::maybeCopySorobanStateForInvariant()
 {
     std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant =
         nullptr;
     if (mApp.getInvariantManager().shouldRunInvariantSnapshot())
     {
+        // The in memory state copy is expensive, so we make so we need to mark
+        // that start of the invariant scan here, not in the callback, to ensure
+        // we don't trigger a race condition that creates two copies.
+        mApp.getInvariantManager().markStartOfInvariantSnapshot();
         inMemorySnapshotForInvariant =
             std::shared_ptr<InMemorySorobanState const>(
                 new InMemorySorobanState(

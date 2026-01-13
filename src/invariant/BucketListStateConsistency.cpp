@@ -28,15 +28,14 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // 5. No live entry in the live BL is also present in the hot archive BL
 std::string
 BucketListStateConsistency::checkSnapshot(
-    CompleteConstLedgerStatePtr ledgerState,
-    InMemorySorobanState const& inMemorySnapshot)
+    SearchableSnapshotConstPtr liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
 {
     LogSlowExecution logSlow("BucketListStateConsistency::checkSnapshot",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::minutes(2));
-
-    auto liveSnapshot = ledgerState->getBucketSnapshot();
-    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
     auto const& header = liveSnapshot->getLedgerHeader();
 
     if (protocolVersionIsBefore(header.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
@@ -61,7 +60,12 @@ BucketListStateConsistency::checkSnapshot(
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
                            &inMemorySnapshot, &hotArchiveSnapshot,
-                           checkHotArchive](BucketEntry const& be) {
+                           checkHotArchive, &isStopping](BucketEntry const& be) {
+        if (isStopping())
+        {
+            return Loop::COMPLETE;
+        }
+
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
             auto lk = LedgerEntryKey(be.liveEntry());
@@ -192,8 +196,13 @@ BucketListStateConsistency::checkSnapshot(
     UnorderedSet<LedgerKey> seenLiveTTLKeys;
 
     auto checkTTLEntry = [&expectedTTLKeyHashes, &seenLiveTTLKeys,
-                          &seenDeadKeys, &errorMsg,
-                          &inMemorySnapshot](BucketEntry const& be) {
+                          &seenDeadKeys, &errorMsg, &inMemorySnapshot,
+                          &isStopping](BucketEntry const& be) {
+        if (isStopping())
+        {
+            return Loop::COMPLETE;
+        }
+
         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
         {
             auto ttlKey = LedgerEntryKey(be.liveEntry());
