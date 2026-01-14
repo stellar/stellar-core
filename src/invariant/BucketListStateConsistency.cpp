@@ -9,6 +9,7 @@
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
@@ -23,9 +24,12 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // BucketList, along with other important properties. We check these properties:
 // 1. Every live entry in the BL is reflected in the in-memory cache
 // 2. No entry exists in the cache, but not the BL
-// 3. Each live soroban entry also has a live TTL entry associated with it
+// 3. Each live soroban entry also has a live TTL entry associated with it (and
+//    the TTL value in the cache matches the BL value)
 // 4. No TTL entry exists without a corresponding soroban entry
 // 5. No live entry in the live BL is also present in the hot archive BL
+// 6. Only persistent CONTRACT_DATA and CONTRACT_CODE entries exist in the
+//    hot archive (TEMPORARY entries are deleted, not archived)
 std::string
 BucketListStateConsistency::checkSnapshot(
     SearchableSnapshotConstPtr liveSnapshot,
@@ -60,7 +64,8 @@ BucketListStateConsistency::checkSnapshot(
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
                            &inMemorySnapshot, &hotArchiveSnapshot,
-                           checkHotArchive, &isStopping](BucketEntry const& be) {
+                           checkHotArchive,
+                           &isStopping](BucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
@@ -97,7 +102,7 @@ BucketListStateConsistency::checkSnapshot(
                     FMT_STRING("BucketListStateConsistency invariant failed: "
                                "Entry mismatch for key {}. BucketList entry: "
                                "{}, InMemory entry: {}"),
-                    xdrToCerealString(lk, "lk"),
+                    xdrToCerealString(lk, "entryKey"),
                     xdrToCerealString(be.liveEntry(), "bucketEntry"),
                     xdrToCerealString(*inMemoryEntry, "inMemoryEntry"));
                 return Loop::COMPLETE;
@@ -289,6 +294,68 @@ BucketListStateConsistency::checkSnapshot(
                        "corresponding TTL entry in BucketList"),
             expectedTTLKeyHashes.size());
         return errorMsg;
+    }
+
+    // Check property 6: only persistent CONTRACT_DATA and CONTRACT_CODE entries
+    // should exist in the hot archive (TEMPORARY entries are deleted, not
+    // archived)
+    if (checkHotArchive)
+    {
+        auto checkHotArchiveEntry = [&errorMsg, &isStopping](
+                                        HotArchiveBucketEntry const& habe) {
+            if (isStopping())
+            {
+                return Loop::COMPLETE;
+            }
+
+            LedgerEntryType entryType;
+            ContractDataDurability durability = PERSISTENT;
+            if (habe.type() == HOT_ARCHIVE_ARCHIVED)
+            {
+                entryType = habe.archivedEntry().data.type();
+                if (entryType == CONTRACT_DATA)
+                {
+                    durability =
+                        habe.archivedEntry().data.contractData().durability;
+                }
+            }
+            else
+            {
+                releaseAssertOrThrow(habe.type() == HOT_ARCHIVE_LIVE);
+                entryType = habe.key().type();
+                if (entryType == CONTRACT_DATA)
+                {
+                    durability = habe.key().contractData().durability;
+                }
+            }
+
+            if (entryType != CONTRACT_DATA && entryType != CONTRACT_CODE)
+            {
+                errorMsg = fmt::format(
+                    FMT_STRING("BucketListStateConsistency invariant failed: "
+                               "Invalid entry type {} in hot archive. Only "
+                               "CONTRACT_DATA and CONTRACT_CODE are allowed"),
+                    static_cast<int>(entryType));
+                return Loop::COMPLETE;
+            }
+
+            if (entryType == CONTRACT_DATA && durability != PERSISTENT)
+            {
+                errorMsg = fmt::format(
+                    FMT_STRING("BucketListStateConsistency invariant failed: "
+                               "TEMPORARY CONTRACT_DATA entry in hot archive. "
+                               "Only PERSISTENT entries should be archived"));
+                return Loop::COMPLETE;
+            }
+
+            return Loop::INCOMPLETE;
+        };
+
+        hotArchiveSnapshot->scanAllEntries(checkHotArchiveEntry);
+        if (!errorMsg.empty())
+        {
+            return errorMsg;
+        }
     }
 
     return std::string{};
