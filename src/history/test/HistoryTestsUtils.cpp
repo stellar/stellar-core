@@ -161,8 +161,11 @@ BucketOutputIteratorForTesting<BucketT>::writeTmpTestBucket()
     auto generateEntries = [this]() {
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
-            auto le = LedgerTestUtils::generateValidUniqueLedgerEntries(
-                NUM_ITEMS_PER_BUCKET);
+            // Exclude Soroban types to avoid TTL invariant issues
+            auto le =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE},
+                    NUM_ITEMS_PER_BUCKET);
             return BucketT::convertToBucketEntry(false, {}, le, {});
         }
         else
