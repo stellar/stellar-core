@@ -33,6 +33,9 @@ class SelfCheckMultiArchiveHistoryConfigurator
         cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         // In this test config we'll run self-check every 4 checkpoints (32s).
         cfg.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(32);
+        // Disable snapshot invariant - this test uses random bucket entries
+        // that can violate invariants (missing TTLs, lumen conservation, etc.)
+        cfg.INVARIANT_EXTRA_CHECKS = false;
         return cfg;
     }
 };

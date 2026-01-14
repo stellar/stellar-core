@@ -446,6 +446,35 @@ LiveBucketSnapshot::LiveBucketSnapshot(LiveBucketSnapshot const& b)
 {
 }
 
+template <class BucketT>
+Loop
+BucketSnapshotBase<BucketT>::scanEntries(
+    std::function<Loop(typename BucketT::EntryT const&)> callback) const
+{
+    if (isEmpty())
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto& stream = getStream();
+    stream.seek(0);
+
+    typename BucketT::EntryT entry;
+    while (stream.readOne(entry))
+    {
+        if (isBucketMetaEntry<BucketT>(entry))
+        {
+            continue;
+        }
+
+        if (callback(entry) == Loop::COMPLETE)
+        {
+            return Loop::COMPLETE;
+        }
+    }
+    return Loop::INCOMPLETE;
+}
+
 template class BucketSnapshotBase<LiveBucket>;
 template class BucketSnapshotBase<HotArchiveBucket>;
 }

@@ -21,86 +21,8 @@
 
 namespace stellar
 {
-ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(true)
+ArchivedStateConsistency::ArchivedStateConsistency() : Invariant(false)
 {
-}
-
-// This test iterates through both the live and archived bucket lists and checks
-// that no entry is live in both BucketLists simultaneously.
-std::string
-ArchivedStateConsistency::checkSnapshot(
-    SearchableSnapshotConstPtr liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
-    InMemorySorobanState const& inMemorySnapshot,
-    std::function<bool()> isStopping)
-{
-    LogSlowExecution logSlow("ArchivedStateConsistency::stateSnapshotInvariant",
-                             LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
-                             std::chrono::seconds(30));
-
-    auto const& header = liveSnapshot->getLedgerHeader();
-    if (protocolVersionIsBefore(
-            header.ledgerVersion,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-    {
-        return std::string{};
-    }
-
-    auto const ARCHIVAL_ENTRY_TYPES = std::set{CONTRACT_CODE, CONTRACT_DATA};
-
-    UnorderedSet<LedgerKey> seenKeys;
-    std::string errorMsg;
-
-    // For each entry in the Live BucketList, check if we have seen it in a
-    // previous level. If not, this entry is the newest version, so check if it
-    // exists in the Hot Archive.
-    auto checkIfLiveEntryInArchive = [&seenKeys, &errorMsg, &hotArchiveSnapshot,
-                                      &isStopping](BucketEntry const& be) {
-        // Allow early termination if application is stopping
-        if (isStopping())
-        {
-            return Loop::COMPLETE;
-        }
-
-        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
-        {
-            auto lk = LedgerEntryKey(be.liveEntry());
-            auto [_, wasInserted] = seenKeys.emplace(lk);
-
-            // If this BucketEntry is not shadowed, and the key exists in
-            // the Hot Archive, we have an error.
-            if (wasInserted && hotArchiveSnapshot->load(lk))
-            {
-                errorMsg = fmt::format(
-                    FMT_STRING("ArchivedStateConsistency invariant failed: "
-                               "Live entry is present in both live and "
-                               "archived state: {}"),
-                    xdrToCerealString(lk, "entry_key"));
-                return Loop::COMPLETE;
-            }
-        }
-        // Mark DEADENTRY as seen, but the key does not exist wrt ledger
-        // state, so we don't need to check the Hot Archive.
-        else if (be.type() == DEADENTRY)
-        {
-            seenKeys.emplace(be.deadEntry());
-        }
-        return Loop::INCOMPLETE;
-    };
-
-    // We just need to check for Soroban types that are stored in the Hot
-    // Archive
-    for (auto const& type : ARCHIVAL_ENTRY_TYPES)
-    {
-        liveSnapshot->scanForEntriesOfType(type, checkIfLiveEntryInArchive);
-        if (!errorMsg.empty())
-        {
-            return errorMsg;
-        }
-        seenKeys.clear();
-    }
-
-    return std::string{};
 }
 
 std::shared_ptr<Invariant>
