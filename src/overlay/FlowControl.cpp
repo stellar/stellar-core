@@ -9,6 +9,7 @@
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
+#include "overlay/OverlayUtils.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -148,7 +149,10 @@ FlowControl::processSentMessages(
             }
             break;
             default:
-                abort();
+            {
+                throw std::runtime_error(
+                    "Unknown message type in processSentMessages");
+            }
             }
             queue.pop_front();
         }
@@ -248,7 +252,11 @@ FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
                          mMetrics.mOutboundQueueDelayAdvert);
         break;
     default:
-        abort();
+    {
+        logErrorOrThrow(
+            fmt::format("Unknown message type {} in updateMsgMetrics",
+                        static_cast<int>(msg->type())));
+    }
     }
 }
 
@@ -355,7 +363,9 @@ FlowControl::getMessagePriority(StellarMessage const& msg)
     case FLOOD_ADVERT:
         return 3;
     default:
-        abort();
+    {
+        throw std::runtime_error("Unknown message type in getMessagePriority");
+    }
     }
 }
 
@@ -447,7 +457,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     break;
     default:
-        abort();
+    {
+        throw std::runtime_error(
+            "Unknown message type in addMsgAndMaybeTrimQueue");
+    }
     }
     auto& queue = mOutboundQueues[msgQInd];
 

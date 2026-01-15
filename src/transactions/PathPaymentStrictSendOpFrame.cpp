@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/EventManager.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
@@ -30,9 +31,9 @@ PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-PathPaymentStrictSendOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+PathPaymentStrictSendOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                      OperationResult& res,
+                                      OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -120,8 +121,21 @@ PathPaymentStrictSendOpFrame::doApply(
     {
         return false;
     }
+
     innerResult(res).success().last =
         SimplePaymentResult(getDestID(), getDestAsset(), maxAmountSend);
+
+    auto const& success = innerResult(res).success();
+
+    opMeta.getEventManager().eventsForClaimAtoms(getSourceAccount(),
+                                                 success.offers);
+
+    // Emit the final event between the source and destination account wrt the
+    // dest asset.
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
+        getDestAsset(), makeMuxedAccountAddress(getSourceAccount()),
+        makeMuxedAccountAddress(getDestMuxedAccount()), maxAmountSend, true);
+
     return true;
 }
 

@@ -42,7 +42,7 @@ BucketApplicator::BucketApplicator(Application& app,
     // Only apply offers
     if (!bucket->isEmpty())
     {
-        auto offsetOp = bucket->getOfferRange();
+        auto offsetOp = bucket->getRangeForType(OFFER);
         if (offsetOp)
         {
             auto [lowOffset, highOffset] = *offsetOp;
@@ -57,7 +57,8 @@ BucketApplicator::BucketApplicator(Application& app,
     }
 }
 
-BucketApplicator::operator bool() const
+BucketApplicator::
+operator bool() const
 {
     // There is more work to do (i.e. (bool) *this == true) iff:
     // 1. The underlying bucket iterator is not EOF and

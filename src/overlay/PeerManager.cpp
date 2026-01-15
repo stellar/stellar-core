@@ -76,8 +76,8 @@ toXdr(PeerBareAddress const& address)
     return result;
 }
 
-constexpr const size_t BATCH_SIZE = 1000;
-constexpr const size_t MAX_FAILURES = 10;
+constexpr size_t const BATCH_SIZE = 1000;
+constexpr size_t const MAX_FAILURES = 10;
 
 PeerManager::PeerManager(Application& app)
     : mApp(app)
@@ -96,7 +96,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     size = std::max(size, BATCH_SIZE);
 
     // if we ever start removing peers from db, we may need to enable this
-    // soci::transaction sqltx(mApp.getDatabase().getSession());
+    // soci::transaction sqltx(mApp.getDatabase().getMiscSession());
     // mApp.getDatabase().setCurrentTransactionReadOnly();
 
     std::vector<std::string> conditions;
@@ -159,8 +159,8 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     size_t maxOffset = count > size ? count - size : 0;
     size_t offset = rand_uniform<size_t>(0, maxOffset);
     result = loadPeers(size, offset, where, bindToStatement);
-
-    stellar::shuffle(std::begin(result), std::end(result), gRandomEngine);
+    stellar::shuffle(std::begin(result), std::end(result),
+                     getGlobalRandomEngine());
     return result;
 }
 
@@ -181,7 +181,7 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
         }
 
         auto prep =
-            db.getPreparedStatement(sql, mApp.getDatabase().getSession());
+            db.getPreparedStatement(sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         st.exchange(use(minNumFailures));
@@ -239,7 +239,7 @@ PeerManager::load(PeerBareAddress const& address)
         auto prep = mApp.getDatabase().getPreparedStatement(
             "SELECT numfailures, nextattempt, type FROM peers "
             "WHERE ip = :v1 AND port = :v2",
-            mApp.getDatabase().getSession());
+            mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
         st.exchange(into(result.mNumFailures));
         st.exchange(into(result.mNextAttempt));
@@ -297,7 +297,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
     try
     {
         auto prep = mApp.getDatabase().getPreparedStatement(
-            query, mApp.getDatabase().getSession());
+            query, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
         st.exchange(use(peerRecord.mNextAttempt));
         st.exchange(use(peerRecord.mNumFailures));
@@ -352,7 +352,9 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::update: unsupported TypeUpdate: {}",
+                        static_cast<int>(type)));
     }
     }
 }
@@ -363,13 +365,13 @@ namespace
 static std::chrono::seconds
 computeBackoff(size_t numFailures)
 {
-    constexpr const uint32 SECONDS_PER_BACKOFF = 10;
-    constexpr const size_t MAX_BACKOFF_EXPONENT = 10;
+    constexpr uint32 const SECONDS_PER_BACKOFF = 10;
+    constexpr size_t const MAX_BACKOFF_EXPONENT = 10;
 
     uint32 backoffCount = static_cast<uint32>(
         std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
     auto nsecs =
-        std::chrono::seconds(static_cast<uint32>(gRandomEngine()) %
+        std::chrono::seconds(static_cast<uint32>(getGlobalRandomEngine()()) %
                                  ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
                              1);
     return nsecs;
@@ -400,7 +402,9 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::update: unsupported BackOffUpdate: {}",
+                        static_cast<int>(backOff)));
     }
     }
 }
@@ -454,7 +458,9 @@ getTypeUpdate(PeerRecord const& peer, PeerType observedType,
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            fmt::format("PeerManager::getTypeUpdate: unsupported PeerType: {}",
+                        static_cast<int>(observedType)));
     }
     }
 
@@ -507,7 +513,7 @@ PeerManager::countPeers(std::string const& where,
         std::string sql = "SELECT COUNT(*) FROM peers WHERE " + where;
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         bind(st);
@@ -538,7 +544,7 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
                           where + " LIMIT :limit OFFSET :offset";
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         bind(st);
@@ -573,10 +579,10 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
 }
 
 void
-PeerManager::dropAll(Database& db)
+PeerManager::maybeDropAndCreateNew(SessionWrapper& db)
 {
-    db.getRawSession() << "DROP TABLE IF EXISTS peers;";
-    db.getRawSession() << kSQLCreateStatement;
+    db.session() << "DROP TABLE IF EXISTS peers;";
+    db.session() << kSQLCreateStatement;
 }
 
 std::vector<std::pair<PeerBareAddress, PeerRecord>>
@@ -594,7 +600,7 @@ PeerManager::loadAllPeers()
         PeerRecord record;
 
         auto prep = mApp.getDatabase().getPreparedStatement(
-            sql, mApp.getDatabase().getSession());
+            sql, mApp.getDatabase().getMiscSession());
         auto& st = prep.statement();
 
         st.exchange(into(ip));
@@ -627,7 +633,7 @@ void
 PeerManager::storePeers(
     std::vector<std::pair<PeerBareAddress, PeerRecord>> peers)
 {
-    soci::transaction tx(mApp.getDatabase().getRawSession());
+    soci::transaction tx(mApp.getDatabase().getRawMiscSession());
     for (auto const& peer : peers)
     {
         store(peer.first, peer.second, /* inDatabase */ false);
@@ -635,7 +641,7 @@ PeerManager::storePeers(
     tx.commit();
 }
 
-const char* PeerManager::kSQLCreateStatement =
+char const* PeerManager::kSQLCreateStatement =
     "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"

@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/HerderUtils.h"
 #include "herder/QuorumIntersectionChecker.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
@@ -18,6 +19,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
 #include "main/Maintainer.h"
@@ -28,8 +30,10 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
+#include "util/types.h"
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
@@ -92,7 +96,7 @@ writeLedgerAggregationTable(
 }
 } // namespace
 
-const std::string MINIMAL_DB_NAME = "minimal.db";
+std::string const MINIMAL_DB_NAME = "minimal.db";
 
 bool
 canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
@@ -107,7 +111,7 @@ canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
            startAtLedger - lcl <= RESTORE_STATE_LEDGER_WINDOW;
 }
 
-std::filesystem::path
+static std::filesystem::path
 minimalDbPath(Config const& cfg)
 {
     std::filesystem::path dpath(cfg.BUCKET_DIR_PATH);
@@ -199,13 +203,11 @@ httpCommand(std::string const& command, unsigned short port)
     path << "/";
     bool gotCommand = false;
 
-    std::locale loc("C");
-
     for (auto const& c : command)
     {
         if (gotCommand)
         {
-            if (std::isalnum(c, loc))
+            if (isAsciiAlphaNumeric(c))
             {
                 path << c;
             }
@@ -298,7 +300,7 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
+    app->getLedgerManager().partiallyLoadLastKnownLedgerForUtils();
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -310,7 +312,7 @@ selfCheck(Config cfg)
     // Then we scan all the buckets to check they have expected hashes.
     LOG_INFO(DEFAULT_LOG, "Self-check phase 2: bucket hash verification");
     auto seq2 = app->getBucketManager().scheduleVerifyReferencedBucketsWork(
-        app->getLedgerManager().getLastClosedLedgerHAS());
+        *app, app->getLedgerManager().getLastClosedLedgerHAS());
     while (clock.crank(true) && !seq2->isDone())
         ;
 
@@ -380,9 +382,9 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.partiallyLoadLastKnownLedgerForUtils();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
-    auto bucket = bm.mergeBuckets(has);
+    auto bucket = bm.mergeBuckets(app->getClock().getIOContext(), has);
 
     using std::filesystem::path;
     path bpath(bucket->getFilename());
@@ -476,6 +478,163 @@ processArchivalMetrics(
     }
 }
 
+void
+getHotArchiveListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo,
+                                 int64_t& runningBalance)
+{
+    auto& bm = app.getBucketManager();
+
+    std::map<LedgerKey, LedgerEntry> archived =
+        app.getBucketManager().loadCompleteHotArchiveState(has);
+    for (auto const& [_, entry] : archived)
+    {
+        auto balance = getAssetBalance(entry, asset, assetContractInfo);
+        if (balance.overflowed)
+        {
+            throw std::runtime_error("Total asset balance overflowed int64_t");
+        }
+        if (balance.assetMatched &&
+            (!balance.balance || !addBalance(runningBalance, *balance.balance)))
+        {
+            throw std::runtime_error("Total asset balance overflowed int64_t");
+        }
+    }
+}
+
+void
+getLiveBucketListBalanceForAsset(Application& app,
+                                 HistoryArchiveState const& has,
+                                 Asset const& asset,
+                                 AssetContractInfo const& assetContractInfo,
+                                 int64_t& runningBalance)
+{
+    std::vector<Hash> liveHashes;
+    std::unordered_set<LedgerKey> seenKeys;
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
+        liveHashes.emplace_back(hexToBin256(hsb.curr));
+        liveHashes.emplace_back(hexToBin256(hsb.snap));
+    }
+
+    auto& bm = app.getBucketManager();
+    for (auto const& hash : liveHashes)
+    {
+        if (isZero(hash))
+        {
+            continue;
+        }
+        auto b = bm.getBucketByHash<LiveBucket>(hash);
+        if (!b)
+        {
+            throw std::runtime_error(std::string("missing bucket: ") +
+                                     binToHex(hash));
+        }
+
+        for (LiveBucketInputIterator in(b); in; ++in)
+        {
+            auto const& be = *in;
+            if (be.type() != LIVEENTRY && be.type() != INITENTRY)
+            {
+                if (be.type() == DEADENTRY &&
+                    canHoldAsset(be.deadEntry().type(), asset))
+                {
+                    seenKeys.emplace(be.deadEntry());
+                }
+                continue;
+            }
+
+            LedgerKey k = LedgerEntryKey(be.liveEntry());
+
+            if (!canHoldAsset(be.liveEntry().data.type(), asset) ||
+                seenKeys.count(k) != 0)
+            {
+                continue;
+            }
+
+            auto balance =
+                getAssetBalance(be.liveEntry(), asset, assetContractInfo);
+
+            if (balance.overflowed)
+            {
+                throw std::runtime_error(
+                    "Total asset balance overflowed int64_t");
+            }
+            if (!balance.assetMatched)
+            {
+                continue;
+            }
+            if (!balance.balance ||
+                !addBalance(runningBalance, *balance.balance))
+            {
+                throw std::runtime_error(
+                    "Total asset balance overflowed int64_t");
+            }
+
+            seenKeys.emplace(k);
+        }
+    }
+}
+
+int
+calculateAssetSupply(Config cfg, Asset const& asset)
+{
+    ZoneScoped;
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
+
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+    auto assetContractInfo = getAssetContractInfo(asset, app->getNetworkID());
+
+    int64_t sumBalance = 0;
+
+    // For native asset, include the fee pool
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto feePool = lm.getLastClosedLedgerHeader().header.feePool;
+        sumBalance = feePool;
+        CLOG_INFO(Bucket, "Fee pool balance: {}", feePool);
+    }
+
+    getLiveBucketListBalanceForAsset(*app, has, asset, assetContractInfo,
+                                     sumBalance);
+
+    getHotArchiveListBalanceForAsset(*app, has, asset, assetContractInfo,
+                                     sumBalance);
+
+    CLOG_INFO(
+        Bucket,
+        "Total asset supply in Hot/Live buckets (and feePool for XLM): {}",
+        sumBalance);
+
+    // For native asset, validate against totalCoins
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto totalCoins = lm.getLastClosedLedgerHeader().header.totalCoins;
+        CLOG_INFO(Bucket, "Total Coins in ledgerHeader: {}", totalCoins);
+
+        if (sumBalance != totalCoins)
+        {
+            CLOG_WARNING(Bucket,
+                         "Total XLM mismatch! totalCoins-bucketBalance: {}",
+                         totalCoins - sumBalance);
+            return 1;
+        }
+        else
+        {
+            CLOG_INFO(Bucket, "Total XLM matches");
+        }
+    }
+
+    return 0;
+}
+
 int
 dumpStateArchivalStatistics(Config cfg)
 {
@@ -483,7 +642,7 @@ dumpStateArchivalStatistics(Config cfg)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false);
+    app->getLedgerManager().partiallyLoadLastKnownLedgerForUtils();
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
@@ -491,7 +650,7 @@ dumpStateArchivalStatistics(Config cfg)
     std::vector<Hash> hashes;
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        HistoryStateBucket<LiveBucket> const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr));
         hashes.emplace_back(hexToBin256(hsb.snap));
     }
@@ -584,7 +743,8 @@ dumpLedger(Config cfg, std::string const& outputFile,
            std::optional<std::string> filterQuery,
            std::optional<uint32_t> lastModifiedLedgerCount,
            std::optional<uint64_t> limit, std::optional<std::string> groupBy,
-           std::optional<std::string> aggregate, bool includeAllStates)
+           std::optional<std::string> aggregate, bool dumpHotArchive,
+           bool includeAllStates)
 {
     if (groupBy && !aggregate)
     {
@@ -596,7 +756,26 @@ dumpLedger(Config cfg, std::string const& outputFile,
     Application::pointer app = Application::create(clock, cfg, false);
     auto& lm = app->getLedgerManager();
 
-    lm.loadLastKnownLedger(/* restoreBucketlist */ false);
+    lm.partiallyLoadLastKnownLedgerForUtils();
+    auto liveSnapshot =
+        app->getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto ttlGetter = [&liveSnapshot, includeAllStates,
+                      dumpHotArchive](LedgerKey const& key) -> uint32_t {
+        if (includeAllStates || dumpHotArchive)
+        {
+            throw std::runtime_error(
+                "TTL is undefined when `--include-all-states` or "
+                "`--hot-archive` flag is set.");
+        }
+        auto entry = liveSnapshot->load(key);
+        if (!entry)
+        {
+            throw std::runtime_error("No TTL entry found for key: " +
+                                     xdrToCerealString(key, "key"));
+        }
+        return entry->data.ttl().liveUntilLedgerSeq;
+    };
+
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)
@@ -614,13 +793,13 @@ dumpLedger(Config cfg, std::string const& outputFile,
     std::optional<xdrquery::XDRMatcher> matcher;
     if (filterQuery)
     {
-        matcher.emplace(*filterQuery);
+        matcher.emplace(*filterQuery, ttlGetter);
     }
 
     std::optional<xdrquery::XDRFieldExtractor> groupByExtractor;
     if (groupBy)
     {
-        groupByExtractor.emplace(*groupBy);
+        groupByExtractor.emplace(*groupBy, ttlGetter);
     }
 
     std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator>
@@ -633,7 +812,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     try
     {
         bm.visitLedgerEntries(
-            has, minLedger,
+            !dumpHotArchive, has, minLedger,
             [&](LedgerEntry const& entry) {
                 return !matcher || matcher->matchXDR(entry);
             },
@@ -649,15 +828,30 @@ dumpLedger(Config cfg, std::string const& outputFile,
                     if (it == accumulators.end())
                     {
                         it = accumulators
-                                 .emplace(key,
-                                          xdrquery::XDRAccumulator(*aggregate))
+                                 .emplace(key, xdrquery::XDRAccumulator(
+                                                   *aggregate, ttlGetter))
                                  .first;
                     }
                     it->second.addEntry(entry);
                 }
                 else
                 {
-                    ofs << xdrToCerealString(entry, "entry", true) << std::endl;
+                    // When only live state is included, we can also output
+                    // TTL for the Soroban entries.
+                    bool addTTL = !includeAllStates && !dumpHotArchive &&
+                                  isSorobanEntry(entry.data);
+                    if (!addTTL)
+                    {
+                        ofs << xdrToCerealString(entry, "entry") << std::endl;
+                    }
+                    else
+                    {
+                        uint32_t liveUntilLedger = ttlGetter(getTTLKey(entry));
+                        std::string s = xdrToCerealString(entry, "entry");
+                        s.erase(s.size() - 3, 2); // remove '\n}'
+                        ofs << s << ",\n    \"liveUntilLedgerSeq\": "
+                            << liveUntilLedger << "\n}\n";
+                    }
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;
@@ -677,6 +871,65 @@ dumpLedger(Config cfg, std::string const& outputFile,
     LOG_INFO(DEFAULT_LOG, "Finished running query, processed {} entries.",
              entryCount);
     return 0;
+}
+
+void
+dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
+    auto writeBlob = [&](ContractCodeEntry const& entry) {
+        std::string filename;
+        if (dir.empty())
+        {
+            filename = fmt::format("{}.wasm", binToHex(entry.hash));
+        }
+        else
+        {
+            filename = fmt::format("{}/{}.wasm", dir, binToHex(entry.hash));
+        }
+        std::ofstream ofs(filename, std::ios::binary);
+        ofs.write(reinterpret_cast<char const*>(entry.code.data()),
+                  entry.code.size());
+        LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
+                 filename);
+    };
+    auto snap = app->getBucketManager()
+                    .getBucketSnapshotManager()
+                    .copySearchableLiveBucketListSnapshot();
+    if (hash == "ALL")
+    {
+        snap->scanForEntriesOfType(
+            CONTRACT_CODE, [&](BucketEntry const& entry) {
+                if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
+                {
+                    auto const& codeEntry =
+                        entry.liveEntry().data.contractCode();
+                    writeBlob(codeEntry);
+                }
+                return Loop::INCOMPLETE;
+            });
+    }
+    else
+    {
+        LedgerKey key;
+        key.type(LedgerEntryType::CONTRACT_CODE);
+        key.contractCode().hash = hexToBin256(hash);
+        auto entry = snap->load(key);
+        if (entry && entry->data.type() == LedgerEntryType::CONTRACT_CODE)
+        {
+            auto const& codeEntry = entry->data.contractCode();
+            writeBlob(codeEntry);
+        }
+        else
+        {
+            LOG_ERROR(DEFAULT_LOG, "No CONTRACT_CODE entry found with hash {}",
+                      hash);
+        }
+    }
 }
 
 void
@@ -714,50 +967,12 @@ showOfflineInfo(Config cfg, bool verbose)
 }
 
 bool
-checkQuorumIntersectionFromJson(std::string const& jsonPath,
+checkQuorumIntersectionFromJson(std::filesystem::path const& jsonPath,
                                 std::optional<Config> const& cfg)
 {
-    std::ifstream in(jsonPath);
-    if (!in)
-    {
-        throw std::runtime_error("Could not open file '" + jsonPath + "'");
-    }
-    Json::Reader rdr;
-    Json::Value quorumJson;
-    if (!rdr.parse(in, quorumJson) || !quorumJson.isObject())
-    {
-        throw std::runtime_error("Failed to parse '" + jsonPath +
-                                 "' as a JSON object");
-    }
-
-    Json::Value const& nodesJson = quorumJson["nodes"];
-    if (!nodesJson.isArray())
-    {
-        throw std::runtime_error("JSON field 'nodes' must be an array");
-    }
-
-    QuorumIntersectionChecker::QuorumSetMap qmap;
-    for (Json::Value const& nodeJson : nodesJson)
-    {
-        if (!nodeJson["node"].isString())
-        {
-            throw std::runtime_error("JSON field 'node' must be a string");
-        }
-        NodeID id = KeyUtils::fromStrKey<NodeID>(nodeJson["node"].asString());
-        auto elemPair =
-            qmap.try_emplace(id, std::make_shared<SCPQuorumSet>(
-                                     LocalNode::fromJson(nodeJson["qset"])));
-        if (!elemPair.second)
-        {
-            throw std::runtime_error(
-                "JSON contains multiple nodes with the same 'node' value");
-        }
-    }
-
     std::atomic<bool> interrupt(false);
-    auto qicPtr =
-        QuorumIntersectionChecker::create(qmap, cfg, interrupt, false);
-
+    auto qicPtr = QuorumIntersectionChecker::create(
+        parseQuorumMapFromJson(jsonPath.string()), cfg, interrupt, false);
     return qicPtr->networkEnjoysQuorumIntersection();
 }
 
@@ -894,7 +1109,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, archive, {});
+        app->getLedgerManager().startCatchup(cc, archive);
     }
     catch (std::invalid_argument const&)
     {

@@ -8,6 +8,7 @@
 #include "util/asio.h"
 #include "history/HistoryArchive.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
@@ -28,17 +29,14 @@
 #include <fstream>
 #include <iostream>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 #include <set>
 #include <sstream>
 
 namespace stellar
 {
 
-unsigned const HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION = 1;
-
 template <typename... Tokens>
-std::string
+static std::string
 formatString(std::string const& templateString, Tokens const&... tokens)
 {
     try
@@ -65,15 +63,24 @@ HistoryArchiveState::futuresAllResolved() const
             return false;
         }
     }
+
+    for (auto const& level : hotArchiveBuckets)
+    {
+        if (level.next.isMerging())
+        {
+            return false;
+        }
+    }
     return true;
 }
 
 bool
 HistoryArchiveState::futuresAllClear() const
 {
-    return std::all_of(
-        currentBuckets.begin(), currentBuckets.end(),
-        [](HistoryStateBucket const& bl) { return bl.next.isClear(); });
+    return std::all_of(currentBuckets.begin(), currentBuckets.end(),
+                       [](auto const& bl) { return bl.next.isClear(); }) &&
+           std::all_of(hotArchiveBuckets.begin(), hotArchiveBuckets.end(),
+                       [](auto const& bl) { return bl.next.isClear(); });
 }
 
 void
@@ -87,19 +94,32 @@ HistoryArchiveState::resolveAllFutures()
             level.next.resolve();
         }
     }
+
+    for (auto& level : hotArchiveBuckets)
+    {
+        if (level.next.isMerging())
+        {
+            level.next.resolve();
+        }
+    }
 }
 
 void
 HistoryArchiveState::resolveAnyReadyFutures()
 {
     ZoneScoped;
-    for (auto& level : currentBuckets)
-    {
-        if (level.next.isMerging() && level.next.mergeComplete())
+    auto resolveMerged = [](auto& buckets) {
+        for (auto& level : buckets)
         {
-            level.next.resolve();
+            if (level.next.isMerging() && level.next.mergeComplete())
+            {
+                level.next.resolve();
+            }
         }
-    }
+    };
+
+    resolveMerged(currentBuckets);
+    resolveMerged(hotArchiveBuckets);
 }
 
 void
@@ -141,7 +161,8 @@ HistoryArchiveState::load(std::string const& inFile)
     in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
-    if (version != HISTORY_ARCHIVE_STATE_VERSION)
+    if (version != HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE &&
+        version != HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
     {
         CLOG_ERROR(History, "Unexpected history archive state version: {}",
                    version);
@@ -210,18 +231,31 @@ HistoryArchiveState::getBucketListHash() const
     // relatively-different representations. Everything will explode if there is
     // any difference in these algorithms anyways, so..
 
-    SHA256 totalHash;
-    for (auto const& level : currentBuckets)
+    auto hashBuckets = [](auto const& buckets) {
+        SHA256 hash;
+        for (auto const& level : buckets)
+        {
+            SHA256 levelHash;
+            levelHash.add(hexToBin(level.curr));
+            levelHash.add(hexToBin(level.snap));
+            hash.add(levelHash.finish());
+        }
+
+        return hash.finish();
+    };
+
+    if (hasHotArchiveBuckets())
     {
-        SHA256 levelHash;
-        levelHash.add(hexToBin(level.curr));
-        levelHash.add(hexToBin(level.snap));
-        totalHash.add(levelHash.finish());
+        SHA256 hash;
+        hash.add(hashBuckets(currentBuckets));
+        hash.add(hashBuckets(hotArchiveBuckets));
+        return hash.finish();
     }
-    return totalHash.finish();
+
+    return hashBuckets(currentBuckets);
 }
 
-std::vector<std::string>
+HistoryArchiveState::BucketHashReturnT
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
     ZoneScoped;
@@ -229,40 +263,48 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
-    for (auto b : other.currentBuckets)
-    {
-        inhibit.insert(b.curr);
-        if (b.next.isLive())
+    auto processBuckets = [&inhibit](auto const& buckets,
+                                     auto const& otherBuckets) {
+        std::vector<std::string> ret;
+        for (auto b : otherBuckets)
         {
-            b.next.resolve();
-        }
-        if (b.next.hasOutputHash())
-        {
-            inhibit.insert(b.next.getOutputHash());
-        }
-        inhibit.insert(b.snap);
-    }
-    std::vector<std::string> ret;
-    for (size_t i = LiveBucketList::kNumLevels; i != 0; --i)
-    {
-        auto s = currentBuckets[i - 1].snap;
-        auto n = s;
-        if (currentBuckets[i - 1].next.hasOutputHash())
-        {
-            n = currentBuckets[i - 1].next.getOutputHash();
-        }
-        auto c = currentBuckets[i - 1].curr;
-        auto bs = {s, n, c};
-        for (auto const& j : bs)
-        {
-            if (inhibit.find(j) == inhibit.end())
+            inhibit.insert(b.curr);
+            if (b.next.isLive())
             {
-                ret.push_back(j);
-                inhibit.insert(j);
+                b.next.resolve();
+            }
+            if (b.next.hasOutputHash())
+            {
+                inhibit.insert(b.next.getOutputHash());
+            }
+            inhibit.insert(b.snap);
+        }
+
+        for (size_t i = buckets.size(); i != 0; --i)
+        {
+            auto s = buckets[i - 1].snap;
+            auto n = s;
+            if (buckets[i - 1].next.hasOutputHash())
+            {
+                n = buckets[i - 1].next.getOutputHash();
+            }
+            auto c = buckets[i - 1].curr;
+            auto bs = {s, n, c};
+            for (auto const& j : bs)
+            {
+                if (inhibit.find(j) == inhibit.end())
+                {
+                    ret.push_back(j);
+                    inhibit.insert(j);
+                }
             }
         }
-    }
-    return ret;
+        return ret;
+    };
+
+    auto liveHashes = processBuckets(currentBuckets, other.currentBuckets);
+    auto hotHashes = processBuckets(hotArchiveBuckets, other.hotArchiveBuckets);
+    return BucketHashReturnT(std::move(liveHashes), std::move(hotHashes));
 }
 
 std::vector<std::string>
@@ -270,25 +312,51 @@ HistoryArchiveState::allBuckets() const
 {
     ZoneScoped;
     std::set<std::string> buckets;
-    for (auto const& level : currentBuckets)
-    {
-        buckets.insert(level.curr);
-        buckets.insert(level.snap);
-        auto nh = level.next.getHashes();
-        buckets.insert(nh.begin(), nh.end());
-    }
+    auto processBuckets = [&buckets](auto const& bucketList) {
+        for (auto const& level : bucketList)
+        {
+            buckets.insert(level.curr);
+            buckets.insert(level.snap);
+            auto nh = level.next.getHashes();
+            buckets.insert(nh.begin(), nh.end());
+        }
+    };
+
+    processBuckets(currentBuckets);
+    processBuckets(hotArchiveBuckets);
     return std::vector<std::string>(buckets.begin(), buckets.end());
 }
 
-bool
-HistoryArchiveState::containsValidBuckets(Application& app) const
+namespace
 {
-    ZoneScoped;
-    // This function assumes presence of required buckets to verify state
-    uint32_t minBucketVersion = 0;
-    bool nonEmptySeen = false;
 
-    auto validateBucketVersion = [&](uint32_t bucketVersion) {
+// Checks for structural validity of the given BucketList. This includes
+// checking that the bucket list has the correct number of levels, versioning
+// consistency, and future bucket state.
+template <typename HistoryStateBucketT>
+bool
+validateBucketListHelper(Application& app,
+                         std::vector<HistoryStateBucketT> const& buckets,
+                         uint32_t expectedLevels)
+{
+    // Get Bucket version and set nonEmptySeen
+    bool nonEmptySeen = false;
+    auto getVersionAndCheckEmpty = [&nonEmptySeen](auto const& bucket) {
+        int32_t version = 0;
+        releaseAssert(bucket);
+        if (!bucket->isEmpty())
+        {
+            version = bucket->getBucketVersion();
+            if (!nonEmptySeen)
+            {
+                nonEmptySeen = true;
+            }
+        }
+        return version;
+    };
+
+    uint32_t minBucketVersion = 0;
+    auto validateBucketVersion = [&minBucketVersion](uint32_t bucketVersion) {
         if (bucketVersion < minBucketVersion)
         {
             CLOG_ERROR(History,
@@ -301,33 +369,28 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
         return true;
     };
 
-    // Process bucket, return version
-    auto processBucket = [&](std::string const& bucketHash) {
-        auto bucket = app.getBucketManager().getBucketByHash<LiveBucket>(
-            hexToBin256(bucketHash));
-        releaseAssert(bucket);
-        int32_t version = 0;
-        if (!bucket->isEmpty())
-        {
-            version = bucket->getBucketVersion();
-            if (!nonEmptySeen)
-            {
-                nonEmptySeen = true;
-            }
-        }
-        return version;
-    };
+    using BucketT =
+        typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
 
-    // Iterate bottom-up, from oldest to newest buckets
-    for (uint32_t j = LiveBucketList::kNumLevels; j != 0; --j)
+    if (buckets.size() != expectedLevels)
+    {
+        CLOG_ERROR(History, "Invalid HAS: bucket list size mismatch");
+        return false;
+    }
+
+    for (uint32_t j = expectedLevels; j != 0; --j)
     {
         auto i = j - 1;
-        auto const& level = currentBuckets[i];
+        auto const& level = buckets[i];
+        auto curr = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(level.curr));
+        auto snap = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(level.snap));
 
-        // Note: snap is always older than curr, and therefore must be processed
-        // first
-        if (!validateBucketVersion(processBucket(level.snap)) ||
-            !validateBucketVersion(processBucket(level.curr)))
+        // Note: snap is always older than curr, and therefore must be
+        // processed first
+        if (!validateBucketVersion(getVersionAndCheckEmpty(snap)) ||
+            !validateBucketVersion(getVersionAndCheckEmpty(curr)))
         {
             return false;
         }
@@ -346,12 +409,16 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 
         // Validate "next" field
         // Use previous level snap to determine "next" validity
-        auto const& prev = currentBuckets[i - 1];
-        uint32_t prevSnapVersion = processBucket(prev.snap);
+        auto const& prev = buckets[i - 1];
+        auto prevSnap = app.getBucketManager().getBucketByHash<BucketT>(
+            hexToBin256(prev.snap));
+        uint32_t prevSnapVersion = getVersionAndCheckEmpty(prevSnap);
 
         if (!nonEmptySeen)
         {
-            // No real buckets seen yet, move on
+            // We're iterating from the bottom up, so if we haven't seen a
+            // non-empty bucket yet, we can skip the check because the
+            // bucket is default initialized
             continue;
         }
         else if (protocolVersionStartsFrom(
@@ -374,44 +441,76 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 
     return true;
 }
+}
+
+bool
+HistoryArchiveState::containsValidBuckets(Application& app) const
+{
+    ZoneScoped;
+    if (!validateBucketListHelper(app, currentBuckets,
+                                  LiveBucketList::kNumLevels))
+    {
+        return false;
+    }
+
+    if (hasHotArchiveBuckets() &&
+        !validateBucketListHelper(app, hotArchiveBuckets,
+                                  HotArchiveBucketList::kNumLevels))
+    {
+        return false;
+    }
+
+    return true;
+}
 
 void
 HistoryArchiveState::prepareForPublish(Application& app)
 {
     ZoneScoped;
-    // Level 0 future buckets are always clear
-    releaseAssert(currentBuckets[0].next.isClear());
+    auto prepareBucketList = [&](auto& buckets, size_t numLevels) {
+        using BucketT =
+            typename std::decay_t<decltype(buckets)>::value_type::bucket_type;
 
-    for (uint32_t i = 1; i < LiveBucketList::kNumLevels; i++)
+        // Level 0 future buckets are always clear
+        releaseAssert(buckets[0].next.isClear());
+        for (uint32_t i = 1; i < numLevels; i++)
+        {
+            auto& level = buckets[i];
+            auto& prev = buckets[i - 1];
+
+            auto snap = app.getBucketManager().getBucketByHash<BucketT>(
+                hexToBin256(prev.snap));
+            if (!level.next.isClear() &&
+                protocolVersionStartsFrom(
+                    snap->getBucketVersion(),
+                    LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+            {
+                level.next.clear();
+            }
+            else if (level.next.hasHashes() && !level.next.isLive())
+            {
+                // Note: this `maxProtocolVersion` is over-approximate. The
+                // actual max for the ledger being published might be lower, but
+                // if the "true" (lower) max-value were actually in conflict
+                // with the state we're about to publish it should have caused
+                // an error earlier anyways, back when the bucket list and HAS
+                // for this state was initially formed. Since we're just
+                // reconstituting a HAS here, we assume it was legit when
+                // formed. Given that getting the true value here therefore
+                // doesn't seem to add much checking, and given that it'd be
+                // somewhat convoluted _to_ materialize the true value here,
+                // we're going to live with the approximate value for now.
+                uint32_t maxProtocolVersion =
+                    app.getConfig().LEDGER_PROTOCOL_VERSION;
+                level.next.makeLive(app, maxProtocolVersion, i);
+            }
+        }
+    };
+
+    prepareBucketList(currentBuckets, LiveBucketList::kNumLevels);
+    if (hasHotArchiveBuckets())
     {
-        auto& level = currentBuckets[i];
-        auto& prev = currentBuckets[i - 1];
-
-        auto snap = app.getBucketManager().getBucketByHash<LiveBucket>(
-            hexToBin256(prev.snap));
-        if (!level.next.isClear() &&
-            protocolVersionStartsFrom(
-                snap->getBucketVersion(),
-                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
-        {
-            level.next.clear();
-        }
-        else if (level.next.hasHashes() && !level.next.isLive())
-        {
-            // Note: this `maxProtocolVersion` is over-approximate. The actual
-            // max for the ledger being published might be lower, but if the
-            // "true" (lower) max-value were actually in conflict with the state
-            // we're about to publish it should have caused an error earlier
-            // anyways, back when the bucket list and HAS for this state was
-            // initially formed. Since we're just reconstituting a HAS here, we
-            // assume it was legit when formed. Given that getting the true
-            // value here therefore doesn't seem to add much checking, and given
-            // that it'd be somewhat convoluted _to_ materialize the true value
-            // here, we're going to live with the approximate value for now.
-            uint32_t maxProtocolVersion =
-                app.getConfig().LEDGER_PROTOCOL_VERSION;
-            level.next.makeLive(app, maxProtocolVersion, i);
-        }
+        prepareBucketList(hotArchiveBuckets, HotArchiveBucketList::kNumLevels);
     }
 }
 
@@ -419,7 +518,7 @@ HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
 {
     uint256 u;
     std::string s = binToHex(u);
-    HistoryStateBucket b;
+    HistoryStateBucket<LiveBucket> b;
     b.curr = s;
     b.snap = s;
     while (currentBuckets.size() < LiveBucketList::kNumLevels)
@@ -437,7 +536,7 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        HistoryStateBucket b;
+        HistoryStateBucket<LiveBucket> b;
         auto& level = buckets.getLevel(i);
         auto const& curr = level.getCurr();
         auto const& snap = level.getSnap();
@@ -462,6 +561,23 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
 
         checkBucketSize(curr);
         checkBucketSize(snap);
+    }
+}
+
+HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
+                                         LiveBucketList const& liveBuckets,
+                                         HotArchiveBucketList const& hotBuckets,
+                                         std::string const& passphrase)
+    : HistoryArchiveState(ledgerSeq, liveBuckets, passphrase)
+{
+    version = HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE;
+    for (uint32_t i = 0; i < HotArchiveBucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket<HotArchiveBucket> b;
+        b.curr = binToHex(hotBuckets.getLevel(i).getCurr()->getHash());
+        b.next = hotBuckets.getLevel(i).getNext();
+        b.snap = binToHex(hotBuckets.getLevel(i).getSnap()->getHash());
+        hotArchiveBuckets.push_back(b);
     }
 }
 

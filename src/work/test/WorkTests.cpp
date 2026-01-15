@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "process/ProcessManager.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
@@ -866,7 +866,7 @@ class TestBatchWorkCondition : public TestBatchWork
 {
   public:
     TestBatchWorkCondition(Application& app, std::string const& name)
-        : TestBatchWork(app, name){};
+        : TestBatchWork(app, name) {};
 
     std::shared_ptr<BasicWork>
     yieldMoreWork() override

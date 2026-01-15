@@ -26,7 +26,8 @@ namespace stellar
 {
 namespace LedgerTestUtils
 {
-
+namespace
+{
 template <typename T>
 void
 clampLow(T low, T& v)
@@ -46,6 +47,7 @@ clampHigh(T high, T& v)
         v = high;
     }
 }
+} // namespace
 
 // mutate string such that it doesn't contain control characters
 // and is at least minSize characters long
@@ -53,7 +55,6 @@ template <typename T>
 void
 replaceControlCharacters(T& s, int minSize)
 {
-    auto& loc = std::locale::classic();
     if (static_cast<int>(s.size()) < minSize)
     {
         s.resize(minSize);
@@ -61,7 +62,7 @@ replaceControlCharacters(T& s, int minSize)
     for (auto it = s.begin(); it != s.end(); it++)
     {
         char c = static_cast<char>(*it);
-        if (c < 0 || std::iscntrl(c, loc))
+        if (!isAsciiNonControl(c))
         {
             auto b = autocheck::generator<char>{}(autocheck::detail::nalnums);
             *it = b;
@@ -69,7 +70,13 @@ replaceControlCharacters(T& s, int minSize)
     }
 }
 
-static bool
+template void replaceControlCharacters(std::string& s, int minSize);
+template void replaceControlCharacters(string32& s, int minSize);
+template void replaceControlCharacters(string64& s, int minSize);
+
+namespace
+{
+bool
 signerEqual(Signer const& s1, Signer const& s2)
 {
     return s1.key == s2.key;
@@ -84,6 +91,7 @@ generateOpaqueVector()
     auto vec = vecgen(distr(autocheck::rng()));
     return xdr::xvector<uint8_t, MAX_SIZE>(vec.begin(), vec.end());
 }
+} // namespace
 
 void
 randomlyModifyEntry(LedgerEntry& e)
@@ -354,7 +362,7 @@ makeValid(ContractDataEntry& cde)
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES)
     {
         // make the key small to prevent hitting the limit
-        static const uint32_t key_limit =
+        static uint32_t const key_limit =
             InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES - 50;
         auto small_bytes =
             autocheck::generator<xdr::opaque_vec<key_limit>>()(5);
@@ -362,24 +370,72 @@ makeValid(ContractDataEntry& cde)
         val.bytes().assign(small_bytes.begin(), small_bytes.end());
         cde.key = val;
     }
-    // Fix the error values.
-    // NB: The internal SCErrors in maps/vecs still may be invalid.
-    // We might want to fix that eventually, but in general a significant
-    // (~80-90%) fraction of generated entries will be valid XDR.
-    if (cde.key.type() == SCV_ERROR)
-    {
-        if (cde.key.error().type() != SCErrorType::SCE_CONTRACT)
-        {
-            cde.key.error().code() = static_cast<SCErrorCode>(
-                std::abs(cde.key.error().code()) %
-                xdr::xdr_traits<SCErrorCode>::enum_values().size());
-        }
-    }
+    // Fix the error values recursively in maps/vecs.
+    auto fixSCErrors = [](SCVal& val) -> void {
+        std::function<void(SCVal&)> fixRecursive = [&](SCVal& v) {
+            if (v.type() == SCV_ERROR)
+            {
+                if (v.error().type() != SCErrorType::SCE_CONTRACT)
+                {
+                    v.error().code() = static_cast<SCErrorCode>(
+                        std::abs(v.error().code()) %
+                        xdr::xdr_traits<SCErrorCode>::enum_values().size());
+                }
+            }
+            else if (v.type() == SCV_VEC && v.vec())
+            {
+                for (auto& elem : *v.vec())
+                {
+                    fixRecursive(elem);
+                }
+            }
+            else if (v.type() == SCV_MAP && v.map())
+            {
+                for (auto& entry : *v.map())
+                {
+                    fixRecursive(entry.key);
+                    fixRecursive(entry.val);
+                }
+            }
+            else if (v.type() == SCV_CONTRACT_INSTANCE && v.instance().storage)
+            {
+                for (auto& entry : *v.instance().storage)
+                {
+                    fixRecursive(entry.key);
+                    fixRecursive(entry.val);
+                }
+            }
+        };
+        fixRecursive(val);
+    };
+
+    fixSCErrors(cde.key);
+    fixSCErrors(cde.val);
 }
 
 void
 makeValid(ContractCodeEntry& cce)
 {
+    auto seed = rand_uniform<uint64_t>(0, UINT64_MAX);
+    auto size = rand_uniform<size_t>(64, 150);
+    auto wasmBuf = rust_bridge::get_random_wasm(size, seed);
+    cce.code.assign(wasmBuf.data.data(),
+                    wasmBuf.data.data() + wasmBuf.data.size());
+    cce.hash = sha256(cce.code);
+    if (cce.ext.v() == 1)
+    {
+        cce.ext.v1().costInputs.nDataSegmentBytes =
+            rand_uniform<uint32_t>(0, 1000);
+        cce.ext.v1().costInputs.nDataSegments = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nElemSegments = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nExports = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nFunctions = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nGlobals = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nImports = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nInstructions = rand_uniform<uint32_t>(0, 1000);
+        cce.ext.v1().costInputs.nTableEntries = rand_uniform<uint32_t>(0, 100);
+        cce.ext.v1().costInputs.nTypes = rand_uniform<uint32_t>(0, 100);
+    }
 }
 
 void
@@ -387,7 +443,7 @@ makeValid(TTLEntry& cce)
 {
 }
 
-void
+static void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
           LedgerHeaderHistoryEntry firstLedger,
           HistoryManager::LedgerVerificationStatus state)
@@ -464,6 +520,13 @@ static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
         le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
+
+        // InMemorySorobanState expects lastModifiedLedgerSeq to be non-zero
+        if (le.lastModifiedLedgerSeq == 0)
+        {
+            le.lastModifiedLedgerSeq = 1;
+        }
+
         switch (led.type())
         {
         case ACCOUNT:
@@ -682,47 +745,95 @@ generateUniqueValidSorobanLedgerEntryKeys(size_t n)
         n);
 }
 
+std::vector<LedgerEntry>
+generateUniquePersistentLedgerEntries(size_t n,
+                                      UnorderedSet<LedgerKey>& seenKeys)
+{
+    auto res = LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+        {CONTRACT_DATA, CONTRACT_CODE}, n, seenKeys);
+    for (auto& le : res)
+    {
+        if (le.data.type() == CONTRACT_DATA)
+        {
+            seenKeys.erase(LedgerEntryKey(le));
+            le.data.contractData().durability = PERSISTENT;
+            seenKeys.insert(LedgerEntryKey(le));
+        }
+    }
+
+    return res;
+}
+
+std::vector<LedgerKey>
+generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys)
+{
+    auto entries = generateUniquePersistentLedgerEntries(n, seenKeys);
+    std::vector<LedgerKey> res;
+    for (auto const& le : entries)
+    {
+        res.push_back(LedgerEntryKey(le));
+    }
+
+    return res;
+}
+
 std::vector<LedgerKey>
 generateValidUniqueLedgerEntryKeysWithExclusions(
-    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
 {
-    UnorderedSet<LedgerKey> keys;
     std::vector<LedgerKey> res;
-    keys.reserve(n);
     res.reserve(n);
-    while (keys.size() < n)
+    while (seenKeys.size() < n)
     {
         auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
         auto key = LedgerEntryKey(entry);
-        if (keys.find(key) != keys.end())
+        if (seenKeys.find(key) != seenKeys.end())
         {
             continue;
         }
 
-        keys.insert(key);
+        seenKeys.insert(key);
         res.emplace_back(key);
     }
     return res;
+}
+
+std::vector<LedgerKey>
+generateValidUniqueLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+{
+    UnorderedSet<LedgerKey> seenKeys;
+    return generateValidUniqueLedgerEntryKeysWithExclusions(excludedTypes, n,
+                                                            seenKeys);
 }
 
 std::vector<LedgerEntry>
 generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
-    UnorderedSet<LedgerKey> keys;
+    UnorderedSet<LedgerKey> seenKeys;
+    return generateValidUniqueLedgerEntriesWithExclusions(excludedTypes, n,
+                                                          seenKeys);
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
+{
     std::vector<LedgerEntry> res;
-    keys.reserve(n);
     res.reserve(n);
-    while (keys.size() < n)
+    while (res.size() < n)
     {
         auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
         auto key = LedgerEntryKey(entry);
-        if (keys.find(key) != keys.end())
+        if (seenKeys.find(key) != seenKeys.end())
         {
             continue;
         }
 
-        keys.insert(key);
+        seenKeys.insert(key);
         res.emplace_back(entry);
     }
     return res;

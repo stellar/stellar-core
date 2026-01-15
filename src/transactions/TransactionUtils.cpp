@@ -8,7 +8,9 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/TrustLineWrapper.h"
+#include "rust/RustBridge.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
@@ -17,6 +19,8 @@
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
+#include <chrono>
+#include <xdrpp/depth_checker.h>
 
 namespace stellar
 {
@@ -29,18 +33,6 @@ namespace stellar
 
 static uint32_t PROD_CONST ACCOUNT_SUBENTRY_LIMIT = 1000;
 static size_t PROD_CONST MAX_OFFERS_TO_CROSS = 1000;
-
-uint32_t
-getAccountSubEntryLimit()
-{
-    return ACCOUNT_SUBENTRY_LIMIT;
-}
-
-size_t
-getMaxOffersToCross()
-{
-    return MAX_OFFERS_TO_CROSS;
-}
 
 #ifdef BUILD_TESTS
 TempReduceLimitsForTesting::TempReduceLimitsForTesting(
@@ -315,6 +307,18 @@ InternalLedgerKey
 maxSeqNumToApplyKey(AccountID const& sourceAccount)
 {
     return InternalLedgerKey::makeMaxSeqNumToApplyKey(sourceAccount);
+}
+
+uint32_t
+getAccountSubEntryLimit()
+{
+    return ACCOUNT_SUBENTRY_LIMIT;
+}
+
+size_t
+getMaxOffersToCross()
+{
+    return MAX_OFFERS_TO_CROSS;
 }
 
 LedgerTxnEntry
@@ -1064,19 +1068,6 @@ isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 }
 
 bool
-isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
-{
-    return entry.ext.v() == 1 && (entry.ext.v1().flags &
-                                  CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
-}
-
-bool
-isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
-{
-    return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
-}
-
-bool
 isClawbackEnabledOnAccount(LedgerEntry const& entry)
 {
     return (entry.data.account().flags & AUTH_CLAWBACK_ENABLED_FLAG) != 0;
@@ -1092,6 +1083,19 @@ bool
 isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 {
     return isClawbackEnabledOnAccount(entry.current());
+}
+
+bool
+isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
+{
+    return entry.ext.v() == 1 && (entry.ext.v1().flags &
+                                  CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
+isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
+{
+    return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
 }
 
 void
@@ -1145,6 +1149,50 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
+AccountID
+toAccountID(MuxedAccount const& m)
+{
+    AccountID ret(static_cast<PublicKeyType>(m.type() & 0xff));
+    switch (m.type())
+    {
+    case KEY_TYPE_ED25519:
+        ret.ed25519() = m.ed25519();
+        break;
+    case KEY_TYPE_MUXED_ED25519:
+        ret.ed25519() = m.med25519().ed25519;
+        break;
+    default:
+        // this would be a bug
+        abort();
+    }
+    return ret;
+}
+
+MuxedAccount
+toMuxedAccount(AccountID const& a, std::optional<uint64> id)
+{
+    switch (a.type())
+    {
+    case PUBLIC_KEY_TYPE_ED25519:
+        if (id)
+        {
+            MuxedAccount ret(CryptoKeyType::KEY_TYPE_MUXED_ED25519);
+            ret.med25519().ed25519 = a.ed25519();
+            ret.med25519().id = *id;
+            return ret;
+        }
+        else
+        {
+            MuxedAccount ret(CryptoKeyType::KEY_TYPE_ED25519);
+            ret.ed25519() = a.ed25519();
+            return ret;
+        }
+    default:
+        // this would be a bug
+        abort();
+    }
+}
+
 bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
@@ -1154,17 +1202,9 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 }
 
 bool
-trustLineFlagAuthIsValid(uint32_t flag)
+trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {
-    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
-                  "condition only works for two flags");
-    // multiple auth flags can't be set
-    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
-    {
-        return false;
-    }
-
-    return true;
+    return trustLineFlagIsValid(flag, header.current().ledgerVersion);
 }
 
 bool
@@ -1182,6 +1222,20 @@ trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS_V17) == 0;
     }
+}
+
+bool
+trustLineFlagAuthIsValid(uint32_t flag)
+{
+    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
+                  "condition only works for two flags");
+    // multiple auth flags can't be set
+    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool
@@ -1215,45 +1269,49 @@ accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     return (flag & ~MASK_ACCOUNT_FLAGS_V17) == 0;
 }
 
-AccountID
-toAccountID(MuxedAccount const& m)
+namespace detail
 {
-    AccountID ret(static_cast<PublicKeyType>(m.type() & 0xff));
-    switch (m.type())
-    {
-    case KEY_TYPE_ED25519:
-        ret.ed25519() = m.ed25519();
-        break;
-    case KEY_TYPE_MUXED_ED25519:
-        ret.ed25519() = m.med25519().ed25519;
-        break;
-    default:
-        // this would be a bug
-        abort();
-    }
-    return ret;
-}
+struct MuxChecker
+{
+    bool mHasMuxedAccount{false};
 
-MuxedAccount
-toMuxedAccount(AccountID const& a)
-{
-    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
-    switch (a.type())
+    void
+    operator()(stellar::MuxedAccount const& t)
     {
-    case PUBLIC_KEY_TYPE_ED25519:
-        ret.ed25519() = a.ed25519();
-        break;
-    default:
-        // this would be a bug
-        abort();
+        // checks if this is a multiplexed account,
+        // such as KEY_TYPE_MUXED_ED25519
+        if ((t.type() & 0x100) != 0)
+        {
+            mHasMuxedAccount = true;
+        }
     }
-    return ret;
-}
+
+    template <typename T>
+    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
+                      xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+        if (!mHasMuxedAccount)
+        {
+            xdr::xdr_traits<T>::save(*this, t);
+        }
+    }
+
+    template <typename T>
+    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
+                       xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+    }
+};
+} // namespace detail
 
 bool
-trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
+hasMuxedAccount(TransactionEnvelope const& e)
 {
-    return trustLineFlagIsValid(flag, header.current().ledgerVersion);
+    detail::MuxChecker c;
+    c(e);
+    return c.mHasMuxedAccount;
 }
 
 uint64_t
@@ -1265,7 +1323,9 @@ getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
     uint64_t closeTimeDrift =
         currentTime <= lastCloseTime ? 0 : currentTime - lastCloseTime;
 
-    return app.getConfig().getExpectedLedgerCloseTime().count() *
+    return std::chrono::duration_cast<std::chrono::seconds>(
+               app.getLedgerManager().getExpectedLedgerCloseTime())
+                   .count() *
                EXPECTED_CLOSE_TIME_MULT +
            closeTimeDrift;
 }
@@ -1398,7 +1458,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(accountKey(sponsor));
         }
     }
-    ltx.prefetchClassic(keys);
+    ltx.prefetch(keys);
 
     // now prefetch the asset trustlines
     keys.clear();
@@ -1424,7 +1484,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(trustlineKey(accountID, params.assetB));
         }
     }
-    ltx.prefetchClassic(keys);
+    ltx.prefetch(keys);
 }
 
 static ClaimableBalanceID
@@ -1490,7 +1550,8 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
                                    AccountID const& accountID,
                                    Asset const& asset,
                                    AccountID const& txSourceID,
-                                   SequenceNumber txSeqNum, uint32_t opIndex)
+                                   SequenceNumber txSeqNum, uint32_t opIndex,
+                                   OpEventManager& opEventManager)
 {
     removeOffersByAccountAndAsset(ltx, accountID, asset);
 
@@ -1539,12 +1600,21 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
 
         auto redeemIntoClaimableBalance =
             [&ltxInner, &txSourceID, txSeqNum, opIndex, &poolID, &accountID,
-             &cbSponsoringAccID](Asset const& assetInPool,
-                                 int64_t amount) -> RemoveResult {
+             &cbSponsoringAccID, &opEventManager](
+                Asset const& assetInPool, int64_t amount) -> RemoveResult {
             // if the amount is 0 or the claimant is the issuer, then we don't
             // create the claimable balance
-            if (isIssuer(accountID, assetInPool) || amount == 0)
+            if (amount == 0)
             {
+                return RemoveResult::SUCCESS;
+            }
+
+            if (isIssuer(accountID, assetInPool))
+            {
+
+                opEventManager.newBurnEvent(
+                    assetInPool, makeLiquidityPoolAddress(poolID), amount);
+
                 return RemoveResult::SUCCESS;
             }
 
@@ -1561,6 +1631,11 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
             claimableBalanceEntry.asset = assetInPool;
             claimableBalanceEntry.claimants = {
                 makeUnconditionalClaimant(accountID)};
+
+            opEventManager.newTransferEvent(
+                assetInPool, makeLiquidityPoolAddress(poolID),
+                makeClaimableBalanceAddress(claimableBalanceEntry.balanceID),
+                amount, false);
 
             // if this asset isn't native
             // 1. set clawback if it's set on the trustline
@@ -1642,8 +1717,7 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
         auto pool = loadLiquidityPool(ltxInner, poolID);
         // use a lambda so we don't hold a reference to the
         // LiquidityPoolEntry
-        auto constantProduct = [&]() -> auto&
-        {
+        auto constantProduct = [&]() -> auto& {
             return pool.current().data.liquidityPool().body.constantProduct();
         };
 
@@ -1733,8 +1807,29 @@ decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
     ltxInner.commit();
 }
 
+ClaimAtom
+makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
+              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
+              Asset const& sheep, int64_t numSheepSend)
+{
+    ClaimAtom atom;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
+    {
+        atom.type(CLAIM_ATOM_TYPE_V0);
+        atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,
+                                     numWheatReceived, sheep, numSheepSend);
+    }
+    else
+    {
+        atom.type(CLAIM_ATOM_TYPE_ORDER_BOOK);
+        atom.orderBook() = ClaimOfferAtom(
+            accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
+    }
+    return atom;
+}
+
 template <typename T>
-T
+static T
 assetConversionHelper(Asset const& asset)
 {
     T otherAsset;
@@ -1765,12 +1860,6 @@ assetToTrustLineAsset(Asset const& asset)
     return assetConversionHelper<TrustLineAsset>(asset);
 }
 
-ChangeTrustAsset
-assetToChangeTrustAsset(Asset const& asset)
-{
-    return assetConversionHelper<ChangeTrustAsset>(asset);
-}
-
 TrustLineAsset
 changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
 {
@@ -1795,6 +1884,12 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
     }
 
     return tlAsset;
+}
+
+ChangeTrustAsset
+assetToChangeTrustAsset(Asset const& asset)
+{
+    return assetConversionHelper<ChangeTrustAsset>(asset);
 }
 
 int64_t
@@ -1841,13 +1936,13 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                             SorobanNetworkConfig const& config,
                             Config const& appConfig,
                             TransactionFrame const& parentTx,
-                            SorobanTxData& sorobanData)
+                            DiagnosticEventManager& diagnosticEvents)
 {
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
     {
-        sorobanData.pushApplyTimeDiagnosticError(
-            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+        diagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractSizeBytes())});
@@ -1857,8 +1952,8 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     if (lk.type() == CONTRACT_DATA &&
         config.maxContractDataEntrySizeBytes() < entrySize)
     {
-        sorobanData.pushApplyTimeDiagnosticError(
-            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+        diagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "ContractData size exceeds network config maximum size",
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractDataEntrySizeBytes())});
@@ -1867,21 +1962,10 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     return true;
 }
 
-LumenContractInfo
-getLumenContractInfo(Hash const& networkID)
+AssetContractInfo
+getAssetContractInfo(Asset const& asset, Hash const& networkID)
 {
-    // Calculate contractID
-    HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    preImage.contractID().networkID = networkID;
-
-    Asset native;
-    native.type(ASSET_TYPE_NATIVE);
-    preImage.contractID().contractIDPreimage.type(
-        CONTRACT_ID_PREIMAGE_FROM_ASSET);
-    preImage.contractID().contractIDPreimage.fromAsset() = native;
-
-    auto lumenContractID = xdrSha256(preImage);
+    auto assetContractID = getAssetContractID(networkID, asset);
 
     // Calculate SCVal for balance key
     SCVal balanceSymbol(SCV_SYMBOL);
@@ -1891,7 +1975,116 @@ getLumenContractInfo(Hash const& networkID)
     SCVal amountSymbol(SCV_SYMBOL);
     amountSymbol.sym() = "amount";
 
-    return {lumenContractID, balanceSymbol, amountSymbol};
+    return {assetContractID, balanceSymbol, amountSymbol};
+}
+
+Hash
+getAssetContractID(Hash const& networkID, Asset const& asset)
+{
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().networkID = networkID;
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = asset;
+    return xdrSha256(preImage);
+}
+
+AssetBalanceResult
+getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                AssetContractInfo const& assetContractInfo)
+{
+    switch (le.data.type())
+    {
+    case ACCOUNT:
+        if (asset.type() == ASSET_TYPE_NATIVE)
+        {
+            return {false, true, le.data.account().balance};
+        }
+        break;
+    case TRUSTLINE:
+    {
+        auto const& tl = le.data.trustLine();
+        if (compareAsset(tl.asset, asset))
+        {
+            return {false, true, tl.balance};
+        }
+        break;
+    }
+    case OFFER:
+        break;
+    case DATA:
+        break;
+    case CLAIMABLE_BALANCE:
+    {
+        if (compareAsset(le.data.claimableBalance().asset, asset))
+        {
+            return {false, true, le.data.claimableBalance().amount};
+        }
+        break;
+    }
+    case LIQUIDITY_POOL:
+    {
+        auto const& body = le.data.liquidityPool().body.constantProduct();
+        if (compareAsset(body.params.assetA, asset))
+        {
+            return {false, true, body.reserveA};
+        }
+        if (compareAsset(body.params.assetB, asset))
+        {
+            return {false, true, body.reserveB};
+        }
+        break;
+    }
+    case CONTRACT_DATA:
+    {
+        auto const& contractData = le.data.contractData();
+        if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
+            contractData.contract.contractId() !=
+                assetContractInfo.mAssetContractID ||
+            contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
+            contractData.key.vec().size() == 0)
+        {
+            break;
+        }
+
+        // The balanceSymbol should be the first entry in the SCVec
+        if (!(contractData.key.vec()->at(0) ==
+              assetContractInfo.mBalanceSymbol))
+        {
+            break;
+        }
+
+        auto const& val = le.data.contractData().val;
+        if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
+        {
+            auto const& amountEntry = val.map()->at(0);
+            if (amountEntry.key == assetContractInfo.mAmountSymbol)
+            {
+                if (amountEntry.val.type() == SCV_I128)
+                {
+                    auto lo = amountEntry.val.i128().lo;
+                    auto hi = amountEntry.val.i128().hi;
+                    if (lo > static_cast<uint64_t>(
+                                 std::numeric_limits<int64_t>::max()) ||
+                        hi > 0)
+                    {
+                        return {true, true, std::nullopt};
+                    }
+                    return {false, true, static_cast<int64_t>(lo)};
+                }
+            }
+        }
+        return {false, true, std::nullopt};
+    }
+    case CONTRACT_CODE:
+        break;
+    case CONFIG_SETTING:
+        break;
+    case TTL:
+        break;
+    }
+    return {false, false, std::nullopt};
 }
 
 SCVal
@@ -1919,6 +2112,22 @@ makeStringSCVal(std::string&& str)
 }
 
 SCVal
+makeStringSCVal(std::string const& str)
+{
+    SCVal val(SCV_STRING);
+    val.str().assign(str);
+    return val;
+}
+
+SCVal
+makeU32SCVal(uint32_t u)
+{
+    SCVal val(SCV_U32);
+    val.u32() = u;
+    return val;
+}
+
+SCVal
 makeU64SCVal(uint64_t u)
 {
     SCVal val(SCV_U64);
@@ -1934,89 +2143,186 @@ makeAddressSCVal(SCAddress const& address)
     return val;
 }
 
-namespace detail
+SCVal
+makeI128SCVal(int64_t v)
 {
-struct MuxChecker
+    SCVal val(SCV_I128);
+    auto cxxI128 = rust_bridge::i128_from_i64(v);
+    val.i128().hi = cxxI128.hi;
+    val.i128().lo = cxxI128.lo;
+    return val;
+}
+
+SCVal
+makeAccountIDSCVal(AccountID const& id)
 {
-    bool mHasMuxedAccount{false};
+    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+    addr.accountId() = id;
+    return makeAddressSCVal(addr);
+}
 
-    void
-    operator()(stellar::MuxedAccount const& t)
-    {
-        // checks if this is a multiplexed account,
-        // such as KEY_TYPE_MUXED_ED25519
-        if ((t.type() & 0x100) != 0)
-        {
-            mHasMuxedAccount = true;
-        }
-    }
-
-    template <typename T>
-    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
-                      xdr::xdr_traits<T>::is_class)>
-    operator()(T const& t)
-    {
-        if (!mHasMuxedAccount)
-        {
-            xdr::xdr_traits<T>::save(*this, t);
-        }
-    }
-
-    template <typename T>
-    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
-                       xdr::xdr_traits<T>::is_class)>
-    operator()(T const& t)
-    {
-    }
-};
-} // namespace detail
-
-bool
-hasMuxedAccount(TransactionEnvelope const& e)
+SCVal
+makeSep0011AssetStringSCVal(Asset const& asset)
 {
-    detail::MuxChecker c;
-    c(e);
-    return c.mHasMuxedAccount;
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return makeStringSCVal("native");
+    }
+    return makeStringSCVal(assetToString(asset) + ":" +
+                           KeyUtils::toStrKey(getIssuer(asset)));
+}
+
+SCVal
+makeClassicMemoSCVal(Memo const& memo)
+{
+    switch (memo.type())
+    {
+    case MEMO_NONE:
+        throw std::runtime_error("Memo type cannot be `None`");
+    case MEMO_TEXT:
+        return makeStringSCVal(memo.text());
+    case MEMO_ID:
+        return makeU64SCVal(memo.id());
+    case MEMO_HASH:
+        return makeBytesSCVal(memo.hash());
+    case MEMO_RETURN:
+        return makeBytesSCVal(memo.retHash());
+    default:
+        throw std::runtime_error("Unknown memo type");
+    }
+}
+
+SCVal
+makeMuxIDSCVal(MuxedEd25519Account const& acc)
+{
+    return makeU64SCVal(acc.id);
+}
+
+SCAddress
+makeMuxedAccountAddress(MuxedAccount const& account)
+{
+    switch (account.type())
+    {
+    case KEY_TYPE_ED25519:
+    {
+        SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+        addr.accountId().ed25519() = account.ed25519();
+        return addr;
+    }
+    case KEY_TYPE_MUXED_ED25519:
+    {
+        SCAddress addr(SC_ADDRESS_TYPE_MUXED_ACCOUNT);
+        addr.muxedAccount().id = account.med25519().id;
+        addr.muxedAccount().ed25519 = account.med25519().ed25519;
+        return addr;
+    }
+    default:
+        // this would be a bug
+        abort();
+    }
+}
+
+SCAddress
+makeAccountAddress(AccountID const& account)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+    addr.accountId() = account;
+    return addr;
+}
+
+SCAddress
+makeClaimableBalanceAddress(ClaimableBalanceID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_CLAIMABLE_BALANCE);
+    addr.claimableBalanceId() = id;
+    return addr;
+}
+
+SCAddress
+makeLiquidityPoolAddress(PoolID const& id)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_LIQUIDITY_POOL);
+    addr.liquidityPoolId() = id;
+    return addr;
+}
+
+SCAddress
+getAddressWithDroppedMuxedInfo(SCAddress const& addr)
+{
+    if (addr.type() == SC_ADDRESS_TYPE_MUXED_ACCOUNT)
+    {
+        SCAddress accountAddr(SC_ADDRESS_TYPE_ACCOUNT);
+        accountAddr.accountId().ed25519() = addr.muxedAccount().ed25519;
+        return accountAddr;
+    }
+    return addr;
 }
 
 bool
-isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                 TransactionEnvelope const& envelope)
+isIssuer(SCAddress const& addr, Asset const& asset)
 {
-    uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
-    // If we could parse the XDR when ledger is using the maximum supported
-    // protocol version, then XDR has to be valid.
-    // This check also is pointless before protocol 21 as Soroban environment
-    // doesn't support XDR versions before 21.
-    if (maxProtocol == currProtocol ||
-        protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
+    switch (addr.type())
+    {
+    case SC_ADDRESS_TYPE_ACCOUNT:
+        return isIssuer(addr.accountId(), asset);
+
+    case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+    {
+        AccountID id(PUBLIC_KEY_TYPE_ED25519);
+        id.ed25519() = addr.muxedAccount().ed25519;
+        return isIssuer(id, asset);
+    }
+
+    default:
+        return false;
+    }
+}
+
+bool
+canHoldAsset(LedgerEntryType type, Asset const& asset)
+{
+    if (type == CLAIMABLE_BALANCE || type == LIQUIDITY_POOL ||
+        type == CONTRACT_DATA)
     {
         return true;
     }
-    auto cxxBuf = CxxBuf{
-        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
-    return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
-                                              xdr::marshaling_stack_limit);
-}
 
-ClaimAtom
-makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
-              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
-              Asset const& sheep, int64_t numSheepSend)
-{
-    ClaimAtom atom;
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
+    if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        atom.type(CLAIM_ATOM_TYPE_V0);
-        atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,
-                                     numWheatReceived, sheep, numSheepSend);
+        return type == ACCOUNT;
     }
     else
     {
-        atom.type(CLAIM_ATOM_TYPE_ORDER_BOOK);
-        atom.orderBook() = ClaimOfferAtom(
-            accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
+        return type == TRUSTLINE;
     }
-    return atom;
+}
+
+CxxLedgerEntryRentChange
+createEntryRentChangeWithoutModification(
+    LedgerEntry const& entry, uint32_t entrySize,
+    std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
+    uint32_t ledgerVersion, SorobanNetworkConfig const& sorobanConfig)
+{
+    CxxLedgerEntryRentChange rustChange{};
+    rustChange.is_persistent = !isTemporaryEntry(entry.data);
+    rustChange.is_code_entry = isContractCodeEntry(entry.data);
+    uint32_t entrySizeForRent =
+        ledgerEntrySizeForRent(entry, entrySize, ledgerVersion, sorobanConfig);
+
+    if (entryLiveUntilLedger)
+    {
+        rustChange.old_size_bytes = entrySizeForRent;
+        rustChange.old_live_until_ledger = *entryLiveUntilLedger;
+    }
+    else
+    {
+        rustChange.old_size_bytes = 0;
+        rustChange.old_live_until_ledger = 0;
+    }
+
+    rustChange.new_size_bytes = entrySizeForRent;
+    rustChange.new_live_until_ledger = newLiveUntilLedger;
+
+    return rustChange;
 }
 } // namespace stellar

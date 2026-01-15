@@ -9,19 +9,22 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
-#include "ledger/LedgerManager.h"
 #include "main/StellarCoreVersion.h"
+#include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-
-#include "overlay/OverlayManager.h"
 #include "util/UnorderedSet.h"
+#ifdef BUILD_TESTS
+#include "simulation/ApplyLoad.h"
+#endif
+
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <functional>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -30,7 +33,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 22
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 25
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -39,7 +42,7 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 22
 bool gIsProductionNetwork = false;
 
 // Options that must only be used for testing
-static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
+static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "RUN_STANDALONE",
     "MANUAL_CLOSE",
     "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
@@ -51,29 +54,30 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
-    "LOADGEN_OP_COUNT_FOR_TESTING",
-    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_BYTE_COUNT_FOR_TESTING",
+    "LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_WASM_BYTES_FOR_TESTING",
-    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
-    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_IO_KILOBYTES_FOR_TESTING",
-    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
-    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
-    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
-    "EXPERIMENTAL_TX_BATCH_MAX_SIZE_FOR_TESTING",
-    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING"};
+    "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
+    "TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+    "SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING"};
 
 // Options that should only be used for testing
-static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
+static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
     "ALLOW_LOCALHOST_FOR_TESTING"};
 
 namespace
@@ -123,15 +127,14 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
-    MODE_ENABLES_BUCKETLIST = true;
     MODE_STORES_HISTORY_MISC = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
         std::vector<std::chrono::microseconds>();
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
-    LOADGEN_OP_COUNT_FOR_TESTING = {};
-    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {};
@@ -148,12 +151,18 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
         std::chrono::microseconds::zero();
 
+#ifdef BUILD_TESTS
+    TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
+    TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
+    IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
+#endif
+
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 35;
-    OVERLAY_PROTOCOL_VERSION = 37;
+    OVERLAY_PROTOCOL_VERSION = 38;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -163,8 +172,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
-    EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION = false;
+    PARALLEL_LEDGER_APPLY = true;
+    DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
+    BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
@@ -202,15 +212,21 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
+    TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+    SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+
     // Configure MAXIMUM_LEDGER_CLOSETIME_DRIFT based on MAX_SLOTS_TO_REMEMBER
     // (plus a small buffer) to make sure we don't reject SCP state sent to us
     // by default. Limit allowed drift to 90 seconds as to not overwhelm the
-    // node too much.
+    // node too much. Given that this is a Network Config setting, but we can't
+    // set config settings based on network config, we'll be conservative and
+    // allow the maximum drift.
     uint32_t CLOSETIME_DRIFT_LIMIT = 90;
-    MAXIMUM_LEDGER_CLOSETIME_DRIFT =
-        std::min<uint32_t>((MAX_SLOTS_TO_REMEMBER + 2) *
-                               Herder::EXP_LEDGER_TIMESPAN_SECONDS.count(),
-                           CLOSETIME_DRIFT_LIMIT);
+    MAXIMUM_LEDGER_CLOSETIME_DRIFT = std::min<uint32_t>(
+        (MAX_SLOTS_TO_REMEMBER + 2) *
+            MaximumSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS /
+            1000,
+        CLOSETIME_DRIFT_LIMIT);
     METADATA_OUTPUT_STREAM = "";
 
     // Store at least 1 checkpoint plus a buffer worth of debug meta
@@ -218,6 +234,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";
+    PATH_TO_PROTOCOL_23_CORRUPTION_FILE = "";
 
     LOG_COLOR = false;
 
@@ -283,10 +300,22 @@ Config::Config() : NODE_SEED(SecretKey::random())
     //
     // Worst case = 10 concurrent merges + 1 quorum intersection calculation.
     WORKER_THREADS = 11;
+
+    // Compilation is a short process that runs at startup and is CPU limited.
+    // Empirically it tends to peak and start getting slower around 6 threads
+    // due to coordination overhead between the producer and consumer threads.
+    // This could probably be improved with some work but it's ok for now.
+    COMPILATION_THREADS = 6;
+
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
     QUORUM_INTERSECTION_CHECKER = true;
-    DATABASE = SecretValue{"sqlite3://:memory:"};
+    USE_QUORUM_INTERSECTION_CHECKER_V2 = false;
+    QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 5000; // 5 secs
+    QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
+        100 * 1024 * 1024; // 100 MiB
+
+    DATABASE = SecretValue{"sqlite3://stellar.db"};
 
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
@@ -313,6 +342,24 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EMIT_LEDGER_CLOSE_META_EXT_V1 = false;
 
     FORCE_OLD_STYLE_LEADER_ELECTION = false;
+    // This is not configurable for now. It doesn't need to be a network-wide
+    // setting and there aren't many good values for it.
+    SOROBAN_PHASE_MIN_STAGE_COUNT = 1;
+    SOROBAN_PHASE_MAX_STAGE_COUNT = 4;
+
+    EMIT_CLASSIC_EVENTS = false;
+    BACKFILL_STELLAR_ASSET_EVENTS = false;
+    BACKFILL_RESTORE_META = false;
+
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_FOR_TESTING = {};
+    LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    COMMANDS = {};
+    REPORT_METRICS = {};
+    INVARIANT_CHECKS = {};
+    INVARIANT_EXTRA_CHECKS = false;
+    STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 300; // 5 minutes
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -927,24 +974,6 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
 }
 
 void
-Config::verifyLoadGenOpCountForTestingConfigs()
-{
-    verifyLoadGenDistribution(LOADGEN_OP_COUNT_FOR_TESTING,
-                              LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
-                              "LOADGEN_OP_COUNT_FOR_TESTING",
-                              "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING");
-
-    if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
-                     LOADGEN_OP_COUNT_FOR_TESTING.end(),
-                     [](unsigned short i) { return 1 <= i && i <= 100; }))
-    {
-        throw std::invalid_argument(
-            "All elements in LOADGEN_OP_COUNT_FOR_TESTING must be "
-            "integers in [1, 100]");
-    }
-}
-
-void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
     if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
@@ -1051,6 +1080,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
                  }},
+#ifdef BUILD_TESTS
+                {"TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
+                 [&]() {
+                     SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER =
+                         readInt<uint32_t>(item, 1);
+                 }},
+#endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
                 {"HTTP_PORT",
@@ -1070,25 +1111,31 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { DISABLE_XDR_FSYNC = readBool(item); }},
                 {"METADATA_OUTPUT_STREAM",
                  [&]() { METADATA_OUTPUT_STREAM = readString(item); }},
-                {"EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING",
-                 [&]() {
-                     CLOG_WARNING(Overlay,
-                                  "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING "
-                                  "is deprecated. Use "
-                                  "BACKGROUND_OVERLAY_PROCESSING instead");
-                     BACKGROUND_OVERLAY_PROCESSING = readBool(item);
-                 }},
                 {"BACKGROUND_OVERLAY_PROCESSING",
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
                 {"EXPERIMENTAL_PARALLEL_LEDGER_APPLY",
                  [&]() {
-                     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = readBool(item);
+                     CLOG_WARNING(Ledger,
+                                  "EXPERIMENTAL_PARALLEL_LEDGER_APPLY has been "
+                                  "renamed. This config will cause an error in "
+                                  "the future. Remove it and "
+                                  "configure PARALLEL_LEDGER_APPLY instead.");
+                 }},
+                {"PARALLEL_LEDGER_APPLY",
+                 [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
+                {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
+                 [&]() {
+                     DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
                  }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
-                     EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION =
-                         readBool(item);
+                     CLOG_WARNING(Overlay,
+                                  "EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION "
+                                  "has been renamed. Please use "
+                                  "BACKGROUND_TX_SIG_VERIFICATION instead.");
                  }},
+                {"BACKGROUND_TX_SIG_VERIFICATION",
+                 [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
@@ -1101,56 +1148,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          Bucket,
                          "BACKGROUND_EVICTION_SCAN is deprecated and ignored. "
                          "Please remove this from config");
-                 }},
-                {"EXPERIMENTAL_BACKGROUND_EVICTION_SCAN",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated "
-                         "and "
-                         "is ignored. Please remove from config");
-                 }},
-                {"DEPRECATED_SQL_LEDGER_STATE",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
-                         "ignored. Please remove from config");
-                 }},
-                // https://github.com/stellar/stellar-core/issues/4581
-                {"EXPERIMENTAL_BUCKETLIST_DB",
-                 [&]() {
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated. "
-                         "please remove from config");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
-                 [&]() {
-                     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
-                         readInt<size_t>(item);
-                     CLOG_WARNING(
-                         Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                         "is "
-                         "deprecated, "
-                         "use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT instead.");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF",
-                 [&]() {
-                     BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
-                     CLOG_WARNING(Bucket,
-                                  "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is "
-                                  "deprecated, "
-                                  "use BUCKETLIST_DB_INDEX_CUTOFF instead.");
-                 }},
-                {"EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX",
-                 [&]() {
-                     BUCKETLIST_DB_PERSIST_INDEX = readBool(item);
-                     CLOG_WARNING(Bucket,
-                                  "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is "
-                                  "deprecated, "
-                                  "use BUCKETLIST_DB_PERSIST_INDEX instead.");
                  }},
                 {"BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
                  [&]() {
@@ -1185,6 +1182,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING =
                          readBool(item);
                  }},
+                {"TESTING_MAX_SOROBAN_BYTE_ALLOWANCE",
+                 [&]() {
+                     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE =
+                         readInt<size_t>(item, 0);
+                 }},
+                {"TESTING_MAX_CLASSIC_BYTE_ALLOWANCE",
+                 [&]() {
+                     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE =
+                         readInt<size_t>(item, 0);
+                 }},
+                {"IGNORE_MESSAGE_LIMITS_FOR_TESTING",
+                 [&]() { IGNORE_MESSAGE_LIMITS_FOR_TESTING = readBool(item); }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
@@ -1246,6 +1255,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",
                  [&]() { BUCKET_DIR_PATH = readString(item); }},
+                {"FILTERED_SOROBAN_KEYS_PATH",
+                 [&]() {
+                     LOG_WARNING(DEFAULT_LOG,
+                                 "FILTERED_SOROBAN_KEYS_PATH is "
+                                 "deprecated and ignored. Please remove "
+                                 "this from config");
+                 }},
+                {"PATH_TO_PROTOCOL_23_CORRUPTION_FILE",
+                 [&]() {
+                     PATH_TO_PROTOCOL_23_CORRUPTION_FILE = readString(item);
+                 }},
                 {"NODE_NAMES",
                  [&]() {
                      auto names = readArray<std::string>(item);
@@ -1378,9 +1398,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);
                  }},
+                {"COMPILATION_THREADS",
+                 [&]() { COMPILATION_THREADS = readInt<int>(item, 2, 1000); }},
                 {"QUERY_SNAPSHOT_LEDGERS",
                  [&]() {
-                     QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
+                     QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0);
                  }},
                 {"MAX_CONCURRENT_SUBPROCESSES",
                  [&]() {
@@ -1388,6 +1410,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"QUORUM_INTERSECTION_CHECKER",
                  [&]() { QUORUM_INTERSECTION_CHECKER = readBool(item); }},
+                {"USE_QUORUM_INTERSECTION_CHECKER_V2",
+                 [&]() {
+                     USE_QUORUM_INTERSECTION_CHECKER_V2 = readBool(item);
+                 }},
+                {"QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS",
+                 [&]() {
+                     QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS =
+                         readInt<uint64_t>(item, 1);
+                 }},
+                {"QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES",
+                 [&]() {
+                     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
+                         readInt<uint64_t>(item, 1024);
+                 }},
                 {"HISTORY",
                  [&]() {
                      auto hist = item.second->as_table();
@@ -1443,6 +1479,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { NETWORK_PASSPHRASE = readString(item); }},
                 {"INVARIANT_CHECKS",
                  [&]() { INVARIANT_CHECKS = readArray<std::string>(item); }},
+                {"INVARIANT_EXTRA_CHECKS",
+                 [&]() { INVARIANT_EXTRA_CHECKS = readBool(item); }},
+                {"STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY",
+                 [&]() {
+                     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY =
+                         readInt<uint32_t>(item, 1);
+                 }},
                 {"ENTRY_CACHE_SIZE",
                  [&]() { ENTRY_CACHE_SIZE = readInt<uint32_t>(item); }},
                 {"PREFETCH_BATCH_SIZE",
@@ -1488,14 +1531,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
                          readIntArray<uint32>(item);
                  }},
-                {"LOADGEN_OP_COUNT_FOR_TESTING",
+                {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
-                     LOADGEN_OP_COUNT_FOR_TESTING =
-                         readIntArray<unsigned short>(item);
+                     LOADGEN_BYTE_COUNT_FOR_TESTING =
+                         readIntArray<uint32_t>(item);
                  }},
-                {"LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+                {"LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING",
                  [&]() {
-                     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
+                     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
                 {"LOADGEN_WASM_BYTES_FOR_TESTING",
@@ -1548,10 +1591,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING",
+#ifdef BUILD_TESTS
+                {"APPLY_LOAD_DATA_ENTRY_SIZE",
                  [&]() {
-                     APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING =
-                         readInt<uint32_t>(item);
+                     APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
+                     // align to 4 bytes
+                     if (APPLY_LOAD_DATA_ENTRY_SIZE % 4 != 0)
+                     {
+                         APPLY_LOAD_DATA_ENTRY_SIZE +=
+                             4 - (APPLY_LOAD_DATA_ENTRY_SIZE % 4);
+                     }
                  }},
                 {"APPLY_LOAD_BL_SIMULATED_LEDGERS",
                  [&]() {
@@ -1571,54 +1620,74 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING",
+                {"APPLY_LOAD_INSTRUCTIONS",
                  [&]() {
-                     APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING =
+                     APPLY_LOAD_INSTRUCTIONS = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_TX_SIZE_BYTES",
                  [&]() {
-                     APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_TX_SIZE_BYTES = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING",
+                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING =
+                     APPLY_LOAD_NUM_DISK_READ_ENTRIES =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION",
                  [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_EVENT_COUNT_FOR_TESTING",
+                {"APPLY_LOAD_NUM_RW_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_EVENT_COUNT_FOR_TESTING =
+                     APPLY_LOAD_NUM_RW_ENTRIES = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
-                {"APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING",
+                {"APPLY_LOAD_EVENT_COUNT",
                  [&]() {
-                     APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING =
+                     APPLY_LOAD_EVENT_COUNT = readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_EVENT_COUNT_DISTRIBUTION",
+                 [&]() {
+                     APPLY_LOAD_EVENT_COUNT_DISTRIBUTION =
                          readIntArray<uint32>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS",
                  [&]() {
                      APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS =
-                         readInt<uint32_t>(item);
+                         readInt<uint64_t>(item);
                  }},
                 {"APPLY_LOAD_TX_MAX_INSTRUCTIONS",
                  [&]() {
                      APPLY_LOAD_TX_MAX_INSTRUCTIONS = readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES",
+                {"APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES =
+                     APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES",
+                {"APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES",
                  [&]() {
-                     APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES =
+                     APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE",
+                 [&]() {
+                     APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = readInt<uint32_t>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES",
                  [&]() {
@@ -1630,13 +1699,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_LEDGER_MAX_READ_BYTES",
+                {"APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES",
                  [&]() {
-                     APPLY_LOAD_LEDGER_MAX_READ_BYTES = readInt<uint32_t>(item);
+                     APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES =
+                         readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_TX_MAX_READ_BYTES",
+                {"APPLY_LOAD_TX_MAX_DISK_READ_BYTES",
                  [&]() {
-                     APPLY_LOAD_TX_MAX_READ_BYTES = readInt<uint32_t>(item);
+                     APPLY_LOAD_TX_MAX_DISK_READ_BYTES =
+                         readInt<uint32_t>(item);
                  }},
                 {"APPLY_LOAD_LEDGER_MAX_WRITE_BYTES",
                  [&]() {
@@ -1661,8 +1732,51 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES =
                          readInt<uint32_t>(item);
                  }},
-                {"APPLY_LOAD_MAX_TX_COUNT",
-                 [&]() { APPLY_LOAD_MAX_TX_COUNT = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_MAX_SOROBAN_TX_COUNT",
+                 [&]() {
+                     APPLY_LOAD_MAX_SOROBAN_TX_COUNT = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_CLASSIC_TXS_PER_LEDGER",
+                 [&]() {
+                     APPLY_LOAD_CLASSIC_TXS_PER_LEDGER =
+                         readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS",
+                 [&]() {
+                     APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"APPLY_LOAD_NUM_LEDGERS",
+                 [&]() { APPLY_LOAD_NUM_LEDGERS = readInt<uint32_t>(item); }},
+                {"APPLY_LOAD_TARGET_CLOSE_TIME_MS",
+                 [&]() {
+                     APPLY_LOAD_TARGET_CLOSE_TIME_MS =
+                         readInt<uint32_t>(item, 1);
+                     if (APPLY_LOAD_TARGET_CLOSE_TIME_MS %
+                             ApplyLoad::TARGET_CLOSE_TIME_STEP_MS !=
+                         0)
+                     {
+                         throw std::invalid_argument(fmt::format(
+                             FMT_STRING("APPLY_LOAD_TARGET_CLOSE_TIME_MS "
+                                        "must be a multiple of {}."),
+                             ApplyLoad::TARGET_CLOSE_TIME_STEP_MS));
+                     }
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MIN_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_MAX_SAC_TPS_MAX_TPS",
+                 [&]() {
+                     APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = readInt<uint32_t>(item);
+                 }},
+                {"APPLY_LOAD_BATCH_SAC_COUNT",
+                 [&]() {
+                     APPLY_LOAD_BATCH_SAC_COUNT = readInt<uint32_t>(item, 1);
+                 }},
+                {"APPLY_LOAD_TIME_WRITES",
+                 [&]() { APPLY_LOAD_TIME_WRITES = readBool(item); }},
+#endif // BUILD_TESTS
                 {"GENESIS_TEST_ACCOUNT_COUNT",
                  [&]() {
                      GENESIS_TEST_ACCOUNT_COUNT = readInt<uint32_t>(item, 0);
@@ -1779,7 +1893,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
                  }},
                 {"EMIT_LEDGER_CLOSE_META_EXT_V1",
-                 [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }}};
+                 [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }},
+                {"EMIT_CLASSIC_EVENTS",
+                 [&]() { EMIT_CLASSIC_EVENTS = readBool(item); }},
+                {"BACKFILL_STELLAR_ASSET_EVENTS",
+                 [&]() { BACKFILL_STELLAR_ASSET_EVENTS = readBool(item); }},
+                {"BACKFILL_RESTORE_META",
+                 [&]() { BACKFILL_RESTORE_META = readBool(item); }}};
 
             auto it = confProcessor.find(item.first);
             if (it != confProcessor.end())
@@ -1821,6 +1941,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+#ifdef BUILD_TESTS
+        if (!IGNORE_MESSAGE_LIMITS_FOR_TESTING &&
+            getSorobanByteAllowance() + getClassicByteAllowance() >
+                MAX_TX_SET_ALLOWANCE)
+        {
+            std::string msg = "Invalid configuration: "
+                              "TESTING_MAX_CLASSIC_BYTE_ALLOWANCE + "
+                              "TESTING_MAX_SOROBAN_BYTE_ALLOWANCE "
+                              "can't be greater than MAX_TX_SET_ALLOWANCE";
+            throw std::runtime_error(msg);
+        }
+#endif
+
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >
             PEER_FLOOD_READING_CAPACITY_BYTES)
         {
@@ -1831,17 +1964,45 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (EXPERIMENTAL_PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        {
+            if (RUN_STANDALONE)
+            {
+                LOG_WARNING(DEFAULT_LOG, "RUN_STANDALONE is enabled, disabling "
+                                         "PARALLEL_LEDGER_APPLY");
+                PARALLEL_LEDGER_APPLY = false;
+            }
+            else
+            {
+                std::string msg =
+                    "Invalid configuration: PARALLEL_LEDGER_APPLY "
+                    "does not support in-memory database modes.";
+                throw std::runtime_error(msg);
+            }
+        }
+
+        if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
         {
             std::string msg =
-                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_APPLY "
-                "does not support SQLite. Either switch to Postgres or set "
-                "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
+                "Invalid configuration: INVARIANT_EXTRA_CHECKS cannot be "
+                "enabled on a validator node (NODE_IS_VALIDATOR=true)";
             throw std::runtime_error(msg);
         }
 
+        if (BACKFILL_STELLAR_ASSET_EVENTS && !EMIT_CLASSIC_EVENTS)
+        {
+            throw std::invalid_argument(
+                "Invalid configuration: BACKFILL_STELLAR_ASSET_EVENTS requires "
+                "EMIT_CLASSIC_EVENTS "
+                "to be enabled");
+        }
+
         // Check all loadgen distributions
-        verifyLoadGenOpCountForTestingConfigs();
+        verifyLoadGenDistribution(
+            LOADGEN_BYTE_COUNT_FOR_TESTING,
+            LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_BYTE_COUNT_FOR_TESTING",
+            "LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING");
         verifyLoadGenDistribution(
             LOADGEN_WASM_BYTES_FOR_TESTING,
             LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING,
@@ -1873,43 +2034,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
-
-        // Only allow one version of all BucketListDB flags, either the
-        // deprecated flag or new flag, but not both.
-        if (t->contains(
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
-            t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT and "
-                "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT is "
-                "deprecated, use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX") &&
-                 t->contains("BUCKETLIST_DB_PERSIST_INDEX"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX and "
-                "BUCKETLIST_DB_PERSIST_INDEX must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is deprecated, use "
-                "BUCKETLIST_DB_PERSIST_INDEX only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF") &&
-                 t->contains("BUCKETLIST_DB_INDEX_CUTOFF"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF and "
-                "BUCKETLIST_DB_INDEX_CUTOFF must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is deprecated, use "
-                "BUCKETLIST_DB_INDEX_CUTOFF only.";
-            throw std::runtime_error(msg);
-        }
 
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
@@ -2143,9 +2267,9 @@ Config::logBasicInfo() const
              "{}",
              BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
     LOG_INFO(DEFAULT_LOG,
-             "EXPERIMENTAL_PARALLEL_LEDGER_APPLY="
+             "PARALLEL_LEDGER_APPLY="
              "{}",
-             EXPERIMENTAL_PARALLEL_LEDGER_APPLY ? "true" : "false");
+             PARALLEL_LEDGER_APPLY ? "true" : "false");
 }
 
 void
@@ -2223,7 +2347,7 @@ Config::validateConfig(ValidationThresholdLevels thresholdLevel)
         throw;
     }
 
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     if (!isQuorumSetSane(QUORUM_SET, !UNSAFE_QUORUM, errString))
     {
         LOG_FATAL(DEFAULT_LOG, "Invalid QUORUM_SET: {}", errString);
@@ -2373,7 +2497,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 }
 
 std::string
-Config::expandNodeID(const std::string& s) const
+Config::expandNodeID(std::string const& s) const
 {
     if (s.length() < 2)
     {
@@ -2408,24 +2532,10 @@ Config::expandNodeID(const std::string& s) const
     }
 }
 
-std::chrono::seconds
-Config::getExpectedLedgerCloseTime() const
-{
-    if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
-    {
-        return std::chrono::seconds{ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING};
-    }
-    if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-    {
-        return std::chrono::seconds{1};
-    }
-    return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
-}
-
 bool
 Config::modeDoesCatchupWithBucketList() const
 {
-    return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
+    return MODE_DOES_CATCHUP;
 }
 
 bool
@@ -2437,8 +2547,9 @@ Config::allBucketsInMemory() const
 bool
 Config::parallelLedgerClose() const
 {
-    return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           !(DATABASE.value.find("sqlite3://") != std::string::npos);
+    // Standalone mode expects synchronous ledger application
+    return PARALLEL_LEDGER_APPLY && !RUN_STANDALONE &&
+           DATABASE.value != "sqlite3://:memory:";
 }
 
 void
@@ -2562,6 +2673,40 @@ Config::toString(SCPQuorumSet const& qset)
     return fw.write(json);
 }
 
+size_t
+Config::getSorobanByteAllowance() const
+{
+#ifdef BUILD_TESTS
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
+    if (TESTING_MAX_SOROBAN_BYTE_ALLOWANCE > 0)
+    {
+        return TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
+    }
+#endif
+    return MAX_SOROBAN_BYTE_ALLOWANCE;
+}
+
+size_t
+Config::getClassicByteAllowance() const
+{
+#ifdef BUILD_TESTS
+    // Return a big number, but not big enough that it will overflow
+    if (IGNORE_MESSAGE_LIMITS_FOR_TESTING)
+    {
+        return std::numeric_limits<size_t>::max() / 2;
+    }
+    if (TESTING_MAX_CLASSIC_BYTE_ALLOWANCE > 0)
+    {
+        return TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
+    }
+#endif
+    return MAX_CLASSIC_BYTE_ALLOWANCE;
+}
+
 void
 Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
 {
@@ -2637,7 +2782,25 @@ Config::generateQuorumSetForTesting(
     QUORUM_SET = generateQuorumSet(validators);
     setValidatorWeightConfig(validators);
 }
+
 #endif // BUILD_TESTS
+
+std::optional<std::chrono::milliseconds>
+Config::getExpectedLedgerCloseTimeTestingOverride() const
+{
+    if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    {
+        return std::chrono::milliseconds{
+            ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING * 1000};
+    }
+
+    if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        return std::chrono::milliseconds{1000};
+    }
+
+    return std::nullopt;
+}
 
 std::string const Config::STDIN_SPECIAL_NAME = "stdin";
 }

@@ -1,11 +1,12 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -55,4 +56,43 @@ bool bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
 
 // This only implements ROUND_DOWN
 uint64_t bigSquareRoot(uint64_t a, uint64_t b);
+
+// Saturating multiplication: returns a * b, capped at INT64_MAX if overflow
+// would occur. Assumes both inputs are non-negative.
+inline int64_t
+saturatingMultiply(int64_t a, int64_t b)
+{
+    // Both inputs must be non-negative for this implementation
+    if (a < 0 || b < 0)
+    {
+        throw std::invalid_argument(
+            "saturatingMultiply requires non-negative inputs");
+    }
+
+    if (a == 0 || b == 0)
+    {
+        return 0;
+    }
+
+    // Check if multiplication would overflow
+    if (a > std::numeric_limits<int64_t>::max() / b)
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    return a * b;
+}
+
+// Saturating addition for unsigned ints: returns a + b, capped at type max.
+template <typename T>
+inline T
+saturatingAdd(T a, T b)
+{
+    static_assert(std::is_unsigned<T>());
+    if (a > std::numeric_limits<T>::max() - b)
+    {
+        return std::numeric_limits<T>::max();
+    }
+    return a + b;
+}
 }

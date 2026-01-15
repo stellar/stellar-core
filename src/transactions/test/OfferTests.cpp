@@ -8,10 +8,10 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
-#include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -50,7 +50,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     int64_t txfee = app->getLedgerManager().getLastTxFee();
 
     // minimum balance necessary to hold 2 trust lines
-    const int64_t minBalance2 =
+    int64_t const minBalance2 =
         app->getLedgerManager().getLastMinBalance(2) + 20 * txfee;
 
     // sets up issuer account
@@ -59,7 +59,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
     auto idr = issuer.asset("IDR");
     auto usd = issuer.asset("USD");
 
-    const Price oneone(1, 1);
+    Price const oneone(1, 1);
 
     SECTION("passive offer")
     {
@@ -75,9 +75,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         issuer.pay(b1, usd, trustLineBalance);
 
         auto market = TestMarket{*app};
-        auto firstOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(a1, {idr, usd, oneone, 100});
-        });
+        auto firstOffer = market.requireChangesWithOffer(
+            {}, [&] { return market.addOffer(a1, {idr, usd, oneone, 100}); });
         auto secondOffer = market.requireChangesWithOffer({}, [&] {
             return market.addOffer(b1,
                                    {usd, idr, oneone, 100, OfferType::PASSIVE});
@@ -130,13 +129,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto a1 = TestAccount{*app, getAccount("a1"), 1};
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_txNO_ACCOUNT);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_txNO_ACCOUNT);
             });
         }
 
@@ -144,13 +143,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         {
             auto a1 = root->create("A", minBalance2);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_SELL_NO_TRUST);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_SELL_NO_TRUST);
             });
         }
 
@@ -163,13 +162,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             // remove issuer
             issuer.merge(*root);
             for_versions_to(12, *app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, xlm, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, xlm, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER);
             });
 
             for_versions_from(13, *app, [&] {
@@ -184,13 +183,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             auto a1 = root->create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_UNDERFUNDED);
             });
         }
 
@@ -200,13 +199,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_BUY_NO_TRUST);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_BUY_NO_TRUST);
             });
         }
 
@@ -220,13 +219,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             issuer.merge(*root);
 
             for_versions_to(12, *app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {xlm, idr, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {xlm, idr, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER);
             });
 
             for_versions_from(13, *app, [&] {
@@ -243,13 +242,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             a1.changeTrust(usd, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_LOW_RESERVE);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_LOW_RESERVE);
             });
         }
 
@@ -262,13 +261,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             issuer.pay(a1, usd, trustLineLimit);
             root->pay(a1, minBalance2);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_LINE_FULL);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -281,13 +280,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             issuer.pay(a1, usd, INT64_MAX);
             root->pay(a1, minBalance2);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 100});
-                        }),
-                    ex_MANAGE_SELL_OFFER_LINE_FULL);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -306,22 +305,22 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 });
             });
             for_versions(3, 10, *app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 0});
-                        }),
-                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 0});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
             for_versions_from(11, *app, [&] {
-                REQUIRE_THROWS_AS(
-                    market.requireChangesWithOffer(
-                        {},
-                        [&] {
-                            return market.addOffer(a1, {idr, usd, oneone, 0});
-                        }),
-                    ex_MANAGE_SELL_OFFER_MALFORMED);
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1, {idr, usd, oneone, 0});
+                                      }),
+                                  ex_MANAGE_SELL_OFFER_MALFORMED);
             });
         }
 
@@ -335,13 +334,13 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 a.changeTrust(idr, trustLineLimit);
                 for (auto const& p : invalidPrices)
                 {
-                    REQUIRE_THROWS_AS(
-                        market.requireChangesWithOffer(
-                            {},
-                            [&] {
-                                return market.addOffer(a, {xlm, idr, p, 150});
-                            }),
-                        ex_MANAGE_SELL_OFFER_MALFORMED);
+                    REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                          {},
+                                          [&] {
+                                              return market.addOffer(
+                                                  a, {xlm, idr, p, 150});
+                                          }),
+                                      ex_MANAGE_SELL_OFFER_MALFORMED);
                 }
             });
         }
@@ -356,9 +355,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         issuer.pay(a1, idr, trustLineBalance);
 
         auto market = TestMarket{*app};
-        auto offer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(a1, {idr, usd, oneone, 100});
-        });
+        auto offer = market.requireChangesWithOffer(
+            {}, [&] { return market.addOffer(a1, {idr, usd, oneone, 100}); });
 
         auto cancelCheck = [&]() {
             market.requireChangesWithOffer({}, [&] {
@@ -618,8 +616,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     auto const base2 =
                         app->getLedgerManager().getLastMinBalance(2);
 
-                    const int64 delta = 100;
-                    const int64 payment = 1000;
+                    int64 const delta = 100;
+                    int64 const payment = 1000;
                     auto offerAmount = a1IDrs + payment;
 
                     int64 bStartingBalance;
@@ -1360,7 +1358,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
         SECTION("offers with limit when buying")
         {
-            const int64_t assetMultiplier = 1000000;
+            int64_t const assetMultiplier = 1000000;
 
             auto c1 = root->create("C", minBalance3 + 1000);
 
@@ -3007,7 +3005,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3035,7 +3035,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto expOfferID = ltx.loadHeader().current().idPool + 1;
 
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3746,8 +3748,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     auto expOfferID = ltx.loadHeader().current().idPool + 1;
 
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3790,8 +3793,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3853,8 +3857,9 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 offerIdXlmUsd = ltx.loadHeader().current().idPool + 2;
                 offerIdIdrXlm = ltx.loadHeader().current().idPool + 3;
 
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));

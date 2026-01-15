@@ -14,17 +14,17 @@
 #include "bucket/LiveBucket.h"
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/Thread.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-
-#include "medida/metrics_registry.h"
 
 #include <chrono>
 #include <memory>
@@ -328,7 +328,13 @@ template <class BucketT>
 static std::chrono::seconds
 getAvailableTimeForMerge(Application& app, uint32_t level)
 {
-    auto closeTime = app.getConfig().getExpectedLedgerCloseTime();
+    // FutureBucket is managed by a background thread that is not related to the
+    // rest of the core state machine such that getting the current value of a
+    // network config is non-trivial. This isn't super important, so we use a
+    // conservative hardcoded lower bound instead.
+    auto closeTime = std::chrono::seconds(
+        MinimumSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS /
+        1000);
     if (level >= 1)
     {
         return closeTime * BucketListBase<BucketT>::levelHalf(level - 1);
@@ -350,7 +356,6 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
 
     std::shared_ptr<BucketT> curr = mInputCurrBucket;
     std::shared_ptr<BucketT> snap = mInputSnapBucket;
-    std::vector<std::shared_ptr<BucketT>> shadows = mInputShadowBuckets;
 
     releaseAssert(curr);
     releaseAssert(snap);
@@ -365,10 +370,17 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
         {"bucket", "merge-time", "level-" + std::to_string(level)});
 
     std::vector<Hash> shadowHashes;
-    shadowHashes.reserve(shadows.size());
-    for (auto const& b : shadows)
+    std::vector<std::shared_ptr<BucketT>> shadows;
+
+    // Shadows are only supported for LiveBucket
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
     {
-        shadowHashes.emplace_back(b->getHash());
+        shadows = mInputShadowBuckets;
+        shadowHashes.reserve(shadows.size());
+        for (auto const& b : shadows)
+        {
+            shadowHashes.emplace_back(b->getHash());
+        }
     }
 
     // It's possible we're running a merge that's already running, for example

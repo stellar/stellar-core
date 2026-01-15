@@ -40,13 +40,18 @@ LedgerEntryWrapper::current() const
     case 1:
         return std::get<1>(mEntry).current();
     case 2:
-        return *std::get<2>(mEntry);
+    {
+        auto res = std::get<2>(mEntry);
+        releaseAssertOrThrow(res);
+        return *res;
+    }
     default:
         throw std::runtime_error("Invalid LedgerEntryWrapper index");
     }
 }
 
-LedgerEntryWrapper::operator bool() const
+LedgerEntryWrapper::
+operator bool() const
 {
     switch (mEntry.index())
     {
@@ -236,7 +241,7 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     else
 #endif
         mGetter = std::make_unique<BucketSnapshotState>(
-            app.getLedgerManager().getLastClosedSnaphot());
+            app.getLedgerManager().getLastClosedSnapshot());
 }
 
 LedgerSnapshot::LedgerSnapshot(SearchableSnapshotConstPtr snapshot)
@@ -268,4 +273,72 @@ LedgerSnapshot::executeWithMaybeInnerSnapshot(
 {
     return mGetter->executeWithMaybeInnerSnapshot(f);
 }
+
+void
+CompleteConstLedgerState::checkInvariant() const
+{
+    releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
+                  mLastClosedLedgerHeader.header.ledgerSeq);
+    if (mLastClosedLedgerHeader.header.ledgerSeq > 0)
+    {
+        releaseAssert(mBucketSnapshot->getLedgerHeader() ==
+                      mLastClosedLedgerHeader.header);
+    }
+}
+
+CompleteConstLedgerState::CompleteConstLedgerState(
+    SearchableSnapshotConstPtr searchableSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+    HistoryArchiveState const& lastClosedHistoryArchiveState)
+    : mBucketSnapshot(searchableSnapshot)
+    , mHotArchiveSnapshot(hotArchiveSnapshot)
+    , mSorobanConfig(
+          protocolVersionStartsFrom(lastClosedLedgerHeader.header.ledgerVersion,
+                                    SOROBAN_PROTOCOL_VERSION)
+              ? std::make_optional(
+                    SorobanNetworkConfig::loadFromLedger(searchableSnapshot))
+              : std::nullopt)
+    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
+    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+{
+    checkInvariant();
+}
+
+SearchableSnapshotConstPtr
+CompleteConstLedgerState::getBucketSnapshot() const
+{
+    return mBucketSnapshot;
+}
+
+SearchableHotArchiveSnapshotConstPtr
+CompleteConstLedgerState::getHotArchiveSnapshot() const
+{
+    return mHotArchiveSnapshot;
+}
+
+SorobanNetworkConfig const&
+CompleteConstLedgerState::getSorobanConfig() const
+{
+    return mSorobanConfig.value();
+}
+
+bool
+CompleteConstLedgerState::hasSorobanConfig() const
+{
+    return mSorobanConfig.has_value();
+}
+
+LedgerHeaderHistoryEntry const&
+CompleteConstLedgerState::getLastClosedLedgerHeader() const
+{
+    return mLastClosedLedgerHeader;
+}
+
+HistoryArchiveState const&
+CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
+{
+    return mLastClosedHistoryArchiveState;
+}
+
 }

@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "Application.h"
 #include "main/Config.h"
@@ -55,7 +55,7 @@ class ApplicationImpl : public Application
     virtual std::string getStateHuman() const override;
     virtual bool isStopping() const override;
     virtual VirtualClock& getClock() override;
-    virtual medida::MetricsRegistry& getMetrics() override;
+    virtual MetricsRegistry& getMetrics() override;
     virtual void syncOwnMetrics() override;
     virtual void syncAllMetrics() override;
     virtual void clearMetrics(std::string const& domain) override;
@@ -78,6 +78,10 @@ class ApplicationImpl : public Application
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
     virtual AppConnector& getAppConnector() override;
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+    getProtocol23CorruptionDataVerifier() override;
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+    getProtocol23CorruptionEventReconciler() override;
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
@@ -122,9 +126,10 @@ class ApplicationImpl : public Application
 
     virtual LoadGenerator& getLoadGenerator() override;
 
-    virtual Config& getMutableConfig() override;
-
     virtual std::shared_ptr<TestAccount> getRoot() override;
+
+    virtual bool getRunInOverlayOnlyMode() const override;
+    virtual void setRunInOverlayOnlyMode(bool mode) override;
 #endif
 
     virtual void applyCfgCommands() override;
@@ -144,7 +149,7 @@ class ApplicationImpl : public Application
 
   private:
     VirtualClock& mVirtualClock;
-    Config mConfig;
+    Config const mConfig;
 
     // NB: The io_context should come first, then the 'manager' sub-objects,
     // then the threads. Do not reorder these fields.
@@ -191,6 +196,12 @@ class ApplicationImpl : public Application
     std::unique_ptr<AbstractLedgerTxnParent> mLedgerTxnRoot;
     std::unique_ptr<AppConnector> mAppConnector;
 
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>
+        mProtocol23CorruptionDataVerifier;
+
+    std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>
+        mProtocol23CorruptionEventReconciler;
+
     // These two exist for use in MODE_USES_IN_MEMORY_LEDGER only: the
     // mInMemoryLedgerTxnRoot is a _stub_ AbstractLedgerTxnParent that refuses
     // all commits and answers null to all queries; then an inner
@@ -215,15 +226,15 @@ class ApplicationImpl : public Application
     std::unique_ptr<LoadGenerator> mLoadGenerator;
 #endif
 
-    std::vector<std::thread> mWorkerThreads;
-    std::optional<std::thread> mOverlayThread;
-    std::optional<std::thread> mLedgerCloseThread;
+    std::vector<std::unique_ptr<std::thread>> mWorkerThreads;
+    std::unique_ptr<std::thread> mOverlayThread;
+    std::unique_ptr<std::thread> mLedgerCloseThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
     // higher-priority worker thread type, but for now we only need a single
     // thread for eviction scans.
-    std::optional<std::thread> mEvictionThread;
+    std::unique_ptr<std::thread> mEvictionThread;
 
     // NOTE: It is important that this map not be updated outside of the
     // constructor. `unordered_map` is safe for multiple threads to read from,
@@ -234,12 +245,15 @@ class ApplicationImpl : public Application
 
     bool mStarted;
     std::atomic<bool> mStopping;
-    bool mLedgerCloseThreadStopped{false};
+
+#ifdef BUILD_TESTS
+    bool mRunInOverlayOnlyMode;
+#endif
 
     VirtualTimer mStoppingTimer;
     VirtualTimer mSelfCheckTimer;
 
-    std::unique_ptr<medida::MetricsRegistry> mMetrics;
+    std::unique_ptr<MetricsRegistry> mMetrics;
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     medida::Timer& mPostOnOverlayThreadDelay;
@@ -277,6 +291,12 @@ class ApplicationImpl : public Application
 
     void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
                                                      bool forceRebuild);
-    void shutdownLedgerCloseThread();
+
+    // Set `forgetBuckets` to true to clean up unreferenced buckets
+    // Note: this flag requires LM and BM to be fully constructed
+    void idempotentShutdown(bool forgetBuckets);
+    bool shutdownThread(std::unique_ptr<std::thread>& threadPtr,
+                        std::unique_ptr<asio::io_context::work>& workPtr,
+                        std::string const& threadName);
 };
 }

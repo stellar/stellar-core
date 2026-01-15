@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "BallotProtocol.h"
 #include "LocalNode.h"
@@ -25,7 +25,7 @@ class Node;
  */
 class Slot : public std::enable_shared_from_this<Slot>
 {
-    const uint64 mSlotIndex; // the index this slot is tracking
+    uint64 const mSlotIndex; // the index this slot is tracking
     SCP& mSCP;
 
     BallotProtocol mBallotProtocol;
@@ -202,7 +202,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // The number of times the timer has to expire before we consider the node
     // missing. Used for reporting purposes only.
-    static int32 const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
+    static uint32_t const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
 
   protected:
     std::vector<SCPEnvelope> getEntireCurrentState();

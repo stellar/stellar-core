@@ -11,6 +11,8 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/MetricsRegistry.h"
+#include "util/ProtocolVersion.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
 #include <limits>
@@ -157,14 +159,14 @@ template class BucketListDepthModifier<LiveBucket>;
 template class BucketListDepthModifier<HotArchiveBucket>;
 }
 
-TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)
-    : InvariantManagerImpl(registry)
+TestInvariantManager::TestInvariantManager(Application& app)
+    : InvariantManagerImpl(app)
 {
 }
 
 void
-TestInvariantManager::handleInvariantFailure(
-    std::shared_ptr<Invariant> invariant, std::string const& message) const
+TestInvariantManager::handleInvariantFailure(bool isStrict,
+                                             std::string const& message) const
 {
     CLOG_DEBUG(Invariant, "{}", message);
     throw InvariantDoesNotHold{message};
@@ -178,7 +180,7 @@ TestApplication::TestApplication(VirtualClock& clock, Config const& cfg)
 std::unique_ptr<InvariantManager>
 TestApplication::createInvariantManager()
 {
-    return std::make_unique<TestInvariantManager>(getMetrics());
+    return std::make_unique<TestInvariantManager>(*this);
 }
 
 TimePoint
@@ -225,49 +227,36 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto completeCount = complete.count();
 
-    // Use large offset to avoid conflicts with tests using loadgen.
-    auto const offset = std::numeric_limits<uint32_t>::max() - 1;
-
     // Only create an account if upgrade has not ran before.
     if (!simulation->isSetUpForSorobanUpgrade())
     {
-        auto createAccountsLoadConfig =
-            GeneratedLoadConfig::createAccountsLoad(1, 1);
-        createAccountsLoadConfig.offset = offset;
-
-        lg.generateLoad(createAccountsLoadConfig);
-        simulation->crankUntil(
-            [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        // Create upload wasm transaction.
+        // Create upload wasm transaction using root account.
         auto createUploadCfg =
             GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
-        createUploadCfg.offset = offset;
         lg.generateLoad(createUploadCfg);
         completeCount = complete.count();
         simulation->crankUntil(
             [&]() { return complete.count() == completeCount + 1; },
-            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            300 * simulation->getExpectedLedgerCloseTime(), false);
 
         simulation->markReadyForSorobanUpgrade();
     }
 
-    // Create upgrade transaction.
+    // Create upgrade transaction using root account.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
-    createUpgradeLoadGenConfig.offset = offset;
     // Get current network config.
     auto cfg = nodes[0]->getLedgerManager().getLastClosedSorobanNetworkConfig();
     modifyFn(cfg);
-    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(cfg);
+    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(
+        nodes[0]->getLedgerManager().getLastClosedSorobanNetworkConfig(), cfg);
     auto upgradeSetKey = lg.getConfigUpgradeSetKey(
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
     lg.generateLoad(createUpgradeLoadGenConfig);
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        10 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Arm for upgrade.
     for (auto app : nodes)
@@ -286,11 +275,13 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         // Wait for upgrade to be applied
         simulation->crankUntil(
             [&]() {
-                auto netCfg =
-                    app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-                return netCfg == cfg;
+                return std::all_of(
+                    nodes.begin(), nodes.end(), [&](auto const& node) {
+                        return node->getLedgerManager()
+                                   .getLastClosedSorobanNetworkConfig() == cfg;
+                    });
             },
-            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * simulation->getExpectedLedgerCloseTime(), false);
     }
 }
 
@@ -300,15 +291,12 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
 // 2. Creating the upgrade contract instance
 // 3. Creating the upgrade ContractData entry
 // 4. Arming for the upgrade
-// 5. Closing the ledger for which the upgrade is armed
-void
-modifySorobanNetworkConfig(Application& app,
-                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+// Note that the armed ledger will not be closed.
+std::pair<SorobanNetworkConfig, UpgradeType>
+prepareSorobanNetworkConfigUpgrade(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
-    if (!modifyFn)
-    {
-        return;
-    }
+    releaseAssertOrThrow(modifyFn);
 
     TxGenerator txGenerator(app);
     auto root = app.getRoot();
@@ -338,16 +326,31 @@ modifySorobanNetworkConfig(Application& app,
 
     // Step 1: Create upload wasm transaction.
     auto createUploadWasmTxnPair = txGenerator.createUploadWasmTransaction(
-        app.getLedgerManager().getLastClosedLedgerNum(), std::nullopt,
-        wasmBytes, contractCodeLedgerKey, std::nullopt);
+        app.getLedgerManager().getLastClosedLedgerNum(),
+        TxGenerator::ROOT_ACCOUNT_ID, wasmBytes, contractCodeLedgerKey,
+        std::nullopt);
     closeWithTx(createUploadWasmTxnPair.second);
 
-    // Step 2: Create instance txn
-    auto contractOverhead = 160 + wasmBytes.size();
-    auto instanceTxPair = txGenerator.createContractTransaction(
-        app.getLedgerManager().getLastClosedLedgerNum(), std::nullopt,
-        contractCodeLedgerKey, contractOverhead, instanceSalt, std::nullopt);
-    closeWithTx(instanceTxPair.second);
+    bool instanceExists = false;
+    {
+        // Step 1: Check if instance already exists.
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        if (ltx.load(instanceLk))
+        {
+            instanceExists = true;
+        }
+    }
+
+    if (!instanceExists)
+    {
+        // Step 2: Create instance txn
+        auto contractOverhead = 160 + wasmBytes.size();
+        auto instanceTxPair = txGenerator.createContractTransaction(
+            app.getLedgerManager().getLastClosedLedgerNum(),
+            TxGenerator::ROOT_ACCOUNT_ID, contractCodeLedgerKey,
+            contractOverhead, instanceSalt, std::nullopt);
+        closeWithTx(instanceTxPair.second);
+    }
 
     // Step 3: Create upgrade transaction.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
@@ -356,15 +359,16 @@ modifySorobanNetworkConfig(Application& app,
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();
     modifyFn(upgradeCfg);
     createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(
-        upgradeCfg);
+        app.getLedgerManager().getLastClosedSorobanNetworkConfig(), upgradeCfg);
 
     auto sorobanUpgradeCfg =
         createUpgradeLoadGenConfig.getSorobanUpgradeConfig();
     auto upgradeBytes =
         txGenerator.getConfigUpgradeSetFromLoadConfig(sorobanUpgradeCfg);
     auto txPair = txGenerator.invokeSorobanCreateUpgradeTransaction(
-        app.getLedgerManager().getLastClosedLedgerNum(), std::nullopt,
-        upgradeBytes, contractCodeLedgerKey, instanceLk, std::nullopt);
+        app.getLedgerManager().getLastClosedLedgerNum(),
+        TxGenerator::ROOT_ACCOUNT_ID, upgradeBytes, contractCodeLedgerKey,
+        instanceLk, std::nullopt);
     closeWithTx(txPair.second);
 
     // Step 4: Arm for upgrade.
@@ -381,16 +385,38 @@ modifySorobanNetworkConfig(Application& app,
     scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
     app.getHerder().setUpgrades(scheduledUpgrades);
 
-    TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
     auto configSetFrame = std::make_shared<ConfigUpgradeSetFrame>(
         configUpgradeSet, upgradeSetKey, lclHeader.header.ledgerVersion);
     auto ledgerUpgrade = txtest::makeConfigUpgrade(*configSetFrame);
-    auto upgrade = LedgerTestUtils::toUpgradeType(ledgerUpgrade);
+    return {upgradeCfg, LedgerTestUtils::toUpgradeType(ledgerUpgrade)};
+}
+
+// This will go through the full process of upgrading the network config.
+// This includes:
+// 1. Deploying the upgrade contract wasm
+// 2. Creating the upgrade contract instance
+// 3. Creating the upgrade ContractData entry
+// 4. Arming for the upgrade
+// 5. Closing the ledger for which the upgrade is armed
+void
+modifySorobanNetworkConfig(Application& app,
+                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+{
+    if (!modifyFn)
+    {
+        return;
+    }
+
+    auto [upgradeCfg, upgrade] =
+        prepareSorobanNetworkConfigUpgrade(app, modifyFn);
+
+    auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
+    TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
 
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
                                      lclHeader.header.ledgerSeq + 1, closeTime,
                                      {upgrade});
-    root->loadSequenceNumber();
+    app.getRoot()->loadSequenceNumber();
 
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
@@ -399,7 +425,8 @@ modifySorobanNetworkConfig(Application& app,
 }
 
 void
-setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
+setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg,
+                               std::optional<uint32_t> ledgerVersion)
 {
     cfg.mMaxContractSizeBytes = 64 * 1024;
     cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
@@ -411,14 +438,14 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
     cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
     cfg.mTxMemoryLimit = 100 * 1024 * 1024;
 
-    cfg.mTxMaxReadLedgerEntries = 40;
-    cfg.mTxMaxReadBytes = 200 * 1024;
+    cfg.mTxMaxDiskReadEntries = 40;
+    cfg.mTxMaxDiskReadBytes = 200 * 1024;
 
     cfg.mTxMaxWriteLedgerEntries = 20;
     cfg.mTxMaxWriteBytes = 100 * 1024;
 
-    cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
-    cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
+    cfg.mLedgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+    cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
     cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
     cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
 
@@ -427,12 +454,22 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
     cfg.mLedgerMaxTxCount = 100;
 
     cfg.mTxMaxContractEventsSizeBytes = 10'000;
+
+    if (!ledgerVersion ||
+        protocolVersionStartsFrom(*ledgerVersion, ProtocolVersion::V_23))
+    {
+        cfg.mTxMaxFootprintEntries = cfg.mTxMaxDiskReadEntries;
+    }
 }
 
 void
 overrideSorobanNetworkConfigForTest(Application& app)
 {
-    modifySorobanNetworkConfig(app, setSorobanNetworkConfigForTest);
+    modifySorobanNetworkConfig(app, [&app](SorobanNetworkConfig& cfg) {
+        setSorobanNetworkConfigForTest(cfg, app.getLedgerManager()
+                                                .getLastClosedLedgerHeader()
+                                                .header.ledgerVersion);
+    });
 }
 
 bool
@@ -453,9 +490,9 @@ generateTransactions(Application& app, std::filesystem::path const& outputFile,
     TxGenerator txgen(app);
 
     // Open the output file for writing
-    std::remove(outputFile.c_str());
+    std::remove(outputFile.string().c_str());
     XDROutputFileStream out(app.getClock().getIOContext(), true);
-    out.open(outputFile);
+    out.open(outputFile.string());
 
     if (accounts == 0)
     {

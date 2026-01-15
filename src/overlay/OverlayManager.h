@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/BLAKE2.h"
 #include "overlay/Peer.h"
@@ -60,7 +60,7 @@ class OverlayManager
     static std::unique_ptr<OverlayManager> create(Application& app);
 
     // Drop all PeerRecords from the Database
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
     static bool isFloodMessage(StellarMessage const& msg);
     static std::shared_ptr<StellarMessage> createTxBatch();
     static uint32_t getFlowControlBytesBatch(Config const& cfg);

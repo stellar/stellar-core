@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketListBase.h"
 #include "bucket/LiveBucket.h"
@@ -17,6 +17,8 @@ namespace stellar
 class LiveBucketList : public BucketListBase<LiveBucket>
 {
   public:
+    using bucket_type = LiveBucket;
+
     // Reset Eviction Iterator position if an incoming spill or upgrade has
     // invalidated the previous position
     static void updateStartingEvictionIterator(EvictionIterator& iter,
@@ -29,12 +31,12 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     static bool updateEvictionIterAndRecordStats(
         EvictionIterator& iter, EvictionIterator startIter,
         uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
+        std::shared_ptr<EvictionStatistics> stats, EvictionMetrics& metrics);
 
     static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
                                            uint32_t scanSize,
                                            std::shared_ptr<LiveBucket const> b,
-                                           EvictionCounters& counters);
+                                           EvictionMetrics& metrics);
 
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing

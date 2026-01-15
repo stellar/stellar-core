@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "transactions/OperationFrame.h"
 
@@ -44,8 +44,8 @@ class ManageOfferOpFrameBase : public OperationFrame
                       OperationResult& res) const override;
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
 
     bool isDexOperation() const override;
 

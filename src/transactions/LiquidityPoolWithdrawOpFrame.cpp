@@ -29,9 +29,9 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                      OperationResult& res,
+                                      OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 
@@ -56,8 +56,7 @@ LiquidityPoolWithdrawOpFrame::doApply(
 
     // use a lambda so we don't hold a reference to the internals of
     // LiquidityPoolEntry
-    auto constantProduct = [&]() -> auto&
-    {
+    auto constantProduct = [&]() -> auto& {
         return poolEntry.current().data.liquidityPool().body.constantProduct();
     };
 
@@ -99,6 +98,16 @@ LiquidityPoolWithdrawOpFrame::doApply(
     {
         throw std::runtime_error("insufficient reserveB");
     }
+
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
+        constantProduct().params.assetA,
+        makeLiquidityPoolAddress(mLiquidityPoolWithdraw.liquidityPoolID),
+        makeMuxedAccountAddress(getSourceAccount()), amountA, true);
+
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
+        constantProduct().params.assetB,
+        makeLiquidityPoolAddress(mLiquidityPoolWithdraw.liquidityPoolID),
+        makeMuxedAccountAddress(getSourceAccount()), amountB, true);
 
     innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
     return true;

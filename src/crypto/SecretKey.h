@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/KeyUtils.h"
 #include "util/XDROperators.h"
@@ -135,13 +135,43 @@ template <> struct KeyFunctions<PublicKey>
 // public key utility functions
 namespace PubKeyUtils
 {
-// Return true iff `signature` is valid for `bin` under `key`.
-bool verifySig(PublicKey const& key, Signature const& signature,
-               ByteSlice const& bin);
+
+// Represents the result of a signature verification cache lookup.
+enum class VerifySigCacheLookupResult
+{
+    // A cache miss occurred on lookup
+    MISS,
+    // A cache hit occurred on lookup
+    HIT,
+    // No lookup was performed
+    NO_LOOKUP
+};
+
+// The result type for `verifySig`.
+struct VerifySigResult
+{
+    // The result of signature verification
+    bool valid;
+    // Whether the signature cache contained the result at lookup time
+    VerifySigCacheLookupResult cacheResult;
+};
+
+// Returns a `VerifySigResult` where the `valid` field is true iff
+// `signature` is valid for `bin` under `key`, and the `cacheResult` field
+// indicates whether the signature verification cache contained the signature.
+VerifySigResult verifySig(PublicKey const& key, Signature const& signature,
+                          ByteSlice const& bin);
 
 void clearVerifySigCache();
-void maybeSeedVerifySigCache(unsigned int seed);
+void seedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
+
+// Enable Rust ed25519-dalek for signature verification
+// Once enabled, it cannot be disabled. It should be enabled at the protocol 24
+// boundary.
+// Note: This should be removed following the protocol 24 upgrade, rust ed25519
+// can be used unconditionally after upgrade, even for replay.
+void enableRustDalekVerify();
 
 PublicKey random();
 #ifdef BUILD_TESTS

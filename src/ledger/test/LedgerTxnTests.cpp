@@ -9,16 +9,17 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDROperators.h"
@@ -247,15 +248,10 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                                              LedgerEntryKey(randomEntries[1])};
         LedgerTxn ltx1(app->getLedgerTxnRoot());
 
-        SECTION("hot archive restore key exists in live BL")
-        {
-            ltx1.create(randomEntries[0]);
-            REQUIRE_THROWS(ltx1.restoreFromHotArchive(randomEntries[0], 42));
-        }
-
         SECTION("live BL restore key does not exist")
         {
-            REQUIRE_THROWS(ltx1.restoreFromLiveBucketList(randomKeys[0], 42));
+            REQUIRE_THROWS(
+                ltx1.restoreFromLiveBucketList(randomEntries[0], 42));
         }
 
         auto checkKey = [](auto const& keySet, auto const& dataKey) {
@@ -267,13 +263,26 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
         {
             SECTION("hot archive")
             {
-                ltx1.restoreFromHotArchive(randomEntries[0], 42);
+                auto getTTLEntry =
+                    [](LedgerEntry const& entry,
+                       uint32_t liveUntilLedgerSeq) -> LedgerEntry {
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = liveUntilLedgerSeq;
+                    ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+                    return ttl;
+                };
+
+                ltx1.markRestoredFromHotArchive(
+                    randomEntries[0], getTTLEntry(randomEntries[0], 42));
 
                 SECTION("rollback")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                        ltx2.markRestoredFromHotArchive(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
                     }
 
                     REQUIRE(ltx1.getRestoredLiveBucketListKeys().empty());
@@ -288,7 +297,9 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 {
                     {
                         LedgerTxn ltx2(ltx1);
-                        ltx2.restoreFromHotArchive(randomEntries[1], 42);
+                        ltx2.markRestoredFromHotArchive(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
                         ltx2.commit();
                     }
 
@@ -315,7 +326,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 // Populate live BL with key, then restore it
                 ltx1.create(randomEntries[0]);
                 ltx1.create(getTTLEntry(randomKeys[0]));
-                ltx1.restoreFromLiveBucketList(randomKeys[0], 42);
+                ltx1.restoreFromLiveBucketList(randomEntries[0], 42);
 
                 SECTION("rollback")
                 {
@@ -323,7 +334,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
                         ltx2.create(getTTLEntry(randomKeys[1]));
-                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                        ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                     }
 
                     REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
@@ -340,7 +351,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
                         ltx2.create(getTTLEntry(randomKeys[1]));
-                        ltx2.restoreFromLiveBucketList(randomKeys[1], 42);
+                        ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                         ltx2.commit();
                     }
 
@@ -491,7 +502,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         while (modifyBatch.size() < MODIFY_ENTRIES)
         {
             auto iter = entries.begin();
-            std::advance(iter, dist(gRandomEngine));
+            std::advance(iter, dist(getGlobalRandomEngine()));
             modifyBatch[iter->first] =
                 generateLedgerEntryWithSameKey(iter->second);
         }
@@ -514,7 +525,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         while (eraseBatch.size() < ERASE_ENTRIES)
         {
             auto iter = entries.begin();
-            std::advance(iter, dist(gRandomEngine));
+            std::advance(iter, dist(getGlobalRandomEngine()));
             if (iter->first.type() == CONFIG_SETTING)
             {
                 continue;
@@ -565,7 +576,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             generateModify(ltx1, updatedEntries);
             generateErase(ltx1, updatedEntries, updatedDead);
 
-            if (entries.empty() || shouldCommitDist(gRandomEngine))
+            if (entries.empty() || shouldCommitDist(getGlobalRandomEngine()))
             {
                 entries = updatedEntries;
                 dead = updatedDead;
@@ -2721,15 +2732,17 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
 {
     auto runTest = [&](Config cfg) {
         VirtualClock clock;
-        cfg.ENTRY_CACHE_SIZE = 1000;
+        cfg.ENTRY_CACHE_SIZE = 100;
         cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
 
         UnorderedSet<LedgerKey> keysToPrefetch;
         auto app = createTestApplication(clock, cfg);
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidUniqueLedgerEntries(
-            cfg.ENTRY_CACHE_SIZE + 1);
+        auto entries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING, CONTRACT_CODE, CONTRACT_DATA, TTL},
+                cfg.ENTRY_CACHE_SIZE + 1);
         std::set<LedgerEntry> entrySet;
         LedgerTxn ltx(root);
         for (auto e : entries)
@@ -2769,7 +2782,7 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
                 }
             }
 
-            REQUIRE(root.prefetchClassic(smallSet) == smallSet.size());
+            REQUIRE(root.prefetch(smallSet) == smallSet.size());
 
             // Check that prefetch results are actually correct
             for (auto const& k : smallSet)
@@ -2787,8 +2800,7 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
         SECTION("prefetch more than ENTRY_CACHE_SIZE entries")
         {
             LedgerTxn ltx2(root);
-            REQUIRE(root.prefetchClassic(keysToPrefetch) ==
-                    keysToPrefetch.size());
+            REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
             ltx2.commit();
         }
     };
@@ -2936,219 +2948,6 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
         runTest(Config::TESTDB_POSTGRESQL, false);
     }
 #endif
-}
-
-TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
-{
-    Config cfg = getTestConfig();
-    cfg.ENTRY_CACHE_SIZE = 10;
-
-    // Test setup.
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
-    UnorderedSet<LedgerKey> keysToPrefetch;
-    auto& root = app->getLedgerTxnRoot();
-    LedgerTxn ltx(root);
-
-    auto lkMeterCold = std::make_unique<LedgerKeyMeter>();
-    auto lkMeterHot = std::make_unique<LedgerKeyMeter>();
-
-    auto contractDataEntry =
-        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
-    contractDataEntry.lastModifiedLedgerSeq = 1;
-    ltx.createWithoutLoading(contractDataEntry);
-
-    auto classicEntry = LedgerTestUtils::generateValidLedgerEntryOfType(OFFER);
-    classicEntry.lastModifiedLedgerSeq = 1;
-    ltx.createWithoutLoading(classicEntry);
-
-    LedgerEntry TTLEntry;
-    TTLEntry.data.type(TTL);
-    TTLEntry.data.ttl().keyHash = getTTLKey(contractDataEntry).ttl().keyHash;
-    TTLEntry.data.ttl().liveUntilLedgerSeq =
-        contractDataEntry.lastModifiedLedgerSeq + 1;
-
-    auto deadEntry =
-        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
-    auto deadKey = LedgerEntryKey(deadEntry);
-    ltx.eraseWithoutLoading(deadKey);
-
-    // Insert all entries into the database.
-    std::vector<LedgerEntry> ledgerVect{classicEntry, contractDataEntry,
-                                        TTLEntry};
-    std::vector<LedgerKey> deadKeyVect{deadKey};
-    LedgerHeader lh;
-    lh.ledgerVersion = app->getLedgerManager()
-                           .getLastClosedLedgerHeader()
-                           .header.ledgerVersion;
-    lh.ledgerSeq = 2;
-    BucketTestUtils::addLiveBatchAndUpdateSnapshot(*app, lh, {}, ledgerVect,
-                                                   deadKeyVect);
-    ltx.commit();
-
-    auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,
-                      std::vector<LedgerKey> deadKeys = {}) {
-        SorobanResources resources;
-
-        for (auto const& e : entries)
-        {
-            auto k = LedgerEntryKey(e);
-            keysToPrefetch.emplace(k);
-            if (k.type() != TTL)
-            {
-                resources.readBytes += xdr::xdr_size(e);
-                // Randomly add the key to either the read or write set.
-                if (stellar::rand_flip())
-                {
-                    resources.footprint.readOnly.emplace_back(k);
-                }
-                else
-                {
-                    resources.footprint.readWrite.emplace_back(k);
-                }
-            }
-        }
-        if (!enoughQuota)
-        {
-            resources.readBytes -= 1;
-        }
-
-        for (auto& k : deadKeys)
-        {
-            resources.footprint.readOnly.emplace_back(k);
-        }
-
-        lkMeterHot->addTxn(resources);
-        lkMeterCold->addTxn(resources);
-    };
-
-    auto checkPrefetch = [&](std::set<LedgerKey> const& expectedSuccessKeys) {
-        LedgerTxn ltx2(root);
-        auto numLoadedCold =
-            root.prefetchSoroban(keysToPrefetch, lkMeterCold.get());
-        REQUIRE(numLoadedCold == expectedSuccessKeys.size());
-
-        auto preLoadPrefetchHitRate = root.getPrefetchHitRate();
-        REQUIRE(preLoadPrefetchHitRate == 0);
-        for (auto const& k : expectedSuccessKeys)
-        {
-            ltx2.load(k);
-        }
-
-        auto numLoadedHot =
-            root.prefetchSoroban(keysToPrefetch, lkMeterHot.get());
-        REQUIRE(numLoadedHot == 0);
-        // 100% hit rate but make it floating point
-        REQUIRE(fabs(ltx2.getPrefetchHitRate() - 1.0f) <
-                std::numeric_limits<float>::epsilon());
-    };
-
-    SECTION("all keys have quota")
-    {
-        auto tx1Entries =
-            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
-        auto tx2Entries =
-            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
-        addTxn(true /* enough quota */, tx1Entries);
-        addTxn(false, tx2Entries);
-        std::set<LedgerKey> expectedSuccessKeys;
-        for (auto const& e : tx1Entries)
-        {
-            expectedSuccessKeys.emplace(LedgerEntryKey(e));
-        }
-        checkPrefetch(expectedSuccessKeys);
-    }
-
-    SECTION("dead keys don't affect quota")
-    {
-        auto deadKeys = std::vector<LedgerKey>{deadKey};
-        auto tx1Entries =
-            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
-        addTxn(true /* enough quota */, tx1Entries, deadKeys);
-        std::set<LedgerKey> expectedSuccessKeys;
-        for (auto const& e : tx1Entries)
-        {
-            expectedSuccessKeys.emplace(LedgerEntryKey(e));
-        }
-        checkPrefetch(expectedSuccessKeys);
-    }
-
-    SECTION("don't load entries without quota")
-    {
-        auto tx1Entries =
-            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
-        addTxn(false /* enough quota */, tx1Entries);
-        std::set<LedgerKey> expectedSuccessKeys;
-        expectedSuccessKeys.emplace(LedgerEntryKey(TTLEntry));
-        // Keys are loaded according to the iteration order of the set.
-        // Whichever entry is loaded first will succeed. The other will fail.
-        // Classic entries are strictly less than soroban entries, so we expect
-        // classicEntry will be loaded and contractDataEntry will not.
-        expectedSuccessKeys.emplace(LedgerEntryKey(classicEntry));
-        checkPrefetch(expectedSuccessKeys);
-    }
-    SECTION("non existent entries should not affect quota")
-    {
-        // Prefetch an entry which has not been added to the database.
-        auto nonExistentEntry =
-            LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
-        // Both should succeed, as the non-existent entry is not metered and
-        // should result in a null entry in the cache.
-        addTxn(false /* not enough */, {contractDataEntry, nonExistentEntry});
-        std::set<LedgerKey> expectedSuccessKeys{
-            LedgerEntryKey(contractDataEntry),
-            LedgerEntryKey(nonExistentEntry)};
-        checkPrefetch(expectedSuccessKeys);
-    }
-}
-
-TEST_CASE("LedgerKeyMeter tests")
-{
-    LedgerKeyMeter lkMeter{};
-    auto entry = LedgerTestUtils::generateValidLedgerEntryWithTypes(
-        {CONTRACT_CODE, CONTRACT_DATA}, 1);
-    auto key = LedgerEntryKey(entry);
-    auto entrySize = xdr::xdr_size(entry);
-    UnorderedSet<LedgerKey> keys;
-    keys.emplace(key);
-    SorobanResources resources;
-    resources.readBytes = entrySize;
-    resources.footprint.readOnly = {key};
-    lkMeter.addTxn(resources);
-
-    REQUIRE(lkMeter.canLoad(key, entrySize));
-    REQUIRE(!lkMeter.canLoad(key, entrySize + 1));
-    REQUIRE(lkMeter.canLoad(key, entrySize - 1));
-    REQUIRE(lkMeter.canLoad(key, 0));
-
-    // Adding another txn with less readQuota should not change the
-    // fact the key can be loaded.
-    resources.readBytes = 0;
-    resources.footprint.readOnly = {key};
-    lkMeter.addTxn(resources);
-    REQUIRE(lkMeter.canLoad(key, entrySize));
-    // Consume size(entry) of the read quota of each transaction which
-    // contains key.
-    lkMeter.updateReadQuotasForKey(key, entrySize);
-    // After updating, the read quota for the key should be zero.
-    REQUIRE(!lkMeter.canLoad(key, 1));
-    // Add another transaction with the same key and 2 * entrySize read quota.
-    resources.readBytes = 2 * entrySize;
-    resources.footprint.readOnly = {key};
-    lkMeter.addTxn(resources);
-    REQUIRE(lkMeter.canLoad(key, 2 * entrySize));
-    lkMeter.updateReadQuotasForKey(key, entrySize);
-    // After updating, the read quota should be equal the entry size (as
-    // the original quota was double)
-    REQUIRE(lkMeter.canLoad(key, entrySize));
-    // TTL keys are not part of the footprint and therefore not metered (i.e.
-    // always loadable).
-    auto ttlKey = getTTLKey(key);
-    REQUIRE(lkMeter.canLoad(ttlKey, std::numeric_limits<uint32_t>::max()));
-    // The ttlKey is not metered, so this should not have any effect.
-    lkMeter.updateReadQuotasForKey(ttlKey,
-                                   std::numeric_limits<uint32_t>::max());
-    REQUIRE(lkMeter.canLoad(ttlKey, std::numeric_limits<std::uint32_t>::max()));
 }
 
 TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")

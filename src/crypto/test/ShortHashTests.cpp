@@ -5,7 +5,7 @@
 #include "crypto/Random.h"
 #include "crypto/ShortHash.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include <autocheck/generator.hpp>
 
 // Confirms that the incremental, non-allocating `xdrComputeHash(...)` produces

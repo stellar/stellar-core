@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "invariant/Invariant.h"
 #include "ledger/InternalLedgerEntry.h"
@@ -22,15 +22,15 @@ struct LedgerTxnDelta;
 class LedgerEntryIsValid : public Invariant
 {
   public:
-    LedgerEntryIsValid(LumenContractInfo const& lumenContractInfo);
+    LedgerEntryIsValid(AssetContractInfo const& lumenContractInfo);
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
     virtual std::string getName() const override;
 
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta) override;
+    virtual std::string checkOnOperationApply(
+        Operation const& operation, OperationResult const& result,
+        LedgerTxnDelta const& ltxDelta,
+        std::vector<ContractEvent> const& events, AppConnector& app) override;
 
   private:
     std::string
@@ -59,6 +59,6 @@ class LedgerEntryIsValid : public Invariant
 
     bool validatePredicate(ClaimPredicate const& pred, uint32_t depth) const;
 
-    LumenContractInfo const mLumenContractInfo;
+    AssetContractInfo const mLumenContractInfo;
 };
 }

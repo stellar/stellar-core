@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerHashUtils.h"
@@ -26,6 +26,18 @@ class ApplicableTxSetFrame;
 using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
 using ApplicableTxSetFrameConstPtr =
     std::unique_ptr<ApplicableTxSetFrame const>;
+
+#ifdef BUILD_TESTS
+namespace txtest
+{
+// This is used to pass the parallel order of Soroban transactions to
+// closeLedger in tests. The strictOrder parameter is a requirement for this to
+// be used. The nested vectors are analogous to TxStageFrameList, with the only
+// difference being that this stores the indices of transactions in the Soroban
+// phase passed to closeLedger, rather than the transactions themselves.
+using ParallelSorobanOrder = std::vector<std::vector<std::vector<uint32_t>>>;
+}
+#endif
 
 enum class TxSetPhase
 {
@@ -58,7 +70,8 @@ makeTxSetFromTransactions(
     // to the passed-in transactions - use in conjunction with
     // `enforceTxsApplyOrder` argument in test-only overrides.
     ,
-    bool skipValidation = false
+    bool skipValidation = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
 #endif
 );
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -71,22 +84,23 @@ makeTxSetFromTransactions(
     // to the passed-in transactions - use in conjunction with
     // `enforceTxsApplyOrder` argument in test-only overrides.
     ,
-    bool skipValidation = false
+    bool skipValidation = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
 #endif
 );
 
 #ifdef BUILD_TESTS
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                          uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset,
-                          bool enforceTxsApplyOrder = false);
+makeTxSetFromTransactions(
+    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                          uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset,
-                          TxFrameList& invalidTxs,
-                          bool enforceTxsApplyOrder = false);
+makeTxSetFromTransactions(
+    TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
+    bool enforceTxsApplyOrder = false,
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
 #endif
 
 // `TxSetFrame` is a wrapper around `TransactionSet` or
@@ -292,30 +306,30 @@ class TxSetPhaseFrame
     // transactions in the same lane)
     InclusionFeeMap const& getInclusionFeeMap() const;
 
-    std::optional<Resource> getTotalResources() const;
+    std::optional<Resource> getTotalResources(uint32_t ledgerVersion) const;
 
   private:
     friend class TxSetXDRFrame;
     friend class ApplicableTxSetFrame;
 
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
-                              Application& app,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              PerPhaseTransactionList& invalidTxsPerPhase
+    makeTxSetFromTransactions(
+        PerPhaseTransactionList const& txPhases, Application& app,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
-                              ,
-                              bool skipValidation
+        ,
+        bool skipValidation,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
     );
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              TxFrameList& invalidTxs,
-                              bool enforceTxsApplyOrder);
+    makeTxSetFromTransactions(
+        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
+        bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
 #endif
     TxSetPhaseFrame(TxSetPhase phase, TxFrameList const& txs,
                     std::shared_ptr<InclusionFeeMap> inclusionFeeMap);
@@ -340,7 +354,8 @@ class TxSetPhaseFrame
     // Returns a copy of this phase with transactions sorted for apply.
     TxSetPhaseFrame sortedForApply(Hash const& txSetHash) const;
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) const;
+                    uint64_t upperBoundCloseTimeOffset,
+                    bool txsAreValidated = false) const;
     bool checkValidClassic(LedgerHeader const& lclHeader) const;
     bool checkValidSoroban(LedgerHeader const& lclHeader,
                            SorobanNetworkConfig const& sorobanConfig) const;
@@ -451,28 +466,32 @@ class ApplicableTxSetFrame
   private:
 #endif
     TxSetXDRFrameConstPtr toWireTxSetFrame() const;
+    bool checkValidInternal(Application& app,
+                            uint64_t lowerBoundCloseTimeOffset,
+                            uint64_t upperBoundCloseTimeOffset,
+                            bool txsAreValidated) const;
 
   private:
     friend class TxSetXDRFrame;
 
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
-                              Application& app,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              PerPhaseTransactionList& invalidTxsPerPhase
+    makeTxSetFromTransactions(
+        PerPhaseTransactionList const& txPhases, Application& app,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        PerPhaseTransactionList& invalidTxsPerPhase
 #ifdef BUILD_TESTS
-                              ,
-                              bool skipValidation
+        ,
+        bool skipValidation,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder
 #endif
     );
 #ifdef BUILD_TESTS
     friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeTxSetFromTransactions(TxFrameList txs, Application& app,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              TxFrameList& invalidTxs,
-                              bool enforceTxsApplyOrder);
+    makeTxSetFromTransactions(
+        TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
+        bool enforceTxsApplyOrder,
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
 #endif
 
     ApplicableTxSetFrame(Application& app,

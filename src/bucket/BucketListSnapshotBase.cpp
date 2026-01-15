@@ -10,7 +10,7 @@
 #include "main/AppConnector.h"
 
 #include "util/GlobalChecks.h"
-#include <medida/metrics_registry.h>
+#include "util/MetricsRegistry.h"
 #include <optional>
 #include <vector>
 
@@ -89,7 +89,9 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
     ZoneScoped;
 
     std::shared_ptr<typename BucketT::LoadT const> result{};
-    auto startTime = mAppConnector.now();
+    auto timerIter = mPointTimers.find(k.type());
+    releaseAssert(timerIter != mPointTimers.end());
+    auto timer = timerIter->second.TimeScope();
 
     // Search function called on each Bucket in BucketList until we find the key
     auto loadKeyBucketLoop = [&](auto const& b) {
@@ -98,7 +100,7 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
         {
             // Reset timer on bloom miss to avoid outlier metrics, since we
             // really only want to measure disk performance
-            startTime = mAppConnector.now();
+            timer.Reset();
         }
 
         if (be)
@@ -113,17 +115,6 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k) const
     };
 
     loopAllBuckets(loadKeyBucketLoop, *mSnapshot);
-    auto endTime = mAppConnector.now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        endTime - startTime);
-
-    auto accumulatorIter = mPointAccumulators.find(k.type());
-    releaseAssert(accumulatorIter != mPointAccumulators.end());
-    accumulatorIter->second.inc(duration.count());
-
-    auto counterIter = mPointCounters.find(k.type());
-    releaseAssert(counterIter != mPointCounters.end());
-    counterIter->second.inc();
 
     return result;
 }
@@ -132,7 +123,7 @@ template <class BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq) const
+    std::optional<uint32_t> ledgerSeq) const
 {
     ZoneScoped;
 
@@ -140,7 +131,7 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     auto keys = inKeys;
     std::vector<typename BucketT::LoadT> entries;
     auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(keys, entries, lkMeter);
+        b.loadKeys(keys, entries);
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
@@ -169,7 +160,7 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     uint32_t ledgerSeq) const
 {
-    return loadKeysInternal(inKeys, /*lkMeter=*/nullptr, ledgerSeq);
+    return loadKeysInternal(inKeys, ledgerSeq);
 }
 
 template <class BucketT>
@@ -181,11 +172,9 @@ BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
 
 template <class BucketT>
 SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
-    BucketSnapshotManager const& snapshotManager, AppConnector const& app,
-    SnapshotPtrT<BucketT>&& snapshot,
+    AppConnector const& app, SnapshotPtrT<BucketT>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots)
-    : mSnapshotManager(snapshotManager)
-    , mSnapshot(std::move(snapshot))
+    : mSnapshot(std::move(snapshot))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
     , mAppConnector(app)
     , mBulkLoadMeter(app.getMetrics().NewMeter(
@@ -200,12 +189,9 @@ SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     {
         auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
             static_cast<LedgerEntryType>(t));
-        auto& metric =
-            app.getMetrics().NewCounter({BucketT::METRIC_STRING, label, "sum"});
-        mPointAccumulators.emplace(static_cast<LedgerEntryType>(t), metric);
-        auto& counter = app.getMetrics().NewCounter(
-            {BucketT::METRIC_STRING, label, "count"});
-        mPointCounters.emplace(static_cast<LedgerEntryType>(t), counter);
+        auto& metric = app.getMetrics().NewSimpleTimer(
+            {BucketT::METRIC_STRING, label}, std::chrono::microseconds{1});
+        mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
     }
 }
 

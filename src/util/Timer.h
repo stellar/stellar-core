@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
@@ -61,7 +61,7 @@ class VirtualClockEventCompare
                     std::shared_ptr<VirtualClockEvent> b);
 };
 
-extern const std::chrono::seconds SCHEDULER_LATENCY_WINDOW;
+extern std::chrono::seconds const SCHEDULER_LATENCY_WINDOW;
 
 class VirtualClock
 {
@@ -78,7 +78,7 @@ class VirtualClock
     typedef duration::rep rep;
     typedef duration::period period;
     typedef std::chrono::steady_clock::time_point time_point;
-    static const bool is_steady = true;
+    static bool const is_steady = true;
 
     // We also provide a "system clock" interface. This is _not_ related to the
     // steady_clock / time_point time -- system_time_points are wall/calendar
@@ -135,12 +135,32 @@ class VirtualClock
         return mMode;
     }
 
+    void
+    newBackgroundWork()
+    {
+        if (mMode == VIRTUAL_TIME)
+        {
+            mBackgroundWorkCount++;
+        }
+    }
+
+    void
+    finishedBackgroundWork()
+    {
+        if (mMode == VIRTUAL_TIME)
+        {
+            mBackgroundWorkCount--;
+        }
+    }
+
   private:
     asio::io_context mIOContext;
     Mode const mMode;
 
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
+
+    std::atomic<int> mBackgroundWorkCount{0};
 
     // There are three separate queue-like things in a given VirtualClock.
     //
@@ -278,7 +298,7 @@ class VirtualTimer : private NonMovableOrCopyable
                     std::function<void(asio::error_code)> const& onFailure);
     void cancel();
 
-    static void onFailureNoop(asio::error_code const&){};
+    static void onFailureNoop(asio::error_code const&) {};
 };
 
 // This is almost certainly not the type you want to use. So much so

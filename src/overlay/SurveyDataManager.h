@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "main/Application.h"
 #include "main/Config.h"
@@ -131,6 +131,13 @@ class SurveyDataManager : public NonMovableOrCopyable
     // `true` on success.
     bool fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
                         TopologyResponseBodyV2& response);
+
+    // For non-networked acquiring of local data (i.e., the node's own data)
+    // These are only properly called during the reporting phase--otherwise, the
+    // data will be reset
+    std::optional<TimeSlicedNodeData> const& getFinalNodeData();
+    std::vector<TimeSlicedPeerData> const& getFinalInboundPeerData();
+    std::vector<TimeSlicedPeerData> const& getFinalOutboundPeerData();
 
     // Returns `true` iff there is currently an active survey
     bool surveyIsActive() const;

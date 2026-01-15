@@ -13,10 +13,10 @@
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -186,6 +186,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
+    else if (lcms.back().v() == 2)
+    {
+        REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
     else
     {
         REQUIRE(false);
@@ -275,7 +279,8 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
 
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 {
-    auto test = [&](Config cfg, bool isSoroban) {
+    auto test = [&](Config cfg, bool isSoroban,
+                    bool enableClassicEvents = false) {
         using namespace stellar::txtest;
 
         // We need to fix a deterministic NODE_SEED for this test to be stable.
@@ -288,6 +293,16 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
         cfg.USE_CONFIG_FOR_GENESIS = true;
+        if (enableClassicEvents)
+        {
+            cfg.EMIT_CLASSIC_EVENTS = true;
+            // in real scenario BACKFILL_STELLAR_ASSET_EVENTS can be
+            // individually disabled, but for this test we enable it
+            cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+        }
+
+        // TODO: (if enableClassicEvents) consider generating more interesting
+        // event-emitting operations for classic
 
         // LedgerNum that we will examine the meta at
         uint32_t targetSeq;
@@ -346,7 +361,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             SorobanResources restoreResources;
             restoreResources.footprint.readWrite = {archivedLk};
             restoreResources.instructions = 0;
-            restoreResources.readBytes = 5'000;
+            restoreResources.diskReadBytes = 5'000;
             restoreResources.writeBytes = 1'000;
             auto tx1 = test.createRestoreTx(restoreResources, 1'000,
                                             DEFAULT_TEST_RESOURCE_FEE, &acc1);
@@ -355,7 +370,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             SorobanResources extendResources;
             extendResources.footprint.readOnly = contract.getKeys();
             extendResources.instructions = 0;
-            extendResources.readBytes = 10'000;
+            extendResources.diskReadBytes = 10'000;
             extendResources.writeBytes = 0;
             auto tx2 =
                 test.createExtendOpTx(extendResources, /*extendTo*/ 10'000,
@@ -389,7 +404,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                            .createTx(&acc4);
             SorobanResources createResources;
             createResources.instructions = 200'000;
-            createResources.readBytes = 5000;
+            createResources.diskReadBytes = 5000;
             createResources.writeBytes = 5000;
 
             auto tx5 = makeSorobanCreateContractTx(
@@ -418,7 +433,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 modifySorobanNetworkConfig(
                     *app, [&](SorobanNetworkConfig& cfg) {
                         cfg.mStateArchivalSettings
-                            .bucketListWindowSamplePeriod = 1;
+                            .liveSorobanStateSizeWindowSamplePeriod = 1;
                     });
 
                 // Modify Soroban network config closes 4 ledgers
@@ -479,7 +494,9 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
                 ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
             }
-            else
+            else if (protocolVersionIsBefore(
+                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                         PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
             {
                 // LCM v1
                 REQUIRE(lcm.v() == 1);
@@ -487,25 +504,22 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
                 ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
             }
+            else
+            {
+                // LCM v2
+                REQUIRE(lcm.v() == 2);
+                REQUIRE(lcm.v2().ledgerHeader.header.ledgerVersion ==
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
+            }
 
             if (ledgerSeq == targetSeq)
             {
-                std::string refJsonPath;
-                if (isSoroban)
-                {
-                    refJsonPath = fmt::format(
-                        FMT_STRING("testdata/"
-                                   "ledger-close-meta-v{}-protocol-{}-"
-                                   "soroban.json"),
-                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-                }
-                else
-                {
-                    refJsonPath = fmt::format(
-                        FMT_STRING("testdata/"
-                                   "ledger-close-meta-v{}-protocol-{}.json"),
-                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-                }
+                auto refJsonPath = getSrcTestDataPath(fmt::format(
+                    FMT_STRING("ledger-close-meta{}-v{}-protocol-{}{}.json"),
+                    enableClassicEvents ? "-enable-classic-events" : "",
+                    lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    isSoroban ? "-soroban" : ""));
                 normalizeMeta(lcm);
                 std::string have = xdrToCerealString(lcm, "LedgerCloseMeta");
                 if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
@@ -544,6 +558,22 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 SOROBAN_PROTOCOL_VERSION))
         {
             test(cfg, true);
+        }
+    }
+
+    SECTION("stellar classic enabling classic events")
+    {
+        test(getTestConfig(), false, true);
+    }
+
+    SECTION("soroban enabling classic events")
+    {
+        Config cfg = getTestConfig();
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            test(cfg, true, true);
         }
     }
 }

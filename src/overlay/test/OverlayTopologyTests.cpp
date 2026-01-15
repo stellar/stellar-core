@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/KeyUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 
@@ -155,7 +155,7 @@ TEST_CASE("basic connectivity", "[overlay][connectivity][!hide]")
 
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(4, 1); },
-            5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(isConnected(numNodes, numWatchers, simulation));
         return simulation;
     };
@@ -228,7 +228,7 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
             randomIndexes.push_back(i);
         }
         stellar::shuffle(std::begin(randomIndexes), std::end(randomIndexes),
-                         gRandomEngine);
+                         getGlobalRandomEngine());
         // One-by-one add a node, ensure everyone can connect
         for (int i = 0; i < randomIndexes.size(); i++)
         {
@@ -256,7 +256,7 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
         simulation->startAllNodes();
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(3, 1); },
-            5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * simulation->getExpectedLedgerCloseTime(), false);
         REQUIRE(isConnected(numNodes, numWatchers, simulation));
 
         SECTION("basic churn - remove and add")

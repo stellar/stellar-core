@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "history/CheckpointBuilder.h"
 #include "history/HistoryManager.h"
@@ -46,16 +46,16 @@ class HistoryManagerImpl : public HistoryManager
 
     void logAndUpdatePublishStatus() override;
 
-    bool maybeQueueHistoryCheckpoint(uint32_t lcl) override;
+    bool maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                     uint32_t ledgerVers) override;
 
-    void queueCurrentHistory(uint32_t lcl) override;
+    void queueCurrentHistory(uint32_t lcl, uint32_t ledgerVers) override;
 
     void takeSnapshotAndPublish(HistoryArchiveState const& has);
 
     size_t publishQueuedHistory() override;
 
     void maybeCheckpointComplete(uint32_t lcl) override;
-    void dropSQLBasedPublish() override;
 
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;
@@ -77,6 +77,8 @@ class HistoryManagerImpl : public HistoryManager
     uint64_t getPublishQueueCount() const override;
     uint64_t getPublishSuccessCount() const override;
     uint64_t getPublishFailureCount() const override;
+
+    void waitForCheckpointPublish() override;
 
 #ifdef BUILD_TESTS
     void setPublicationEnabled(bool enabled) override;

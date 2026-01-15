@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "database/Database.h"
 #include "main/Application.h"
@@ -13,7 +13,7 @@
 namespace stellar
 {
 
-// PersistentState class ensures all state criticial to node health, such as
+// PersistentState class ensures all state critical to node health, such as
 // LCL, SCP messages, upgrades etc are persisted to the database. The class
 // maintains two separate tables to avoid conflicts during concurrent writes.
 class PersistentState
@@ -28,27 +28,28 @@ class PersistentState
         kHistoryArchiveState,
         kDatabaseSchema,
         kNetworkPassphrase,
-        // https://github.com/stellar/stellar-core/issues/4582
-        kDBBackend,
         kRebuildLedger,
+        kLastEntryMain,
+
         // SCP-related entries
+        kMiscDatabaseSchema,
         kLedgerUpgrades,
         kLastSCPDataXDR,
         kTxSet,
         kLastEntry,
     };
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(Database& db);
+    static void createMisc(Database& db);
 
     std::string getState(Entry stateName, SessionWrapper& session);
-    void setState(Entry stateName, std::string const& value,
-                  SessionWrapper& session);
+    void setMainState(Entry stateName, std::string const& value,
+                      SessionWrapper& session);
+    void setMiscState(Entry stateName, std::string const& value);
 
     // Special methods for SCP state (multiple slots)
-    std::unordered_map<uint32_t, std::string>
-    getSCPStateAllSlots(std::string table = kSlotTableName);
-    std::unordered_map<Hash, std::string>
-    getTxSetsForAllSlots(std::string table = kSlotTableName);
+    std::unordered_map<uint32_t, std::string> getSCPStateAllSlots();
+    std::unordered_map<Hash, std::string> getTxSetsForAllSlots();
     std::unordered_set<Hash> getTxSetHashesForAllSlots();
 
     void
@@ -60,20 +61,19 @@ class PersistentState
     void setRebuildForOfferTable();
 
     bool hasTxSet(Hash const& txSetHash);
-    void deleteTxSets(std::unordered_set<Hash> hashesToDelete,
-                      std::string table = kSlotTableName);
-    void migrateToSlotStateTable();
+    void deleteTxSets(std::unordered_set<Hash> hashesToDelete);
+    static std::string getStoreStateName(Entry n, uint32 subscript = 0);
 
   private:
     static std::string kSQLCreateStatement;
     static std::string kSQLCreateSCPStatement;
-    static std::string mapping[kLastEntry];
+    static std::string mainMapping[kLastEntryMain];
+    static std::string miscMapping[kLastEntry];
     static std::string kLCLTableName;
     static std::string kSlotTableName;
 
     Application& mApp;
 
-    static std::string getStoreStateName(Entry n, uint32 subscript = 0);
     static std::string getStoreStateNameForTxSet(Hash const& txSetHash);
 
     void setSCPStateForSlot(uint64 slot, std::string const& value);
@@ -82,6 +82,6 @@ class PersistentState
 
     std::string getFromDb(std::string const& entry, SessionWrapper& session,
                           std::string const& tableName);
-    static std::string getDBForEntry(PersistentState::Entry entry);
+    static std::string getTableForEntry(PersistentState::Entry entry);
 };
 }

@@ -49,11 +49,16 @@ bucketlistDB-live.bulk.eviction           | timer     | time to load for evictio
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
 bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
+bucketlistDB-<X>.<Y>.max                  | counter   | max (since last metrics call) of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-cache.hit                    | meter     | number of cache hits on Live BucketList Disk random eviction cache
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
+bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
+bucketlistDB.cache.bytes                  | counter   | estimated size in bytes of entries in Live BucketList index cache
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses
+crypto.verify.tx-valid-hit                | meter     | signature cache hits that occurred while validating transactions (outside of background signature validation)
+crypto.verify.tx-valid-total              | meter     | sum of both hits and misses during transaction validation (outside of background signature validation)
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
@@ -61,8 +66,13 @@ herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending t
 herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
 herder.pending[-soroban]-txs.sum          | counter   | sum of time (milliseconds) for transactions to be included in a ledger
 herder.pending[-soroban]-txs.count        | counter   | number of transactions to be included in a ledger
+herder.pending[-soroban]-txs.max          | counter   | largest time (milliseconds) for a transaction to be included in a ledger since last metrics call
 herder.pending[-soroban]-txs.self-sum     | counter   | sum of time (milliseconds) for transactions submitted from this node to be included in a ledger
 herder.pending[-soroban]-txs.self-count   | counter   | number of transactions submitted from this node to be included in a ledger
+herder.pending[-soroban]-txs.self-max     | counter   | largest time (milliseconds) for a transaction submitted from this node to be included in a ledger since last metrics call
+herder.pending[-soroban]-txs.evicted-due-to-low-fee-count   | counter   | Count of transactions evicted by higher fee txs when queue is near its capacity.
+herder.pending[-soroban]-txs.evicted-due-to-age-count   | counter   | Count of transactions that had low fee for too long and have not been included into several ledgers in a row.
+herder.pending[-soroban]-txs.not-included-due-to-low-fee-count   | counter   | Count of transactions that were not included into queue because it is at capacity and the fee is too low to replace other txs.
 history.check.failure                     | meter     | history archive status checks failed
 history.check.success                     | meter     | history archive status checks succeeded
 history.publish.failure                   | meter     | published failed
@@ -76,8 +86,11 @@ ledger.apply.success                      | counter   | count of successfully ap
 ledger.apply.failure                      | counter   | count of failed applied transactions
 ledger.apply-soroban.success              | counter   | count of successfully applied soroban transactions
 ledger.apply-soroban.failure              | counter   | count of failed applied soroban transactions
+ledger.apply-soroban.max-clusters         | counter   | maximum number of clusters across all stages in a ledger
+ledger.apply-soroban.stages               | counter   | number of stages used for parallel apply in a ledger
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
+ledger.invariant.state-snapshot-skipped   | counter   | number of times state snapshot invariant was skipped due to previous scan still running
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
 ledger.memory.queued-ledgers              | counter   | number of ledgers queued in memory for replay
 ledger.metastream.bytes                   | meter     | number of bytes written per ledger into meta-stream
@@ -85,9 +98,9 @@ ledger.metastream.write                   | timer     | time spent writing data 
 ledger.operation.apply                    | timer     | time applying an operation
 ledger.operation.count                    | histogram | number of operations per ledger
 ledger.transaction.apply                  | timer     | time to apply one transaction
+ledger.transaction.total-apply            | timer     | cumulative time to apply all transactions in a ledger
 ledger.transaction.count                  | histogram | number of transactions per ledger
 ledger.transaction.internal-error         | counter   | number of internal errors since start
-loadgen.account.created                   | meter     | loadgenerator: account created
 loadgen.payment.native                    | meter     | loadgenerator: native payment submitted
 loadgen.pretend.submitted                 | meter     | loadgenerator: pretend ops submitted
 loadgen.run.complete                      | meter     | loadgenerator: run complete
@@ -154,6 +167,7 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X> (except transaction)
 overlay.recv-transaction.sum              | counter   | sum of time (microseconds) to receive transaction message
 overlay.recv-transaction.count            | counter   | number of transaction messages received
+overlay.recv-transaction.max              | counter   | maximum time (microseconds) to receive transaction message since last metrics call
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
@@ -183,11 +197,20 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
+scp.qic.successful-run                    | meter     | number of successful quorum intersection checks completed (a valid result was returned)
+scp.qic.failed-run                        | meter     | number of failed quorum intersection checks (an error/exception was thrown, this could happen if the time-limit was exceeded)
+scp.qic.aborted-run                       | meter     | number of aborted quorum intersection checks (the call was aborted, this could happen if the memory-limit was exceeded)
+scp.qic.result-potential-split            | meter     | number of potential quorum splits detected
+scp.qic.result-unknown                    | meter     | number of unknown results returned (the SAT solver has reached internal limits such as no. conflicts)
+scp.qic.cumulative-time-ms                | meter     | total time spent on quorum intersection checks (non-aborted runs) in milliseconds
+scp.qic.cumulative-mem-byte               | meter     | total memory used by quorum intersection checks (non-aborted runs) in bytes
 state-archival.eviction.age               | counter   | the average of the delta between an entry's liveUntilLedger and the ledger when it is evicted
 state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
 state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
 state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
 state-archival.eviction.period            | counter   | number of ledgers to complete an eviction scan
+state-archival.eviction.blocking-time     | timer     | time spent on eviction on the main thread
+state-archival.eviction.background-time   | timer     | time spent in the background scanning entries to find evictable entries
 soroban.host-fn-op.read-entry                | meter     | number of entries accessed (read or modified) during the `InvokeHostFunctionOp`
 soroban.host-fn-op.write-entry               | meter     | number of entries modified during the `InvokeHostFunctionOp`
 soroban.host-fn-op.read-key-byte             | meter     | number of `LedgerKey` bytes in entries accessed (read or modified) during the `InvokeHostFunctionOp`
@@ -237,7 +260,7 @@ soroban.config.tx-max-size-byte              | counter   | soroban config settin
 soroban.config.tx-max-cpu-insn               | counter   | soroban config setting `tx_max_instructions`
 soroban.config.tx-max-mem-byte               | counter   | soroban config setting `tx_memory_limit`
 soroban.config.tx-max-read-entry             | counter   | soroban config setting `tx_max_read_ledger_entries`
-soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_disk_read_bytes`
 soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
 soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
 soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
@@ -246,7 +269,15 @@ soroban.config.ledger-max-tx-count           | counter   | soroban config settin
 soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
 soroban.config.ledger-max-txs-size-byte      | counter   | soroban config setting `ledger_max_txs_size_bytes`
 soroban.config.ledger-max-read-entry         | counter   | soroban config setting `ledger_max_read_ledger_entries`
-soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_disk_read_bytes`
 soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`
 soroban.config.ledger-max-write-ledger-byte  | counter   | soroban config setting `ledger_max_write_bytes`
-soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `bucket_list_target_size_bytes`
+soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `state_target_size_bytes`
+soroban.module-cache.num-entries             | counter   | current number of entries in module cache
+soroban.module-cache.compilation-time        | timer     | times each contract compilation when adding to module cache
+soroban.module-cache.rebuild-time            | timer     | times each rebuild of module cache (including all compilations)
+soroban.module-cache.rebuild-bytes           | counter   | bytes of WASM bytecode compiled in last rebuild of module cache
+soroban.in-memory-state.contract-code-size   | counter   | size in bytes of non-evicted ContractCode entries according to memory cost model
+soroban.in-memory-state.contract-data-size   | counter   | size in bytes of ContractData entries in memory
+soroban.in-memory-state.contract-code-entries   | counter   | number of ContractCode entries in memory
+soroban.in-memory-state.contract-data-entries   | counter   | number of ContractData entries in memory

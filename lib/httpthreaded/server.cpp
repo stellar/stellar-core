@@ -12,7 +12,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Thread.h"
 
-#include <signal.h>
 #include <sstream>
 #include <thread>
 #include <utility>
@@ -24,21 +23,9 @@ namespace server
 
 server::server(const std::string& address, unsigned short port, int maxClient,
                std::size_t threadPoolSize)
-    : thread_pool_size_(threadPoolSize)
-    , signals_(io_context_)
-    , acceptor_(io_context_)
+    : thread_pool_size_(threadPoolSize), acceptor_(io_context_)
 {
     releaseAssertOrThrow(threadPoolSize > 0);
-    // Register to handle the signals that indicate when the server should exit.
-    // It is safe to register for the same signal multiple times in a program,
-    // provided all registration for the specified signal is made through Asio.
-    signals_.add(SIGINT);
-    signals_.add(SIGTERM);
-#if defined(SIGQUIT)
-    signals_.add(SIGQUIT);
-#endif // defined(SIGQUIT)
-
-    do_await_stop();
 
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(address),
                                      port);
@@ -55,6 +42,10 @@ std::vector<std::thread::id>
 server::start()
 {
     std::vector<std::thread::id> pids;
+
+    // Create work guard to keep io_context alive even if there are no pending
+    // operations.
+    work_guard_.emplace(asio::make_work_guard(io_context_));
 
     // Create a pool of threads to run the io_context.
     for (std::size_t i = 0; i < thread_pool_size_; ++i)
@@ -107,8 +98,17 @@ server::do_accept()
 }
 
 void
-server::stop()
+server::shutdown()
 {
+    if (mIsShutdown.exchange(true))
+    {
+        return;
+    }
+
+    // Reset work guard to allow io_context to finish naturally
+    work_guard_.reset();
+
+    // Stop the io_context, causing all worker threads to exit
     io_context_.stop();
     for (auto& t : worker_threads_)
     {
@@ -116,16 +116,9 @@ server::stop()
     }
 }
 
-void
-server::do_await_stop()
-{
-    signals_.async_wait(
-        [this](std::error_code /*ec*/, int /*signo*/) { this->stop(); });
-}
-
 server::~server()
 {
-    stop();
+    shutdown();
 }
 
 void

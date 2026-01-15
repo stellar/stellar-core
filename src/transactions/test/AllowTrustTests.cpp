@@ -2,8 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -12,6 +12,22 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
+
+// Macro to handle test variant-specific exception types
+// When V==0, uses ALLOW_TRUST exceptions
+// When V!=0, uses SET_TRUST_LINE_FLAGS exceptions
+#define REQUIRE_THROWS_AS_VARIANT(expr, excType) \
+    do \
+    { \
+        if (V == 0) \
+        { \
+            REQUIRE_THROWS_AS(expr, ex_ALLOW_TRUST_##excType); \
+        } \
+        else \
+        { \
+            REQUIRE_THROWS_AS(expr, ex_SET_TRUST_LINE_FLAGS_##excType); \
+        } \
+    } while (0)
 
 namespace stellar
 {
@@ -25,29 +41,8 @@ namespace allowTrustTests
 namespace detail
 {
 
-template <typename, int> struct GetExceptionHelper;
-
-template <typename T> struct GetExceptionHelper<T, 0>
-{
-    typedef T Value;
-};
-
-#define SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(M) \
-    template <> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1> \
-    { \
-        typedef ex_SET_TRUST_LINE_FLAGS_##M Value; \
-    };
-
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(MALFORMED);
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(NO_TRUST_LINE);
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(CANT_REVOKE);
-
-#undef SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST
-
 template <int V> struct TestStub
 {
-    template <typename T>
-    using GetException = typename GetExceptionHelper<T, V>::Value;
 
     static void
     for_versions(uint32 from, uint32 to, Application& app,
@@ -87,8 +82,8 @@ template <int V> struct TestStub
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
 
-        const int64_t trustLineLimit = INT64_MAX;
-        const int64_t trustLineStartingBalance = 20000;
+        int64_t const trustLineLimit = INT64_MAX;
+        int64_t const trustLineStartingBalance = 20000;
 
         auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
@@ -356,16 +351,16 @@ template <int V> struct TestStub
                 SECTION("authorized -> authorized to maintain liabilities")
                 {
                     issuer.allowTrust(iss, a3, flagOp);
-                    REQUIRE_THROWS_AS(
+                    REQUIRE_THROWS_AS_VARIANT(
                         issuer.allowMaintainLiabilities(iss, a3, flagOp),
-                        GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                        CANT_REVOKE);
                 }
 
                 SECTION("authorized to maintain liabilities -> not authorized")
                 {
                     issuer.allowMaintainLiabilities(iss, a3);
-                    REQUIRE_THROWS_AS(issuer.denyTrust(iss, a3, flagOp),
-                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                    REQUIRE_THROWS_AS_VARIANT(issuer.denyTrust(iss, a3, flagOp),
+                                              CANT_REVOKE);
                 }
             }
         });
@@ -377,13 +372,18 @@ template <int V> struct TestStub
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
 
-        auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+
+        // Enable all invariants (including EventsAreConsistentWithEntryDiffs)
+        cfg.INVARIANT_CHECKS = {".*"};
+        cfg.EMIT_CLASSIC_EVENTS = true;
+        cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
 
-        const int64_t trustLineLimit = INT64_MAX;
-        const int64_t trustLineStartingBalance = 20000;
+        int64_t const trustLineLimit = INT64_MAX;
+        int64_t const trustLineStartingBalance = 20000;
 
         auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
@@ -405,10 +405,10 @@ template <int V> struct TestStub
             });
 
             for_versions_from(16, *app, [&] {
-                REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, flagOp),
-                                  GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
-                REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                  GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                REQUIRE_THROWS_AS_VARIANT(gateway.allowTrust(idr, a1, flagOp),
+                                          NO_TRUST_LINE);
+                REQUIRE_THROWS_AS_VARIANT(gateway.denyTrust(idr, a1, flagOp),
+                                          CANT_REVOKE);
             });
         }
 
@@ -453,22 +453,19 @@ template <int V> struct TestStub
                 }
                 SECTION("do not set revocable flag")
                 {
-                    REQUIRE_THROWS_AS(
-                        gateway.allowTrust(idr, a1, flagOp),
-                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
-                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.allowTrust(idr, a1, flagOp), NO_TRUST_LINE);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.denyTrust(idr, a1, flagOp), CANT_REVOKE);
                 }
                 SECTION("set revocable flag")
                 {
                     gateway.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
 
-                    REQUIRE_THROWS_AS(
-                        gateway.allowTrust(idr, a1, flagOp),
-                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
-                    REQUIRE_THROWS_AS(
-                        gateway.denyTrust(idr, a1, flagOp),
-                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.allowTrust(idr, a1, flagOp), NO_TRUST_LINE);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.denyTrust(idr, a1, flagOp), NO_TRUST_LINE);
                 }
             });
         }
@@ -511,12 +508,12 @@ template <int V> struct TestStub
                 }
                 SECTION("do not set revocable flag")
                 {
-                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.denyTrust(idr, a1, flagOp), CANT_REVOKE);
                     a1.pay(gateway, idr, trustLineStartingBalance);
 
-                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.denyTrust(idr, a1, flagOp), CANT_REVOKE);
                 }
                 SECTION("set revocable flag")
                 {
@@ -552,10 +549,10 @@ template <int V> struct TestStub
                 });
 
                 for_versions_from(16, *app, [&] {
-                    REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway, flagOp),
-                                      GetException<ex_ALLOW_TRUST_MALFORMED>);
-                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway, flagOp),
-                                      GetException<ex_ALLOW_TRUST_MALFORMED>);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.allowTrust(idr, gateway, flagOp), MALFORMED);
+                    REQUIRE_THROWS_AS_VARIANT(
+                        gateway.denyTrust(idr, gateway, flagOp), MALFORMED);
                 });
             }
 
@@ -580,12 +577,11 @@ template <int V> struct TestStub
                     });
 
                     for_versions_from(16, *app, [&] {
-                        REQUIRE_THROWS_AS(
+                        REQUIRE_THROWS_AS_VARIANT(
                             gateway.allowTrust(idr, gateway, flagOp),
-                            GetException<ex_ALLOW_TRUST_MALFORMED>);
-                        REQUIRE_THROWS_AS(
-                            gateway.denyTrust(idr, gateway, flagOp),
-                            GetException<ex_ALLOW_TRUST_MALFORMED>);
+                            MALFORMED);
+                        REQUIRE_THROWS_AS_VARIANT(
+                            gateway.denyTrust(idr, gateway, flagOp), MALFORMED);
                     });
                 }
                 SECTION("set revocable flag")
@@ -605,12 +601,11 @@ template <int V> struct TestStub
                     });
 
                     for_versions_from(16, *app, [&] {
-                        REQUIRE_THROWS_AS(
+                        REQUIRE_THROWS_AS_VARIANT(
                             gateway.allowTrust(idr, gateway, flagOp),
-                            GetException<ex_ALLOW_TRUST_MALFORMED>);
-                        REQUIRE_THROWS_AS(
-                            gateway.denyTrust(idr, gateway, flagOp),
-                            GetException<ex_ALLOW_TRUST_MALFORMED>);
+                            MALFORMED);
+                        REQUIRE_THROWS_AS_VARIANT(
+                            gateway.denyTrust(idr, gateway, flagOp), MALFORMED);
                     });
                 }
             }

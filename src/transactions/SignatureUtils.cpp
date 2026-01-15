@@ -27,7 +27,7 @@ sign(SecretKey const& secretKey, Hash const& hash)
     return result;
 }
 
-bool
+PubKeyUtils::VerifySigResult
 verify(DecoratedSignature const& sig, SignerKey const& signerKey,
        Hash const& hash)
 {
@@ -35,24 +35,24 @@ verify(DecoratedSignature const& sig, SignerKey const& signerKey,
     return verify(sig, pubKey, hash);
 }
 
-bool
+PubKeyUtils::VerifySigResult
 verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
 {
     if (!doesHintMatch(pubKey.ed25519(), sig.hint))
     {
-        return false;
+        return {false, PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP};
     }
     return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
 }
 
-bool
+PubKeyUtils::VerifySigResult
 verifyEd25519SignedPayload(DecoratedSignature const& sig,
                            SignerKey const& signer)
 {
     auto const& signedPayload = signer.ed25519SignedPayload();
 
     if (!doesHintMatch(getSignedPayloadHint(signedPayload), sig.hint))
-        return false;
+        return {false, PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP};
 
     PublicKey pubKey;
     pubKey.ed25519() = signedPayload.ed25519;
@@ -61,7 +61,7 @@ verifyEd25519SignedPayload(DecoratedSignature const& sig,
 }
 
 DecoratedSignature
-signHashX(const ByteSlice& x)
+signHashX(ByteSlice const& x)
 {
     ZoneScoped;
     DecoratedSignature result;

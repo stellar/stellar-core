@@ -17,9 +17,9 @@ namespace stellar
 
 using namespace std;
 
-static const std::chrono::milliseconds CRANK_TIME_SLICE(500);
-static const size_t CRANK_EVENT_SLICE = 100;
-const std::chrono::seconds SCHEDULER_LATENCY_WINDOW(5);
+static std::chrono::milliseconds const CRANK_TIME_SLICE(500);
+static size_t const CRANK_EVENT_SLICE = 100;
+std::chrono::seconds const SCHEDULER_LATENCY_WINDOW(5);
 
 VirtualClock::VirtualClock(Mode mode)
     : mMode(mode)
@@ -156,23 +156,13 @@ VirtualClock::tmToSystemPoint(tm t)
 std::tm
 VirtualClock::isoStringToTm(std::string const& iso)
 {
-    std::tm res;
-    int y, M, d, h, m, s;
-    if (std::sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%dZ", &y, &M, &d, &h, &m,
-                    &s) != 6)
+    std::tm res{};
+    std::istringstream ss(iso);
+    ss >> std::get_time(&res, "%Y-%m-%dT%H:%M:%SZ");
+    if (!ss)
     {
         throw std::invalid_argument("Could not parse iso date");
     }
-    std::memset(&res, 0, sizeof(res));
-    res.tm_year = y - 1900;
-    res.tm_mon = M - 1;
-    res.tm_mday = d;
-    res.tm_hour = h;
-    res.tm_min = m;
-    res.tm_sec = s;
-    res.tm_isdst = 0;
-    res.tm_wday = 0;
-    res.tm_yday = 0;
     return res;
 }
 
@@ -398,7 +388,8 @@ VirtualClock::crank(bool block)
 
         // Subtract out any timer cancellations from the above two steps.
         progressCount -= nRealTimerCancelEvents;
-        if (mMode == VIRTUAL_TIME && progressCount == 0)
+        if (mMode == VIRTUAL_TIME && progressCount == 0 &&
+            mBackgroundWorkCount.load() == 0)
         {
             // If we did nothing and we're in virtual mode, we're idle and can
             // skip time forward, dispatching all timers at the next time-step.
@@ -427,6 +418,12 @@ VirtualClock::crank(bool block)
         // If we didn't make progress and caller wants blocking, block now.
         progressCount += mIOContext.run_one();
     }
+
+    if (mMode == VIRTUAL_TIME)
+    {
+        progressCount += mBackgroundWorkCount.load();
+    }
+
     return progressCount;
 }
 

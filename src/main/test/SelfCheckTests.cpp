@@ -4,10 +4,10 @@
 
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"

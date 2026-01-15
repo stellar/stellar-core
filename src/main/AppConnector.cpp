@@ -3,6 +3,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "main/Application.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
@@ -53,16 +54,16 @@ AppConnector::getLastClosedSorobanNetworkConfig() const
     return mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 }
 
-SorobanNetworkConfig const&
-AppConnector::getSorobanNetworkConfigForApply() const
-{
-    return mApp.getLedgerManager().getSorobanNetworkConfigForApply();
-}
-
-medida::MetricsRegistry&
+MetricsRegistry&
 AppConnector::getMetrics() const
 {
     return mApp.getMetrics();
+}
+
+bool
+AppConnector::isStopping() const
+{
+    return mApp.isStopping();
 }
 
 SorobanMetrics&
@@ -74,10 +75,11 @@ AppConnector::getSorobanMetrics() const
 void
 AppConnector::checkOnOperationApply(Operation const& operation,
                                     OperationResult const& opres,
-                                    LedgerTxnDelta const& ltxDelta)
+                                    LedgerTxnDelta const& ltxDelta,
+                                    std::vector<ContractEvent> const& events)
 {
-    mApp.getInvariantManager().checkOnOperationApply(operation, opres,
-                                                     ltxDelta);
+    mApp.getInvariantManager().checkOnOperationApply(operation, opres, ltxDelta,
+                                                     events, *this);
 }
 
 Hash const&
@@ -101,10 +103,30 @@ AppConnector::postOnOverlayThread(std::function<void()>&& f,
     mApp.postOnOverlayThread(std::move(f), message);
 }
 
+void
+AppConnector::postOnBackgroundThread(std::function<void()>&& f,
+                                     std::string const& jobName)
+{
+    mApp.postOnBackgroundThread(std::move(f), jobName);
+}
+
+void
+AppConnector::postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                             std::string const& jobName)
+{
+    mApp.postOnEvictionBackgroundThread(std::move(f), jobName);
+}
+
 Config const&
 AppConnector::getConfig() const
 {
     return mConfig;
+}
+
+rust::Box<rust_bridge::SorobanModuleCache>
+AppConnector::getModuleCache()
+{
+    return mApp.getLedgerManager().getModuleCache();
 }
 
 bool
@@ -154,6 +176,14 @@ AppConnector::copySearchableHotArchiveBucketListSnapshot()
         .copySearchableHotArchiveBucketListSnapshot();
 }
 
+SearchableSnapshotConstPtr
+AppConnector::copySearchableLiveBucketListSnapshot()
+{
+    return mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .copySearchableLiveBucketListSnapshot();
+}
+
 void
 AppConnector::maybeCopySearchableBucketListSnapshot(
     SearchableSnapshotConstPtr& snapshot)
@@ -168,4 +198,24 @@ AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();
 }
+
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+AppConnector::getProtocol23CorruptionDataVerifier()
+{
+    return mApp.getProtocol23CorruptionDataVerifier();
+}
+
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+AppConnector::getProtocol23CorruptionEventReconciler()
+{
+    return mApp.getProtocol23CorruptionEventReconciler();
+}
+
+#ifdef BUILD_TESTS
+bool
+AppConnector::getRunInOverlayOnlyMode() const
+{
+    return mApp.getRunInOverlayOnlyMode();
+}
+#endif
 }

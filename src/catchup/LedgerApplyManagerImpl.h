@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "catchup/CatchupWork.h"
 #include "catchup/LedgerApplyManager.h"
@@ -74,10 +74,8 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
 
     ProcessLedgerResult processLedger(LedgerCloseData const& ledgerData,
                                       bool isLatestSlot) override;
-    void startCatchup(
-        CatchupConfiguration configuration,
-        std::shared_ptr<HistoryArchive> archive,
-        std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) override;
+    void startCatchup(CatchupConfiguration configuration,
+                      std::shared_ptr<HistoryArchive> archive) override;
 
     std::string getStatus() const override;
 

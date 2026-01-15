@@ -91,9 +91,9 @@ SCPDriver::toShortString(NodeID const& pk) const
 }
 
 // values used to switch hash function between priority and neighborhood checks
-static const uint32 hash_N = 1;
-static const uint32 hash_P = 2;
-static const uint32 hash_K = 3;
+static uint32 const hash_N = 1;
+static uint32 const hash_P = 2;
+static uint32 const hash_K = 3;
 
 uint64
 SCPDriver::hashHelper(
@@ -141,26 +141,6 @@ SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
                           vals.emplace_back(xdr::xdr_to_opaque(roundNumber));
                           vals.emplace_back(xdr::xdr_to_opaque(value));
                       });
-}
-
-static const int MAX_TIMEOUT_SECONDS = (30 * 60);
-
-std::chrono::milliseconds
-SCPDriver::computeTimeout(uint32 roundNumber)
-{
-    // straight linear timeout
-    // starting at 1 second and capping at MAX_TIMEOUT_SECONDS
-
-    int timeoutInSeconds;
-    if (roundNumber > MAX_TIMEOUT_SECONDS)
-    {
-        timeoutInSeconds = MAX_TIMEOUT_SECONDS;
-    }
-    else
-    {
-        timeoutInSeconds = (int)roundNumber;
-    }
-    return std::chrono::seconds(timeoutInSeconds);
 }
 
 // if a validator is repeated multiple times its weight is only the

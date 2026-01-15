@@ -12,6 +12,7 @@
 #include "util/asio.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/test/BucketTestUtils.h"
@@ -19,15 +20,19 @@
 #include "history/test/HistoryTestsUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/GlobalChecks.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
+#include "util/UnorderedSet.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include <thread>
 
 #include <cstdio>
 #include <optional>
@@ -100,7 +105,8 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     class BucketManagerTest : public BucketManager
     {
       public:
-        BucketManagerTest(Application& app) : BucketManager(app)
+        BucketManagerTest(Application& app)
+            : BucketManager(app.getAppConnector())
         {
         }
         void
@@ -201,7 +207,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
         std::vector<LedgerEntry> live(
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                {CONFIG_SETTING}, 10));
+                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10));
         std::vector<LedgerKey> dead{};
 
         std::shared_ptr<LiveBucket> b1;
@@ -234,7 +240,15 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             std::string indexFilename =
                 app->getBucketManager().bucketIndexFilename(b->getHash());
             CHECK(fs::exists(filename));
-            CHECK(fs::exists(indexFilename));
+
+            if (b->getIndexForTesting().getPageSize() == 0)
+            {
+                CHECK(!fs::exists(indexFilename));
+            }
+            else
+            {
+                CHECK(fs::exists(indexFilename));
+            }
 
             b.reset();
             app->getBucketManager().forgetUnreferencedBuckets(
@@ -267,7 +281,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
         // But if we mutate the curr bucket of the bucketlist, it should.
         live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-            {CONFIG_SETTING});
+            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL});
         bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
         clearFutures(app, bl);
         CHECK(b1.use_count() == 2);
@@ -293,11 +307,11 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
         do
         {
             ++ledger;
+            // Exclude soroban types to avoid worrying about TTL invariants
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
-                {});
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 10),
+                {}, {});
             closeLedger(*app);
         } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
@@ -329,11 +343,33 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
 
         BucketManager& bm = app->getBucketManager();
         LiveBucketList& bl = bm.getLiveBucketList();
+        HotArchiveBucketList& hotArchive = bm.getHotArchiveBucketList();
         auto vers = getAppLedgerVersion(app);
-
+        bool hasHotArchive = protocolVersionStartsFrom(
+            vers, LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         // Add some entries to get to a nontrivial merge-state.
         uint32_t ledger = 0;
-        uint32_t level = 3;
+        uint32_t level = 4;
+        UnorderedSet<LedgerKey> addedHotArchiveKeys;
+
+        // To prevent duplicate merges that can interfere with counters, seed
+        // the starting Bucket so that each merge is unique. Otherwise, the
+        // first call to addBatch will merge [{first_batch}, empty_bucket]. We
+        // will then see other instances of [{first_batch}, empty_bucket] merges
+        // later on as the Bucket moves its way down the bl. By providing a
+        // seeded bucket, the first addBatch is a [{first_batch}, seeded_bucket]
+        // merge, which will not be duplicated by empty bucket merges later. The
+        // live BL is automatically seeded with the genesis ledger.
+        if (hasHotArchive)
+        {
+            auto initialHotArchiveBucket =
+                LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                    {CONTRACT_CODE}, 10, addedHotArchiveKeys);
+            hotArchive.getLevel(0).setCurr(HotArchiveBucket::fresh(
+                bm, vers, {}, initialHotArchiveBucket, {}, clock.getIOContext(),
+                /*doFsync=*/true));
+        }
+
         do
         {
             ++ledger;
@@ -343,8 +379,18 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             addLiveBatchAndUpdateSnapshot(
                 *app, lh, {},
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10),
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10),
                 {});
+            if (protocolVersionStartsFrom(
+                    vers,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                addHotArchiveBatchAndUpdateSnapshot(
+                    *app, lh,
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_CODE}, 10, addedHotArchiveKeys),
+                    {});
+            }
             bm.forgetUnreferencedBuckets(
                 app->getLedgerManager().getLastClosedLedgerHAS());
         } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
@@ -354,17 +400,42 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
         // eagerly)
         REQUIRE(bl.getLevel(level).getNext().isMerging());
 
+        HistoryArchiveState has;
+        if (hasHotArchive)
+        {
+            REQUIRE(hotArchive.getLevel(level).getNext().isMerging());
+            has = HistoryArchiveState(ledger, bl, hotArchive,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+            REQUIRE(has.hasHotArchiveBuckets());
+        }
+        else
+        {
+            has = HistoryArchiveState(ledger, bl,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+            REQUIRE(!has.hasHotArchiveBuckets());
+        }
+
         // Serialize HAS.
-        HistoryArchiveState has(ledger, bl,
-                                app->getConfig().NETWORK_PASSPHRASE);
         std::string serialHas = has.toString();
 
         // Simulate level committing (and the FutureBucket clearing),
         // followed by the typical ledger-close bucket GC event.
         bl.getLevel(level).commit();
         REQUIRE(!bl.getLevel(level).getNext().isMerging());
-        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-        REQUIRE(ra == 0);
+        if (hasHotArchive)
+        {
+            hotArchive.getLevel(level).commit();
+            REQUIRE(!hotArchive.getLevel(level).getNext().isMerging());
+        }
+
+        REQUIRE(
+            bm.readMergeCounters<LiveBucket>().mFinishedMergeReattachments ==
+            0);
+        if (hasHotArchive)
+        {
+            REQUIRE(bm.readMergeCounters<HotArchiveBucket>()
+                        .mFinishedMergeReattachments == 0);
+        }
 
         // Deserialize HAS.
         HistoryArchiveState has2;
@@ -375,12 +446,29 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             *app, vers, LiveBucketList::keepTombstoneEntries(level));
         REQUIRE(has2.currentBuckets[level].next.isMerging());
 
+        if (hasHotArchive)
+        {
+            has2.hotArchiveBuckets[level].next.makeLive(
+                *app, vers, HotArchiveBucketList::keepTombstoneEntries(level));
+            REQUIRE(has2.hotArchiveBuckets[level].next.isMerging());
+
+            // Resolve reattached future.
+            has2.hotArchiveBuckets[level].next.resolve();
+        }
+
         // Resolve reattached future.
         has2.currentBuckets[level].next.resolve();
 
-        // Check that we reattached to a finished merge.
-        ra = bm.readMergeCounters().mFinishedMergeReattachments;
-        REQUIRE(ra != 0);
+        // Check that we reattached to one finished merge per bl.
+        if (hasHotArchive)
+        {
+            REQUIRE(bm.readMergeCounters<HotArchiveBucket>()
+                        .mFinishedMergeReattachments == 1);
+        }
+
+        REQUIRE(
+            bm.readMergeCounters<LiveBucket>().mFinishedMergeReattachments ==
+            1);
     });
 }
 
@@ -390,82 +478,135 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
-    cfg.MANUAL_CLOSE = false;
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
 
         BucketManager& bm = app->getBucketManager();
         LiveBucketList& bl = bm.getLiveBucketList();
+        HotArchiveBucketList& hotArchive = bm.getHotArchiveBucketList();
         auto vers = getAppLedgerVersion(app);
+        bool hasHotArchive = protocolVersionStartsFrom(
+            vers, LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
 
-        // This test is a race that will (if all goes well) eventually be won:
-        // we keep trying to do an immediate-reattach to a running merge and
-        // will only lose in cases of extremely short-running merges that finish
-        // before we have a chance to reattach. Once the merges are at all
-        // nontrivial in size, we'll likely win. In practice we observe the race
-        // being won within 10 ledgers.
-        //
-        // The amount of testing machinery we have to put in place to make this
-        // a non-racy test seems to be (a) extensive and (b) not worth the
-        // trouble, since it'd be testing fake circumstances anyways: the entire
-        // point of reattachment is to provide a benefit in cases where this
-        // race is won. So testing it _as_ a race seems reasonably fair.
-        //
-        // That said, nondeterminism in tests is no fun and tests that run
-        // potentially-forever are no fun. So we put a statistically-unlikely
-        // limit in here of 10,000 ledgers. If we consistently lose for that
-        // long, there's probably something wrong with the code, and in any case
-        // it's a better nondeterministic failure than timing out the entire
-        // testsuite with no explanation.
-        uint32_t ledger = 0;
-        uint32_t limit = 10000;
-        while (ledger < limit &&
-               bm.readMergeCounters().mRunningMergeReattachments == 0)
+        // Test that we can reattach to a merge that's in progress. To simulate
+        // this, we need to artificially delay a merge that is NOT occurring on
+        // the main thread. To do this, we will close ledgers until just before
+        // a level 3 spill. To speed up the test, we don't enable artificial
+        // merge delays until the ledger before a level 3 spill. Right before we
+        // close the level 3 spill ledger, we enable artificial merge delays.
+        // This won't effect the behavior of the actual spill, since those
+        // buckets have already finished merging in the background, but it will
+        // delay the new merges that are spawned by the spill. The result is
+        // that addBatch returns quickly, but new background merges are
+        // artificially delayed. This gives the test time to forget about the
+        // in-progress, delayed merges, and attempt to reattach to them.
+
+        uint32_t ledger = 1;
+        uint32_t const spillLedger = 32;
+
+        // Close ledgers until just before the spill ledger.
+        for (; ledger < spillLedger; ++ledger)
         {
-            ++ledger;
-            // Merges will start on one or more levels here, starting a race
-            // between the main thread here and the background workers doing
-            // the merges.
             auto lh =
                 app->getLedgerManager().getLastClosedLedgerHeader().header;
             lh.ledgerSeq = ledger;
             addLiveBatchAndUpdateSnapshot(
                 *app, lh, {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 100),
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 75),
                 {});
-
-            bm.forgetUnreferencedBuckets(
-                app->getLedgerManager().getLastClosedLedgerHAS());
-
-            HistoryArchiveState has(ledger, bl,
-                                    app->getConfig().NETWORK_PASSPHRASE);
-            std::string serialHas = has.toString();
-
-            // Deserialize and reactivate levels of HAS. Races with the merge
-            // workers end here. One of these reactivations should eventually
-            // reattach, winning the race (each time around this loop the
-            // merge workers will take longer to finish, so we will likely
-            // win quite shortly).
-            HistoryArchiveState has2;
-            has2.fromString(serialHas);
-            for (uint32_t level = 0; level < LiveBucketList::kNumLevels;
-                 ++level)
+            if (hasHotArchive)
             {
-                if (has2.currentBuckets[level].next.hasHashes())
-                {
-                    has2.currentBuckets[level].next.makeLive(
-                        *app, vers,
-                        LiveBucketList::keepTombstoneEntries(level));
-                }
+                addHotArchiveBatchAndUpdateSnapshot(
+                    *app, lh,
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_CODE}, 75),
+                    {});
             }
         }
-        CLOG_INFO(Bucket, "reattached to running merge at or around ledger {}",
-                  ledger);
-        REQUIRE(ledger < limit);
-        auto ra = bm.readMergeCounters().mRunningMergeReattachments;
-        REQUIRE(ra != 0);
+
+        // Enable merge delays just before we close the spill ledger. At this
+        // point, all next buckets should already be finished merging and will
+        // be unaffected by the delay. The new merges spawned by the spill will
+        // be delayed.
+        bm.enableDelayedMergesForTesting();
+
+        // Now close ledger 32, which will trigger merges on multiple levels
+        // with delay
+        {
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = ledger;
+
+            if (hasHotArchive)
+            {
+                addHotArchiveBatchAndUpdateSnapshot(
+                    *app, lh,
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {CONTRACT_CODE}, 75),
+                    {});
+            }
+
+            // Add enough entries to ensure buckets have substantial size
+            addLiveBatchAndUpdateSnapshot(
+                *app, lh, {},
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 75),
+                {});
+        }
+
+        bm.forgetUnreferencedBuckets(
+            app->getLedgerManager().getLastClosedLedgerHAS());
+
+        // Now serialize and deserialize to test reattachment
+        HistoryArchiveState has;
+        if (hasHotArchive)
+        {
+            has = HistoryArchiveState(ledger, bl, hotArchive,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+        }
+        else
+        {
+            has = HistoryArchiveState(ledger, bl,
+                                      app->getConfig().NETWORK_PASSPHRASE);
+        }
+
+        std::string serialHas = has.toString();
+
+        // Deserialize and reactivate levels of HAS. Due to the artificial
+        // delay, merges should still be running, so we should successfully
+        // reattach to them.
+        HistoryArchiveState has2;
+        has2.fromString(serialHas);
+        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
+        {
+            if (has2.currentBuckets[level].next.hasHashes())
+            {
+                has2.currentBuckets[level].next.makeLive(
+                    *app, vers, LiveBucketList::keepTombstoneEntries(level));
+            }
+        }
+
+        for (uint32_t level = 0; level < has2.hotArchiveBuckets.size(); ++level)
+        {
+            if (has2.hotArchiveBuckets[level].next.hasHashes())
+            {
+                has2.hotArchiveBuckets[level].next.makeLive(
+                    *app, vers,
+                    HotArchiveBucketList::keepTombstoneEntries(level));
+            }
+        }
+
+        // Make sure we reattached to both BucketLists
+        if (hasHotArchive)
+        {
+            REQUIRE(bm.readMergeCounters<HotArchiveBucket>()
+                        .mRunningMergeReattachments == 1);
+        }
+
+        REQUIRE(bm.readMergeCounters<LiveBucket>().mRunningMergeReattachments >=
+                1);
     });
 }
 
@@ -496,9 +637,10 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // subsequent merges touch them, producing empty buckets.
     for (size_t i = 0; i < 128; ++i)
     {
+        // Exclude soroban types to avoid worrying about TTL invariants
         auto entries =
             LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                {CONFIG_SETTING}, 8);
+                {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 8);
         REQUIRE(entries.size() == 8);
         for (auto const& e : entries)
         {
@@ -555,64 +697,105 @@ TEST_CASE_VERSIONS(
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
         auto vers = getAppLedgerVersion(app);
         auto& hm = app->getHistoryManager();
         auto& bm = app->getBucketManager();
+        auto& lm = app->getLedgerManager();
+        bool hasHotArchive = protocolVersionStartsFrom(
+            vers, LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         hm.setPublicationEnabled(false);
         app->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName());
+        UnorderedSet<LedgerKey> hotArchiveKeys{};
+        auto lastLcl = lm.getLastClosedLedgerNum();
         while (hm.getPublishQueueCount() < 5)
         {
             // Do not merge this line with the next line: CLOG and
             // readMergeCounters each acquire a mutex, and it's possible to
             // deadlock with one of the worker threads if you try to hold them
             // both at the same time.
-            auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-            CLOG_INFO(Bucket, "finished-merge reattachments while queueing: {}",
-                      ra);
-            auto lh =
-                app->getLedgerManager().getLastClosedLedgerHeader().header;
-            lh.ledgerSeq++;
-            addLiveBatchAndUpdateSnapshot(
-                *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 100),
-                {});
+            auto ra =
+                bm.readMergeCounters<LiveBucket>().mFinishedMergeReattachments;
+            auto raHotArchive = bm.readMergeCounters<HotArchiveBucket>()
+                                    .mFinishedMergeReattachments;
+            CLOG_INFO(Bucket,
+                      "finished-merge reattachments while queueing: live "
+                      "BucketList {}, Hot Archive BucketList {}",
+                      ra, raHotArchive);
+            if (lm.getLastClosedLedgerNum() != lastLcl)
+            {
+                lastLcl = lm.getLastClosedLedgerNum();
+
+                // Exclude soroban types from live BL to avoid worrying about
+                // TTL invariants
+                lm.setNextLedgerEntryBatchForBucketTesting(
+                    LedgerTestUtils::
+                        generateValidUniqueLedgerEntriesWithExclusions(
+                            {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE},
+                            100),
+                    {}, {});
+                if (hasHotArchive)
+                {
+                    lm.setNextArchiveBatchForBucketTesting(
+                        LedgerTestUtils::
+                            generateValidUniqueLedgerEntriesWithTypes(
+                                {CONTRACT_CODE}, 10, hotArchiveKeys),
+                        {});
+                }
+            }
+
             clock.crank(false);
             bm.forgetUnreferencedBuckets(
                 app->getLedgerManager().getLastClosedLedgerHAS());
         }
+
         // We should have published nothing and have the first
         // checkpoint still queued.
         REQUIRE(hm.getPublishSuccessCount() == 0);
         REQUIRE(HistoryManager::getMinLedgerQueuedToPublish(app->getConfig()) ==
                 7);
 
-        auto oldReattachments =
-            bm.readMergeCounters().mFinishedMergeReattachments;
+        auto oldLiveReattachments =
+            bm.readMergeCounters<LiveBucket>().mFinishedMergeReattachments;
+        auto oldHotArchiveReattachments =
+            bm.readMergeCounters<HotArchiveBucket>()
+                .mFinishedMergeReattachments;
         auto HASs = HistoryManager::getPublishQueueStates(app->getConfig());
         REQUIRE(HASs.size() == 5);
         for (auto& has : HASs)
         {
             has.prepareForPublish(*app);
+            REQUIRE(has.hasHotArchiveBuckets() == hasHotArchive);
         }
 
-        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        auto liveRa =
+            bm.readMergeCounters<LiveBucket>().mFinishedMergeReattachments;
+        auto hotArchiveRa = bm.readMergeCounters<HotArchiveBucket>()
+                                .mFinishedMergeReattachments;
         if (protocolVersionIsBefore(vers,
                                     LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
             // finished merges
-            REQUIRE(ra > oldReattachments);
+            REQUIRE(liveRa > oldLiveReattachments);
             CLOG_INFO(Bucket,
-                      "finished-merge reattachments after making-live: {}", ra);
+                      "finished-merge reattachments after making-live: {}",
+                      liveRa);
+
+            // Sanity check: Hot archive disabled in older protocols
+            releaseAssert(!hasHotArchive);
         }
         else
         {
             // Versions after FIRST_PROTOCOL_SHADOWS_REMOVED do not re-attach,
             // because merges are cleared
-            REQUIRE(ra == oldReattachments);
+            REQUIRE(liveRa == oldLiveReattachments);
+
+            if (hasHotArchive)
+            {
+                REQUIRE(hotArchiveRa == oldHotArchiveReattachments);
+            }
         }
 
         // Un-cork the publication process, nothing should be broken.
@@ -661,10 +844,11 @@ TEST_CASE_VERSIONS(
 // 2048).
 class StopAndRestartBucketMergesTest
 {
+    template <class BucketListT>
     static void
-    resolveAllMerges(LiveBucketList& bl)
+    resolveAllMerges(BucketListT& bl)
     {
-        for (uint32 i = 0; i < LiveBucketList::kNumLevels; ++i)
+        for (uint32 i = 0; i < BucketListT::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
             auto& next = level.getNext();
@@ -680,226 +864,332 @@ class StopAndRestartBucketMergesTest
         Hash mCurrBucketHash;
         Hash mSnapBucketHash;
         Hash mBucketListHash;
+        Hash mHotArchiveBucketListHash;
         Hash mLedgerHeaderHash;
-        MergeCounters mMergeCounters;
+        MergeCounters mLiveMergeCounters;
+        MergeCounters mHotArchiveMergeCounters;
 
         void
-        dumpMergeCounters(std::string const& label, uint32_t level) const
+        checkEmptyHotArchiveMetrics() const
         {
-            CLOG_INFO(Bucket, "MergeCounters: {} (designated level: {})", label,
-                      level);
-            CLOG_INFO(Bucket, "PreInitEntryProtocolMerges: {}",
-                      mMergeCounters.mPreInitEntryProtocolMerges);
-            CLOG_INFO(Bucket, "PostInitEntryProtocolMerges: {}",
-                      mMergeCounters.mPostInitEntryProtocolMerges);
-            CLOG_INFO(Bucket, "mPreShadowRemovalProtocolMerges: {}",
-                      mMergeCounters.mPreShadowRemovalProtocolMerges);
-            CLOG_INFO(Bucket, "mPostShadowRemovalProtocolMerges: {}",
-                      mMergeCounters.mPostShadowRemovalProtocolMerges);
-            CLOG_INFO(Bucket, "RunningMergeReattachments: {}",
-                      mMergeCounters.mRunningMergeReattachments);
-            CLOG_INFO(Bucket, "FinishedMergeReattachments: {}",
-                      mMergeCounters.mFinishedMergeReattachments);
-            CLOG_INFO(Bucket, "NewMetaEntries: {}",
-                      mMergeCounters.mNewMetaEntries);
-            CLOG_INFO(Bucket, "NewInitEntries: {}",
-                      mMergeCounters.mNewInitEntries);
-            CLOG_INFO(Bucket, "NewLiveEntries: {}",
-                      mMergeCounters.mNewLiveEntries);
-            CLOG_INFO(Bucket, "NewDeadEntries: {}",
-                      mMergeCounters.mNewDeadEntries);
-            CLOG_INFO(Bucket, "OldMetaEntries: {}",
-                      mMergeCounters.mOldMetaEntries);
-            CLOG_INFO(Bucket, "OldInitEntries: {}",
-                      mMergeCounters.mOldInitEntries);
-            CLOG_INFO(Bucket, "OldLiveEntries: {}",
-                      mMergeCounters.mOldLiveEntries);
-            CLOG_INFO(Bucket, "OldDeadEntries: {}",
-                      mMergeCounters.mOldDeadEntries);
-            CLOG_INFO(Bucket, "OldEntriesDefaultAccepted: {}",
-                      mMergeCounters.mOldEntriesDefaultAccepted);
-            CLOG_INFO(Bucket, "NewEntriesDefaultAccepted: {}",
-                      mMergeCounters.mNewEntriesDefaultAccepted);
-            CLOG_INFO(Bucket, "NewInitEntriesMergedWithOldDead: {}",
-                      mMergeCounters.mNewInitEntriesMergedWithOldDead);
-            CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewLive: {}",
-                      mMergeCounters.mOldInitEntriesMergedWithNewLive);
-            CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewDead: {}",
-                      mMergeCounters.mOldInitEntriesMergedWithNewDead);
-            CLOG_INFO(Bucket, "NewEntriesMergedWithOldNeitherInit: {}",
-                      mMergeCounters.mNewEntriesMergedWithOldNeitherInit);
-            CLOG_INFO(Bucket, "ShadowScanSteps: {}",
-                      mMergeCounters.mShadowScanSteps);
-            CLOG_INFO(Bucket, "MetaEntryShadowElisions: {}",
-                      mMergeCounters.mMetaEntryShadowElisions);
-            CLOG_INFO(Bucket, "LiveEntryShadowElisions: {}",
-                      mMergeCounters.mLiveEntryShadowElisions);
-            CLOG_INFO(Bucket, "InitEntryShadowElisions: {}",
-                      mMergeCounters.mInitEntryShadowElisions);
-            CLOG_INFO(Bucket, "DeadEntryShadowElisions: {}",
-                      mMergeCounters.mDeadEntryShadowElisions);
-            CLOG_INFO(Bucket, "OutputIteratorTombstoneElisions: {}",
-                      mMergeCounters.mOutputIteratorTombstoneElisions);
-            CLOG_INFO(Bucket, "OutputIteratorBufferUpdates: {}",
-                      mMergeCounters.mOutputIteratorBufferUpdates);
-            CLOG_INFO(Bucket, "OutputIteratorActualWrites: {}",
-                      mMergeCounters.mOutputIteratorActualWrites);
+            // If before p23, check that all hot archive metrics are zero
+            CHECK(mHotArchiveMergeCounters.mPreInitEntryProtocolMerges == 0);
+            CHECK(mHotArchiveMergeCounters.mPostInitEntryProtocolMerges == 0);
+            CHECK(mHotArchiveMergeCounters.mPreShadowRemovalProtocolMerges ==
+                  0);
+            CHECK(mHotArchiveMergeCounters.mPostShadowRemovalProtocolMerges ==
+                  0);
+            CHECK(mHotArchiveMergeCounters.mNewMetaEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mNewInitEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mNewLiveEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mNewDeadEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mOldMetaEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mOldInitEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mOldLiveEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mOldDeadEntries == 0);
+            CHECK(mHotArchiveMergeCounters.mOldEntriesDefaultAccepted == 0);
+            CHECK(mHotArchiveMergeCounters.mNewEntriesDefaultAccepted == 0);
+            CHECK(mHotArchiveMergeCounters.mNewInitEntriesMergedWithOldDead ==
+                  0);
+            CHECK(mHotArchiveMergeCounters.mOldInitEntriesMergedWithNewLive ==
+                  0);
+            CHECK(mHotArchiveMergeCounters.mOldInitEntriesMergedWithNewDead ==
+                  0);
+            CHECK(
+                mHotArchiveMergeCounters.mNewEntriesMergedWithOldNeitherInit ==
+                0);
+            CHECK(mHotArchiveMergeCounters.mShadowScanSteps == 0);
+            CHECK(mHotArchiveMergeCounters.mMetaEntryShadowElisions == 0);
+            CHECK(mHotArchiveMergeCounters.mLiveEntryShadowElisions == 0);
+            CHECK(mHotArchiveMergeCounters.mInitEntryShadowElisions == 0);
+            CHECK(mHotArchiveMergeCounters.mDeadEntryShadowElisions == 0);
+            CHECK(mHotArchiveMergeCounters.mOutputIteratorBufferUpdates == 0);
+            CHECK(mHotArchiveMergeCounters.mOutputIteratorActualWrites == 0);
+        }
+
+        void
+        dumpMergeCounters(std::string const& label, uint32_t level,
+                          uint32_t protocol) const
+        {
+            auto dumpCounters = [&](std::string const& label, uint32_t level,
+                                    MergeCounters const& counters) {
+                CLOG_INFO(Bucket, "MergeCounters: {} (designated level: {})",
+                          label, level);
+                CLOG_INFO(Bucket, "PreInitEntryProtocolMerges: {}",
+                          counters.mPreInitEntryProtocolMerges);
+                CLOG_INFO(Bucket, "PostInitEntryProtocolMerges: {}",
+                          counters.mPostInitEntryProtocolMerges);
+                CLOG_INFO(Bucket, "mPreShadowRemovalProtocolMerges: {}",
+                          counters.mPreShadowRemovalProtocolMerges);
+                CLOG_INFO(Bucket, "mPostShadowRemovalProtocolMerges: {}",
+                          counters.mPostShadowRemovalProtocolMerges);
+                CLOG_INFO(Bucket, "RunningMergeReattachments: {}",
+                          counters.mRunningMergeReattachments);
+                CLOG_INFO(Bucket, "FinishedMergeReattachments: {}",
+                          counters.mFinishedMergeReattachments);
+                CLOG_INFO(Bucket, "NewMetaEntries: {}",
+                          counters.mNewMetaEntries);
+                CLOG_INFO(Bucket, "NewInitEntries: {}",
+                          counters.mNewInitEntries);
+                CLOG_INFO(Bucket, "NewLiveEntries: {}",
+                          counters.mNewLiveEntries);
+                CLOG_INFO(Bucket, "NewDeadEntries: {}",
+                          counters.mNewDeadEntries);
+                CLOG_INFO(Bucket, "OldMetaEntries: {}",
+                          counters.mOldMetaEntries);
+                CLOG_INFO(Bucket, "OldInitEntries: {}",
+                          counters.mOldInitEntries);
+                CLOG_INFO(Bucket, "OldLiveEntries: {}",
+                          counters.mOldLiveEntries);
+                CLOG_INFO(Bucket, "OldDeadEntries: {}",
+                          counters.mOldDeadEntries);
+                CLOG_INFO(Bucket, "OldEntriesDefaultAccepted: {}",
+                          counters.mOldEntriesDefaultAccepted);
+                CLOG_INFO(Bucket, "NewEntriesDefaultAccepted: {}",
+                          counters.mNewEntriesDefaultAccepted);
+                CLOG_INFO(Bucket, "NewInitEntriesMergedWithOldDead: {}",
+                          counters.mNewInitEntriesMergedWithOldDead);
+                CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewLive: {}",
+                          counters.mOldInitEntriesMergedWithNewLive);
+                CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewDead: {}",
+                          counters.mOldInitEntriesMergedWithNewDead);
+                CLOG_INFO(Bucket, "NewEntriesMergedWithOldNeitherInit: {}",
+                          counters.mNewEntriesMergedWithOldNeitherInit);
+                CLOG_INFO(Bucket, "ShadowScanSteps: {}",
+                          counters.mShadowScanSteps);
+                CLOG_INFO(Bucket, "MetaEntryShadowElisions: {}",
+                          counters.mMetaEntryShadowElisions);
+                CLOG_INFO(Bucket, "LiveEntryShadowElisions: {}",
+                          counters.mLiveEntryShadowElisions);
+                CLOG_INFO(Bucket, "InitEntryShadowElisions: {}",
+                          counters.mInitEntryShadowElisions);
+                CLOG_INFO(Bucket, "DeadEntryShadowElisions: {}",
+                          counters.mDeadEntryShadowElisions);
+                CLOG_INFO(Bucket, "OutputIteratorTombstoneElisions: {}",
+                          counters.mOutputIteratorTombstoneElisions);
+                CLOG_INFO(Bucket, "OutputIteratorBufferUpdates: {}",
+                          counters.mOutputIteratorBufferUpdates);
+                CLOG_INFO(Bucket, "OutputIteratorActualWrites: {}",
+                          counters.mOutputIteratorActualWrites);
+            };
+
+            dumpCounters(label + " (live)", level, mLiveMergeCounters);
+            if (protocolVersionStartsFrom(
+                    protocol,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                dumpCounters(label + " (hot)", level, mHotArchiveMergeCounters);
+            }
         }
 
         void
         checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
-            CHECK(mMergeCounters.mPostInitEntryProtocolMerges != 0);
+            // Check live merge counters
+            CHECK(mLiveMergeCounters.mPostInitEntryProtocolMerges != 0);
             if (protocolVersionIsBefore(
                     protocol, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
-                CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges == 0);
+                CHECK(mLiveMergeCounters.mPostShadowRemovalProtocolMerges == 0);
             }
             else
             {
-                CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges != 0);
+                CHECK(mLiveMergeCounters.mPostShadowRemovalProtocolMerges != 0);
             }
 
-            CHECK(mMergeCounters.mNewMetaEntries == 0);
-            CHECK(mMergeCounters.mNewInitEntries != 0);
-            CHECK(mMergeCounters.mNewLiveEntries != 0);
-            CHECK(mMergeCounters.mNewDeadEntries != 0);
+            CHECK(mLiveMergeCounters.mNewMetaEntries == 0);
+            CHECK(mLiveMergeCounters.mNewInitEntries != 0);
+            CHECK(mLiveMergeCounters.mNewLiveEntries != 0);
+            CHECK(mLiveMergeCounters.mNewDeadEntries != 0);
 
-            CHECK(mMergeCounters.mOldMetaEntries == 0);
-            CHECK(mMergeCounters.mOldInitEntries != 0);
-            CHECK(mMergeCounters.mOldLiveEntries != 0);
-            CHECK(mMergeCounters.mOldDeadEntries != 0);
+            CHECK(mLiveMergeCounters.mOldMetaEntries == 0);
+            CHECK(mLiveMergeCounters.mOldInitEntries != 0);
+            CHECK(mLiveMergeCounters.mOldLiveEntries != 0);
+            CHECK(mLiveMergeCounters.mOldDeadEntries != 0);
 
-            CHECK(mMergeCounters.mOldEntriesDefaultAccepted != 0);
-            CHECK(mMergeCounters.mNewEntriesDefaultAccepted != 0);
-            CHECK(mMergeCounters.mNewInitEntriesMergedWithOldDead != 0);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewLive != 0);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
-            CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
+            CHECK(mLiveMergeCounters.mOldEntriesDefaultAccepted != 0);
+            CHECK(mLiveMergeCounters.mNewEntriesDefaultAccepted != 0);
+            CHECK(mLiveMergeCounters.mNewInitEntriesMergedWithOldDead != 0);
+            CHECK(mLiveMergeCounters.mOldInitEntriesMergedWithNewLive != 0);
+            CHECK(mLiveMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
+            CHECK(mLiveMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
             if (protocolVersionIsBefore(
                     protocol, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
-                CHECK(mMergeCounters.mShadowScanSteps != 0);
-                CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
+                CHECK(mLiveMergeCounters.mShadowScanSteps != 0);
+                CHECK(mLiveMergeCounters.mLiveEntryShadowElisions != 0);
             }
             else
             {
-                CHECK(mMergeCounters.mShadowScanSteps == 0);
-                CHECK(mMergeCounters.mLiveEntryShadowElisions == 0);
+                CHECK(mLiveMergeCounters.mShadowScanSteps == 0);
+                CHECK(mLiveMergeCounters.mLiveEntryShadowElisions == 0);
             }
 
-            CHECK(mMergeCounters.mMetaEntryShadowElisions == 0);
-            CHECK(mMergeCounters.mInitEntryShadowElisions == 0);
-            CHECK(mMergeCounters.mDeadEntryShadowElisions == 0);
+            CHECK(mLiveMergeCounters.mMetaEntryShadowElisions == 0);
+            CHECK(mLiveMergeCounters.mInitEntryShadowElisions == 0);
+            CHECK(mLiveMergeCounters.mDeadEntryShadowElisions == 0);
 
-            CHECK(mMergeCounters.mOutputIteratorBufferUpdates != 0);
-            CHECK(mMergeCounters.mOutputIteratorActualWrites != 0);
-            CHECK(mMergeCounters.mOutputIteratorBufferUpdates >=
-                  mMergeCounters.mOutputIteratorActualWrites);
+            CHECK(mLiveMergeCounters.mOutputIteratorBufferUpdates != 0);
+            CHECK(mLiveMergeCounters.mOutputIteratorActualWrites != 0);
+            CHECK(mLiveMergeCounters.mOutputIteratorBufferUpdates >=
+                  mLiveMergeCounters.mOutputIteratorActualWrites);
+
+            // Check hot archive merge counters
+            if (protocolVersionStartsFrom(
+                    protocol,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                CHECK(mHotArchiveMergeCounters.mPostInitEntryProtocolMerges ==
+                      0);
+                CHECK(
+                    mHotArchiveMergeCounters.mPostShadowRemovalProtocolMerges ==
+                    0);
+
+                CHECK(mHotArchiveMergeCounters.mNewMetaEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mNewInitEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mNewLiveEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mNewDeadEntries == 0);
+
+                CHECK(mHotArchiveMergeCounters.mOldMetaEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mOldInitEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mOldLiveEntries == 0);
+                CHECK(mHotArchiveMergeCounters.mOldDeadEntries == 0);
+
+                CHECK(mHotArchiveMergeCounters.mOldEntriesDefaultAccepted != 0);
+                CHECK(mHotArchiveMergeCounters.mNewEntriesDefaultAccepted != 0);
+                CHECK(
+                    mHotArchiveMergeCounters.mNewInitEntriesMergedWithOldDead ==
+                    0);
+                CHECK(
+                    mHotArchiveMergeCounters.mOldInitEntriesMergedWithNewLive ==
+                    0);
+                CHECK(
+                    mHotArchiveMergeCounters.mOldInitEntriesMergedWithNewDead ==
+                    0);
+                CHECK(mHotArchiveMergeCounters
+                          .mNewEntriesMergedWithOldNeitherInit == 0);
+
+                CHECK(mHotArchiveMergeCounters.mShadowScanSteps == 0);
+                CHECK(mHotArchiveMergeCounters.mLiveEntryShadowElisions == 0);
+
+                CHECK(mHotArchiveMergeCounters.mMetaEntryShadowElisions == 0);
+                CHECK(mHotArchiveMergeCounters.mInitEntryShadowElisions == 0);
+                CHECK(mHotArchiveMergeCounters.mDeadEntryShadowElisions == 0);
+
+                CHECK(mHotArchiveMergeCounters.mOutputIteratorBufferUpdates !=
+                      0);
+                CHECK(mHotArchiveMergeCounters.mOutputIteratorActualWrites !=
+                      0);
+                CHECK(mHotArchiveMergeCounters.mOutputIteratorBufferUpdates >=
+                      mHotArchiveMergeCounters.mOutputIteratorActualWrites);
+            }
+            else
+            {
+                checkEmptyHotArchiveMetrics();
+            }
         }
 
         void
-        checkSensiblePreInitEntryMergeCounters() const
+        checkSensiblePreInitEntryMergeCounters(uint32_t protocol) const
         {
-            CHECK(mMergeCounters.mPreInitEntryProtocolMerges != 0);
-            CHECK(mMergeCounters.mPreShadowRemovalProtocolMerges != 0);
+            CHECK(mLiveMergeCounters.mPreInitEntryProtocolMerges != 0);
+            CHECK(mLiveMergeCounters.mPreShadowRemovalProtocolMerges != 0);
 
-            CHECK(mMergeCounters.mNewMetaEntries == 0);
-            CHECK(mMergeCounters.mNewInitEntries == 0);
-            CHECK(mMergeCounters.mNewLiveEntries != 0);
-            CHECK(mMergeCounters.mNewDeadEntries != 0);
+            CHECK(mLiveMergeCounters.mNewMetaEntries == 0);
+            CHECK(mLiveMergeCounters.mNewInitEntries == 0);
+            CHECK(mLiveMergeCounters.mNewLiveEntries != 0);
+            CHECK(mLiveMergeCounters.mNewDeadEntries != 0);
 
-            CHECK(mMergeCounters.mOldMetaEntries == 0);
-            CHECK(mMergeCounters.mOldInitEntries == 0);
-            CHECK(mMergeCounters.mOldLiveEntries != 0);
-            CHECK(mMergeCounters.mOldDeadEntries != 0);
+            CHECK(mLiveMergeCounters.mOldMetaEntries == 0);
+            CHECK(mLiveMergeCounters.mOldInitEntries == 0);
+            CHECK(mLiveMergeCounters.mOldLiveEntries != 0);
+            CHECK(mLiveMergeCounters.mOldDeadEntries != 0);
 
-            CHECK(mMergeCounters.mOldEntriesDefaultAccepted != 0);
-            CHECK(mMergeCounters.mNewEntriesDefaultAccepted != 0);
-            CHECK(mMergeCounters.mNewInitEntriesMergedWithOldDead == 0);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewLive == 0);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead == 0);
-            CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
+            CHECK(mLiveMergeCounters.mOldEntriesDefaultAccepted != 0);
+            CHECK(mLiveMergeCounters.mNewEntriesDefaultAccepted != 0);
+            CHECK(mLiveMergeCounters.mNewInitEntriesMergedWithOldDead == 0);
+            CHECK(mLiveMergeCounters.mOldInitEntriesMergedWithNewLive == 0);
+            CHECK(mLiveMergeCounters.mOldInitEntriesMergedWithNewDead == 0);
+            CHECK(mLiveMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
-            CHECK(mMergeCounters.mShadowScanSteps != 0);
-            CHECK(mMergeCounters.mMetaEntryShadowElisions == 0);
-            CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
-            CHECK(mMergeCounters.mInitEntryShadowElisions == 0);
-            CHECK(mMergeCounters.mDeadEntryShadowElisions != 0);
+            CHECK(mLiveMergeCounters.mShadowScanSteps != 0);
+            CHECK(mLiveMergeCounters.mMetaEntryShadowElisions == 0);
+            CHECK(mLiveMergeCounters.mLiveEntryShadowElisions != 0);
+            CHECK(mLiveMergeCounters.mInitEntryShadowElisions == 0);
+            CHECK(mLiveMergeCounters.mDeadEntryShadowElisions != 0);
 
-            CHECK(mMergeCounters.mOutputIteratorBufferUpdates != 0);
-            CHECK(mMergeCounters.mOutputIteratorActualWrites != 0);
-            CHECK(mMergeCounters.mOutputIteratorBufferUpdates >=
-                  mMergeCounters.mOutputIteratorActualWrites);
+            CHECK(mLiveMergeCounters.mOutputIteratorBufferUpdates != 0);
+            CHECK(mLiveMergeCounters.mOutputIteratorActualWrites != 0);
+            CHECK(mLiveMergeCounters.mOutputIteratorBufferUpdates >=
+                  mLiveMergeCounters.mOutputIteratorActualWrites);
         }
 
         void
         checkEqualMergeCounters(Survey const& other) const
         {
-            CHECK(mMergeCounters.mPreInitEntryProtocolMerges ==
-                  other.mMergeCounters.mPreInitEntryProtocolMerges);
-            CHECK(mMergeCounters.mPostInitEntryProtocolMerges ==
-                  other.mMergeCounters.mPostInitEntryProtocolMerges);
+            auto checkCountersEqual = [](auto const& counters,
+                                         auto const& other) {
+                CHECK(counters.mPreInitEntryProtocolMerges ==
+                      other.mPreInitEntryProtocolMerges);
+                CHECK(counters.mPostInitEntryProtocolMerges ==
+                      other.mPostInitEntryProtocolMerges);
 
-            CHECK(mMergeCounters.mPreShadowRemovalProtocolMerges ==
-                  other.mMergeCounters.mPreShadowRemovalProtocolMerges);
-            CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges ==
-                  other.mMergeCounters.mPostShadowRemovalProtocolMerges);
+                CHECK(counters.mPreShadowRemovalProtocolMerges ==
+                      other.mPreShadowRemovalProtocolMerges);
+                CHECK(counters.mPostShadowRemovalProtocolMerges ==
+                      other.mPostShadowRemovalProtocolMerges);
 
-            CHECK(mMergeCounters.mRunningMergeReattachments ==
-                  other.mMergeCounters.mRunningMergeReattachments);
-            CHECK(mMergeCounters.mFinishedMergeReattachments ==
-                  other.mMergeCounters.mFinishedMergeReattachments);
+                CHECK(counters.mRunningMergeReattachments ==
+                      other.mRunningMergeReattachments);
+                CHECK(counters.mFinishedMergeReattachments ==
+                      other.mFinishedMergeReattachments);
 
-            CHECK(mMergeCounters.mNewMetaEntries ==
-                  other.mMergeCounters.mNewMetaEntries);
-            CHECK(mMergeCounters.mNewInitEntries ==
-                  other.mMergeCounters.mNewInitEntries);
-            CHECK(mMergeCounters.mNewLiveEntries ==
-                  other.mMergeCounters.mNewLiveEntries);
-            CHECK(mMergeCounters.mNewDeadEntries ==
-                  other.mMergeCounters.mNewDeadEntries);
-            CHECK(mMergeCounters.mOldMetaEntries ==
-                  other.mMergeCounters.mOldMetaEntries);
-            CHECK(mMergeCounters.mOldInitEntries ==
-                  other.mMergeCounters.mOldInitEntries);
-            CHECK(mMergeCounters.mOldLiveEntries ==
-                  other.mMergeCounters.mOldLiveEntries);
-            CHECK(mMergeCounters.mOldDeadEntries ==
-                  other.mMergeCounters.mOldDeadEntries);
+                CHECK(counters.mNewMetaEntries == other.mNewMetaEntries);
+                CHECK(counters.mNewInitEntries == other.mNewInitEntries);
+                CHECK(counters.mNewLiveEntries == other.mNewLiveEntries);
+                CHECK(counters.mNewDeadEntries == other.mNewDeadEntries);
+                CHECK(counters.mOldMetaEntries == other.mOldMetaEntries);
+                CHECK(counters.mOldInitEntries == other.mOldInitEntries);
+                CHECK(counters.mOldLiveEntries == other.mOldLiveEntries);
+                CHECK(counters.mOldDeadEntries == other.mOldDeadEntries);
 
-            CHECK(mMergeCounters.mOldEntriesDefaultAccepted ==
-                  other.mMergeCounters.mOldEntriesDefaultAccepted);
-            CHECK(mMergeCounters.mNewEntriesDefaultAccepted ==
-                  other.mMergeCounters.mNewEntriesDefaultAccepted);
-            CHECK(mMergeCounters.mNewInitEntriesMergedWithOldDead ==
-                  other.mMergeCounters.mNewInitEntriesMergedWithOldDead);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewLive ==
-                  other.mMergeCounters.mOldInitEntriesMergedWithNewLive);
-            CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead ==
-                  other.mMergeCounters.mOldInitEntriesMergedWithNewDead);
-            CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit ==
-                  other.mMergeCounters.mNewEntriesMergedWithOldNeitherInit);
+                CHECK(counters.mOldEntriesDefaultAccepted ==
+                      other.mOldEntriesDefaultAccepted);
+                CHECK(counters.mNewEntriesDefaultAccepted ==
+                      other.mNewEntriesDefaultAccepted);
+                CHECK(counters.mNewInitEntriesMergedWithOldDead ==
+                      other.mNewInitEntriesMergedWithOldDead);
+                CHECK(counters.mOldInitEntriesMergedWithNewLive ==
+                      other.mOldInitEntriesMergedWithNewLive);
+                CHECK(counters.mOldInitEntriesMergedWithNewDead ==
+                      other.mOldInitEntriesMergedWithNewDead);
+                CHECK(counters.mNewEntriesMergedWithOldNeitherInit ==
+                      other.mNewEntriesMergedWithOldNeitherInit);
 
-            CHECK(mMergeCounters.mShadowScanSteps ==
-                  other.mMergeCounters.mShadowScanSteps);
-            CHECK(mMergeCounters.mMetaEntryShadowElisions ==
-                  other.mMergeCounters.mMetaEntryShadowElisions);
-            CHECK(mMergeCounters.mLiveEntryShadowElisions ==
-                  other.mMergeCounters.mLiveEntryShadowElisions);
-            CHECK(mMergeCounters.mInitEntryShadowElisions ==
-                  other.mMergeCounters.mInitEntryShadowElisions);
-            CHECK(mMergeCounters.mDeadEntryShadowElisions ==
-                  other.mMergeCounters.mDeadEntryShadowElisions);
+                CHECK(counters.mShadowScanSteps == other.mShadowScanSteps);
+                CHECK(counters.mMetaEntryShadowElisions ==
+                      other.mMetaEntryShadowElisions);
+                CHECK(counters.mLiveEntryShadowElisions ==
+                      other.mLiveEntryShadowElisions);
+                CHECK(counters.mInitEntryShadowElisions ==
+                      other.mInitEntryShadowElisions);
+                CHECK(counters.mDeadEntryShadowElisions ==
+                      other.mDeadEntryShadowElisions);
 
-            CHECK(mMergeCounters.mOutputIteratorTombstoneElisions ==
-                  other.mMergeCounters.mOutputIteratorTombstoneElisions);
-            CHECK(mMergeCounters.mOutputIteratorBufferUpdates ==
-                  other.mMergeCounters.mOutputIteratorBufferUpdates);
-            CHECK(mMergeCounters.mOutputIteratorActualWrites ==
-                  other.mMergeCounters.mOutputIteratorActualWrites);
+                CHECK(counters.mOutputIteratorTombstoneElisions ==
+                      other.mOutputIteratorTombstoneElisions);
+                CHECK(counters.mOutputIteratorBufferUpdates ==
+                      other.mOutputIteratorBufferUpdates);
+                CHECK(counters.mOutputIteratorActualWrites ==
+                      other.mOutputIteratorActualWrites);
+            };
+
+            checkCountersEqual(mLiveMergeCounters, other.mLiveMergeCounters);
+            checkCountersEqual(mHotArchiveMergeCounters,
+                               other.mHotArchiveMergeCounters);
         }
+
         void
         checkEqual(Survey const& other) const
         {
@@ -907,17 +1197,28 @@ class StopAndRestartBucketMergesTest
             CHECK(mSnapBucketHash == other.mSnapBucketHash);
             CHECK(mBucketListHash == other.mBucketListHash);
             CHECK(mLedgerHeaderHash == other.mLedgerHeaderHash);
+            CHECK(mHotArchiveBucketListHash == other.mHotArchiveBucketListHash);
             checkEqualMergeCounters(other);
         }
-        Survey(Application& app, uint32_t level)
+        Survey(Application& app, uint32_t level, uint32_t protocol)
         {
             LedgerManager& lm = app.getLedgerManager();
             BucketManager& bm = app.getBucketManager();
             LiveBucketList& bl = bm.getLiveBucketList();
+            HotArchiveBucketList& hotBl = bm.getHotArchiveBucketList();
             // Complete those merges we're about to inspect.
             resolveAllMerges(bl);
+            if (protocolVersionStartsFrom(
+                    protocol,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                resolveAllMerges(hotBl);
+                mHotArchiveBucketListHash = hotBl.getHash();
+                mHotArchiveMergeCounters =
+                    bm.readMergeCounters<HotArchiveBucket>();
+            }
 
-            mMergeCounters = bm.readMergeCounters();
+            mLiveMergeCounters = bm.readMergeCounters<LiveBucket>();
             mLedgerHeaderHash = lm.getLastClosedLedgerHeader().hash;
             mBucketListHash = bl.getHash();
             BucketLevel<LiveBucket>& blv = bl.getLevel(level);
@@ -931,13 +1232,20 @@ class StopAndRestartBucketMergesTest
     std::set<uint32_t> mDesignatedLedgers;
     std::map<uint32_t, Survey> mControlSurveys;
     std::map<LedgerKey, LedgerEntry> mFinalEntries;
+    std::map<LedgerKey, LedgerEntry> mFinalArchiveEntries;
     std::vector<std::vector<LedgerEntry>> mInitEntryBatches;
     std::vector<std::vector<LedgerEntry>> mLiveEntryBatches;
     std::vector<std::vector<LedgerKey>> mDeadEntryBatches;
+    std::vector<std::vector<LedgerEntry>> mArchiveEntryBatches;
+
+    // Initial entries in Hot Archive BucketList, a "genesis leger" equivalent
+    // for Hot Archive
+    std::vector<LedgerKey> mHotArchiveInitialBatch;
 
     void
     collectLedgerEntries(Application& app,
-                         std::map<LedgerKey, LedgerEntry>& entries)
+                         std::map<LedgerKey, LedgerEntry>& liveEntries,
+                         std::map<LedgerKey, LedgerEntry>& archiveEntries)
     {
         auto bl = app.getBucketManager().getLiveBucketList();
         for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
@@ -951,12 +1259,41 @@ class StopAndRestartBucketMergesTest
                     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
                     {
                         auto le = e.liveEntry();
-                        entries[LedgerEntryKey(le)] = le;
+                        liveEntries[LedgerEntryKey(le)] = le;
                     }
                     else
                     {
                         assert(e.type() == DEADENTRY);
-                        entries.erase(e.deadEntry());
+                        liveEntries.erase(e.deadEntry());
+                    }
+                }
+            }
+        }
+
+        if (protocolVersionStartsFrom(
+                getAppLedgerVersion(app),
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            HotArchiveBucketList& hotBl =
+                app.getBucketManager().getHotArchiveBucketList();
+            for (uint32_t i = HotArchiveBucketList::kNumLevels; i > 0; --i)
+            {
+                BucketLevel<HotArchiveBucket> const& level =
+                    hotBl.getLevel(i - 1);
+                for (auto bucket : {level.getSnap(), level.getCurr()})
+                {
+                    for (HotArchiveBucketInputIterator bi(bucket); bi; ++bi)
+                    {
+                        auto const& e = *bi;
+                        if (e.type() == HOT_ARCHIVE_LIVE)
+                        {
+                            archiveEntries.erase(e.key());
+                        }
+                        else
+                        {
+                            archiveEntries[LedgerEntryKey(e.archivedEntry())] =
+                                e.archivedEntry();
+                        }
                     }
                 }
             }
@@ -966,22 +1303,32 @@ class StopAndRestartBucketMergesTest
     void
     collectFinalLedgerEntries(Application& app)
     {
-        collectLedgerEntries(app, mFinalEntries);
-        CLOG_INFO(Bucket, "Collected final ledger state with {} entries.",
-                  mFinalEntries.size());
+        collectLedgerEntries(app, mFinalEntries, mFinalArchiveEntries);
+        CLOG_INFO(Bucket,
+                  "Collected final ledger live state with {} entries, archived "
+                  "state with {} entries",
+                  mFinalEntries.size(), mFinalArchiveEntries.size());
     }
 
     void
     checkAgainstFinalLedgerEntries(Application& app)
     {
         std::map<LedgerKey, LedgerEntry> testEntries;
-        collectLedgerEntries(app, testEntries);
-        CLOG_INFO(Bucket, "Collected test ledger state with {} entries.",
-                  testEntries.size());
+        std::map<LedgerKey, LedgerEntry> testArchiveEntries;
+        collectLedgerEntries(app, testEntries, testArchiveEntries);
+        CLOG_INFO(Bucket,
+                  "Collected test ledger state with {} live entries, {} "
+                  "archived entries",
+                  testEntries.size(), testArchiveEntries.size());
         CHECK(testEntries.size() == mFinalEntries.size());
+        CHECK(testArchiveEntries.size() == mFinalArchiveEntries.size());
         for (auto const& pair : testEntries)
         {
             CHECK(mFinalEntries[pair.first] == pair.second);
+        }
+        for (auto const& pair : testArchiveEntries)
+        {
+            CHECK(mFinalArchiveEntries[pair.first] == pair.second);
         }
     }
 
@@ -1066,10 +1413,37 @@ class StopAndRestartBucketMergesTest
                   "Collecting control surveys in ledger range 2..{} = {:#x}",
                   finalLedger, finalLedger);
         auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+        auto hasHotArchive = protocolVersionStartsFrom(
+            mProtocol,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
 
         std::vector<LedgerKey> allKeys;
         std::map<LedgerKey, LedgerEntry> currLive;
         std::map<LedgerKey, LedgerEntry> currDead;
+        std::map<LedgerKey, LedgerEntry> currArchive;
+
+        // To prevent duplicate merges that can interfere with counters, seed
+        // the starting Bucket so that each merge is unique. Otherwise, the
+        // first call to addBatch will merge [{first_batch}, empty_bucket]. We
+        // will then see other instances of [{first_batch}, empty_bucket] merges
+        // later on as the Bucket moves its way down the bl. By providing a
+        // seeded bucket, the first addBatch is a [{first_batch}, seeded_bucket]
+        // merge, which will not be duplicated by empty bucket merges later. The
+        // live BL is automatically seeded with the genesis ledger.
+        if (hasHotArchive)
+        {
+            UnorderedSet<LedgerKey> empty;
+            mHotArchiveInitialBatch =
+                LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                    {CONTRACT_CODE}, 10, empty);
+            app->getBucketManager()
+                .getHotArchiveBucketList()
+                .getLevel(0)
+                .setCurr(HotArchiveBucket::fresh(
+                    app->getBucketManager(), mProtocol, {},
+                    mHotArchiveInitialBatch, {}, app->getClock().getIOContext(),
+                    /*doFsync=*/true));
+        }
 
         for (uint32_t i = 2;
              !app->getClock().getIOContext().stopped() && i < finalLedger; ++i)
@@ -1078,6 +1452,7 @@ class StopAndRestartBucketMergesTest
             std::vector<LedgerEntry> initEntries;
             std::vector<LedgerEntry> liveEntries;
             std::vector<LedgerKey> deadEntries;
+            std::vector<LedgerEntry> archiveEntries;
             if (mInitEntryBatches.size() > 2)
             {
                 std::set<LedgerKey> changedEntries;
@@ -1133,9 +1508,12 @@ class StopAndRestartBucketMergesTest
             }
             auto nInits =
                 nEntriesInBatch - (liveEntries.size() + deadEntries.size());
+            // Exclude soroban types to avoid TTL complexity since we generate
+            // hot archive entries manually
             auto newRandom =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, nInits);
+                    {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE},
+                    nInits);
             for (auto const& e : newRandom)
             {
                 auto k = LedgerEntryKey(e);
@@ -1143,6 +1521,22 @@ class StopAndRestartBucketMergesTest
                 allKeys.emplace_back(k);
                 currLive.emplace(std::make_pair(k, e));
             }
+            auto newRandomArchive =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_CODE}, nEntriesInBatch);
+            for (auto const& e : newRandomArchive)
+            {
+                auto k = LedgerEntryKey(e);
+                auto [iter, inserted] =
+                    currArchive.emplace(std::make_pair(k, e));
+
+                // only insert new entries to Archive BucketList
+                if (inserted)
+                {
+                    archiveEntries.emplace_back(e);
+                }
+            }
+
             mInitEntryBatches.emplace_back(initEntries);
             mLiveEntryBatches.emplace_back(liveEntries);
             mDeadEntryBatches.emplace_back(deadEntries);
@@ -1150,13 +1544,20 @@ class StopAndRestartBucketMergesTest
             lm.setNextLedgerEntryBatchForBucketTesting(
                 mInitEntryBatches.back(), mLiveEntryBatches.back(),
                 mDeadEntryBatches.back());
+            if (hasHotArchive)
+            {
+                mArchiveEntryBatches.emplace_back(archiveEntries);
+                lm.setNextArchiveBatchForBucketTesting(
+                    mArchiveEntryBatches.back(), {});
+            }
+
             closeLedger(*app);
             assert(i == lm.getLastClosedLedgerHeader().header.ledgerSeq);
             if (shouldSurveyLedger(i))
             {
                 CLOG_INFO(Bucket, "Taking survey at {} = {:#x}", i, i);
-                mControlSurveys.insert(
-                    std::make_pair(i, Survey(*app, mDesignatedLevel)));
+                mControlSurveys.insert(std::make_pair(
+                    i, Survey(*app, mDesignatedLevel, mProtocol)));
             }
         }
 
@@ -1189,6 +1590,20 @@ class StopAndRestartBucketMergesTest
         CLOG_INFO(Bucket,
                   "Running stop/restart test in ledger range 2..{} = {:#x}",
                   finalLedger, finalLedger2);
+
+        if (protocolVersionStartsFrom(
+                firstProtocol,
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            app->getBucketManager()
+                .getHotArchiveBucketList()
+                .getLevel(0)
+                .setCurr(HotArchiveBucket::fresh(
+                    app->getBucketManager(), mProtocol, {},
+                    mHotArchiveInitialBatch, {}, app->getClock().getIOContext(),
+                    /*doFsync=*/true));
+        }
+
         for (uint32_t i = 2;
              !app->getClock().getIOContext().stopped() && i < finalLedger; ++i)
         {
@@ -1197,9 +1612,21 @@ class StopAndRestartBucketMergesTest
                 mInitEntryBatches[i - 2], mLiveEntryBatches[i - 2],
                 mDeadEntryBatches[i - 2]);
             resolveAllMerges(app->getBucketManager().getLiveBucketList());
-            auto countersBeforeClose =
-                app->getBucketManager().readMergeCounters();
 
+            if (protocolVersionStartsFrom(
+                    firstProtocol,
+                    LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                lm.setNextArchiveBatchForBucketTesting(
+                    mArchiveEntryBatches[i - 2], {});
+                resolveAllMerges(
+                    app->getBucketManager().getHotArchiveBucketList());
+            }
+
+            auto liveCountersBeforeClose =
+                app->getBucketManager().readMergeCounters<LiveBucket>();
+            auto archiveCountersBeforeClose =
+                app->getBucketManager().readMergeCounters<HotArchiveBucket>();
             if (firstProtocol != secondProtocol && i == protocolSwitchLedger)
             {
                 CLOG_INFO(Bucket,
@@ -1234,12 +1661,25 @@ class StopAndRestartBucketMergesTest
                     BucketLevel<LiveBucket>& blv =
                         bl.getLevel(mDesignatedLevel);
                     REQUIRE(blv.getNext().isMerging());
+                    if (protocolVersionStartsFrom(
+                            currProtocol,
+                            LiveBucket::
+                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    {
+                        HotArchiveBucketList& hotBl =
+                            app->getBucketManager().getHotArchiveBucketList();
+                        BucketLevel<HotArchiveBucket>& hotBlv =
+                            hotBl.getLevel(mDesignatedLevel);
+                        REQUIRE(hotBlv.getNext().isMerging());
+                    }
                 }
 
                 if (currProtocol == firstProtocol)
                 {
+                    resolveAllMerges(
+                        app->getBucketManager().getHotArchiveBucketList());
                     // Check that the survey matches expectations.
-                    Survey s(*app, mDesignatedLevel);
+                    Survey s(*app, mDesignatedLevel, currProtocol);
                     s.checkEqual(j->second);
                 }
 
@@ -1268,17 +1708,31 @@ class StopAndRestartBucketMergesTest
                     BucketLevel<LiveBucket>& blv =
                         bl.getLevel(mDesignatedLevel);
                     REQUIRE(blv.getNext().isMerging());
+                    if (protocolVersionStartsFrom(
+                            currProtocol,
+                            LiveBucket::
+                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    {
+                        HotArchiveBucketList& hotBl =
+                            app->getBucketManager().getHotArchiveBucketList();
+                        BucketLevel<HotArchiveBucket>& hotBlv =
+                            hotBl.getLevel(mDesignatedLevel);
+                        REQUIRE(hotBlv.getNext().isMerging());
+                    }
                 }
 
                 // If there are restarted merges, we need to reset the counters
                 // to the values they had _before_ the ledger-close so the
                 // restarted merges don't count twice.
-                app->getBucketManager().incrMergeCounters(countersBeforeClose);
+                app->getBucketManager().incrMergeCounters<LiveBucket>(
+                    liveCountersBeforeClose);
+                app->getBucketManager().incrMergeCounters<HotArchiveBucket>(
+                    archiveCountersBeforeClose);
 
                 if (currProtocol == firstProtocol)
                 {
                     // Re-check that the survey matches expectations.
-                    Survey s2(*app, mDesignatedLevel);
+                    Survey s2(*app, mDesignatedLevel, currProtocol);
                     s2.checkEqual(j->second);
                 }
             }
@@ -1303,16 +1757,16 @@ class StopAndRestartBucketMergesTest
                 LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
         {
             mControlSurveys.rbegin()->second.dumpMergeCounters(
-                "control, Post-INITENTRY", mDesignatedLevel);
+                "control, Post-INITENTRY", mDesignatedLevel, mProtocol);
             mControlSurveys.rbegin()
                 ->second.checkSensiblePostInitEntryMergeCounters(mProtocol);
         }
         else
         {
             mControlSurveys.rbegin()->second.dumpMergeCounters(
-                "control, Pre-INITENTRY", mDesignatedLevel);
+                "control, Pre-INITENTRY", mDesignatedLevel, mProtocol);
             mControlSurveys.rbegin()
-                ->second.checkSensiblePreInitEntryMergeCounters();
+                ->second.checkSensiblePreInitEntryMergeCounters(mProtocol);
         }
         runStopAndRestartTest(mProtocol, mProtocol);
         runStopAndRestartTest(mProtocol, mProtocol + 1);
@@ -1328,7 +1782,9 @@ TEST_CASE("bucket persistence over app restart with initentry",
               1,
           static_cast<uint32_t>(
               LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED),
+          static_cast<uint32_t>(
+              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1348,7 +1804,9 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
               1,
           static_cast<uint32_t>(
               LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED),
+          static_cast<uint32_t>(
+              HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION)})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {
@@ -1375,7 +1833,8 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
 
         auto batch_entries =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                {CONFIG_SETTING, OFFER}, 111);
+                {CONFIG_SETTING, OFFER, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                111);
         auto alice = batch_entries.back();
         batch_entries.pop_back();
         std::vector<std::vector<LedgerEntry>> batches;
@@ -1494,4 +1953,79 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
             REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
         }
     });
+}
+
+// This test simulates a race condition in index creation during merge.
+//
+// The race occurs when:
+// 1. Some bucket B exists in BucketManager with an index, but is not currently
+//    in the BucketList (e.g., it left level 0 snap and will re-enter at level 2
+//    curr after a merge completes)
+// 2. A background merge starts that will produce the same bucket hash B
+// 3. The background merge checks if B exists and is indexed
+// 4. Before the background merge calls adoptFileAsBucket and "commits" the
+//    bucket, GC runs on main thread
+// 5. GC sees B has use_count==1 (since background merge has not adopted the
+//    bucket yet), so B's index is freed
+// 6. Background merge calls adoptFileAsBucket, which returns the existing
+//    bucket B
+// 7. But B's index has been freed, the returned bucket is missing its index.
+//
+TEST_CASE("bucket index race condition with GC", "[bucket][bucketmanager]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+
+    Application::pointer app = createTestApplication(clock, cfg);
+    BucketManager& bm = app->getBucketManager();
+    auto vers = getAppLedgerVersion(app);
+
+    std::vector<LedgerEntry> entries =
+        LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+            {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL}, 10);
+
+    Hash bucketHash;
+    {
+        auto bucket1 =
+            LiveBucket::fresh(bm, vers, {}, entries, {},
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+        REQUIRE(bucket1);
+        REQUIRE(bucket1->isIndexed());
+        bucketHash = bucket1->getHash();
+
+        // Keep bucket alive in BucketManager but drop our reference
+        // so use_count == 1 (only BucketManager's map)
+    }
+
+    std::shared_ptr<LiveBucket> bucket2;
+    std::atomic<bool> futureBucketStarted{false};
+
+    // Run fresh() on a background thread to simulate FutureBucket recreating
+    // the same bucket
+    std::thread futureBucketThread([&]() {
+        futureBucketStarted = true;
+        bucket2 =
+            LiveBucket::fresh(bm, vers, {}, entries, {},
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+    });
+
+    while (!futureBucketStarted)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    // Give it time to reach the jitter injection point
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    // Now run GC while getBucket is paused to free the index
+    bm.forgetUnreferencedBuckets(
+        app->getLedgerManager().getLastClosedLedgerHAS());
+
+    futureBucketThread.join();
+
+    // Make sure the bucket from background thread is indexed
+    REQUIRE(bucket2);
+    REQUIRE(bucket2->getHash() == bucketHash);
+    REQUIRE(bucket2->isIndexed());
 }

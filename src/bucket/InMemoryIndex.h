@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2025 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketUtils.h"
@@ -34,7 +34,7 @@ class InternalInMemoryBucketEntry
         virtual IndexPtrT const& get() const = 0;
 
         virtual bool
-        operator==(const AbstractEntry& other) const
+        operator==(AbstractEntry const& other) const
         {
             return copyKey() == other.copyKey();
         }
@@ -189,13 +189,18 @@ class InMemoryIndex
     InMemoryBucketState mInMemoryState;
     AssetPoolIDMap mAssetPoolIDMap;
     BucketEntryCounters mCounters{};
-    std::optional<std::pair<std::streamoff, std::streamoff>> mOfferRange;
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+        mTypeRanges;
 
   public:
     using IterT = InMemoryBucketState::IterT;
 
     InMemoryIndex(BucketManager const& bm,
                   std::filesystem::path const& filename, SHA256* hasher);
+
+    InMemoryIndex(BucketManager& bm,
+                  std::vector<BucketEntry> const& inMemoryState,
+                  BucketMetadata const& metadata);
 
     IterT
     begin() const
@@ -227,19 +232,10 @@ class InMemoryIndex
     }
 
     std::optional<std::pair<std::streamoff, std::streamoff>>
-    getOfferRange() const
-    {
-        return mOfferRange;
-    }
+    getRangeForType(LedgerEntryType type) const;
 
 #ifdef BUILD_TESTS
-    bool
-    operator==(InMemoryIndex const& in) const
-    {
-        return mInMemoryState == in.mInMemoryState &&
-               mAssetPoolIDMap == in.mAssetPoolIDMap &&
-               mCounters == in.mCounters;
-    }
+    bool operator==(InMemoryIndex const& in) const;
 #endif
 };
 }

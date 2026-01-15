@@ -4,7 +4,6 @@
 
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
@@ -16,17 +15,19 @@
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 #include "herder/HerderImpl.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include <fmt/format.h>
 #include <numeric>
 
@@ -864,7 +865,7 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
     auto ledgers = node->getConfig().MAX_SLOTS_TO_REMEMBER + 1;
     simulation->crankUntil(
         [&]() { return simulation->haveAllExternalized(ledgers, 1); },
-        2 * ledgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        2 * ledgers * simulation->getExpectedLedgerCloseTime(), false);
 
     auto conn = simulation->getLoopbackConnection(validatorAKey.getPublicKey(),
                                                   validatorCKey.getPublicKey());
@@ -918,7 +919,8 @@ TEST_CASE("outbound queue filtering", "[overlay][flowcontrol]")
             [&]() {
                 return simulation->haveAllExternalized(nextCheckpoint, 1);
             },
-            2 * (nextCheckpoint - lcl) * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+            2 * (nextCheckpoint - lcl) *
+                simulation->getExpectedLedgerCloseTime(),
             false);
 
         envs = herder.getSCP().getLatestMessagesSend(nextCheckpoint);
@@ -2087,6 +2089,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 3000;
         if (i == 1)
         {
             cfg.FORCE_SCP = false;
@@ -2104,16 +2107,17 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         [&]() {
             return node->getLedgerManager().getLastClosedLedgerNum() >= 15;
         },
-        50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        50 * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(!outOfSyncNode->getLedgerManager().isSynced());
     simulation->addConnection(vNode2NodeID, vNode1NodeID);
 
     // Generate transactions traffic, which the out of sync node will drop
     auto& loadGen = node->getLoadGenerator();
+    // Generate payment transactions
     loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 3000,
-                                                /* txRate */ 1));
+        GeneratedLoadConfig::txLoad(LoadGenMode::PAY, /* nAccounts */ 3000,
+                                    /* nTxs */ 100, /* txRate */ 1));
 
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -2121,7 +2125,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        200 * simulation->getExpectedLedgerCloseTime(), false);
 
     // Confirm Node2 is still connected to Node1 and did not get dropped
     auto conn = simulation->getLoopbackConnection(vNode2NodeID, vNode1NodeID);
@@ -2161,6 +2165,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
             Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
         configs.push_back(cfg);
     }
 
@@ -2208,30 +2213,18 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 
     setupSimulation();
 
-    // Generate a bit of load to flood transactions, make sure nodes can
-    // close ledgers properly
     auto& loadGen = node->getLoadGenerator();
-    loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
-                                                /* txRate */ 1));
-
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
 
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    currLoadGenCount = loadGenDone.count();
-
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
-                                                     /* nAccounts */ 150, 200,
-                                                     /*txRate*/ 5));
+                                                     /* nAccounts */ 1000, 200,
+                                                     /* txRate */ 20));
 
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
-        30 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        30 * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(node->getMetrics()
                 .NewMeter({"overlay", "demand", "timeout"}, "timeout")
@@ -2260,8 +2253,10 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     auto app = createTestApplication(clock, cfg, true, false);
     auto& om = app->getOverlayManager();
     auto& peerManager = om.getPeerManager();
-    auto record = [](size_t numFailures) {
-        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    auto record = [app](size_t numFailures) {
+        return PeerRecord{
+            VirtualClock::systemPointToTm(app->getClock().system_now()),
+            numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
     // Need to set max tx size on tests that start OverlayManager without
@@ -2276,6 +2271,10 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     peerManager.store(localhost(4), record(121), false);
     peerManager.store(localhost(5), record(122), false);
 
+    // Herder depends on LM state for close time, so initialize it manually
+    // since we aren't actually starting app.
+    auto& lm = app->getLedgerManager();
+    lm.partiallyLoadLastKnownLedgerForUtils();
     om.start();
 
     // Must wait 2 seconds as `OverlayManagerImpl::start()`
@@ -2797,7 +2796,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
-        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
     SIMULATION_CREATE_NODE(Node1);
     SIMULATION_CREATE_NODE(Node2);
@@ -2813,11 +2812,13 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     for (auto i = 0; i < 2; i++)
     {
         auto cfg = getTestConfig(i + 1);
-        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * MAX_OPS_PER_TX;
+        // Set really high to avoid throttling flooding
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * 100;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = numAccounts;
         configs.push_back(cfg);
     }
 
-    // Artifical tx size limit to prevent batches from going over
+    // Artificial tx size limit to prevent batches from going over
     // Herder.getMaxTxSize() No limit if set to 0.
     uint32_t txSizeLimit = 0;
     uint32_t const INVALID_LIMIT = 1;
@@ -2845,7 +2846,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
             }
             SECTION("valid limit")
             {
-                txSizeLimit = 10000;
+                txSizeLimit = 1000;
             }
             SECTION("invalid limit")
             {
@@ -2865,7 +2866,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 
     simulation->crankUntil(
         [&] { return simulation->haveAllExternalized(2, 1); },
-        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        3 * simulation->getExpectedLedgerCloseTime(), false);
 
     auto& loadGen = node1->getLoadGenerator();
     if (txSizeLimit > 0)
@@ -2874,11 +2875,11 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
         node2->getHerder().setMaxTxSize(txSizeLimit);
     }
 
-    // Create 5 txns each creating one new account.
+    // Generate payment transactions
     // Set a really high tx rate so we create the txns right away.
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts * MAX_OPS_PER_TX,
-        /* txRate */ 2));
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, /* nAccounts */ numAccounts,
+        /* nTxs */ numAccounts, /* txRate */ 100));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than
@@ -2887,7 +2888,7 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     auto crank = [&]() {
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(5, 1); },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * simulation->getExpectedLedgerCloseTime(), false);
     };
 
     if (txSizeLimit == INVALID_LIMIT)
@@ -2976,5 +2977,379 @@ TEST_CASE("overlay pull mode with many peers",
     testutil::crankFor(clock, std::chrono::minutes(10));
 
     REQUIRE(getSentDemandCount(apps[0]) == maxRetry);
+}
+
+TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
+            if (i == 2)
+            {
+                cfg.PEER_FLOOD_READING_CAPACITY = 1'000'000;
+            }
+            else if (i == 1)
+            {
+                cfg.OUTBOUND_TX_QUEUE_BYTE_LIMIT = 2000;
+            }
+            // Disable SCP voting to avoid noise
+            cfg.NODE_IS_VALIDATOR = false;
+            cfg.FORCE_SCP = false;
+            return cfg;
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet n0_qset;
+    n0_qset.threshold = 1;
+    n0_qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, n0_qset);
+    auto n1 = s->addNode(v11SecretKey, n0_qset);
+
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
+    s->startAllNodes();
+    for (auto const& n : s->getNodes())
+    {
+        n->getLedgerManager().moveToSynced();
+    }
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    int const NUM_MESSAGES = 1000;
+    auto initialTxCount =
+        n0->getMetrics()
+            .NewCounter({"overlay", "recv-transaction", "count"})
+            .count();
+
+    SECTION("p1 never reads")
+    {
+        auto peer = std::static_pointer_cast<LoopbackPeer>(p0);
+        peer->setCorked(true);
+        auto initialQueueDrops =
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count();
+        for (int i = 0; i < NUM_MESSAGES; i++)
+        {
+            p0->sendMessage(makeStellarMessage(1));
+        }
+        s->crankForAtLeast(std::chrono::seconds(5), false);
+
+        auto finalQueueSize =
+            p0->getFlowControl()->getQueuesForTesting()[1].size();
+        auto finalQueueDrops =
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count();
+
+        // Because receiver is corked, drop the whole queue
+        REQUIRE(finalQueueDrops > initialQueueDrops);
+        REQUIRE(finalQueueSize < NUM_MESSAGES);
+        REQUIRE(n1->getMetrics()
+                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .count() == initialTxCount);
+    }
+    SECTION("p1 received all txs")
+    {
+        for (int i = 0; i < NUM_MESSAGES; i++)
+        {
+            p0->sendMessage(makeStellarMessage(1));
+            s->crankForAtLeast(std::chrono::milliseconds(1), false);
+        }
+        s->crankForAtLeast(std::chrono::seconds(1), false);
+
+        REQUIRE(n1->getMetrics()
+                    .NewCounter({"overlay", "recv-transaction", "count"})
+                    .count() == initialTxCount + NUM_MESSAGES);
+        REQUIRE(p0->getFlowControl()->getQueuesForTesting()[1].size() == 0);
+        // No new messages were dropped
+        REQUIRE(
+            n0->getMetrics()
+                .NewMeter({"overlay", "outbound-queue", "drop-tx"}, "message")
+                .count() == 0);
+    }
+}
+
+// Test background signature verification when an incoming transaction contains
+// a non-existent source account
+TEST_CASE("background signature verification with missing account",
+          "[overlay][connections][security]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    // Create simulation with custom config enabling background processing
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
+            return cfg;
+        });
+
+    // Create two nodes
+    auto senderSecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto receiverSecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 1;
+    qset.validators.push_back(senderSecretKey.getPublicKey());
+
+    auto senderNode = s->addNode(senderSecretKey, qset);
+    auto receiverNode = s->addNode(receiverSecretKey, qset);
+
+    // Establish connection
+    s->addPendingConnection(senderSecretKey.getPublicKey(),
+                            receiverSecretKey.getPublicKey());
+    s->startAllNodes();
+    s->crankForAtLeast(std::chrono::seconds(1), false);
+
+    // Get the connected TCPPeer
+    auto receiverPeer = senderNode->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", receiverNode->getConfig().PEER_PORT});
+
+    REQUIRE(receiverPeer);
+    REQUIRE(receiverPeer->isAuthenticatedForTesting());
+
+    // Create a malicious transaction with a non-existent fee source account.
+    // NOTE: Because background signature verification occurs before virtually
+    // all transaction validation, this transaction only needs the sourceAccount
+    // field filled to test this edge case.
+    auto tx = std::make_shared<StellarMessage>();
+    tx->type(TRANSACTION);
+    tx->transaction().type(ENVELOPE_TYPE_TX);
+
+    // Use a completely random account ID that doesn't exist in the ledger
+    SecretKey nonExistentAccount = SecretKey::pseudoRandomForTesting();
+    tx->transaction().v1().tx.sourceAccount.type(KEY_TYPE_ED25519);
+    tx->transaction().v1().tx.sourceAccount.ed25519() =
+        nonExistentAccount.getPublicKey().ed25519();
+
+    // Track number of transactions received by receiverPeer
+    auto const& recvTxCount = receiverNode->getOverlayManager()
+                                  .getOverlayMetrics()
+                                  .mRecvTransactionTimer;
+    REQUIRE(recvTxCount.count() == 0);
+
+    // Send the transaction
+    receiverPeer->sendAuthenticatedMessageForTesting(tx);
+
+    // Crank simulation to process the message on the overlay thread
+    s->crankUntil([&recvTxCount]() { return recvTxCount.count() == 1; },
+                  std::chrono::seconds(2), false);
+
+    // Getting to this point indicates that the background signature
+    // verification did not crash upon encountering the non-existent account,
+    // and `receiverNode` did actually receive the transaction (ensured by the
+    // condition in the above `crankUntil`).
+
+    s->stopAllNodes();
+}
+
+// Targeted testing of background signature verification via direct calls to
+// `populateSignatureCache`
+TEST_CASE("populateSignatureCache tests", "[overlay]")
+{
+    // Common test setup
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
+    auto app = createTestApplication(clock, cfg);
+
+    constexpr int64_t INITIAL_BALANCE = 10000000000;
+    constexpr int64_t PAYMENT_AMOUNT = 100;
+    constexpr int64_t FEE_BUMP_FEE = 1000;
+
+    // Helper function to run `populateSignatureCache` on overlay thread
+    auto invokePopulateSignatureCache = [&](TransactionTestFramePtr tx) {
+        std::atomic<bool> completed(false);
+        app->postOnOverlayThread(
+            [&]() {
+                Peer::populateSignatureCacheForTesting(app->getAppConnector(),
+                                                       tx);
+                completed.store(true);
+            },
+            "populate signature cache test");
+
+        testutil::crankUntil(
+            app, [&completed]() { return completed.load(); },
+            std::chrono::seconds{30});
+    };
+
+    // Helper function to clear cache and reset counters
+    auto resetCache = [&]() {
+        PubKeyUtils::clearVerifySigCache();
+        uint64_t discardHits, discardMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(discardHits, discardMisses);
+    };
+
+    // Set up accounts
+    auto testAccountSk = txtest::getAccount("testaccount");
+    auto testAccount = app->getRoot()->create(testAccountSk, INITIAL_BALANCE);
+    auto feeSourceSk = txtest::getAccount("feesource");
+    auto feeSource = app->getRoot()->create(feeSourceSk, INITIAL_BALANCE);
+    auto nonExistentAccountSk = SecretKey::pseudoRandomForTesting();
+    auto nonExistentFeeSourceSk = SecretKey::pseudoRandomForTesting();
+    auto nonExistentFeeSource = TestAccount{*app, nonExistentFeeSourceSk};
+
+    resetCache();
+
+    SECTION("Normal transaction")
+    {
+        auto tx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+
+        invokePopulateSignatureCache(tx);
+
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+
+        // Should be a single cache miss for the single signature
+        REQUIRE(misses == 1);
+
+        // Call to checkValid should experience only cache hits
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(hits > 0);
+        REQUIRE(misses == 0);
+    }
+
+    SECTION("Fee bump transaction")
+    {
+        auto innerTx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto feeBumpTx =
+            txtest::feeBump(*app, feeSource, innerTx, FEE_BUMP_FEE);
+
+        invokePopulateSignatureCache(feeBumpTx);
+
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+
+        // Should be two misses: one for outer and one for inner tx
+        REQUIRE(misses == 2);
+
+        // Call to checkValid should experience only cache hits
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        feeBumpTx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(hits > 0);
+        REQUIRE(misses == 0);
+    }
+
+    SECTION("Normal transaction with invalid source account")
+    {
+        auto tx = txtest::transactionFromOperations(
+            *app, nonExistentAccountSk, 1,
+            {txtest::payment(nonExistentAccountSk.getPublicKey(),
+                             PAYMENT_AMOUNT)});
+
+        invokePopulateSignatureCache(tx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Transaction shouldn't even make it to the cache stage
+        REQUIRE(finalHits == 0);
+        REQUIRE(finalMisses == 0);
+    }
+
+    SECTION("Fee bump transaction with invalid accounts")
+    {
+        auto innerTx = txtest::transactionFromOperations(
+            *app, nonExistentAccountSk, 1,
+            {txtest::payment(nonExistentAccountSk.getPublicKey(),
+                             PAYMENT_AMOUNT)});
+        auto feeBumpTx =
+            txtest::feeBump(*app, nonExistentFeeSource, innerTx, FEE_BUMP_FEE);
+
+        invokePopulateSignatureCache(feeBumpTx);
+
+        uint64_t finalHits, finalMisses;
+        PubKeyUtils::flushVerifySigCacheCounts(finalHits, finalMisses);
+
+        // Transaction shouldn't even make it to the cache stage for inner or
+        // outer transaction
+        REQUIRE(finalHits == 0);
+        REQUIRE(finalMisses == 0);
+    }
+
+    SECTION("Signature cache invalidation after signer removal")
+    {
+        // Create an additional signer for this test
+        auto additionalSignerSk = txtest::getAccount("additionalsigner");
+
+        // Add the additional signer to the account
+        auto addSignerTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(txtest::makeSigner(additionalSignerSk, 100)))});
+        txtest::applyTx(addSignerTx, *app);
+
+        // Get current sequence number and create two transactions:
+        // 1. Transaction to remove the signer (sequence N+1)
+        // 2. Transaction signed by the signer that will be removed (sequence
+        // N+2)
+        auto currentSeq = testAccount.loadSequenceNumber();
+
+        auto removeSignerTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(txtest::makeSigner(additionalSignerSk, 0)))});
+        txbridge::setSeqNum(removeSignerTx, currentSeq + 1);
+
+        auto paymentTx = txtest::transactionFromOperations(
+            *app, testAccountSk, currentSeq + 2,
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+
+        // Sign with the additional signer instead of the master key
+        auto& signatures = txbridge::getSignatures(paymentTx);
+        signatures.clear();
+        paymentTx->addSignature(additionalSignerSk);
+
+        // Populate signature cache with the transaction signed by the
+        // additional signer
+        resetCache();
+        invokePopulateSignatureCache(paymentTx);
+
+        // Verify that the signature is in the cache
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 1);
+
+        // Remove the signer from the account
+        txtest::applyTx(removeSignerTx, *app);
+
+        // Now check that the cached transaction is invalid due to bad auth
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        bool isValid = paymentTx->checkValidForTesting(app->getAppConnector(),
+                                                       ltx, 0, 0, 0);
+
+        REQUIRE(!isValid);
+
+        // Verify it fails with bad auth, not other reasons
+        auto ls = LedgerSnapshot(ltx);
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                            diagnostics);
+        REQUIRE(result->getResultCode() == txBAD_AUTH);
+
+        // We expect a single cache miss at this point from the application of
+        // `removeSignerTx`
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 1);
+    }
 }
 }

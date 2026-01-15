@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "lib/util/stdrandom.h"
 #include "util/Timer.h"
@@ -25,7 +25,7 @@ bool rand_flip();
 
 typedef std::minstd_rand stellar_default_random_engine;
 
-extern stellar_default_random_engine gRandomEngine;
+stellar_default_random_engine& getGlobalRandomEngine();
 
 template <typename T>
 T
@@ -38,7 +38,7 @@ template <typename T>
 T
 rand_uniform(T lo, T hi)
 {
-    return rand_uniform<T>(lo, hi, gRandomEngine);
+    return rand_uniform<T>(lo, hi, getGlobalRandomEngine());
 }
 
 template <typename T>
@@ -71,7 +71,7 @@ void initializeAllGlobalState();
 // This function should be called any time you need to reset stellar-core's
 // global state based on a seed value, such as before each fuzz run or each unit
 // test. It's declared here because most cases that want to call it are already
-// including Math.h in order to use gRandomEngine. It's not present in
+// including Math.h in order to use getGlobalRandomEngine(). It's not present in
 // non-BUILD_TESTS runs because long-running single-application processes
 // shouldn't be resetting globals like this mid-run -- especially not things
 // like hash function keys.

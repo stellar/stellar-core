@@ -105,10 +105,9 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
 bool
 isStringValid(std::string const& str)
 {
-    auto& loc = std::locale::classic();
     for (auto c : str)
     {
-        if (c < 0 || std::iscntrl(c, loc))
+        if (!isAsciiNonControl(c))
         {
             return false;
         }
@@ -116,6 +115,8 @@ isStringValid(std::string const& str)
     return true;
 }
 
+namespace
+{
 bool
 isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
 {
@@ -141,6 +142,7 @@ isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
            isAssetValid<Asset>(cp.assetB, ledgerVersion) &&
            cp.assetA < cp.assetB && cp.fee == LIQUIDITY_POOL_FEE_V18;
 }
+} // namespace
 
 template <typename T>
 bool
@@ -149,7 +151,6 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
     if (cur.type() == ASSET_TYPE_NATIVE)
         return true;
 
-    auto& loc = std::locale::classic();
     if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         auto const& code = cur.alphaNum4().assetCode;
@@ -168,7 +169,7 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7f || !isAsciiAlphaNumeric((char)b))
                 {
                     return false;
                 }
@@ -196,7 +197,7 @@ isAssetValid(T const& cur, uint32_t ledgerVersion)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7F || !isAsciiAlphaNumeric((char)b))
                 {
                     return false;
                 }
@@ -216,8 +217,9 @@ template bool isAssetValid<Asset>(Asset const&, uint32_t);
 template bool isAssetValid<TrustLineAsset>(TrustLineAsset const&, uint32_t);
 template bool isAssetValid<ChangeTrustAsset>(ChangeTrustAsset const&, uint32_t);
 
+template <typename T>
 bool
-compareAsset(Asset const& first, Asset const& second)
+compareAsset(T const& first, Asset const& second)
 {
     if (first.type() != second.type())
         return false;
@@ -241,6 +243,9 @@ compareAsset(Asset const& first, Asset const& second)
     return false;
 }
 
+template bool compareAsset<Asset>(Asset const&, Asset const&);
+template bool compareAsset<TrustLineAsset>(TrustLineAsset const&, Asset const&);
+
 int32_t
 unsignedToSigned(uint32_t v)
 {
@@ -260,7 +265,7 @@ unsignedToSigned(uint64_t v)
 std::string
 formatSize(size_t size)
 {
-    const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
+    std::vector<std::string> const suffixes = {"B", "KB", "MB", "GB"};
     double dsize = static_cast<double>(size);
 
     size_t i = 0;
@@ -308,7 +313,7 @@ iequals(std::string const& a, std::string const& b)
     if (b.size() != sz)
         return false;
     for (size_t i = 0; i < sz; ++i)
-        if (tolower(a[i]) != tolower(b[i]))
+        if (toAsciiLower(a[i]) != toAsciiLower(b[i]))
             return false;
     return true;
 }

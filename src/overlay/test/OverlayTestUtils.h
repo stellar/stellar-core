@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "overlay/PeerManager.h"
 #include <memory>
@@ -37,9 +37,12 @@ bool knowsAsInbound(Application& knowingApp, Application& knownApp);
 
 bool knowsAsOutbound(Application& knowingApp, Application& knownApp);
 
+bool knowsAsPreferred(Application& knowingApp, Application& knownApp);
+
 int numberOfAppConnections(Application& app);
 
 int numberOfSimulationConnections(std::shared_ptr<Simulation> simulation);
 
+std::shared_ptr<StellarMessage> makeStellarMessage(uint32_t wasmSize);
 }
 }

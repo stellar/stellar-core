@@ -9,7 +9,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -19,6 +18,7 @@
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -35,7 +35,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
 
-    const int nbTx = 100;
+    int const nbTx = 100;
 
     std::vector<TestAccount> sources;
     SequenceNumber expectedSeq = 0;
@@ -146,7 +146,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     {
         TransactionTestFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
-            const int64 txAmount = 10000000;
+            int64 const txAmount = 10000000;
 
             SecretKey dest = SecretKey::pseudoRandomForTesting();
 
@@ -198,6 +198,11 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // adjust delayed tx flooding and how often to pull
             cfg.FLOOD_TX_PERIOD_MS = 10;
             cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(10);
+
+            // Disable ConservationOfLumens because this test pushes accounts
+            // directly into the bucket list.
+            cfg.INVARIANT_CHECKS = {
+                "(?!EventsAreConsistentWithEntryDiffs|ConservationOfLumens).*"};
             return cfg;
         };
         SECTION("core")
@@ -224,6 +229,11 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 // While there's no strict requirement for batching,
                 // it seems more useful to test more realistic settings.
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+
+                // Disable ConservationOfLumens because this test pushes
+                // accounts directly into the bucket list.
+                cfg.INVARIANT_CHECKS = {"(?!EventsAreConsistentWithEntryDiffs|"
+                                        "ConservationOfLumens).*"};
                 return cfg;
             };
             SECTION("pull mode with 2 nodes")
@@ -300,7 +310,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                             return simulation->haveAllExternalized(numLedgers,
                                                                    1);
                         },
-                        numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                        numLedgers * simulation->getExpectedLedgerCloseTime(),
                         false);
 
                     // Ensure old transaction gets re-broadcasted
@@ -431,7 +441,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         }
 
         auto injectSCP = [&](int i) {
-            const int64 txAmount = 10000000;
+            int64 const txAmount = 10000000;
 
             SecretKey dest = SecretKey::pseudoRandomForTesting();
 

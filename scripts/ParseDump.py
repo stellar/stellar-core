@@ -2,19 +2,17 @@ import argparse
 import re
 import subprocess
 
-
 # input: ./src/stellar-core(+0xd9f6bd) [0x55ab4c2456bd]
-def extract_relative_offset(line):
+def extract_addr(line):
     if "stellar-core" not in line:
-        return ""
+        return None
 
-    # extracts (+0xd9f6bd) by matching on (+ ... )
-    # ./src/stellar-core(+0xd9f6bd) [0x55ab4c2456bd] -> (+0xd9f6bd)
-    formated_offset = re.findall(r"\(\+.*?\)", line)
-
-    # Remove first two characters and final character to extract raw offset in 0x.. form
-    # (+0xd9f6bd) -> 0xd9f6bd
-    return formated_offset[0][2:-1]
+    # extracts 0x55ab4c2456bd by matching on [...]$
+    # ./src/stellar-core(+0xd9f6bd) [0x55ab4c2456bd] -> 0x55ab4c2456bd
+    match = re.search(r"\[(0x[0-9a-f]+)\]\s*$", line)
+    if match is not None:
+        return match.group(1)
+    return None
 
 
 def main():
@@ -30,13 +28,12 @@ def main():
 
     parser.add_argument(
         "stack_trace",
+        type=argparse.FileType('r'),
         help="Stack trace reported by stellar-core (should start with something like: ./src/stellar-core(+0xd9f6bd) [0x55a1fcb7d6bd])",
     )
 
     args = parser.parse_args()
-    stack_traces = args.stack_trace.split("\n")
-
-    addr2line_base_args = [
+    command = [
         "addr2line",
         "-f",  # Display function names
         "-C",  # Demangle function names
@@ -45,16 +42,16 @@ def main():
         "-e",
         args.exe.name,
     ]
-
-    for line in stack_traces:
-        relative_offset = extract_relative_offset(line)
-        if not relative_offset:
-            print("??")
-        else:
-            command = addr2line_base_args.copy()
-            command.append(relative_offset)
-            subprocess.run(command)
-
+    addrs = False
+    for line in args.stack_trace.readlines():
+        addr = extract_addr(line)
+        if addr is not None:
+            addrs = True
+            command.append(addr)
+    if not addrs:
+        print("No addresses found in stack trace")
+        return
+    subprocess.run(command)
 
 if __name__ == "__main__":
     main()

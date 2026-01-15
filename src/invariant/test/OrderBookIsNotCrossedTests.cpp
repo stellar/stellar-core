@@ -6,7 +6,7 @@
 #include "invariant/OrderBookIsNotCrossed.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -131,7 +131,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         LedgerTxn ltx{ltxOuter};
         ltx.create(offer);
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {}, app->getAppConnector());
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -154,7 +155,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto entry = ltx.load(LedgerEntryKey(offer));
         entry.current() = offer;
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {}, app->getAppConnector());
         auto const& orders = invariant->getOrderBook().at({cur1, cur2});
 
         REQUIRE(orders.size() == 1);
@@ -174,7 +176,8 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto entry = ltx.load(LedgerEntryKey(offer));
         entry.erase();
 
-        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta(),
+                                         {}, app->getAppConnector());
 
         REQUIRE(invariant->getOrderBook().at({cur1, cur2}).size() == 0);
     }

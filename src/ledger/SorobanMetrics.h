@@ -1,12 +1,13 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
 // This class exists to cache soroban metrics: resource usage and network config
 // limits. It also performs aggregation of ledger-wide resource usage across
 // different operations.
+#include <atomic>
 #include <cstdint>
 
 namespace medida
@@ -15,26 +16,27 @@ class Timer;
 class Meter;
 class Counter;
 class Histogram;
-class MetricsRegistry;
 }
 
 namespace stellar
 {
+class MetricsRegistry;
 
 class SorobanMetrics
 {
   private:
-    uint64_t mCounterLedgerTxCount{0};
-    uint64_t mCounterLedgerCpuInsn{0};
-    uint64_t mCounterLedgerTxsSizeByte{0};
-    uint64_t mCounterLedgerReadEntry{0};
-    uint64_t mCounterLedgerReadByte{0};
-    uint64_t mCounterLedgerWriteEntry{0};
-    uint64_t mCounterLedgerWriteByte{0};
+    std::atomic<uint64_t> mCounterLedgerTxCount{0};
+    std::atomic<uint64_t> mCounterLedgerCpuInsn{0};
+    std::atomic<uint64_t> mCounterLedgerTxsSizeByte{0};
+    std::atomic<uint64_t> mCounterLedgerReadEntry{0};
+    std::atomic<uint64_t> mCounterLedgerReadByte{0};
+    std::atomic<uint64_t> mCounterLedgerWriteEntry{0};
+    std::atomic<uint64_t> mCounterLedgerWriteByte{0};
 
-    uint64_t mLedgerInsnsCount{0};
-    uint64_t mLedgerInsnsExclVmCount{0};
-    uint64_t mLedgerHostFnExecTimeNsecs{0};
+    // These are modified within InvokeHostFunctionOp
+    std::atomic<uint64_t> mLedgerInsnsCount{0};
+    std::atomic<uint64_t> mLedgerInsnsExclVmCount{0};
+    std::atomic<uint64_t> mLedgerHostFnExecTimeNsecs{0};
 
   public:
     // ledger-wide metrics
@@ -96,22 +98,34 @@ class SorobanMetrics
     medida::Counter& mConfigTxMaxSizeByte;
     medida::Counter& mConfigTxMaxCpuInsn;
     medida::Counter& mConfigTxMemoryLimitBytes;
-    medida::Counter& mConfigTxMaxReadLedgerEntries;
-    medida::Counter& mConfigTxMaxReadBytes;
+    medida::Counter& mConfigTxMaxDiskReadEntries;
+    medida::Counter& mConfigTxMaxDiskReadBytes;
     medida::Counter& mConfigTxMaxWriteLedgerEntries;
     medida::Counter& mConfigTxMaxWriteBytes;
     medida::Counter& mConfigMaxContractEventsSizeBytes;
     medida::Counter& mConfigLedgerMaxTxCount;
     medida::Counter& mConfigLedgerMaxInstructions;
     medida::Counter& mConfigLedgerMaxTxsSizeByte;
-    medida::Counter& mConfigLedgerMaxReadLedgerEntries;
-    medida::Counter& mConfigLedgerMaxReadBytes;
+    medida::Counter& mConfigLedgerMaxDiskReadEntries;
+    medida::Counter& mConfigLedgerMaxDiskReadBytes;
     medida::Counter& mConfigLedgerMaxWriteEntries;
     medida::Counter& mConfigLedgerMaxWriteBytes;
     medida::Counter& mConfigBucketListTargetSizeByte;
     medida::Counter& mConfigFeeWrite1KB;
 
-    SorobanMetrics(medida::MetricsRegistry& metrics);
+    // Module cache related metrics
+    medida::Counter& mModuleCacheNumEntries;
+    medida::Timer& mModuleCompilationTime;
+    medida::Timer& mModuleCacheRebuildTime;
+    medida::Counter& mModuleCacheRebuildBytes;
+
+    // In-memory state metrics
+    medida::Counter& mContractCodeStateSize;
+    medida::Counter& mContractDataStateSize;
+    medida::Counter& mContractCodeEntryCount;
+    medida::Counter& mContractDataEntryCount;
+
+    SorobanMetrics(MetricsRegistry& metrics);
 
     void accumulateModelledCpuInsns(uint64_t insnsCount,
                                     uint64_t insnsExclVmCount,

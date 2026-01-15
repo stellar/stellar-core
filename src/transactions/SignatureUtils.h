@@ -1,9 +1,10 @@
-#pragma once
-
 // Copyright 2016 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
+#include "crypto/SecretKey.h"
 #include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
@@ -18,14 +19,17 @@ namespace SignatureUtils
 {
 
 DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash);
-bool verify(DecoratedSignature const& sig, SignerKey const& signerKey,
-            Hash const& hash);
-bool verify(DecoratedSignature const& sig, PublicKey const& signerKey,
-            Hash const& hash);
-bool verifyEd25519SignedPayload(DecoratedSignature const& sig,
-                                SignerKey const& signer);
+PubKeyUtils::VerifySigResult verify(DecoratedSignature const& sig,
+                                    SignerKey const& signerKey,
+                                    Hash const& hash);
+PubKeyUtils::VerifySigResult verify(DecoratedSignature const& sig,
+                                    PublicKey const& signerKey,
+                                    Hash const& hash);
+PubKeyUtils::VerifySigResult
+verifyEd25519SignedPayload(DecoratedSignature const& sig,
+                           SignerKey const& signer);
 
-DecoratedSignature signHashX(const ByteSlice& x);
+DecoratedSignature signHashX(ByteSlice const& x);
 bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey);
 
 SignatureHint

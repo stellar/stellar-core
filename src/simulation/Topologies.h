@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "simulation/Simulation.h"
 
@@ -47,6 +47,13 @@ class Topologies
              Hash const& networkID, int numWatchers = 0,
              Simulation::ConfigGen confGen = nullptr,
              Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
+
+    // nNodes with automatic quorum generation where all nodes are high-quality
+    // validators
+    static Simulation::pointer
+    separateAllHighQuality(int nNodes, Simulation::Mode mode,
+                           Hash const& networkID,
+                           Simulation::ConfigGen confGen);
 
     // multi-tier quorum (core4 + mid-tier nodes that depend on 2 nodes of
     // core4) mid-tier connected round-robin to core4

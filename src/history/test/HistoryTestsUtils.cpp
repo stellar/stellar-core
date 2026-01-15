@@ -4,6 +4,9 @@
 
 #include "history/test/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/HotArchiveBucketList.h"
 #include "catchup/CatchupRange.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
@@ -14,12 +17,14 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "lib/catch.hpp"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/ApplicationUtils.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/GlobalChecks.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include "work/WorkScheduler.h"
@@ -31,6 +36,21 @@ namespace stellar
 {
 namespace historytestutils
 {
+
+namespace
+{
+void
+setConfigForArchival(Config& cfg)
+{
+    // Evict very aggressively, but only 1 entry at a time so that Hot
+    // Archive Buckets churn
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+    cfg.TESTING_EVICTION_SCAN_SIZE = 100'000;
+    cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 1;
+}
+}
 
 std::string
 HistoryConfigurator::getArchiveDirName() const
@@ -124,36 +144,51 @@ RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
     return mCfg;
 }
 
-BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
+template <typename BucketT>
+BucketOutputIteratorForTesting<BucketT>::BucketOutputIteratorForTesting(
     std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc,
     asio::io_context& ctx)
-    : BucketOutputIterator{
+    : BucketOutputIterator<BucketT>{
           tmpDir, true, testutil::testBucketMetadata(protocolVersion),
           mc,     ctx,  /*doFsync=*/true}
 {
 }
 
+template <typename BucketT>
 std::pair<std::string, uint256>
-BucketOutputIteratorForTesting::writeTmpTestBucket()
+BucketOutputIteratorForTesting<BucketT>::writeTmpTestBucket()
 {
-    auto ledgerEntries =
-        LedgerTestUtils::generateValidUniqueLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries =
-        LiveBucket::convertToBucketEntry(false, {}, ledgerEntries, {});
-    for (auto const& bucketEntry : bucketEntries)
+    auto generateEntries = [this]() {
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            auto le = LedgerTestUtils::generateValidUniqueLedgerEntries(
+                NUM_ITEMS_PER_BUCKET);
+            return BucketT::convertToBucketEntry(false, {}, le, {});
+        }
+        else
+        {
+            UnorderedSet<LedgerKey> empty;
+            auto entries =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {CONTRACT_CODE}, NUM_ITEMS_PER_BUCKET, empty);
+            return BucketT::convertToBucketEntry(entries, {});
+        }
+    };
+
+    for (auto const& bucketEntry : generateEntries())
     {
-        put(bucketEntry);
+        this->put(bucketEntry);
     }
 
     // Finish writing and close the bucket file
-    REQUIRE(mBuf);
-    mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
-    mObjectsPut++;
-    mBuf.reset();
-    mOut.close();
+    REQUIRE(this->mBuf);
+    this->mOut.writeOne(*this->mBuf, &this->mHasher, &this->mBytesPut);
+    this->mObjectsPut++;
+    this->mBuf.reset();
+    this->mOut.close();
 
-    return std::pair<std::string, uint256>(mFilename.string(),
-                                           mHasher.finish());
+    return std::pair<std::string, uint256>(this->mFilename.string(),
+                                           this->mHasher.finish());
 };
 
 TestBucketGenerator::TestBucketGenerator(
@@ -164,9 +199,12 @@ TestBucketGenerator::TestBucketGenerator(
         mApp.getTmpDirManager().tmpDir("tmp-bucket-generator"));
 }
 
+template <typename BucketT>
 std::string
 TestBucketGenerator::generateBucket(TestBucketState state)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     uint256 hash = HashUtils::pseudoRandomForTesting();
     if (state == TestBucketState::FILE_NOT_UPLOADED)
     {
@@ -174,7 +212,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         return binToHex(hash);
     }
     MergeCounters mc;
-    BucketOutputIteratorForTesting bucketOut{
+    BucketOutputIteratorForTesting<BucketT> bucketOut{
         mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc,
         mApp.getClock().getIOContext()};
     std::string filename;
@@ -381,7 +419,11 @@ CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
                                      bool startApp, Config::TestDbMode dbMode)
     : mClock(std::make_unique<VirtualClock>(mode))
     , mHistoryConfigurator(cg)
-    , mCfg(getTestConfig(0, dbMode))
+    , mCfg([&] {
+        auto cfg = getTestConfig(0, dbMode);
+        setConfigForArchival(cfg);
+        return cfg;
+    }())
     , mAppPtr(createTestApplication(*mClock,
                                     mHistoryConfigurator->configure(mCfg, true),
                                     /*newDB*/ true, /*startApp*/ false))
@@ -413,6 +455,7 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
 void
 CatchupSimulation::generateRandomLedger(uint32_t version)
 {
+    uint32_t const setupLedgers = 4;
     auto& lm = getApp().getLedgerManager();
     uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
     uint64_t minBalance = lm.getLastMinBalance(5);
@@ -421,67 +464,66 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
     auto root = getApp().getRoot();
+
     auto alice = TestAccount{getApp(), getAccount("alice")};
     auto bob = TestAccount{getApp(), getAccount("bob")};
     auto carol = TestAccount{getApp(), getAccount("carol")};
     auto eve = TestAccount{getApp(), getAccount("eve")};
     auto stroopy = TestAccount{getApp(), getAccount("stroopy")};
+    PublicKey nonExistent;
+
+    std::vector<TestAccount*> accounts = {root.get(), &alice, &bob,
+                                          &carol,     &eve,   &stroopy};
+    stellar::uniform_int_distribution<> accountDistr(0, accounts.size() - 1);
+    auto randomAccount = [&accounts, &accountDistr]() -> TestAccount& {
+        return *accounts.at(accountDistr(getGlobalRandomEngine()));
+    };
 
     std::vector<TransactionFrameBasePtr> txs;
     std::vector<TransactionFrameBasePtr> sorobanTxs;
-    bool check = false;
 
-    if (ledgerSeq < 5)
+    auto maybeFailingPayment = [&nonExistent](auto& from, auto& to,
+                                              uint64_t amount) {
+        // 75% of the time make a successful payment.
+        if (rand_flip() || rand_flip())
+        {
+            return from.tx({payment(to, amount)});
+        }
+        // 25% of the time pay to a non-existent destination.
+        return from.tx({payment(nonExistent, amount)});
+    };
+
+    if (ledgerSeq <= setupLedgers)
     {
         txs.push_back(root->tx(
             {createAccount(alice, big), createAccount(bob, big),
              createAccount(carol, big), createAccount(stroopy, big * 10),
              createAccount(eve, big * 10)}));
     }
-    // Allow an occasional empty ledger (but always have some transactions in
-    // the upgrade ledger)
-    else if ((rand_flip() || rand_flip()) ||
-             lm.getLastClosedLedgerNum() + 1 == mUpgradeLedgerSeq)
+    else
     {
-        // They all randomly send a little to one another every ledger after #4
-        if (rand_flip())
-        {
-            txs.push_back(root->tx({payment(alice, big)}));
-        }
-        else
-        {
-            txs.push_back(root->tx({payment(bob, big)}));
-        }
+        // Allow occasional empty ledgers or ledgers with only classic/Soroban
+        // txs, but always generate both kinds on upgrade.
+        bool isUpgrade = lm.getLastClosedLedgerNum() + 1 == mUpgradeLedgerSeq;
 
-        if (rand_flip())
+        if (isUpgrade || rand_flip() || rand_flip())
         {
-            txs.push_back(alice.tx({payment(bob, small)}));
-        }
-        else
-        {
-            txs.push_back(alice.tx({payment(carol, small)}));
-        }
-
-        if (rand_flip())
-        {
-            txs.push_back(bob.tx({payment(alice, small)}));
-        }
-        else
-        {
-            txs.push_back(bob.tx({payment(carol, small)}));
-        }
-
-        if (rand_flip())
-        {
-            txs.push_back(carol.tx({payment(alice, small)}));
-        }
-        else
-        {
-            txs.push_back(carol.tx({payment(bob, small)}));
+            // They all randomly send a little to one another every ledger after
+            // #4
+            txs.push_back(
+                maybeFailingPayment(*root, rand_flip() ? alice : bob, big));
+            txs.push_back(
+                maybeFailingPayment(alice, rand_flip() ? bob : carol, small));
+            txs.push_back(
+                maybeFailingPayment(bob, rand_flip() ? alice : carol, small));
+            txs.push_back(
+                maybeFailingPayment(carol, rand_flip() ? alice : bob, small));
         }
 
         // Add soroban transactions
-        if (protocolVersionStartsFrom(
+        bool addSoroban = isUpgrade || rand_flip() || rand_flip();
+        if (addSoroban &&
+            protocolVersionStartsFrom(
                 lm.getLastClosedLedgerHeader().header.ledgerVersion,
                 SOROBAN_PROTOCOL_VERSION))
         {
@@ -493,11 +535,46 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                10;
             res.writeBytes = 100'000;
             uint32_t inclusion = 100;
+            // Use insufficient instructions to fail some of the Wasm uploads.
+            auto maybeInsufficientResources = [&res]() {
+                if (rand_flip() || rand_flip())
+                {
+                    return res;
+                }
+                auto resCopy = res;
+                resCopy.instructions = 10;
+                return resCopy;
+            };
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res));
+                getApp(), stroopy, inclusion,
+                DEFAULT_TEST_RESOURCE_FEE + rand_uniform(0, 1000),
+                maybeInsufficientResources(), {}, 0, rand_uniform(101, 2'000)));
             sorobanTxs.push_back(createUploadWasmTx(
-                getApp(), eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res));
-            check = true;
+                getApp(), eve, inclusion * 5,
+                DEFAULT_TEST_RESOURCE_FEE + rand_uniform(0, 1000),
+                maybeInsufficientResources(), {}, 0, rand_uniform(101, 2'000)));
+        }
+    }
+    auto maybeMakeFeeBump = [&](auto& tx) {
+        if (rand_flip() ||
+            protocolVersionIsBefore(
+                lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                ProtocolVersion::V_13))
+        {
+            return;
+        }
+        tx = feeBump(getApp(), randomAccount(), tx,
+                     tx->getFullFee() + rand_uniform(1, 5000), true);
+    };
+    if (ledgerSeq > setupLedgers)
+    {
+        for (auto& tx : txs)
+        {
+            maybeMakeFeeBump(tx);
+        }
+        for (auto& tx : sorobanTxs)
+        {
+            maybeMakeFeeBump(tx);
         }
     }
 
@@ -528,18 +605,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
 
-    auto& txsSucceeded =
-        getApp().getMetrics().NewCounter({"ledger", "apply", "success"});
-    auto lastSucceeded = txsSucceeded.count();
-
     lm.applyLedger(mLedgerCloseDatas.back());
-
-    if (check)
-    {
-        // Make sure all classic transactions and at least some Soroban
-        // transactions succeeded
-        REQUIRE(txsSucceeded.count() > lastSucceeded + phases[0].size());
-    }
 
     auto const& lclh = lm.getLastClosedLedgerHeader();
     mLedgerSeqs.push_back(lclh.header.ledgerSeq);
@@ -617,6 +683,19 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger,
                 getApp().getBucketManager().getLiveBucketList();
         }
     }
+
+    // Make sure the Hot Archive isn't empty
+    if (protocolVersionStartsFrom(
+            getApp()
+                .getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        releaseAssert(
+            getApp().getBucketManager().getHotArchiveBucketList().getSize() >=
+            1'000);
+    }
 }
 
 void
@@ -679,7 +758,7 @@ CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
     // catchup, one as closing ledger.
     ensureLedgerAvailable(HistoryManager::checkpointContainingLedger(
                               targetLedger, getApp().getConfig()) +
-                          bufferLedgers + 3);
+                          bufferLedgers + 2);
     ensurePublishesComplete();
 }
 
@@ -729,7 +808,7 @@ CatchupSimulation::getLastPublishedCheckpoint() const
 Application::pointer
 CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-    bool publish, std::optional<uint32_t> ledgerVersion)
+    bool publish, std::optional<uint32_t> ledgerVersion, bool skipKnownResults)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -740,10 +819,13 @@ CatchupSimulation::createCatchupApplication(
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
+    setConfigForArchival(mCfgs.back());
     if (ledgerVersion)
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
     }
+    mCfgs.back().CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = skipKnownResults;
+
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),
@@ -765,7 +847,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                                 : CatchupConfiguration::Mode::OFFLINE_BASIC;
     auto catchupConfiguration =
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT, mode};
-    lm.startCatchup(catchupConfiguration, nullptr, {});
+    lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
     auto& lam = app->getLedgerApplyManager();
@@ -891,23 +973,13 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
 
-    testutil::crankUntil(app, catchupIsDone,
-                         std::chrono::seconds{std::max<int64>(
-                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
-
-    if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
+    // No point in waiting if catchup wasn't even started
+    if (app->getLedgerApplyManager().isCatchupInitialized())
     {
-        // Externalize closing ledger
-        externalize(triggerLedger + bufferLedgers + 1);
+        testutil::crankUntil(app, catchupIsDone,
+                             std::chrono::seconds{std::max<int64>(
+                                 expectedCatchupWork.mTxSetsApplied + 15, 60)});
     }
-
-    testutil::crankUntil(
-        app,
-        [&]() {
-            return lm.getLastClosedLedgerNum() ==
-                   triggerLedger + bufferLedgers + 1;
-        },
-        std::chrono::seconds{60});
 
     auto result = caughtUp();
     if (result)
@@ -1119,5 +1191,10 @@ CatchupSimulation::restartApp()
     mClock = std::make_unique<VirtualClock>(mClock->getMode());
     mAppPtr = createTestApplication(*mClock, mCfg, /*newDB*/ false);
 }
+
+template std::string
+    TestBucketGenerator::generateBucket<LiveBucket>(TestBucketState);
+template std::string
+    TestBucketGenerator::generateBucket<HotArchiveBucket>(TestBucketState);
 }
 }

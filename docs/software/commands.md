@@ -19,19 +19,30 @@ Common options can be placed at any place in the command line.
 ## Command line options
 Command options can only by placed after command.
 
-* **apply-load**: Applies Soroban transactions by repeatedly generating transactions and closing
-them directly through the LedgerManager. This command will generate enough transactions to fill up a synthetic transaction queue (it's just a list of transactions with the same limits as the real queue), and then create a transaction set off of that to
-apply.
+* **apply-load**: Benchmarks Soroban transaction application time using
+    synthetic transactions. The benchmark is isolated to mostly just executing
+    the transactions and thus it omits a lot of the supporting mechanisms
+    (such as overlay, SCP, mempool etc). This command will generate enough
+    transactions to fill up a synthetic transaction queue (it's just a list of
+    transactions with the same limits as the real queue), and then create a
+    transaction set off of that to apply. This can also be used to record the
+    synthetic ledger close metadata emitted during the benchmark, and then use
+    it for benchmarking the meta consumers.
+  * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`
+  * The command supports several modes:
+    - **--mode limit-based**: the default mode that measures the
+      ledger close time for applying transactions.
+    - **--mode max-sac-tps**: determines maximum TPS for the load consisting
+      only of fast SAC transfer
+    - **--mode limits-for-model-tx**: determines maximum ledger limits for the
+      load consisting only of a customizable 'model' transaction.
+  * Load generation is configured in the Core config file. The relevant settings
+    all begin with `APPLY_LOAD_`. See full example configurations with
+    per-setting documentation in the `docs` directory
+    (all the `apply-load-*.cfg` files demonstrate different modes and use 
+    cases).
 
-* At the moment, the Soroban transactions are generated using some of the same config parameters as the **generateload** command. Specifically,
-    `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`,
-    `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
-    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING`. In addition to those, you must also set the
-    limit related settings - `APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS`, `APPLY_LOAD_TX_MAX_INSTRUCTIONS`, `APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES`, `APPLY_LOAD_LEDGER_MAX_READ_BYTES`, `APPLY_LOAD_TX_MAX_READ_BYTES`, `APPLY_LOAD_LEDGER_MAX_WRITE_BYTES`, `APPLY_LOAD_TX_MAX_WRITE_BYTES`, `APPLY_LOAD_MAX_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES`, `APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES`, `APPLY_LOAD_MAX_TX_COUNT`.
-* `apply-load` will also generate a synthetic bucket list using `APPLY_LOAD_BL_SIMULATED_LEDGERS`, `APPLY_LOAD_BL_WRITE_FREQUENCY`, `APPLY_LOAD_BL_BATCH_SIZE`, `APPLY_LOAD_BL_LAST_BATCH_LEDGERS`, `APPLY_LOAD_BL_LAST_BATCH_SIZE`. These have default values set in `Config.h`.
-* There are additional `APPLY_LOAD_*` related config settings that can be used to configure
-`apply-load`, and you can learn more about these from the comments in `Config.h`.
-
+* **calculate-asset-supply**: Calculates total supply of an asset from the live and hot archive bucket lists IF the total supply fits in a 64 bit signed integer. Also validates against totalCoins for the native asset. Uses `--code <CODE>` and `--issuer <ISSUER>` to specify the asset. Uses the native asset if neither `--code` nor `--issuer` is given.
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
   archives without connecting to network. For new instances (with empty history
   tables - only ledger 1 present in the database) it will respect LEDGER-COUNT
@@ -111,6 +122,7 @@ apply.
   `stellar-core get-settings-upgrade-txs GAUQW73V52I2WLIPKCKYXZBHIYFTECS7UPSG4OSVUHNDXEZJJWFXZG56 73014444032  "Standalone Network ; February 2017" --xdr AAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= --signtxs`.<br>
 
   Option **--signtxs** will prompt for a secret key and sign the TransactionEnvelopes.<br>
+* Option **--add-resource-fee** will add the specified value to the resource fee of all the transactions.<br>
 
   Output format by line - 
   1. Base64 wasm restore tx envelope XDR
@@ -305,6 +317,10 @@ Most commands return their results in JSON format.
   * `delayed`: participating in the latest consensus rounds, but slower than others.
   * `agree`: running just fine.
 
+  If `transitive` is set or the node is the local node, the returned object has
+  a `maybe_dead_nodes` key with an array value containing nodes in the local
+  quorum set that might be dead (were `missing` for a 15 minute period).
+
 * **scp**
   `scp?[limit=n][&fullkeys=false]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last
@@ -331,11 +347,13 @@ Most commands return their results in JSON format.
     Retrieves the currently configured upgrade settings.<br>
   * `upgrades?mode=clear`<br>
     Clears any upgrade settings.<br>
-  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]&[configupgradesetkey=ConfigUpgradeSetKey]`<br>
+  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]&[configupgradesetkey=ConfigUpgradeSetKey]&[nominationtimeoutlimit=NUM]&[expirationminutes=NUM]`<br>
     * `upgradetime` is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past
-        by less than 12 hours, the upgrade will occur immediately. If it's more
-        than 12 hours, then the upgrade will be ignored<br>
+        by less than `expirationminutes` minutes, the upgrade will occur
+        immediately. If it's more than `expirationminutes` minutes, then the
+        upgrade will be ignored. `expirationminutes` defaults to `15` if not
+        provided.<br>
     * `basefee` (uint32) This is what you would prefer the base fee to be. It is in
         stroops<br>
     * `basereserve` (uint32) This is what you would prefer the base reserve to
@@ -351,6 +369,21 @@ Most commands return their results in JSON format.
     * `maxsorobantxsetsize` (uint32) This defines the maximum number of Soroban
        operations in the transaction set to include in a ledger. The semantics is
        the same as for `maxtxsetsize`, but this affects the Soroban slice of traffic.
+       <br>
+    * `nominationtimeoutlimit` (uint32) This defines the maximum number of
+       nomination timeouts this upgrade may experience per slot before SCP
+       strips it out of the Value being voted on. This helps ensure that
+       upgrades that repeatedly fail to achieve consensus are eventually
+       removed from consideration. Defaults to effectively infinite. Should be
+       reduced when there is uncertainty about an upgrade reaching consensus.
+       <br>
+    * `expirationminutes` (uint32) This defines the number of minutes after
+       the scheduled upgrade time before this upgrade is removed (expires).
+       If not specified, a default expiration window of 15 minutes will be used.
+       This prevents upgrades from lingering indefinitely if they are not
+       applied within a reasonable timeframe after their scheduled time. Should
+       be increased when validators may arm for upgrades over a longer period of
+       time.
        <br>
     * `protocolversion` (uint32) defines the protocol version to upgrade to.
         When specified it must match one of the protocol versions supported
@@ -449,31 +482,24 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
+    (pay|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban|pay_pregenerated|stop)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R&file=F]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
-  * `create` mode creates new accounts. Batches 100 creation operations per transaction.
-  * `pay` mode generates `PaymentOp` transactions on accounts specified
-    (where the number of accounts can be offset).
+
+    **Note**: The `create` mode has been deprecated and removed. To create test accounts,
+    use the `GENESIS_TEST_ACCOUNT_COUNT` configuration parameter which creates accounts
+    at genesis when initializing a test network.
+  * `pay` mode generates `PaymentOp` transactions on accounts specified (where
+    the number of accounts can be offset). Each transaction uses a random
+    number of bytes, governed by `LOADGEN_BYTE_COUNT_FOR_TESTING` and
+    `LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING`.
   * `pay_pregenerated` mode submits pre-generated payment transactions from an XDR file.
     This mode skips signature verification for better performance when testing with
     large numbers of transactions. Use the `LOADGEN_PREGENERATED_TRANSACTIONS_FILE`
     config to specify the path to the XDR file containing the pre-generated transactions.
     To generate a file with pre-generated transactions, use the
     `pregenerate-loadgen-txs` command.
-  * `pretend` mode generates transactions on accounts specified(where the number
-    of accounts can be offset). Operations in `pretend` mode are designed to
-    have a realistic size to help users "pretend" that they have real traffic.
-    You can add optional configs `LOADGEN_OP_COUNT_FOR_TESTING` and
-    `LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING` in the config file to specify
-    the # of ops / tx and how often they appear. See the section on [specifying
-    discrete distributions](#specifying-discrete-distributions) for more info
-    on how to set these options.
-  * `mixed_classic` mode generates a mix of DEX and non-DEX transactions
-    (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
-    The fraction of DEX transactions generated is defined by the `dextxpercent`
-    parameter (accepts integer value from 0 to 100).
   * `soroban_upload` mode generates soroban TXs that upload random wasm blobs.
     Many of these TXs are invalid and not applied, so this test is appropriate
     for herder and overlay tests. This mode allows specification of the
@@ -518,7 +544,7 @@ this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
     weight divided by the sum of all weights.
   * `stop` mode stops any existing load generation run and marks it as "failed".
 
-  Non-`create` load generation makes use of the additional parameters:
+  Load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every
     `spikeinterval` seconds injecting `spikesize` transactions on top of
     `txrate`
@@ -619,11 +645,11 @@ enabled by specifying a port via the HTTP_QUERY_PORT config setting.
 
   A JSON payload is returned as follows:
 
-  ```
+  ```js
   {
     "entries": [
-      {"le": "Base64-LedgerEntry"},
-      {"le": "Base64-LedgerEntry"},
+      {"entry": "Base64-LedgerEntry"},
+      {"entry": "Base64-LedgerEntry"},
       ...
     ],
     "ledgerSeq": ledgerSeq
@@ -638,3 +664,58 @@ enabled by specifying a port via the HTTP_QUERY_PORT config setting.
   value of the `TTL` entry to the current ledger sequence number.
 
   `ledgerSeq` gives the ledger number on which the query was performed.
+
+* **`getledgerentry`**<br>
+  A POST request with the following body:<br>
+
+  ```
+  ledgerSeq=NUM&k=Base64&k=Base64...
+  ```
+- `ledgerSeq`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger is not available, a 404 error will be returned with "Ledger not found\n" message.
+  If this parameter is not set, the current ledger is used.
+- `key`: A series of Base64 encoded XDR strings specifying the `LedgerKey` to query. Keys must be
+  unique and must not be TTL entries, as TTL data is automatically returned when querying a Soroban key.
+
+A JSON payload is returned as follows:
+
+```js
+{
+"entries": [
+     {"entry": "Base64-LedgerEntry", "state": "live", /*optional*/ "liveUntilLedgerSeq": uint32},
+     {"state": "not-found"}, // Given key is not found
+     {"entry": "Base64-LedgerEntry", "state": "archived"}
+],
+"ledgerSeq": uint32
+}
+```
+
+- `entries`: A list of entries for each queried LedgerKey, ordered by the order of the keys in the request.
+Every key queried is guaranteed to have a corresponding `state` field while the `entry` and `ledgerSeq` fields are optional.
+- `entry`: Present only for `live` and `archived` states. Contains the `LedgerEntry` encoded as a Base64 string.
+  This field is omitted for entries with state `not-found`.
+- `state`: One of the following values:
+  - `live`: Entry is live.
+  - `not-found`: Entry does not exist. Either the entry has never existed or is an expired temp entry.
+  - `archived`: Entry is archived, counts towards disk resources.
+- `liveUntilLedgerSeq`: An optional value, only returned for Soroban entries. For live
+  Soroban entries, contains the actual TTL value. For archived Soroban entries, contains
+  a placeholder value of 0. Not returned for classic entries.
+- `ledgerSeq`: The ledger number on which the query was performed.
+
+Classic entries will always return a state of `live` or `not-found`.
+If a classic entry does not exist, it will have a state of `not-found`.
+
+Similarly, temporary Soroban entries will always return a state of `live` or
+`not-found`. If a temporary entry does not exist or has expired, it
+will have a state of `not-found`.
+
+This endpoint will always give correct information for archived entries. Even
+if an entry has been archived and evicted to the Hot Archive, this endpoint will
+still return the archived entry's full `LedgerEntry` as well as the proper state.
+
+The endpoint returns a 404 status code with the following error messages in these cases:
+- If no keys are provided: "Must specify key in POST body: key=<LedgerKey in base64 XDR format>\n"
+- If TTL keys are queried: "TTL keys are not allowed\n"
+- If duplicate keys are submitted: "Duplicate keys\n"
+- If the specified ledger is not found: "Ledger not found\n"

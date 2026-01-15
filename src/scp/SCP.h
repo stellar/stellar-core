@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include <chrono>
 #include <functional>
@@ -84,6 +84,10 @@ class SCP
     // index = 0 for returning information for the latest known slot.
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
                                   bool fullKeys = false, uint64 index = 0);
+
+    // index = 0 for returning information for the latest known slot.
+    // Get a list of nodes from id's quorum set that are missing in consensus
+    std::set<NodeID> getMissingNodes(NodeID const& id, uint64 index = 0);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex` except for slotToKeep slot.

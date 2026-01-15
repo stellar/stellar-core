@@ -6,9 +6,9 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/TrustLineWrapper.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -26,7 +26,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
+static void
 for_current_and_previous_version_from(size_t minVersion, Application& app,
                                       std::function<void(void)> const& f)
 {
@@ -273,7 +273,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
         {
             SECTION("reserve")
             {
-                const int64_t minBalance =
+                int64_t const minBalance =
                     app->getLedgerManager().getLastMinBalance(3) + 3 * txfee;
 
                 auto a1 = root->create("a1", minBalance - 1);

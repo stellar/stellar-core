@@ -7,12 +7,12 @@
 #include "main/Config.h"
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "overlay/FlowControl.h"
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/TxAdverts.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -165,7 +165,7 @@ class OverlayManagerTests
             pm.storeConfigPeers();
         }
 
-        rowset<row> rs = app->getDatabase().getRawSession().prepare
+        rowset<row> rs = app->getDatabase().getRawMiscSession().prepare
                          << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
         auto& ppeers = pm.mConfigurationPreferredPeers;
@@ -213,7 +213,7 @@ class OverlayManagerTests
         pm.mResolvedPeers.wait();
         pm.tick();
 
-        rowset<row> rs = app->getDatabase().getRawSession().prepare
+        rowset<row> rs = app->getDatabase().getRawMiscSession().prepare
                          << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
         int found = 0;

@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "overlay/FlowControl.h"
 #include "overlay/Peer.h"
@@ -79,7 +79,7 @@ class LoopbackPeer : public Peer
 
     void deliverOne() NO_THREAD_SAFETY_ANALYSIS;
     void deliverAll();
-    void dropAll();
+    void maybeDropAndCreateNew();
     size_t getBytesQueued() const;
     size_t getMessagesQueued() const;
 

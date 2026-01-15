@@ -86,7 +86,7 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
             "encrypted.size() is less than crypto_box_SEALBYTES!");
     }
 
-    const uint64_t MESSAGE_LEN = encrypted.size() - crypto_box_SEALBYTES;
+    uint64_t const MESSAGE_LEN = encrypted.size() - crypto_box_SEALBYTES;
     xdr::opaque_vec<> decrypted(MESSAGE_LEN, 0);
 
     if (crypto_box_seal_open(decrypted.data(), encrypted.data(),

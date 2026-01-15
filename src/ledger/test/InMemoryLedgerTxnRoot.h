@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2021 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
@@ -38,7 +38,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 #endif
     );
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
-    void commitChild(EntryIterator iter, RestoredKeys const& restoredKeys,
+    void commitChild(EntryIterator iter, RestoredEntries const& restoredEntries,
                      LedgerTxnConsistency cons) noexcept override;
     void rollbackChild() noexcept override;
 
@@ -64,15 +64,21 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
 
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredHotArchiveKeys() const override;
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getRestoredLiveBucketListKeys() const override;
+
+    std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+    getNewestVersionBelowRoot(InternalLedgerKey const& key) const override;
+
     uint64_t countOffers(LedgerRange const& ledgers) const override;
 
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
     void dropOffers() override;
     double getPrefetchHitRate() const override;
-    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
-    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
-                             LedgerKeyMeter* lkMeter) override;
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
 
     void prepareNewObjects(size_t s) override;
     SessionWrapper& getSession() const override;

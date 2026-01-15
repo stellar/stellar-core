@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "util/NonCopyable.h"
 #include <chrono>
@@ -167,6 +167,17 @@ class SCPDriver
     combineCandidates(uint64 slotIndex,
                       ValueWrapperPtrSet const& candidates) = 0;
 
+    // Checks whether `v` contains upgrades
+    virtual bool hasUpgrades(Value const& v) = 0;
+
+    // `stripAllUpgrades` returns a new value with all upgrades removed
+    virtual ValueWrapperPtr stripAllUpgrades(Value const& v) = 0;
+
+    // Returns the maximum number of nomination timeouts permitted per slot for
+    // the currently set upgrade. Defaults to the maximum uint32_t value
+    // (effectively unlimited) if the upgrade does not specify a limit.
+    virtual uint32_t getUpgradeNominationTimeoutLimit() const = 0;
+
     // `setupTimer`: requests to trigger 'cb' after timeout
     // if cb is nullptr, the timer is cancelled
     virtual void setupTimer(uint64 slotIndex, int timerID,
@@ -177,7 +188,8 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
-    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
+    virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber,
+                                                     bool isNomination) = 0;
 
     // returns the weight of the node within the qset normalized between
     // 0-UINT64_MAX. If `nodeID` is the local node, then set `isLocalNode` to

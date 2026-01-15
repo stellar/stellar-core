@@ -1,9 +1,10 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
+#include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/VerifyLedgerChainWork.h"
@@ -25,7 +26,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "catchup/LedgerApplyManager.h"
 #include "ledger/CheckpointRange.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include <random>
 
 namespace stellar
@@ -47,7 +48,7 @@ enum class TestBucketState
 
 class HistoryConfigurator;
 class TestBucketGenerator;
-class BucketOutputIteratorForTesting;
+template <typename BucketT> class BucketOutputIteratorForTesting;
 struct CatchupPerformedWork;
 
 class HistoryConfigurator : NonCopyable
@@ -99,9 +100,12 @@ class RealGenesisTmpDirHistoryConfigurator : public TmpDirHistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
-class BucketOutputIteratorForTesting : public LiveBucketOutputIterator
+template <typename BucketT>
+class BucketOutputIteratorForTesting : public BucketOutputIterator<BucketT>
 {
-    const size_t NUM_ITEMS_PER_BUCKET = 5;
+    BUCKET_TYPE_ASSERT(BucketT);
+
+    size_t const NUM_ITEMS_PER_BUCKET = 5;
 
   public:
     explicit BucketOutputIteratorForTesting(std::string const& tmpDir,
@@ -121,6 +125,7 @@ class TestBucketGenerator
     TestBucketGenerator(Application& app,
                         std::shared_ptr<HistoryArchive> archive);
 
+    template <typename BucketT>
     std::string generateBucket(
         TestBucketState desiredState = TestBucketState::CONTENTS_AND_HASH_OK);
 };
@@ -137,7 +142,7 @@ class TestLedgerChainGenerator
         std::pair<LedgerHeaderHistoryEntry, LedgerHeaderHistoryEntry>;
     TestLedgerChainGenerator(Application& app,
                              std::shared_ptr<HistoryArchive> archive,
-                             CheckpointRange range, const TmpDir& tmpDir);
+                             CheckpointRange range, TmpDir const& tmpDir);
     void createHistoryFiles(std::vector<LedgerHeaderHistoryEntry> const& lhv,
                             LedgerHeaderHistoryEntry& first,
                             LedgerHeaderHistoryEntry& last,
@@ -264,7 +269,8 @@ class CatchupSimulation
     Application::pointer createCatchupApplication(
         uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
         bool publish = false,
-        std::optional<uint32_t> ledgerVersion = std::nullopt);
+        std::optional<uint32_t> ledgerVersion = std::nullopt,
+        bool skipKnownResults = false);
     bool catchupOffline(Application::pointer app, uint32_t toLedger,
                         bool extraValidation = false);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,

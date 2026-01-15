@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchive.h"
@@ -208,7 +208,6 @@ class HistoryManager
     static std::unique_ptr<HistoryManager> create(Application& app);
 
     // Initialize DB table for persistent publishing queue.
-    static void dropAll(Database& db);
     static std::filesystem::path publishQueuePath(Config const& cfg);
     static void createPublishQueueDir(Config const& cfg);
 
@@ -319,14 +318,17 @@ class HistoryManager
     // Calls queueCurrentHistory() if the current ledger is a multiple of
     // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than
     // a multiple of getCheckpointFrequency(). Returns true if checkpoint
-    // publication of the LCL was queued, otherwise false.
-    virtual bool maybeQueueHistoryCheckpoint(uint32_t lcl) = 0;
+    // publication of the LCL was queued, otherwise false. ledgerVers must align
+    // with lcl.
+    virtual bool maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                             uint32_t ledgerVers) = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it, as well as the bucketlist of its state -- to a
     // publication-queue in the database. This should be followed shortly
-    // (typically after commit) with a call to publishQueuedHistory.
-    virtual void queueCurrentHistory(uint32_t lcl) = 0;
+    // (typically after commit) with a call to publishQueuedHistory. ledgerVers
+    // must align with lcl.
+    virtual void queueCurrentHistory(uint32_t lcl, uint32_t ledgerVers) = 0;
 
     // Return the youngest ledger still in the outgoing publish queue;
     // returns 0 if the publish queue has nothing in it.
@@ -342,10 +344,6 @@ class HistoryManager
 
     // Prepare checkpoint files for publishing
     virtual void maybeCheckpointComplete(uint32_t lcl) = 0;
-
-    // Migrate SQL-based publish queue to the new file format
-    // (one-time call during database schema upgrade path)
-    virtual void dropSQLBasedPublish() = 0;
 
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue that are not present in the BucketManager. These need to be
@@ -404,13 +402,18 @@ class HistoryManager
     // Return the number of checkpoints that failed publication.
     virtual uint64_t getPublishFailureCount() const = 0;
 
+    // Waits until the currently queued checkpoint publication is complete.
+    // This is only useful in utility scenarios where blocking publication is
+    // necessary - don't use in normal operation.
+    virtual void waitForCheckpointPublish() = 0;
+
 #ifdef BUILD_TESTS
     // Enable or disable history publication, purely a testing interface.
     // History is still queued when publication is disabled.
     virtual void setPublicationEnabled(bool enabled) = 0;
 #endif
 
-    virtual ~HistoryManager(){};
+    virtual ~HistoryManager() {};
 
     virtual Config const& getConfig() const = 0;
 };

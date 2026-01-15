@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "medida/histogram.h"
 #include "medida/stats/ckms_sample.h"
 #include "medida/stats/sliding_window_sample.h"
 #include "medida/stats/snapshot.h"
+#include "test/Catch2.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include <deque>
@@ -26,7 +26,7 @@ using gamma_dbl = std::gamma_distribution<double>;
 using uniform_u64 = stellar::uniform_int_distribution<uint64_t>;
 
 // how much data to keep in memory when comparing datasets
-static std::chrono::seconds const sampleCutoff(60 * 5);
+std::chrono::seconds const sampleCutoff(60 * 5);
 
 void
 sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
@@ -212,9 +212,8 @@ Percentiles const gamma_4_100_pct(367.2061, 510.9427, 775.3657, 908.4115,
 
 // These are private constants in the implementation of Histogram,
 // but we want to reuse them here for testing SlidingWindowTester.
-static const std::uint64_t kDefaultSampleSize = 1028;
-static const std::chrono::seconds kDefaultWindowTime =
-    std::chrono::seconds(5 * 60);
+std::uint64_t const kDefaultSampleSize = 1028;
+std::chrono::seconds const kDefaultWindowTime = std::chrono::seconds(5 * 60);
 
 // Check that the rate-limiting of the SlidingWindowSample doesn't
 // interfere with a "true" 5-minute-long (with arbitrary event count)
@@ -240,7 +239,7 @@ class SlidingWindowTester
         : mSlidingWindowSample(kDefaultSampleSize, kDefaultWindowTime)
         , mTimestamp(medida::Clock::now())
     {
-        mSlidingWindowSample.Seed(stellar::gRandomEngine());
+        mSlidingWindowSample.Seed(stellar::getGlobalRandomEngine()());
     }
     template <typename Dist, typename... Args>
     void
@@ -253,7 +252,7 @@ class SlidingWindowTester
         while (mTimestamp < endTime)
         {
             uint64_t sample =
-                static_cast<uint64_t>(dist(stellar::gRandomEngine));
+                static_cast<uint64_t>(dist(stellar::getGlobalRandomEngine()));
             mSlidingWindowSample.Update(sample, mTimestamp);
             mSamples.emplace_back(sample, mTimestamp);
             mTimestamp += timeStep;
@@ -358,7 +357,6 @@ class SlidingWindowTester
         snp.checkAgainst(getSnapshot());
     }
 };
-}
 
 /*****************************************************************
  * Snapshot / percentile tests
@@ -372,10 +370,11 @@ sampleFrom(Args... args)
     std::vector<double> sample;
     for (size_t i = 0; i < 10000; ++i)
     {
-        sample.emplace_back(dist(stellar::gRandomEngine));
+        sample.emplace_back(dist(stellar::getGlobalRandomEngine()));
     }
     return medida::stats::Snapshot(sample);
 }
+} // namespace
 
 TEST_CASE("percentile calculation - constant", "[percentile][medida_math]")
 {
@@ -573,7 +572,7 @@ TEST_CASE("sums of nanoseconds do not overflow", "[medida_math]")
 }
 
 template <typename Dist, typename... Args>
-void
+static void
 testCKMSSample(int const count, Args... args)
 {
     auto const windowSize = std::chrono::seconds(5);
@@ -588,7 +587,7 @@ testCKMSSample(int const count, Args... args)
     Dist dist(std::forward<Args>(args)...);
     for (int i = 0; i < count; i++)
     {
-        auto x = static_cast<int64_t>(dist(stellar::gRandomEngine));
+        auto x = static_cast<int64_t>(dist(stellar::getGlobalRandomEngine()));
         values.push_back(x);
         hist.Update(x);
     }

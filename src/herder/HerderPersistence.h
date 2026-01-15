@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/QuorumTracker.h"
 #include "overlay/Peer.h"
@@ -46,7 +46,7 @@ class HerderPersistence
     static SCPQuorumSetPtr getQuorumSet(soci::session& sess,
                                         Hash const& qSetHash);
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(soci::session& sess);
     static void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq,
                                  uint32_t count);
 };

@@ -3,15 +3,15 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrameBase.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 
@@ -85,7 +85,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -108,7 +110,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {root->op(beginSponsoringFutureReserves(a1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -132,7 +136,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {a1, a2});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -160,7 +166,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {a1, a2});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -185,7 +193,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {a1});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -214,7 +224,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                 {a1});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm1(
+                true, *tx1, ltx.loadHeader().current().ledgerVersion,
+                app->getAppConnector());
             REQUIRE(tx1->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
             REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
@@ -229,7 +241,9 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                  a1.op(endSponsoringFutureReserves())},
                 {a1});
 
-            TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm2(
+                true, *tx2, ltx.loadHeader().current().ledgerVersion,
+                app->getAppConnector());
             REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
             REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));

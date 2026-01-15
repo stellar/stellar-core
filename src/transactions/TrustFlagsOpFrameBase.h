@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "transactions/OperationFrame.h"
 
@@ -32,7 +32,8 @@ class TrustFlagsOpFrameBase : public OperationFrame
     virtual void setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
                               uint32_t flagVal) const = 0;
 
-    bool removeOffers(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool removeOffers(AbstractLedgerTxn& ltx, OperationResult& res,
+                      OpEventManager& opEventManager) const;
     ThresholdLevel getThresholdLevel() const override;
 
   public:
@@ -40,8 +41,8 @@ class TrustFlagsOpFrameBase : public OperationFrame
                           TransactionFrame const& parentTx);
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
 };
 
 }

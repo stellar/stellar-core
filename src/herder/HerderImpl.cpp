@@ -3,40 +3,45 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderImpl.h"
+
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "herder/FilteredEntries.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/QuorumIntersectionChecker.h"
+#include "herder/RustQuorumCheckerAdaptor.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxnImpl.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
 #include "overlay/OverlayManager.h"
+#include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
+#include "util/Decoder.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
-
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "util/Decoder.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
@@ -59,7 +64,6 @@ constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
 
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
-constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -85,7 +89,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 HerderImpl::HerderImpl(Application& app)
     : mTransactionQueue(app, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
                         TRANSACTION_QUEUE_BAN_LEDGERS,
-                        TRANSACTION_QUEUE_SIZE_MULTIPLIER)
+                        app.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER)
     , mPendingEnvelopes(app, *this)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
@@ -94,9 +98,12 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
+    , mCheckForDeadNodesTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
+    , mLastQuorumMapIntersectionState(
+          std::make_shared<QuorumMapIntersectionState>(app))
     , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
@@ -218,7 +225,7 @@ HerderImpl::syncMetrics()
 std::string
 HerderImpl::getStateHuman(State st) const
 {
-    static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
+    static std::array<char const*, HERDER_NUM_STATE> stateStrings = {
         "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
         "HERDER_TRACKING_NETWORK_STATE"};
     return std::string(stateStrings[st]);
@@ -267,14 +274,6 @@ HerderImpl::shutdown()
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
-    if (mLastQuorumMapIntersectionState.mRecalculating)
-    {
-        // We want to interrupt any calculation-in-progress at shutdown to
-        // avoid a long pause joining worker threads.
-        CLOG_DEBUG(Herder,
-                   "Shutdown interrupting quorum transitive closure analysis.");
-        mLastQuorumMapIntersectionState.mInterruptFlag = true;
-    }
     mTransactionQueue.shutdown();
     if (mSorobanTransactionQueue)
     {
@@ -282,6 +281,7 @@ HerderImpl::shutdown()
     }
 
     mTxSetGarbageCollectTimer.cancel();
+    mCheckForDeadNodesTimer.cancel();
 }
 
 void
@@ -289,6 +289,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                                 bool isLatestSlot)
 {
     ZoneScoped;
+
+    releaseAssert(threadIsMain());
+
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
 
     CLOG_DEBUG(Herder, "HerderSCPDriver::valueExternalized index: {} txSet: {}",
@@ -396,7 +399,7 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
     }
 }
 
-void
+static void
 recordExternalizeAndCheckCloseTimeDrift(
     uint64 slotIndex, StellarValue const& value,
     std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
@@ -430,20 +433,11 @@ recordExternalizeAndCheckCloseTimeDrift(
 }
 
 void
-HerderImpl::beginApply()
-{
-    // Tx set might be applied async: in this case, cancel the timer. It'll be
-    // restarted when the tx set is applied. This is needed to not mess with
-    // Herder's out of sync recovery mechanism.
-    mTrackingTimer.cancel();
-}
-
-void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
     ZoneScoped;
-    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+    int const DUMP_SCP_TIMEOUT_SECONDS = 20;
 
     recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
                                             mDriftCTSlidingWindow);
@@ -479,7 +473,16 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         newSlotExternalized(false, value);
 
         // Check to see if quorums have changed and we need to reanalyze.
-        checkAndMaybeReanalyzeQuorumMap();
+        if (mApp.getConfig().USE_QUORUM_INTERSECTION_CHECKER_V2)
+        {
+            // v2. performs quorum analysis in a separate process that runs the
+            // Rust SAT solver.
+            checkAndMaybeReanalyzeQuorumMapV2();
+        }
+        else
+        {
+            checkAndMaybeReanalyzeQuorumMap();
+        }
 
         // heart beat *after* doing all the work (ensures that we do not include
         // the overhead of externalization in the way we track SCP)
@@ -643,7 +646,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
         result = TransactionQueue::AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
             txNOT_SUPPORTED);
     }
 
@@ -700,7 +703,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     // returns true if one of the values is valid
     auto checkCTHelper = [&](std::vector<Value> const& values) {
         return std::any_of(values.begin(), values.end(), [&](Value const& e) {
-            auto r = scpD.toStellarValue(e, sv);
+            auto r = toStellarValue(e, sv);
             // sv must be after cutoff
             r = r && sv.closeTime >= ctCutoff;
             if (r)
@@ -912,7 +915,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
+                            SCPQuorumSet const& qset,
                             StellarMessage const& txset)
 {
     auto txSetFrame =
@@ -933,6 +936,10 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
     StellarValue sv =
         makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
+    while (mApp.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
+    {
+        mApp.getClock().crank(true);
+    }
 }
 
 bool
@@ -989,7 +996,7 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     // Checkpoint ledgers are special cased to be allowed to be outside this
     // range, but to determine if a message is a checkpoint message, the node
     // needs the correct trackingConsensusLedgerIndex. We send the checkpoint
-    // message after a delay so that the recieving node has time to process the
+    // message after a delay so that the receiving node has time to process the
     // initially sent messages and establish trackingConsensusLedgerIndex
     if (checkpoint < firstSequentialLedgerSeq)
     {
@@ -1021,8 +1028,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         return maxSlots != 0;
     });
 
-    // Out of sync node needs to recieve latest messages to determine network
-    // state before recieving checkpoint message. Delay sending checkpoint
+    // Out of sync node needs to receive latest messages to determine network
+    // state before receiving checkpoint message. Delay sending checkpoint
     // ledger to achieve this
     if (delayCheckpoint)
     {
@@ -1115,6 +1122,12 @@ HerderImpl::getSorobanTransactionQueue()
     releaseAssert(mSorobanTransactionQueue);
     return *mSorobanTransactionQueue;
 }
+
+Upgrades const&
+HerderImpl::getUpgrades() const
+{
+    return mUpgrades;
+}
 #endif
 
 std::chrono::milliseconds
@@ -1160,7 +1173,8 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
 }
 
 void
-HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
+HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
+                                      bool upgradeApplied)
 {
     releaseAssert(threadIsMain());
 
@@ -1171,8 +1185,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
     maybeHandleUpgrade();
 
     // In order to update the transaction queue we need to get the
-    // applied transactions.
-    updateTransactionQueue(txSet);
+    // applied transactions. If a protocol or network config setting upgrade
+    // occurred, we will need to rebuild the queue, as limits may have changed.
+    updateTransactionQueue(txSet, upgradeApplied);
 
     // If we're in sync and there are no buffered ledgers to apply, trigger next
     // ledger
@@ -1217,12 +1232,13 @@ HerderImpl::setupTriggerNextLedger()
     // if we're in sync, we setup mTriggerTimer
     // it may get cancelled if a more recent ledger externalizes
 
-    auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
+    std::chrono::milliseconds milliseconds =
+        mLedgerManager.getExpectedLedgerCloseTime();
 
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - seconds;
+    auto lastBallotStart = now - milliseconds;
     auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
     if (lastStart)
     {
@@ -1231,7 +1247,7 @@ HerderImpl::setupTriggerNextLedger()
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + seconds;
+    auto triggerTime = lastBallotStart + milliseconds;
 
     if (triggerTime < now)
     {
@@ -1279,7 +1295,7 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 }
 
 bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
+HerderImpl::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
@@ -1404,7 +1420,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // during last few ledger closes
     // Since we are not currently applying, it is safe to use read-only LCL, as
     // it's guaranteed to be up-to-date
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    auto lcl = mLedgerManager.getLastClosedLedgerHeader();
     PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
@@ -1477,6 +1493,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
 
+    // New proposed tx set must be valid, so we explicitly populate tx set
+    // validity cache so SCP can reuse the result.
+    mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
+                                     upperBoundCloseTimeOffset);
+
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
@@ -1490,18 +1511,22 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
     auto txSetHash = proposedSet->getContentsHash();
 
+    // Inform the item fetcher so queries from other peers about his txSet
+    // can be answered. Note this can trigger SCP callbacks, externalize, etc
+    // if we happen to build a txset that we were trying to download.
+    mPendingEnvelopes.addTxSet(txSetHash, lcl.header.ledgerSeq + 1,
+                               proposedSet);
+
+    lcl = mLedgerManager.getLastClosedLedgerHeader();
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint32_t slotIndex = lcl.header.ledgerSeq + 1;
 
-    // Inform the item fetcher so queries from other peers about his txSet
-    // can be answered. Note this can trigger SCP callbacks, externalize, etc
-    // if we happen to build a txset that we were trying to download.
-    mPendingEnvelopes.addTxSet(txSetHash, slotIndex, proposedSet);
-
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
-    if (ledgerSeqToTrigger != slotIndex)
+    // Also skip trigger if side effects from `addTxSet` caused us to start
+    // applying
+    if (ledgerSeqToTrigger != slotIndex || mLedgerManager.isApplying())
     {
         return;
     }
@@ -1641,16 +1666,16 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
 {
     Json::Value ret;
     ret["intersection"] =
-        mLastQuorumMapIntersectionState.enjoysQuorunIntersection();
+        mLastQuorumMapIntersectionState->enjoysQuorunIntersection();
     ret["node_count"] =
-        static_cast<Json::UInt64>(mLastQuorumMapIntersectionState.mNumNodes);
+        static_cast<Json::UInt64>(mLastQuorumMapIntersectionState->mNumNodes);
     ret["last_check_ledger"] = static_cast<Json::UInt64>(
-        mLastQuorumMapIntersectionState.mLastCheckLedger);
-    if (mLastQuorumMapIntersectionState.enjoysQuorunIntersection())
+        mLastQuorumMapIntersectionState->mLastCheckLedger);
+    if (mLastQuorumMapIntersectionState->enjoysQuorunIntersection())
     {
         Json::Value critical;
         for (auto const& group :
-             mLastQuorumMapIntersectionState.mIntersectionCriticalNodes)
+             mLastQuorumMapIntersectionState->mIntersectionCriticalNodes)
         {
             Json::Value jg;
             for (auto const& k : group)
@@ -1665,9 +1690,9 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
     else
     {
         ret["last_good_ledger"] = static_cast<Json::UInt64>(
-            mLastQuorumMapIntersectionState.mLastGoodLedger);
+            mLastQuorumMapIntersectionState->mLastGoodLedger);
         Json::Value split, a, b;
-        auto const& pair = mLastQuorumMapIntersectionState.mPotentialSplit;
+        auto const& pair = mLastQuorumMapIntersectionState->mPotentialSplit;
         for (auto const& k : pair.first)
         {
             auto s = mApp.getConfig().toStrKey(k, fullKeys);
@@ -1696,7 +1721,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
     if (isSelf)
     {
-        if (mLastQuorumMapIntersectionState.hasAnyResults())
+        if (mLastQuorumMapIntersectionState->hasAnyResults())
         {
             ret["transitive"] =
                 getJsonTransitiveQuorumIntersectionInfo(fullKeys);
@@ -1706,6 +1731,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
             getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
         ret["qset"]["cost"] =
             mPendingEnvelopes.getJsonValidatorCost(summary, fullKeys, index);
+        ret["maybe_dead_nodes"] = mHerderSCPDriver.getMaybeDeadNodes(fullKeys);
     }
     return ret;
 }
@@ -1716,7 +1742,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
 {
     Json::Value ret;
     bool isSelf = rootID == mApp.getConfig().NODE_SEED.getPublicKey();
-    if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
+    if (isSelf && mLastQuorumMapIntersectionState->hasAnyResults())
     {
         ret = getJsonTransitiveQuorumIntersectionInfo(fullKeys);
     }
@@ -1832,6 +1858,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
         }
         distance++;
     }
+    ret["maybe_dead_nodes"] = mHerderSCPDriver.getMaybeDeadNodes(fullKeys);
     return ret;
 }
 
@@ -1864,6 +1891,54 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 }
 
 void
+HerderImpl::checkAndMaybeReanalyzeQuorumMapV2()
+{
+    ZoneScoped;
+    if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
+    {
+        return;
+    }
+    auto& qmap = getCurrentlyTrackedQuorum();
+    Hash curr = getQmapHash(qmap);
+    if (mLastQuorumMapIntersectionState->mLastCheckQuorumMapHash == curr)
+    {
+        // Everything's stable, nothing to do.
+        return;
+    }
+    if (mLastQuorumMapIntersectionState->mRecalculating)
+    {
+        if (mLastQuorumMapIntersectionState->mCheckingQuorumMapHash == curr)
+        {
+            CLOG_DEBUG(Herder, "Transitive closure of quorum has "
+                               "changed, already analyzing new "
+                               "configuration.");
+        }
+        else
+        {
+            CLOG_DEBUG(Herder, "Transitive closure of quorum has changed,"
+                               "however the previous analysis is still "
+                               "in progress, the new analysis will start after "
+                               "the previous one finishes or gets interrupted "
+                               "by the timer");
+        }
+        return;
+    }
+
+    CLOG_INFO(Herder,
+              "Transitive closure of quorum has changed, re-analyzing.");
+    mLastQuorumMapIntersectionState->reset(mApp);
+    mLastQuorumMapIntersectionState->mRecalculating = true;
+    mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
+    quorum_checker::runQuorumIntersectionCheckAsync(
+        mApp, curr, trackingConsensusLedgerIndex(),
+        mLastQuorumMapIntersectionState->mTmpDir->getName(), qmap,
+        mLastQuorumMapIntersectionState, mApp.getProcessManager(),
+        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
+        mApp.getConfig().QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES,
+        true /*analyzeCriticalGroups*/);
+}
+
+void
 HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 {
     if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
@@ -1873,13 +1948,13 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
     ZoneScoped;
     QuorumTracker::QuorumMap const& qmap = getCurrentlyTrackedQuorum();
     Hash curr = getQmapHash(qmap);
-    if (mLastQuorumMapIntersectionState.mLastCheckQuorumMapHash == curr)
+    if (mLastQuorumMapIntersectionState->mLastCheckQuorumMapHash == curr)
     {
         // Everything's stable, nothing to do.
         return;
     }
 
-    if (mLastQuorumMapIntersectionState.mRecalculating)
+    if (mLastQuorumMapIntersectionState->mRecalculating)
     {
         // Already recalculating. If we're recalculating for the hash we want,
         // we do nothing, just wait for it to finish. If we're recalculating for
@@ -1887,7 +1962,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         // _interrupt_ the calculation-in-progress: we'll return to this
         // function on the next externalize and start a new calculation for the
         // new hash we want.
-        if (mLastQuorumMapIntersectionState.mCheckingQuorumMapHash == curr)
+        if (mLastQuorumMapIntersectionState->mCheckingQuorumMapHash == curr)
         {
             CLOG_DEBUG(Herder, "Transitive closure of quorum has "
                                "changed, already analyzing new "
@@ -1898,7 +1973,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
             CLOG_DEBUG(Herder, "Transitive closure of quorum has "
                                "changed, interrupting existing "
                                "analysis.");
-            mLastQuorumMapIntersectionState.mInterruptFlag = true;
+            mLastQuorumMapIntersectionState->mInterruptFlag = true;
         }
     }
     else
@@ -1906,48 +1981,57 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         CLOG_INFO(Herder,
                   "Transitive closure of quorum has changed, re-analyzing.");
         // Not currently recalculating: start doing so.
-        mLastQuorumMapIntersectionState.mRecalculating = true;
-        mLastQuorumMapIntersectionState.mInterruptFlag = false;
-        mLastQuorumMapIntersectionState.mCheckingQuorumMapHash = curr;
+        mLastQuorumMapIntersectionState->mRecalculating = true;
+        mLastQuorumMapIntersectionState->mInterruptFlag = false;
+        mLastQuorumMapIntersectionState->mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
-        releaseAssert(threadIsMain());
-        auto seed = gRandomEngine();
-        auto qic = QuorumIntersectionChecker::create(
-            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag, seed);
+        auto seed = getGlobalRandomEngine()();
+
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
-        auto& hState = mLastQuorumMapIntersectionState;
+        auto hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, seed, &app,
-                       &hState] {
+        auto worker = [curr, ledger, nNodes, qmap, cfg, seed, &app, hState] {
             try
             {
                 ZoneScoped;
-                bool ok = qic->networkEnjoysQuorumIntersection();
-                auto split = qic->getPotentialSplit();
+                bool ok = false;
+                std::pair<std::vector<PublicKey>, std::vector<PublicKey>> split;
+                auto qic = QuorumIntersectionChecker::create(
+                    qmap, cfg, hState->mInterruptFlag, seed);
+                ok = qic->networkEnjoysQuorumIntersection();
+                split = qic->getPotentialSplit();
                 std::set<std::set<PublicKey>> critical;
                 if (ok)
                 {
                     // Only bother calculating the _critical_ groups if we're
                     // intersecting; if not intersecting we should finish ASAP
                     // and raise an alarm.
+                    auto cb = [&hState, seed](
+                                  QuorumIntersectionChecker::QuorumSetMap const&
+                                      qSetMap,
+                                  std::optional<Config> const& config) -> bool {
+                        auto checker = QuorumIntersectionChecker::create(
+                            qSetMap, config, hState->mInterruptFlag, seed,
+                            /*quiet=*/true);
+                        return checker->networkEnjoysQuorumIntersection();
+                    };
                     critical = QuorumIntersectionChecker::
                         getIntersectionCriticalGroups(
-                            qmap, cfg, hState.mInterruptFlag, seed);
+                            toQuorumIntersectionMap(qmap), cfg, cb);
                 }
                 app.postOnMainThread(
-                    [ok, curr, ledger, nNodes, split, critical, &hState] {
-                        hState.mRecalculating = false;
-                        hState.mInterruptFlag = false;
-                        hState.mNumNodes = nNodes;
-                        hState.mLastCheckLedger = ledger;
-                        hState.mLastCheckQuorumMapHash = curr;
-                        hState.mCheckingQuorumMapHash = Hash{};
-                        hState.mPotentialSplit = split;
-                        hState.mIntersectionCriticalNodes = critical;
+                    [ok, curr, ledger, nNodes, split, critical, hState, &app] {
+                        hState->reset(app);
+
+                        hState->mNumNodes = nNodes;
+                        hState->mLastCheckLedger = ledger;
+                        hState->mLastCheckQuorumMapHash = curr;
+                        hState->mPotentialSplit = split;
+                        hState->mIntersectionCriticalNodes = critical;
                         if (ok)
                         {
-                            hState.mLastGoodLedger = ledger;
+                            hState->mLastGoodLedger = ledger;
                         }
                     },
                     "QuorumIntersectionChecker finished");
@@ -1956,13 +2040,17 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
             {
                 CLOG_DEBUG(Herder,
                            "Quorum transitive closure analysis interrupted.");
-                app.postOnMainThread(
-                    [&hState] {
-                        hState.mRecalculating = false;
-                        hState.mInterruptFlag = false;
-                        hState.mCheckingQuorumMapHash = Hash{};
-                    },
-                    "QuorumIntersectionChecker interrupted");
+                app.postOnMainThread([hState, &app] { hState->reset(app); },
+                                     "QuorumIntersectionChecker interrupted");
+            }
+            catch (RustQuorumCheckerError const& e)
+            {
+                CLOG_DEBUG(Herder,
+                           "Quorum transitive closure analysis failed due to "
+                           "Rust solver error: {}",
+                           e.what());
+                app.postOnMainThread([hState, &app] { hState->reset(app); },
+                                     "QuorumIntersectionChecker rust error");
             }
         };
         mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");
@@ -1992,7 +2080,7 @@ HerderImpl::persistSCPState(uint64 slot)
         latestEnvs.emplace_back(e);
 
         // saves transaction sets referred by the statement
-        for (auto const& h : getTxSetHashes(e))
+        for (auto const& h : getValidatedTxSetHashes(e))
         {
             auto txSet = mPendingEnvelopes.getTxSet(h);
             if (txSet && !mApp.getPersistentState().hasTxSet(h))
@@ -2114,8 +2202,7 @@ HerderImpl::persistUpgrades()
     ZoneScoped;
     releaseAssert(threadIsMain());
     auto s = mUpgrades.getParameters().toJson();
-    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s,
-                                       mApp.getDatabase().getSession());
+    mApp.getPersistentState().setMiscState(PersistentState::kLedgerUpgrades, s);
 }
 
 void
@@ -2123,8 +2210,9 @@ HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+
     std::string s = mApp.getPersistentState().getState(
-        PersistentState::kLedgerUpgrades, mApp.getDatabase().getSession());
+        PersistentState::kLedgerUpgrades, mApp.getDatabase().getMiscSession());
     if (!s.empty())
     {
         Upgrades::UpgradeParameters p;
@@ -2162,8 +2250,8 @@ HerderImpl::maybeHandleUpgrade()
         auto const& conf =
             mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
 
-        auto maybeNewMaxTxSize =
-            conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
+        auto maybeNewMaxTxSize = saturatingAdd<uint32_t>(
+            conf.txMaxSizeBytes(), getFlowControlExtraBuffer());
         if (maybeNewMaxTxSize > mMaxTxSize)
         {
             diff = maybeNewMaxTxSize - mMaxTxSize;
@@ -2191,7 +2279,8 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
                 std::make_unique<SorobanTransactionQueue>(
                     mApp, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
                     TRANSACTION_QUEUE_BAN_LEDGERS,
-                    SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+                    mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER,
+                    recomputeKeysToFilter(protocolVersion));
         }
     }
     else if (mSorobanTransactionQueue)
@@ -2213,8 +2302,10 @@ HerderImpl::start()
         {
             auto const& conf =
                 mApp.getLedgerManager().getLastClosedSorobanNetworkConfig();
-            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
-                                                  getFlowControlExtraBuffer());
+            mMaxTxSize =
+                std::max(mMaxTxSize,
+                         saturatingAdd<uint32_t>(conf.txMaxSizeBytes(),
+                                                 getFlowControlExtraBuffer()));
         }
 
         maybeSetupSorobanQueue(version);
@@ -2262,6 +2353,7 @@ HerderImpl::start()
 
     restoreUpgrades();
     startTxSetGCTimer();
+    startCheckForDeadNodesInterval();
 }
 
 void
@@ -2293,7 +2385,7 @@ HerderImpl::purgeOldPersistedTxSets()
                 xdr::xdr_from_opaque(buffer, scpState);
                 for (auto const& e : scpState.v1().scpEnvelopes)
                 {
-                    for (auto const& hash : getTxSetHashes(e))
+                    for (auto const& hash : getValidatedTxSetHashes(e))
                     {
                         hashesToDelete.erase(hash);
                     }
@@ -2315,6 +2407,18 @@ HerderImpl::purgeOldPersistedTxSets()
 }
 
 void
+HerderImpl::startCheckForDeadNodesInterval()
+{
+    mCheckForDeadNodesTimer.expires_from_now(CHECK_FOR_DEAD_NODES_MINUTES);
+    mCheckForDeadNodesTimer.async_wait(
+        [this]() {
+            mHerderSCPDriver.startCheckForDeadNodesInterval();
+            startCheckForDeadNodesInterval();
+        },
+        &VirtualTimer::onFailureNoop);
+}
+
+void
 HerderImpl::trackingHeartBeat()
 {
     releaseAssert(threadIsMain());
@@ -2329,12 +2433,48 @@ HerderImpl::trackingHeartBeat()
 
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
-    mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
-                              &VirtualTimer::onFailureNoop);
+    mTrackingTimer.async_wait(
+        [this]() {
+            if (mApp.getLedgerManager().isApplying())
+            {
+                // if we're applying a ledger, it's possible that we're just
+                // slow and the timer expired; reset the timer and wait until we
+                // finished application
+                trackingHeartBeat();
+            }
+            else
+            {
+                herderOutOfSync();
+            }
+        },
+        &VirtualTimer::onFailureNoop);
+}
+
+UnorderedSet<LedgerKey>
+HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
+{
+    if (!gIsProductionNetwork)
+    {
+        return UnorderedSet<LedgerKey>{};
+    }
+
+    auto filteredSet = [](size_t count,
+                          auto const& arr) mutable -> UnorderedSet<LedgerKey> {
+        UnorderedSet<LedgerKey> result;
+        for (size_t i = 0; i < count; ++i)
+        {
+            LedgerKey key;
+            fromOpaqueBase64(key, arr[i]);
+            result.insert(key);
+        }
+        return result;
+    };
+    return filteredSet(KEYS_TO_FILTER_P24_COUNT, KEYS_TO_FILTER_P24);
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
+HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
+                                   bool queueRebuildNeeded)
 {
     ZoneScoped;
     if (externalizedTxSet == nullptr)
@@ -2348,9 +2488,15 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
 
-    auto updateQueue = [&](auto& queue, auto const& applied) {
+    auto updateQueue = [&](auto& queue, auto const& applied, bool isSoroban) {
         queue.removeApplied(applied);
         queue.shift();
+
+        if (isSoroban && queueRebuildNeeded)
+        {
+            auto keys = recomputeKeysToFilter(lhhe.header.ledgerVersion);
+            mSorobanTransactionQueue->resetAndRebuild(keys);
+        }
 
         auto txs = queue.getTransactions(lhhe.header);
 
@@ -2364,17 +2510,19 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
     if (txsPerPhase.size() > static_cast<size_t>(TxSetPhase::CLASSIC))
     {
         updateQueue(mTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)],
+                    false);
     }
 
-    // Even if we're in protocol 20, still check for number of phases, in case
-    // we're dealing with the upgrade ledger that contains old-style transaction
-    // set
+    // Even if we're in protocol 20, still check for number of phases, in
+    // case we're dealing with the upgrade ledger that contains old-style
+    // transaction set
     if (mSorobanTransactionQueue != nullptr &&
         txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
     {
         updateQueue(*mSorobanTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)]);
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)],
+                    true);
     }
 }
 
@@ -2382,12 +2530,12 @@ void
 HerderImpl::herderOutOfSync()
 {
     ZoneScoped;
-    // State switch from "tracking" to "out of sync" should only happen if there
-    // are no ledgers queued to be applied. If there are ledgers queued, it's
-    // possible the rest of the network is waiting for this node to vote. In
-    // this case we should _still_ remain in tracking and emit nomination; If
-    // the node does not hear anything from the network after that, then node
-    // can go into out of sync recovery.
+    // State switch from "tracking" to "out of sync" should only happen if
+    // there are no ledgers queued to be applied. If there are ledgers
+    // queued, it's possible the rest of the network is waiting for this
+    // node to vote. In this case we should _still_ remain in tracking and
+    // emit nomination; If the node does not hear anything from the network
+    // after that, then node can go into out of sync recovery.
     releaseAssert(threadIsMain());
     releaseAssert(!mLedgerManager.isApplying());
 
@@ -2430,7 +2578,7 @@ bool
 HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
-    auto b = PubKeyUtils::verifySig(
+    auto [b, _] = PubKeyUtils::verifySig(
         envelope.statement.nodeID, envelope.signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
                            envelope.statement));
@@ -2456,7 +2604,7 @@ bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
-    auto b = PubKeyUtils::verifySig(
+    auto [b, _] = PubKeyUtils::verifySig(
         sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
                            sv.txSetHash, sv.closeTime));
@@ -2523,5 +2671,4 @@ HerderImpl::getTx(Hash const& hash) const
     }
     return classic;
 }
-
 }

@@ -31,6 +31,9 @@
 
 namespace stellar
 {
+
+template <typename T> inline void xdr_validate_enum(T);
+
 static void
 printCurrentException()
 {
@@ -155,14 +158,22 @@ outOfMemory()
 // Rust hashes in checkXDRFileIdentity.
 namespace stellar
 {
-extern const std::vector<std::pair<std::filesystem::path, std::string>>
+extern std::vector<std::pair<std::filesystem::path, std::string>> const
     XDR_FILES_SHA256;
 }
 
+namespace
+{
 void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
+
+    // This will panic if the rust bridge has incompatible XDRs linked into it,
+    // which when combined with the _next_ check (comparing C++ and Rust XDRs)
+    // is enough to guarantee _all_ code linked into core is using the same
+    // XDRs.
+    check_xdr_version_identities();
 
     // This will panic if soroban does not support the current ledger protocol
     // version. It should even work if configured with "next": the next feature
@@ -270,6 +281,7 @@ checkStellarCoreMajorVersionProtocolIdentity()
                   << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
 }
+} // namespace
 
 #ifdef USE_TRACY_MEMORY_TRACKING
 
@@ -290,6 +302,10 @@ void*
 operator new(std::size_t count)
 {
     auto ptr = malloc(count);
+    if (ptr == nullptr)
+    {
+        throw std::bad_alloc();
+    }
     // "Secure" here means "tolerant of calls outside the
     // lifeitme of the tracy client".
     TracySecureAlloc(ptr, count);
@@ -307,6 +323,10 @@ void*
 operator new[](std::size_t count)
 {
     auto ptr = malloc(count);
+    if (ptr == nullptr)
+    {
+        throw std::bad_alloc();
+    }
     TracySecureAlloc(ptr, count);
     return ptr;
 }
@@ -338,16 +358,27 @@ main(int argc, char* const* argv)
         return 1;
     }
     initializeAllGlobalState();
-    xdr::marshaling_stack_limit = 1000;
+    xdr::marshaling_stack_limit = 1500;
 
-    checkStellarCoreMajorVersionProtocolIdentity();
-    rust_bridge::check_sensible_soroban_config_for_protocol(
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    try
+    {
 
-    // Disable XDR hash checking in vnext builds
+        checkStellarCoreMajorVersionProtocolIdentity();
+        rust_bridge::check_sensible_soroban_config_for_protocol(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
+        // Disable XDR hash checking in vnext builds
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    checkXDRFileIdentity();
+        checkXDRFileIdentity();
 #endif
+    }
+    catch (...)
+    {
+        // Diagnosing version-mismatch errors is hard so we print
+        // the version information before we throw.
+        runVersion(CommandLineArgs{});
+        throw;
+    }
 
     int res = handleCommandLine(argc, argv);
     return res;

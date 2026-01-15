@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketListBase.h"
 #include "bucket/HotArchiveBucket.h"
@@ -15,10 +15,11 @@ namespace stellar
 class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 {
   public:
+    using bucket_type = HotArchiveBucket;
+
     void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& archiveEntries,
-                  std::vector<LedgerKey> const& restoredEntries,
-                  std::vector<LedgerKey> const& deletedEntries);
+                  std::vector<LedgerKey> const& restoredEntries);
 };
 }

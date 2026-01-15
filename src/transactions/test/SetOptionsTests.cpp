@@ -5,10 +5,10 @@
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -356,8 +356,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                         {acc1.getSecretKey()});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -397,8 +398,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                         {acc1.getSecretKey()});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -497,8 +499,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
                                                   ops, keys);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));

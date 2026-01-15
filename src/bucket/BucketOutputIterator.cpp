@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketIndex.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
@@ -165,8 +166,9 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 
 template <typename BucketT>
 std::shared_ptr<BucketT>
-BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
-                                         MergeKey* mergeKey)
+BucketOutputIterator<BucketT>::getBucket(
+    BucketManager& bucketManager, MergeKey* mergeKey,
+    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState)
 {
     ZoneScoped;
     if (mBuf)
@@ -191,19 +193,60 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     }
 
     auto hash = mHasher.finish();
-    std::unique_ptr<typename BucketT::IndexT const> index{};
 
-    // either it's a new bucket or we just reconstructed a bucket
-    // we already have, in any case ensure we have an index
-    if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
-        !b || !b->isIndexed())
+    // Check if a bucket with this hash already exists, and if so, grab a
+    // shared_ptr to its index. This prevents a race condition where GC could
+    // free the index between our check and adoptFileAsBucket:
+    //
+    // 1. Background merge produces bucket with hash X
+    // 2. An existing bucket X may exist in BucketManager but not be in the
+    //    BucketList (e.g., it left level 0 and will re-enter at level 2)
+    // 3. GC on main thread sees use_count==1 and bucket not in BucketList,
+    //    so it frees the index
+    // 4. adoptFileAsBucket returns the existing bucket, but index is gone
+    //
+    // By grabbing the index as a shared_ptr here, we hold a reference that
+    // prevents GC from freeing it. If the bucket doesn't exist or isn't
+    // indexed, we create a new index. Note that we're not worried about GC
+    // deleting the actual Bucket file, as merge creates a temp file regardless
+    // of existence and does an atomic rename as part of adopt.
+    std::shared_ptr<typename BucketT::IndexT const> index{};
+    if (auto existingBucket = bucketManager.getBucketIfExists<BucketT>(hash);
+        existingBucket)
     {
-        index =
-            createIndex<BucketT>(bucketManager, mFilename, hash, mCtx, nullptr);
+        index = BucketT::maybeGetIndexForMerge(existingBucket);
     }
 
-    return bucketManager.adoptFileAsBucket<BucketT>(mFilename.string(), hash,
-                                                    mergeKey, std::move(index));
+    if (!index)
+    {
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            if (inMemoryState)
+            {
+                index = std::make_shared<LiveBucketIndex>(
+                    bucketManager, *inMemoryState, mMeta);
+            }
+        }
+
+        if (!index)
+        {
+            index = createIndex<BucketT>(bucketManager, mFilename, hash, mCtx,
+                                         nullptr);
+        }
+    }
+
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        return bucketManager.adoptFileAsBucket<BucketT>(
+            mFilename.string(), hash, mergeKey, std::move(index),
+            std::move(inMemoryState));
+    }
+    else
+    {
+        // HotArchiveBucket does not use in-memory state
+        return bucketManager.adoptFileAsBucket<BucketT>(
+            mFilename.string(), hash, mergeKey, std::move(index), nullptr);
+    }
 }
 
 template class BucketOutputIterator<LiveBucket>;

@@ -5,13 +5,15 @@
 #include "SurveyManager.h"
 #include "crypto/Curve25519.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayUtils.h"
 #include "overlay/SurveyDataManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
@@ -57,9 +59,9 @@ peerStatsToJson(PeerStats const& peer)
 }
 
 // Generate JSON for each peer in `peerList` and append to `jsonResultList`
-void
+static void
 recordTimeSlicedLinkResults(Json::Value& jsonResultList,
-                            TimeSlicedPeerDataList const& peerList)
+                            std::vector<TimeSlicedPeerData> const& peerList)
 {
     for (auto const& peer : peerList)
     {
@@ -67,6 +69,49 @@ recordTimeSlicedLinkResults(Json::Value& jsonResultList,
         peerInfo["averageLatencyMs"] = peer.averageLatencyMs;
         jsonResultList.append(peerInfo);
     }
+}
+
+// Populate results with the values of the other parameters
+static void
+populatePeerResults(Json::Value& results, TimeSlicedNodeData const& node,
+                    std::vector<TimeSlicedPeerData> const& inboundPeers,
+                    std::vector<TimeSlicedPeerData> const& outboundPeers)
+{
+    // Fill in node data
+    results["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
+    results["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
+    results["numTotalInboundPeers"] = node.totalInboundPeerCount;
+    results["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
+    results["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
+    results["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
+    results["lostSyncCount"] = node.lostSyncCount;
+    results["isValidator"] = node.isValidator;
+    results["maxInboundPeerCount"] = node.maxInboundPeerCount;
+    results["maxOutboundPeerCount"] = node.maxOutboundPeerCount;
+
+    // Fill in link data
+    auto& inboundResults = results["inboundPeers"];
+    auto& outboundResults = results["outboundPeers"];
+    recordTimeSlicedLinkResults(inboundResults, inboundPeers);
+    recordTimeSlicedLinkResults(outboundResults, outboundPeers);
+}
+
+// We just need a rough estimate of the close time, so use the default starting
+// values here instead of checking the actual network config.
+std::chrono::milliseconds
+getSurveyThrottleTimeoutMs(Application& app)
+{
+    auto const& cfg = app.getConfig();
+    auto estimatedCloseTime =
+        Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
+
+    if (auto overrideOp = cfg.getExpectedLedgerCloseTimeTestingOverride();
+        overrideOp.has_value())
+    {
+        estimatedCloseTime = *overrideOp;
+    }
+
+    return estimatedCloseTime * SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT;
 }
 } // namespace
 
@@ -78,9 +123,7 @@ SurveyManager::SurveyManager(Application& app)
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
-    , SURVEY_THROTTLE_TIMEOUT_SEC(
-          mApp.getConfig().getExpectedLedgerCloseTime() *
-          SURVEY_THROTTLE_TIMEOUT_MULT)
+    , SURVEY_THROTTLE_TIMEOUT_MS(getSurveyThrottleTimeoutMs(app))
     , mSurveyDataManager(
           [this]() { return mApp.getClock().now(); },
           mApp.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"),
@@ -101,6 +144,23 @@ SurveyManager::startSurveyReporting()
     // results are only cleared when we start the NEXT survey so we can query
     // the results  after the survey closes
     mResults.clear();
+
+    // Add surveying node's data to results
+    auto& node = mSurveyDataManager.getFinalNodeData();
+    if (node.has_value())
+    {
+        auto& results = mResults["topology"][KeyUtils::toStrKey(
+            mApp.getConfig().NODE_SEED.getPublicKey())];
+        populatePeerResults(results, node.value(),
+                            mSurveyDataManager.getFinalInboundPeerData(),
+                            mSurveyDataManager.getFinalOutboundPeerData());
+    }
+    else
+    {
+        logErrorOrThrow(
+            "When startSurveyReporting was called, the surveying node didn't "
+            "have finalized surveying data.");
+    }
     mBadResponseNodes.clear();
 
     // queued peers are only cleared when we start the NEXT survey so we know
@@ -297,7 +357,11 @@ SurveyManager::addNodeToRunningSurveyBacklog(NodeID const& nodeToSurvey,
 {
     if (!mRunningSurveyReportingPhase)
     {
-        throw std::runtime_error("addNodeToRunningSurveyBacklog failed");
+        logErrorOrThrow(fmt::format(
+            "Cannot add node {} to survey backlog because survey is not "
+            "running",
+            KeyUtils::toStrKey(nodeToSurvey)));
+        return;
     }
 
     addPeerToBacklog(nodeToSurvey);
@@ -524,25 +588,8 @@ SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
     // SURVEY_TOPOLOGY_RESPONSE_V2 is the only type of survey
     // response remaining in the XDR union for SurveyResponseBody
     TopologyResponseBodyV2 const& topologyBody = body.topologyResponseBodyV2();
-
-    // Fill in node data
-    TimeSlicedNodeData const& node = topologyBody.nodeData;
-    peerResults["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
-    peerResults["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
-    peerResults["numTotalInboundPeers"] = node.totalInboundPeerCount;
-    peerResults["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
-    peerResults["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
-    peerResults["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
-    peerResults["lostSyncCount"] = node.lostSyncCount;
-    peerResults["isValidator"] = node.isValidator;
-    peerResults["maxInboundPeerCount"] = node.maxInboundPeerCount;
-    peerResults["maxOutboundPeerCount"] = node.maxOutboundPeerCount;
-
-    // Fill in link data
-    auto& inboundResults = peerResults["inboundPeers"];
-    auto& outboundResults = peerResults["outboundPeers"];
-    recordTimeSlicedLinkResults(inboundResults, topologyBody.inboundPeers);
-    recordTimeSlicedLinkResults(outboundResults, topologyBody.outboundPeers);
+    populatePeerResults(peerResults, topologyBody.nodeData,
+                        topologyBody.inboundPeers, topologyBody.outboundPeers);
 }
 
 bool
@@ -696,7 +743,11 @@ SurveyManager::topOffRequests()
     {
         if (mPeersToSurveyQueue.empty())
         {
-            throw std::runtime_error("mPeersToSurveyQueue unexpectedly empty");
+            logErrorOrThrow(
+                "mPeersToSurveyQueue is empty, but mPeersToSurvey is not");
+            mPeersToSurvey.clear();
+            stopSurveyReporting();
+            return;
         }
         auto key = mPeersToSurveyQueue.front();
         mPeersToSurvey.erase(key);
@@ -719,7 +770,7 @@ SurveyManager::topOffRequests()
     };
 
     // schedule next top off
-    mSurveyThrottleTimer->expires_from_now(SURVEY_THROTTLE_TIMEOUT_SEC);
+    mSurveyThrottleTimer->expires_from_now(SURVEY_THROTTLE_TIMEOUT_MS);
     mSurveyThrottleTimer->async_wait(handler, &VirtualTimer::onFailureNoop);
 }
 
@@ -733,8 +784,11 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        throw std::runtime_error("addPeerToBacklog failed: Peer is already in "
-                                 "the backlog, or peer is self.");
+        logErrorOrThrow(fmt::format(
+            "Tried to add node {} to survey backlog, but it is already "
+            "queued or is the self node",
+            KeyUtils::toStrKey(nodeToSurvey)));
+        return;
     }
 
     mBadResponseNodes.erase(nodeToSurvey);
@@ -754,7 +808,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
                                     Signature const& signature,
                                     ByteSlice const& bin, Peer::pointer peer)
 {
-    bool success = PubKeyUtils::verifySig(key, signature, bin);
+    bool success = PubKeyUtils::verifySig(key, signature, bin).valid;
 
     if (!success && peer)
     {
@@ -768,7 +822,12 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
 std::string
 SurveyManager::commandTypeName(SurveyMessageCommandType type)
 {
-    return xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
+    auto res = xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
+    if (res == nullptr)
+    {
+        return "UNKNOWN_SURVEY_MESSAGE_COMMAND_TYPE";
+    }
+    return std::string(res);
 }
 
 bool

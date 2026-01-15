@@ -5,6 +5,7 @@
 #include "overlay/TxDemandsManager.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "medida/meter.h"
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
@@ -45,9 +46,7 @@ TxDemandsManager::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
+        mApp.getLedgerManager().getExpectedLedgerCloseTime().count();
     int64_t queueSizeInOps = TxAdverts::getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
@@ -160,9 +159,9 @@ TxDemandsManager::demand()
 
     UnorderedMap<Peer::pointer, std::pair<TxDemandVector, std::list<Hash>>>
         demandMap;
-    bool anyNewDemand = false;
+    bool anyNewDemand = true;
     auto maxDemandSize = getMaxDemandSize();
-    do
+    while (anyNewDemand)
     {
         anyNewDemand = false;
         for (auto const& peer : peers)
@@ -207,10 +206,10 @@ TxDemandsManager::demand()
                     break;
                 }
             }
-            anyNewDemand |= addedNewDemand;
+            anyNewDemand = anyNewDemand || addedNewDemand;
         }
         // Loop again if we added one new demand to any peer
-    } while (anyNewDemand);
+    }
 
     for (auto const& peer : peers)
     {

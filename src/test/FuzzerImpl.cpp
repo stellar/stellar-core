@@ -19,7 +19,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -36,6 +36,8 @@
 namespace stellar
 {
 namespace FuzzUtils
+{
+namespace
 {
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
@@ -170,6 +172,14 @@ getShortKey(LedgerKey const& key)
             return getShortKey(key.contractData().contract.accountId());
         case SC_ADDRESS_TYPE_CONTRACT:
             return key.contractData().contract.contractId().at(0);
+        case SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
+            return getShortKey(
+                key.contractData().contract.claimableBalanceId());
+        case SC_ADDRESS_TYPE_LIQUIDITY_POOL:
+            return getShortKey(key.contractData().contract.liquidityPoolId());
+        case SC_ADDRESS_TYPE_MUXED_ACCOUNT:
+            return getShortKey(
+                key.contractData().contract.muxedAccount().ed25519);
         }
     case CONTRACT_CODE:
         return key.contractCode().hash.at(0);
@@ -305,7 +315,8 @@ emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
         ops.emplace_back(endSponsoringOp);
     }
 }
-}
+} // namespace
+} // namespace FuzzUtils
 }
 
 namespace xdr
@@ -495,7 +506,7 @@ struct xdr_fuzzer_compactor
 };
 
 template <typename... Args>
-opaque_vec<>
+static opaque_vec<>
 xdr_to_fuzzer_opaque(Args const&... args)
 {
     opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
@@ -782,7 +793,7 @@ struct xdr_fuzzer_unpacker
 };
 
 template <typename Bytes, typename... Args>
-auto
+static auto
 xdr_from_fuzzer_opaque(
     stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
     stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs, Bytes const& m,
@@ -813,7 +824,7 @@ generator_t::operator()(stellar::PublicKey& t) const
 }
 
 static int RECURSION_COUNT = 0;
-static const int RECURSION_LIMIT = 50;
+static int const RECURSION_LIMIT = 50;
 
 template <>
 void
@@ -825,7 +836,7 @@ generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
         val = v;
         return;
     }
-    const auto& vals = stellar::SCVal::_xdr_case_values();
+    auto const& vals = stellar::SCVal::_xdr_case_values();
     stellar::SCValType v;
 
     uint32_t n = 0;
@@ -887,8 +898,6 @@ resetTxInternalState(Application& app)
     app.getLedgerTxnRoot().resetForFuzzer();
     app.getInvariantManager().resetForFuzzer();
 #endif // BUILD_TESTS
-    app.getDatabase().clearPreparedStatementCache(
-        app.getDatabase().getSession());
 }
 
 // FuzzTransactionFrame is a specialized TransactionFrame that includes
@@ -903,7 +912,7 @@ class FuzzTransactionFrame : public TransactionFrame
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
         : TransactionFrame(networkID, envelope)
-        , mTxResult(createSuccessResult()){};
+        , mTxResult(MutableTransactionResult::createSuccess(*this, 0)) {};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -912,26 +921,30 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(getOperations().begin(), getOperations().end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            mTxResult->setResultCode(txFAILED);
+            mTxResult->setError(txFAILED);
             return;
         }
 
         // reset results of operations
-        mTxResult = createSuccessResultWithFeeCharged(
-            ltx.loadHeader().current(), 0, true);
+        mTxResult = MutableTransactionResult::createSuccess(*this, 0);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
+        // Do not track metrics related to background signature verification in
+        // the fuzzer.
+        signatureChecker.disableCacheMetricsTracking();
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            auto diagnostics =
+                DiagnosticEventManager::createForValidation(app.getConfig());
             return !op->checkValid(
                 app.getAppConnector(), signatureChecker,
-                app.getAppConnector().getLastClosedSorobanNetworkConfig(),
-                ltxStmt, false, opResult, mTxResult->getSorobanData());
+                &app.getAppConnector().getLastClosedSorobanNetworkConfig(),
+                ltxStmt, false, opResult, diagnostics);
         };
 
         auto const& ops = getOperations();
@@ -941,7 +954,7 @@ class FuzzTransactionFrame : public TransactionFrame
             auto& opResult = mTxResult->getOpResultAt(i);
             if (isInvalidOperation(op, opResult))
             {
-                mTxResult->setResultCode(txFAILED);
+                mTxResult->setError(txFAILED);
                 return;
             }
         }
@@ -951,19 +964,23 @@ class FuzzTransactionFrame : public TransactionFrame
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
-        TransactionMetaFrame tm(2);
+        TransactionMetaBuilder tm(true, *this,
+                                  ltx.loadHeader().current().ledgerVersion,
+                                  app.getAppConnector());
+        std::optional<SorobanNetworkConfig const> sorobanNetworkConfig;
+        Hash sorobanRngSeed;
         applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
-                        *mTxResult, Hash{});
+                        *mTxResult, sorobanNetworkConfig, sorobanRngSeed);
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
     }
 
-    TransactionResult&
-    getResult()
+    TransactionResult const&
+    getResult() const
     {
-        return mTxResult->getResult();
+        return mTxResult->getXDR();
     }
 
     TransactionResultCode
@@ -973,6 +990,8 @@ class FuzzTransactionFrame : public TransactionFrame
     }
 };
 
+namespace
+{
 std::shared_ptr<FuzzTransactionFrame>
 createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
                            PublicKey const& sourceAccountID,
@@ -1013,7 +1032,7 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 // Empties "ops" as operations are applied.  Throws if any operations fail.
 // Handles breaking up the list of operations into multiple transactions, if the
 // caller provides more operations than fit in a single transaction.
-static void
+void
 applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                      xdr::xvector<Operation>::const_iterator begin,
                      xdr::xvector<Operation>::const_iterator end,
@@ -1075,7 +1094,7 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 
 // Requires a set of operations small enough to fit in a single transaction.
 // Tolerates the failure of transaction application.
-static void
+void
 applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                     xdr::xvector<Operation>::const_iterator begin,
                     xdr::xvector<Operation>::const_iterator end,
@@ -1085,6 +1104,7 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                                                  app.getNetworkID());
     txFramePtr->attemptApplication(app, ltx);
 }
+} // namespace
 
 // Unlike Asset, this can be a constexpr.
 struct AssetID

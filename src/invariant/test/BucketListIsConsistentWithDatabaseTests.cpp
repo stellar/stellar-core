@@ -13,9 +13,9 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
@@ -32,6 +32,8 @@
 using namespace stellar;
 
 namespace BucketListIsConsistentWithDatabaseTests
+{
+namespace
 {
 
 struct BucketListGenerator
@@ -58,6 +60,7 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
         auto has = getHistoryArchiveState(app);
+        app->getLedgerManager().markApplyStateReset();
         auto& wm = app->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
                           app->getConfig().LEDGER_PROTOCOL_VERSION,
@@ -149,7 +152,7 @@ struct BucketListGenerator
         {
             auto dist = stellar::uniform_int_distribution<size_t>(
                 0, liveDeletable.size() - 1);
-            auto index = dist(gRandomEngine);
+            auto index = dist(getGlobalRandomEngine());
             auto iter = liveDeletable.begin();
             std::advance(iter, index);
             if (iter->type() == CONFIG_SETTING)
@@ -209,7 +212,7 @@ struct BucketListGenerator
 
 bool
 doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
-                  const BucketEntry& be)
+                  BucketEntry const& be)
 {
     for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
@@ -222,7 +225,7 @@ doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
 }
 
 bool
-doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
+doesBucketListContain(LiveBucketList& bl, BucketEntry const& be)
 {
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
@@ -258,7 +261,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 stellar::uniform_int_distribution<size_t> dist(
                     0, mLiveKeys.size() - 1);
                 auto iter = mLiveKeys.begin();
-                std::advance(iter, dist(gRandomEngine));
+                std::advance(iter, dist(getGlobalRandomEngine()));
 
                 mSelected = std::make_shared<LedgerEntry>(
                     ltx.loadWithoutRecord(*iter).current());
@@ -451,7 +454,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         return r;
     }
 };
-}
+} // namespace
+} // namespace BucketListIsConsistentWithDatabaseTests
 
 using namespace BucketListIsConsistentWithDatabaseTests;
 
@@ -498,7 +502,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
             2, blg.mLedgerSeq);
         auto le =
             LedgerTestUtils::generateValidLedgerEntryWithTypes({OFFER}, 10);
-        le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
+        le.lastModifiedLedgerSeq = addAtLedgerDist(getGlobalRandomEngine());
         REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkAddEntry>(le),
                           InvariantDoesNotHold);
     }
@@ -597,7 +601,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
 
         for (uint32_t i = 0; i < 10; ++i)
         {
-            uint32_t ledgerToModify = ledgerToModifyDist(gRandomEngine);
+            uint32_t ledgerToModify =
+                ledgerToModifyDist(getGlobalRandomEngine());
             uint32_t maxLowTargetLedger = 0;
             uint32_t minHighTargetLedger = 0;
             if (ledgerToModify >=
@@ -621,8 +626,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
             stellar::uniform_int_distribution<uint32_t> highTargetLedgerDist(
                 minHighTargetLedger, std::numeric_limits<int32_t>::max());
 
-            uint32_t lowTarget = lowTargetLedgerDist(gRandomEngine);
-            uint32_t highTarget = highTargetLedgerDist(gRandomEngine);
+            uint32_t lowTarget = lowTargetLedgerDist(getGlobalRandomEngine());
+            uint32_t highTarget = highTargetLedgerDist(getGlobalRandomEngine());
             for (auto target : {lowTarget, highTarget})
             {
                 LastModifiedBucketListGenerator blg(ledgerToModify, target);

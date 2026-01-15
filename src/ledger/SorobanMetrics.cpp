@@ -1,12 +1,11 @@
 #include "ledger/SorobanMetrics.h"
+#include "util/MetricsRegistry.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
-SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
+SorobanMetrics::SorobanMetrics(MetricsRegistry& metrics)
     : /* ledger-wide metrics */
     mLedgerTxCount(metrics.NewHistogram({"soroban", "ledger", "tx-count"}))
     , mLedgerCpuInsn(metrics.NewHistogram({"soroban", "ledger", "cpu-insn"}))
@@ -20,6 +19,11 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewHistogram({"soroban", "ledger", "write-entry"}))
     , mLedgerWriteLedgerByte(
           metrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"}))
+    , mLedgerHostFnCpuInsnsRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
+    , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
+
     /* tx-wide metrics */
     , mTxSizeByte(metrics.NewHistogram({"soroban", "tx", "size-byte"}))
     /* InvokeHostFunctionOp metrics */
@@ -62,6 +66,8 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     , mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm(
           metrics.NewHistogram({"soroban", "host-fn-op",
                                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"}))
+    , mHostFnOpDeclaredInsnsUsageRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"}))
     , mHostFnOpMaxRwKeyByte(metrics.NewMeter(
           {"soroban", "host-fn-op", "max-rw-key-byte"}, "byte"))
     , mHostFnOpMaxRwDataByte(metrics.NewMeter(
@@ -100,9 +106,9 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewCounter({"soroban", "config", "tx-max-cpu-insn"}))
     , mConfigTxMemoryLimitBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-mem-byte"}))
-    , mConfigTxMaxReadLedgerEntries(
+    , mConfigTxMaxDiskReadEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-read-entry"}))
-    , mConfigTxMaxReadBytes(
+    , mConfigTxMaxDiskReadBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"}))
     , mConfigTxMaxWriteLedgerEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-write-entry"}))
@@ -116,9 +122,9 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewCounter({"soroban", "config", "ledger-max-cpu-insn"}))
     , mConfigLedgerMaxTxsSizeByte(
           metrics.NewCounter({"soroban", "config", "ledger-max-txs-size-byte"}))
-    , mConfigLedgerMaxReadLedgerEntries(
+    , mConfigLedgerMaxDiskReadEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-read-entry"}))
-    , mConfigLedgerMaxReadBytes(metrics.NewCounter(
+    , mConfigLedgerMaxDiskReadBytes(metrics.NewCounter(
           {"soroban", "config", "ledger-max-read-ledger-byte"}))
     , mConfigLedgerMaxWriteEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-write-entry"}))
@@ -128,12 +134,25 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           {"soroban", "config", "bucket-list-target-size-byte"}))
     , mConfigFeeWrite1KB(
           metrics.NewCounter({"soroban", "config", "fee-write-1kb"}))
-    , mLedgerHostFnCpuInsnsRatio(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
-    , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
-    , mHostFnOpDeclaredInsnsUsageRatio(metrics.NewHistogram(
-          {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"}))
+
+    /* Module cache related metrics */
+    , mModuleCacheNumEntries(
+          metrics.NewCounter({"soroban", "module-cache", "num-entries"}))
+    , mModuleCompilationTime(
+          metrics.NewTimer({"soroban", "module-cache", "compilation-time"}))
+    , mModuleCacheRebuildTime(
+          metrics.NewTimer({"soroban", "module-cache", "rebuild-time"}))
+    , mModuleCacheRebuildBytes(
+          metrics.NewCounter({"soroban", "module-cache", "rebuild-bytes"}))
+    , mContractCodeStateSize(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-code-size"}))
+    , mContractDataStateSize(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-data-size"}))
+    , mContractCodeEntryCount(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-code-entries"}))
+    , mContractDataEntryCount(metrics.NewCounter(
+          {"soroban", "in-memory-state", "contract-data-entries"}))
+
 {
 }
 
@@ -193,11 +212,13 @@ SorobanMetrics::publishAndResetLedgerWideMetrics()
     mLedgerReadLedgerByte.Update(mCounterLedgerReadByte);
     mLedgerWriteEntry.Update(mCounterLedgerWriteEntry);
     mLedgerWriteLedgerByte.Update(mCounterLedgerWriteByte);
-    mLedgerHostFnCpuInsnsRatio.Update(mLedgerHostFnExecTimeNsecs * 1000000 /
-                                      std::max(mLedgerInsnsCount, uint64_t(1)));
+    mLedgerHostFnCpuInsnsRatio.Update(
+        mLedgerHostFnExecTimeNsecs * 1000000 /
+        std::max(mLedgerInsnsCount.load(), uint64_t(1)));
+
     mLedgerHostFnCpuInsnsRatioExclVm.Update(
         mLedgerHostFnExecTimeNsecs * 1000000 /
-        std::max(mLedgerInsnsExclVmCount, uint64_t(1)));
+        std::max(mLedgerInsnsExclVmCount.load(), uint64_t(1)));
 
     mCounterLedgerTxCount = 0;
     mCounterLedgerCpuInsn = 0;

@@ -3,22 +3,30 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/InvariantManagerImpl.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
+#include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "lib/util/finally.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "medida/counter.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
+#include <condition_variable>
 #include <fmt/format.h>
-
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
+#include <mutex>
 
 #include <memory>
 #include <numeric>
@@ -30,20 +38,24 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return std::make_unique<InvariantManagerImpl>(app.getMetrics());
+    return std::make_unique<InvariantManagerImpl>(app);
 }
 
-InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
-    : mInvariantFailureCount(
-          registry.NewCounter({"ledger", "invariant", "failure"}))
+InvariantManagerImpl::InvariantManagerImpl(Application& app)
+    : mConfig(app.getConfig())
+    , mInvariantFailureCount(
+          app.getMetrics().NewCounter({"ledger", "invariant", "failure"}))
+    , mStateSnapshotInvariantSkipped(app.getMetrics().NewCounter(
+          {"ledger", "invariant", "state-snapshot-skipped"}))
+    , mStateSnapshotTimer(app)
 {
 }
 
 Json::Value
 InvariantManagerImpl::getJsonInfo()
 {
+    MutexLocker lock(mFailureInformationMutex);
     Json::Value failures;
-
     for (auto const& fi : mFailureInformation)
     {
         auto& fail = failures[fi.first];
@@ -127,20 +139,22 @@ InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
 }
 
 void
-InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& opres,
-                                            LedgerTxnDelta const& ltxDelta)
+InvariantManagerImpl::checkOnOperationApply(
+    Operation const& operation, OperationResult const& opres,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector& app)
 {
-    if (protocolVersionIsBefore(ltxDelta.header.current.ledgerVersion,
-                                ProtocolVersion::V_8))
-    {
-        return;
-    }
-
     for (auto invariant : mEnabled)
     {
-        auto result =
-            invariant->checkOnOperationApply(operation, opres, ltxDelta);
+        if (protocolVersionIsBefore(ltxDelta.header.current.ledgerVersion,
+                                    ProtocolVersion::V_8) &&
+            invariant->getName() != "EventsAreConsistentWithEntryDiffs")
+        {
+            continue;
+        }
+
+        auto result = invariant->checkOnOperationApply(operation, opres,
+                                                       ltxDelta, events, app);
         if (result.empty())
         {
             continue;
@@ -152,6 +166,34 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
             xdrToCerealString(operation, "Operation"));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
+    }
+}
+
+void
+InvariantManagerImpl::checkOnLedgerCommit(
+    SearchableSnapshotConstPtr lclLiveState,
+    SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+    std::vector<LedgerEntry> const& persitentEvictedFromLive,
+    std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
+    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+    UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+{
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->checkOnLedgerCommit(
+            lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
+            tempAndTTLEvictedFromLive, restoredFromArchive,
+            restoredFromLiveState);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
+            invariant->getName(), result);
+        onInvariantFailure(invariant, message,
+                           lclLiveState->getLedgerSeq() + 1);
     }
 }
 
@@ -236,23 +278,38 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
 }
 
 void
+InvariantManagerImpl::start(LedgerManager const& ledgerManager)
+{
+    releaseAssert(threadIsMain());
+
+    // If state snapshot invariants are enabled, run a snapshot on the
+    // initial startup state, then schedule the next run.
+    if (mConfig.INVARIANT_EXTRA_CHECKS)
+    {
+        scheduleSnapshotTimer();
+    }
+}
+
+void
 InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
                                          std::string const& message,
                                          uint32_t ledger)
 {
     mInvariantFailureCount.inc();
+
+    MutexLocker lock(mFailureInformationMutex);
     mFailureInformation[invariant->getName()] = {ledger, message};
-    handleInvariantFailure(invariant, message);
+    handleInvariantFailure(invariant->isStrict(), message);
 }
 
 void
-InvariantManagerImpl::handleInvariantFailure(
-    std::shared_ptr<Invariant> invariant, std::string const& message) const
+InvariantManagerImpl::handleInvariantFailure(bool isStrict,
+                                             std::string const& message) const
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     abort();
 #endif
-    if (invariant->isStrict())
+    if (isStrict)
     {
         CLOG_FATAL(Invariant, "{}", message);
         CLOG_FATAL(Invariant, "{}", REPORT_INTERNAL_BUG);
@@ -263,6 +320,82 @@ InvariantManagerImpl::handleInvariantFailure(
         CLOG_ERROR(Invariant, "{}", message);
         CLOG_ERROR(Invariant, "{}", REPORT_INTERNAL_BUG);
     }
+}
+
+// The snapshot invariant is triggered periodically based on wall clock time,
+// managed by the InvariantManagerImpl timing loop. After the given period has
+// elapsed from out last scan, snapshotTimerFired will set
+// mShouldRunStateSnapshotInvariant() to true. On the next ledger close,
+// LedgerManager will read this flag shouldRunInvariantSnapshot(), copy the
+// required state, then call this function in a background thread.
+void
+InvariantManagerImpl::runStateSnapshotInvariant(
+    SearchableSnapshotConstPtr liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    InMemorySorobanState const& inMemorySnapshot,
+    std::function<bool()> isStopping)
+{
+    // Reset our trigger flag and mark the invariant as running.
+    mStateSnapshotInvariantRunning = true;
+    mShouldRunStateSnapshotInvariant = false;
+
+    auto reset =
+        gsl::finally([this]() { mStateSnapshotInvariantRunning = false; });
+
+    for (auto const& invariant : mEnabled)
+    {
+        auto result = invariant->checkSnapshot(liveSnapshot, hotArchiveSnapshot,
+                                               inMemorySnapshot, isStopping);
+        if (!result.empty())
+        {
+            auto ledgerSeq = liveSnapshot->getLedgerSeq();
+            onInvariantFailure(invariant, result, ledgerSeq);
+        }
+    }
+}
+
+void
+InvariantManagerImpl::scheduleSnapshotTimer()
+{
+    auto frequencySeconds = mConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
+    mStateSnapshotTimer.expires_from_now(
+        std::chrono::seconds(frequencySeconds));
+    mStateSnapshotTimer.async_wait([this]() { snapshotTimerFired(); },
+                                   &VirtualTimer::onFailureNoop);
+}
+
+void
+InvariantManagerImpl::snapshotTimerFired()
+{
+    // Check if the previous invariant is still running. If we haven't finished
+    // the invariant in time, we will reset the timer, but not mark the
+    // invariant as ready to run.
+    if (mStateSnapshotInvariantRunning)
+    {
+        CLOG_WARNING(
+            Invariant,
+            "Skipping state snapshot invariant trigger "
+            "because a previous scan is still running. "
+            "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY may be too short");
+        mStateSnapshotInvariantSkipped.inc();
+    }
+    else
+    {
+        mShouldRunStateSnapshotInvariant = true;
+    }
+
+    scheduleSnapshotTimer();
+}
+
+bool
+InvariantManagerImpl::shouldRunInvariantSnapshot() const
+{
+    if (!mConfig.INVARIANT_EXTRA_CHECKS)
+    {
+        return false;
+    }
+
+    return mShouldRunStateSnapshotInvariant;
 }
 
 #ifdef BUILD_TESTS

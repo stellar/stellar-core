@@ -12,6 +12,7 @@
 #include "scp/Slot.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/UnorderedSet.h"
 #include <Tracy.hpp>
 #include <xdrpp/marshal.h>
@@ -99,7 +100,7 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 {
     CLOG_TRACE(Herder, "Add SCPQSet {}", hexAbbrev(qSetHash));
     SCPQuorumSetPtr res;
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     releaseAssert(isQuorumSetSane(qSet, false, errString));
     res = getKnownQSet(qSetHash, true);
     if (!res)
@@ -131,7 +132,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
         return false;
     }
 
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     bool res = isQuorumSetSane(q, false, errString);
     if (res)
     {
@@ -267,7 +268,12 @@ PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
 static std::string
 txSetsToStr(SCPEnvelope const& envelope)
 {
-    auto hashes = getTxSetHashes(envelope);
+    auto maybeHashes = getTxSetHashes(envelope);
+    if (!maybeHashes.has_value())
+    {
+        return "[invalid]";
+    }
+    auto const& hashes = maybeHashes.value();
     UnorderedSet<Hash> hashesSet(hashes.begin(), hashes.end());
     std::string res = "[";
     for (auto const& s : hashesSet)
@@ -291,7 +297,15 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    auto const& values = getStellarValues(envelope.statement);
+    auto const maybeValues = getStellarValues(envelope.statement);
+    if (!maybeValues.has_value())
+    {
+        CLOG_TRACE(Herder, "Dropping envelope from {} (invalid values)",
+                   mApp.getConfig().toShortString(nodeID));
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
+    auto const& values = maybeValues.value();
     if (std::any_of(values.begin(), values.end(), [](auto const& value) {
             return value.ext.v() != STELLAR_VALUE_SIGNED;
         }))
@@ -474,7 +488,9 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
     size_t totalReceivedBytes = 0;
     totalReceivedBytes += xdr::xdr_argpack_size(env);
 
-    for (auto const& v : getStellarValues(env.statement))
+    auto const maybeValues = getStellarValues(env.statement);
+    releaseAssert(maybeValues.has_value());
+    for (auto const& v : maybeValues.value())
     {
         size_t txSetSize = 0;
         if (mValueSizeCache.exists(v.txSetHash))
@@ -558,7 +574,7 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
         return false;
     }
 
-    auto txSetHashes = getTxSetHashes(envelope);
+    auto txSetHashes = getValidatedTxSetHashes(envelope);
     return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
                        [&](Hash const& txSetHash) {
                            return getKnownTxSet(txSetHash, 0, false);
@@ -578,7 +594,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         needSomething = true;
     }
 
-    for (auto const& h2 : getTxSetHashes(envelope))
+    for (auto const& h2 : getValidatedTxSetHashes(envelope))
     {
         if (!getKnownTxSet(h2, 0, false))
         {
@@ -602,7 +618,7 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     mQuorumSetFetcher.stopFetch(h, envelope);
 
-    for (auto const& h2 : getTxSetHashes(envelope))
+    for (auto const& h2 : getValidatedTxSetHashes(envelope))
     {
         mTxSetFetcher.stopFetch(h2, envelope);
     }
@@ -619,7 +635,7 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     getKnownQSet(qsetHash, true);
 
-    for (auto const& h : getTxSetHashes(envelope))
+    for (auto const& h : getValidatedTxSetHashes(envelope))
     {
         getKnownTxSet(h, envelope.statement.slotIndex, true);
     }
@@ -745,7 +761,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     else
     {
         auto& db = mApp.getDatabase();
-        qset = HerderPersistence::getQuorumSet(db.getRawSession(), hash);
+        qset = HerderPersistence::getQuorumSet(db.getRawMiscSession(), hash);
     }
     if (qset)
     {
@@ -813,8 +829,8 @@ PendingEnvelopes::rebuildQuorumTrackerState()
             {
                 // see if we had some information for that node
                 auto& db = mApp.getDatabase();
-                auto h =
-                    HerderPersistence::getNodeQuorumSet(db.getRawSession(), id);
+                auto h = HerderPersistence::getNodeQuorumSet(
+                    db.getRawMiscSession(), id);
                 if (h)
                 {
                     res = getQSet(*h);
@@ -882,8 +898,8 @@ PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
 {
     ZoneScoped;
 
-    const uint32_t K_MEAN_NUM_CLUSTERS = 3;
-    const double OUTLIER_COST_RATIO_LIMIT = 10;
+    uint32_t const K_MEAN_NUM_CLUSTERS = 3;
+    double const OUTLIER_COST_RATIO_LIMIT = 10;
 
     auto tracked = getCostPerValidator(slotIndex);
     if (tracked.empty())

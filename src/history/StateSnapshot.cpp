@@ -15,6 +15,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -53,12 +54,15 @@ bool
 StateSnapshot::writeSCPMessages() const
 {
     ZoneScoped;
+    bool canUseMisc = mApp.getDatabase().canUseMiscDB();
     std::unique_ptr<soci::session> snapSess(
-        mApp.getDatabase().canUsePool()
-            ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
-            : nullptr);
+        (mApp.getDatabase().canUsePool()
+             ? std::make_unique<soci::session>(
+                   canUseMisc ? mApp.getDatabase().getMiscPool()
+                              : mApp.getDatabase().getPool())
+             : nullptr));
     soci::session& sess(snapSess ? *snapSess
-                                 : mApp.getDatabase().getRawSession());
+                                 : mApp.getDatabase().getRawMiscSession());
     soci::transaction tx(sess);
 
     // The current "history block" is stored in _four_ files, one just ledger
@@ -94,7 +98,7 @@ StateSnapshot::writeSCPMessages() const
     if (nbSCPMessages == 0)
     {
         // don't upload empty files
-        std::remove(mSCPHistorySnapFile->localPath_nogz().c_str());
+        fs::removeWithLog(mSCPHistorySnapFile->localPath_nogz(), false);
     }
 
     // When writing checkpoint 0x3f (63) we will have written 63 headers because
@@ -120,9 +124,19 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
     addIfExists(mTransactionResultSnapFile);
     addIfExists(mSCPHistorySnapFile);
 
-    for (auto const& hash : mLocalState.differingBuckets(other))
+    auto hashes = mLocalState.differingBuckets(other);
+
+    for (auto const& hash : hashes.live)
     {
         auto b = mApp.getBucketManager().getBucketByHash<LiveBucket>(
+            hexToBin256(hash));
+        releaseAssert(b);
+        addIfExists(std::make_shared<FileTransferInfo>(*b));
+    }
+
+    for (auto const& hash : hashes.hot)
+    {
+        auto b = mApp.getBucketManager().getBucketByHash<HotArchiveBucket>(
             hexToBin256(hash));
         releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));

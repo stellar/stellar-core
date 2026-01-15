@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2016 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "xdr/Stellar-types.h"
 
@@ -15,12 +15,13 @@ namespace stellar
 
 class Application;
 class Database;
+class SessionWrapper;
 
 class BanManager
 {
   public:
     static std::unique_ptr<BanManager> create(Application& app);
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
 
     // Ban given node
     virtual void banNode(NodeID nodeID) = 0;

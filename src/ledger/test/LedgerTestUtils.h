@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "history/HistoryManager.h"
 #include "overlay/StellarXDR.h"
@@ -21,6 +21,9 @@ namespace LedgerTestUtils
 // generating a 'valid' trust line
 
 template <typename T> void replaceControlCharacters(T& s, int minSize);
+extern template void replaceControlCharacters(std::string& s, int minSize);
+extern template void replaceControlCharacters(string32& s, int minSize);
+extern template void replaceControlCharacters(string64& s, int minSize);
 
 void randomlyModifyEntry(LedgerEntry& e);
 
@@ -51,13 +54,25 @@ std::vector<LedgerKey> generateValidUniqueLedgerKeysWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n,
     UnorderedSet<LedgerKey>& seenKeys);
 
+std::vector<LedgerEntry>
+generateUniquePersistentLedgerEntries(size_t n,
+                                      UnorderedSet<LedgerKey>& seenKeys);
+std::vector<LedgerKey>
+generateUniquePersistentLedgerKeys(size_t n, UnorderedSet<LedgerKey>& seenKeys);
+
 std::vector<LedgerKey> generateUniqueValidSorobanLedgerEntryKeys(size_t n);
 
 std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
+std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys);
 
 std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys);
 
 LedgerEntry generateValidLedgerEntryWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b = 3);

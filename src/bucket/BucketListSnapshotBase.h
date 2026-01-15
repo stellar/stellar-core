@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketListBase.h"
 #include "bucket/BucketManager.h"
@@ -11,6 +11,7 @@
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "util/SimpleTimer.h"
 
 namespace medida
 {
@@ -69,10 +70,7 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
 //
 // Any thread that needs to perform BucketList lookups should retrieve
 // a single SearchableBucketListSnapshot instance from
-// BucketListSnapshotManager. On each lookup, the SearchableBucketListSnapshot
-// instance will check that the current snapshot is up to date via the
-// BucketListSnapshotManager and will be refreshed accordingly. Callers can
-// assume SearchableBucketListSnapshot is always up to date.
+// BucketListSnapshotManager.
 template <class BucketT>
 class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 {
@@ -85,8 +83,6 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
   protected:
     virtual ~SearchableBucketListSnapshotBase() = 0;
 
-    BucketSnapshotManager const& mSnapshotManager;
-
     // Snapshot managed by SnapshotManager
     SnapshotPtrT<BucketT> mSnapshot{};
     std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
@@ -94,9 +90,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     // Tracks the sum of point load times for each LedgerEntryType, in
     // microseconds. For point loads, Timers are too expensive to maintain, so
-    // we use a Counter to keep track of the total trend instead.
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointAccumulators{};
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointCounters{};
+    // we use SimpleTimer.
+    UnorderedMap<LedgerEntryType, SimpleTimer&> mPointTimers{};
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.
@@ -106,26 +101,31 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     medida::Meter& mBloomMisses;
     medida::Meter& mBloomLookups;
 
-    // Loops through all buckets, starting with curr at level 0, then snap at
-    // level 0, etc. Calls f on each bucket. Exits early if function
-    // returns Loop::COMPLETE.
-    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
-                        BucketListSnapshot<BucketT> const& snapshot) const;
-
     SearchableBucketListSnapshotBase(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<BucketT>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<BucketT>>&& historicalSnapshots);
 
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     LedgerKeyMeter* lkMeter,
                      std::optional<uint32_t> ledgerSeq) const;
 
     medida::Timer& getBulkLoadTimer(std::string const& label,
                                     size_t numEntries) const;
 
   public:
+    // Loops through all buckets, starting with curr at level 0, then snap at
+    // level 0, etc. Calls f on each bucket. Exits early if function
+    // returns Loop::COMPLETE.
+    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
+                        BucketListSnapshot<BucketT> const& snapshot) const;
+
+    // Overload that uses the internal snapshot
+    void
+    loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f) const
+    {
+        loopAllBuckets(f, *mSnapshot);
+    }
+
     uint32_t
     getLedgerSeq() const
     {
@@ -133,6 +133,18 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     }
 
     LedgerHeader const& getLedgerHeader() const;
+
+    BucketListSnapshot<BucketT> const&
+    getSnapshot() const
+    {
+        return *mSnapshot;
+    }
+
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const&
+    getHistoricalSnapshots() const
+    {
+        return mHistoricalSnapshots;
+    }
 
     // Loads inKeys from the specified historical snapshot. Returns
     // load_result_vec if the snapshot for the given ledger is

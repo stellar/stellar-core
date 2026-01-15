@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/ShortHash.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/BinaryFuseFilter.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
@@ -21,7 +21,7 @@ static auto ledgerKeyGenerator = autocheck::such_that(
     autocheck::generator<LedgerKey>());
 
 template <class FilterT>
-void
+static void
 testFilter(double expectedFalsePositiveRate)
 {
     LedgerKeySet keys;

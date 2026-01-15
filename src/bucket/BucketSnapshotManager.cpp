@@ -37,7 +37,7 @@ copyHistoricalSnapshots(
 }
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+    AppConnector& app, SnapshotPtrT<LiveBucket>&& snapshot,
     SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
     uint32_t numLiveHistoricalSnapshots)
     : mAppConnector(app)
@@ -76,10 +76,23 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
-            *this, mAppConnector,
+            mAppConnector,
             std::make_unique<BucketListSnapshot<LiveBucket>>(
                 *mCurrLiveSnapshot),
             copyHistoricalSnapshots(mLiveHistoricalSnapshots)));
+}
+
+SearchableSnapshotConstPtr
+BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+    SearchableSnapshotConstPtr const& snapshot)
+{
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
+        new SearchableLiveBucketListSnapshot(
+            snapshot->mAppConnector,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(
+                snapshot->getSnapshot()),
+            copyHistoricalSnapshots(snapshot->getHistoricalSnapshots())));
 }
 
 SearchableHotArchiveSnapshotConstPtr
@@ -90,10 +103,21 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(
-            *this, mAppConnector,
+            mAppConnector,
             std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
                 *mCurrHotArchiveSnapshot),
             copyHistoricalSnapshots(mHotArchiveHistoricalSnapshots)));
+}
+
+namespace
+{
+template <typename T, typename U>
+bool
+needsUpdate(std::shared_ptr<T const> const& snapshot,
+            SnapshotPtrT<U> const& curr)
+{
+    return !snapshot || snapshot->getLedgerSeq() < curr->getLedgerSeq();
+}
 }
 
 void
@@ -104,8 +128,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     SharedLockShared guard(mSnapshotMutex);
-    if (!snapshot ||
-        snapshot->getLedgerSeq() < mCurrLiveSnapshot->getLedgerSeq())
+    if (needsUpdate(snapshot, mCurrLiveSnapshot))
     {
         snapshot = copySearchableLiveBucketListSnapshot(guard);
     }
@@ -119,11 +142,30 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     SharedLockShared guard(mSnapshotMutex);
-
-    if (!snapshot ||
-        snapshot->getLedgerSeq() < mCurrHotArchiveSnapshot->getLedgerSeq())
+    if (needsUpdate(snapshot, mCurrHotArchiveSnapshot))
     {
         snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
+    }
+}
+
+void
+BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
+    SearchableSnapshotConstPtr& liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
+{
+    // The canonical snapshot held by the BucketSnapshotManager is not being
+    // modified. Rather, a thread is checking it's copy against the canonical
+    // snapshot, so use a shared lock. For consistency we hold the lock while
+    // updating both snapshots.
+    SharedLockShared guard(mSnapshotMutex);
+    if (needsUpdate(liveSnapshot, mCurrLiveSnapshot))
+    {
+        liveSnapshot = copySearchableLiveBucketListSnapshot(guard);
+    }
+
+    if (needsUpdate(hotArchiveSnapshot, mCurrHotArchiveSnapshot))
+    {
+        hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
 }
 

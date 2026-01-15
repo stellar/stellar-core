@@ -25,34 +25,50 @@ AssumeStateWork::AssumeStateWork(Application& app,
 {
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
-    auto& bm = mApp.getBucketManager();
-    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
-    {
-        auto curr = bm.getBucketByHash<LiveBucket>(
-            hexToBin256(mHas.currentBuckets.at(i).curr));
-        auto snap = bm.getBucketByHash<LiveBucket>(
-            hexToBin256(mHas.currentBuckets.at(i).snap));
-        if (!(curr && snap))
+    auto processBuckets = [&bm = mApp.getBucketManager()](
+                              auto const& hasBuckets, size_t expectedLevels,
+                              auto& workBuckets) {
+        releaseAssert(hasBuckets.size() == expectedLevels);
+        using BucketT = typename std::decay_t<
+            decltype(hasBuckets)>::value_type::bucket_type;
+        for (uint32_t i = 0; i < expectedLevels; ++i)
         {
-            throw std::runtime_error("Missing bucket files while "
-                                     "assuming saved BucketList state");
-        }
-
-        mBuckets.emplace_back(curr);
-        mBuckets.emplace_back(snap);
-        auto& nextFuture = mHas.currentBuckets.at(i).next;
-        if (nextFuture.hasOutputHash())
-        {
-            auto nextBucket = bm.getBucketByHash<LiveBucket>(
-                hexToBin256(nextFuture.getOutputHash()));
-            if (!nextBucket)
+            auto curr =
+                bm.getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).curr));
+            auto snap =
+                bm.getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).snap));
+            if (!(curr && snap))
             {
-                throw std::runtime_error("Missing future bucket files while "
+                throw std::runtime_error("Missing bucket files while "
                                          "assuming saved BucketList state");
             }
 
-            mBuckets.emplace_back(nextBucket);
+            workBuckets.emplace_back(curr);
+            workBuckets.emplace_back(snap);
+            auto& nextFuture = hasBuckets.at(i).next;
+            if (nextFuture.hasOutputHash())
+            {
+                auto nextBucket = bm.getBucketByHash<BucketT>(
+                    hexToBin256(nextFuture.getOutputHash()));
+                if (!nextBucket)
+                {
+                    throw std::runtime_error(
+                        "Missing future bucket files while "
+                        "assuming saved BucketList state");
+                }
+
+                workBuckets.emplace_back(nextBucket);
+            }
         }
+    };
+
+    processBuckets(mHas.currentBuckets, LiveBucketList::kNumLevels,
+                   mLiveBuckets);
+
+    if (has.hasHotArchiveBuckets())
+    {
+        processBuckets(mHas.hotArchiveBuckets, HotArchiveBucketList::kNumLevels,
+                       mHotArchiveBuckets);
     }
 }
 
@@ -64,19 +80,25 @@ AssumeStateWork::doWork()
         std::vector<std::shared_ptr<BasicWork>> seq;
 
         // Index Bucket files
-        seq.push_back(std::make_shared<IndexBucketsWork>(mApp, mBuckets));
+        seq.push_back(
+            std::make_shared<IndexBucketsWork<LiveBucket>>(mApp, mLiveBuckets));
+        seq.push_back(std::make_shared<IndexBucketsWork<HotArchiveBucket>>(
+            mApp, mHotArchiveBuckets));
 
         // Add bucket files to BucketList and restart merges
         auto assumeStateCB = [&has = mHas,
                               maxProtocolVersion = mMaxProtocolVersion,
                               restartMerges = mRestartMerges,
-                              &buckets = mBuckets](Application& app) {
-            app.getBucketManager().assumeState(has, maxProtocolVersion,
+                              &liveBuckets = mLiveBuckets,
+                              &hotArchiveBuckets =
+                                  mHotArchiveBuckets](Application& app) {
+            app.getBucketManager().assumeState(app, has, maxProtocolVersion,
                                                restartMerges);
 
             // Drop bucket references once assume state complete since buckets
             // now referenced by BucketList
-            buckets.clear();
+            liveBuckets.clear();
+            hotArchiveBuckets.clear();
 
             // Check invariants after state has been assumed
             app.getInvariantManager().checkAfterAssumeState(has.currentLedger);

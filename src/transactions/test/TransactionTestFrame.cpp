@@ -3,15 +3,19 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/test/TransactionTestFrame.h"
+#include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
+#include <thread>
 
 namespace stellar
 {
+class ThreadParallelApplyLedgerState;
 TransactionTestFrame::TransactionTestFrame(TransactionFrameBasePtr tx)
-    : mTransactionFrame(tx), mTransactionTxResult(tx->createSuccessResult())
+    : mTransactionFrame(tx)
+    , mTransactionTxResult(tx->createValidationSuccessResult())
 {
     releaseAssert(mTransactionFrame);
     releaseAssert(!mTransactionFrame->isTestTx());
@@ -26,28 +30,14 @@ TransactionTestFrame::fromTxFrame(TransactionFrameBasePtr txFrame)
         new TransactionTestFrame(txFrame));
 }
 
-MutableTxResultPtr
-TransactionTestFrame::createSuccessResultWithFeeCharged(
-    LedgerHeader const& header, std::optional<int64_t> baseFee,
-    bool applying) const
-{
-    return mTransactionFrame->createSuccessResultWithFeeCharged(header, baseFee,
-                                                                applying);
-}
-
-MutableTxResultPtr
-TransactionTestFrame::createSuccessResult() const
-{
-    return mTransactionFrame->createSuccessResult();
-}
-
 bool
-TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                            TransactionMetaFrame& meta,
-                            Hash const& sorobanBasePrngSeed)
+TransactionTestFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed)
 {
-    return mTransactionFrame->apply(app, ltx, meta, mTransactionTxResult,
-                                    sorobanBasePrngSeed);
+    return mTransactionFrame->apply(app, ltx, meta, *mTransactionTxResult,
+                                    sorobanConfig, sorobanBasePrngSeed);
 }
 
 void
@@ -77,14 +67,15 @@ TransactionTestFrame::addSignature(DecoratedSignature const& signature)
 }
 
 bool
-TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
-                            TransactionMetaFrame& meta,
-                            MutableTxResultPtr txResult,
-                            Hash const& sorobanBasePrngSeed) const
+TransactionTestFrame::apply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Hash const& sorobanBasePrngSeed) const
 {
-    auto ret =
-        mTransactionFrame->apply(app, ltx, meta, txResult, sorobanBasePrngSeed);
-    mTransactionTxResult = txResult;
+    auto ret = mTransactionFrame->apply(app, ltx, meta, txResult, sorobanConfig,
+                                        sorobanBasePrngSeed);
+    mTransactionTxResult = txResult.clone();
     return ret;
 }
 
@@ -96,9 +87,11 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
 {
     LedgerTxn ltx(ltxOuter);
     auto ls = LedgerSnapshot(ltx);
+    auto diagnostics = DiagnosticEventManager::createDisabled();
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
-    return mTransactionTxResult;
+        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        diagnostics);
+    return mTransactionTxResult->clone();
 }
 
 MutableTxResultPtr
@@ -107,24 +100,22 @@ TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+    return checkValid(app, ls, current, lowerBoundCloseTimeOffset,
+                      upperBoundCloseTimeOffset, diagnostics);
+}
+
+MutableTxResultPtr
+TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                                 SequenceNumber current,
+                                 uint64_t lowerBoundCloseTimeOffset,
+                                 uint64_t upperBoundCloseTimeOffset,
+                                 DiagnosticEventManager& diagnosticEvents) const
+{
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
-    return mTransactionTxResult;
-}
-
-void
-TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                       std::optional<int64_t> baseFee)
-{
-    mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
-}
-
-void
-TransactionTestFrame::processPostApply(AppConnector& app,
-                                       AbstractLedgerTxn& ltx,
-                                       TransactionMetaFrame& meta)
-{
-    mTransactionFrame->processPostApply(app, ltx, meta, mTransactionTxResult);
+        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        diagnosticEvents);
+    return mTransactionTxResult->clone();
 }
 
 bool
@@ -141,14 +132,25 @@ TransactionTestFrame::checkValidForTesting(AppConnector& app,
 }
 
 bool
-TransactionTestFrame::checkSorobanResourceAndSetError(
-    AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
-    MutableTxResultPtr txResult) const
+TransactionTestFrame::checkSorobanResources(
+    SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+    DiagnosticEventManager& diagnosticEvents) const
 {
-    auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
-        app, cfg, ledgerVersion, txResult);
-    mTransactionTxResult = txResult;
-    return ret;
+    return mTransactionFrame->checkSorobanResources(cfg, ledgerVersion,
+                                                    diagnosticEvents);
+}
+
+MutableTxResultPtr
+TransactionTestFrame::createTxErrorResult(
+    TransactionResultCode txErrorCode) const
+{
+    return mTransactionFrame->createTxErrorResult(txErrorCode);
+}
+
+MutableTxResultPtr
+TransactionTestFrame::createValidationSuccessResult() const
+{
+    return mTransactionFrame->createValidationSuccessResult();
 }
 
 TransactionEnvelope const&
@@ -176,6 +178,19 @@ TransactionFrameBasePtr
 TransactionTestFrame::getTxFramePtr() const
 {
     return mTransactionFrame;
+}
+
+bool
+TransactionTestFrame::validateSorobanTxForFlooding(
+    UnorderedSet<LedgerKey> const& keysToFilter) const
+{
+    return mTransactionFrame->validateSorobanTxForFlooding(keysToFilter);
+}
+
+bool
+TransactionTestFrame::validateSorobanMemo() const
+{
+    return mTransactionFrame->validateSorobanMemo();
 }
 
 int64_t
@@ -207,6 +222,24 @@ TransactionTestFrame::checkSignature(SignatureChecker& signatureChecker,
                                              neededWeight);
 }
 
+bool
+TransactionTestFrame::checkOperationSignatures(
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    MutableTransactionResultBase* txResult) const
+{
+    return mTransactionFrame->checkOperationSignatures(signatureChecker, ls,
+                                                       txResult);
+}
+
+bool
+TransactionTestFrame::checkAllTransactionSignatures(
+    SignatureChecker& signatureChecker, LedgerEntryWrapper const& sourceAccount,
+    uint32_t ledgerVersion) const
+{
+    return mTransactionFrame->checkAllTransactionSignatures(
+        signatureChecker, sourceAccount, ledgerVersion);
+}
+
 Hash const&
 TransactionTestFrame::getContentsHash() const
 {
@@ -225,10 +258,18 @@ TransactionTestFrame::getNumOperations() const
     return mTransactionFrame->getNumOperations();
 }
 
-Resource
-TransactionTestFrame::getResources(bool useByteLimitInClassic) const
+std::vector<std::shared_ptr<OperationFrame const>> const&
+TransactionTestFrame::getOperationFrames() const
 {
-    return mTransactionFrame->getResources(useByteLimitInClassic);
+    return mTransactionFrame->getOperationFrames();
+}
+
+Resource
+TransactionTestFrame::getResources(bool useByteLimitInClassic,
+                                   uint32_t ledgerVersion) const
+{
+    return mTransactionFrame->getResources(useByteLimitInClassic,
+                                           ledgerVersion);
 }
 
 std::vector<Operation> const&
@@ -237,16 +278,16 @@ TransactionTestFrame::getRawOperations() const
     return mTransactionFrame->getRawOperations();
 }
 
-TransactionResult&
-TransactionTestFrame::getResult()
+TransactionResult const&
+TransactionTestFrame::getResult() const
 {
-    return mTransactionTxResult->getResult();
+    return mTransactionTxResult->getXDR();
 }
 
 TransactionResultCode
 TransactionTestFrame::getResultCode() const
 {
-    return mTransactionTxResult->getResult().result.code();
+    return mTransactionTxResult->getResultCode();
 }
 
 SequenceNumber
@@ -293,10 +334,31 @@ TransactionTestFrame::insertKeysForFeeProcessing(
 }
 
 void
-TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                                           LedgerKeyMeter* lkMeter) const
+TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
-    mTransactionFrame->insertKeysForTxApply(keys, lkMeter);
+    mTransactionFrame->insertKeysForTxApply(keys);
+}
+
+void
+TransactionTestFrame::preParallelApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& resPayload,
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
+                                        sorobanConfig);
+}
+
+ParallelTxReturnVal
+TransactionTestFrame::parallelApply(
+    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
+    Config const& config, ParallelLedgerInfo const& ledgerInfo,
+    MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
+    Hash const& txPrngSeed, TxEffects& effects) const
+{
+    return mTransactionFrame->parallelApply(
+        app, threadState, config, ledgerInfo, resPayload, sorobanMetrics,
+        txPrngSeed, effects);
 }
 
 MutableTxResultPtr
@@ -304,17 +366,26 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                        std::optional<int64_t> baseFee) const
 {
     mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
-    return mTransactionTxResult;
+    return mTransactionTxResult->clone();
 }
 
 void
-TransactionTestFrame::processPostApply(AppConnector& app,
-                                       AbstractLedgerTxn& ltx,
-                                       TransactionMetaFrame& meta,
-                                       MutableTxResultPtr txResult) const
+TransactionTestFrame::processPostApply(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult) const
 {
     mTransactionFrame->processPostApply(app, ltx, meta, txResult);
-    mTransactionTxResult = txResult;
+    mTransactionTxResult = txResult.clone();
+}
+
+void
+TransactionTestFrame::processPostTxSetApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    MutableTransactionResultBase& txResult,
+    TxEventManager& txEventManager) const
+{
+    mTransactionFrame->processPostTxSetApply(app, ltx, txResult,
+                                             txEventManager);
 }
 
 std::shared_ptr<StellarMessage const>
@@ -341,10 +412,10 @@ TransactionTestFrame::sorobanResources() const
     return mTransactionFrame->sorobanResources();
 }
 
-xdr::xvector<DiagnosticEvent> const&
-TransactionTestFrame::getDiagnosticEvents() const
+SorobanTransactionData::_ext_t const&
+TransactionTestFrame::getResourcesExt() const
 {
-    return mTransactionTxResult->getDiagnosticEvents();
+    return mTransactionFrame->getResourcesExt();
 }
 
 int64
@@ -357,5 +428,36 @@ bool
 TransactionTestFrame::XDRProvidesValidFee() const
 {
     return mTransactionFrame->XDRProvidesValidFee();
+}
+
+bool
+TransactionTestFrame::isRestoreFootprintTx() const
+{
+    return mTransactionFrame->isRestoreFootprintTx();
+}
+
+void
+TransactionTestFrame::overrideResult(MutableTxResultPtr result)
+{
+    mTransactionTxResult = std::move(result);
+}
+
+void
+TransactionTestFrame::overrideResultXDR(TransactionResult const& resultXDR)
+{
+    mTransactionTxResult->overrideXDR(resultXDR);
+}
+
+void
+TransactionTestFrame::overrideResultFeeCharged(int64_t feeCharged)
+{
+    mTransactionTxResult->overrideFeeCharged(feeCharged);
+}
+
+void
+TransactionTestFrame::withInnerTx(
+    std::function<void(TransactionFrameBaseConstPtr)> fn) const
+{
+    mTransactionFrame->withInnerTx(fn);
 }
 }

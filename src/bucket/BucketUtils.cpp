@@ -6,12 +6,13 @@
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
+#include "util/MetricsRegistry.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <fmt/format.h>
 #include <medida/counter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -101,6 +102,11 @@ MergeCounters::operator==(MergeCounters const& other) const
         mRunningMergeReattachments == other.mRunningMergeReattachments &&
         mFinishedMergeReattachments == other.mFinishedMergeReattachments &&
 
+        mPreShadowRemovalProtocolMerges ==
+            other.mPreShadowRemovalProtocolMerges &&
+        mPostShadowRemovalProtocolMerges ==
+            other.mPostShadowRemovalProtocolMerges &&
+
         mNewMetaEntries == other.mNewMetaEntries &&
         mNewInitEntries == other.mNewInitEntries &&
         mNewLiveEntries == other.mNewLiveEntries &&
@@ -136,17 +142,33 @@ MergeCounters::operator==(MergeCounters const& other) const
 // Check that eviction scan is based off of current ledger snapshot and that
 // archival settings have not changed
 bool
-EvictionResultCandidates::isValid(uint32_t currLedger,
+EvictionResultCandidates::isValid(uint32_t currLedgerSeq,
+                                  uint32_t currLedgerVers,
                                   StateArchivalSettings const& currSas) const
 {
-    return initialLedger == currLedger &&
+    // If the eviction scan started before a protocol upgrade, and the protocol
+    // upgrade changes eviction scan behavior during the scan, we need
+    // to restart with the new protocol version. We only care about
+    // `FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION`, other upgrades don't
+    // affect evictions scans.
+    if (protocolVersionIsBefore(
+            initialLedgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION) &&
+        protocolVersionStartsFrom(
+            currLedgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        return false;
+    }
+
+    return initialLedgerSeq == currLedgerSeq &&
            initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
            initialSas.evictionScanSize == currSas.evictionScanSize &&
            initialSas.startingEvictionScanLevel ==
                currSas.startingEvictionScanLevel;
 }
 
-EvictionCounters::EvictionCounters(Application& app)
+EvictionMetrics::EvictionMetrics(AppConnector& app)
     : entriesEvicted(app.getMetrics().NewCounter(
           {"state-archival", "eviction", "entries-evicted"}))
     , bytesScannedForEviction(app.getMetrics().NewCounter(
@@ -157,6 +179,10 @@ EvictionCounters::EvictionCounters(Application& app)
           app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
     , averageEvictedEntryAge(
           app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
+    , blockingTime(app.getMetrics().NewTimer(
+          {"state-archival", "eviction", "blocking-time"}))
+    , backgroundTime(app.getMetrics().NewTimer(
+          {"state-archival", "eviction", "background-time"}))
 {
 }
 
@@ -170,20 +196,20 @@ EvictionStatistics::recordEvictedEntry(uint64_t age)
 
 void
 EvictionStatistics::submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
-                                                 EvictionCounters& counters)
+                                                 EvictionMetrics& metrics)
 {
     std::lock_guard l(mLock);
 
     // Only record metrics if we've seen a complete cycle to avoid noise
     if (mCompleteCycle)
     {
-        counters.evictionCyclePeriod.set_count(currLedgerSeq -
-                                               mEvictionCycleStartLedger);
+        metrics.evictionCyclePeriod.set_count(currLedgerSeq -
+                                              mEvictionCycleStartLedger);
 
         auto averageAge = mNumEntriesEvicted == 0
                               ? 0
                               : mEvictedEntriesAgeSum / mNumEntriesEvicted;
-        counters.averageEvictedEntryAge.set_count(averageAge);
+        metrics.averageEvictedEntryAge.set_count(averageAge);
     }
 
     // Reset to start new cycle
@@ -255,7 +281,7 @@ bucketEntryToLedgerEntryAndDurabilityType<HotArchiveBucket>(
     {
         key = LedgerEntryKey(be.archivedEntry());
     }
-    else if (bet == HOT_ARCHIVE_LIVE || bet == HOT_ARCHIVE_DELETED)
+    else if (bet == HOT_ARCHIVE_LIVE)
     {
         key = be.key();
     }
@@ -364,4 +390,56 @@ template void
 BucketEntryCounters::count<LiveBucket>(LiveBucket::EntryT const& be);
 template void BucketEntryCounters::count<HotArchiveBucket>(
     HotArchiveBucket::EntryT const& be);
+
+void
+updateTypeBoundaries(
+    LedgerEntryType currentType, std::streamoff position,
+    std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
+    std::optional<LedgerEntryType>& lastTypeSeen)
+{
+    // Record first entry in the Bucket
+    if (!lastTypeSeen)
+    {
+        typeStartOffsets[currentType] = position;
+    }
+    // If we see a new type, we're at a boundary. Update end of last
+    // type and start of new type
+    else if (currentType != *lastTypeSeen)
+    {
+        typeEndOffsets[*lastTypeSeen] = position;
+        typeStartOffsets[currentType] = position;
+    }
+
+    lastTypeSeen = currentType;
+}
+
+std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+buildTypeRangesMap(
+    std::map<LedgerEntryType, std::streamoff> const& typeStartOffsets,
+    std::map<LedgerEntryType, std::streamoff> const& typeEndOffsets)
+{
+    std::map<LedgerEntryType, std::pair<std::streamoff, std::streamoff>>
+        typeRanges;
+
+    for (auto const& [type, startOffset] : typeStartOffsets)
+    {
+        std::streamoff endOffset;
+        auto endIt = typeEndOffsets.find(type);
+        if (endIt != typeEndOffsets.end())
+        {
+            endOffset = endIt->second;
+        }
+        else
+        {
+            // If we didn't see any entries after this type, then the upper
+            // bound is EOF
+            endOffset = std::numeric_limits<std::streamoff>::max();
+        }
+
+        typeRanges[type] = {startOffset, endOffset};
+    }
+
+    return typeRanges;
+}
 }

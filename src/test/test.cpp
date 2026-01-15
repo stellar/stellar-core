@@ -42,6 +42,7 @@
 #endif
 
 #include "test/SimpleTestReporter.h"
+bool Catch::SimpleTestReporter::gDisableDots{false};
 
 namespace Catch
 {
@@ -230,8 +231,15 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECKS = {".*"};
+        // EventsAreConsistentWithEntryDiffs require both EMIT_CLASSIC_EVENTS
+        // and BACKFILL_STELLAR_ASSET_EVENTS to be enabled, so omit it and test
+        // it separately.
+        thisConfig.INVARIANT_CHECKS = {
+            "(?!EventsAreConsistentWithEntryDiffs).*"};
 
+        thisConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 30;
+        thisConfig.INVARIANT_EXTRA_CHECKS =
+            mode != Config::TESTDB_BUCKET_DB_PERSISTENT;
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // this forces to pick up any other potential upgrades
@@ -282,10 +290,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         std::ostringstream dbname;
         switch (mode)
         {
-        case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_IN_MEMORY:
             dbname << "sqlite3://:memory:";
             break;
+        case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
             dbname << "sqlite3://" << rootDir << "test.db";
             thisConfig.DISABLE_XDR_FSYNC = false;
@@ -316,6 +324,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.WORKER_THREADS = 3;
         thisConfig.QUORUM_INTERSECTION_CHECKER = false;
         thisConfig.METADATA_DEBUG_LEDGERS = 0;
+        thisConfig.BACKFILL_RESTORE_META = true;
 
         thisConfig.PEER_READING_CAPACITY = 20;
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
@@ -330,6 +339,32 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 #endif
     }
     return *cfgs[instanceNumber];
+}
+
+std::filesystem::path
+getSrcTestDataPath(std::filesystem::path rel)
+{
+    namespace fs = std::filesystem;
+    fs::path testdata("testdata");
+    char* srcdir = getenv("top_srcdir");
+    if (srcdir)
+    {
+        testdata = fs::path(srcdir) / "src" / testdata;
+    }
+    return testdata / rel;
+}
+
+std::filesystem::path
+getBuildTestDataPath(std::filesystem::path rel)
+{
+    namespace fs = std::filesystem;
+    fs::path testdata("testdata");
+    char* builddir = getenv("top_builddir");
+    if (builddir)
+    {
+        testdata = fs::path(builddir) / "src" / testdata;
+    }
+    return testdata / rel;
 }
 
 int
@@ -372,6 +407,8 @@ runTest(CommandLineArgs const& args)
     parser |=
         Catch::clara::Opt(debugTestTxMeta, "FILENAME")["--debug-test-tx-meta"](
             "dump full TxMeta from all tests to FILENAME");
+    parser |= Catch::clara::Opt(
+        Catch::SimpleTestReporter::gDisableDots)["--disable-dots"];
 
     session.cli(parser);
 
@@ -718,10 +755,12 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     }
 }
 
-static char const* TESTKEY_PROTOCOL_VERSION = "!cfg protocol version";
-static char const* TESTKEY_RNG_SEED = "!rng seed";
-static char const* TESTKEY_ALL_VERSIONS = "!test all versions";
-static char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
+namespace
+{
+char const* TESTKEY_PROTOCOL_VERSION = "!cfg protocol version";
+char const* TESTKEY_RNG_SEED = "!rng seed";
+char const* TESTKEY_ALL_VERSIONS = "!test all versions";
+char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
 
 template <typename T>
 void
@@ -747,6 +786,7 @@ checkTestKeyVals(std::string const& k, T const& expected, T const& got,
                                              fmt::join(got, ", "), path));
     }
 }
+} // namespace
 
 static void
 loadTestTxMeta(stdfs::path const& dir)

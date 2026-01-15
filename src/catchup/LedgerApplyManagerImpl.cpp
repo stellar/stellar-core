@@ -13,18 +13,19 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
 #include <Tracy.hpp>
+#include <chrono>
 #include <fmt/format.h>
 
 namespace stellar
 {
 
-const uint32_t LedgerApplyManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
+uint32_t const LedgerApplyManagerImpl::MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT = 12;
 
 LedgerApplyManagerImpl::CatchupMetrics::CatchupMetrics()
     : mHistoryArchiveStatesDownloaded{0}
@@ -70,7 +71,7 @@ operator-(LedgerApplyManager::CatchupMetrics const& x,
 }
 
 template <typename T>
-T
+static T
 findFirstCheckpoint(T begin, T end, HistoryManager const& hm)
 {
     return std::find_if(begin, end,
@@ -247,11 +248,13 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
         // waiting for out of order ledgers, which should arrive quickly
         else if (catchupTriggerLedger > lastLedgerInBuffer)
         {
-            auto eta = (catchupTriggerLedger - lastLedgerInBuffer) *
-                       mApp.getConfig().getExpectedLedgerCloseTime();
+            auto etaMS = (catchupTriggerLedger - lastLedgerInBuffer) *
+                         mApp.getLedgerManager().getExpectedLedgerCloseTime();
             message = fmt::format(
                 FMT_STRING("Waiting for trigger ledger: {:d}/{:d}, ETA: {:d}s"),
-                lastLedgerInBuffer, catchupTriggerLedger, eta.count());
+                lastLedgerInBuffer, catchupTriggerLedger,
+                std::chrono::duration_cast<std::chrono::seconds>(etaMS)
+                    .count());
         }
         else
         {
@@ -266,9 +269,8 @@ LedgerApplyManagerImpl::processLedger(LedgerCloseData const& ledgerData,
 }
 
 void
-LedgerApplyManagerImpl::startCatchup(
-    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
+LedgerApplyManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                     std::shared_ptr<HistoryArchive> archive)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -291,7 +293,7 @@ LedgerApplyManagerImpl::startCatchup(
     // NB: if WorkScheduler is aborting this returns nullptr,
     // which means we don't "really" start catchup.
     mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
-        configuration, bucketsToRetain, archive);
+        configuration, archive);
 }
 
 std::string
@@ -443,7 +445,7 @@ LedgerApplyManagerImpl::startOnlineCatchup()
     auto hash = std::make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
     startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
                   getCatchupCount(), CatchupConfiguration::Mode::ONLINE},
-                 nullptr, {});
+                 nullptr);
 }
 
 void

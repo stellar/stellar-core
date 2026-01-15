@@ -199,9 +199,10 @@ OrderBookIsNotCrossed::getName() const
 }
 
 std::string
-OrderBookIsNotCrossed::checkOnOperationApply(Operation const& operation,
-                                             OperationResult const& result,
-                                             LedgerTxnDelta const& ltxDelta)
+OrderBookIsNotCrossed::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector&)
 {
     updateOrderBook(ltxDelta);
     auto assetPairs = extractAssetPairs(ltxDelta);

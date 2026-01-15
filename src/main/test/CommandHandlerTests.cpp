@@ -4,9 +4,9 @@
 
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -198,6 +198,7 @@ TEST_CASE("manualclose", "[commandhandler]")
         auto& commandHandler = app->getCommandHandler();
         std::string retStr;
         issue(commandHandler, retStr);
+        app->gracefulStop();
     };
 
     SECTION("'manualclose' is forbidden if MANUAL_CLOSE is not configured")
@@ -274,7 +275,9 @@ TEST_CASE("manualclose", "[commandhandler]")
     REQUIRE(app->getConfig().FORCE_SCP);
 
     auto const defaultManualCloseTimeInterval =
-        app->getConfig().getExpectedLedgerCloseTime().count();
+        std::chrono::duration_cast<std::chrono::seconds>(
+            app->getLedgerManager().getExpectedLedgerCloseTime())
+            .count();
 
     auto lastLedgerNum = [&]() {
         return app->getLedgerManager().getLastClosedLedgerNum();
@@ -543,5 +546,32 @@ TEST_CASE("manualclose", "[commandhandler]")
                 REQUIRE(!entry);
             }
         }
+    }
+}
+
+TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& ch = app->getCommandHandler();
+    bool initialMode = app->getRunInOverlayOnlyMode();
+
+    for (int i = 0; i < 5; ++i)
+    {
+        std::string retStr;
+        ch.toggleOverlayOnlyMode("", retStr);
+
+        bool expectedMode = !initialMode;
+        if (i % 2 == 1)
+        {
+            expectedMode = initialMode;
+        }
+
+        REQUIRE(app->getRunInOverlayOnlyMode() == expectedMode);
+
+        Json::Value root;
+        Json::Reader reader;
+        REQUIRE(reader.parse(retStr, root));
+        REQUIRE(root["overlay_only_mode"].asBool() == expectedMode);
     }
 }

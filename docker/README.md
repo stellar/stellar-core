@@ -10,13 +10,15 @@ It uses the official stellar-core deb package for two reasons:
 1. To ensure docker and non-docker environments run the same build
 2. To allow binaries to be cryptographically verified
 
-To build set `STELLAR_CORE_VERSION` to deb package version you want installed.
+To build set `STELLAR_CORE_VERSION` to the base deb package version you want installed (with the distro suffix). 
 For example:
 ```
-export STELLAR_CORE_VERSION=17.0.0-557.096f6a7.focal
+export STELLAR_CORE_VERSION=24.1.1-2888.659131984.noble
+export DISTRO=noble
 export TAG=${USER}/stellar-core:${STELLAR_CORE_VERSION}
 make docker-build
 ```
+
 
 ## Dockerfile.testing
 

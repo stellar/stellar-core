@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "xdr/Stellar-ledger.h"
 
@@ -29,9 +29,9 @@ using ConfigUpgradeSetFrameConstPtr =
 class Upgrades
 {
   public:
-    // # of hours after the scheduled upgrade time before we remove pending
-    // upgrades
-    static std::chrono::hours const UPDGRADE_EXPIRATION_HOURS;
+    // Default # of minutes after the scheduled upgrade time before we remove
+    // pending upgrades
+    static std::chrono::minutes const DEFAULT_UPGRADE_EXPIRATION_MINUTES;
 
     struct UpgradeParameters
     {
@@ -59,6 +59,14 @@ class Upgrades
         std::optional<uint32> mFlags;
         std::optional<uint32> mMaxSorobanTxSetSize;
         std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
+
+        // The maximum number of nomination timeouts this upgrade may experience
+        // per slot before SCP strips it out of the Value being voted on.
+        std::optional<uint32_t> mNominationTimeoutLimit;
+
+        // The number of minutes after the scheduled upgrade time before this
+        // upgrade is removed (expires).
+        std::optional<std::chrono::minutes> mExpirationMinutes;
 
         std::string toJson() const;
         void fromJson(std::string const& s);
@@ -118,8 +126,7 @@ class Upgrades
                    std::vector<UpgradeType>::const_iterator endUpdates,
                    uint64_t time, bool& updated);
 
-    static void dropAll(Database& db);
-    static void dropSupportUpgradeHistory(Database& db);
+    static void maybeDropAndCreateNew(Database& db);
 
   private:
     UpgradeParameters mParams;
@@ -141,7 +148,7 @@ class Upgrades
 // ConfigUpgradeSetFrame contains a ConfigUpgradeSet that
 // was retrieved from the ledger given a ConfigUpgradeSetKey. The
 // ConfigUpgradeSetKey will be converted to a ContractData LedgerKey, and the
-// ContractData LedgerEntry retreived with that will have a val of SCV_BYTES
+// ContractData LedgerEntry retrieved with that will have a val of SCV_BYTES
 // containing a serialized ConfigUpgradeSet. The ConfigUpgradeSetKey is what
 // validators vote on during upgrades. The hash in the key must match the sha256
 // hash of the ConfigUpgradeSet.
@@ -159,7 +166,7 @@ class ConfigUpgradeSetFrame
 
     bool upgradeNeeded(LedgerSnapshot const& ls) const;
 
-    void applyTo(AbstractLedgerTxn& ltx) const;
+    void applyTo(AbstractLedgerTxn& ltx, Application& app) const;
 
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;

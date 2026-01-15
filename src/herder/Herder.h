@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "TxSetFrame.h"
 #include "Upgrades.h"
@@ -35,7 +35,8 @@ class Herder
 {
   public:
     // Expected time between two ledger close.
-    static std::chrono::seconds const EXP_LEDGER_TIMESPAN_SECONDS;
+    static std::chrono::milliseconds const
+        TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS;
 
     // Maximum timeout for SCP consensus.
     static std::chrono::seconds const MAX_SCP_TIMEOUT_SECONDS;
@@ -56,6 +57,11 @@ class Herder
 
     // How many seconds of inactivity before evicting a node.
     static std::chrono::seconds const NODE_EXPIRATION_SECONDS;
+
+    // How often to check for dead nodes in local quorum set: every
+    // CHECK_FOR_DEAD_NODES_MINUTES minutes, warn about any node that didn't
+    // send an SCP message in the last interval
+    static std::chrono::minutes const CHECK_FOR_DEAD_NODES_MINUTES;
 
     // How many ledger in the future we consider an envelope viable.
     static uint32 const LEDGER_VALIDITY_BRACKET;
@@ -114,8 +120,11 @@ class Herder
     // restores Herder's state from disk
     virtual void start() = 0;
 
+    // If a protocol or network config setting upgrade occurred during the
+    // ledger close, `upgradeApplied` will be true.
     virtual void lastClosedLedgerIncreased(bool latest,
-                                           TxSetXDRFrameConstPtr txSet) = 0;
+                                           TxSetXDRFrameConstPtr txSet,
+                                           bool upgradeApplied) = 0;
 
     // Setup Herder's state to fully participate in consensus
     virtual void setTrackingSCPState(uint64_t index, StellarValue const& value,
@@ -148,10 +157,10 @@ class Herder
 #ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            TxSetXDRFrameConstPtr txset) = 0;
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
+                                           SCPQuorumSet const& qset,
                                            StellarMessage const& txset) = 0;
 
     virtual void
@@ -231,7 +240,5 @@ class Herder
 
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
-
-    virtual void beginApply() = 0;
 };
 }

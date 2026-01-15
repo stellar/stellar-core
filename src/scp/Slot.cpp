@@ -185,6 +185,18 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
             maybeSetGotVBlocking();
         }
     }
+    catch (std::exception& e)
+    {
+        CLOG_FATAL(SCP, "Exception: {}", e.what());
+        CLOG_FATAL(SCP, "SCP context ({}): ",
+                   mSCP.getDriver().toShortString(mSCP.getLocalNodeID()));
+        CLOG_FATAL(SCP, "{}", getJsonInfo().toStyledString());
+        CLOG_FATAL(SCP, "Exception processing SCP messages at {}, envelope: {}",
+                   mSlotIndex, mSCP.envToStr(envelope->getEnvelope()));
+        CLOG_FATAL(SCP, "{}", REPORT_INTERNAL_BUG);
+
+        throw;
+    }
     catch (...)
     {
         CLOG_FATAL(SCP, "SCP context ({}): ",

@@ -21,7 +21,7 @@
 namespace stellar
 {
 
-std::array<std::string const, 14> const Logging::kPartitionNames = {
+std::array<std::string const, 15> const Logging::kPartitionNames = {
 #define LOG_PARTITION(name) #name,
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION
@@ -278,7 +278,7 @@ Logging::setLoggingColor(bool color)
 }
 
 void
-Logging::setLogLevel(LogLevel level, const char* partition)
+Logging::setLogLevel(LogLevel level, char const* partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     if (partition)

@@ -1,7 +1,8 @@
-#pragma once
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/SecretKey.h"
 #include "lib/util/cpptoml.h"
@@ -120,8 +121,6 @@ class Config : public std::enable_shared_from_this<Config>
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);
 
-    void verifyLoadGenOpCountForTestingConfigs();
-
     std::vector<std::chrono::microseconds> mOpApplySleepTimeForTesting;
 
     template <typename T>
@@ -136,7 +135,7 @@ class Config : public std::enable_shared_from_this<Config>
     setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators);
 
   public:
-    static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
+    static uint32 const CURRENT_LEDGER_PROTOCOL_VERSION;
 
     typedef std::shared_ptr<Config> pointer;
 
@@ -227,7 +226,7 @@ class Config : public std::enable_shared_from_this<Config>
     // PAY_PREGENERATED mode
     std::string LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
 
-    // A temporary config paramter that when enabled causes the protocol
+    // A temporary config parameter that when enabled causes the protocol
     // upgrades to also update the Soroban cost calibration. This will result
     // in loadgen reflecting more accurate costs and match the real network.
     // This also makes the node unable to catchup with the real traffic and
@@ -300,13 +299,16 @@ class Config : public std::enable_shared_from_this<Config>
         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
     std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
 
-    // Config parameters that LoadGen uses to decide the number of operations
-    // to include in each transaction and its distribution.
-    // The probability that transactions will contain COUNT[i] operations
-    // is DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each
-    // i.
-    std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
-    std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
+    // Config parameters that LoadGen uses to decide the number of bytes to
+    // include in each payment transaction for testing only. The probability
+    // that transactions will contain COUNT[i] bytes is
+    // DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each i.
+    // Note that there is a minimum payment size (~204 bytes) and a minimum
+    // added padding (~36 bytes). After the minimum added padding, the byte
+    // count will be rounded up to the nearest multiple of 4 (since all XDR
+    // serializations are multiples of 4).
+    std::vector<uint32_t> LOADGEN_BYTE_COUNT_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING;
 
     // Size of wasm blobs for SOROBAN_UPLOAD and MIX_CLASSIC_SOROBAN loadgen
     // modes
@@ -330,7 +332,6 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Instructions per transaction for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
     // loadgen modes
-    // Also used for configuring apply-load command.
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
@@ -338,7 +339,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Size of the synthetic contract data entries used in apply-load.
     // Currently we generate entries of the equal size for more precise
     // control over the modelled instructions.
-    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 0;
+    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE = 0;
 
     // The parameters below control the synthetic bucket list generation in
     // apply-load.
@@ -360,17 +361,19 @@ class Config : public std::enable_shared_from_this<Config>
 
     // The APPLY_LOAD_* parameters below are for initializing Soroban
     // settings before applying the benchmark transactions.
-    uint32_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
+    uint64_t APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 0;
     uint32_t APPLY_LOAD_TX_MAX_INSTRUCTIONS = 0;
 
-    uint32_t APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 0;
-    uint32_t APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 0;
+
+    uint32_t APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 0;
     uint32_t APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 0;
 
-    uint32_t APPLY_LOAD_LEDGER_MAX_READ_BYTES = 0;
-    uint32_t APPLY_LOAD_TX_MAX_READ_BYTES = 0;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 0;
+    uint32_t APPLY_LOAD_TX_MAX_DISK_READ_BYTES = 0;
 
     uint32_t APPLY_LOAD_LEDGER_MAX_WRITE_BYTES = 0;
     uint32_t APPLY_LOAD_TX_MAX_WRITE_BYTES = 0;
@@ -379,19 +382,57 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 0;
 
     uint32_t APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 0;
-    uint32_t APPLY_LOAD_MAX_TX_COUNT = 0;
+    uint32_t APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 0;
 
-    // Number of read-only and read-write entries in the apply-load
-    // transactions. Every entry will have
-    // `APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING` size.
-    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING;
+    uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
+
+    // Number of ledgers to apply in apply-load.
+    // Depending on the mode this represents either the total number of ledgers
+    // to close for benchmarking, or the number of ledgers to apply per
+    // iteration of binary search for modes that perform search.
+    uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
+
+    // Target ledger close time in milliseconds for modes that perform binary
+    // search of TPS or limits.
+    uint32_t APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1000;
+
+    // Number of classic transactions to include in each ledger in ledger limit
+    // based apply-load mode.
+    uint32_t APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
+
+    // Number of instructions to generate in the apply-load transactions.
+    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS;
+    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION;
+
+    // Transaction size in bytes for the apply-load transactions.
+    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES;
+    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION;
+
+    // Number of disk read-only and read-write entries in the apply-load
+    // transactions. Every entry will have `APPLY_LOAD_DATA_ENTRY_SIZE` size.
+    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES;
+    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES;
+    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION;
 
     // Number of events to generate in the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_FOR_TESTING;
-    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING;
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT;
+    std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT_DISTRIBUTION;
+
+    // MAX_SAC_TPS mode specific parameters
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 100;
+    uint32_t APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 50000;
+
+    // Number of SAC payments to include in each tx for MAX_SAC_TPS mode.
+    // If set to 1, each TX will be a single SAC invocation.
+    // If set to > 1, each TX will invoke the specified number of SAC sub
+    // invocations. Note that TPS measurement count each SAC invocation as one
+    // "transaction".
+    uint32_t APPLY_LOAD_BATCH_SAC_COUNT = 1;
+
+    // If set to true, database writes will count towards TPS calculation.
+    // Otherwise, BucketList writes will not be counted.
+    bool APPLY_LOAD_TIME_WRITES = true;
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
@@ -455,9 +496,13 @@ class Config : public std::enable_shared_from_this<Config>
     // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 
-    // A config parameter that allows a node to generate buckets. This should
-    // be set to `false` only for testing purposes.
-    bool MODE_ENABLES_BUCKETLIST;
+    // Multiplier for classic transaction queue size (only configurable in test
+    // builds)
+    uint32_t TRANSACTION_QUEUE_SIZE_MULTIPLIER;
+
+    // Multiplier for Soroban transaction queue size (only configurable in test
+    // builds)
+    uint32_t SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
 
     // A config parameter that can be set to true (in a captive-core
     // configuration) to delay emitting metadata by one ledger.
@@ -478,7 +523,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Size, in MB, determining whether a bucket should have an individual
     // key index or a key range index. If bucket size is below this value, range
     // based index will be used. If set to 0, all buckets are range indexed. If
-    // index page size == 0, value ingnored and all buckets have individual key
+    // index page size == 0, value ignored and all buckets have individual key
     // index.
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
@@ -486,7 +531,10 @@ class Config : public std::enable_shared_from_this<Config>
     bool BACKGROUND_OVERLAY_PROCESSING;
 
     // Enable parallel block application (experimental)
-    bool EXPERIMENTAL_PARALLEL_LEDGER_APPLY;
+    bool PARALLEL_LEDGER_APPLY;
+
+    // Disable expensive Soroban metrics for performance testing
+    bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 
     // Batch transactions for flooding purposes (experimental).
     // Has no effect on non-test builds.
@@ -494,14 +542,14 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Check signatures in the background for transactions received
     // over the network. Does nothing if `BACKGROUND_OVERLAY_PROCESSING` is not
-    // also enabled. (experimental)
-    bool EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION;
+    // also enabled.
+    bool BACKGROUND_TX_SIG_VERIFICATION;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
     // Validators do not currently support persisted indexes. If
-    // NODE_IS_VALIDATOR=true, this value is ingnored and indexes are never
+    // NODE_IS_VALIDATOR=true, this value is ignored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
 
@@ -624,6 +672,10 @@ class Config : public std::enable_shared_from_this<Config>
     bool LOG_COLOR;
     std::string BUCKET_DIR_PATH;
 
+    // Path to Protocol 23 corruption CSV file for testing/recovery
+    std::string PATH_TO_PROTOCOL_23_CORRUPTION_FILE;
+
+  public:
     // Ledger protocol version for testing purposes. Defaulted to
     // LEDGER_PROTOCOL_VERSION. Used in the following scenarios: 1. to specify
     // the genesis ledger version (only when USE_CONFIG_FOR_GENESIS is true) 2.
@@ -685,6 +737,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of threads to serve query commands
     int QUERY_THREAD_POOL_SIZE;
 
+    // Number of threads to use when compiling contracts
+    // at startup.
+    int COMPILATION_THREADS;
+
     // Number of ledger snapshots to maintain for querying
     uint32_t QUERY_SNAPSHOT_LEDGERS;
 
@@ -701,8 +757,27 @@ class Config : public std::enable_shared_from_this<Config>
     // Whether to run online quorum intersection checks.
     bool QUORUM_INTERSECTION_CHECKER;
 
+    // Whether to use the new Rust SAT-solving based quorum intersection
+    // checker.
+    bool USE_QUORUM_INTERSECTION_CHECKER_V2;
+
+    // (V2 only) Time limit in milliseconds for the quorum intersection checker
+    uint64_t QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS;
+
+    // (V2 only) Memory limit in bytes for the quorum intersection checker
+    uint64_t QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES;
+
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
+
+    // Enable extra invariant checks that provide additional consistency
+    // verification but may be slow or resource-intensive. The default value is
+    // false.
+    bool INVARIANT_EXTRA_CHECKS;
+
+    // Frequency (in seconds) at which expensive state snapshot invariants
+    // should run. Defaults to 5 minutes (300 seconds).
+    uint32_t STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
 
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
@@ -776,6 +851,37 @@ class Config : public std::enable_shared_from_this<Config>
     bool EMIT_SOROBAN_TRANSACTION_META_EXT_V1;
     bool EMIT_LEDGER_CLOSE_META_EXT_V1;
 
+    // Controls the emission of events for classic operations. If enabled,
+    // classic events will be enabled for protocol >= 23. Note this does not
+    // affect events in protocols 22 and earlier.
+    // `BACKFILL_STELLAR_ASSET_EVENTS` flag controls backfilling of those
+    // events.
+    bool EMIT_CLASSIC_EVENTS;
+
+    // When turned on, transactions will emit V4
+    // meta (`TransactionMetaV4`), even in protocols <= 22 and
+    // 1. Classic operations will emit events where applicable.
+    // 2. Stellar Asset Contract (SAC) events will be retroactively emitted in
+    //    V23 specification.
+    // 3. Additional SAC events will be emitted to handle the p23 mint/burns due
+    // to the p23 state archival bug. This is only relevant for a small number
+    // of p23 ledgers.
+    //
+    // Note: `BACKFILL_STELLAR_ASSET_EVENTS` requires `EMIT_CLASSIC_EVENTS` to
+    // be enabled
+    bool BACKFILL_STELLAR_ASSET_EVENTS;
+
+    // When enabled, meta will be populated with LedgerEntryChange
+    // RESTORE type for protocol versions prior to 23.
+    bool BACKFILL_RESTORE_META;
+
+    // Defines the minimum and maximum number of sequential stages to consider
+    // when nominating the Soroban phase of transaction set.
+    // These are currently intentionally not configurable via the config file,
+    // as there isn't much room for configuration.
+    uint32_t SOROBAN_PHASE_MIN_STAGE_COUNT;
+    uint32_t SOROBAN_PHASE_MAX_STAGE_COUNT;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of
@@ -785,7 +891,7 @@ class Config : public std::enable_shared_from_this<Config>
     // A config parameter that uses a never-committing ledger. This means that
     // all ledger entries, except for offers, will be kept in memory, and not
     // persisted to DB. Since offers are backed by SQL and not BucketListDB,
-    // offers are still commited to the SQL DB even when this mode is enabled.
+    // offers are still committed to the SQL DB even when this mode is enabled.
     // Should only be used for testing.
     bool MODE_USES_IN_MEMORY_LEDGER;
 
@@ -793,11 +899,24 @@ class Config : public std::enable_shared_from_this<Config>
     // specifications.
     bool SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING;
 
+    // Block byte limits overrides for testing
+    size_t TESTING_MAX_SOROBAN_BYTE_ALLOWANCE;
+    size_t TESTING_MAX_CLASSIC_BYTE_ALLOWANCE;
+
+    // When set to true, ignores all message and tx set size limits for testing
+    bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
     generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
+
 #endif
+
+    // Returns ledger close time if an override value is currently set for
+    // testing. Otherwise returns nullopt.
+    std::optional<std::chrono::milliseconds>
+    getExpectedLedgerCloseTimeTestingOverride() const;
 
 #ifdef BEST_OFFER_DEBUGGING
     bool BEST_OFFER_DEBUGGING_ENABLED;
@@ -823,14 +942,15 @@ class Config : public std::enable_shared_from_this<Config>
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
 
-    std::chrono::seconds getExpectedLedgerCloseTime() const;
-
     bool modeDoesCatchupWithBucketList() const;
     bool allBucketsInMemory() const;
     void logBasicInfo() const;
     bool parallelLedgerClose() const;
     void setNoListen();
     void setNoPublish();
+
+    size_t getSorobanByteAllowance() const;
+    size_t getClassicByteAllowance() const;
 
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);

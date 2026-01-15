@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "util/asio.h"
 
@@ -114,6 +114,11 @@ int64_t getMaxHandles();
 // On linux, count the number of fds in /proc/self/fd. On windows, get the
 // process handle count. On other unixes return 0.
 int64_t getOpenHandleCount();
+
+// Remove a file and log a warning if removal fails (except for ENOENT by
+// default). Returns true if file was removed or didn't exist, false if removal
+// failed.
+bool removeWithLog(std::string const& path, bool ignoreEnoent = true);
 
 }
 }

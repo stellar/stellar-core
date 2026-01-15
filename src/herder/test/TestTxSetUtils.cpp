@@ -41,14 +41,12 @@ makeGeneralizedTxSetXDR(std::vector<PhaseComponents> const& phases,
         releaseAssert(i < static_cast<size_t>(TxSetPhase::PHASE_COUNT));
         auto const& phase = phases[i];
         bool isParallelSorobanPhase = false;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (useParallelSorobanPhase &&
             i == static_cast<size_t>(TxSetPhase::SOROBAN))
         {
             releaseAssert(phase.size() <= 1);
             isParallelSorobanPhase = true;
         }
-#endif
 
         auto normalizedTxsPerBaseFee = phase;
         std::sort(normalizedTxsPerBaseFee.begin(),
@@ -68,7 +66,6 @@ makeGeneralizedTxSetXDR(std::vector<PhaseComponents> const& phases,
         {
             if (isParallelSorobanPhase)
             {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 auto& component = xdrPhase.parallelTxsComponent();
                 if (baseFee)
                 {
@@ -83,9 +80,6 @@ makeGeneralizedTxSetXDR(std::vector<PhaseComponents> const& phases,
                         cluster.emplace_back(tx->getEnvelope());
                     }
                 }
-#else
-                releaseAssert(false);
-#endif
             }
             else
             {
@@ -161,7 +155,6 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 normalizeParallelPhaseXDR(TransactionPhase& phase)
 {
@@ -223,7 +216,6 @@ makeNonValidatedGeneralizedTxSet(PhaseComponents const& classicTxsPerBaseFee,
         txSet->prepareForApply(
             app, app.getLedgerManager().getLastClosedLedgerHeader().header));
 }
-#endif
 
 } // namespace testtxset
 } // namespace stellar

@@ -6,8 +6,10 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
+#include "util/numeric.h"
 #include <Tracy.hpp>
 
 #ifdef BUILD_TESTS
@@ -119,47 +121,50 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
 
-    e.ledgerMaxReadLedgerEntries =
+    e.ledgerMaxDiskReadEntries =
         InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
 
-    e.ledgerMaxReadBytes = InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
+    e.ledgerMaxDiskReadBytes =
+        InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
 
     e.ledgerMaxWriteLedgerEntries =
         InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
 
     e.ledgerMaxWriteBytes = InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
 
-    e.txMaxReadLedgerEntries =
+    e.txMaxDiskReadEntries =
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-    e.txMaxReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
+    e.txMaxDiskReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
     e.txMaxWriteLedgerEntries =
         InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
     e.txMaxWriteBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-    e.feeReadLedgerEntry = InitialSorobanNetworkConfig::FEE_READ_LEDGER_ENTRY;
+    e.feeDiskReadLedgerEntry =
+        InitialSorobanNetworkConfig::FEE_READ_LEDGER_ENTRY;
     e.feeWriteLedgerEntry = InitialSorobanNetworkConfig::FEE_WRITE_LEDGER_ENTRY;
-    e.feeRead1KB = InitialSorobanNetworkConfig::FEE_READ_1KB;
-    e.bucketListTargetSizeBytes =
+    e.feeDiskRead1KB = InitialSorobanNetworkConfig::FEE_READ_1KB;
+    e.sorobanStateTargetSizeBytes =
         InitialSorobanNetworkConfig::BUCKET_LIST_TARGET_SIZE_BYTES;
-    e.writeFee1KBBucketListLow =
+    e.rentFee1KBSorobanStateSizeLow =
         InitialSorobanNetworkConfig::BUCKET_LIST_FEE_1KB_BUCKET_LIST_LOW;
-    e.writeFee1KBBucketListHigh =
+    e.rentFee1KBSorobanStateSizeHigh =
         InitialSorobanNetworkConfig::BUCKET_LIST_FEE_1KB_BUCKET_LIST_HIGH;
-    e.bucketListWriteFeeGrowthFactor =
-        InitialSorobanNetworkConfig::BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR;
+    e.sorobanStateRentFeeGrowthFactor =
+        InitialSorobanNetworkConfig::STATE_SIZE_RENT_FEE_GROWTH_FACTOR;
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.ledgerMaxReadLedgerEntries =
+        e.ledgerMaxDiskReadEntries =
             TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
-        e.ledgerMaxReadBytes =
+        e.ledgerMaxDiskReadBytes =
             TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
         e.ledgerMaxWriteLedgerEntries =
             TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
         e.ledgerMaxWriteBytes =
             TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
-        e.txMaxReadLedgerEntries =
+        e.txMaxDiskReadEntries =
             TestOverrideSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-        e.txMaxReadBytes = TestOverrideSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        e.txMaxDiskReadBytes =
+            TestOverrideSorobanNetworkConfig::TX_MAX_READ_BYTES;
         e.txMaxWriteLedgerEntries =
             TestOverrideSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
         e.txMaxWriteBytes =
@@ -340,11 +345,10 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     // Resize to fit the last cost type added in v21
     params.resize(
@@ -444,11 +448,10 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
@@ -549,6 +552,83 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+void
+updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // Resize to fit the last cost type added in v25
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have either been updated, or newly created in v25
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case Bn254EncodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 344, 0);
+            break;
+        case Bn254DecodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 476, 0);
+            break;
+        case Bn254G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 904, 0);
+            break;
+        case Bn254G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2811, 0);
+            break;
+        case Bn254G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2937755, 0);
+            break;
+        case Bn254G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 61, 0);
+            break;
+        case Bn254G1Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 3623, 0);
+            break;
+        case Bn254G1Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1150435, 0);
+            break;
+        case Bn254Pairing:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 5263916, 392472814);
+            break;
+        case Bn254FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2052, 0);
+            break;
+        case Bn254FrToU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1133, 0);
+            break;
+        case Bn254FrAddSub:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 74, 0);
+            break;
+        case Bn254FrMul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 332, 0);
+            break;
+        case Bn254FrPow:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 755, 68930);
+            break;
+        case Bn254FrInv:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 33151, 0);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
 {
@@ -567,9 +647,9 @@ initialStateArchivalSettings(Config const& cfg)
 
     entry.stateArchivalSettings().minTemporaryTTL =
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
-    entry.stateArchivalSettings().bucketListSizeWindowSampleSize =
+    entry.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize =
         InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
-    entry.stateArchivalSettings().bucketListWindowSamplePeriod =
+    entry.stateArchivalSettings().liveSorobanStateSizeWindowSamplePeriod =
         InitialSorobanNetworkConfig::BUCKET_LIST_WINDOW_SAMPLE_PERIOD;
 
     if (cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING)
@@ -703,11 +783,10 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsMemBytes();
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
 
     // Resize to fit the last cost type added in v21
     params.resize(
@@ -808,11 +887,10 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& params = ltx.load(key)
-                       .current()
-                       .data.configSetting()
-                       .contractCostParamsMemBytes();
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
@@ -911,7 +989,83 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // Resize to fit the last cost type added in v25
+    params.resize(static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // adding new cost types introduced in v25
+        case Bn254EncodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254DecodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254G1Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254Pairing:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 1821, 6232546);
+            break;
+        case Bn254FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrToU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 312, 0);
+            break;
+        case Bn254FrAddSub:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrMul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrPow:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        case Bn254FrInv:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 0);
+            break;
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
+}
+
 ConfigSettingEntry
 initialParallelComputeEntry()
 {
@@ -922,35 +1076,50 @@ initialParallelComputeEntry()
 }
 
 ConfigSettingEntry
-initialLedgerCostExtEntry()
+initialLedgerCostExtEntry(uint32_t txMaxDiskReadEntries)
 {
-    // TODO: Define better initial values
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
-    entry.contractLedgerCostExt().txMaxInMemoryReadEntries =
-        InitialSorobanNetworkConfig::TX_MAX_IN_MEMORY_READ_ENTRIES;
+    // Initialize `txMaxFootprintEntries` with the value of the older
+    // `txMaxDiskReadEntries` setting that used to apply to the whole
+    // transaction footprint, so that we ensure that no transactions
+    // will become invalid due to this limit.
+    entry.contractLedgerCostExt().txMaxFootprintEntries = txMaxDiskReadEntries;
     entry.contractLedgerCostExt().feeWrite1KB =
-        InitialSorobanNetworkConfig::FEE_WRITE_1KB;
+        InitialSorobanNetworkConfig::FEE_LEDGER_WRITE_1KB;
     return entry;
 }
 
-#endif
+ConfigSettingEntry
+initialScpTimingEntry()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_SCP_TIMING);
+    entry.contractSCPTiming().ledgerTargetCloseTimeMilliseconds =
+        InitialSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS;
+    entry.contractSCPTiming().nominationTimeoutInitialMilliseconds =
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INITIAL_MILLISECONDS;
+    entry.contractSCPTiming().nominationTimeoutIncrementMilliseconds =
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS;
+    entry.contractSCPTiming().ballotTimeoutInitialMilliseconds =
+        InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS;
+    entry.contractSCPTiming().ballotTimeoutIncrementMilliseconds =
+        InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
+
+    return entry;
+}
 
 ConfigSettingEntry
-initialBucketListSizeWindow(Application& app)
+initialliveSorobanStateSizeWindow(Application& app)
 {
-    ConfigSettingEntry entry(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
+    ConfigSettingEntry entry(CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW);
 
     // Populate 30 day sliding window of BucketList size snapshots with 30
-    // copies of the current BL size. If the bucketlist is disabled for
-    // testing, just fill with ones to avoid triggering asserts.
-    auto blSize = app.getConfig().MODE_ENABLES_BUCKETLIST
-                      ? app.getBucketManager().getLiveBucketList().getSize()
-                      : 1;
+    // copies of the current BL size.
+    auto blSize = app.getBucketManager().getLiveBucketList().getSize();
     for (uint64_t i = 0;
          i < InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
          ++i)
     {
-        entry.bucketListSizeWindow().push_back(blSize);
+        entry.liveSorobanStateSizeWindow().push_back(blSize);
     }
 
     return entry;
@@ -968,6 +1137,64 @@ initialEvictionIterator(Config const& cfg)
     entry.evictionIterator().isCurrBucket = true;
     return entry;
 }
+
+void
+updateRentCostParamsForV23(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& ledgerCostSettings =
+        txle.current().data.configSetting().contractLedgerCost();
+    ledgerCostSettings.sorobanStateTargetSizeBytes =
+        Protcol23UpgradedConfig::SOROBAN_STATE_TARGET_SIZE_BYTES;
+    ledgerCostSettings.rentFee1KBSorobanStateSizeLow =
+        Protcol23UpgradedConfig::RENT_FEE_1KB_SOROBAN_STATE_SIZE_LOW;
+    ledgerCostSettings.rentFee1KBSorobanStateSizeHigh =
+        Protcol23UpgradedConfig::RENT_FEE_1KB_SOROBAN_STATE_SIZE_HIGH;
+
+    LedgerKey archivalKey(CONFIG_SETTING);
+    archivalKey.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
+    auto archivalTxle = ltx.load(archivalKey);
+    releaseAssertOrThrow(archivalTxle);
+    auto& archivalSettings =
+        archivalTxle.current().data.configSetting().stateArchivalSettings();
+    archivalSettings.persistentRentRateDenominator =
+        Protcol23UpgradedConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
+    archivalSettings.tempRentRateDenominator =
+        Protcol23UpgradedConfig::TEMP_RENT_RATE_DENOMINATOR;
+    ltx.commit();
+}
+
+} // namespace
+
+#ifndef BUILD_TESTS
+// We expose this function for some tests, but the production workflows should
+// interact with the window setting via the higher level functions.
+static void
+#else
+void
+#endif
+updateStateSizeWindowSetting(
+    AbstractLedgerTxn& ltxRoot,
+    std::function<void(xdr::xvector<uint64>& window)> updateFn)
+{
+    LedgerTxn ltx(ltxRoot);
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& window =
+        txle.current().data.configSetting().liveSorobanStateSizeWindow();
+    releaseAssertOrThrow(!window.empty());
+    updateFn(window);
+    ltx.commit();
 }
 
 bool
@@ -1020,14 +1247,14 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
         valid = cfg.contractHistoricalData().feeHistorical1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-        valid = cfg.contractLedgerCost().txMaxReadLedgerEntries >=
+        valid = cfg.contractLedgerCost().txMaxDiskReadEntries >=
                     MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
-                cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
-                    cfg.contractLedgerCost().txMaxReadLedgerEntries &&
-                cfg.contractLedgerCost().txMaxReadBytes >=
+                cfg.contractLedgerCost().ledgerMaxDiskReadEntries >=
+                    cfg.contractLedgerCost().txMaxDiskReadEntries &&
+                cfg.contractLedgerCost().txMaxDiskReadBytes >=
                     MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
-                cfg.contractLedgerCost().ledgerMaxReadBytes >=
-                    cfg.contractLedgerCost().txMaxReadBytes &&
+                cfg.contractLedgerCost().ledgerMaxDiskReadBytes >=
+                    cfg.contractLedgerCost().txMaxDiskReadBytes &&
                 cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
                     MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
                 cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
@@ -1036,12 +1263,12 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                     MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
                 cfg.contractLedgerCost().ledgerMaxWriteBytes >=
                     cfg.contractLedgerCost().txMaxWriteBytes &&
-                cfg.contractLedgerCost().feeReadLedgerEntry >= 0 &&
+                cfg.contractLedgerCost().feeDiskReadLedgerEntry >= 0 &&
                 cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
-                cfg.contractLedgerCost().feeRead1KB >= 0 &&
-                cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
-                cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
-                cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
+                cfg.contractLedgerCost().feeDiskRead1KB >= 0 &&
+                cfg.contractLedgerCost().sorobanStateTargetSizeBytes > 0 &&
+                cfg.contractLedgerCost().rentFee1KBSorobanStateSizeHigh >= 0 &&
+                cfg.contractLedgerCost().sorobanStateRentFeeGrowthFactor >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
         valid = cfg.contractEvents().txMaxContractEventsSizeBytes >=
@@ -1062,7 +1289,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.stateArchivalSettings().tempRentRateDenominator > 0 &&
             cfg.stateArchivalSettings().maxEntriesToArchive >=
                 MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE &&
-            cfg.stateArchivalSettings().bucketListSizeWindowSampleSize >=
+            cfg.stateArchivalSettings().liveSorobanStateSizeWindowSampleSize >=
                 MinimumSorobanNetworkConfig::
                     BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE &&
             cfg.stateArchivalSettings().evictionScanSize >=
@@ -1071,7 +1298,8 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
             cfg.stateArchivalSettings().startingEvictionScanLevel <
                 LiveBucketList::kNumLevels &&
-            cfg.stateArchivalSettings().bucketListWindowSamplePeriod >=
+            cfg.stateArchivalSettings()
+                    .liveSorobanStateSizeWindowSamplePeriod >=
                 MinimumSorobanNetworkConfig::BUCKETLIST_WINDOW_SAMPLE_PERIOD;
 
         valid = valid && cfg.stateArchivalSettings().maxEntryTTL >
@@ -1079,25 +1307,59 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
         valid = valid && cfg.stateArchivalSettings().maxEntryTTL >
                              cfg.stateArchivalSettings().minTemporaryTTL;
         break;
-    case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+    case ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW:
     case ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR:
         valid = true;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
-        valid = protocolVersionStartsFrom(
-                    ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
-                cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0;
+        valid =
+            protocolVersionStartsFrom(
+                ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0 &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters <
+                MAX_LEDGER_DEPENDENT_TX_CLUSTERS;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
-        // TODO: Stricter validity checks
         valid =
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
-            cfg.contractLedgerCostExt().txMaxInMemoryReadEntries >
+            cfg.contractLedgerCostExt().txMaxFootprintEntries >=
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
-#endif
+    case ConfigSettingID::CONFIG_SETTING_SCP_TIMING:
+        valid =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+            cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+            cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutIncrementMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().nominationTimeoutIncrementMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutInitialMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INITIAL_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds >=
+                MinimumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INCREMENT_MILLISECONDS &&
+            cfg.contractSCPTiming().ballotTimeoutIncrementMilliseconds <=
+                MaximumSorobanNetworkConfig::
+                    BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
+        break;
     default:
         break;
     }
@@ -1118,7 +1380,8 @@ SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     // While the BucketList size window and eviction iterator are stored in a
     // ConfigSetting entry, the BucketList defines these values, they should
     // never be changed via upgrade
-    return cfg == ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW ||
+    return cfg ==
+               ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW ||
            cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
@@ -1133,7 +1396,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     // failed check because we expect most cost types in v21. Those new cost
     // types will be created in this case, but that'll happen later in
     // createCostTypesForV21.
-    static const uint32_t versionToValidateAgainst = 20;
+    static uint32_t const versionToValidateAgainst = 20;
 
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,
@@ -1160,7 +1423,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                              versionToValidateAgainst);
     createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx,
                              versionToValidateAgainst);
-    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx,
+    createConfigSettingEntry(initialliveSorobanStateSizeWindow(app), ltx,
                              versionToValidateAgainst);
     createConfigSettingEntry(initialEvictionIterator(cfg), ltx,
                              versionToValidateAgainst);
@@ -1185,17 +1448,41 @@ SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
 }
 
 void
-SorobanNetworkConfig::createLedgerEntriesForV23(AbstractLedgerTxn& ltx,
-                                                Application& app)
+SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
+                                            Application& app)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ZoneScoped;
+    updateCpuCostParamsEntryForV25(ltx);
+    updateMemCostParamsEntryForV25(ltx);
+}
+
+void
+SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
+                                                         Application& app)
+{
     ZoneScoped;
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
-    createConfigSettingEntry(initialLedgerCostExtEntry(), ltx,
+    createConfigSettingEntry(initialScpTimingEntry(), ltx,
                              static_cast<uint32_t>(ProtocolVersion::V_23));
-#endif
+
+    // We expect CONFIG_SETTING_CONTRACT_LEDGER_COST_V0 to exist when upgrading
+    // to protocol 23 as it must be created during the protocol 20 upgrade.
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+    auto txle = ltx.loadWithoutRecord(key);
+    releaseAssertOrThrow(txle);
+    auto const& le = txle.current();
+    auto const& ledgerCostSetting =
+        le.data.configSetting().contractLedgerCost();
+    createConfigSettingEntry(
+        initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
+        static_cast<uint32_t>(ProtocolVersion::V_23));
+
+    updateRentCostParamsForV23(ltx);
 }
+
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Application& app)
@@ -1229,92 +1516,124 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     }
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_23))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV23(ltx, app);
+        SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
+    }
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_25))
+    {
+        SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
 }
 
-void
-SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
-                                     uint32_t configMaxProtocol,
-                                     uint32_t protocolVersion)
+SorobanNetworkConfig
+SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
 {
     ZoneScoped;
+    SorobanNetworkConfig config;
+    config.loadMaxContractSize(ls);
+    config.loadMaxContractDataKeySize(ls);
+    config.loadMaxContractDataEntrySize(ls);
+    config.loadComputeSettings(ls);
+    config.loadLedgerAccessSettings(ls);
+    config.loadHistoricalSettings(ls);
+    config.loadContractEventsSettings(ls);
+    config.loadBandwidthSettings(ls);
+    config.loadCpuCostParams(ls);
+    config.loadMemCostParams(ls);
+    config.loadStateArchivalSettings(ls);
+    config.loadExecutionLanesSettings(ls);
+    config.loadLiveSorobanStateSizeWindow(ls);
+    config.loadEvictionIterator(ls);
 
-    LedgerTxn ltx(ltxRoot);
-    loadMaxContractSize(ltx);
-    loadMaxContractDataKeySize(ltx);
-    loadMaxContractDataEntrySize(ltx);
-    loadComputeSettings(ltx);
-    loadLedgerAccessSettings(ltx);
-    loadHistoricalSettings(ltx);
-    loadContractEventsSettings(ltx);
-    loadBandwidthSettings(ltx);
-    loadCpuCostParams(ltx);
-    loadMemCostParams(ltx);
-    loadStateArchivalSettings(ltx);
-    loadExecutionLanesSettings(ltx);
-    loadBucketListSizeWindow(ltx);
-    loadEvictionIterator(ltx);
-    // NB: this should follow loading state archival settings
-    maybeUpdateBucketListWindowSize(ltx);
-    if (protocolVersionStartsFrom(protocolVersion,
-                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    auto protocolVersion = ls.getLedgerHeader().current().ledgerVersion;
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23))
     {
-        loadParallelComputeConfig(ltx);
-        loadLedgerCostExtConfig(ltx);
+        config.loadParallelComputeConfig(ls);
+        config.loadLedgerCostExtConfig(ls);
+        config.loadSCPTimingConfig(ls);
     }
-    // NB: this should follow loading/updating bucket list window
+    // NB: this should follow loading/updating state size window
     // size and state archival settings
-    computeWriteFee(configMaxProtocol, protocolVersion);
+    config.computeRentWriteFee(protocolVersion);
+    return config;
 }
 
+SorobanNetworkConfig
+SorobanNetworkConfig::loadFromLedger(SearchableSnapshotConstPtr snapshot)
+{
+    LedgerSnapshot ls(snapshot);
+    return SorobanNetworkConfig::loadFromLedger(ls);
+}
+
+SorobanNetworkConfig
+SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
+{
+    LedgerSnapshot ls(ltx);
+    return SorobanNetworkConfig::loadFromLedger(ls);
+}
+
+#ifdef BUILD_TESTS
+SorobanNetworkConfig
+SorobanNetworkConfig::emptyConfig()
+{
+    return SorobanNetworkConfig();
+}
+#endif
+
 void
-SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mMaxContractDataKeySizeBytes =
         le.data.configSetting().contractDataKeySizeBytes();
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mMaxContractDataEntrySizeBytes =
         le.data.configSetting().contractDataEntrySizeBytes();
 }
 
 void
-SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting = le.data.configSetting().contractCompute();
     mLedgerMaxInstructions = configSetting.ledgerMaxInstructions;
     mTxMaxInstructions = configSetting.txMaxInstructions;
@@ -1324,70 +1643,95 @@ SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
 }
 
 void
-SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting = le.data.configSetting().contractLedgerCost();
-    mLedgerMaxReadLedgerEntries = configSetting.ledgerMaxReadLedgerEntries;
-    mLedgerMaxReadBytes = configSetting.ledgerMaxReadBytes;
+    mLedgerMaxDiskReadEntries = configSetting.ledgerMaxDiskReadEntries;
+    mLedgerMaxDiskReadBytes = configSetting.ledgerMaxDiskReadBytes;
     mLedgerMaxWriteLedgerEntries = configSetting.ledgerMaxWriteLedgerEntries;
     mLedgerMaxWriteBytes = configSetting.ledgerMaxWriteBytes;
-    mTxMaxReadLedgerEntries = configSetting.txMaxReadLedgerEntries;
-    mTxMaxReadBytes = configSetting.txMaxReadBytes;
+    mTxMaxDiskReadEntries = configSetting.txMaxDiskReadEntries;
+    mTxMaxDiskReadBytes = configSetting.txMaxDiskReadBytes;
     mTxMaxWriteLedgerEntries = configSetting.txMaxWriteLedgerEntries;
     mTxMaxWriteBytes = configSetting.txMaxWriteBytes;
-    mFeeReadLedgerEntry = configSetting.feeReadLedgerEntry;
+    mFeeDiskReadLedgerEntry = configSetting.feeDiskReadLedgerEntry;
     mFeeWriteLedgerEntry = configSetting.feeWriteLedgerEntry;
-    mFeeRead1KB = configSetting.feeRead1KB;
-    mBucketListTargetSizeBytes = configSetting.bucketListTargetSizeBytes;
-    mWriteFee1KBBucketListLow = configSetting.writeFee1KBBucketListLow;
-    mWriteFee1KBBucketListHigh = configSetting.writeFee1KBBucketListHigh;
-    mBucketListWriteFeeGrowthFactor =
-        configSetting.bucketListWriteFeeGrowthFactor;
+    mFeeDiskRead1KB = configSetting.feeDiskRead1KB;
+    mSorobanStateTargetSizeBytes = configSetting.sorobanStateTargetSizeBytes;
+    mRentFee1KBSorobanStateSizeLow =
+        configSetting.rentFee1KBSorobanStateSizeLow;
+    mRentFee1KBSorobanStateSizeHigh =
+        configSetting.rentFee1KBSorobanStateSizeHigh;
+    mSorobanStateRentFeeGrowthFactor =
+        configSetting.sorobanStateRentFeeGrowthFactor;
+
+    if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_23))
+    {
+        LedgerKey key(CONFIG_SETTING);
+        key.configSetting().configSettingID =
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
+        auto lsle = ls.load(key);
+        releaseAssertOrThrow(lsle);
+        auto const& le = lsle.current();
+        auto const& configSetting =
+            le.data.configSetting().contractLedgerCostExt();
+        mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
+        mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
+    }
 }
 
 void
-SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting =
         le.data.configSetting().contractHistoricalData();
     mFeeHistorical1KB = configSetting.feeHistorical1KB;
 }
 
 void
-SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting = le.data.configSetting().contractEvents();
     mFeeContractEvents1KB = configSetting.feeContractEvents1KB;
     mTxMaxContractEventsSizeBytes = configSetting.txMaxContractEventsSizeBytes;
 }
 
 void
-SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting = le.data.configSetting().contractBandwidth();
     mLedgerMaxTransactionsSizeBytes = configSetting.ledgerMaxTxsSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
@@ -1395,149 +1739,143 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
 }
 
 void
-SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
 }
 
 void
-SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 }
 
 void
-SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting =
         le.data.configSetting().contractExecutionLanes();
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
 }
 
 void
-SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-    auto txle = ltx.loadWithoutRecord(key);
-    releaseAssert(txle);
-    auto const& leVector =
-        txle.current().data.configSetting().bucketListSizeWindow();
-    mBucketListSizeSnapshots.clear();
-    for (auto e : leVector)
+        ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& window =
+        lsle.current().data.configSetting().liveSorobanStateSizeWindow();
+    uint64_t sizeSum = 0;
+    for (uint64_t size : window)
     {
-        mBucketListSizeSnapshots.push_back(e);
+        // This is just a sanity check, as both the number of the snapshots
+        // and the value of every snapshotted size are rather small.
+        if (sizeSum >= std::numeric_limits<uint64_t>::max() - size)
+        {
+            sizeSum = std::numeric_limits<uint64_t>::max();
+        }
+        else
+        {
+            sizeSum += size;
+        }
     }
 
-    updateBucketListSizeAverage();
+    mAverageSorobanStateSize = sizeSum / window.size();
 }
 
 void
-SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-    auto txle = ltx.loadWithoutRecord(key);
-    releaseAssert(txle);
-    mEvictionIterator = txle.current().data.configSetting().evictionIterator();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    mEvictionIterator = lsle.current().data.configSetting().evictionIterator();
 }
 
 void
-SorobanNetworkConfig::loadParallelComputeConfig(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting =
         le.data.configSetting().contractParallelCompute();
     mLedgerMaxDependentTxClusters = configSetting.ledgerMaxDependentTxClusters;
-#endif
 }
 
 void
-SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     auto const& configSetting = le.data.configSetting().contractLedgerCostExt();
-    mTxMaxInMemoryReadEntries = configSetting.txMaxInMemoryReadEntries;
-    mFlatRateFeeWrite1KB = configSetting.feeWrite1KB;
-#endif
+    mTxMaxFootprintEntries = configSetting.txMaxFootprintEntries;
+    mFeeFlatRateWrite1KB = configSetting.feeWrite1KB;
 }
 
 void
-SorobanNetworkConfig::writeBucketListSizeWindow(
-    AbstractLedgerTxn& ltxRoot) const
+SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
 {
     ZoneScoped;
-
-    // Check that the window is loaded and the number of snapshots is correct
-    releaseAssert(mBucketListSizeSnapshots.size() ==
-                  mStateArchivalSettings.bucketListSizeWindowSampleSize);
-
-    // Load outdated snapshot entry from DB
-    LedgerTxn ltx(ltxRoot);
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-    auto txle = ltx.load(key);
-    releaseAssert(txle);
-
-    // Copy in-memory snapshots to ledger entry
-    auto& leVector = txle.current().data.configSetting().bucketListSizeWindow();
-    leVector.clear();
-    for (auto e : mBucketListSizeSnapshots)
-    {
-        leVector.push_back(e);
-    }
-
-    ltx.commit();
-}
-
-void
-SorobanNetworkConfig::updateBucketListSizeAverage()
-{
-    ZoneScoped;
-
-    releaseAssert(!mBucketListSizeSnapshots.empty());
-    uint64_t sizeSum = 0;
-    for (auto const& size : mBucketListSizeSnapshots)
-    {
-        sizeSum += size;
-    }
-
-    mAverageBucketListSize = sizeSum / mBucketListSizeSnapshots.size();
+        ConfigSettingID::CONFIG_SETTING_SCP_TIMING;
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
+    auto const& configSetting = le.data.configSetting().contractSCPTiming();
+    mLedgerTargetCloseTimeMilliseconds =
+        configSetting.ledgerTargetCloseTimeMilliseconds;
+    mNominationTimeoutInitialMilliseconds =
+        configSetting.nominationTimeoutInitialMilliseconds;
+    mNominationTimeoutIncrementMilliseconds =
+        configSetting.nominationTimeoutIncrementMilliseconds;
+    mBallotTimeoutInitialMilliseconds =
+        configSetting.ballotTimeoutInitialMilliseconds;
+    mBallotTimeoutIncrementMilliseconds =
+        configSetting.ballotTimeoutIncrementMilliseconds;
 }
 
 uint32_t
@@ -1559,14 +1897,16 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 }
 
 void
-SorobanNetworkConfig::loadStateArchivalSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
 {
     ZoneScoped;
 
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-    auto le = ltx.loadWithoutRecord(key).current();
+    auto lsle = ls.load(key);
+    releaseAssertOrThrow(lsle);
+    auto const& le = lsle.current();
     mStateArchivalSettings = le.data.configSetting().stateArchivalSettings();
 }
 
@@ -1597,15 +1937,15 @@ SorobanNetworkConfig::txMemoryLimit() const
 
 // Ledger access settings for contracts.
 uint32_t
-SorobanNetworkConfig::ledgerMaxReadLedgerEntries() const
+SorobanNetworkConfig::ledgerMaxDiskReadEntries() const
 {
-    return mLedgerMaxReadLedgerEntries;
+    return mLedgerMaxDiskReadEntries;
 }
 
 uint32_t
-SorobanNetworkConfig::ledgerMaxReadBytes() const
+SorobanNetworkConfig::ledgerMaxDiskReadBytes() const
 {
-    return mLedgerMaxReadBytes;
+    return mLedgerMaxDiskReadBytes;
 }
 
 uint32_t
@@ -1621,15 +1961,15 @@ SorobanNetworkConfig::ledgerMaxWriteBytes() const
 }
 
 uint32_t
-SorobanNetworkConfig::txMaxReadLedgerEntries() const
+SorobanNetworkConfig::txMaxDiskReadEntries() const
 {
-    return mTxMaxReadLedgerEntries;
+    return mTxMaxDiskReadEntries;
 }
 
 uint32_t
-SorobanNetworkConfig::txMaxReadBytes() const
+SorobanNetworkConfig::txMaxDiskReadBytes() const
 {
-    return mTxMaxReadBytes;
+    return mTxMaxDiskReadBytes;
 }
 
 uint32_t
@@ -1645,9 +1985,9 @@ SorobanNetworkConfig::txMaxWriteBytes() const
 }
 
 int64_t
-SorobanNetworkConfig::feeReadLedgerEntry() const
+SorobanNetworkConfig::feeDiskReadLedgerEntry() const
 {
-    return mFeeReadLedgerEntry;
+    return mFeeDiskReadLedgerEntry;
 }
 
 int64_t
@@ -1657,37 +1997,37 @@ SorobanNetworkConfig::feeWriteLedgerEntry() const
 }
 
 int64_t
-SorobanNetworkConfig::feeRead1KB() const
+SorobanNetworkConfig::feeDiskRead1KB() const
 {
-    return mFeeRead1KB;
+    return mFeeDiskRead1KB;
 }
 
 int64_t
-SorobanNetworkConfig::feeWrite1KB() const
+SorobanNetworkConfig::feeRent1KB() const
 {
-    return mFeeWrite1KB;
+    return mFeeRent1KB;
 }
 
 int64_t
-SorobanNetworkConfig::bucketListTargetSizeBytes() const
+SorobanNetworkConfig::sorobanStateTargetSizeBytes() const
 {
-    return mBucketListTargetSizeBytes;
+    return mSorobanStateTargetSizeBytes;
 }
 
 int64_t
-SorobanNetworkConfig::writeFee1KBBucketListLow() const
+SorobanNetworkConfig::rentFee1KBSorobanStateSizeLow() const
 {
-    return mWriteFee1KBBucketListLow;
+    return mRentFee1KBSorobanStateSizeLow;
 }
 int64_t
-SorobanNetworkConfig::writeFee1KBBucketListHigh() const
+SorobanNetworkConfig::rentFee1KBSorobanStateSizeHigh() const
 {
-    return mWriteFee1KBBucketListHigh;
+    return mRentFee1KBSorobanStateSizeHigh;
 }
 uint32_t
-SorobanNetworkConfig::bucketListWriteFeeGrowthFactor() const
+SorobanNetworkConfig::sorobanStateRentFeeGrowthFactor() const
 {
-    return mBucketListWriteFeeGrowthFactor;
+    return mSorobanStateRentFeeGrowthFactor;
 }
 
 // Historical data (pushed to core archives) settings for contracts.
@@ -1737,260 +2077,109 @@ SorobanNetworkConfig::ledgerMaxTxCount() const
 }
 
 void
-SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(
+    AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
+    // We may only call this past Soroban protocol, because the config setting
+    // upgrades are not possible before that.
+    releaseAssertOrThrow(protocolVersionStartsFrom(
+        ltx.loadHeader().current().ledgerVersion, SOROBAN_PROTOCOL_VERSION));
 
-    // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    auto currSize = mBucketListSizeSnapshots.size();
-    auto newSize = stateArchivalSettings().bucketListSizeWindowSampleSize;
-    if (newSize == currSize)
-    {
-        // No size change, nothing to update
-        return;
-    }
-
-    if (newSize < currSize)
-    {
-        while (mBucketListSizeSnapshots.size() != newSize)
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
+    auto const& txle = ltx.loadWithoutRecord(key);
+    releaseAssertOrThrow(txle);
+    auto newSize = txle.current()
+                       .data.configSetting()
+                       .stateArchivalSettings()
+                       .liveSorobanStateSizeWindowSampleSize;
+    updateStateSizeWindowSetting(ltx, [newSize](auto& window) {
+        auto currSize = window.size();
+        if (newSize == currSize)
         {
-            mBucketListSizeSnapshots.pop_front();
+            // No size change, nothing to update
+            return;
         }
-    }
-    // If newSize > currSize, backfill new slots with oldest value in window
-    // such that they are the first to get replaced by new values
-    else
-    {
-        auto oldestSize = mBucketListSizeSnapshots.front();
-        while (mBucketListSizeSnapshots.size() != newSize)
-        {
-            mBucketListSizeSnapshots.push_front(oldestSize);
-        }
-    }
 
-    updateBucketListSizeAverage();
-    writeBucketListSizeWindow(ltx);
+        if (newSize < currSize)
+        {
+            // Shrink the window by removing the oldest entries.
+            window.erase(window.begin(), window.begin() + (currSize - newSize));
+        }
+        // If newSize > currSize, backfill new slots with oldest value in window
+        // such that they are the first to get replaced by new values.
+        else
+        {
+            auto oldestSize = window.front();
+            window.insert(window.begin(), newSize - window.size(), oldestSize);
+        }
+        releaseAssertOrThrow(window.size() == newSize);
+    });
 }
 
 void
-SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
-                                                  AbstractLedgerTxn& ltx,
-                                                  Application& app)
+SorobanNetworkConfig::maybeSnapshotSorobanStateSize(uint32_t currLedger,
+                                                    uint64_t inMemoryStateSize,
+                                                    AbstractLedgerTxn& ltxRoot,
+                                                    Application& app)
 {
     ZoneScoped;
 
-    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION) ||
-        !app.getConfig().MODE_ENABLES_BUCKETLIST)
+    auto ledgerVersion = ltxRoot.loadHeader().current().ledgerVersion;
+    // Snapshots don't exist before Soroban protocol version
+    if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
+    LedgerKey archivalKey(CONFIG_SETTING);
+    archivalKey.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
+    auto txle = ltxRoot.loadWithoutRecord(archivalKey);
+    auto samplePeriod = txle.current()
+                            .data.configSetting()
+                            .stateArchivalSettings()
+                            .liveSorobanStateSizeWindowSamplePeriod;
 
-    if (currLedger % mStateArchivalSettings.bucketListWindowSamplePeriod == 0)
+    if (currLedger % samplePeriod != 0)
     {
-        // Update in memory snapshots
-        mBucketListSizeSnapshots.pop_front();
-        mBucketListSizeSnapshots.push_back(
-            app.getBucketManager().getLiveBucketList().getSize());
-
-        writeBucketListSizeWindow(ltx);
-        updateBucketListSizeAverage();
-        computeWriteFee(app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-                        ledgerVersion);
+        return;
     }
+    uint64_t sorobanStateSize = 0;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
+    {
+        sorobanStateSize = app.getBucketManager().getLiveBucketList().getSize();
+    }
+    else
+    {
+        sorobanStateSize = inMemoryStateSize;
+    }
+
+    updateStateSizeWindowSetting(ltxRoot, [sorobanStateSize](auto& window) {
+        window.erase(window.begin());
+        window.push_back(sorobanStateSize);
+    });
+}
+
+void
+SorobanNetworkConfig::updateRecomputedSorobanStateSize(uint64_t newSize,
+                                                       AbstractLedgerTxn& ltx)
+{
+    ZoneScoped;
+    updateStateSizeWindowSetting(ltx, [newSize](auto& window) {
+        for (auto& size : window)
+        {
+            size = newSize;
+        }
+    });
 }
 
 uint64_t
-SorobanNetworkConfig::getAverageBucketListSize() const
+SorobanNetworkConfig::getAverageSorobanStateSize() const
 {
-    return mAverageBucketListSize;
+    return mAverageSorobanStateSize;
 }
-
-#ifdef BUILD_TESTS
-LedgerEntry
-writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                        AbstractLedgerTxn& ltxRoot, Application& app)
-{
-    ZoneScoped;
-
-    LedgerEntry e;
-    e.data.type(CONFIG_SETTING);
-    e.data.configSetting() = configSetting;
-
-    LedgerTxn ltx(ltxRoot);
-    auto ltxe = ltx.load(LedgerEntryKey(e));
-    releaseAssert(ltxe);
-    ltxe.current() = e;
-    ltx.commit();
-    return e;
-}
-
-void
-SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
-                                       Application& app) const
-{
-    ZoneScoped;
-
-    std::vector<LedgerEntry> entries;
-    ConfigSettingEntry maxContractSizeEntry(
-        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-    maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
-    entries.emplace_back(
-        writeConfigSettingEntry(maxContractSizeEntry, ltx, app));
-
-    ConfigSettingEntry maxContractDataKeySizeEntry(
-        CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
-    maxContractDataKeySizeEntry.contractDataKeySizeBytes() =
-        mMaxContractDataKeySizeBytes;
-    entries.emplace_back(
-        writeConfigSettingEntry(maxContractDataKeySizeEntry, ltx, app));
-
-    ConfigSettingEntry maxContractDataEntrySizeEntry(
-        CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
-    maxContractDataEntrySizeEntry.contractDataEntrySizeBytes() =
-        mMaxContractDataEntrySizeBytes;
-    entries.emplace_back(
-        writeConfigSettingEntry(maxContractDataEntrySizeEntry, ltx, app));
-
-    ConfigSettingEntry computeSettingsEntry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
-    computeSettingsEntry.contractCompute().ledgerMaxInstructions =
-        mLedgerMaxInstructions;
-    computeSettingsEntry.contractCompute().txMaxInstructions =
-        mTxMaxInstructions;
-    computeSettingsEntry.contractCompute().feeRatePerInstructionsIncrement =
-        mFeeRatePerInstructionsIncrement;
-    computeSettingsEntry.contractCompute().txMemoryLimit = mTxMemoryLimit;
-    entries.emplace_back(
-        writeConfigSettingEntry(computeSettingsEntry, ltx, app));
-
-    ConfigSettingEntry ledgerAccessSettingsEntry(
-        CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-    auto& cost = ledgerAccessSettingsEntry.contractLedgerCost();
-    cost.ledgerMaxReadBytes = mLedgerMaxReadBytes;
-    cost.ledgerMaxReadLedgerEntries = mLedgerMaxReadLedgerEntries;
-    cost.ledgerMaxWriteBytes = mLedgerMaxWriteBytes;
-    cost.ledgerMaxWriteLedgerEntries = mLedgerMaxWriteLedgerEntries;
-    cost.txMaxReadBytes = mTxMaxReadBytes;
-    cost.txMaxReadLedgerEntries = mTxMaxReadLedgerEntries;
-    cost.txMaxWriteBytes = mTxMaxWriteBytes;
-    cost.txMaxWriteLedgerEntries = mTxMaxWriteLedgerEntries;
-    cost.feeReadLedgerEntry = mFeeReadLedgerEntry;
-    cost.feeWriteLedgerEntry = mFeeWriteLedgerEntry;
-    cost.feeRead1KB = mFeeRead1KB;
-    cost.bucketListTargetSizeBytes = mBucketListTargetSizeBytes;
-    cost.writeFee1KBBucketListLow = mWriteFee1KBBucketListLow;
-    cost.writeFee1KBBucketListHigh = mWriteFee1KBBucketListHigh;
-    cost.bucketListWriteFeeGrowthFactor = mBucketListWriteFeeGrowthFactor;
-    entries.emplace_back(
-        writeConfigSettingEntry(ledgerAccessSettingsEntry, ltx, app));
-
-    ConfigSettingEntry historicalSettingsEntry(
-        CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
-    historicalSettingsEntry.contractHistoricalData().feeHistorical1KB =
-        mFeeHistorical1KB;
-    entries.emplace_back(
-        writeConfigSettingEntry(historicalSettingsEntry, ltx, app));
-
-    ConfigSettingEntry contractEventsSettingsEntry(
-        CONFIG_SETTING_CONTRACT_EVENTS_V0);
-    contractEventsSettingsEntry.contractEvents().feeContractEvents1KB =
-        mFeeContractEvents1KB;
-    contractEventsSettingsEntry.contractEvents().txMaxContractEventsSizeBytes =
-        mTxMaxContractEventsSizeBytes;
-    entries.emplace_back(
-        writeConfigSettingEntry(contractEventsSettingsEntry, ltx, app));
-
-    ConfigSettingEntry bandwidthSettingsEntry(
-        CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
-    bandwidthSettingsEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
-        mLedgerMaxTransactionsSizeBytes;
-    bandwidthSettingsEntry.contractBandwidth().txMaxSizeBytes = mTxMaxSizeBytes;
-    bandwidthSettingsEntry.contractBandwidth().feeTxSize1KB =
-        mFeeTransactionSize1KB;
-    entries.emplace_back(
-        writeConfigSettingEntry(bandwidthSettingsEntry, ltx, app));
-
-    ConfigSettingEntry executionLanesSettingsEntry(
-        CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
-    executionLanesSettingsEntry.contractExecutionLanes().ledgerMaxTxCount =
-        mLedgerMaxTxCount;
-    entries.emplace_back(
-        writeConfigSettingEntry(executionLanesSettingsEntry, ltx, app));
-
-    ConfigSettingEntry cpuCostParamsEntry(
-        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
-    cpuCostParamsEntry.contractCostParamsCpuInsns() = mCpuCostParams;
-    entries.emplace_back(writeConfigSettingEntry(cpuCostParamsEntry, ltx, app));
-
-    ConfigSettingEntry memCostParamsEntry(
-        CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
-    memCostParamsEntry.contractCostParamsMemBytes() = mMemCostParams;
-    entries.emplace_back(writeConfigSettingEntry(memCostParamsEntry, ltx, app));
-
-    ConfigSettingEntry stateArchivalSettingsEntry(
-        CONFIG_SETTING_STATE_ARCHIVAL);
-    stateArchivalSettingsEntry.stateArchivalSettings() = mStateArchivalSettings;
-    entries.emplace_back(
-        writeConfigSettingEntry(stateArchivalSettingsEntry, ltx, app));
-
-    writeBucketListSizeWindow(ltx);
-    updateEvictionIterator(ltx, mEvictionIterator);
-
-    // Load updated BucketList size window and eviction iterator so we can add
-    // it to the BucketList
-    LedgerKey windowKey(CONFIG_SETTING);
-    windowKey.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-    auto windowTxle = ltx.load(windowKey);
-    releaseAssert(windowTxle);
-    entries.push_back(windowTxle.current());
-
-    LedgerKey iterKey(CONFIG_SETTING);
-    iterKey.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-    auto iterTxle = ltx.loadWithoutRecord(iterKey);
-    releaseAssert(iterTxle);
-    entries.push_back(iterTxle.current());
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
-    {
-        ConfigSettingEntry parallelComputeEntry(
-            CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0);
-        parallelComputeEntry.contractParallelCompute()
-            .ledgerMaxDependentTxClusters = mLedgerMaxDependentTxClusters;
-        entries.emplace_back(
-            writeConfigSettingEntry(parallelComputeEntry, ltx, app));
-
-        ConfigSettingEntry ledgerCostExtEntry(
-            CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0);
-        ledgerCostExtEntry.contractLedgerCostExt().txMaxInMemoryReadEntries =
-            mTxMaxInMemoryReadEntries;
-        ledgerCostExtEntry.contractLedgerCostExt().feeWrite1KB =
-            mFlatRateFeeWrite1KB;
-        entries.emplace_back(
-            writeConfigSettingEntry(ledgerCostExtEntry, ltx, app));
-    }
-#endif
-
-    // If testing with BucketListDB, we need to commit directly to the
-    // BucketList
-    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-        lcl.header.ledgerSeq += 1;
-        BucketTestUtils::addLiveBatchAndUpdateSnapshot(app, lcl.header, {},
-                                                       entries, {});
-    }
-}
-#endif
 
 ContractCostParams const&
 SorobanNetworkConfig::cpuCostParams() const
@@ -2017,21 +2206,19 @@ SorobanNetworkConfig::evictionIterator() const
 }
 
 void
-SorobanNetworkConfig::updateEvictionIterator(
-    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
+SorobanNetworkConfig::updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
+                                             EvictionIterator const& newIter)
 {
     ZoneScoped;
-
-    mEvictionIterator = newIter;
 
     LedgerTxn ltx(ltxRoot);
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
     auto txle = ltx.load(key);
-    releaseAssert(txle);
+    releaseAssertOrThrow(txle);
 
-    txle.current().data.configSetting().evictionIterator() = mEvictionIterator;
+    txle.current().data.configSetting().evictionIterator() = newIter;
     ltx.commit();
 }
 
@@ -2042,43 +2229,64 @@ SorobanNetworkConfig::ledgerMaxDependentTxClusters() const
 }
 
 uint32_t
-SorobanNetworkConfig::txMaxInMemoryReadEntries() const
+SorobanNetworkConfig::ledgerTargetCloseTimeMilliseconds() const
 {
-    return mTxMaxInMemoryReadEntries;
+    return mLedgerTargetCloseTimeMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::nominationTimeoutInitialMilliseconds() const
+{
+    return mNominationTimeoutInitialMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::nominationTimeoutIncrementMilliseconds() const
+{
+    return mNominationTimeoutIncrementMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::ballotTimeoutInitialMilliseconds() const
+{
+    return mBallotTimeoutInitialMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::ballotTimeoutIncrementMilliseconds() const
+{
+    return mBallotTimeoutIncrementMilliseconds;
+}
+
+uint32_t
+SorobanNetworkConfig::txMaxFootprintEntries() const
+{
+    return mTxMaxFootprintEntries;
 }
 
 int64_t
-SorobanNetworkConfig::flatRateFeeWrite1KB() const
+SorobanNetworkConfig::feeFlatRateWrite1KB() const
 {
-    return mFlatRateFeeWrite1KB;
+    return mFeeFlatRateWrite1KB;
 }
 
 Resource
 SorobanNetworkConfig::maxLedgerResources() const
 {
-    std::vector<int64_t> limits = {ledgerMaxTxCount(),
-                                   ledgerMaxInstructions(),
-                                   ledgerMaxTransactionSizesBytes(),
-                                   ledgerMaxReadBytes(),
-                                   ledgerMaxWriteBytes(),
-                                   ledgerMaxReadLedgerEntries(),
-                                   ledgerMaxWriteLedgerEntries()};
+    std::vector<int64_t> limits = {
+        ledgerMaxTxCount(),
+        // Starting in p23, ledgerMaxInstructions is the max instructions per
+        // cluster. Prior to p23, mLedgerMaxDependentTxClusters == 0, hence the
+        // max.
+        saturatingMultiply(ledgerMaxInstructions(),
+                           std::max(mLedgerMaxDependentTxClusters, 1u)),
+        ledgerMaxTransactionSizesBytes(), ledgerMaxDiskReadBytes(),
+        ledgerMaxWriteBytes(), ledgerMaxDiskReadEntries(),
+        ledgerMaxWriteLedgerEntries()};
     return Resource(limits);
 }
 
 #ifdef BUILD_TESTS
-StateArchivalSettings&
-SorobanNetworkConfig::stateArchivalSettings()
-{
-    return mStateArchivalSettings;
-}
-
-EvictionIterator&
-SorobanNetworkConfig::evictionIterator()
-{
-    return mEvictionIterator;
-}
-
 void
 SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     AbstractLedgerTxn& ltxRoot)
@@ -2089,10 +2297,10 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
 
-    auto& cpuParams = ltx.load(key)
-                          .current()
-                          .data.configSetting()
-                          .contractCostParamsCpuInsns();
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& cpuParams =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
 
     for (size_t val = 0; val < cpuParams.size(); ++val)
     {
@@ -2172,11 +2380,10 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
     LedgerKey memKey(CONFIG_SETTING);
     memKey.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-
-    auto& memParams = ltx.load(memKey)
-                          .current()
-                          .data.configSetting()
-                          .contractCostParamsMemBytes();
+    auto memTxle = ltx.load(memKey);
+    releaseAssertOrThrow(memTxle);
+    auto& memParams =
+        memTxle.current().data.configSetting().contractCostParamsMemBytes();
     for (size_t val = 0; val < memParams.size(); ++val)
     {
         switch (val)
@@ -2196,6 +2403,78 @@ SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
 
     ltx.commit();
 }
+
+bool
+SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
+{
+    return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
+           mMaxContractDataKeySizeBytes ==
+               other.maxContractDataKeySizeBytes() &&
+           mMaxContractDataEntrySizeBytes ==
+               other.maxContractDataEntrySizeBytes() &&
+
+           mLedgerMaxInstructions == other.ledgerMaxInstructions() &&
+           mTxMaxInstructions == other.txMaxInstructions() &&
+           mFeeRatePerInstructionsIncrement ==
+               other.feeRatePerInstructionsIncrement() &&
+           mTxMemoryLimit == other.txMemoryLimit() &&
+
+           mLedgerMaxDiskReadEntries == other.ledgerMaxDiskReadEntries() &&
+           mLedgerMaxDiskReadBytes == other.ledgerMaxDiskReadBytes() &&
+           mLedgerMaxWriteLedgerEntries ==
+               other.ledgerMaxWriteLedgerEntries() &&
+           mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
+           mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
+
+           mTxMaxDiskReadEntries == other.txMaxDiskReadEntries() &&
+           mTxMaxFootprintEntries == other.txMaxFootprintEntries() &&
+           mTxMaxDiskReadBytes == other.txMaxDiskReadBytes() &&
+           mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
+           mTxMaxWriteBytes == other.txMaxWriteBytes() &&
+           mFeeDiskReadLedgerEntry == other.feeDiskReadLedgerEntry() &&
+           mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
+           mFeeDiskRead1KB == other.feeDiskRead1KB() &&
+           mFeeFlatRateWrite1KB == other.feeFlatRateWrite1KB() &&
+           mSorobanStateTargetSizeBytes ==
+               other.sorobanStateTargetSizeBytes() &&
+
+           mRentFee1KBSorobanStateSizeLow ==
+               other.rentFee1KBSorobanStateSizeLow() &&
+           mRentFee1KBSorobanStateSizeHigh ==
+               other.rentFee1KBSorobanStateSizeHigh() &&
+           mSorobanStateRentFeeGrowthFactor ==
+               other.sorobanStateRentFeeGrowthFactor() &&
+
+           mFeeHistorical1KB == other.feeHistorical1KB() &&
+
+           mTxMaxContractEventsSizeBytes ==
+               other.txMaxContractEventsSizeBytes() &&
+           mFeeContractEvents1KB == other.feeContractEventsSize1KB() &&
+
+           mLedgerMaxTransactionsSizeBytes ==
+               other.ledgerMaxTransactionSizesBytes() &&
+           mTxMaxSizeBytes == other.txMaxSizeBytes() &&
+           mFeeTransactionSize1KB == other.feeTransactionSize1KB() &&
+
+           mCpuCostParams == other.cpuCostParams() &&
+           mMemCostParams == other.memCostParams() &&
+
+           mLedgerMaxDependentTxClusters ==
+               other.ledgerMaxDependentTxClusters() &&
+
+           mStateArchivalSettings == other.stateArchivalSettings() &&
+
+           mLedgerTargetCloseTimeMilliseconds ==
+               other.ledgerTargetCloseTimeMilliseconds() &&
+           mNominationTimeoutInitialMilliseconds ==
+               other.nominationTimeoutInitialMilliseconds() &&
+           mNominationTimeoutIncrementMilliseconds ==
+               other.nominationTimeoutIncrementMilliseconds() &&
+           mBallotTimeoutInitialMilliseconds ==
+               other.ballotTimeoutInitialMilliseconds() &&
+           mBallotTimeoutIncrementMilliseconds ==
+               other.ballotTimeoutIncrementMilliseconds();
+}
 #endif
 
 bool
@@ -2214,9 +2493,13 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
                        ContractCostType::VerifyEcdsaSecp256r1Sig) +
                    1;
         }
-        else
+        else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_25))
         {
             return static_cast<uint32_t>(ContractCostType::Bls12381FrInv) + 1;
+        }
+        else
+        {
+            return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
         }
     };
 
@@ -2237,17 +2520,18 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
 }
 
 CxxFeeConfiguration
-SorobanNetworkConfig::rustBridgeFeeConfiguration() const
+SorobanNetworkConfig::rustBridgeFeeConfiguration(uint32_t ledgerVersion) const
 {
     CxxFeeConfiguration res{};
     res.fee_per_instruction_increment = feeRatePerInstructionsIncrement();
 
-    res.fee_per_read_entry = feeReadLedgerEntry();
+    res.fee_per_disk_read_entry = feeDiskReadLedgerEntry();
     res.fee_per_write_entry = feeWriteLedgerEntry();
-    res.fee_per_read_1kb = feeRead1KB();
-    // This should be dependent on the ledger size, but initially
-    // we'll just use the flat rate here.
-    res.fee_per_write_1kb = feeWrite1KB();
+    res.fee_per_disk_read_1kb = feeDiskRead1KB();
+    res.fee_per_write_1kb =
+        protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23)
+            ? feeFlatRateWrite1KB()
+            : feeRent1KB();
 
     res.fee_per_transaction_size_1kb = feeTransactionSize1KB();
 
@@ -2263,7 +2547,10 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
 {
     CxxRentFeeConfiguration res{};
     auto const& cfg = stateArchivalSettings();
-    res.fee_per_write_1kb = feeWrite1KB();
+    res.fee_per_rent_1kb = feeRent1KB();
+    // Note, while this is only introduced in protocol 23, it's safe to just
+    // pass 0 prior to protocol 23 through to bridge (it will be ignored).
+    res.fee_per_write_1kb = feeFlatRateWrite1KB();
     res.fee_per_write_entry = feeWriteLedgerEntry();
     res.persistent_rent_rate_denominator = cfg.persistentRentRateDenominator;
     res.temporary_rent_rate_denominator = cfg.tempRentRateDenominator;
@@ -2271,82 +2558,20 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
 }
 
 void
-SorobanNetworkConfig::computeWriteFee(uint32_t configMaxProtocol,
-                                      uint32_t protocolVersion)
+SorobanNetworkConfig::computeRentWriteFee(uint32_t protocolVersion)
 {
     ZoneScoped;
 
-    CxxWriteFeeConfiguration feeConfig{};
-    feeConfig.bucket_list_target_size_bytes = mBucketListTargetSizeBytes;
-    feeConfig.bucket_list_write_fee_growth_factor =
-        mBucketListWriteFeeGrowthFactor;
-    feeConfig.write_fee_1kb_bucket_list_low = mWriteFee1KBBucketListLow;
-    feeConfig.write_fee_1kb_bucket_list_high = mWriteFee1KBBucketListHigh;
+    CxxRentWriteFeeConfiguration feeConfig{};
+    feeConfig.state_target_size_bytes = mSorobanStateTargetSizeBytes;
+    feeConfig.state_size_rent_fee_growth_factor =
+        mSorobanStateRentFeeGrowthFactor;
+    feeConfig.rent_fee_1kb_state_size_low = mRentFee1KBSorobanStateSizeLow;
+    feeConfig.rent_fee_1kb_state_size_high = mRentFee1KBSorobanStateSizeHigh;
     // This may throw, but only if core is mis-configured.
-    mFeeWrite1KB = rust_bridge::compute_write_fee_per_1kb(
-        configMaxProtocol, protocolVersion, mAverageBucketListSize, feeConfig);
-}
-
-bool
-SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
-{
-    return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
-           mMaxContractDataKeySizeBytes ==
-               other.maxContractDataKeySizeBytes() &&
-           mMaxContractDataEntrySizeBytes ==
-               other.maxContractDataEntrySizeBytes() &&
-
-           mLedgerMaxInstructions == other.ledgerMaxInstructions() &&
-           mTxMaxInstructions == other.txMaxInstructions() &&
-           mFeeRatePerInstructionsIncrement ==
-               other.feeRatePerInstructionsIncrement() &&
-           mTxMemoryLimit == other.txMemoryLimit() &&
-
-           mLedgerMaxReadLedgerEntries == other.ledgerMaxReadLedgerEntries() &&
-           mLedgerMaxReadBytes == other.ledgerMaxReadBytes() &&
-           mLedgerMaxWriteLedgerEntries ==
-               other.ledgerMaxWriteLedgerEntries() &&
-           mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
-           mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
-
-           mTxMaxReadLedgerEntries == other.txMaxReadLedgerEntries() &&
-           mTxMaxReadBytes == other.txMaxReadBytes() &&
-           mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
-           mTxMaxWriteBytes == other.txMaxWriteBytes() &&
-           mFeeReadLedgerEntry == other.feeReadLedgerEntry() &&
-           mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
-           mFeeRead1KB == other.feeRead1KB() &&
-           mBucketListTargetSizeBytes == other.bucketListTargetSizeBytes() &&
-
-           mWriteFee1KBBucketListLow == other.writeFee1KBBucketListLow() &&
-           mWriteFee1KBBucketListHigh == other.writeFee1KBBucketListHigh() &&
-           mBucketListWriteFeeGrowthFactor ==
-               other.bucketListWriteFeeGrowthFactor() &&
-
-           mFeeHistorical1KB == other.feeHistorical1KB() &&
-
-           mTxMaxContractEventsSizeBytes ==
-               other.txMaxContractEventsSizeBytes() &&
-           mFeeContractEvents1KB == other.feeContractEventsSize1KB() &&
-
-           mLedgerMaxTransactionsSizeBytes ==
-               other.ledgerMaxTransactionSizesBytes() &&
-           mTxMaxSizeBytes == other.txMaxSizeBytes() &&
-           mFeeTransactionSize1KB == other.feeTransactionSize1KB() &&
-
-           mCpuCostParams == other.cpuCostParams() &&
-           mMemCostParams == other.memCostParams() &&
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-           mLedgerMaxDependentTxClusters ==
-               other.ledgerMaxDependentTxClusters() &&
-
-           mTxMaxInMemoryReadEntries == other.txMaxInMemoryReadEntries() &&
-           mFlatRateFeeWrite1KB == other.flatRateFeeWrite1KB() &&
-#endif
-
-           mStateArchivalSettings == other.stateArchivalSettings() &&
-           mEvictionIterator == other.evictionIterator();
+    mFeeRent1KB = rust_bridge::compute_rent_write_fee_per_1kb(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion,
+        mAverageSorobanStateSize, feeConfig);
 }
 
 } // namespace stellar

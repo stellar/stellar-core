@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/Herder.h"
@@ -34,18 +35,26 @@
 #include <cereal/types/optional.hpp>
 #include <fmt/format.h>
 #include <optional>
-#include <regex>
 #include <xdrpp/marshal.h>
+
+namespace
+{
+// The current version of the upgrade parameters serialization.
+constexpr const uint32_t UPGRADE_VERSION = 1;
+
+// The version of upgrade parameters serialization that introduced the
+// nominationtimeoutlimit and expirationminutes fields.
+constexpr const uint32_t UPGRADE_VERSION_WITH_NOMINATION_STRIPPING = 1;
+}
 
 namespace cereal
 {
-template <class Archive>
 void
-save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+save(JSONOutputArchive& ar, stellar::Upgrades::UpgradeParameters const& p)
 {
-    // NB: See 'rewriteOptionalFieldKeys' below before adding any new fields to
-    // this type, and in particular avoid using field names "has" or "val",
-    // or serializing any text fields that might have embedded/quoted JSON.
+    // Avoid using field names "has" or "val", or serializing any text fields
+    // that might have embedded/quoted JSON.
+    ar(make_nvp("upgradeversion", UPGRADE_VERSION));
     ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
     ar(make_nvp("version", p.mProtocolVersion));
     ar(make_nvp("fee", p.mBaseFee));
@@ -61,30 +70,69 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     }
     ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
     ar(make_nvp("maxsorobantxsetsize", p.mMaxSorobanTxSetSize));
+    ar(make_nvp("nominationtimeoutlimit", p.mNominationTimeoutLimit));
+
+    auto const expirationMinutesUint =
+        p.mExpirationMinutes.has_value()
+            ? std::make_optional<uint32_t>(
+                  static_cast<uint32_t>(p.mExpirationMinutes->count()))
+            : std::nullopt;
+    ar(make_nvp("expirationminutes", expirationMinutesUint));
 }
 
-template <class Archive>
-void
-load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+namespace
 {
+// Load an individual named value pair, optionally throwing if it is not found.
+template <typename V>
+void
+load_nvp(JSONInputArchive& ar, std::string const& name, V& out,
+         bool throwOnFail = true)
+{
+    try
+    {
+        ar(make_nvp(name, out));
+    }
+    catch (cereal::Exception&)
+    {
+        // field not found
+        if (throwOnFail)
+        {
+            CLOG_ERROR(Herder,
+                       "Expected upgrade parameter '{}' missing during load",
+                       name);
+            throw;
+        }
+    }
+}
+
+} // namespace
+
+void
+load(JSONInputArchive& ar, stellar::Upgrades::UpgradeParameters& o)
+{
+    // Load the upgrade version first, to know which fields to expect. If there
+    // is no upgrade version specified, then it is version 0.
+    uint32_t upgradeVersion = 0;
+    load_nvp(ar, "upgradeversion", upgradeVersion, /*throwOnFail*/ false);
+
     time_t t;
-    ar(make_nvp("time", t));
+    load_nvp(ar, "time", t);
     o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
-    ar(make_nvp("version", o.mProtocolVersion));
-    ar(make_nvp("fee", o.mBaseFee));
-    ar(make_nvp("maxtxsize", o.mMaxTxSetSize));
-    ar(make_nvp("reserve", o.mBaseReserve));
+    load_nvp(ar, "version", o.mProtocolVersion);
+    load_nvp(ar, "fee", o.mBaseFee);
+    load_nvp(ar, "maxtxsize", o.mMaxTxSetSize);
+    load_nvp(ar, "reserve", o.mBaseReserve);
+
+    load_nvp(ar, "flags", o.mFlags);
+    load_nvp(ar, "maxsorobantxsetsize", o.mMaxSorobanTxSetSize);
+
+    std::optional<std::string> configUpgradeKeyStr;
+    load_nvp(ar, "configupgradesetkey", configUpgradeKeyStr);
 
     // the flags and configupgrade upgrades were added after the fields above,
     // so it's possible for them not to exist in the database
     try
     {
-        ar(make_nvp("flags", o.mFlags));
-        ar(make_nvp("maxsorobantxsetsize", o.mMaxSorobanTxSetSize));
-
-        std::optional<std::string> configUpgradeKeyStr;
-        ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
-
         if (configUpgradeKeyStr)
         {
             std::vector<uint8_t> buffer;
@@ -99,13 +147,24 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
             o.mConfigUpgradeSetKey.reset();
         }
     }
-    catch (cereal::Exception&)
-    {
-        // flags or configupgrade name not found
-    }
     catch (std::exception&)
     {
         // Invalid base64 or xdr for configupgrade
+        CLOG_ERROR(Herder, "Upgrade parameter 'configupgradesetkey' contains "
+                           "invalid base64 or XDR. ");
+        o.mConfigUpgradeSetKey.reset();
+    }
+
+    if (upgradeVersion >= UPGRADE_VERSION_WITH_NOMINATION_STRIPPING)
+    {
+        load_nvp(ar, "nominationtimeoutlimit", o.mNominationTimeoutLimit);
+
+        std::optional<uint32_t> expirationMinutesUint;
+        load_nvp(ar, "expirationminutes", expirationMinutesUint);
+        o.mExpirationMinutes = expirationMinutesUint.has_value()
+                                   ? std::make_optional<std::chrono::minutes>(
+                                         expirationMinutesUint.value())
+                                   : std::nullopt;
     }
 }
 } // namespace cereal
@@ -138,7 +197,7 @@ upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
         maxTxSetSize;
 }
 } // namespace
-std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
+std::chrono::minutes const Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES(15);
 
 std::string
 Upgrades::UpgradeParameters::toJson() const
@@ -182,50 +241,10 @@ Upgrades::UpgradeParameters::toDebugJson(LedgerSnapshot const& ls) const
     return writer.write(upgradesJson);
 }
 
-static std::string
-rewriteOptionalFieldKeys(std::string s)
-{
-    // When transitioning from C++14 to C++17, we migrated from a custom
-    // implementation of 'optional' types, to using std::optional.
-    //
-    // Unfortunately our previous optional-type serialized like this:
-    //
-    //   {
-    //     "has": true,
-    //     "val": 12345
-    //   }
-    //
-    // Whereas cereal's built-in support for (de)serializing std::optional will
-    // write the same content like this, with the sense of the flag inverted and
-    // the names of both fields changed:
-    //
-    //   {
-    //     "nullopt": false,
-    //     "data": 12345
-    //   }
-    //
-    // We therefore do a very crude (but safe) string-level rewrite of the
-    // former into the latter here. This is safe since none of the fields
-    // serialized in the upgrades structure can collide with the string values
-    // being substituted, and this is the only structure in the entire program
-    // that has this issue.
-    //
-    // Once this code has been in the field long enough to have processed any
-    // pending upgrades deserialized from a database, it should be removed.
-
-    s = std::regex_replace(s, std::regex("\"has\": false"),
-                           "\"nullopt\": true");
-    s = std::regex_replace(s, std::regex("\"has\": true"),
-                           "\"nullopt\": false");
-    s = std::regex_replace(s, std::regex("\"val\":"), "\"data\":");
-    return s;
-}
-
 void
 Upgrades::UpgradeParameters::fromJson(std::string const& s)
 {
-    std::string s1 = rewriteOptionalFieldKeys(s);
-    std::istringstream in(s1);
+    std::istringstream in(s);
     {
         cereal::JSONInputArchive ar(in);
         cereal::load(ar, *this);
@@ -359,7 +378,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
             throw std::runtime_error("config upgrade set is no longer valid");
         }
         CLOG_INFO(Ledger, "Applying config upgrade: {}", cfgUpgrade->toJson());
-        cfgUpgrade->applyTo(ltx);
+        cfgUpgrade->applyTo(ltx, app);
         break;
     }
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
@@ -452,13 +471,14 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     updated = false;
     UpgradeParameters res = mParams;
 
-    // If the upgrade time has been surpassed by more than X hours, then remove
-    // all upgrades.  This is done so nodes that come up with outdated upgrades
-    // don't attempt to change the network
-    if (res.mUpgradeTime + Upgrades::UPDGRADE_EXPIRATION_HOURS <=
+    // If the upgrade time has been surpassed by more than X minutes, then
+    // remove all upgrades.  This is done so nodes that come up with outdated
+    // upgrades don't attempt to change the network
+    if (res.mUpgradeTime + res.mExpirationMinutes.value_or(
+                               DEFAULT_UPGRADE_EXPIRATION_MINUTES) <=
         VirtualClock::from_time_t(closeTime))
     {
-        auto resetParamIfSet = [&](std::optional<uint32>& o) {
+        auto resetParamIfSet = [&](auto& o) {
             if (o)
             {
                 o.reset();
@@ -472,6 +492,8 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mMaxSorobanTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
+        resetParamIfSet(res.mNominationTimeoutLimit);
+        resetParamIfSet(res.mExpirationMinutes);
         if (res.mConfigUpgradeSetKey)
         {
             res.mConfigUpgradeSetKey.reset();
@@ -688,7 +710,7 @@ Upgrades::timeForUpgrade(uint64_t time) const
 }
 
 void
-Upgrades::dropAll(Database& db)
+Upgrades::maybeDropAndCreateNew(Database& db)
 {
     db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
     db.getRawSession() << "CREATE TABLE upgradehistory ("
@@ -700,12 +722,6 @@ Upgrades::dropAll(Database& db)
                           ")";
     db.getRawSession()
         << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
-}
-
-void
-Upgrades::dropSupportUpgradeHistory(Database& db)
-{
-    db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
 }
 
 static void
@@ -977,7 +993,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         // The purpose of std::unique_ptr here is to have a special value
         // (nullptr) to indicate that an integer overflow would have occurred.
         // Overflow is possible here because existing offers were not
-        // constrainted to have int64_t liabilities. This must be carefully
+        // constrained to have int64_t liabilities. This must be carefully
         // handled in what follows.
         std::map<Asset, std::unique_ptr<int64_t>> initialBuyingLiabilities;
         std::map<Asset, std::unique_ptr<int64_t>> initialSellingLiabilities;
@@ -1182,16 +1198,16 @@ void
 Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                               uint32_t newVersion)
 {
-    auto header = ltx.loadHeader();
-    uint32_t prevVersion = header.current().ledgerVersion;
+    uint32_t prevVersion = ltx.loadHeader().current().ledgerVersion;
 
-    header.current().ledgerVersion = newVersion;
+    ltx.loadHeader().current().ledgerVersion = newVersion;
     if (needUpgradeToVersion(ProtocolVersion::V_10, prevVersion, newVersion))
     {
+        auto header = ltx.loadHeader();
         prepareLiabilities(ltx, header);
     }
-    if (protocolVersionEquals(header.current().ledgerVersion,
-                              ProtocolVersion::V_16) &&
+
+    if (protocolVersionEquals(newVersion, ProtocolVersion::V_16) &&
         protocolVersionEquals(prevVersion, ProtocolVersion::V_15))
     {
         upgradeFromProtocol15To16(ltx);
@@ -1212,6 +1228,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         }
 #endif
     }
+
     if (needUpgradeToVersion(ProtocolVersion::V_21, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
@@ -1222,7 +1239,30 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     }
     if (needUpgradeToVersion(ProtocolVersion::V_23, prevVersion, newVersion))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV23(ltx, app);
+        SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(ltx, app);
+    }
+    if (needUpgradeToVersion(ProtocolVersion::V_25, prevVersion, newVersion))
+    {
+        PubKeyUtils::enableRustDalekVerify();
+        SorobanNetworkConfig::createCostTypesForV25(ltx, app);
+    }
+
+    // Starting from protocol 23 we need to fully override the Soroban in-memory
+    // state size on upgrade, as before protocol 23 bucket list size has bene
+    // used.
+    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_23))
+    {
+        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
+            ltx);
+    }
+
+    if (protocolVersionEquals(prevVersion, ProtocolVersion::V_23) &&
+        protocolVersionEquals(newVersion, ProtocolVersion::V_24) &&
+        gIsProductionNetwork)
+    {
+        auto header = ltx.loadHeader();
+        // Reflect the 3.1879035 XLM burn in p23 in the fee pool for p24
+        header.current().feePool += 31879035;
     }
 }
 
@@ -1388,14 +1428,43 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
 }
 
 void
-ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx) const
+ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
 {
+    bool writeLiveSorobanStateSizeWindow = false;
+    bool hasMemorySettingsUpgrade = false;
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         auto const id = updatedEntry.configSettingID();
         key.configSetting().configSettingID = id;
-        ltx.load(key).current().data.configSetting() = updatedEntry;
+        auto& currentEntry = ltx.load(key).current().data.configSetting();
+        if (id == ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL &&
+            currentEntry.stateArchivalSettings()
+                    .liveSorobanStateSizeWindowSampleSize !=
+                updatedEntry.stateArchivalSettings()
+                    .liveSorobanStateSizeWindowSampleSize)
+        {
+            writeLiveSorobanStateSizeWindow = true;
+        }
+        if (id ==
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+        {
+            hasMemorySettingsUpgrade = true;
+        }
+        currentEntry = updatedEntry;
+    }
+    // If there was an upgrade for the Soroban state size window, we need to
+    // truncate or increase the size snapshot window respectively.
+    if (writeLiveSorobanStateSizeWindow)
+    {
+        SorobanNetworkConfig::maybeUpdateSorobanStateSizeWindowSize(ltx);
+    }
+    // If there was an upgrade for the memory cost settings, we need to
+    // recompute the current state size and override the old sizes.
+    if (hasMemorySettingsUpgrade)
+    {
+        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
+            ltx);
     }
 }
 
@@ -1424,6 +1493,8 @@ ConfigUpgradeSetFrame::isValidForApply() const
                                                              mLedgerVersion) ||
             SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(cfg))
         {
+            CLOG_DEBUG(Herder, "Got bad ConfigSettingEntry {}",
+                       xdrToCerealString(cfg, "cfg"));
             return Upgrades::UpgradeValidity::INVALID;
         }
     }

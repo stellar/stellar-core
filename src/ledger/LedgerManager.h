@@ -1,12 +1,16 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/NetworkConfig.h"
+#include "main/ApplicationImpl.h"
+#include "rust/RustBridge.h"
+#include "transactions/TransactionMeta.h"
 #include <memory>
 
 namespace stellar
@@ -15,6 +19,7 @@ namespace stellar
 class LedgerCloseData;
 class Database;
 class SorobanMetrics;
+class InMemorySorobanState;
 
 // This diagram provides a schematic of the flow of (logical) ledgers coming in
 // from the SCP-and-Herder consensus complex, passing through the
@@ -87,7 +92,7 @@ class SorobanMetrics;
 // therefore trivially threadsafe, but may be lagging behind the newest
 // bucketlist formed by the apply thread.
 //
-// In more precise terms, 4 points on the diagram are labeled: L, Q, A, and LCL.
+// In more precise terms, 4 points on the diagram are labeled: H, Q, A, and LCL.
 // These are points where we can identify and relate some state variables and an
 // invariant order between them:
 //
@@ -153,13 +158,25 @@ class SorobanMetrics;
 // thread.
 class LedgerManager
 {
+
+  protected:
+    friend void ApplicationImpl::initialize(bool createNewDB,
+                                            bool forceRebuild);
+    virtual std::unique_ptr<LedgerTxnRoot>
+    createLedgerTxnRoot(Application& app, size_t entryCacheSize,
+                        size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                        ,
+                        bool bestOfferDebuggingEnabled
+#endif
+                        ) = 0;
   public:
-    static const uint32_t GENESIS_LEDGER_SEQ;
-    static const uint32_t GENESIS_LEDGER_VERSION;
-    static const uint32_t GENESIS_LEDGER_BASE_FEE;
-    static const uint32_t GENESIS_LEDGER_BASE_RESERVE;
-    static const uint32_t GENESIS_LEDGER_MAX_TX_SIZE;
-    static const int64_t GENESIS_LEDGER_TOTAL_COINS;
+    static uint32_t const GENESIS_LEDGER_SEQ;
+    static uint32_t const GENESIS_LEDGER_VERSION;
+    static uint32_t const GENESIS_LEDGER_BASE_FEE;
+    static uint32_t const GENESIS_LEDGER_BASE_RESERVE;
+    static uint32_t const GENESIS_LEDGER_MAX_TX_SIZE;
+    static int64_t const GENESIS_LEDGER_TOTAL_COINS;
 
     enum State
     {
@@ -213,12 +230,12 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Get bucketlist snapshot of LCL
-    virtual SearchableSnapshotConstPtr getLastClosedSnaphot() = 0;
+    virtual SearchableSnapshotConstPtr getLastClosedSnapshot() const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
     // This function return of copy of latest HAS, so it's thread-safe.
-    virtual HistoryArchiveState getLastClosedLedgerHAS() = 0;
+    virtual HistoryArchiveState getLastClosedLedgerHAS() const = 0;
 
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
@@ -243,21 +260,31 @@ class LedgerManager
 
     virtual Resource maxLedgerResources(bool isSoroban) = 0;
     virtual Resource maxSorobanTransactionResources() = 0;
-    virtual void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) = 0;
-    // Return the network config for Soroban.
-    // The config is automatically refreshed on protocol upgrades.
-    // Ledger txn here is needed for the sake of lazy load; it won't be
-    // used most of the time.
-    virtual SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() = 0;
-    virtual SorobanNetworkConfig const& getSorobanNetworkConfigForApply() = 0;
+    // Return the network config for Soroban as of the last closed ledger.
+    // This is only accessible from the main thread. Thus it shouldn't be
+    // accessed during the apply phase of ledger close, as that may run in a
+    // separate thread. During the apply phase, the network config should be
+    // loaded from the most recent ledger state on demand instead.
+    virtual SorobanNetworkConfig const&
+    getLastClosedSorobanNetworkConfig() const = 0;
 
     virtual bool hasLastClosedSorobanNetworkConfig() const = 0;
+    virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
 
 #ifdef BUILD_TESTS
-    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
+    virtual std::optional<LedgerCloseMetaFrame> const&
+    getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
+    virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
+    virtual CompleteConstLedgerStatePtr
+    getLastClosedLedgerStateForTesting() = 0;
+    virtual void
+    rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
+    virtual ::rust::Box<rust_bridge::SorobanModuleCache>
+    getModuleCacheForTesting() = 0;
+    virtual uint64_t getSorobanInMemoryStateSizeForTesting() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
@@ -272,11 +299,15 @@ class LedgerManager
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
 
-    // loads the last ledger information from the database with the following
-    // parameter:
-    //  * restoreBucketlist indicates whether to restore the bucket list fully,
-    //  and restart merges
-    virtual void loadLastKnownLedger(bool restoreBucketlist) = 0;
+    // loads the last ledger information from the database
+    virtual void loadLastKnownLedger() = 0;
+
+    // Helper for a faster load of the last closed ledger used only for various
+    // diagnostics utils outside of the main application flow. This skips
+    // restoring the bucket list and building in-memory Soroban state.
+    // This should not be used in any context where it's necessary to close the
+    // ledgers.
+    virtual void partiallyLoadLastKnownLedgerForUtils() = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers
@@ -284,10 +315,8 @@ class LedgerManager
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
     // offline catchups.
-    virtual void
-    startCatchup(CatchupConfiguration configuration,
-                 std::shared_ptr<HistoryArchive> archive,
-                 std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) = 0;
+    virtual void startCatchup(CatchupConfiguration configuration,
+                              std::shared_ptr<HistoryArchive> archive) = 0;
 
     // Forcibly apply `ledgerData` to the current ledger, causing it to close.
     // This is normally done automatically as part of `valueExternalized()`
@@ -296,6 +325,19 @@ class LedgerManager
     // `calledViaExternalize` false in this case).
     virtual void applyLedger(LedgerCloseData const& ledgerData,
                              bool calledViaExternalize) = 0;
+
+    // upgradeApplied should be true if a protocol or network config setting
+    // upgrade occurred during the ledger close. If inMemorySnapshotForInvariant
+    // is not null, this will kick off a snapshot invariant check.
+    virtual void
+    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
+                                 LedgerCloseData const& ledgerData,
+                                 CompleteConstLedgerStatePtr newLedgerState,
+                                 bool upgradeApplied,
+                                 std::shared_ptr<InMemorySorobanState const>
+                                     inMemorySnapshotForInvariant) = 0;
+
+    virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS
     void
     applyLedger(LedgerCloseData const& ledgerData)
@@ -304,17 +346,35 @@ class LedgerManager
     }
 #endif
 
-    virtual void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
+    // This function is called in the context of catchup when we start from
+    // genesis ledger. When buckets are done applying, set LCL based on the new
+    // state of the bucketlist. If rebuildInMemoryState is true, rebuild the
+    // in-memory soroban state. rebuildInMemoryState is not necessary for some
+    // offline catchup configurations.
+    virtual void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                                     bool rebuildInMemoryState) = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
     virtual SorobanMetrics& getSorobanMetrics() = 0;
+    virtual ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() = 0;
 
     virtual ~LedgerManager()
     {
     }
 
     virtual bool isApplying() const = 0;
+
+    // Sets apply state phase to SETTING_UP_STATE. This only changes the phase,
+    // but does not actually reset any state. This should be called when
+    // anything related to ApplyState, such as the LedgerState database, is
+    // modified outside of the regular ledgerClose path (i.e. BucketApply).
+    virtual void markApplyStateReset() = 0;
+
+    // Recomputes the size of the in-memory Soroban state (specifically, the
+    // unstable contract code size part of it), and fully overrides all the
+    // state size snapshots with the recomputed state size.
+    virtual void handleUpgradeAffectingSorobanInMemoryStateSize(
+        AbstractLedgerTxn& upgradeLtx) = 0;
 };
 }

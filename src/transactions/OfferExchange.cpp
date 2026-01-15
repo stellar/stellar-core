@@ -780,7 +780,7 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     return res;
 }
 
-void
+static void
 adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
             LedgerTxnEntry const& account, Asset const& wheat,
             TrustLineWrapper const& wheatLine, Asset const& sheep,
@@ -1419,8 +1419,7 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         return false;
     }
 
-    auto cp = [&lp]() -> auto&
-    {
+    auto cp = [&lp]() -> auto& {
         return lp.current().data.liquidityPool().body.constantProduct();
     };
 

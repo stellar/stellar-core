@@ -5,6 +5,7 @@
 #include "overlay/SurveyDataManager.h"
 
 #include "crypto/SecretKey.h"
+#include "overlay/OverlayUtils.h"
 #include "overlay/Peer.h"
 #include "util/Logging.h"
 #include "util/numeric.h"
@@ -305,6 +306,36 @@ SurveyDataManager::fillSurveyData(TimeSlicedSurveyRequestMessage const& request,
     return false;
 }
 
+std::optional<TimeSlicedNodeData> const&
+SurveyDataManager::getFinalNodeData()
+{
+    if (mPhase != SurveyPhase::REPORTING || !mFinalNodeData.has_value())
+    {
+        emitInconsistencyError("getFinalNodeData()");
+    }
+    return mFinalNodeData;
+}
+
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalInboundPeerData()
+{
+    if (mPhase != SurveyPhase::REPORTING)
+    {
+        emitInconsistencyError("getFinalInboundPeerData()");
+    }
+    return mFinalInboundPeerData;
+}
+
+std::vector<TimeSlicedPeerData> const&
+SurveyDataManager::getFinalOutboundPeerData()
+{
+    if (mPhase != SurveyPhase::REPORTING)
+    {
+        emitInconsistencyError("getFinalOutboundPeerData()");
+    }
+    return mFinalOutboundPeerData;
+}
+
 bool
 SurveyDataManager::surveyIsActive() const
 {
@@ -386,16 +417,11 @@ SurveyDataManager::reset()
 void
 SurveyDataManager::emitInconsistencyError(std::string const& where)
 {
-#ifdef BUILD_TESTS
-    // Throw an exception when testing to make the error more visible
-    throw std::runtime_error("Encountered inconsistent survey data while "
-                             "executing `" +
-                             where + "`.");
-#endif
-    CLOG_ERROR(Overlay,
-               "Encountered inconsistent survey data while executing "
-               "`{}`. Resetting survey state.",
-               where);
+    logErrorOrThrow(
+        fmt::format("Encountered inconsistent survey data while executing "
+                    "`{}`. Resetting survey state.",
+                    where));
+
     reset();
 }
 

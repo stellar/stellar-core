@@ -22,12 +22,7 @@ struct CmpLedgerEntryChanges
         // order that we want is:
         // LEDGER_ENTRY_STATE, LEDGER_ENTRY_CREATED,
         // LEDGER_ENTRY_UPDATED, LEDGER_ENTRY_REMOVED, LEDGER_ENTRY_RESTORED
-        static constexpr std::array<int, 5> reindex = {1, 2, 3, 0
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                                                       ,
-                                                       4
-#endif
-        };
+        static constexpr std::array<int, 5> reindex = {1, 2, 3, 0, 4};
         releaseAssert(let >= 0 && let < 5);
         return reindex[let];
     }
@@ -50,11 +45,9 @@ struct CmpLedgerEntryChanges
         case LEDGER_ENTRY_REMOVED:
             res = change.removed();
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case LEDGER_ENTRY_RESTORED:
             res = LedgerEntryKey(change.restored());
             break;
-#endif
         }
         return res;
     }
@@ -78,6 +71,15 @@ sortChanges(LedgerEntryChanges& c)
 
 void
 normalizeOps(xdr::xvector<OperationMeta>& oms)
+{
+    for (auto& om : oms)
+    {
+        sortChanges(om.changes);
+    }
+}
+
+void
+normalizeOps(xdr::xvector<OperationMetaV2>& oms)
 {
     for (auto& om : oms)
     {
@@ -111,6 +113,11 @@ normalizeMeta(TransactionMeta& m)
         sortChanges(m.v3().txChangesAfter);
         normalizeOps(m.v3().operations);
         break;
+    case 4:
+        sortChanges(m.v4().txChangesBefore);
+        sortChanges(m.v4().txChangesAfter);
+        normalizeOps(m.v4().operations);
+        break;
     default:
         releaseAssert(false);
     }
@@ -143,6 +150,20 @@ normalizeMeta(LedgerCloseMeta& lcm)
             sortChanges(u.changes);
         }
         for (auto& tx : v1.txProcessing)
+        {
+            sortChanges(tx.feeProcessing);
+            normalizeMeta(tx.txApplyProcessing);
+        }
+        break;
+    }
+    case 2:
+    {
+        auto& v2 = lcm.v2();
+        for (auto& u : v2.upgradesProcessing)
+        {
+            sortChanges(u.changes);
+        }
+        for (auto& tx : v2.txProcessing)
         {
             sortChanges(tx.feeProcessing);
             normalizeMeta(tx.txApplyProcessing);

@@ -6,10 +6,10 @@
 
 #include "autocheck/autocheck.hpp"
 #include "herder/Herder.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -52,6 +52,17 @@ TEST_CASE("VirtualClock systemPointToISOString", "[timer]")
           std::string("1970-01-02T13:10:18Z"));
 }
 
+TEST_CASE("VirtualClock isoStringToTm", "[timer]")
+{
+    auto checkRoundTrip = [](std::string const& iso) {
+        std::tm tm = VirtualClock::isoStringToTm(iso);
+        auto tp = VirtualClock::tmToSystemPoint(tm);
+        CHECK(VirtualClock::systemPointToISOString(tp) == iso);
+    };
+    checkRoundTrip("1970-01-01T00:00:00Z");
+    checkRoundTrip("2025-12-03T01:44:59Z");
+}
+
 TEST_CASE("VirtualClock to_time_t", "[timer]")
 {
     VirtualClock clock;
@@ -86,9 +97,53 @@ TEST_CASE("VirtualClock from_time_t", "[timer]")
     CHECK(now == VirtualClock::from_time_t(133818));
 }
 
+#ifdef USE_POSTGRES
+TEST_CASE("virtual time with background work", "[timer]")
+{
+    // Verify that parallel apply background work is properly accounted for in
+    // virtual time mode, i.e. we don't forward the time while background work
+    // is outstanding.
+    Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
+    cfg.PARALLEL_LEDGER_APPLY = true;
+    cfg.RUN_STANDALONE = false;
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
+
+    VirtualClock clock;
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    // cancel the timer
+    appPtr->getHerder().shutdown();
+    // cancel the demand timer for tx pull-mode flooding
+    appPtr->getOverlayManager().shutdown();
+
+    std::atomic<bool> timerFired = false;
+    std::atomic<int> backgroundTasks{0};
+
+    VirtualTimer timer1(*appPtr);
+    timer1.expires_from_now(std::chrono::milliseconds(100));
+    timer1.async_wait([&](asio::error_code const& e) {
+        REQUIRE(backgroundTasks == 1);
+        timerFired = true;
+    });
+
+    appPtr->postOnLedgerCloseThread(
+        [&]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            ++backgroundTasks;
+            REQUIRE(!timerFired);
+        },
+        "test background task 1");
+
+    while (clock.crank(false) > 0)
+        ;
+}
+#endif
+
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
     Config cfg(getTestConfig(0));
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
 
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);
@@ -157,6 +212,9 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     // and affect this timer test.
     app1->getOverlayManager().shutdown();
     app2->getOverlayManager().shutdown();
+    // Similarly, we need to stop the Herder timers
+    app1->getHerder().shutdown();
+    app2->getHerder().shutdown();
 
     size_t app1Event = 0;
     size_t app2Event = 0;
@@ -206,7 +264,10 @@ TEST_CASE("shared virtual time advances only when all apps idle",
 TEST_CASE("timer cancels", "[timer]")
 {
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, getTestConfig(0));
+    auto cfg = getTestConfig(0);
+    // Disable extra checks to prevent timers from spinning indefinitely
+    cfg.INVARIANT_EXTRA_CHECKS = false;
+    Application::pointer app = createTestApplication(clock, cfg);
     // cancel the timer
     app->getHerder().shutdown();
     app->getOverlayManager().shutdown();

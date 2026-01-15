@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2016 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
@@ -66,11 +66,11 @@ testBucketMetadata(uint32_t protocolVersion)
 class TestInvariantManager : public InvariantManagerImpl
 {
   public:
-    TestInvariantManager(medida::MetricsRegistry& registry);
+    TestInvariantManager(Application& app);
 
   private:
     virtual void
-    handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+    handleInvariantFailure(bool isStrict,
                            std::string const& message) const override;
 };
 
@@ -109,7 +109,9 @@ VirtualClock::system_time_point genesis(int minute, int second);
 
 // Assigns values to the SorobanNetworkConfig fields that are suitable for
 // most of the unit tests.
-void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg);
+void setSorobanNetworkConfigForTest(
+    SorobanNetworkConfig& cfg,
+    std::optional<uint32_t> ledgerVersion = std::nullopt);
 
 // Override Soroban network config defaults with generous settings suitable
 // for most of the unit tests (unless the test is meant to exercise the
@@ -124,6 +126,8 @@ void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
                             std::shared_ptr<Simulation> simulation,
                             bool applyUpgrade = true);
+std::pair<SorobanNetworkConfig, UpgradeType> prepareSorobanNetworkConfigUpgrade(
+    Application& app, std::function<void(SorobanNetworkConfig&)> modifyFn);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);

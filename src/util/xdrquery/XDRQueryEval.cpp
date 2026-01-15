@@ -166,6 +166,24 @@ EntrySizeNode::getName() const
 }
 
 ResultType
+TTLNode::eval(DynamicXDRGetter const& xdrGetter) const
+{
+    return xdrGetter.getLiveUntilLedger();
+}
+
+EvalNodeType
+TTLNode::getType() const
+{
+    return EvalNodeType::COLUMN;
+}
+
+std::string
+TTLNode::getName() const
+{
+    return "ttl";
+}
+
+ResultType
 BoolEvalNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return evalBool(xdrGetter);
@@ -480,7 +498,7 @@ ColumnList::getColumnNames() const
 }
 
 inline std::string
-format_as(const NullField&)
+format_as(NullField const&)
 {
     return "<notset>";
 }

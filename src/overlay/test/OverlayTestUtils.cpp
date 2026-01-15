@@ -5,12 +5,12 @@
 #include <numeric>
 
 #include "main/Application.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 
 #include <numeric>
 
@@ -118,6 +118,26 @@ numberOfSimulationConnections(std::shared_ptr<Simulation> simulation)
                                    return x + numberOfAppConnections(*app);
                                });
     return num;
+}
+
+std::shared_ptr<StellarMessage>
+makeStellarMessage(uint32_t wasmSize)
+{
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+
+    auto randomWasm = rust_bridge::get_random_wasm(wasmSize, 0);
+    uploadHF.wasm().insert(uploadHF.wasm().begin(), randomWasm.data.data(),
+                           randomWasm.data.data() + randomWasm.data.size());
+
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    msg.transaction().type(ENVELOPE_TYPE_TX);
+    msg.transaction().v1().tx.operations.push_back(uploadOp);
+
+    return std::make_shared<StellarMessage>(msg);
 }
 }
 }

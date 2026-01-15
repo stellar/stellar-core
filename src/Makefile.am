@@ -65,11 +65,11 @@ endif # !BUILD_TESTS
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 CARGO_FEATURE_NEXT = --features next
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-next >$@
 else
 CARGO_FEATURE_NEXT =
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
+	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
 endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
@@ -81,13 +81,15 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
              $(TESTDATA_DIR)/stellar-core_testnet.cfg $(TESTDATA_DIR)/stellar-core_testnet_legacy.cfg \
              $(TESTDATA_DIR)/stellar-history.testnet.6714239.json $(TESTDATA_DIR)/stellar-history.livenet.15686975.json \
              $(TESTDATA_DIR)/stellar-core_testnet_validator.cfg $(TESTDATA_DIR)/stellar-core_example_validators.cfg \
-             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json
+             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json \
+             $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.v2.json
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h .rs
 .x.h:
+	mkdir -p $(@D)
 	$(XDRC) -hh -pedantic -o $@ $<
 
 BISON=bison
@@ -115,31 +117,93 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
+if UNIFIED_RUST
+RUST_TOOLCHAIN_CHANNEL=nightly
+else
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 
-# we pass RUST_TOOLCHAIN_CHANNEL by environment variable
+# we pass some configuration by environment variable
 # to tests since they can't take command-line arguments.
 export RUST_TOOLCHAIN_CHANNEL
+export SKIP_SOROBAN_TESTS
+export top_srcdir
+export top_builddir
 
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
+
+check-rust-profile: Makefile
+	@case "$(RUST_PROFILE)" in \
+		release|dev) ;; \
+		*) echo "Error: RUST_PROFILE must be 'release' or 'dev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
+	esac
+
+# Of course, RUST_PROFILE can't be used as an argument directly because cargo
+# doesn't let you pass --debug, that's the default! you can only pass --release.
+# So we have to derive a new variable here.
+RUST_PROFILE_ARG := $(if $(findstring release,$(RUST_PROFILE)),--release,)
+
+# Also for even more nonsense reasons the debug profile name is actually `dev`
+# but only in the command line, the target subdirectory gets called `debug`.
+RUST_PROFILE_DIR := $(if $(findstring release,$(RUST_PROFILE)),release,debug)
+
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
 RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_DEP_TREE_STAMP)
-LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
-stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
-ALL_SOROBAN_PROTOCOLS=$(notdir $(wildcard rust/soroban/p*))
+
+# There's some subtlety to the way the next few lines work and interact with the
+# "next protocol" flag `--enable-next-protocol-version-unsafe-for-production`.
+#
+# There are two possible and legitimate ways to interpret this flag:
+#
+#    1. If the flag is on, build the submodule named by the next protocol
+#       version, with no additional feature-flags passed to cargo. If the flag
+#       is off, don't build that submodule at all.
+#
+#    2. If the flag is on, build the submodule named by the _current_ protocol
+#       version but pass the `--features=next` flag to cargo. If the flag is
+#       off, don't pass `--features=next` to the submodule.
+#
+# Both of these interpretations are valid and have their own use cases. They
+# happen at different times during the development process and we want to allow
+# both. Interpretation #1 is useful while a protocol is in-development and we
+# want to be certain that the entire submodule isn't built or shipped by
+# accident. Interpretation #2 is useful when a protocol is in-production but we
+# still want the "next" builds to be available to experiment with protocol
+# changes in the current codebase (or at minimum: to be identical to curr, but
+# to pass CI and not spuriously fail to build or run)
+#
+# If you want interpretation #1, you should put the submodule in the variable
+# `WIP_SOROBAN_PROTOCOL`. If you want interpretation #2, you should leave that
+# variable empty (and include or exclude submodules from the list of
+# ALL_SOROBAN_PROTOCOLS as you see fit).
+
+ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25
+WIP_SOROBAN_PROTOCOL=
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)
+# This means "only pass --features=next if there's no WIP submodule"
+SOROBAN_FEATURE_NEXT=$(if $(WIP_SOROBAN_PROTOCOL),,$(CARGO_FEATURE_NEXT))
+else
+SOROBAN_FEATURE_NEXT=
+endif
+
 SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
 
+# Export the list of protocols to test for the check-sorobans test script
+export SOROBAN_PROTOCOLS_TO_TEST=$(ALL_SOROBAN_PROTOCOLS)
+
 define soroban_lib_dir
-$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE)' $(1))
+$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
 endef
 
 define soroban_rlib
@@ -162,13 +226,13 @@ $(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
 	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
-rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
+rust/RustBridge.h: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
-	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+	@if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
+rust/RustBridge.cpp: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --output $@.tmp
-	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+	@if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 # This is just a convenience target for rebuilding the explicit depfiles we
 # check in to this repo as a secondary check on the lockfiles in the soroban
@@ -176,17 +240,62 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 
 $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
+	mkdir -p $(RUST_BUILD_DIR)/src/dep-trees
 	for proto in $(ALL_SOROBAN_PROTOCOLS); \
 	do \
-		$(CARGO) tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
+		$(CARGO) tree --manifest-path $(top_srcdir)/src/rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
 		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt ; \
-		if ! diff -u rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
+		if ! diff -u $(top_srcdir)/src/rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
 		then \
 			echo "dep trees differ, please update $${proto}-expect.txt or roll back submodule"; \
 			exit 1; \
 		fi; \
 	done
 	touch $@
+
+# The "unified" rust build is a special non-production mode that builds all of
+# the rust dependencies of librust_stellar_core.a through a single cargo
+# invocation, which is actually the "normal" way cargo operates, but which also
+# has the negative side effect of resolving (merging) different point releases
+# and pre-release minor versions across transitive dependencies, which means we
+# can't control the _exact_ transitive dependencies as well as we'd like.
+#
+# So we only use the unified rust build for certain special cases such as
+# testing with asan/tsan (they seem to only work well when built this way) and
+# use the non-unified build (with separate .a files for each separate soroban
+# version) for production builds.
+
+if UNIFIED_RUST
+
+# In the unified build, we have to pass the --target flag. This actually breaks
+# the non-unified build, so we wind up setting LIBRUST_STELLAR_CORE separately
+# in unified and non-unified builds.
+RUST_TARGET=$(shell rustc -vV | sed -n 's/host: //p')
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_TARGET)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
+
+RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Zsanitizer=address,)
+RUSTFLAGS_TSAN := $(if $(findstring -fsanitize=thread,$(CXXFLAGS)),-Zsanitizer=thread,)
+RUSTFLAGS_SANI := $(RUSTFLAGS_ASAN) $(RUSTFLAGS_TSAN)
+CARGOFLAGS_BUILDSTD := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),-Zbuild-std,)
+RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve25519_dalek_backend=\"serial\",)
+
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
+	cd $(abspath $(top_srcdir))/src/rust && \
+	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
+	CARGO_NET_GIT_FETCH_WITH_CLI=true \
+	$(CARGO) rustc \
+		$(CARGOFLAGS_BUILDSTD) \
+		--package stellar-core \
+		--target $(RUST_TARGET) \
+		--features unified \
+		$(RUST_PROFILE_ARG) \
+		--locked \
+		--target-dir $(abspath $(RUST_TARGET_DIR)) \
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
+	ranlib $@
+
+else # !UNIFIED_RUST
 
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
@@ -240,19 +349,21 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT)" \
 			;; \
 			*) \
 				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
 			;; \
 		esac ; \
-		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
+		mkdir -p $(SOROBAN_BUILD_DIR)/$$proto/target && \
+		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
-		RUSTFLAGS="-Cmetadata=$$proto $(RUSTFLAGS_ASAN)" \
+		RUSTFLAGS="-Cmetadata=$$proto" \
+		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
 		$(CARGO) build \
 			--package soroban-env-host \
-			--$(RUST_PROFILE) \
+			$(RUST_PROFILE_ARG) \
 			--locked \
 			$$FEATURE_FLAGS \
 		|| exit 1; \
@@ -272,14 +383,16 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # them in as separate `--extern` arguments to a slightly-more-manual `cargo
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
+
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
+
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
-	rm -rf $(abspath $(RUST_TARGET_DIR))
+	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
-	RUSTFLAGS="$(RUSTFLAGS_ASAN)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
-		--$(RUST_PROFILE) \
+		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
@@ -287,6 +400,10 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SORO
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)
 	ranlib $@
+
+endif # UNIFIED_RUST
+
+stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
@@ -298,7 +415,7 @@ $(TESTDATA_DIR)/%.json : $(top_srcdir)/src/history/serialize-tests/%.json
 	mkdir -p $(@D) && cp $< $@
 
 .PHONY: always
-always:
+always: check-rust-profile
 	@:
 
 # Always rebuild because .git/HEAD is a symbolic ref one can't depend on

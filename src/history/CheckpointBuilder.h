@@ -41,7 +41,7 @@ valid publish state based on the LCL. For publish queue files, this means
 deleting any checkpoints with ledger sequence greater than LCL. For the rest of
 the files, this means extracting a history prefix of a checkpoint up until and
 including the LCL, and truncating the rest (including malformed data). If a
-crash before commit occurrs on a first ledger in a checkpoint, the dirty file is
+crash before commit occurs on a first ledger in a checkpoint, the dirty file is
 simply deleted on startup. This ensures core always starts with a valid publish
 state.
  */
@@ -57,9 +57,11 @@ class CheckpointBuilder
     std::unique_ptr<XDROutputFileStream> mLedgerHeaders;
     bool mOpen{false};
     bool mStartupValidationComplete{false};
-    bool mPublishWasDisabled{false};
+    // Skip building this checkpoint if it can't be completed.
+    // This may happen if a node enabled publishing mid-checkpoint.
+    bool mSkipFirstCheckpointSinceItIsIncomplete{false};
 
-    bool ensureOpen(uint32_t ledgerSeq);
+    void ensureOpen(uint32_t ledgerSeq);
 
   public:
     CheckpointBuilder(Application& app);
@@ -82,5 +84,11 @@ class CheckpointBuilder
     // Finalize checkpoint by renaming all temporary files to their canonical
     // names. No-op if files are already rotated.
     void checkpointComplete(uint32_t checkpoint);
+
+    bool
+    skipIncompleteFirstCheckpointSinceRestart() const
+    {
+        return mSkipFirstCheckpointSinceItIsIncomplete;
+    }
 };
 }

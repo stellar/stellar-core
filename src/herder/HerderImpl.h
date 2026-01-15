@@ -1,12 +1,13 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
 #include "herder/PendingEnvelopes.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
 #include "util/Timer.h"
@@ -25,7 +26,6 @@ class Timer;
 
 namespace stellar
 {
-constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 
 class Application;
 class LedgerManager;
@@ -75,8 +75,8 @@ class HerderImpl : public Herder
 
     void start() override;
 
-    void lastClosedLedgerIncreased(bool latest,
-                                   TxSetXDRFrameConstPtr txSet) override;
+    void lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
+                                   bool queueRebuildNeeded) override;
 
     SCP& getSCP();
     HerderSCPDriver&
@@ -113,7 +113,7 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetXDRFrameConstPtr txset) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                   const SCPQuorumSet& qset,
+                                   SCPQuorumSet const& qset,
                                    StellarMessage const& txset) override;
 
     void externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
@@ -150,7 +150,7 @@ class HerderImpl : public Herder
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
-    bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
+    bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset) override;
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
@@ -209,8 +209,6 @@ class HerderImpl : public Herder
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
-    virtual void beginApply() override;
-
     void startTxSetGCTimer();
 
 #ifdef BUILD_TESTS
@@ -220,6 +218,9 @@ class HerderImpl : public Herder
     ClassicTransactionQueue& getTransactionQueue() override;
     SorobanTransactionQueue& getSorobanTransactionQueue() override;
     bool sourceAccountPending(AccountID const& accountID) const override;
+
+    // Test only helper to get the active upgrades
+    Upgrades const& getUpgrades() const;
 #endif
 
     // helper function to verify envelopes are signed
@@ -264,7 +265,8 @@ class HerderImpl : public Herder
     ClassicTransactionQueue mTransactionQueue;
     std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
 
-    void updateTransactionQueue(TxSetXDRFrameConstPtr txSet);
+    void updateTransactionQueue(TxSetXDRFrameConstPtr txSet,
+                                bool queueRebuildNeeded);
     void maybeSetupSorobanQueue(uint32_t protocolVersion);
 
     PendingEnvelopes mPendingEnvelopes;
@@ -311,6 +313,11 @@ class HerderImpl : public Herder
 
     VirtualTimer mTxSetGarbageCollectTimer;
 
+    // Every CHECK_FOR_DEAD_NODES_MINUTES, we keep track of all nodes that SCP
+    // reports as missing throughout the interval.
+    VirtualTimer mCheckForDeadNodesTimer;
+    void startCheckForDeadNodesInterval();
+
     Application& mApp;
     LedgerManager& mLedgerManager;
 
@@ -338,37 +345,14 @@ class HerderImpl : public Herder
     // run a background job that re-analyzes the current quorum map.
     void checkAndMaybeReanalyzeQuorumMap();
 
+    void checkAndMaybeReanalyzeQuorumMapV2();
+
     // erase all data for ledgers strictly less than ledgerSeq except for the
     // first ledger on the current checkpoint. Hold onto this ledger so
     // peers can catchup without waiting for the next checkpoint.
     void eraseBelow(uint32 ledgerSeq);
 
-    struct QuorumMapIntersectionState
-    {
-        uint32_t mLastCheckLedger{0};
-        uint32_t mLastGoodLedger{0};
-        size_t mNumNodes{0};
-        Hash mLastCheckQuorumMapHash{};
-        Hash mCheckingQuorumMapHash{};
-        bool mRecalculating{false};
-        std::atomic<bool> mInterruptFlag{false};
-        std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
-            mPotentialSplit{};
-        std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
-
-        bool
-        hasAnyResults() const
-        {
-            return mLastGoodLedger != 0;
-        }
-
-        bool
-        enjoysQuorunIntersection() const
-        {
-            return mLastCheckLedger == mLastGoodLedger;
-        }
-    };
-    QuorumMapIntersectionState mLastQuorumMapIntersectionState;
+    std::shared_ptr<QuorumMapIntersectionState> mLastQuorumMapIntersectionState;
 
     State mState;
     void setState(State st);
@@ -380,5 +364,8 @@ class HerderImpl : public Herder
     ConsensusData mTrackingSCP;
 
     uint32_t mMaxTxSize{0};
+
+    UnorderedSet<LedgerKey>
+    recomputeKeysToFilter(uint32_t protocolVersion) const;
 };
 }

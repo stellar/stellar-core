@@ -2,13 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ApplicationImpl.h"
 #include "util/Fs.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <limits>
-#define STELLAR_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
-#include "ApplicationImpl.h"
 
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
@@ -25,16 +24,20 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
+#include "invariant/ArchivedStateConsistency.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/ConstantProductInvariant.h"
+#include "invariant/EventsAreConsistentWithEntryDiffs.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/SponsorshipCountIsValid.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
@@ -42,16 +45,19 @@
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
+#include "transactions/SignatureChecker.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
+#include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include "util/Thread.h"
 #include "util/TmpDir.h"
@@ -71,7 +77,7 @@
 #include <set>
 #include <string>
 
-static const int SHUTDOWN_DELAY_SECONDS = 1;
+static int const SHUTDOWN_DELAY_SECONDS = 1;
 
 namespace stellar
 {
@@ -105,10 +111,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
+#ifdef BUILD_TESTS
+    , mRunInOverlayOnlyMode(false)
+#endif
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
-    , mMetrics(
-          std::make_unique<medida::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
+    , mMetrics(std::make_unique<MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
@@ -164,35 +172,36 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mThreadTypes[std::this_thread::get_id()] = ThreadType::MAIN;
 
     // Allocate one thread for Eviction scan
-    mEvictionThread = std::thread{[this]() {
+    mEvictionThread = std::make_unique<std::thread>([this]() {
         runCurrentThreadWithMediumPriority();
         mEvictionIOContext->run();
-    }};
+    });
     mThreadTypes[mEvictionThread->get_id()] = ThreadType::EVICTION;
 
     --t;
 
     while (t--)
     {
-        auto thread = std::thread{[this]() {
+        auto thread = std::make_unique<std::thread>([this]() {
             runCurrentThreadWithLowPriority();
             mWorkerIOContext.run();
-        }};
-        mThreadTypes[thread.get_id()] = ThreadType::WORKER;
+        });
+        mThreadTypes[thread->get_id()] = ThreadType::WORKER;
         mWorkerThreads.emplace_back(std::move(thread));
     }
 
     if (mConfig.BACKGROUND_OVERLAY_PROCESSING)
     {
         // Keep priority unchanged as overlay processes time-sensitive tasks
-        mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
+        mOverlayThread = std::make_unique<std::thread>(
+            [this]() { mOverlayIOContext->run(); });
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
     if (mConfig.parallelLedgerClose())
     {
-        mLedgerCloseThread =
-            std::thread{[this]() { mLedgerCloseIOContext->run(); }};
+        mLedgerCloseThread = std::make_unique<std::thread>(
+            [this]() { mLedgerCloseIOContext->run(); });
         mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
     }
 }
@@ -203,7 +212,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     auto& ps = app.getPersistentState();
     if (ps.shouldRebuildForOfferTable())
     {
-        app.getDatabase().clearPreparedStatementCache();
         soci::transaction tx(app.getDatabase().getRawSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
         app.getLedgerTxnRoot().dropOffers();
@@ -221,7 +229,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
             {
                 throw std::runtime_error("Could not rebuild ledger tables");
             }
-            LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
         }
         LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
@@ -235,13 +242,14 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // Subtle: initialize the bucket manager first before initializing the
     // database. This is needed as some modes in core (such as in-memory) use a
     // small database inside the bucket directory.
-    mBucketManager = BucketManager::create(*this);
+    mAppConnector = std::make_unique<AppConnector>(*this);
+    mBucketManager = BucketManager::create(getAppConnector());
 
     bool initNewDB =
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
     if (initNewDB)
     {
-        mBucketManager->dropAll();
+        mBucketManager->maybeDropAndCreateNew();
     }
 
     mDatabase = createDatabase();
@@ -258,7 +266,27 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mAppConnector = std::make_unique<AppConnector>(*this);
+
+    // Load Protocol 23 corruption data if path to CSV is specified
+    if (!mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE.empty())
+    {
+        mProtocol23CorruptionDataVerifier = std::make_unique<
+            p23_hot_archive_bug::Protocol23CorruptionDataVerifier>();
+        if (!mProtocol23CorruptionDataVerifier->loadFromFile(
+                mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE))
+        {
+            throw std::invalid_argument(
+                "Failed to load Protocol 23 corruption file: " +
+                mConfig.PATH_TO_PROTOCOL_23_CORRUPTION_FILE);
+        }
+    }
+
+    if (mConfig.BACKFILL_STELLAR_ASSET_EVENTS)
+    {
+        mProtocol23CorruptionEventReconciler = std::make_unique<
+            p23_hot_archive_bug::Protocol23CorruptionEventReconciler>(
+            getNetworkID());
+    }
 
     if (mConfig.ENTRY_CACHE_SIZE < 20000)
     {
@@ -267,7 +295,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
                     "of 20000",
                     mConfig.ENTRY_CACHE_SIZE);
     }
-    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
+    mLedgerTxnRoot = getLedgerManager().createLedgerTxnRoot(
         *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
 #ifdef BEST_OFFER_DEBUGGING
         ,
@@ -289,6 +317,9 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     LiabilitiesMatchOffers::registerInvariant(*this);
     SponsorshipCountIsValid::registerInvariant(*this);
     ConstantProductInvariant::registerInvariant(*this);
+    EventsAreConsistentWithEntryDiffs::registerInvariant(*this);
+    ArchivedStateConsistency::registerInvariant(*this);
+
     enableInvariantsFromConfig();
 
     if (initNewDB)
@@ -520,7 +551,7 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false);
+    mLedgerManager->partiallyLoadLastKnownLedgerForUtils();
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -598,25 +629,7 @@ ApplicationImpl::~ApplicationImpl()
     mStopping = true;
     try
     {
-        // First, shutdown ledger close queue _before_ shutting down all the
-        // subsystems. This ensures that any ledger currently being closed
-        // finishes okay
-        shutdownLedgerCloseThread();
-        shutdownWorkScheduler();
-        if (mProcessManager)
-        {
-            mProcessManager->shutdown();
-        }
-        if (mBucketManager)
-        {
-            mBucketManager->shutdown();
-        }
-        // Peers continue reading and writing in the background, so we need to
-        // issue a signal to start wrapping up
-        if (mOverlayManager)
-        {
-            mOverlayManager->shutdown();
-        }
+        idempotentShutdown(false);
     }
     catch (std::exception const& e)
     {
@@ -624,8 +637,6 @@ ApplicationImpl::~ApplicationImpl()
                   e.what());
     }
     reportCfgMetrics();
-    shutdownMainIOContext();
-    joinAllThreads();
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
@@ -746,6 +757,8 @@ ApplicationImpl::validateAndLogConfig()
 void
 ApplicationImpl::startServices()
 {
+    mInvariantManager->start(*mLedgerManager);
+
     // restores Herder's state before starting overlay
     mHerder->start();
     mMaintainer->start();
@@ -790,19 +803,41 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true);
+    mLedgerManager->loadLastKnownLedger();
+
+    // Check if we're already on protocol V_24 or later and enable Rust Dalek
+    auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  ProtocolVersion::V_25))
+    {
+        PubKeyUtils::enableRustDalekVerify();
+    }
+
     startServices();
 }
 
 void
-ApplicationImpl::gracefulStop()
+ApplicationImpl::idempotentShutdown(bool forgetBuckets)
 {
-    if (mStopping)
+    // Graceful shutdown sequence:
+    // Perform a graceful shutdown by first signaling all managers to stop
+    // scheduling new work, then stopping the main-thread io_service to prevent
+    // further dispatch. Once no new tasks can be queued, release the io_context
+    // work guard so worker threads exit naturally after completing their
+    // current tasks. Drain any remaining operations while the application state
+    // is still valid, join all worker threads, and finally allow destructors to
+    // run once no asynchronous activity remains.
+
+    // Shutdown state-modifying ledger close thread first, while all subsystems
+    // are live and valid. Note that `joinAllThreads` will also attempt to
+    // shutdown mLedgerCloseThread for completeness, but since this method is
+    // idempotent, the extra call is harmless.
+    shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
+
+    if (mCommandHandler)
     {
-        return;
+        mCommandHandler->shutdown();
     }
-    mStopping = true;
-    shutdownLedgerCloseThread();
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
@@ -815,17 +850,35 @@ ApplicationImpl::gracefulStop()
     }
     if (mBucketManager)
     {
-        // This call happens in shutdown -- before destruction -- so that we can
-        // be sure other subsystems (ledger etc.) are still alive and we can
-        // call into them to figure out which buckets _are_ referenced.
-        mBucketManager->forgetUnreferencedBuckets(
-            mLedgerManager->getLastClosedLedgerHAS());
+        if (forgetBuckets)
+        {
+            // This call happens in shutdown -- before destruction -- so that we
+            // can be sure other subsystems (ledger etc.) are still alive and we
+            // can call into them to figure out which buckets _are_ referenced.
+            mBucketManager->forgetUnreferencedBuckets(
+                mLedgerManager->getLastClosedLedgerHAS());
+        }
         mBucketManager->shutdown();
     }
     if (mHerder)
     {
         mHerder->shutdown();
     }
+
+    shutdownMainIOContext();
+    joinAllThreads();
+}
+
+void
+ApplicationImpl::gracefulStop()
+{
+    releaseAssert(threadIsMain());
+    if (mStopping)
+    {
+        return;
+    }
+    mStopping = true;
+    idempotentShutdown(true);
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
@@ -850,59 +903,48 @@ ApplicationImpl::shutdownWorkScheduler()
     }
 }
 
-void
-ApplicationImpl::shutdownLedgerCloseThread()
+bool
+ApplicationImpl::shutdownThread(
+    std::unique_ptr<std::thread>& threadPtr,
+    std::unique_ptr<asio::io_context::work>& workPtr,
+    std::string const& threadName)
 {
-    if (mLedgerCloseThread && !mLedgerCloseThreadStopped)
+    if (threadPtr)
     {
-        if (mLedgerCloseWork)
+        // We never strictly stop the worker IO service, just release the
+        // work-lock
+        // that keeps the worker threads alive. This gives them the chance to
+        // finish any work that the main thread queued.
+        if (workPtr)
         {
-            mLedgerCloseWork.reset();
+            workPtr.reset();
         }
-        LOG_INFO(DEFAULT_LOG, "Joining the ledger close thread");
-        mLedgerCloseThread->join();
-        mLedgerCloseThreadStopped = true;
+        LOG_INFO(DEFAULT_LOG, "Joining {} thread", threadName);
+        threadPtr->join();
+        threadPtr.reset();
+        return true;
     }
+    return false;
 }
 
 void
 ApplicationImpl::joinAllThreads()
 {
-    // We never strictly stop the worker IO service, just release the work-lock
-    // that keeps the worker threads alive. This gives them the chance to finish
-    // any work that the main thread queued.
-    if (mWork)
-    {
-        mWork.reset();
-    }
-    if (mOverlayWork)
-    {
-        mOverlayWork.reset();
-    }
-    if (mEvictionWork)
-    {
-        mEvictionWork.reset();
-    }
-
-    LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
+    uint32_t joined = 0;
+    joined +=
+        shutdownThread(mLedgerCloseThread, mLedgerCloseWork, "ledger close");
     for (auto& w : mWorkerThreads)
     {
-        w.join();
+        joined += shutdownThread(w, mWork, "worker");
     }
+    mWorkerThreads.clear();
 
-    if (mOverlayThread)
+    joined += shutdownThread(mOverlayThread, mOverlayWork, "overlay");
+    joined += shutdownThread(mEvictionThread, mEvictionWork, "eviction");
+    if (joined)
     {
-        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
-        mOverlayThread->join();
+        LOG_INFO(DEFAULT_LOG, "Joined all {} threads", joined);
     }
-
-    if (mEvictionThread)
-    {
-        LOG_INFO(DEFAULT_LOG, "Joining eviction thread");
-        mEvictionThread->join();
-    }
-
-    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
 }
 
 std::string
@@ -1119,11 +1161,6 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
-Config&
-ApplicationImpl::getMutableConfig()
-{
-    return mConfig;
-}
 
 std::shared_ptr<TestAccount>
 ApplicationImpl::getRoot()
@@ -1135,6 +1172,18 @@ ApplicationImpl::getRoot()
     }
 
     return mRootAccount;
+}
+
+bool
+ApplicationImpl::getRunInOverlayOnlyMode() const
+{
+    return mRunInOverlayOnlyMode;
+}
+
+void
+ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
+{
+    mRunInOverlayOnlyMode = mode;
 }
 #endif
 
@@ -1184,7 +1233,9 @@ ApplicationImpl::getState() const
             s = APP_SYNCED_STATE;
             break;
         default:
-            abort();
+            throw std::runtime_error(
+                fmt::format("Unknown LedgerManager state: {}",
+                            static_cast<int>(mLedgerManager->getState())));
         }
     }
     return s;
@@ -1193,7 +1244,7 @@ ApplicationImpl::getState() const
 std::string
 ApplicationImpl::getStateHuman() const
 {
-    static std::array<const char*, APP_NUM_STATE> stateStrings =
+    static std::array<char const*, APP_NUM_STATE> stateStrings =
         std::array{"Booting",     "Joining SCP", "Connected",
                    "Catching up", "Synced!",     "Stopping"};
     return std::string(stateStrings[getState()]);
@@ -1211,7 +1262,7 @@ ApplicationImpl::getClock()
     return mVirtualClock;
 }
 
-medida::MetricsRegistry&
+MetricsRegistry&
 ApplicationImpl::getMetrics()
 {
     return *mMetrics;
@@ -1237,6 +1288,13 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewMeter({"crypto", "verify", "miss"}, "signature").Mark(vmiss);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
         .Mark(vhit + vmiss);
+
+    // Flush scoped tx validation stats accumulated in the crypto layer.
+    auto const [vhitCv, vtotalCv] = SignatureChecker::flushTxSigCacheCounts();
+    mMetrics->NewMeter({"crypto", "verify", "tx-valid-hit"}, "signature")
+        .Mark(vhitCv);
+    mMetrics->NewMeter({"crypto", "verify", "tx-valid-total"}, "signature")
+        .Mark(vtotalCv);
 
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
@@ -1265,6 +1323,10 @@ ApplicationImpl::syncAllMetrics()
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
     mLedgerApplyManager->syncMetrics();
+    // Update simple timer metrics. This both updates the current value of the
+    // "max" metrics to be the max for the current period and starts a new
+    // period.
+    mMetrics->syncSimpleTimerStats();
     syncOwnMetrics();
 }
 
@@ -1421,10 +1483,13 @@ void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
 {
+    JITTER_INJECT_DELAY();
     LogSlowExecution isSlow{name, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     mVirtualClock.postAction(
         [this, f = std::move(f), isSlow]() {
+            JITTER_INJECT_DELAY();
+
             mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
             auto sleepFor =
                 this->getConfig().ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
@@ -1441,9 +1506,11 @@ void
 ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName)
 {
+    JITTER_INJECT_DELAY();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
+        JITTER_INJECT_DELAY();
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
@@ -1453,9 +1520,12 @@ void
 ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName)
 {
+    JITTER_INJECT_DELAY();
+
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
+        JITTER_INJECT_DELAY();
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
@@ -1465,10 +1535,12 @@ void
 ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
                                      std::string jobName)
 {
+    JITTER_INJECT_DELAY();
     releaseAssert(mOverlayIOContext);
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
+        JITTER_INJECT_DELAY();
         mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
@@ -1478,12 +1550,16 @@ void
 ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName)
 {
+    JITTER_INJECT_DELAY();
     releaseAssert(mLedgerCloseIOContext);
+    getClock().newBackgroundWork();
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
+        JITTER_INJECT_DELAY();
         mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
         f();
+        getClock().finishedBackgroundWork();
     });
 }
 
@@ -1493,6 +1569,30 @@ ApplicationImpl::enableInvariantsFromConfig()
     for (auto name : mConfig.INVARIANT_CHECKS)
     {
         mInvariantManager->enableInvariant(name);
+    }
+    auto const& invariants = mInvariantManager->getEnabledInvariants();
+    auto eventsInvariantEnabled =
+        std::find(invariants.begin(), invariants.end(),
+                  "EventsAreConsistentWithEntryDiffs") != invariants.end();
+
+    if (eventsInvariantEnabled)
+    {
+        bool metadataEnabled = !mConfig.METADATA_OUTPUT_STREAM.empty();
+#ifdef BUILD_TESTS
+        // For tests we don't always output meta, but we always enable it,
+        // so we shouldn't check `METADATA_OUTPUT_STREAM` flag value.
+        metadataEnabled = true;
+#endif
+        bool eventsEnabled = mConfig.EMIT_CLASSIC_EVENTS &&
+                             mConfig.BACKFILL_STELLAR_ASSET_EVENTS;
+        if (!metadataEnabled || !eventsEnabled)
+        {
+            throw std::invalid_argument(
+                "Invalid configuration: EventsAreConsistentWithEntryDiffs "
+                "invariant requires METADATA_OUTPUT_STREAM to be set, as well "
+                "as both EMIT_CLASSIC_EVENTS and BACKFILL_STELLAR_ASSET_EVENTS "
+                "config options to be enabled");
+        }
     }
 }
 
@@ -1543,5 +1643,15 @@ AppConnector&
 ApplicationImpl::getAppConnector()
 {
     return *mAppConnector;
+}
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+ApplicationImpl::getProtocol23CorruptionDataVerifier()
+{
+    return mProtocol23CorruptionDataVerifier;
+}
+std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+ApplicationImpl::getProtocol23CorruptionEventReconciler()
+{
+    return mProtocol23CorruptionEventReconciler;
 }
 }

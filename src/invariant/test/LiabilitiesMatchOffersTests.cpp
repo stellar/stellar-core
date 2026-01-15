@@ -9,10 +9,10 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
@@ -22,7 +22,7 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-LedgerEntry
+static LedgerEntry
 updateAccountWithRandomBalance(LedgerEntry le, Application& app,
                                bool exceedsMinimum, int32_t direction)
 {
@@ -51,7 +51,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
     REQUIRE(lbound <= ubound);
 
     stellar::uniform_int_distribution<int64_t> dist(lbound, ubound);
-    account.balance = dist(gRandomEngine);
+    account.balance = dist(getGlobalRandomEngine());
     return le;
 }
 

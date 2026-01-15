@@ -16,7 +16,7 @@ namespace stellar
 {
 
 // Certs expire every hour, are reissued every half hour.
-static const uint64_t expirationLimit = 3600;
+static uint64_t const expirationLimit = 3600;
 
 static AuthCert
 makeAuthCert(Application& app, Curve25519Public const& pub)
@@ -65,7 +65,7 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
         mApp.getNetworkID(), ENVELOPE_TYPE_AUTH, cert.expiration, cert.pubkey));
 
     CLOG_DEBUG(Overlay, "PeerAuth verifying cert hash: {}", hexAbbrev(hash));
-    return PubKeyUtils::verifySig(remoteNode, cert.sig, hash);
+    return PubKeyUtils::verifySig(remoteNode, cert.sig, hash).valid;
 }
 
 HmacSha256Key

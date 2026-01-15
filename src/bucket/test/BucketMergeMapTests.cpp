@@ -5,8 +5,8 @@
 #include "bucket/BucketMergeMap.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
@@ -21,7 +21,8 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
     auto getValidBucket = [&](int numEntries = 10) {
         std::vector<LedgerEntry> live =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                {CONFIG_SETTING}, numEntries);
+                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE, TTL},
+                numEntries);
         std::shared_ptr<LiveBucket> b1 = LiveBucket::fresh(
             app->getBucketManager(), BucketTestUtils::getAppLedgerVersion(app),
             {}, live, {},

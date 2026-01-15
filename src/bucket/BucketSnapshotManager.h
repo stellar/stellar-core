@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
@@ -25,7 +25,6 @@ class Timer;
 namespace stellar
 {
 
-class Application;
 class LiveBucketList;
 template <class BucketT> class BucketListSnapshot;
 class SearchableLiveBucketListSnapshot;
@@ -44,7 +43,7 @@ using SearchableHotArchiveSnapshotConstPtr =
 class BucketSnapshotManager : NonMovableOrCopyable
 {
   private:
-    AppConnector mAppConnector;
+    AppConnector& mAppConnector;
 
     // Lock must be held when accessing any member variables holding snapshots
     mutable SharedMutex mSnapshotMutex;
@@ -75,13 +74,18 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].
-    BucketSnapshotManager(Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+    BucketSnapshotManager(AppConnector& app,
+                          SnapshotPtrT<LiveBucket>&& snapshot,
                           SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
                           uint32_t numHistoricalLedgers);
 
     // Copy the most recent snapshot for the live bucket list
     SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot() const
         LOCKS_EXCLUDED(mSnapshotMutex);
+
+    // Create a deep copy from an existing searchable snapshot
+    static SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot(
+        SearchableSnapshotConstPtr const& snapshot);
 
     // Copy the most recent snapshot for the hot archive bucket list
     SearchableHotArchiveSnapshotConstPtr
@@ -108,6 +112,14 @@ class BucketSnapshotManager : NonMovableOrCopyable
         LOCKS_EXCLUDED(mSnapshotMutex);
     void maybeCopySearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveSnapshotConstPtr& snapshot)
+        LOCKS_EXCLUDED(mSnapshotMutex);
+
+    // This function is the same as snapshot refreshers above, but guarantees
+    // that both snapshots are consistent with the same lcl. This is required
+    // when querying both snapshot types as part of the same query.
+    void maybeCopyLiveAndHotArchiveSnapshots(
+        SearchableSnapshotConstPtr& liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
         LOCKS_EXCLUDED(mSnapshotMutex);
 };
 }

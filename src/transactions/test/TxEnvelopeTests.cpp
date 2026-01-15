@@ -13,9 +13,9 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
@@ -38,13 +38,6 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
-/*
-  Tests that are testing the common envelope used in transactions.
-  Things like:
-    authz/authn
-    double spend
-*/
-
 TEST_CASE("txset - correct apply order", "[tx][envelope]")
 {
     Config cfg = getTestConfig();
@@ -55,7 +48,7 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
 
     // set up world
     auto root = app->getRoot();
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     auto a1 = root->create("a1", paymentAmount);
     auto b1 = root->create("b1", paymentAmount);
@@ -94,7 +87,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     SECTION("ed25519 payload signer")
     {
@@ -1436,8 +1429,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMetaFrame txm(
-                                    ltx.loadHeader().current().ledgerVersion);
+                                TransactionMetaBuilder txm(
+                                    true, *insideSignerTx,
+                                    ltx.loadHeader().current().ledgerVersion,
+                                    app->getAppConnector());
                                 REQUIRE(insideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(
@@ -1456,8 +1451,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMetaFrame txm(
-                                    ltx.loadHeader().current().ledgerVersion);
+                                TransactionMetaBuilder txm(
+                                    true, *outsideSignerTx,
+                                    ltx.loadHeader().current().ledgerVersion,
+                                    app->getAppConnector());
                                 REQUIRE(outsideSignerTx->checkValidForTesting(
                                     app->getAppConnector(), ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(
@@ -2497,41 +2494,8 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
                                        SorobanResources(), 1000, 1'000'000);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-    REQUIRE(tx->getResult().result.code() == txMALFORMED);
+    REQUIRE(tx->getResultCode() == txMALFORMED);
 }
-
-TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
-{
-    auto validateTx = [](ProtocolVersion protocolVersion) {
-        VirtualClock clock;
-        auto cfg = getTestConfig();
-        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-            static_cast<uint32_t>(protocolVersion);
-        auto app = createTestApplication(clock, cfg);
-        auto root = app->getRoot();
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        op.body.invokeHostFunctionOp().hostFunction.type(
-            HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2);
-
-        auto tx =
-            sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op}, {},
-                                           SorobanResources(), 1000, 1'000'000);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        return tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
-    };
-    SECTION("XDR not valid in protocol 21")
-    {
-        auto res = validateTx(ProtocolVersion::V_21);
-        REQUIRE(res->getResult().result.code() == txMALFORMED);
-    }
-    SECTION("XDR is valid in protocol 22")
-    {
-        auto res = validateTx(ProtocolVersion::V_22);
-        REQUIRE(res->isSuccess());
-    }
-}
-
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
                    "[tx][envelope][soroban]")
 {
@@ -2557,7 +2521,7 @@ TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
         {
             REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
                                               0));
-            REQUIRE(tx->getResult().result.code() == txMALFORMED);
+            REQUIRE(tx->getResultCode() == txMALFORMED);
         }
         else
         {
@@ -2567,358 +2531,427 @@ TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
     });
 }
 
-TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
+TEST_CASE_VERSIONS("soroban transaction validation", "[tx][envelope][soroban]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    auto root = app->getRoot();
-    Operation op0;
-    op0.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf0 = op0.body.invokeHostFunctionOp().hostFunction;
-    ihf0.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    for_versions_from(
+        static_cast<uint32>(SOROBAN_PROTOCOL_VERSION), *app, [&]() {
+            auto root = app->getRoot();
+            Operation op0;
+            op0.body.type(INVOKE_HOST_FUNCTION);
+            auto& ihf0 = op0.body.invokeHostFunctionOp().hostFunction;
+            ihf0.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+            auto ledgerVersion = app->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header.ledgerVersion;
 
-    auto validateResources = [&](SorobanResources const& resources,
-                                 bool valid) {
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), *root, {op0}, {}, resources, 100, 3'500'000);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                         0) == valid);
-        if (!valid)
-        {
-            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
-        }
-    };
+            auto validateResources = [&](SorobanResources const& resources,
+                                         bool valid) {
+                auto tx = sorobanTransactionFrameFromOps(
+                    app->getNetworkID(), *root, {op0}, {}, resources, 100,
+                    3'500'000);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
+                                                 0, 0) == valid);
+                if (!valid)
+                {
+                    REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
+                }
+            };
 
-    SECTION("no soroban extension")
-    {
-        auto tx =
-            transactionFrameFromOps(app->getNetworkID(), *root, {op0}, {});
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(
-            !tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        REQUIRE(tx->getResult().result.code() == txMALFORMED);
-    }
-    SorobanResources resources;
-    SECTION("minimal resources are valid")
-    {
-        validateResources(resources, true);
-    }
-    resources.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-    resources.readBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
-    resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+            SECTION("no soroban extension")
+            {
+                auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
+                                                  {op0}, {});
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
+                                                  0, 0, 0));
+                REQUIRE(tx->getResultCode() == txMALFORMED);
+            }
+            SorobanResources resources;
+            SECTION("minimal resources are valid")
+            {
+                validateResources(resources, true);
+            }
+            resources.instructions =
+                InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+            resources.diskReadBytes =
+                InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
+            resources.writeBytes =
+                InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
-    auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
-        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
+            for (int i = 0;
+                 i < InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+                 ++i)
+            {
+                LedgerKey key(LedgerEntryType::CONTRACT_DATA);
+                key.contractData().key.type(SCValType::SCV_I32);
+                key.contractData().key.i32() = i;
+                if (i <
+                    InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES)
+                {
 
-    resources.footprint.readWrite.assign(
-        keys.begin(),
-        keys.begin() +
-            InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES);
-    resources.footprint.readOnly.assign(
-        keys.begin() + InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES,
-        keys.end());
-    SECTION("instructions exceeded")
-    {
-        resources.instructions += 1;
-        validateResources(resources, false);
-    }
-    SECTION("read bytes exceeded")
-    {
-        resources.readBytes += 1;
-        validateResources(resources, false);
-    }
-    SECTION("write bytes exceeded")
-    {
-        resources.writeBytes += 1;
-        validateResources(resources, false);
-    }
-    SECTION("max read entries exceeded")
-    {
-        resources.footprint.readOnly.emplace_back();
-        validateResources(resources, false);
-    }
-    SECTION("max write entries exceeded")
-    {
-        // Make sure that read entries limit is not exceeded.
-        resources.footprint.readOnly.pop_back();
-        resources.footprint.readWrite.emplace_back();
-        validateResources(resources, false);
-    }
-    SECTION("maximal resources are valid")
-    {
-        validateResources(resources, true);
-    }
-    SECTION("transaction size")
-    {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        SCVal largeVal(SCV_BYTES);
-        largeVal.bytes().resize(InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES -
-                                3000);
-        ihf.invokeContract().args.push_back(largeVal);
-        SECTION("near limit")
-        {
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 4'000'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        }
-        SECTION("limit exceeded")
-        {
-            ihf.invokeContract().args.back().bytes().resize(
-                InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 4'000'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
-        }
-    }
-    SECTION("fees")
-    {
-        SECTION("resource fee exceeds tx fee")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources, 1'000,
-                100'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
-        }
-        SECTION("inclusion fee is too low")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources, 1'000'099,
-                1'000'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
-        }
-        SECTION("required resource fee is lower than declared")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources, 1'000'000,
-                10);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
-        }
-        SECTION("resource fee is negative")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources, 1'000'000,
-                std::numeric_limits<int64_t>::min());
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            // Negative resource fee is handled before we get to
-            // Soroban-specific checks.
-            REQUIRE(tx->getResult().result.code() == txMALFORMED);
-        }
-        SECTION("resource fee exceeds uint32")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(),
-                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 1);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
-        }
-        SECTION("resource fee is max int64")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(),
-                std::numeric_limits<int64_t>::max());
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txMALFORMED);
-        }
-        SECTION("total fee is exactly uint32 max")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(),
-                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) -
-                    100);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        }
-        SECTION("total fee exceeds uint32 after adding base fee")
-        {
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(),
-                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) -
-                    100 + 1);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            // This gets rejected due to insufficient inclusion fee, so
-            // we have the respective error code (even though the fee is
-            // insufficient due to Soroban resource fee).
-            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
-        }
-        SECTION("resource fee exceeds uint32 with fee bump")
-        {
-            int64_t const resourceFee = 10'000'000'000LL;
-            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(), resourceFee);
-            auto tx = feeBump(*app, *root, innerTx, resourceFee + 200,
-                              /* useInclusionAsFullFee */ true);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            // This could work in theory (because the fee bump has enough
-            // fee to cover the inner tx), it can't work because we still
-            // consider the inner tx invalid due to negative inclusion fee.
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txFEE_BUMP_INNER_FAILED);
-        }
-        SECTION("resource fee is negative with fee bump")
-        {
-            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(), -1);
-            auto tx = feeBump(*app, *root, innerTx,
-                              std::numeric_limits<int64_t>::max(),
-                              /* useInclusionAsFullFee */ true);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txMALFORMED);
-        }
-        SECTION("resource fee is max int64 with fee bump")
-        {
-            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), *root, {op0}, {}, resources,
-                std::numeric_limits<uint32_t>::max(),
-                std::numeric_limits<int64_t>::max());
-            auto tx = feeBump(*app, *root, innerTx,
-                              std::numeric_limits<int64_t>::max(),
-                              /* useInclusionAsFullFee */ true);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-            REQUIRE(tx->getResult().result.code() == txMALFORMED);
-        }
-    }
+                    resources.footprint.readWrite.push_back(key);
+                }
+                else
+                {
+                    resources.footprint.readOnly.push_back(key);
+                }
+            }
 
-    SECTION("multiple ops are not allowed")
-    {
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), *root,
-                                                 {op0, op0}, {}, resources, 100,
-                                                 100'000);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(
-            !tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        REQUIRE(tx->getResult().result.code() == txMALFORMED);
-    }
-    SECTION("contract size")
-    {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-        ihf.wasm().resize(InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
-        SECTION("at limit")
-        {
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 3'500'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        }
-        SECTION("over limit")
-        {
-            ihf.wasm().resize(InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE +
-                              1);
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 3'500'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-        }
-    }
+            SECTION("instructions exceeded")
+            {
+                resources.instructions += 1;
+                validateResources(resources, false);
+            }
+            SECTION("read bytes exceeded")
+            {
+                resources.diskReadBytes += 1;
+                validateResources(resources, false);
+            }
+            SECTION("write bytes exceeded")
+            {
+                resources.writeBytes += 1;
+                validateResources(resources, false);
+            }
+            SECTION("max read entries exceeded")
+            {
+                resources.footprint.readOnly.emplace_back();
+                validateResources(resources, false);
+            }
+            SECTION("max write entries exceeded")
+            {
+                // Make sure that read entries limit is not exceeded.
+                resources.footprint.readOnly.pop_back();
+                resources.footprint.readWrite.emplace_back();
+                validateResources(resources, false);
+            }
+            SECTION("maximal resources are valid")
+            {
+                validateResources(resources, true);
+            }
+            SECTION("transaction size")
+            {
+                Operation op;
+                op.body.type(INVOKE_HOST_FUNCTION);
+                auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+                ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+                SCVal largeVal(SCV_BYTES);
+                largeVal.bytes().resize(
+                    InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES - 3000);
+                ihf.invokeContract().args.push_back(largeVal);
+                SECTION("near limit")
+                {
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        4'000'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                }
+                SECTION("limit exceeded")
+                {
+                    ihf.invokeContract().args.back().bytes().resize(
+                        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        4'000'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
+                }
+            }
+            SECTION("fees")
+            {
+                SECTION("resource fee exceeds tx fee")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources, 1'000,
+                        100'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
+                }
+                SECTION("inclusion fee is too low")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        1'000'099, 1'000'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
+                }
+                SECTION("required resource fee is lower than declared")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        1'000'000, 10);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
+                }
+                SECTION("resource fee is negative")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        1'000'000, std::numeric_limits<int64_t>::min());
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    // Negative resource fee is handled before we get to
+                    // Soroban-specific checks.
+                    REQUIRE(tx->getResultCode() == txMALFORMED);
+                }
+                SECTION("resource fee exceeds uint32")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(),
+                        static_cast<int64_t>(
+                            std::numeric_limits<uint32_t>::max()) +
+                            1);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txSOROBAN_INVALID);
+                }
+                SECTION("resource fee is max int64")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(),
+                        std::numeric_limits<int64_t>::max());
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txMALFORMED);
+                }
+                SECTION("total fee is exactly uint32 max")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(),
+                        static_cast<int64_t>(
+                            std::numeric_limits<uint32_t>::max()) -
+                            100);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                }
+                SECTION("total fee exceeds uint32 after adding base fee")
+                {
+                    auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(),
+                        static_cast<int64_t>(
+                            std::numeric_limits<uint32_t>::max()) -
+                            100 + 1);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    // This gets rejected due to insufficient inclusion fee, so
+                    // we have the respective error code (even though the fee is
+                    // insufficient due to Soroban resource fee).
+                    REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
+                }
+                SECTION("fee bump with 0 inner inclusion fee")
+                {
+                    uint32_t const resourceFee = 1'000'000;
+                    auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        resourceFee, resourceFee);
+                    auto tx =
+                        feeBump(*app, *root, innerTx, 2 * 100 + resourceFee,
+                                /* useInclusionAsFullFee */ true);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                }
+                SECTION("resource fee exceeds uint32 with fee bump")
+                {
+                    int64_t const resourceFee = 10'000'000'000LL;
+                    auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(), resourceFee);
+                    auto tx = feeBump(*app, *root, innerTx, resourceFee + 200,
+                                      /* useInclusionAsFullFee */ true);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    // This is allowed from protocol 23 - fee bump is sufficient
+                    // to cover the inner resource fee.
+                    if (protocolVersionStartsFrom(ledgerVersion,
+                                                  ProtocolVersion::V_23))
+                    {
+                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                         ltx, 0, 0, 0));
+                    }
+                    else
+                    {
+                        REQUIRE(!tx->checkValidForTesting(
+                            app->getAppConnector(), ltx, 0, 0, 0));
+                        REQUIRE(tx->getResultCode() == txFEE_BUMP_INNER_FAILED);
+                    }
+                }
+                SECTION(
+                    "resource fee exceeds uint32 and is not fully covered by "
+                    "fee bump")
+                {
+                    int64_t const resourceFee = 10'000'000'000LL;
+                    auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(), resourceFee);
+                    auto tx =
+                        feeBump(*app, *root, innerTx, resourceFee + 200 - 1,
+                                /* useInclusionAsFullFee */ true);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txINSUFFICIENT_FEE);
+                }
+                SECTION("resource fee is negative with fee bump")
+                {
+                    auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(), -1);
+                    auto tx = feeBump(*app, *root, innerTx,
+                                      std::numeric_limits<int64_t>::max(),
+                                      /* useInclusionAsFullFee */ true);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txMALFORMED);
+                }
+                SECTION("resource fee is max int64 with fee bump")
+                {
+                    auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                        app->getNetworkID(), *root, {op0}, {}, resources,
+                        std::numeric_limits<uint32_t>::max(),
+                        std::numeric_limits<int64_t>::max());
+                    auto tx = feeBump(*app, *root, innerTx,
+                                      std::numeric_limits<int64_t>::max(),
+                                      /* useInclusionAsFullFee */ true);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txMALFORMED);
+                }
+            }
 
-    auto makeBytes = [](size_t size) -> SCVal {
-        SCVal val(SCV_BYTES);
-        val.bytes().resize(size);
-        std::fill(val.bytes().begin(), val.bytes().end(), 1);
-        return val;
-    };
+            SECTION("multiple ops are not allowed")
+            {
+                auto tx = sorobanTransactionFrameFromOps(
+                    app->getNetworkID(), *root, {op0, op0}, {}, resources, 100,
+                    100'000);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx,
+                                                  0, 0, 0));
+                REQUIRE(tx->getResultCode() == txMALFORMED);
+            }
+            SECTION("contract size")
+            {
+                Operation op;
+                op.body.type(INVOKE_HOST_FUNCTION);
+                auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+                ihf.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+                ihf.wasm().resize(
+                    InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
+                SECTION("at limit")
+                {
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        3'500'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                }
+                SECTION("over limit")
+                {
+                    ihf.wasm().resize(
+                        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE + 1);
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        3'500'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                }
+            }
 
-    SECTION("footprint limit")
-    {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        SECTION("success with default limits")
-        {
-            // Allow overhead for contractID in key
-            auto bytes = makeBytes(
-                InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES -
-                100);
-            resources.footprint.readOnly.back() = contractDataKey(
-                SCAddress{}, bytes, ContractDataDurability::PERSISTENT);
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 3'500'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-        }
+            auto makeBytes = [](size_t size) -> SCVal {
+                SCVal val(SCV_BYTES);
+                val.bytes().resize(size);
+                std::fill(val.bytes().begin(), val.bytes().end(), 1);
+                return val;
+            };
 
-        auto keyBytes = makeBytes(
-            InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES + 1);
-        SECTION("read-only key over size limit")
-        {
-            resources.footprint.readOnly.resize(1);
-            resources.footprint.readOnly.back() = contractDataKey(
-                SCAddress{}, keyBytes, ContractDataDurability::PERSISTENT);
-            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-                cfg.mMaxContractDataKeySizeBytes = MinimumSorobanNetworkConfig::
-                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
-            });
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 3'500'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-        }
-        SECTION("read-write key over size limit")
-        {
-            resources.footprint.readWrite.resize(1);
-            resources.footprint.readWrite.back() = contractDataKey(
-                SCAddress{}, keyBytes, ContractDataDurability::PERSISTENT);
-            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-                cfg.mMaxContractDataKeySizeBytes = MinimumSorobanNetworkConfig::
-                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
-            });
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), *root, {op},
-                                               {}, resources, 100, 3'500'000);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-        }
-    }
+            SECTION("footprint limit")
+            {
+                Operation op;
+                op.body.type(INVOKE_HOST_FUNCTION);
+                auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+                ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+                SECTION("success with default limits")
+                {
+                    // Allow overhead for contractID in key
+                    auto bytes =
+                        makeBytes(InitialSorobanNetworkConfig::
+                                      MAX_CONTRACT_DATA_KEY_SIZE_BYTES -
+                                  100);
+                    resources.footprint.readOnly.back() = contractDataKey(
+                        SCAddress{}, bytes, ContractDataDurability::PERSISTENT);
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        3'500'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                }
+
+                auto keyBytes = makeBytes(InitialSorobanNetworkConfig::
+                                              MAX_CONTRACT_DATA_KEY_SIZE_BYTES +
+                                          1);
+                SECTION("read-only key over size limit")
+                {
+                    resources.footprint.readOnly.resize(1);
+                    resources.footprint.readOnly.back() =
+                        contractDataKey(SCAddress{}, keyBytes,
+                                        ContractDataDurability::PERSISTENT);
+                    modifySorobanNetworkConfig(
+                        *app, [](SorobanNetworkConfig& cfg) {
+                            cfg.mMaxContractDataKeySizeBytes =
+                                MinimumSorobanNetworkConfig::
+                                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
+                        });
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        3'500'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                }
+                SECTION("read-write key over size limit")
+                {
+                    resources.footprint.readWrite.resize(1);
+                    resources.footprint.readWrite.back() =
+                        contractDataKey(SCAddress{}, keyBytes,
+                                        ContractDataDurability::PERSISTENT);
+                    modifySorobanNetworkConfig(
+                        *app, [](SorobanNetworkConfig& cfg) {
+                            cfg.mMaxContractDataKeySizeBytes =
+                                MinimumSorobanNetworkConfig::
+                                    MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
+                        });
+                    auto tx = sorobanTransactionFrameFromOps(
+                        app->getNetworkID(), *root, {op}, {}, resources, 100,
+                        3'500'000);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                }
+            }
+        });
 }

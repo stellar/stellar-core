@@ -2,9 +2,9 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -34,7 +34,7 @@ TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
     // set up world
     auto root = app->getRoot();
 
-    const int64_t minBalance =
+    int64_t const minBalance =
         app->getLedgerManager().getLastMinBalance(3) - 100;
 
     auto gateway = root->create("gw", minBalance);

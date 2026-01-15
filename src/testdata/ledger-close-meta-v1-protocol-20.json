@@ -6,19 +6,19 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "4b1913d79f94b9fa7ce32782fa5f9ab1ff5fcf4bf34710a6ee8eea1ef9a833d2",
+                "hash": "d93a3d4f4006b59db7c4d586b65fde2397ccd8085865b4c8a9045492f3991092",
                 "header": {
                     "ledgerVersion": 20,
-                    "previousLedgerHash": "294f54f19c42f70cb38ba8170608f123da0782d9b12520dda99e05704bf841cb",
+                    "previousLedgerHash": "f6ecc6cc53aabf9c17e4475e7446ae94b94f7c94451f4d14927536905d666864",
                     "scpValue": {
-                        "txSetHash": "e40e0c949789baeaeac797971c41648d1d3ea604fc3a1b1a29969e8b3441ddf9",
+                        "txSetHash": "a2bf2d57113b3c153dc54f3a361d421c9471649879d16a3f4f05857abd8f0875",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "199f711b0599d01f7aaf43d038c7ad6d4c9e4144ad48ac2ab2d461e621eafe666e498874e98f5ad8c67b7a66042483b337d0d8b2c3ee46d5f67e776204617c09"
+                                "signature": "8b7c688abeca78f92ccbcb30dcfd4d98147351db85c5a48adc9b4848552a60d46ab38545ce5d72030ffe291e0508b0bc88042b3fcb346b1a830219b66fd7ca0f"
                             }
                         }
                     },
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "294f54f19c42f70cb38ba8170608f123da0782d9b12520dda99e05704bf841cb",
+                    "previousLedgerHash": "f6ecc6cc53aabf9c17e4475e7446ae94b94f7c94451f4d14927536905d666864",
                     "phases": [
                         {
                             "v": 0,
@@ -981,9 +981,9 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfBucketList": 943,
-            "evictedTemporaryLedgerKeys": [],
-            "evictedPersistentLedgerEntries": []
+            "totalByteSizeOfLiveSorobanState": 943,
+            "evictedKeys": [],
+            "unused": []
         }
     }
 }

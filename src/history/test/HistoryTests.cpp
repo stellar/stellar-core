@@ -174,55 +174,169 @@ TEST_CASE("History bucket verification", "[history][catchup]")
     auto bucketGenerator = TestBucketGenerator{
         *app, app->getHistoryArchiveManager().getHistoryArchive(
                   cg->getArchiveDirName())};
-    std::vector<std::string> hashes;
+    std::vector<std::string> liveHashes;
+    std::vector<std::string> hotHashes;
     auto& wm = app->getWorkScheduler();
-    std::map<std::string, std::shared_ptr<LiveBucket>> mBuckets;
+
+    std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
+    std::map<std::string, std::shared_ptr<HotArchiveBucket>> hotBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 
     SECTION("successful download and verify")
     {
-        hashes.push_back(bucketGenerator.generateBucket(
-            TestBucketState::CONTENTS_AND_HASH_OK));
-        hashes.push_back(bucketGenerator.generateBucket(
-            TestBucketState::CONTENTS_AND_HASH_OK));
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::CONTENTS_AND_HASH_OK));
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::CONTENTS_AND_HASH_OK));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        }
+
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::CONTENTS_AND_HASH_OK));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::CONTENTS_AND_HASH_OK));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        }
+
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::CONTENTS_AND_HASH_OK));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::CONTENTS_AND_HASH_OK));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        }
     }
     SECTION("download fails file not found")
     {
-        hashes.push_back(
-            bucketGenerator.generateBucket(TestBucketState::FILE_NOT_UPLOADED));
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::FILE_NOT_UPLOADED));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
 
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::FILE_NOT_UPLOADED));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::FILE_NOT_UPLOADED));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::FILE_NOT_UPLOADED));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
     }
     SECTION("download succeeds but unzip fails")
     {
-        hashes.push_back(bucketGenerator.generateBucket(
-            TestBucketState::CORRUPTED_ZIPPED_FILE));
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::CORRUPTED_ZIPPED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::CORRUPTED_ZIPPED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
 
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::CORRUPTED_ZIPPED_FILE));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::CORRUPTED_ZIPPED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
     }
     SECTION("verify fails hash mismatch")
     {
-        hashes.push_back(
-            bucketGenerator.generateBucket(TestBucketState::HASH_MISMATCH));
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::HASH_MISMATCH));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
 
-        auto verify =
-            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::HASH_MISMATCH));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::HASH_MISMATCH));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::HASH_MISMATCH));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
     }
     SECTION("no hashes to verify")
     {
         // Ensure proper behavior when no hashes are passed in
-        auto verify = wm.executeWork<DownloadBucketsWork>(
-            mBuckets, std::vector<std::string>(), *tmpDir);
-        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        SECTION("live buckets")
+        {
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, std::vector<std::string>(),
+                std::vector<std::string>(), *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        }
+
+        SECTION("hot archive buckets")
+        {
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, std::vector<std::string>(),
+                std::vector<std::string>(), *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+        }
     }
 }
 
@@ -503,7 +617,7 @@ TEST_CASE("History publish", "[history][publish]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 }
 
-void
+static void
 validateCheckpointFiles(Application& app, uint32_t ledger, bool isFinalized)
 {
     auto const& cfg = app.getConfig();
@@ -593,6 +707,37 @@ TEST_CASE("History publish with restart", "[history][publish]")
                 catchupSimulation.restartApp();
                 catchupSimulation.ensureOfflineCatchupPossible(
                     checkpointLedger);
+            }
+
+            SECTION("rebuild ledger")
+            {
+                catchupSimulation.ensureOfflineCatchupPossible(
+                    checkpointLedger);
+
+                auto lcl = catchupSimulation.getApp()
+                               .getLedgerManager()
+                               .getLastClosedLedgerHeader()
+                               .hash;
+                auto bucketHash = catchupSimulation.getApp()
+                                      .getBucketManager()
+                                      .getLiveBucketList()
+                                      .getHash();
+
+                // `setRebuildForOfferTable` will
+                // force rebuilding the ledger on startup.
+                auto& ps = catchupSimulation.getApp().getPersistentState();
+                ps.setRebuildForOfferTable();
+
+                // Check we correctly rebuild state after restart.
+                catchupSimulation.restartApp();
+                REQUIRE(catchupSimulation.getApp()
+                            .getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash == lcl);
+                REQUIRE(catchupSimulation.getApp()
+                            .getBucketManager()
+                            .getLiveBucketList()
+                            .getHash() == bucketHash);
             }
 
             // Now catchup to ensure published checkpoints are valid
@@ -767,92 +912,172 @@ dbModeName(Config::TestDbMode mode)
 
 TEST_CASE("History catchup", "[history][catchup][acceptance]")
 {
-    // needs REAL_TIME here, as resolve-snapshot works will fail for one of the
-    // sections again and again - as it is set to RETRY_FOREVER it can generate
-    // megabytes of unnecessary log entries
-    CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-    auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(),
-        Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+    auto runTest = [](bool skipKnownResults) {
+        // needs REAL_TIME here, as resolve-snapshot works will fail for one of
+        // the sections again and again - as it is set to RETRY_FOREVER it can
+        // generate megabytes of unnecessary log entries
+        CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
+        auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
 
-    auto offlineNonCheckpointDestinationLedger =
-        checkpointLedger -
-        HistoryManager::getCheckpointFrequency(app->getConfig()) / 2;
+        auto offlineNonCheckpointDestinationLedger =
+            checkpointLedger - HistoryManager::getCheckpointFrequency(
+                                   catchupSimulation.getApp().getConfig()) /
+                                   2;
 
-    SECTION("when not enough publishes has been performed")
+        {
+            INFO("when not enough publishes has been performed");
+            // only 2 first checkpoints can be published in this section
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger);
+
+            {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    !catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(!catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
+        }
+
+        {
+            INFO("when enough publishes has been performed, but no trigger "
+                 "ledger"
+                 "was externalized");
+            // 1 ledger is for publish-trigger
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+            catchupSimulation.ensurePublishesComplete();
+
+            {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
+        }
+
+        {
+            INFO("when enough publishes has been performed, but no trigger "
+                 "ledger"
+                 "was externalized");
+            // 1 ledger is for publish-trigger
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+            catchupSimulation.ensurePublishesComplete();
+
+            {
+                INFO("online");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    !catchupSimulation.catchupOnline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(
+                    catchupSimulation.catchupOffline(app, checkpointLedger));
+            }
+
+            {
+                INFO("offline, in the middle of checkpoint");
+                auto app = catchupSimulation.createCatchupApplication(
+                    std::numeric_limits<uint32_t>::max(),
+                    Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+                REQUIRE(catchupSimulation.catchupOffline(
+                    app, offlineNonCheckpointDestinationLedger));
+            }
+        }
+
+        {
+            INFO("when enough publishes has been performed, but no closing "
+                 "ledger"
+                 "was externalized");
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
+        }
+
+        {
+            INFO("when enough publishes has been performed, 3 ledgers are "
+                 "buffered "
+                 "and no closing ledger was externalized");
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger, 3 ledgers are buffered
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
+
+        {
+            INFO("when enough publishes has been performed, 3 ledgers are "
+                 "buffered "
+                 "and closing ledger was externalized");
+            // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger
+            // ledger, 3 ledgers are buffered, 1 ledger is closing
+            auto app = catchupSimulation.createCatchupApplication(
+                std::numeric_limits<uint32_t>::max(),
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
+            catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
+            catchupSimulation.ensurePublishesComplete();
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
+    };
+    SECTION("do not skip known results")
     {
-        // only 2 first checkpoints can be published in this section
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger);
-
-        SECTION("online")
-        {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
-        }
-
-        SECTION("offline")
-        {
-            REQUIRE(!catchupSimulation.catchupOffline(app, checkpointLedger));
-        }
-
-        SECTION("offline, in the middle of checkpoint")
-        {
-            REQUIRE(!catchupSimulation.catchupOffline(
-                app, offlineNonCheckpointDestinationLedger));
-        }
+        runTest(false);
     }
-
-    SECTION("when enough publishes has been performed, but no trigger ledger "
-            "was externalized")
+    SECTION("skip known results")
     {
-        // 1 ledger is for publish-trigger
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
-        catchupSimulation.ensurePublishesComplete();
-
-        SECTION("online")
-        {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
-        }
-
-        SECTION("offline")
-        {
-            REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
-        }
-
-        SECTION("offline, in the middle of checkpoint")
-        {
-            REQUIRE(catchupSimulation.catchupOffline(
-                app, offlineNonCheckpointDestinationLedger));
-        }
-    }
-
-    SECTION("when enough publishes has been performed, but no closing ledger "
-            "was externalized")
-    {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger));
-    }
-
-    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
-            "and no closing ledger was externalized")
-    {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
-        // 3 ledgers are buffered
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
-    }
-
-    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
-            "and closing ledger was externalized")
-    {
-        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
-        // 3 ledgers are buffered, 1 ledger is closing
-        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
-        catchupSimulation.ensurePublishesComplete();
-        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        runTest(true);
     }
 }
 
@@ -871,16 +1096,6 @@ TEST_CASE("Publish throttles catchup", "[history][catchup][acceptance]")
 TEST_CASE("History catchup with different modes",
           "[history][catchup][acceptance]")
 {
-    CatchupSimulation catchupSimulation{};
-
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
-
-    std::vector<Application::pointer> apps;
-
-    std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
-                                    60};
-
     std::vector<Config::TestDbMode> dbModes = {
         Config::TESTDB_BUCKET_DB_PERSISTENT};
 #ifdef USE_POSTGRES
@@ -890,14 +1105,31 @@ TEST_CASE("History catchup with different modes",
 
     for (auto dbMode : dbModes)
     {
-        for (auto count : counts)
+        SECTION(std::string("DB mode: ") + dbModeName(dbMode))
         {
-            auto a = catchupSimulation.createCatchupApplication(
-                count, dbMode,
-                std::string("full, ") + resumeModeName(count) + ", " +
-                    dbModeName(dbMode));
-            REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger, 5));
-            apps.push_back(a);
+            CatchupSimulation catchupSimulation{
+                VirtualClock::VIRTUAL_TIME,
+                std::make_shared<TmpDirHistoryConfigurator>(), true, dbMode};
+
+            auto checkpointLedger =
+                catchupSimulation.getLastCheckpointLedger(3);
+            catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+            std::vector<Application::pointer> apps;
+
+            std::vector<uint32_t> counts = {
+                0, std::numeric_limits<uint32_t>::max(), 60};
+
+            for (auto count : counts)
+            {
+                auto a = catchupSimulation.createCatchupApplication(
+                    count, dbMode,
+                    std::string("full, ") + resumeModeName(count) + ", " +
+                        dbModeName(dbMode));
+                REQUIRE(
+                    catchupSimulation.catchupOnline(a, checkpointLedger, 5));
+                apps.push_back(a);
+            }
         }
     }
 }
@@ -914,9 +1146,9 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     // This test makes sure that we are able to catch up to the network
     // even when some ledgers get trimmed from mSyncingLedgers.
 
-    const auto bufferLedgers = 200;
-    const auto initLedger = 1000;
-    const auto numCheckpointsAvailable = 20;
+    auto const bufferLedgers = 200;
+    auto const initLedger = 1000;
+    auto const numCheckpointsAvailable = 20;
 
     auto checkpointLedger =
         catchupSimulation.getLastCheckpointLedger(numCheckpointsAvailable);
@@ -959,11 +1191,11 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    const uint32_t firstLedgerInCheckpoint =
+    uint32_t const firstLedgerInCheckpoint =
         HistoryManager::firstLedgerAfterCheckpointContaining(initLedger,
                                                              app->getConfig());
 
-    const uint32_t triggerLedger = HistoryManager::ledgerToTriggerCatchup(
+    uint32_t const triggerLedger = HistoryManager::ledgerToTriggerCatchup(
         firstLedgerInCheckpoint, app->getConfig());
 
     // 1. The app hears initLedger, ..., dividingLedger - 1.
@@ -1061,19 +1293,19 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to prefix of published history"));
     // Try to catchup to ledger 10, which is part of first checkpoint (ending
-    // at 63), witch 5 buffered ledgers. It will succeed (as 3 checkpoints are
-    // available in history) and it will land on ledger 64 + 7 = 71.
+    // at 63), with 5 buffered ledgers. It will succeed (as 3 checkpoints are
+    // available in history) and it will land on ledger 64 + 6 = 70.
     // Externalizing ledger 65 triggers catchup (as only at this point we can
     // be sure that publishing history up to ledger 63 has started), then we
     // simulate 5 buffered ledgers and at last we need one closing ledger to
     // get us into synced state.
     REQUIRE(catchupSimulation.catchupOnline(a, 10, 5));
     uint32_t freq = HistoryManager::getCheckpointFrequency(a->getConfig());
-    REQUIRE(a->getLedgerManager().getLastClosedLedgerNum() == freq + 7);
+    REQUIRE(a->getLedgerManager().getLastClosedLedgerNum() == freq + 6);
 
     // Try to catchup to ledger 74, which is part of second checkpoint (ending
     // at 127), witch 5 buffered ledgers. It will succeed (as 3 checkpoints are
-    // available in history) and it will land on ledger 128 + 7 = 135.
+    // available in history) and it will land on ledger 128 + 6 = 135.
     // Externalizing ledger 129 triggers catchup (as only at this point we can
     // be sure that publishing history up to ledger 127 has started), then we
     // simulate 5 buffered ledgers and at last we need one closing ledger to
@@ -1082,7 +1314,7 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to second prefix of published history"));
     REQUIRE(catchupSimulation.catchupOnline(b, freq + 10, 5));
-    REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 7);
+    REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 6);
 }
 
 TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
@@ -1147,6 +1379,16 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
     }
+    SECTION("hot archive bucket upgrade")
+    {
+        if (protocolVersionEquals(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            testUpgrade(
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+        }
+    }
 }
 
 TEST_CASE("Catchup fatal failure", "[catchup][history]")
@@ -1205,7 +1447,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
 
         // Check that during catchup/replay, we did not use any INITENTRY code,
         // were still on the old protocol.
-        auto mc = a->getBucketManager().readMergeCounters();
+        auto mc = a->getBucketManager().readMergeCounters<LiveBucket>();
         REQUIRE(mc.mPostInitEntryProtocolMerges == 0);
         REQUIRE(mc.mNewInitEntries == 0);
         REQUIRE(mc.mOldInitEntries == 0);
@@ -1247,7 +1489,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
         }
 
         // Check that we did in fact use INITENTRY code.
-        mc = a->getBucketManager().readMergeCounters();
+        mc = a->getBucketManager().readMergeCounters<LiveBucket>();
         REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
         REQUIRE(mc.mNewInitEntries != 0);
         REQUIRE(mc.mOldInitEntries != 0);
@@ -1348,7 +1590,9 @@ TEST_CASE_VERSIONS(
 
     BucketTestUtils::for_versions_with_differing_bucket_logic(
         cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
+            auto app =
+                createTestApplication<BucketTestUtils::BucketTestApplication>(
+                    clock, cfg);
             auto& hm = app->getHistoryManager();
             auto& lm = app->getLedgerManager();
             auto& bl = app->getBucketManager().getLiveBucketList();
@@ -1357,9 +1601,12 @@ TEST_CASE_VERSIONS(
             {
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
-                BucketTestUtils::addLiveBatchAndUpdateSnapshot(
-                    *app, lcl.header, {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
+                // Generate entries excluding soroban types to avoid worrying
+                // about TTL invariants
+                lm.setNextLedgerEntryBatchForBucketTesting(
+                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                        {CONFIG_SETTING, TTL, CONTRACT_DATA, CONTRACT_CODE}, 8),
+                    {}, {});
                 clock.crank(true);
             }
 
@@ -1449,7 +1696,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         // of data, so last ledger trimmed is (5 * 8 - 1) - 8 = 31
         uint32_t publishedCount = 30;
         auto scp = app1->getHerderPersistence().copySCPHistoryToStream(
-            app1->getDatabase().getRawSession(),
+            app1->getDatabase().getRawMiscSession(),
             LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, out);
         REQUIRE(scp == 0);
 
@@ -1488,16 +1735,16 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
-    REQUIRE(init == 73);
+    REQUIRE(init == 72);
 
     // Now start a catchup on that catchups as far as it can due to gap. Make
     // sure gap is past the checkpoint to ensure we buffer the ledger
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 59));
 
-    // 73+59=132 is the missing ledger, so the previous ledger was the last one
+    // 72+59=131 is the missing ledger, so the previous ledger was the last one
     // to be closed
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 130);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -1620,7 +1867,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
-    REQUIRE(init == 73);
+    REQUIRE(init == 72);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
@@ -1634,7 +1881,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     // We get up to 127 using checkpoint data, and apply {128, ..., 132}.
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 60, init + 60));
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 132);
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -1651,34 +1898,43 @@ TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
-    auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
-
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
 
     // we have 3 buffered ledgers after trigger (66, 67, and 68)
 
-    SECTION("Checkpoint and trigger in order")
     {
+        INFO("Checkpoint and trigger in order");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 65, 67, 68, 66}));
     }
 
-    SECTION("Checkpoint and trigger with gap in between")
     {
+        INFO("Checkpoint and trigger with gap in between");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 64, 67, 65, 68, 66}));
     }
 
-    SECTION("Trigger and checkpoint with gap in between")
     {
+        INFO("Trigger and checkpoint with gap in between");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {63, 65, 67, 64, 68, 66}));
     }
 
-    SECTION("Reverse order")
     {
+        INFO("Reverse order");
+        auto app = catchupSimulation.createCatchupApplication(
+            std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+            "app2");
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
                                                 {68, 67, 66, 65, 64, 63}));
     }
@@ -1738,8 +1994,8 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
-    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 61);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 61));
 
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 126);
 
@@ -1768,8 +2024,8 @@ TEST_CASE("Externalize gap while catchup work is running", "[history][catchup]")
         std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
-    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 61);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 61));
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     REQUIRE(lcl == 126);

@@ -38,7 +38,8 @@ peerTypeToFilter(PeerType peerType)
     }
     default:
     {
-        abort();
+        throw std::runtime_error(
+            "RandomPeerSource: unsupported PeerType in peerTypeToFilter");
     }
     }
 }

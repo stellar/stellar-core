@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
@@ -18,7 +18,7 @@ namespace stellar
 
 using namespace std;
 
-PeerBareAddress
+static PeerBareAddress
 localhost(unsigned short port)
 {
     return PeerBareAddress{"127.0.0.1", port};
@@ -513,8 +513,10 @@ TEST_CASE("purge peer table", "[overlay][PeerManager]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& peerManager = app->getOverlayManager().getPeerManager();
-    auto record = [](size_t numFailures) {
-        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    auto record = [&app](size_t numFailures) {
+        return PeerRecord{
+            VirtualClock::systemPointToTm(app->getClock().system_now()),
+            numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
     peerManager.store(localhost(1), record(1), false);

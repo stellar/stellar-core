@@ -343,28 +343,4 @@ populateCheckpointFilesFromDB(Application& app, soci::session& sess,
     }
     return n;
 }
-
-void
-dropSupportTransactionFeeHistory(Database& db)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    db.getRawSession() << "DROP TABLE IF EXISTS txfeehistory";
-}
-
-void
-dropSupportTxSetHistory(Database& db)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    db.getRawSession() << "DROP TABLE IF EXISTS txsethistory";
-}
-
-void
-dropSupportTxHistory(Database& db)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    db.getRawSession() << "DROP TABLE IF EXISTS txhistory";
-}
 }

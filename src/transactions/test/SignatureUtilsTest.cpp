@@ -7,7 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "xdr/Stellar-transaction.h"
 
 using namespace stellar;
@@ -23,10 +23,11 @@ TEST_CASE("Pubkey signature", "[signature]")
             auto hash = sha256(std::string{"HASH_"} + std::to_string(i) +
                                std::to_string(j));
             auto signature = SignatureUtils::sign(secretKey, hash);
-            REQUIRE(SignatureUtils::verify(
-                signature,
-                KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()),
-                hash));
+            REQUIRE(SignatureUtils::verify(signature,
+                                           KeyUtils::convertKey<SignerKey>(
+                                               secretKey.getPublicKey()),
+                                           hash)
+                        .valid);
         }
     }
 }

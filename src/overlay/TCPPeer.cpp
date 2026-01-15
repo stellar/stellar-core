@@ -13,6 +13,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
@@ -413,7 +414,10 @@ TCPPeer::writeHandler(asio::error_code const& error,
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
+
+    JITTER_INJECT_DELAY();
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    JITTER_INJECT_DELAY();
 
     mLastWrite = mAppConnector.now();
 
@@ -503,14 +507,11 @@ TCPPeer::scheduleRead()
     // Post to the peer-specific Scheduler a call to ::startRead below;
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
+
+    JITTER_INJECT_DELAY();
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-#ifdef BUILD_TESTS
-    if (mStopReadingForTesting)
-    {
-        CLOG_INFO(Overlay, "TCPPeer::scheduleRead: stop reading for testing");
-        return;
-    }
-#endif
+    JITTER_INJECT_DELAY();
+
     if (mFlowControl->isThrottled())
     {
         return;
@@ -545,15 +546,12 @@ TCPPeer::startRead()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
-#ifdef BUILD_TESTS
-    if (mStopReadingForTesting)
-    {
-        CLOG_INFO(Overlay, "TCPPeer::startRead: stop reading for testing");
-        return;
-    }
-#endif
     releaseAssert(canRead());
+
+    JITTER_INJECT_DELAY();
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    JITTER_INJECT_DELAY();
+
     if (shouldAbort(guard))
     {
         return;
@@ -685,9 +683,14 @@ TCPPeer::getIncomingMsgLength()
     length |= header[2];
     length <<= 8;
     length |= header[3];
+    bool ignoreLimits = false;
+#ifdef BUILD_TESTS
+    ignoreLimits = mAppConnector.getConfig().IGNORE_MESSAGE_LIMITS_FOR_TESTING;
+#endif
     if (length <= 0 ||
-        (!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
-        length > MAX_MESSAGE_SIZE)
+        (!ignoreLimits &&
+         ((!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
+          length > MAX_MESSAGE_SIZE)))
     {
         mOverlayMetrics.mErrorRead.Mark();
         CLOG_ERROR(Overlay, "{} TCP: message size unacceptable: {}{}",

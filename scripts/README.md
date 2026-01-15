@@ -83,22 +83,62 @@ then parse the path of log files, bucket directory, and SQL DB. All these fields
 - Prequisites - `stellar-xdr` and `stellar-core`
 - Description - This is a script to help with the [Soroban Settings Upgrade](../docs/software/soroban-settings.md). It's important to be aware of how the underlying process works
 in case the script has some issues, so please read through that doc before attempting to use this script. This script should be run from the directory that contains your stellar-core binary. This script also queries the SDF Horizon for the sequence number of the account, so if the SDF Horizon instance is unavailable, then you'll need to provide the account's sequence number manually.
-- Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network passphrase, and the third is 
-the path to the JSON file with the proposed settings.
+- Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json 100`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network (one of pubnet|testnet|futurenet), the third is the path to the JSON file with the proposed settings, and the fourth is any additional resource fee you want to add to your transactions.
 
 ### Histogram Generator
-- Name - `histogram-generator.py`
+- Name - `HistogramGenerator.py`
 - Description - A Python script that takes Hubble transaction data as input and outputs histograms containing information about the resource usage of those transactions. This script enables easy updating of transaction resource distributions in [Supercluster](https://github.com/stellar/supercluster), but some may find it more broadly helpful for understanding real-world usage of the Stellar network.
-- Usage - `./HistogramGenerator <history_transactions_data> <history_contract_events_data>`, where `<history_transactions_data>` and `<history_contract_events_data>` are CSV files containing query results from Hubble's tables by the same names. You can use the following sample queries as a jumping off point for writing your own queries to generate these CSV files:
-  - Sample query to gather `history_transactions_data` from a specific date range:
-    ```lang=SQL
-    SELECT soroban_resources_instructions, soroban_resources_write_bytes, tx_envelope FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2024-06-24") AND DATETIME("2024-09-24") AND soroban_resources_instructions > 0
-    ```
-  - Sample query to gather `history_contract_events_data` from a specific date range:
-    ```lang=SQL
-    SELECT topics_decoded, data_decoded FROM `crypto-stellar.crypto_stellar.history_contract_events` WHERE type = 2 AND TIMESTAMP_TRUNC(closed_at, MONTH) between TIMESTAMP("2024-06-27") AND TIMESTAMP("2024-09-27") AND contains_substr(topics_decoded, "write_entry")
-    ```
-     - NOTE: this query filters out anything that isn't a `write_entry`. This is required for the script to work correctly!
+- Usage
+
+```
+usage: HistogramGenerator.py [-h] [-j WORKERS] [--max-bins MAX_BINS]
+                             [--max-output-bins MAX_OUTPUT_BINS]
+                             history_transactions history_contract_events
+                             classic_transactions
+
+See the comments at the end of this help for sample Hubble queries to generate the appropriate data.
+
+positional arguments:
+  history_transactions  history_transactions csv file
+  history_contract_events
+                        history_contract events csv file.
+  classic_transactions  classic_transactions csv file.
+
+options:
+  -h, --help            show this help message and exit
+  -j, --workers WORKERS
+                        Number of Python subprocesses to run in parallel
+  --max-bins MAX_BINS   Maximum number of histogram bins to generate
+  --max-output-bins MAX_OUTPUT_BINS
+                        Maximum number of histogram bins to output. This is
+                        much lower than MAX_BINS, because most bins will be
+                        empty (and therefore pruned from the output). If there
+                        are too many bins with nonzero values, the script will
+                        reduce the number of bins until there are at most
+                        MAX_OUTPUT_BINS bins with nonzero values.
+
+You can use the following sample queries as a jumping off point for writing your own queries to generate these CSV files:
+
+history_transactions sample query
+SELECT soroban_resources_instructions, soroban_resources_write_bytes, tx_envelope FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2024-06-24") AND DATETIME("2024-09-24") AND soroban_resources_instructions > 0
+
+history_contract_events sample query
+SELECT topics_decoded, data_decoded FROM `crypto-stellar.crypto_stellar.history_contract_events` WHERE type = 2 AND TIMESTAMP_TRUNC(closed_at, MONTH) between TIMESTAMP("2024-06-27") AND TIMESTAMP("2024-09-27") AND contains_substr(topics_decoded, "write_entry")
+
+NOTE: this query filters out anything that isn't a write_entry. This is required for the script to work correctly!
+
+classic_transactions sample query
+SELECT LENGTH(FROM_BASE64(tx_envelope)) as envelope_size FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2025-09-09") AND DATETIME("2025-09-09") AND soroban_resources_instructions = 0
+```
+
+- Tools: `HistogramGenerator.py` is set up as a [uv](https://docs.astral.sh/uv)
+  project. With uv installed, to run `HistogramGenerator.py`, just use `uv run
+  HistogramGenerator.py` (alternatively, you can run `uv sync` and source
+  `.venv/bin/activate` manually). The `pyproject.toml` is set up with tool
+  information for [black](https://github.com/psf/black) (formatting) and
+  [pyright](https://github.com/microsoft/pyright) (type-checking). To keep the
+  code clean when updating, be sure to run `black` and `pyright` (e.g., `uv run
+  black .`, `uv run pyright`).
 
 ## Style guide
 We follow [PEP-0008](https://www.python.org/dev/peps/pep-0008/).

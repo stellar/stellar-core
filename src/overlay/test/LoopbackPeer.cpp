@@ -160,12 +160,11 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction)
     }
     else if (direction == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG_DEBUG(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
     }
     else
     {
-        CLOG_DEBUG(Overlay, "peer {} dropped us, reason {}", toString(),
-                   reason);
+        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
     }
 
     mDropReason = reason;
@@ -302,7 +301,7 @@ LoopbackPeer::deliverOne()
         mOutQueue.pop_front();
 
         // Possibly duplicate the message and requeue it at the front.
-        if (mDuplicateProb(gRandomEngine))
+        if (mDuplicateProb(getGlobalRandomEngine()))
         {
             CLOG_INFO(Overlay, "LoopbackPeer duplicated message");
             mOutQueue.emplace_front(duplicateMessage(msg));
@@ -310,7 +309,7 @@ LoopbackPeer::deliverOne()
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(gRandomEngine) && mOutQueue.size() > 0)
+        if (mReorderProb(getGlobalRandomEngine()) && mOutQueue.size() > 0)
         {
             CLOG_INFO(Overlay, "LoopbackPeer reordered message");
             mStats.messagesReordered++;
@@ -319,15 +318,15 @@ LoopbackPeer::deliverOne()
         }
 
         // Possibly flip some bits in the message.
-        if (mDamageProb(gRandomEngine))
+        if (mDamageProb(getGlobalRandomEngine()))
         {
             CLOG_INFO(Overlay, "LoopbackPeer damaged message");
-            if (damageMessage(gRandomEngine, msg.mMessage))
+            if (damageMessage(getGlobalRandomEngine(), msg.mMessage))
                 mStats.messagesDamaged++;
         }
 
         // Possibly just drop the message on the floor.
-        if (mDropProb(gRandomEngine))
+        if (mDropProb(getGlobalRandomEngine()))
         {
             CLOG_INFO(Overlay, "LoopbackPeer dropped message");
             mStats.messagesDropped++;
@@ -385,7 +384,7 @@ LoopbackPeer::deliverAll()
 }
 
 void
-LoopbackPeer::dropAll()
+LoopbackPeer::maybeDropAndCreateNew()
 {
     mOutQueue.clear();
 }

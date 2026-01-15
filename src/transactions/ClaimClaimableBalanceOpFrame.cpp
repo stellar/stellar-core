@@ -36,7 +36,7 @@ ClaimClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
                                      ProtocolVersion::V_14);
 }
 
-bool
+static bool
 validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 {
     switch (pred.type())
@@ -70,9 +70,9 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 }
 
 bool
-ClaimClaimableBalanceOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+ClaimClaimableBalanceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                                      OperationResult& res,
+                                      OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
 
@@ -136,6 +136,11 @@ ClaimClaimableBalanceOpFrame::doApply(
     auto sourceAccount = loadSourceAccount(ltx, header);
     removeEntryWithPossibleSponsorship(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
+
+    // Emit event before we erase the claimable balance
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
+        asset, makeClaimableBalanceAddress(mClaimClaimableBalance.balanceID),
+        makeMuxedAccountAddress(getSourceAccount()), amount, true);
 
     claimableBalanceLtxEntry.erase();
 

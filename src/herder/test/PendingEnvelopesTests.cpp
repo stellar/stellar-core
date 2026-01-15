@@ -6,8 +6,8 @@
 #include "herder/HerderImpl.h"
 #include "herder/PendingEnvelopes.h"
 #include "herder/test/TestTxSetUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -82,7 +82,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         return secretKey.getPublicKey();
     };
 
-    auto makeSingleton = [](const PublicKey& key) {
+    auto makeSingleton = [](PublicKey const& key) {
         auto result = SCPQuorumSet{};
         result.threshold = 1;
         result.validators.push_back(key);

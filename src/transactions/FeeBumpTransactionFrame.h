@@ -4,14 +4,16 @@
 
 #pragma once
 
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionMeta.h"
 
 namespace stellar
 {
 class AbstractLedgerTxn;
 class Application;
 class SignatureChecker;
+class ThreadParallelApplyLedgerState;
 
 class FeeBumpTransactionFrame : public TransactionFrameBase
 {
@@ -30,6 +32,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerEntryWrapper const& account,
                         int32_t neededWeight) const override;
+
+    bool checkOperationSignatures(
+        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        MutableTransactionResultBase* txResult) const override;
+
+    bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                       LedgerEntryWrapper const& feeSource,
+                                       uint32_t ledgerVersion) const override;
 
     // If check passes, returns the fee source account. Otherwise returns
     // nullopt.
@@ -69,37 +79,55 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     }
 #endif
 
-    virtual ~FeeBumpTransactionFrame(){};
+    ~FeeBumpTransactionFrame() override = default;
+
+    void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult,
+                     SorobanNetworkConfig const& sorobanConfig) const override;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const override;
 
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, MutableTxResultPtr txResult,
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed) const override;
 
-    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult) const override;
+    void
+    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult) const override;
+
+    void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               MutableTransactionResultBase& txResult,
+                               TxEventManager& txEventManager) const override;
 
     MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
-
-    MutableTxResultPtr createSuccessResult() const override;
-
-    MutableTxResultPtr
-    createSuccessResultWithFeeCharged(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying) const override;
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents) const override;
+    bool checkSorobanResources(
+        SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+        DiagnosticEventManager& diagnosticEvents) const override;
 
     MutableTxResultPtr
-    createSuccessResultWithNewInnerTx(MutableTxResultPtr&& outerResult,
-                                      MutableTxResultPtr&& innerResult,
-                                      TransactionFrameBasePtr innerTx) const;
+    createTxErrorResult(TransactionResultCode txErrorCode) const override;
+
+    MutableTxResultPtr createValidationSuccessResult() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
+
+    bool validateSorobanTxForFlooding(
+        UnorderedSet<LedgerKey> const& keysToFilter) const override;
+    bool validateSorobanMemo() const override;
 
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;
@@ -111,7 +139,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& getInnerFullHash() const;
 
     uint32_t getNumOperations() const override;
-    Resource getResources(bool useByteLimitInClassic) const override;
+    std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperationFrames() const override;
+    Resource getResources(bool useByteLimitInClassic,
+                          uint32_t ledgerVersion) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
 
@@ -124,8 +155,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                              LedgerKeyMeter* lkMeter) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,
@@ -140,7 +170,12 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
+    SorobanTransactionData::_ext_t const& getResourcesExt() const override;
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+    virtual bool isRestoreFootprintTx() const override;
+
+    void withInnerTx(
+        std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
 };
 }

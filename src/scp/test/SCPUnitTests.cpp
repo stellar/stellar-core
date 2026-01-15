@@ -1,14 +1,14 @@
-#include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
-bool
+static bool
 isNear(uint64 r, double target)
 {
     double v = (double)r / (double)UINT64_MAX;
@@ -19,6 +19,11 @@ class TestNominationSCP : public SCPDriver
 {
   public:
     SCP mSCP;
+    uint32_t mInitialNominationTimeoutMS = 1000;
+    uint32_t mIncrementNominationTimeoutMS = 1000;
+    uint32_t mInitialBallotTimeoutMS = 1000;
+    uint32_t mIncrementBallotTimeoutMS = 1000;
+
     TestNominationSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal)
         : mSCP(*this, nodeID, true, qSetLocal)
     {
@@ -69,6 +74,26 @@ class TestNominationSCP : public SCPDriver
         return nullptr;
     }
 
+    bool
+    hasUpgrades(Value const& v) override
+    {
+        // Not implemented
+        releaseAssert(false);
+    }
+
+    ValueWrapperPtr
+    stripAllUpgrades(Value const& v) override
+    {
+        // Not implemented
+        releaseAssert(false);
+    }
+
+    uint32_t
+    getUpgradeNominationTimeoutLimit() const override
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+
     void
     setupTimer(uint64 slotIndex, int timerID, std::chrono::milliseconds timeout,
                std::function<void()> cb) override
@@ -98,6 +123,34 @@ class TestNominationSCP : public SCPDriver
             hasher.add(v);
         }
         return hasher.finish();
+    }
+
+    // Copied from HerderSCPDriver.cpp
+    static uint32_t const MAX_TIMEOUT_MS = (30 * 60) * 1000;
+
+    std::chrono::milliseconds
+    computeTimeout(uint32 roundNumber, bool isNomination) override
+    {
+        int initialTimeoutMS;
+        int incrementMS;
+
+        if (isNomination)
+        {
+            initialTimeoutMS = mInitialNominationTimeoutMS;
+            incrementMS = mIncrementNominationTimeoutMS;
+        }
+        else
+        {
+            initialTimeoutMS = mInitialBallotTimeoutMS;
+            incrementMS = mIncrementBallotTimeoutMS;
+        }
+
+        int timeoutMS = initialTimeoutMS + (roundNumber - 1) * incrementMS;
+        if (timeoutMS > MAX_TIMEOUT_MS)
+        {
+            timeoutMS = MAX_TIMEOUT_MS;
+        }
+        return std::chrono::milliseconds(timeoutMS);
     }
 };
 

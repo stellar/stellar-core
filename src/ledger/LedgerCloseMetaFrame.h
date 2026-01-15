@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/TxSetFrame.h"
 #include "xdr/Stellar-ledger.h"
@@ -19,12 +19,12 @@ class LedgerCloseMetaFrame
 
     LedgerHeaderHistoryEntry& ledgerHeader();
     void reserveTxProcessing(size_t n);
-    void pushTxProcessingEntry();
-    void
-    setLastTxProcessingFeeProcessingChanges(LedgerEntryChanges const& changes);
-    void setTxProcessingMetaAndResultPair(TransactionMeta const& tm,
+    void pushTxFeeProcessing(LedgerEntryChanges const& feeProcessing);
+
+    void setTxProcessingMetaAndResultPair(TransactionMeta&& tm,
                                           TransactionResultPair&& rp,
                                           int index);
+    void setPostTxApplyFeeProcessing(LedgerEntryChanges&& changes, int index);
 
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
 
@@ -37,6 +37,17 @@ class LedgerCloseMetaFrame
                                  bool emitExtV1);
 
     LedgerCloseMeta const& getXDR() const;
+
+#ifdef BUILD_TESTS
+    LedgerCloseMetaFrame(LedgerCloseMeta const& lm);
+    LedgerHeader const& getLedgerHeader() const;
+    xdr::xvector<LedgerKey> const& getEvictedKeys() const;
+    size_t getTransactionResultMetaCount() const;
+    TransactionMeta const& getTransactionMeta(size_t index) const;
+    LedgerEntryChanges const& getPreTxApplyFeeProcessing(size_t index) const;
+    LedgerEntryChanges const& getPostTxApplyFeeProcessing(size_t index) const;
+    void sortTxMetaByHash();
+#endif
 
   private:
     LedgerCloseMeta mLedgerCloseMeta;

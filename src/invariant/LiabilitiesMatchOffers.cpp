@@ -56,7 +56,7 @@ getBuyingLiabilities(LedgerEntry const& le)
     throw std::runtime_error("Unknown LedgerEntry type");
 }
 
-int64_t
+static int64_t
 getSellingLiabilities(LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)
@@ -324,9 +324,10 @@ LiabilitiesMatchOffers::getName() const
 }
 
 std::string
-LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
-                                              OperationResult const& result,
-                                              LedgerTxnDelta const& ltxDelta)
+LiabilitiesMatchOffers::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerTxnDelta const& ltxDelta, std::vector<ContractEvent> const& events,
+    AppConnector&)
 {
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))

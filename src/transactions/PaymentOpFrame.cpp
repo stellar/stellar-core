@@ -26,8 +26,8 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op,
 
 bool
 PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                        Hash const& sorobanBasePrngSeed, OperationResult& res,
-                        std::shared_ptr<SorobanTxData> sorobanData) const
+                        OperationResult& res,
+                        OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -45,6 +45,10 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
             : destID == getSourceID();
     if (instantSuccess)
     {
+        opMeta.getEventManager().eventForTransferWithIssuerCheck(
+            mPayment.asset, makeMuxedAccountAddress(getSourceAccount()),
+            makeMuxedAccountAddress(mPayment.destination), mPayment.amount,
+            true);
         innerResult(res).code(PAYMENT_SUCCESS);
         return true;
     }
@@ -68,7 +72,7 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     PathPaymentStrictReceiveOpFrame ppayment(op, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion, ppRes) ||
-        !ppayment.doApply(app, ltx, sorobanBasePrngSeed, ppRes, sorobanData))
+        !ppayment.doApply(app, ltx, ppRes, opMeta))
     {
         if (ppRes.code() != opINNER)
         {
@@ -115,6 +119,8 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 
     innerResult(res).code(PAYMENT_SUCCESS);
+
+    // Events will be handled by PathPaymentStrictReceiveOpFrame::doApply
 
     return true;
 }

@@ -24,6 +24,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetricsRegistry.h"
 #include "util/Thread.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -31,7 +32,6 @@
 
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 #include <algorithm>
 
@@ -71,11 +71,12 @@ OverlayManagerImpl::canAcceptOutboundPeer(PeerBareAddress const& address) const
     return true;
 }
 
-OverlayManagerImpl::PeersList::PeersList(
-    OverlayManagerImpl& overlayManager,
-    medida::MetricsRegistry& metricsRegistry,
-    std::string const& directionString, std::string const& cancelledName,
-    int maxAuthenticatedCount, std::shared_ptr<SurveyManager> sm)
+OverlayManagerImpl::PeersList::PeersList(OverlayManagerImpl& overlayManager,
+                                         MetricsRegistry& metricsRegistry,
+                                         std::string const& directionString,
+                                         std::string const& cancelledName,
+                                         int maxAuthenticatedCount,
+                                         std::shared_ptr<SurveyManager> sm)
     : mConnectionsAttempted(metricsRegistry.NewMeter(
           {"overlay", directionString, "attempt"}, "connection"))
     , mConnectionsEstablished(metricsRegistry.NewMeter(
@@ -321,7 +322,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
                      mApp.getConfig().TARGET_PEER_CONNECTIONS, mSurveyManager)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
-    , mScheduledMessages(100000, true)
+    , mScheduledMessages(100000)
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -442,7 +443,8 @@ OverlayManagerImpl::getPeersList(Peer* peer)
     case Peer::REMOTE_CALLED_US:
         return mInboundPeers;
     default:
-        abort();
+        throw std::runtime_error(fmt::format(
+            "Unknown peer role: {}", static_cast<int>(peer->getRole())));
     }
 }
 
@@ -772,7 +774,7 @@ OverlayManagerImpl::tick()
     if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
     {
         // try to leave at least some pending slots for peer promotion
-        constexpr const auto RESERVED_FOR_PROMOTION = 1;
+        constexpr auto const RESERVED_FOR_PROMOTION = 1;
         auto outboundToConnect =
             availablePendingSlots > RESERVED_FOR_PROMOTION
                 ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
@@ -1093,7 +1095,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     return false;
 }
 
-static const xdr::opaque_array<32> TX_BATCH_HASH = [] {
+static xdr::opaque_array<32> const TX_BATCH_HASH = [] {
     xdr::opaque_array<32> bytes{};
     for (auto& b : bytes)
     {
@@ -1173,7 +1175,7 @@ OverlayManagerImpl::extractPeersFromMap(
 void
 OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 {
-    stellar::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
+    stellar::shuffle(peerList.begin(), peerList.end(), getGlobalRandomEngine());
 }
 
 bool
@@ -1285,9 +1287,9 @@ OverlayManagerImpl::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
 }
 
 void
-OverlayManager::dropAll(Database& db)
+OverlayManager::maybeDropAndCreateNew(SessionWrapper& sess)
 {
-    PeerManager::dropAll(db);
+    PeerManager::maybeDropAndCreateNew(sess);
 }
 
 std::set<Peer::pointer>

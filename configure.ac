@@ -94,6 +94,11 @@ AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_LANG_POP(C)
 
+AC_ARG_ENABLE(unified-rust-unsafe-for-production,
+    AS_HELP_STRING([--enable-unified-rust-unsafe-for-production],
+        [Build rust crates as a single cargo library, risking version drift]))
+AM_CONDITIONAL(UNIFIED_RUST, [test "x$enable_unified_rust_unsafe_for_production" = "xyes"])
+
 unset sanitizeopts
 
 AC_ARG_ENABLE([asan],
@@ -101,6 +106,11 @@ AC_ARG_ENABLE([asan],
         [build with asan (address-sanitizer) instrumentation]))
 AS_IF([test "x$enable_asan" = "xyes"], [
   AC_MSG_NOTICE([ Enabling asan, see https://clang.llvm.org/docs/AddressSanitizer.html ])
+
+  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
+    AC_MSG_WARN(Asan will not instrument rust without --enable-unified-rust-unsafe-for-production)
+  ])
+
   sanitizeopts="address"
 ])
 
@@ -121,8 +131,11 @@ AC_ARG_ENABLE([threadsanitizer],
 AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
   AC_MSG_NOTICE([ enabling thread-sanitizer, see https://clang.llvm.org/docs/ThreadSanitizer.html ])
 
+  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
+    AC_MSG_ERROR(Enabling tsan requires --enable-unified-rust-unsafe-for-production)
+  ])
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="thread"
 ])
@@ -132,7 +145,9 @@ AC_ARG_ENABLE([threadsafety],
         [build with thread safety static analysis instrumentation (Clang only)]))
 AS_IF([test "x$enable_threadsafety" = "xyes"], [
   AC_MSG_NOTICE([enabling thread safety static analysis, see https://clang.llvm.org/docs/ThreadSafetyAnalysis.html])
-  CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety"
+  AS_CASE(["$CXX"],
+          [clang*], [CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety -DTHREAD_SAFETY"],
+          [AC_MSG_WARN([Thread safety analysis is only supported with Clang compiler, skipping])])
 ])
 
 AC_ARG_ENABLE([memcheck],
@@ -143,7 +158,7 @@ AS_IF([test "x$enable_memcheck" = "xyes"], [
   AC_MSG_NOTICE([ To completely enable poison destructor set MSAN_OPTIONS=poison_in_dtor=1 before running the program ])
 
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="memory -fsanitize-memory-track-origins=2 -fsanitize-memory-use-after-dtor"
 
@@ -167,7 +182,7 @@ AC_ARG_ENABLE([undefinedcheck],
 AS_IF([test "x$enable_undefinedcheck" = "xyes"], [
   AC_MSG_NOTICE([ enabling undefined-behavior-sanitizer, see https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html ])
   AS_IF([test x != "x$sanitizeopts"], [
-    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+    AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
   ])
   sanitizeopts="undefined"
 ])
@@ -189,7 +204,7 @@ AC_ARG_ENABLE([extrachecks],
         [build with additional debugging checks enabled]))
 AS_IF([test "x$enable_extrachecks" = "xyes"], [
   # don't try to detect which c++ library we're using
-  CXXFLAGS="$CXXFLAGS -D_GLIBCXX_DEBUG=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -D_LIBCPP_DEBUG=0 -DBEST_OFFER_DEBUGGING"
+  CXXFLAGS="$CXXFLAGS -D_GLIBCXX_DEBUG=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -D_LIBCPP_DEBUG=0 -DBEST_OFFER_DEBUGGING -DSCP_DEBUGGING"
 ])
 
 AC_ARG_ENABLE([ccache],
@@ -246,31 +261,8 @@ AS_IF([test "x$enable_afl" = "xyes"], [
 ])
 AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 
-# check to see if we need to append -lstdc++fs or -lc++fs to access
-# functionality from <filesystem> (for some reason this was thought
-# a good idea in gcc 8 and clang 8)
-AC_MSG_CHECKING([to see if <filesystem> works without any extra libs])
-AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
-	      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
-              [AC_MSG_RESULT([yes]); FS_WORKS=yes],
-              [AC_MSG_RESULT([no]); FS_WORKS=no])
-for testlib in -lstdc++fs -lc++fs; do
-    if test "$FS_WORKS" = "no"; then
-        fs_save_LIBS="$LIBS"
-        LIBS="$testlib $LIBS"
-        AC_MSG_CHECKING([to see if <filesystem> works with $testlib])
-        AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
-		      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
-                  [AC_MSG_RESULT([yes]); FS_WORKS=yes],
-                  [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
-    fi
-done
-if test "$FS_WORKS" = "no"; then
-   AC_MSG_ERROR([C++17 <filesystem> does not work with any known linker flags])
-fi
-
-# prefer 10 as it's the one we use
-AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-12 clang-format])
+# prefer 20 as it's the one we use
+AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-20 clang-format])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
 AX_VALGRIND_CHECK
@@ -351,6 +343,15 @@ AC_ARG_ENABLE(tests,
         [Disable building test suite]))
 AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
 
+AC_ARG_ENABLE(thread-jitter,
+    AS_HELP_STRING([--enable-thread-jitter],
+        [Enable thread jitter injection for finding concurrency bugs]))
+AS_IF([test "x$enable_thread_jitter" = "xyes"], [
+  AC_MSG_NOTICE([enabling thread jitter injection])
+  AX_APPEND_COMPILE_FLAGS([-DBUILD_THREAD_JITTER=1])
+])
+AM_CONDITIONAL(BUILD_THREAD_JITTER, [test x$enable_thread_jitter = xyes])
+
 AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
         [Enable 'tracy' profiler/tracer client stub]))
@@ -429,28 +430,34 @@ if test x"$enable_libunwind" != xno; then
                 [Define to 1 if you have the <libunwind.h> header file])
             ;;
         *)
-            # Unfortunately libunwind seems to interfere with clang-compiled
-            # exception-handling, at least when linked with libgcc (which is the
-            # default of libcxx and a requirement for libstdc++). I think this is
-            # roughly caused by both libgcc and libunwind providing the C++ EH ABI
-            # symbols but, evidently, interacting with clang-compiled code slightly
-            # differently when ELF-interposed with one another, in the same binary.
+            # There are *two separate* libraries that implement the HP libunwind
+            # API: the original HP libunwind, and the LLVM project's own
+            # separate implementation of the same API.
             #
-            # Haven't been able to make a reduced testcase that works. You can check
-            # that this is still a problem by running the stellar-core Catch2-based
-            # unit test suite: many of the tests do REQUIRE_THROWS_AS(...) and
-            # that crashes with libunwind+clang.  Haven't been able to figure out a
-            # workaround either.
-            case "${CXX}" in
-                *clang*)
-                    AC_MSG_NOTICE([backtraces disabled due to clang interaction with libunwind])
-                ;;
-                *)
-                    PKG_CHECK_MODULES(libunwind, libunwind,
-                        AC_DEFINE([HAVE_LIBUNWIND], [1],
-                                  [Define to 1 if you have the <libunwind.h> header file]))
-               ;;
-            esac
+            # At the moment on linux, or at least ubuntu, the packaging of the
+            # LLVM libunwind is broken: it links against libgcc, and in some way
+            # this causes the unwinder to consistently fail to resolve symbols
+            # (possibly this is some low level C++ ABI support issue, unclear).
+            #
+            # Any time you're compiling with libc++, you're going to get linked
+            # to this libunwind, so we _should_ disable it in that case. But it
+            # turns out that even when you're compiling with libstdc++, if
+            # you've installed the LLVM libc++ package, you may still be using
+            # the LLVM libunwind at runtime. The OS packaging is now such that
+            # the HP libunwind and LLVM libunwind packages are marked as
+            # mutually exclusive, so if you have the LLVM libc++ package
+            # installed at all, it kicks out the HP libunwind and you're going
+            # to get the LLVM libunwind (and failures to resolve symbols) at
+            # runtime.
+            #
+            # Luckily this condition also manifests as a configure-time failure
+            # when the pkg-config lookup for libunwind fails, because LLVM does
+            # not ship with a pkg-config file, so we can detect that alone here
+            # and disable libunwind support any time LLVM libunwind is installed
+            # at all.
+            PKG_CHECK_MODULES(libunwind, libunwind,
+                AC_DEFINE([HAVE_LIBUNWIND], [1], [have libunwind]),
+                AC_MSG_NOTICE([libunwind disabled due to missing pkg-config]))
             ;;
     esac
 else

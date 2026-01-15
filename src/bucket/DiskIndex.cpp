@@ -117,6 +117,19 @@ DiskIndex<BucketT>::getOffsetBounds(LedgerKey const& lowerBound,
 }
 
 template <class BucketT>
+std::optional<std::pair<std::streamoff, std::streamoff>>
+DiskIndex<BucketT>::getRangeForType(LedgerEntryType type) const
+{
+    auto it = mData.typeRanges.find(type);
+    if (it != mData.typeRanges.end())
+    {
+        return std::make_optional(it->second);
+    }
+
+    return std::nullopt;
+}
+
+template <class BucketT>
 DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               std::filesystem::path const& filename,
                               std::streamoff pageSize, Hash const& hash,
@@ -143,10 +156,15 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     std::streamoff pageUpperBound = 0;
     typename BucketT::EntryT be;
     size_t iter = 0;
-    size_t count = 0;
+    size_t _count = 0;
 
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
+
+    // Track first and last offsets for each type
+    std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
+    std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
+    std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
 
     while (in && in.readOne(be, hasher))
     {
@@ -164,8 +182,13 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
         if (!isBucketMetaEntry<BucketT>(be))
         {
-            ++count;
+            ++_count;
             LedgerKey key = getBucketLedgerKey(be);
+
+            // Track type boundaries
+            LedgerEntryType currentType = key.type();
+            updateTypeBoundaries(currentType, pos, typeStartOffsets,
+                                 typeEndOffsets, lastTypeSeen);
 
             if constexpr (std::is_same_v<BucketT, LiveBucket>)
             {
@@ -226,6 +249,9 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
         pos = in.pos();
     }
 
+    // Build the final type ranges map
+    mData.typeRanges = buildTypeRangesMap(typeStartOffsets, typeEndOffsets);
+
     // Binary Fuse filter requires at least 2 elements
     if (keyHashes.size() > 1)
     {
@@ -265,7 +291,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mData.keysToOffset.size(),
                filename.filename());
-    ZoneValue(static_cast<int64_t>(count));
+    ZoneValue(static_cast<int64_t>(_count));
 
     if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX)
     {
@@ -377,7 +403,7 @@ DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
     }
     else
     {
-        // If both indexes don't fave a filter, check that each filter is
+        // If both indexes don't have a filter, check that each filter is
         // null
         if (mData.filter || in.mData.filter)
         {
@@ -405,7 +431,7 @@ DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
         return false;
     }
 
-    return true;
+    return mData.typeRanges == in.mData.typeRanges;
 }
 #endif
 

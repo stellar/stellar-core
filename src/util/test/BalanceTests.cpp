@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/types.h"
 
 using namespace stellar;
 
-bool
+static bool
 addBalance(int64_t balance, int64_t delta, int64_t resultBalance,
            int64_t maxBalance = std::numeric_limits<int64_t>::max())
 {

@@ -15,16 +15,17 @@
 
 #include <Tracy.hpp>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 #include <fstream>
 
 namespace stellar
 {
 
-VerifyBucketWork::VerifyBucketWork(
+template <typename BucketT>
+VerifyBucketWork<BucketT>::VerifyBucketWork(
     Application& app, std::string const& bucketFile, uint256 const& hash,
-    std::unique_ptr<LiveBucketIndex const>& index, OnFailureCallback failureCb)
+    std::shared_ptr<typename BucketT::IndexT const>& index,
+    OnFailureCallback failureCb)
     : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBucketFile(bucketFile)
     , mHash(hash)
@@ -33,8 +34,9 @@ VerifyBucketWork::VerifyBucketWork(
 {
 }
 
+template <typename BucketT>
 BasicWork::State
-VerifyBucketWork::onRun()
+VerifyBucketWork<BucketT>::onRun()
 {
     ZoneScoped;
     if (mDone)
@@ -50,8 +52,9 @@ VerifyBucketWork::onRun()
     return State::WORK_WAITING;
 }
 
+template <typename BucketT>
 void
-VerifyBucketWork::spawnVerifier()
+VerifyBucketWork<BucketT>::spawnVerifier()
 {
     std::string filename = mBucketFile;
     if (auto size = fs::size(filename);
@@ -73,7 +76,7 @@ VerifyBucketWork::spawnVerifier()
     std::weak_ptr<VerifyBucketWork> weak(
         std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
     app.postOnBackgroundThread(
-        [&app, filename, weak, hash, &index = mIndex]() {
+        [&app, filename, weak, hash]() {
             SHA256 hasher;
             asio::error_code ec;
 
@@ -84,15 +87,20 @@ VerifyBucketWork::spawnVerifier()
                 return;
             }
 
+            std::shared_ptr<typename BucketT::IndexT const> index;
             try
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);
                 CLOG_INFO(History, "Verifying and indexing bucket {}",
                           binToHex(hash));
 
-                index = createIndex<LiveBucket>(
-                    app.getBucketManager(), filename, hash,
-                    app.getWorkerIOContext(), &hasher);
+                index =
+                    createIndex<BucketT>(app.getBucketManager(), filename, hash,
+                                         app.getWorkerIOContext(), &hasher);
+                if (self->isAborting())
+                {
+                    return;
+                }
                 releaseAssertOrThrow(index);
 
                 uint256 vHash = hasher.finish();
@@ -117,14 +125,22 @@ VerifyBucketWork::spawnVerifier()
                 ec = std::make_error_code(std::errc::io_error);
             }
 
+            // This is a bit silly but std::function has to be copyable.
+            auto shared_index =
+                std::make_shared<decltype(index)>(std::move(index));
+
             // Not ideal, but needed to prevent race conditions with
             // main thread, since BasicWork's state is not thread-safe. This is
             // a temporary workaround, as a cleaner solution is needed.
             app.postOnMainThread(
-                [weak, ec]() {
+                [weak, ec, shared_index]() {
                     auto self = weak.lock();
                     if (self)
                     {
+                        if (!self->isAborting() && *shared_index)
+                        {
+                            self->mIndex = std::move(*shared_index);
+                        }
                         self->mEc = ec;
                         self->mDone = true;
                         self->wakeUp();
@@ -135,12 +151,16 @@ VerifyBucketWork::spawnVerifier()
         "VerifyBucket: start in background");
 }
 
+template <typename BucketT>
 void
-VerifyBucketWork::onFailureRaise()
+VerifyBucketWork<BucketT>::onFailureRaise()
 {
     if (mOnFailure)
     {
         mOnFailure();
     }
 }
+
+template class VerifyBucketWork<LiveBucket>;
+template class VerifyBucketWork<HotArchiveBucket>;
 }

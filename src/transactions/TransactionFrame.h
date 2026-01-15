@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/NetworkConfig.h"
@@ -10,7 +10,6 @@
 #include "overlay/StellarXDR.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionFrameBase.h"
-#include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
@@ -40,10 +39,11 @@ class LedgerTxnHeader;
 class SecretKey;
 class SignatureChecker;
 class MutableTransactionResultBase;
-class SorobanTxData;
 class XDROutputFileStream;
 class SHA256;
 class AppConnector;
+class TransactionMetaBuilder;
+class ThreadParallelApplyLedgerState;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -52,6 +52,9 @@ class TransactionFrame : public TransactionFrameBase
 {
   private:
     uint32_t getSize() const;
+
+    bool
+    maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
 
   protected:
 #ifdef BUILD_TESTS
@@ -95,25 +98,28 @@ class TransactionFrame : public TransactionFrameBase
                               uint64_t lowerBoundCloseTimeOffset) const;
 
     // If check passes, returns the source account. Otherwise returns nullopt.
-    std::optional<LedgerEntryWrapper> commonValidPreSeqNum(
-        AppConnector& app, std::optional<SorobanNetworkConfig> const& cfg,
-        LedgerSnapshot const& ls, bool chargeFee,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        std::optional<FeePair> sorobanResourceFee,
-        MutableTxResultPtr txResult) const;
+    std::optional<LedgerEntryWrapper>
+    commonValidPreSeqNum(AppConnector& app, SorobanNetworkConfig const* cfg,
+                         LedgerSnapshot const& ls, bool chargeFee,
+                         uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset,
+                         std::optional<FeePair> sorobanResourceFee,
+                         MutableTransactionResultBase& txResult,
+                         DiagnosticEventManager& diagnosticEvents) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
 
     ValidationType commonValid(AppConnector& app,
-                               std::optional<SorobanNetworkConfig> const& cfg,
+                               SorobanNetworkConfig const* cfg,
                                SignatureChecker& signatureChecker,
                                LedgerSnapshot const& ls, SequenceNumber current,
                                bool applying, bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset,
                                std::optional<FeePair> sorobanResourceFee,
-                               MutableTxResultPtr txResult) const;
+                               MutableTransactionResultBase& txResult,
+                               DiagnosticEventManager& diagnosticEvents) const;
 
     void removeOneTimeSignerFromAllSourceAccounts(AbstractLedgerTxn& ltx) const;
 
@@ -121,10 +127,11 @@ class TransactionFrame : public TransactionFrameBase
                              AccountID const& accountID,
                              SignerKey const& signerKey) const;
 
-    bool applyOperations(SignatureChecker& checker, AppConnector& app,
-                         AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
-                         MutableTransactionResultBase& txResult,
-                         Hash const& sorobanBasePrngSeed) const;
+    bool applyOperations(
+        SignatureChecker& checker, AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed) const;
 
     void processSeqNum(AbstractLedgerTxn& ltx) const;
 
@@ -138,10 +145,6 @@ class TransactionFrame : public TransactionFrameBase
     bool extraSignersExist() const;
 
     bool validateSorobanOpsConsistency() const;
-    bool validateSorobanResources(SorobanNetworkConfig const& config,
-                                  Config const& appConfig,
-                                  uint32_t protocolVersion,
-                                  SorobanTxData& sorobanData) const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
     void updateSorobanMetrics(AppConnector& app) const;
@@ -159,9 +162,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
-    virtual ~TransactionFrame()
-    {
-    }
+    ~TransactionFrame() override = default;
 
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
@@ -182,17 +183,31 @@ class TransactionFrame : public TransactionFrameBase
     {
         return false;
     }
+
+    // version without meta
+    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
+               MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+               Hash const& sorobanBasePrngSeed) const;
 #endif
 
     SequenceNumber getSeqNum() const override;
 
     AccountID getFeeSourceID() const override;
     AccountID getSourceID() const override;
+    MuxedAccount getSourceAccount() const;
 
     uint32_t getNumOperations() const override;
-    Resource getResources(bool useByteLimitInClassic) const override;
+    std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperationFrames() const override;
+    Resource getResources(bool useByteLimitInClassic,
+                          uint32_t ledgerVersion) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
+
+    bool validateSorobanTxForFlooding(
+        UnorderedSet<LedgerKey> const& keysToFilter) const override;
+    bool validateSorobanMemo() const override;
 
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;
@@ -209,64 +224,111 @@ class TransactionFrame : public TransactionFrameBase
                                  AccountID const& accountID) const;
     bool checkExtraSigners(SignatureChecker& signatureChecker) const;
 
-    MutableTxResultPtr checkValidWithOptionallyChargedFee(
+    bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
+                                       LedgerEntryWrapper const& sourceAccount,
+                                       uint32_t ledgerVersion) const override;
+
+    bool checkOperationSignatures(
+        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        MutableTransactionResultBase* txResult) const override;
+
+    void checkValidWithOptionallyChargedFee(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset) const;
+        uint64_t upperBoundCloseTimeOffset,
+        MutableTransactionResultBase& result,
+        DiagnosticEventManager& diagnosticEvents) const;
     MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
-
-    MutableTxResultPtr createSuccessResult() const override;
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents) const override;
+    bool checkSorobanResources(
+        SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+        DiagnosticEventManager& diagnosticEvents) const override;
 
     MutableTxResultPtr
-    createSuccessResultWithFeeCharged(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying) const override;
+    createTxErrorResult(TransactionResultCode txErrorCode) const override;
+
+    virtual MutableTxResultPtr createValidationSuccessResult() const override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
-                              LedgerKeyMeter* lkMeter) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
     MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
+    // preApply runs all pre-application steps that are common between
+    // parallelApply and (sequential) apply:
+    //
+    //  - building a signature checker
+    //  - calling commonValid
+    //  - calling processSeqNum
+    //  - calling processSignatures
+    //
+    // If all of this succeeds it returns a non-nullptr pointer to the
+    // signature checker, to be used elsewhere in the txn. If anything
+    // fails it returns nullptr. It does all of its work in a sub-ltx
+    // so the passed ltx is unchanged on failure.
+    std::unique_ptr<SignatureChecker>
+    commonPreApply(bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+                   TransactionMetaBuilder& meta,
+                   MutableTransactionResultBase& txResult,
+                   SorobanNetworkConfig const* sorobanConfig) const;
+
+    void preParallelApply(bool chargeFee, AppConnector& app,
+                          AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+                          MutableTransactionResultBase& txResult,
+                          SorobanNetworkConfig const& sorobanConfig) const;
+
+    void
+    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult,
+                     SorobanNetworkConfig const& sorobanConfig) const override;
+
+    ParallelTxReturnVal parallelApply(
+        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
+        Config const& config, ParallelLedgerInfo const& ledgerInfo,
+        MutableTransactionResultBase& resPayload,
+        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
+        TxEffects& effects) const override;
+
     // apply this transaction to the current ledger
     // returns true if successfully applied
+    bool apply(bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+               Hash const& sorobanBasePrngSeed) const;
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, MutableTxResultPtr txResult,
-               bool chargeFee, Hash const& sorobanBasePrngSeed) const;
-    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, MutableTxResultPtr txResult,
-               Hash const& sorobanBasePrngSeed = Hash{}) const override;
+               TransactionMetaBuilder& meta,
+               MutableTransactionResultBase& txResult,
+               std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+               Hash const& sorobanBasePrngSeed) const override;
 
     // Performs the necessary post-apply transaction processing.
     // This has to be called after both `processFeeSeqNum` and
     // `apply` have been called.
     // Currently this only takes care of Soroban fee refunds.
-    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          MutableTxResultPtr txResult) const override;
+    void
+    processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaBuilder& meta,
+                     MutableTransactionResultBase& txResult) const override;
 
-    // TransactionFrame specific function that allows fee bumps to forward a
-    // different account for the refund. It also returns the refund so
-    // FeeBumpTransactionFrame can adjust feeCharged.
-    int64_t processRefund(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta,
-                          AccountID const& feeSource,
-                          MutableTransactionResultBase& txResult) const;
+    // After all transactions have been applied. Currently only used
+    // for refunds in Soroban.
+    void processPostTxSetApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                               MutableTransactionResultBase& txResult,
+                               TxEventManager& txEventManager) const override;
 
-    // version without meta
-    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
-               MutableTxResultPtr txResult,
-               Hash const& sorobanBasePrngSeed) const;
+    void processRefund(AppConnector& app, AbstractLedgerTxn& ltx,
+                       AccountID const& feeSource,
+                       MutableTransactionResultBase& txResult,
+                       TxEventManager& txEventManager) const;
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 
@@ -282,13 +344,21 @@ class TransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
+    SorobanTransactionData::_ext_t const& getResourcesExt() const override;
 
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,
         uint32_t txSize, uint32_t eventsSize,
-        SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
+        SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
+        SorobanTransactionData::_ext_t const& ext, bool isRestoreFootprintOp);
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+    virtual bool isRestoreFootprintTx() const override;
+
+    void withInnerTx(
+        std::function<void(TransactionFrameBaseConstPtr)> fn) const override;
+
+    Memo const& getMemo() const;
 
 #ifdef BUILD_TESTS
     friend class TransactionTestFrame;

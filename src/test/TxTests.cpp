@@ -165,14 +165,17 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
             // else, leave feeCharged as per checkValid
             try
             {
-                TransactionMetaFrame cleanTm(
-                    ltxCleanTx.loadHeader().current().ledgerVersion);
+                TransactionMetaBuilder cleanTm(
+                    true, *checkedTx,
+                    ltxCleanTx.loadHeader().current().ledgerVersion,
+                    app.getAppConnector());
                 checkedTxApplyRes = checkedTx->apply(app.getAppConnector(),
                                                      ltxCleanTx, cleanTm);
             }
             catch (...)
             {
-                checkedTx->getResult().result.code(txINTERNAL_ERROR);
+                checkedTx->overrideResult(
+                    checkedTx->createTxErrorResult(txINTERNAL_ERROR));
             }
             // do not commit this one
         }
@@ -224,7 +227,7 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
         {
             // this basically makes it that we ignore that field when we
             // don't have an account
-            tx->getResult().feeCharged = checkResult.feeCharged;
+            tx->overrideResultFeeCharged(checkResult.feeCharged);
         }
         ltxFeeProc.commit();
     }
@@ -232,15 +235,19 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
+        TransactionMetaBuilder tmBuilder(
+            true, *tx, ltxTx.loadHeader().current().ledgerVersion,
+            app.getAppConnector());
         try
         {
-            res = tx->apply(app.getAppConnector(), ltxTx, tm);
+            res = tx->apply(app.getAppConnector(), ltxTx, tmBuilder);
         }
         catch (...)
         {
-            tx->getResult().result.code(txINTERNAL_ERROR);
+            checkedTx->overrideResult(
+                checkedTx->createTxErrorResult(txINTERNAL_ERROR));
         }
+        TransactionMetaFrame tm(tmBuilder.finalize(res));
 
         // check that both tx and cleanTx behave the same
         REQUIRE(res == checkedTxApplyRes);
@@ -407,7 +414,7 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
         // the TestTransactionFrame does not have it's internal cached state
         // updated during apply. We manually update the result here.
         REQUIRE(resultSet.results.size() == 1);
-        tx->getResult() = resultSet.results.at(0).result;
+        tx->overrideResultXDR(resultSet.results.at(0).result);
 
         auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
         REQUIRE(meta.size() == 1);
@@ -490,7 +497,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
     return closeLedgerOn(app, ledgerSeq, getTestDate(day, month, year), txs,
-                         strictOrder);
+                         strictOrder, emptyUpgradeSteps);
 }
 
 TransactionResultSet
@@ -499,7 +506,21 @@ closeLedgerOn(Application& app, int day, int month, int year,
 {
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
     return closeLedgerOn(app, nextLedgerSeq, getTestDate(day, month, year), txs,
-                         strictOrder);
+                         strictOrder, emptyUpgradeSteps);
+}
+
+TransactionResultSet
+closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
+            ParallelSorobanOrder const& parallelSorobanOrder)
+{
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, true,
+                         emptyUpgradeSteps, parallelSorobanOrder);
 }
 
 TransactionResultSet
@@ -519,8 +540,12 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
-              xdr::xvector<UpgradeType, 6> const& upgrades)
+              xdr::xvector<UpgradeType, 6> const& upgrades,
+              ParallelSorobanOrder const& parallelSorobanOrder)
 {
+    // Ensure that parallelSorobanOrder is only used with strictOrder
+    releaseAssert((parallelSorobanOrder.empty() || strictOrder));
+
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.scpValue.closeTime;
@@ -532,7 +557,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
-        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true);
+        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true,
+                                          parallelSorobanOrder);
     }
     else
     {
@@ -568,10 +594,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      upgrades);
-    // NB: this assert will probably stop being true when background apply is
-    // turned on by default: externalize will have handed the ledger off to
-    // apply but not yet received the results of apply or updated LCL. The fix
-    // should be just to crank here until LCL advances to ledgerSeq.
+    while (app.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
+    {
+        app.getClock().crank(true);
+    }
     releaseAssert(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
     auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
     return lm.mLatestTxResultSet;
@@ -653,7 +679,8 @@ getAccountSigners(PublicKey const& k, Application& app)
 TransactionTestFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee)
+                            std::vector<Operation> const& ops, uint32_t fee,
+                            std::optional<Memo> memo)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
@@ -666,6 +693,83 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v0().tx.operations));
 
+    if (memo)
+    {
+        e.v0().tx.memo = *memo;
+    }
+
+    auto res = TransactionTestFrame::fromTxFrame(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+    res->addSignature(from);
+    return res;
+}
+
+// Common setup between transactionFromOperationsV1 and
+// paddedTransactionFromOperationsV1
+static TransactionEnvelope
+makeEnvelopeV1(Application& app, SecretKey const& from, SequenceNumber seq,
+               std::vector<Operation> const& ops, uint32_t fee,
+               std::optional<uint64_t> sourceMux)
+{
+    TransactionEnvelope e(ENVELOPE_TYPE_TX);
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey(), sourceMux);
+    e.v1().tx.fee =
+        fee != 0 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    e.v1().tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(e.v1().tx.operations));
+    return e;
+}
+
+TransactionTestFramePtr
+paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
+                                  SequenceNumber seq,
+                                  std::vector<Operation> const& ops,
+                                  uint32_t fee, uint32_t desiredSize)
+{
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
+
+    uint32_t baseSize = xdr::xdr_argpack_size(e);
+
+    StellarMessage baseMessage;
+    baseMessage.type(TRANSACTION);
+    baseMessage.transaction() = e;
+    baseMessage.transaction().v1().signatures.push_back(
+        DecoratedSignature{SignatureHint{}, crypto_sign_BYTES});
+    uint32_t const baseMessageSize = xdr::xdr_argpack_size(baseMessage);
+
+    e.v1().tx.ext.v(1);
+    e.v1().tx.ext.sorobanData().ext.v(1);
+    uint32_t const minPadding = xdr::xdr_argpack_size(e) - baseSize;
+
+    if (desiredSize <= baseMessageSize)
+    {
+        e.v1().tx.ext.v(0);
+    }
+    else
+    {
+        using EntryType = decltype(e.v1()
+                                       .tx.ext.sorobanData()
+                                       .ext.resourceExt()
+                                       .archivedSorobanEntries)::value_type;
+        uint32_t constexpr entrySize =
+            xdr::xdr_traits<EntryType>::serial_size({});
+        if (desiredSize >= baseMessageSize + minPadding)
+        {
+            uint32_t remaining = desiredSize - baseMessageSize - minPadding;
+            // Pad with ceil(remaining / entrySize) * entrySize bytes
+            e.v1()
+                .tx.ext.sorobanData()
+                .ext.resourceExt()
+                .archivedSorobanEntries.resize((remaining + entrySize - 1) /
+                                               entrySize);
+        }
+    }
+
     auto res = TransactionTestFrame::fromTxFrame(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
@@ -675,24 +779,23 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond)
+                            std::vector<Operation> const& ops, uint32_t fee,
+                            std::optional<PreconditionsV2> cond,
+                            std::optional<uint64_t> sourceMux,
+                            std::optional<Memo> memo)
 {
-    TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey());
-    e.v1().tx.fee =
-        fee != 0 ? fee
-                 : static_cast<uint32_t>(
-                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                       UINT32_MAX);
-    e.v1().tx.seqNum = seq;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(e.v1().tx.operations));
+    TransactionEnvelope e =
+        makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
 
     if (cond)
     {
         e.v1().tx.cond.type(PRECOND_V2);
         e.v1().tx.cond.v2() = *cond;
+    }
+
+    if (memo)
+    {
+        e.v1().tx.memo = *memo;
     }
 
     auto res = TransactionTestFrame::fromTxFrame(
@@ -702,17 +805,35 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 }
 
 TransactionTestFramePtr
+paddedTransactionFromOperations(Application& app, SecretKey const& from,
+                                SequenceNumber seq,
+                                std::vector<Operation> const& ops, uint32_t fee,
+                                uint32_t desiredSize)
+{
+    auto ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_23))
+    {
+        throw std::invalid_argument(
+            "paddedTransactionFromOperations() called from pre-V23 protocol");
+    }
+    return paddedTransactionFromOperationsV1(app, from, seq, ops, fee,
+                                             desiredSize);
+}
+
+TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq, const std::vector<Operation>& ops,
-                          uint32_t fee)
+                          SequenceNumber seq, std::vector<Operation> const& ops,
+                          uint32_t fee, std::optional<Memo> memo)
 {
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
-        return transactionFromOperationsV0(app, from, seq, ops, fee);
+        return transactionFromOperationsV0(app, from, seq, ops, fee, memo);
     }
-    return transactionFromOperationsV1(app, from, seq, ops, fee);
+    return transactionFromOperationsV1(app, from, seq, ops, fee, std::nullopt,
+                                       std::nullopt, memo);
 }
 
 TransactionTestFramePtr
@@ -727,7 +848,7 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 
 TransactionTestFramePtr
 feeBump(Application& app, TestAccount& feeSource,
-        std::shared_ptr<TransactionTestFrame const> tx, int64_t fee,
+        TransactionFrameBaseConstPtr tx, int64_t fee,
         bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
@@ -867,7 +988,8 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
 }
 
 Operation
-createUploadWasmOperation(uint32_t generatedWasmSize)
+createUploadWasmOperation(uint32_t generatedWasmSize,
+                          std::optional<uint64_t> wasmSeed)
 {
     uint32_t const WASM_HEADER_SIZE = 100;
 
@@ -876,7 +998,7 @@ createUploadWasmOperation(uint32_t generatedWasmSize)
     auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
     uniform_int_distribution<uint64_t> seedDistr;
-    uint64_t seed = seedDistr(Catch::rng());
+    uint64_t seed = wasmSeed ? *wasmSeed : seedDistr(Catch::rng());
     // Roughly account for the generated header.
     if (generatedWasmSize > WASM_HEADER_SIZE)
     {
@@ -897,12 +1019,13 @@ createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, int64_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
                    int addInvalidOps, std::optional<uint32_t> wasmSize,
-                   std::optional<SequenceNumber> seq)
+                   std::optional<SequenceNumber> seq,
+                   std::optional<uint64_t> wasmSeed)
 {
     uint32_t const DEFAULT_WASM_SIZE = 1000;
 
-    Operation uploadOp =
-        createUploadWasmOperation(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
+    Operation uploadOp = createUploadWasmOperation(
+        wasmSize ? *wasmSize : DEFAULT_WASM_SIZE, wasmSeed);
 
     if (resources.footprint.readWrite.empty() &&
         resources.footprint.readOnly.empty())
@@ -927,14 +1050,24 @@ createUploadWasmTx(Application& app, TestAccount& account,
 
 int64_t
 sorobanResourceFee(Application& app, SorobanResources const& resources,
-                   size_t txSize, uint32_t eventsSize)
+                   size_t txSize, uint32_t eventsSize,
+                   std::optional<std::vector<uint32_t>> archivedIndexes,
+                   bool isRestoreFootprintOp)
 {
     releaseAssert(txSize <= INT32_MAX);
+    SorobanTransactionData::_ext_t ext;
+    if (archivedIndexes)
+    {
+        ext.v(1);
+        ext.resourceExt().archivedSorobanEntries.insert(
+            ext.resourceExt().archivedSorobanEntries.end(),
+            archivedIndexes->begin(), archivedIndexes->end());
+    }
     auto feePair = TransactionFrame::computeSorobanResourceFee(
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion,
         resources, static_cast<uint32>(txSize), eventsSize,
         app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
-        app.getConfig());
+        app.getConfig(), ext, isRestoreFootprintOp);
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 
@@ -1646,7 +1779,7 @@ checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
     REQUIRE(r.results[index].result.result.results()[0].code() == code);
 };
 
-static void
+void
 sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
 {
     env.signatures.emplace_back(SignatureUtils::sign(
@@ -1686,7 +1819,8 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        SorobanResources const& resources, uint32_t totalFee,
                        int64_t resourceFee, std::optional<std::string> memo,
                        std::optional<SequenceNumber> seq,
-                       std::optional<uint64_t> muxedData)
+                       std::optional<uint64_t> muxedData,
+                       std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     if (muxedData)
@@ -1705,6 +1839,19 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
     tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
+
+    if (archivedIndexes)
+    {
+        tx.v1().tx.ext.sorobanData().ext.v(1);
+        auto& archivedEntriesRef = tx.v1()
+                                       .tx.ext.sorobanData()
+                                       .ext.resourceExt()
+                                       .archivedSorobanEntries;
+        archivedEntriesRef.insert(archivedEntriesRef.end(),
+                                  archivedIndexes->begin(),
+                                  archivedIndexes->end());
+    }
+
     if (memo)
     {
         Memo textMemo(MEMO_TEXT);
@@ -1734,22 +1881,24 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 }
 
 TransactionTestFramePtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                               std::vector<Operation> const& ops,
-                               std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources,
-                               uint32_t inclusionFee, int64_t resourceFee,
-                               std::optional<std::string> memo,
-                               std::optional<SequenceNumber> seq)
+sorobanTransactionFrameFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t inclusionFee,
+    int64_t resourceFee, std::optional<std::string> memo,
+    std::optional<SequenceNumber> seq,
+    std::optional<std::vector<uint32_t>> archivedIndexes)
 {
-    uint64 totalFee = inclusionFee;
+    int64_t totalFee = inclusionFee;
     totalFee += resourceFee;
-    releaseAssert(totalFee >= 0 && totalFee <= UINT32_MAX);
+    releaseAssert(totalFee >= 0);
+    uint32_t totalFeeUint32 = std::min(
+        totalFee, static_cast<int64_t>(std::numeric_limits<uint32_t>::max()));
     auto tx = TransactionFrameBase::makeTransactionFromWire(
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
-                               static_cast<uint32>(totalFee), resourceFee, memo,
-                               seq, std::nullopt));
+                               totalFeeUint32, resourceFee, memo, seq,
+                               std::nullopt, archivedIndexes));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -1758,12 +1907,14 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
-    std::optional<std::string> memo, std::optional<uint64> muxedData)
+    std::optional<std::string> memo, std::optional<uint64> muxedData,
+    std::optional<std::vector<uint32_t>> archivedIndexes)
 {
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, totalFee, resourceFee,
-                                          memo, std::nullopt, muxedData));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo, std::nullopt,
+                               muxedData, archivedIndexes));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -1964,7 +2115,16 @@ getLclProtocolVersion(Application& app)
 bool
 isSuccessResult(TransactionResult const& res)
 {
-    return res.result.code() == txSUCCESS;
+    return res.result.code() == txSUCCESS ||
+           res.result.code() == txFEE_BUMP_INNER_SUCCESS;
+}
+
+TestAccount
+getGenesisAccount(Application& app, uint32_t accountIndex)
+{
+    REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
+    return TestAccount(
+        app, getAccount("TestAccount-" + std::to_string(accountIndex)));
 }
 
 } // namespace txtest

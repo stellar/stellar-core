@@ -88,9 +88,24 @@ class ApplyLedgersFromMetaWork : public Work
             return BasicWork::State::WORK_SUCCESS;
         }
 
-        auto lh = lcm.v() == 0 ? lcm.v0().ledgerHeader : lcm.v1().ledgerHeader;
+        auto getLedgerHeader =
+            [](LedgerCloseMeta const& lcm) -> LedgerHeader const& {
+            switch (lcm.v())
+            {
+            case 0:
+                return lcm.v0().ledgerHeader.header;
+            case 1:
+                return lcm.v1().ledgerHeader.header;
+            case 2:
+                return lcm.v2().ledgerHeader.header;
+            default:
+                releaseAssert(false);
+            }
+        };
 
-        auto ledgerSeqToApply = lh.header.ledgerSeq;
+        auto const& lh = getLedgerHeader(lcm);
+
+        auto ledgerSeqToApply = lh.ledgerSeq;
         auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
         if (ledgerSeqToApply <= lcl)
         {
@@ -113,13 +128,16 @@ class ApplyLedgersFromMetaWork : public Work
         {
             txSet = TxSetXDRFrame::makeFromWire(lcm.v0().txSet);
         }
-        else
+        else if (lcm.v() == 1)
         {
             txSet = TxSetXDRFrame::makeFromWire(lcm.v1().txSet);
         }
+        else
+        {
+            txSet = TxSetXDRFrame::makeFromWire(lcm.v2().txSet);
+        }
 
-        LedgerCloseData ledgerCloseData(ledgerSeqToApply, txSet,
-                                        lh.header.scpValue);
+        LedgerCloseData ledgerCloseData(ledgerSeqToApply, txSet, lh.scpValue);
 
         releaseAssert(!mApplyLedgerWork);
         mApplyLedgerWork = addWork<ApplyLedgerWork>(ledgerCloseData);

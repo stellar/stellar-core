@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketListSnapshotBase.h"
 #include "bucket/HotArchiveBucket.h"
@@ -14,7 +14,6 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector, SnapshotPtrT<LiveBucket>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots);
 
@@ -27,24 +26,31 @@ class SearchableLiveBucketListSnapshot
                                                       int64_t minBalance) const;
 
     std::vector<LedgerEntry>
-    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       std::string const& label, LedgerKeyMeter* lkMeter) const;
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+             std::string const& label) const;
 
-    EvictionResultCandidates scanForEviction(
-        uint32_t ledgerSeq, EvictionCounters& counters, EvictionIterator iter,
+    std::unique_ptr<EvictionResultCandidates> scanForEviction(
+        uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator iter,
         std::shared_ptr<EvictionStatistics> stats,
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
+
+    void scanForEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const;
 
     friend SearchableSnapshotConstPtr
     BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
         SharedLockShared const& guard) const;
+
+    friend SearchableSnapshotConstPtr
+    BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+        SearchableSnapshotConstPtr const& snapshot);
 };
 
 class SearchableHotArchiveBucketListSnapshot
     : public SearchableBucketListSnapshotBase<HotArchiveBucket>
 {
     SearchableHotArchiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager,
         AppConnector const& appConnector,
         SnapshotPtrT<HotArchiveBucket>&& snapshot,
         std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&&

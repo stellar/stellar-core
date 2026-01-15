@@ -71,29 +71,43 @@ the upgrade from protocol 22 to 23:
      This submodule has _another copy_ of the `soroban-env-host` repository,
      but checked out at the `v23.0.0` tag. We do this with something like
 
-       - `mkdir src/rust/soroban/p23`
        - `git submodule add https://github.com/stellar/rs-soroban-env src/rust/soroban/p23`
        - `cd src/rust/soroban/p23`
        - `git checkout v23.0.0`
 
-  4. We wire that new protocol into `src/rust/src/lib.rs` by copying the
-     existing highest-numbered protocol-pecific module, say `mod p22 { ... }`
-     that exists inline in that file, to a new copy say `mod p23 { ... }`.
+  5. We then modify `src/Makefile.am` to add `p23` to the unguarded list of
+     protocol submodules to be built, `ALL_SOROBAN_PROTOCOLS`, possibly clearing
+     `WIP_SOROBAN_PROTOCOL` too if it previously contained `p23`.
 
-   5. We also update the module alias `soroban_curr`, by changing a line like
-      `use p22 as soroban_curr` to say `use p23 as soroban_curr`.
+  6. We wire that new protocol into
+     `src/rust/src/soroban_proto_all.rs` by copying the existing
+     highest-numbered protocol-pecific module, say `mod p22 { ... }`
+     that exists inline in that file, to a new copy say `mod p23 {
+     ... }`.
 
-   6. We also copy and paste a line like
-      `proto_versioned_functions_for_module!(p22),` into a new line like
-      `proto_versioned_functions_for_module!(p23),` which will register the new
-      module. The module self-identifies the protocol it's responsible for
-      handling.
+  7. We also update the module alias `soroban_curr`, by changing a line like
+     `use p22 as soroban_curr` to say `use p23 as soroban_curr`.
 
-   7. We then copy the "expected dependency tree" file from protocol 22 to 23:
+  8. We also copy and paste a line like
+     `proto_versioned_functions_for_module!(p22),` into a new line like
+     `proto_versioned_functions_for_module!(p23),` which will register the new
+     module. The module self-identifies the protocol it's responsible for
+     handling.
 
-      - `cp src/rust/src/dep-trees/p22-expect.txt src/rust/src/dep-trees/p23-expect.txt`
+  9. We also update the module cache to have a copy for the new soroban
+     version in `src/rust/src/soroban_module_cache.rs`
 
-   8. We then attempt to rebuild. The rebuild will probably fail because the
+  10. We also add a new block in `src/rust/Cargo.toml` for
+      `dependencies.soroban-env-host-p23` that declares the optional
+      dependency for the unified build, and add a reference
+      `"dep:soroban-env-host-p23"` to the list of deps activated by
+      the `unified` feature near the bottom of the file.
+
+  10. We then copy the "expected dependency tree" file from protocol 22 to 23:
+
+     - `cp src/rust/src/dep-trees/p22-expect.txt src/rust/src/dep-trees/p23-expect.txt`
+
+  11. We then attempt to rebuild. The rebuild will probably fail because the
       _actual_ dependencies of the p23 soroban are _different_ from those listed
       in the `p23-expect.txt` file. These files are just here to ensure we
       notice unintentional changes to dependencies, and the build system should
@@ -105,11 +119,11 @@ the upgrade from protocol 22 to 23:
 
       And then rebuild.
 
-   9. Technically that's it! We should have a copy of stellar-core that will run
+  12. Technically that's it! We should have a copy of stellar-core that will run
       soroban 22.x.y when given a protocol 22 ledger, and soroban 23.0.0 when
       given a protocol 23 ledger. There is one final step to consider later.
 
-   10. _After the protocol 23 upgrade_, we can try _commenting out_ the
+  13. _After the protocol 23 upgrade_, we can try _commenting out_ the
       `proto_versioned_functions_for_module!(p22),` line to see if we can still
       replay the recorded history of protocol 22 (which is set in stone now) on
       soroban 23.x.y. If so, we can just delete that line and the corresponding
@@ -128,6 +142,26 @@ the upgrade from protocol 22 to 23:
           But if the change is really intrusive, it might be easier to just keep
           p22 around forever anyways.
 
+## Dealing with "next"
+
+Stellar-core and soroban-env-host both support the concept of a "next build",
+which is a conditional-compilation mode (enabled by a configure flag
+`--enable-next-protocol-version-unsafe-for-production`) that supports a protocol
+number one-higher than "the one written on the label". I.e. stellar-core v22.0.0
+and soroban-env-host v22.0.0 when built with "next" will support something they
+call "protocol 23", and will build with XDR from a "next" repo, and so on.
+
+Enabling the "next build" on a given checkout of the tree always shifts the
+maximum core-supported protocol up by one. It might also conditionally-include a
+work-in-progress "next soroban submodule", or it might simply pass the flag
+`--features=next` to the current maximum-numbered soroban submodule (which will
+in turn cause that soroban submodule to increment its own max-supported protocol
+number).
+
+Which of these two build variants the "next build" causes is controlled by a
+variable `WIP_SOROBAN_PROTOCOL` in `src/Makefile.am` and is documented in more
+detail there.
+
 ## Rust, Cargo, versions, submodules, rlibs, and dep-tree files
 
 This seciton is optional details about implementation technique for anyone
@@ -139,7 +173,7 @@ We are leveraging Rust's support for linking together multiple copies of "the
 same" library (soroban) with different versions, but we are doing so somewhat
 against the grain of how cargo normally wants to do it.
 
-Do do this "the normal way", we would just list the different versions of the
+To do this "the normal way", we would just list the different versions of the
 soroban crate in `Cargo.toml`, and then when we built it cargo would attempt to
 resolve all the dependencies and transitive-dependencies of all those soroban
 versions into a hopefully-minimal set of crates and download, compile and link
@@ -165,7 +199,7 @@ This has one minor and one major problem:
      p22 module on foo 0.1, cargo will bump _both_ to foo 0.2, which _changes_
      the semantics of the p22 module.
 
-       - We initially though a way out of this is to add redundant exact-version
+       - We initially thought a way out of this is to add redundant exact-version
          dependencies (like `foo = "=0.2"`) to `Cargo.toml` for
          `soroban-env-host` but there turn out to be both a minor and a major
          problem with that too.

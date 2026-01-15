@@ -9,6 +9,7 @@
 #include "crypto/Random.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/HerderSCPDriver.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
@@ -16,11 +17,16 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
+#include "ledger/P23HotArchiveBug.h"
 #include "ledger/TrustLineWrapper.h"
-#include "lib/catch.hpp"
+#include "main/CommandHandler.h"
+#include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
+#include "simulation/Topologies.h"
+#include "test/Catch2.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -28,8 +34,10 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
+#include <chrono>
 #include <fmt/format.h>
 #include <optional>
 #include <xdrpp/autocheck.h>
@@ -245,15 +253,15 @@ makeMaxContractSizeBytesTestUpgrade(
 }
 
 ConfigUpgradeSetFrameConstPtr
-makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
-                                              AbstractLedgerTxn& ltx,
-                                              uint32_t newWindowSize)
+makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(Application& app,
+                                                    AbstractLedgerTxn& ltx,
+                                                    uint32_t newWindowSize)
 {
     // Modify window size
     auto sas = app.getLedgerManager()
                    .getLastClosedSorobanNetworkConfig()
                    .stateArchivalSettings();
-    sas.bucketListSizeWindowSampleSize = newWindowSize;
+    sas.liveSorobanStateSizeWindowSampleSize = newWindowSize;
 
     // Make entry for the upgrade
     ConfigUpgradeSet configUpgradeSet;
@@ -273,15 +281,14 @@ getMaxContractSizeKey()
 }
 
 LedgerKey
-getBucketListSizeWindowKey()
+getliveSorobanStateSizeWindowKey()
 {
     LedgerKey windowKey(CONFIG_SETTING);
     windowKey.configSetting().configSettingID =
-        CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+        CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
     return windowKey;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey
 getParallelComputeSettingsLedgerKey()
 {
@@ -302,7 +309,6 @@ makeParallelComputeUpdgrade(AbstractLedgerTxn& ltx,
         maxDependentTxClusters;
     return makeConfigUpgradeSet(ltx, configUpgradeSet);
 }
-#endif
 
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
@@ -846,7 +852,6 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
 {
     auto runTest = [&](uint32_t protocolVersion, uint32_t clusterCount) {
@@ -901,7 +906,428 @@ TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
                         0) == Upgrades::UpgradeValidity::INVALID);
     }
 }
-#endif
+
+TEST_CASE("SCP timing config affects consensus behavior", "[upgrades][herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+    auto& herder = static_cast<HerderImpl&>(app.getHerder());
+    auto& scpDriver = herder.getHerderSCPDriver();
+
+    SECTION("ledger close time changes after config upgrade")
+    {
+
+        // Verify initial ledger close time
+        auto initialCloseTime = simulation->getExpectedLedgerCloseTime();
+        REQUIRE(initialCloseTime ==
+                Herder::TARGET_LEDGER_CLOSE_TIME_BEFORE_PROTOCOL_VERSION_23_MS);
+
+        auto const timeToTest = std::chrono::seconds(200);
+
+        auto testExpectedLedgers = [&]() {
+            auto initialLedgerSeq =
+                app.getLedgerManager().getLastClosedLedgerNum();
+            long long expectedLedgers =
+                timeToTest / simulation->getExpectedLedgerCloseTime();
+
+            simulation->crankForAtLeast(timeToTest, false);
+            long long actualLedgerCount =
+                app.getLedgerManager().getLastClosedLedgerNum() -
+                initialLedgerSeq;
+
+            // Allow a few ledgers of error since ledger times are not absolute
+            REQUIRE(abs(actualLedgerCount - expectedLedgers) <= 2);
+        };
+
+        testExpectedLedgers();
+
+        // Upgrade to 4 second ledger close time
+        upgradeSorobanNetworkConfig(
+            [](SorobanNetworkConfig& cfg) {
+                cfg.mLedgerTargetCloseTimeMilliseconds = 4000;
+            },
+            simulation);
+
+        REQUIRE(simulation->getExpectedLedgerCloseTime().count() == 4000);
+        testExpectedLedgers();
+    }
+
+    SECTION("SCP timeouts")
+    {
+        // Verify initial timeout values
+        auto const& initialConfig =
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+
+        REQUIRE(initialConfig.nominationTimeoutInitialMilliseconds() == 1000);
+        REQUIRE(initialConfig.nominationTimeoutIncrementMilliseconds() == 1000);
+        REQUIRE(initialConfig.ballotTimeoutInitialMilliseconds() == 1000);
+        REQUIRE(initialConfig.ballotTimeoutIncrementMilliseconds() == 1000);
+
+        // Test default timeout calculation
+        // Round 1 should be initial timeout
+        auto timeout1 = scpDriver.computeTimeout(1, /*isNomination=*/false);
+        REQUIRE(timeout1 == std::chrono::milliseconds(1000));
+
+        // Round 5 should be initial + 4*increment
+        auto timeout5 = scpDriver.computeTimeout(5, /*isNomination=*/false);
+        REQUIRE(timeout5 == std::chrono::milliseconds(5000));
+
+        auto nomTimeout1 = scpDriver.computeTimeout(1, /*isNomination=*/true);
+        REQUIRE(nomTimeout1 == std::chrono::milliseconds(1000));
+        auto nomTimeout5 = scpDriver.computeTimeout(5, /*isNomination=*/true);
+        REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000));
+
+        uint32_t const nominationTimeoutInitialMilliseconds = 2000;
+        uint32_t const nominationTimeoutIncrementMilliseconds = 750;
+        uint32_t const ballotTimeoutInitialMilliseconds = 1500;
+        uint32_t const ballotTimeoutIncrementMilliseconds = 1100;
+
+        // Upgrade SCP timing parameters
+        upgradeSorobanNetworkConfig(
+            [&](SorobanNetworkConfig& cfg) {
+                cfg.mNominationTimeoutInitialMilliseconds =
+                    nominationTimeoutInitialMilliseconds;
+                cfg.mNominationTimeoutIncrementMilliseconds =
+                    nominationTimeoutIncrementMilliseconds;
+                cfg.mBallotTimeoutInitialMilliseconds =
+                    ballotTimeoutInitialMilliseconds;
+                cfg.mBallotTimeoutIncrementMilliseconds =
+                    ballotTimeoutIncrementMilliseconds;
+            },
+            simulation);
+
+        // Verify config was updated
+        auto const& updatedConfig =
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        REQUIRE(updatedConfig.nominationTimeoutInitialMilliseconds() ==
+                nominationTimeoutInitialMilliseconds);
+        REQUIRE(updatedConfig.nominationTimeoutIncrementMilliseconds() ==
+                nominationTimeoutIncrementMilliseconds);
+        REQUIRE(updatedConfig.ballotTimeoutInitialMilliseconds() ==
+                ballotTimeoutInitialMilliseconds);
+        REQUIRE(updatedConfig.ballotTimeoutIncrementMilliseconds() ==
+                ballotTimeoutIncrementMilliseconds);
+
+        // Test timeout calculation with new values
+        timeout1 = scpDriver.computeTimeout(1, /*isNomination=*/false);
+        REQUIRE(timeout1 == std::chrono::milliseconds(1500));
+
+        timeout5 = scpDriver.computeTimeout(5, /*isNomination=*/false);
+        REQUIRE(timeout5 == std::chrono::milliseconds(5900)); // 1500 + 4*1100
+
+        nomTimeout1 = scpDriver.computeTimeout(1, /*isNomination=*/true);
+        REQUIRE(nomTimeout1 == std::chrono::milliseconds(2000));
+
+        nomTimeout5 = scpDriver.computeTimeout(5, /*isNomination=*/true);
+        REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000)); // 2000 + 4*750
+    }
+}
+
+TEST_CASE("upgrades affect in-memory Soroban state state size",
+          "[soroban][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+
+    uint32_t const windowSize = 15;
+    uint32_t const samplePeriod = 4;
+    SorobanTest test(cfg, true, [&](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize =
+            windowSize;
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
+            samplePeriod;
+    });
+
+    std::vector<LedgerKey> addedKeys;
+
+    uint64_t lastInMemorySize = test.getApp()
+                                    .getLedgerManager()
+                                    .getSorobanInMemoryStateSizeForTesting();
+    auto ensureInMemorySizeIncreased = [&]() {
+        // We only increase the state by either generating lots of
+        // transactions, or by multiplicatively increasing the memory cost, so
+        // use a large minimum increase to ensure that we don't count the
+        // state necessary for upgrade as increase.
+        int64_t const minIncrease = 2'000'000;
+        int64_t diff =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSizeForTesting()) -
+            static_cast<int64_t>(lastInMemorySize);
+        REQUIRE(diff >= minIncrease);
+        lastInMemorySize = test.getApp()
+                               .getLedgerManager()
+                               .getSorobanInMemoryStateSizeForTesting();
+    };
+    auto generateTxs = [&](int untilLedger) {
+        // Make sure we start on odd ledger, so that we finish generation 1
+        // ledger before taking the snapshot (every `deployWasmContract` call
+        // closes 2 ledgers).
+        REQUIRE(test.getLCLSeq() % 2 == 1);
+        for (int ledgerNum = test.getLCLSeq() + 1; ledgerNum < untilLedger;
+             ledgerNum += 2)
+        {
+            auto& contract = test.deployWasmContract(
+                rust_bridge::get_random_wasm(2000, ledgerNum));
+            addedKeys.insert(addedKeys.end(), contract.getKeys().begin(),
+                             contract.getKeys().end());
+        }
+        // Close one more ledger to cause the size snapshot to be taken with
+        // the previous size (we add no new data here).
+        closeLedger(test.getApp());
+        REQUIRE(test.getLCLSeq() == untilLedger);
+        ensureInMemorySizeIncreased();
+    };
+
+    // We accumulate a small error in the expected state size estimation due
+    // to upgrades. It's tracked in `expectedInMemorySizeDelta` variable.
+    int64_t expectedInMemorySizeDelta =
+        test.getApp()
+            .getLedgerManager()
+            .getSorobanInMemoryStateSizeForTesting();
+    auto getExpectedInMemorySize = [&]() {
+        LedgerSnapshot ls(test.getApp());
+        auto res = expectedInMemorySizeDelta;
+        for (auto const& key : addedKeys)
+        {
+            auto le = ls.load(key);
+            res += ledgerEntrySizeForRent(le.current(),
+                                          xdr::xdr_size(le.current()), 23,
+                                          test.getNetworkCfg());
+        }
+        return res;
+    };
+
+    auto getStateSizeWindow = [&]() {
+        LedgerSnapshot ls(test.getApp());
+        LedgerKey key(CONFIG_SETTING);
+        key.configSetting().configSettingID =
+            ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+        auto le = ls.load(key);
+        REQUIRE(le);
+        std::vector<uint64_t> windowFromLtx =
+            le.current().data.configSetting().liveSorobanStateSizeWindow();
+        return windowFromLtx;
+    };
+    auto getAverageStateSize = [&]() {
+        auto window = getStateSizeWindow();
+        uint64_t sum = 0;
+        for (auto v : window)
+        {
+            sum += v;
+        }
+        uint64_t averageFromWindow = sum / window.size();
+        auto const& cfg = test.getNetworkCfg();
+        uint64_t averageFromConfig = cfg.getAverageSorobanStateSize();
+        REQUIRE(averageFromConfig == averageFromWindow);
+        return averageFromConfig;
+    };
+
+    auto verifyAverageStateSize = [&](uint64_t minSize, uint64_t maxSize) {
+        auto average = getAverageStateSize();
+        if (minSize == maxSize)
+        {
+            REQUIRE(average == maxSize);
+        }
+        else
+        {
+            REQUIRE(average > minSize);
+            REQUIRE(average < maxSize);
+        }
+    };
+
+    auto verifyExpectedInMemorySize = [&](int64_t maxDiff) {
+        int64_t diff =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSizeForTesting()) -
+            static_cast<int64_t>(getExpectedInMemorySize());
+        if (maxDiff >= 0)
+        {
+            REQUIRE(diff >= 0);
+            REQUIRE(diff <= maxDiff);
+        }
+        else
+        {
+            REQUIRE(diff <= 0);
+            REQUIRE(diff >= maxDiff);
+        }
+
+        expectedInMemorySizeDelta += diff;
+    };
+
+    auto expectSingleValueStateSizeWindow =
+        [&](uint64_t value,
+            std::optional<uint32_t> expectedWindowSize = std::nullopt) {
+            if (!expectedWindowSize)
+            {
+                expectedWindowSize = windowSize;
+            }
+            std::vector<uint64_t> expectedWindow(*expectedWindowSize);
+            expectedWindow.assign(*expectedWindowSize, value);
+            REQUIRE(getStateSizeWindow() == expectedWindow);
+        };
+
+    auto const initBlSize =
+        test.getApp().getBucketManager().getLiveBucketList().getSize();
+
+    INFO("snapshot BL size in p22");
+    // Generate txs to fill up the state size window.
+    generateTxs(windowSize * samplePeriod * 2);
+
+    // We're still in p22, so the last snapshot must still be BL size.
+    auto const blSize =
+        test.getApp().getBucketManager().getLiveBucketList().getSize();
+    auto const p22StateSizeWindow = getStateSizeWindow();
+    verifyAverageStateSize(initBlSize, blSize);
+
+    // The BL grows by the updated config entry after we create the
+    // snapshot. That's why the actual BL size is a bit smaller than the
+    // snapshotted value.
+    int64_t blSizeDiff =
+        std::abs(static_cast<int64_t>(blSize) -
+                 static_cast<int64_t>(p22StateSizeWindow.back()));
+    REQUIRE(blSizeDiff <= 200);
+
+    {
+        INFO("track in-memory size in p22");
+        verifyExpectedInMemorySize(0);
+    }
+
+    {
+        INFO("perform settings upgrade in p22");
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 2;
+            });
+        ensureInMemorySizeIncreased();
+        // There is a small expected state size diff due to the settings upgrade
+        // contract.
+        verifyExpectedInMemorySize(100'000);
+
+        // The state size window must be unchanged.
+        REQUIRE(getStateSizeWindow() == p22StateSizeWindow);
+    }
+
+    INFO("upgrade to p23");
+    executeUpgrade(test.getApp(), makeProtocolVersionUpgrade(23));
+    // In-memory size shouldn't have changed as it has been computed with p23
+    // logic.
+    REQUIRE(test.getApp()
+                .getLedgerManager()
+                .getSorobanInMemoryStateSizeForTesting() == lastInMemorySize);
+    auto const p23MemorySize = lastInMemorySize;
+    // State size window now contains only the current in-memory size.
+    expectSingleValueStateSizeWindow(p23MemorySize);
+    verifyAverageStateSize(p23MemorySize, p23MemorySize);
+
+    {
+        INFO("fill window with in-memory size in p23");
+        closeLedger(test.getApp());
+
+        // Now generate more txs to fill up the window with in-memory sizes.
+        generateTxs(windowSize * samplePeriod * 4);
+        verifyExpectedInMemorySize(0);
+        REQUIRE(getStateSizeWindow().back() == lastInMemorySize);
+        verifyAverageStateSize(p23MemorySize, lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings in p23 without state size snapshot");
+        // Make sure we won't snapshot the window size when we perform the
+        // upgrade on LCL + 1.
+        while (test.getLCLSeq() % windowSize == windowSize - 2)
+        {
+            closeLedger(test.getApp());
+        }
+
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 3;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 3;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(100'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings in p23 with state size snapshot");
+        // Wait until we're one ledger before the ledger that will trigger
+        // snapshotting.
+        while (test.getLCLSeq() % windowSize == windowSize - 1)
+        {
+            closeLedger(test.getApp());
+        }
+
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm *= 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 2;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(200'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+    }
+
+    {
+        INFO("decrease state size via settings upgrade");
+        modifySorobanNetworkConfig(
+            test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .constTerm /= 10;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm /= 10;
+            });
+        int64_t stateSizeDecrease =
+            static_cast<int64_t>(test.getApp()
+                                     .getLedgerManager()
+                                     .getSorobanInMemoryStateSizeForTesting()) -
+            static_cast<int64_t>(lastInMemorySize);
+        REQUIRE(stateSizeDecrease <= -10'000'000);
+        // The state size is now smaller than expected because the upgrade
+        // contract had its memory cost decreased.
+        verifyExpectedInMemorySize(-300'000);
+        lastInMemorySize = test.getApp()
+                               .getLedgerManager()
+                               .getSorobanInMemoryStateSizeForTesting();
+        expectSingleValueStateSizeWindow(lastInMemorySize);
+        verifyAverageStateSize(lastInMemorySize, lastInMemorySize);
+    }
+
+    {
+        INFO("upgrade memory settings and window size in p23");
+        modifySorobanNetworkConfig(
+            test.getApp(), [&](SorobanNetworkConfig& cfg) {
+                cfg.mStateArchivalSettings
+                    .liveSorobanStateSizeWindowSampleSize = windowSize * 2;
+                cfg.mMemCostParams[ContractCostType::ParseWasmInstructions]
+                    .linearTerm *= 3;
+            });
+        ensureInMemorySizeIncreased();
+        verifyExpectedInMemorySize(100'000);
+        expectSingleValueStateSizeWindow(lastInMemorySize, windowSize * 2);
+        verifyAverageStateSize(lastInMemorySize, lastInMemorySize);
+    }
+}
 
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
@@ -916,8 +1342,9 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
-    auto const& sorobanConfig =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto sorobanConfig = [&]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
     SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -928,7 +1355,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         executeUpgrade(*app, ledgerUpgrade);
 
         // upgrade was ignored
-        REQUIRE(sorobanConfig.maxContractSizeBytes() ==
+        REQUIRE(sorobanConfig().maxContractSizeBytes() ==
                 InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
     }
 
@@ -949,71 +1376,79 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.load(getMaxContractSizeKey()).current().data.configSetting();
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-        REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
+        REQUIRE(sorobanConfig().maxContractSizeBytes() == 32768);
     }
 
-    SECTION("modify BucketListSizeWindowSampleSize")
+    SECTION("modify liveSorobanStateSizeWindowSampleSize")
     {
         auto populateValuesAndUpgradeSize = [&](uint32_t size) {
             ConfigUpgradeSetFrameConstPtr configUpgradeSet;
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
-                auto& cfg = app->getLedgerManager()
-                                .getMutableSorobanNetworkConfigForApply();
-
                 // Populate sliding window with interesting values
-                auto i = 0;
-                for (auto& val : cfg.mBucketListSizeSnapshots)
-                {
-                    val = i++;
-                }
-                cfg.writeBucketListSizeWindow(ltx2);
-                cfg.updateBucketListSizeAverage();
+                updateStateSizeWindowSetting(ltx2, [](auto& window) {
+                    int i = 0;
+                    for (auto& val : window)
+                    {
+                        val = i++;
+                    }
+                });
 
                 configUpgradeSet =
-                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
-                                                                  size);
+                    makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                        *app, ltx2, size);
                 ltx2.commit();
             }
 
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize == size);
+        };
+        auto loadWindow = [&]() {
+            LedgerSnapshot ls(*app);
+            LedgerKey key(CONFIG_SETTING);
+            key.configSetting().configSettingID =
+                ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+            return ls.load(key)
+                .current()
+                .data.configSetting()
+                .liveSorobanStateSizeWindow();
         };
 
         SECTION("decrease size")
         {
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg2 =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
             auto expectedValue = 10;
-            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
-            for (auto const val : cfg2.mBucketListSizeSnapshots)
+            auto window = loadWindow();
+            REQUIRE(window.size() == newSize);
+            for (auto const val : window)
             {
                 REQUIRE(val == expectedValue);
                 sum += expectedValue;
                 ++expectedValue;
             }
-
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    (sum / newSize));
         }
 
         SECTION("increase size")
         {
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg2 =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
 
+            auto window = loadWindow();
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
             auto expectedValue = 0;
-            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
-            for (auto i = 0; i < cfg2.mBucketListSizeSnapshots.size(); ++i)
+            REQUIRE(window.size() == newSize);
+            for (auto i = 0; i < window.size(); ++i)
             {
                 // First 11 values should be oldest value (0)
                 if (i > 10)
@@ -1021,42 +1456,53 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     ++expectedValue;
                 }
 
-                REQUIRE(cfg2.mBucketListSizeSnapshots[i] == expectedValue);
+                REQUIRE(window[i] == expectedValue);
                 sum += expectedValue;
             }
-
             // Verify average has been properly updated as well
-            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    (sum / newSize));
         }
 
         auto testUpgradeHasNoEffect = [&](uint32_t size) {
-            uint32_t initialSize;
-            std::deque<uint64_t> initialWindow;
-            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
+                updateStateSizeWindowSetting(ltx2, [](auto& window) {
+                    int i = 0;
+                    for (auto& val : window)
+                    {
+                        val = i++;
+                    }
+                });
+            }
 
-                auto const& cfg =
-                    app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-                initialSize =
-                    cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
-                initialWindow = cfg.mBucketListSizeSnapshots;
-                REQUIRE(initialWindow.size() == initialSize);
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            auto initialWindow = loadWindow();
+            auto initialAverageSize =
+                sorobanConfig().getAverageSorobanStateSize();
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize ==
+                    initialWindow.size());
 
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
                 configUpgradeSet =
-                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
-                                                                  size);
+                    makeLiveSorobanStateSizeWindowSampleSizeTestUpgrade(
+                        *app, ltx2, size);
                 ltx2.commit();
             }
 
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+            REQUIRE(loadWindow() == initialWindow);
 
-            auto const& cfg =
-                app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-            REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
-                    initialSize);
-            REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
+            REQUIRE(sorobanConfig()
+                        .mStateArchivalSettings
+                        .liveSorobanStateSizeWindowSampleSize ==
+                    initialWindow.size());
+            REQUIRE(sorobanConfig().getAverageSorobanStateSize() ==
+                    initialAverageSize);
         };
 
         SECTION("upgrade size to 0")
@@ -1077,15 +1523,15 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     {
         // Verify values pre-upgrade
         REQUIRE(
-            sorobanConfig.feeRatePerInstructionsIncrement() ==
+            sorobanConfig().feeRatePerInstructionsIncrement() ==
             InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
-        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
+        REQUIRE(sorobanConfig().ledgerMaxInstructions() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.txMemoryLimit() ==
+        REQUIRE(sorobanConfig().txMemoryLimit() ==
                 InitialSorobanNetworkConfig::MEMORY_LIMIT);
-        REQUIRE(sorobanConfig.txMaxInstructions() ==
+        REQUIRE(sorobanConfig().txMaxInstructions() ==
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.feeHistorical1KB() ==
+        REQUIRE(sorobanConfig().feeHistorical1KB() ==
                 InitialSorobanNetworkConfig::FEE_HISTORICAL_1KB);
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         {
@@ -1109,14 +1555,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.commit();
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
-        REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
-        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
+        REQUIRE(sorobanConfig().feeRatePerInstructionsIncrement() == 111);
+        REQUIRE(sorobanConfig().ledgerMaxInstructions() ==
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.txMemoryLimit() ==
+        REQUIRE(sorobanConfig().txMemoryLimit() ==
                 MinimumSorobanNetworkConfig::MEMORY_LIMIT);
-        REQUIRE(sorobanConfig.txMaxInstructions() ==
+        REQUIRE(sorobanConfig().txMaxInstructions() ==
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.feeHistorical1KB() == 555);
+        REQUIRE(sorobanConfig().feeHistorical1KB() == 555);
     }
     SECTION("upgrade rejected due to value below minimum")
     {
@@ -1138,7 +1584,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             ltx2.commit();
 
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
-            REQUIRE(sorobanConfig.txMaxWriteBytes() == min);
+            REQUIRE(sorobanConfig().txMaxWriteBytes() == min);
         };
 
         // First set to minimum
@@ -1166,20 +1612,21 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
-    auto const& sorobanConfig =
-        app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto getSorobanConfig = [&]() {
+        return app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    };
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 123);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(0));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 0);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 0);
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(321));
-    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
+    REQUIRE(getSorobanConfig().ledgerMaxTxCount() == 321);
 }
 
-TEST_CASE("upgrade to version 10", "[upgrades]")
+TEST_CASE("upgrade to version 10", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2018,7 +2465,7 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade to version 11", "[upgrades]")
+TEST_CASE("upgrade to version 11", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2070,7 +2517,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bl.resolveAnyReadyFutures();
         }
-        auto mc = bm.readMergeCounters();
+        auto mc = bm.readMergeCounters<LiveBucket>();
 
         CLOG_INFO(Bucket,
                   "Ledger {} did {} old-protocol merges, {} new-protocol "
@@ -2103,13 +2550,12 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             // Check several subtle characteristics of the post-upgrade
             // environment:
             //   - Old-protocol merges stop happening (there should have
-            //     been 6 before the upgrade, but we re-use a merge we did
-            //     at ledger 1 for ledger 2 spill, so the counter is at 5)
+            //     been 6 before the upgrade)
             //   - New-protocol merges start happening.
             //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
             //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
             //   - From 8 on, the INITENTRYs propagate to lev[1].curr
-            REQUIRE(mc.mPreInitEntryProtocolMerges == 5);
+            REQUIRE(mc.mPreInitEntryProtocolMerges == 6);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
             auto& lev0 = bm.getLiveBucketList().getLevel(0);
             auto& lev1 = bm.getLiveBucketList().getLevel(1);
@@ -2141,7 +2587,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade to version 12", "[upgrades]")
+TEST_CASE("upgrade to version 12", "[upgrades][acceptance]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2193,7 +2639,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bl.resolveAnyReadyFutures();
         }
-        auto mc = bm.readMergeCounters();
+        auto mc = bm.readMergeCounters<LiveBucket>();
 
         if (ledgerSeq < 5)
         {
@@ -2219,25 +2665,25 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 // One more old-style merge despite the upgrade
                 // At ledger 8, level 2 spills, and starts an old-style
                 // merge, as level 1 snap is still of old version
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 7);
                 break;
             case 7:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 4);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 6:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 3);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 5:
                 REQUIRE(getVers(lev0Curr) == newProto);
                 REQUIRE(getVers(lev0Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 1);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             default:
                 break;
@@ -2245,13 +2691,119 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         }
     }
 }
+
+TEST_CASE("upgrade to 24 and then latest from 23 and check feePool",
+          "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+
+    // The feePool adjustment only happens if the network is pubnet
+    gIsProductionNetwork = true;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(23));
+
+    auto p23feePool = lm.getLastClosedLedgerHeader().header.feePool;
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(24));
+    REQUIRE(lm.getLastClosedLedgerHeader().header.feePool ==
+            p23feePool + 31879035);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+
+    // No change
+    REQUIRE(lm.getLastClosedLedgerHeader().header.feePool ==
+            p23feePool + 31879035);
+}
+
+TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(24));
+
+    // Load CPU and memory cost params before upgrade
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        LedgerKey cpuKey(CONFIG_SETTING);
+        cpuKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+        // Before v25, the params should only go up to the last v24 cost type
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
+
+        LedgerKey memKey(CONFIG_SETTING);
+        memKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+        // Before v25, memory params should also only go up to the last v24 cost
+        // type
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(25));
+
+    // After upgrade to v25, verify BN254 cost types were added
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        // Check CPU cost params
+        LedgerKey cpuKey(CONFIG_SETTING);
+        cpuKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+        // After v25, params should include all BN254 cost types (up to
+        // Bn254FrInv)
+        REQUIRE(ltx.load(cpuKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsCpuInsns()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+
+        // Check memory cost params
+        LedgerKey memKey(CONFIG_SETTING);
+        memKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+        // After v25, params should include all BN254 cost types (up to
+        // Bn254FrInv)
+        REQUIRE(ltx.load(memKey)
+                    .current()
+                    .data.configSetting()
+                    .contractCostParamsMemBytes()
+                    .size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+    }
+}
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
 // are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades]")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades][acceptance]")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -2296,7 +2848,7 @@ TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades]")
     REQUIRE(metaFrameCount == 2);
 }
 
-TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
+TEST_CASE("configuration initialized in version upgrade", "[soroban][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -2327,22 +2879,18 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     // Check that BucketList size window initialized with current BL size
     auto& networkConfig =
         app->getLedgerManager().getLastClosedSorobanNetworkConfig();
-    REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
+    REQUIRE(networkConfig.getAverageSorobanStateSize() == blSize);
 
     // Check in memory window
-    auto const& inMemoryWindow = networkConfig.mBucketListSizeSnapshots;
-    REQUIRE(inMemoryWindow.size() ==
+    REQUIRE(networkConfig.stateArchivalSettings()
+                .liveSorobanStateSizeWindowSampleSize ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
-    for (auto const& e : inMemoryWindow)
-    {
-        REQUIRE(e == blSize);
-    }
 
     // Check LedgerEntry with window
-    auto onDiskWindow = ltx.load(getBucketListSizeWindowKey())
+    auto onDiskWindow = ltx.load(getliveSorobanStateSizeWindowKey())
                             .current()
                             .data.configSetting()
-                            .bucketListSizeWindow();
+                            .liveSorobanStateSizeWindow();
     REQUIRE(onDiskWindow.size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
     for (auto const& e : onDiskWindow)
@@ -2351,7 +2899,6 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
 {
     VirtualClock clock;
@@ -2420,7 +2967,6 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
                 .getLastClosedSorobanNetworkConfig()
                 .ledgerMaxDependentTxClusters() == 5);
 }
-#endif
 
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
@@ -2583,7 +3129,9 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 
         auto submitTx = [&](TransactionTestFramePtr tx) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            TransactionMetaBuilder txm(true, *tx,
+                                       ltx.loadHeader().current().ledgerVersion,
+                                       app->getAppConnector());
             REQUIRE(
                 tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
             REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -3048,7 +3596,8 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     SECTION("remove expired upgrades")
     {
         header.scpValue.closeTime = VirtualClock::to_time_t(
-            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS);
+            cfg.TESTING_UPGRADE_DATETIME +
+            Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES);
 
         bool updated = false;
         auto upgrades = Upgrades{cfg}.removeUpgrades(
@@ -3066,7 +3615,8 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     SECTION("upgrades not yet expired")
     {
         header.scpValue.closeTime = VirtualClock::to_time_t(
-            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS -
+            cfg.TESTING_UPGRADE_DATETIME +
+            Upgrades::DEFAULT_UPGRADE_EXPIRATION_MINUTES -
             std::chrono::seconds(1));
 
         bool updated = false;
@@ -3081,50 +3631,6 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(upgrades.mBaseReserve);
         REQUIRE(upgrades.mFlags);
     }
-}
-
-TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
-{
-    std::string in = R"({
-    "time": 1618016242,
-    "version": {
-        "has": true,
-        "val": 17
-    },
-    "fee": {
-        "has": false
-    },
-    "maxtxsize": {
-        "has": true,
-        "val": 10000
-    },
-    "maxsorobantxsetsize": {
-        "has": true,
-        "val": 100
-    },
-    "reserve": {
-        "has": false
-    },
-    "flags": {
-        "has": false
-    }
-})";
-
-    Config cfg = getTestConfig();
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-
-    Upgrades::UpgradeParameters up;
-    up.fromJson(in);
-    REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
-    REQUIRE(up.mProtocolVersion.has_value());
-    REQUIRE(up.mProtocolVersion.value() == 17);
-    REQUIRE(!up.mBaseFee.has_value());
-    REQUIRE(up.mMaxTxSetSize.has_value());
-    REQUIRE(up.mMaxTxSetSize.value() == 10000);
-    REQUIRE(up.mMaxSorobanTxSetSize.has_value());
-    REQUIRE(up.mMaxSorobanTxSetSize.value() == 100);
-    REQUIRE(!up.mBaseReserve.has_value());
 }
 
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
@@ -3160,6 +3666,8 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
         REQUIRE(!restoredUpgrades.mMaxSorobanTxSetSize);
 
         REQUIRE(!restoredUpgrades.mFlags);
+        REQUIRE(!restoredUpgrades.mNominationTimeoutLimit);
+        REQUIRE(!restoredUpgrades.mExpirationMinutes);
 
         REQUIRE(restoredUpgrades.mConfigUpgradeSetKey ==
                 initUpgrades.mConfigUpgradeSetKey);
@@ -3184,6 +3692,9 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
          "nullopt" : false
       }
    },
+   "expirationminutes" : {
+      "nullopt" : true
+   },
    "fee" : {
       "data" : 10000,
       "nullopt" : false
@@ -3197,10 +3708,14 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
    "maxtxsize" : {
       "nullopt" : true
    },
+   "nominationtimeoutlimit" : {
+      "nullopt" : true
+   },
    "reserve" : {
       "nullopt" : true
    },
    "time" : 1666464812,
+   "upgradeversion" : 1,
    "version" : {
       "data" : 20,
       "nullopt" : false
@@ -3308,4 +3823,285 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
         REQUIRE_THROWS_AS(root->pay(a1, cur1, 2, native, 1, {}),
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
+}
+
+TEST_CASE("protocol 23 upgrade sets default SCP timing values", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+
+    auto app = createTestApplication(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& scpDriver = herder.getHerderSCPDriver();
+
+    // Verify pre-protocol 23 behavior
+    auto lcl = lm.getLastClosedLedgerHeader();
+    REQUIRE(lcl.header.ledgerVersion == 22);
+
+    // Test that SCP timeouts use the old hardcoded values
+    auto ballotTimeout1 = scpDriver.computeTimeout(1, false);
+    REQUIRE(ballotTimeout1 == std::chrono::milliseconds(1000));
+
+    auto ballotTimeout5 = scpDriver.computeTimeout(5, false);
+    REQUIRE(ballotTimeout5 == std::chrono::milliseconds(5000));
+
+    auto nomTimeout1 = scpDriver.computeTimeout(1, true);
+    REQUIRE(nomTimeout1 == std::chrono::milliseconds(1000));
+
+    auto nomTimeout5 = scpDriver.computeTimeout(5, true);
+    REQUIRE(nomTimeout5 == std::chrono::milliseconds(5000));
+
+    // Upgrade to protocol 23
+    executeUpgrade(*app, makeProtocolVersionUpgrade(23));
+    lcl = lm.getLastClosedLedgerHeader();
+    REQUIRE(lcl.header.ledgerVersion == 23);
+
+    // Verify SCP timing config was initialized with correct defaults
+    auto const& config = lm.getLastClosedSorobanNetworkConfig();
+    REQUIRE(config.ledgerTargetCloseTimeMilliseconds() ==
+            InitialSorobanNetworkConfig::LEDGER_TARGET_CLOSE_TIME_MILLISECONDS);
+    REQUIRE(
+        config.nominationTimeoutInitialMilliseconds() ==
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INITIAL_MILLISECONDS);
+    REQUIRE(
+        config.nominationTimeoutIncrementMilliseconds() ==
+        InitialSorobanNetworkConfig::NOMINATION_TIMEOUT_INCREMENT_MILLISECONDS);
+    REQUIRE(config.ballotTimeoutInitialMilliseconds() ==
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INITIAL_MILLISECONDS);
+    REQUIRE(config.ballotTimeoutIncrementMilliseconds() ==
+            InitialSorobanNetworkConfig::BALLOT_TIMEOUT_INCREMENT_MILLISECONDS);
+
+    // Verify timeouts are the same as before
+    REQUIRE(scpDriver.computeTimeout(1, false) == ballotTimeout1);
+    REQUIRE(scpDriver.computeTimeout(5, false) == ballotTimeout5);
+    REQUIRE(scpDriver.computeTimeout(1, true) == nomTimeout1);
+    REQUIRE(scpDriver.computeTimeout(5, true) == nomTimeout5);
+}
+
+TEST_CASE("upgrade state size window", "[bucketlist][upgrades][soroban]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+
+    SorobanTest test(cfg);
+    auto& app = test.getApp();
+    auto const& lm = test.getApp().getLedgerManager();
+
+    auto networkConfig = [&]() {
+        return lm.getLastClosedSorobanNetworkConfig();
+    };
+
+    auto getStateSizeWindow = [&]() {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+
+        LedgerKey key(CONFIG_SETTING);
+        key.configSetting().configSettingID =
+            ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW;
+        auto txle = ltx.loadWithoutRecord(key);
+        releaseAssert(txle);
+        return txle.current().data.configSetting().liveSorobanStateSizeWindow();
+    };
+
+    // Write some data to the ledger
+    test.deployWasmContract(rust_bridge::get_random_wasm(2000, 100));
+
+    uint64_t const expectedInMemorySize = 81297;
+
+    REQUIRE(getStateSizeWindow().size() ==
+            InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+
+    uint32_t windowSize = networkConfig()
+                              .stateArchivalSettings()
+                              .liveSorobanStateSizeWindowSampleSize;
+    std::deque<uint64_t> correctWindow;
+    for (auto i = 0u; i < windowSize - 1; ++i)
+    {
+        correctWindow.push_back(0);
+    }
+    correctWindow.push_back(expectedInMemorySize);
+
+    auto check = [&]() {
+        std::vector<uint64_t> correctWindowVec(correctWindow.begin(),
+                                               correctWindow.end());
+        REQUIRE(correctWindowVec == getStateSizeWindow());
+
+        uint64_t sum = 0;
+        for (auto e : correctWindow)
+        {
+            sum += e;
+        }
+
+        uint64_t correctAverage = sum / correctWindow.size();
+
+        REQUIRE(networkConfig().getAverageSorobanStateSize() == correctAverage);
+    };
+
+    // Make sure next snapshot is taken
+    while (test.getLCLSeq() % networkConfig()
+                                  .stateArchivalSettings()
+                                  .liveSorobanStateSizeWindowSamplePeriod !=
+           0)
+    {
+        closeLedger(app);
+    }
+
+    // Check window before upgrade
+    check();
+
+    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSampleSize = 11;
+    });
+
+    auto newWindowSize = networkConfig()
+                             .stateArchivalSettings()
+                             .liveSorobanStateSizeWindowSampleSize;
+    REQUIRE(newWindowSize == 11);
+
+    correctWindow.clear();
+
+    for (auto i = 0u; i < newWindowSize - 1; ++i)
+    {
+        correctWindow.push_back(0);
+    }
+    correctWindow.push_back(expectedInMemorySize);
+
+    // Check window after upgrade
+    check();
+}
+
+TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
+          "[archive][upgrades]")
+{
+    uint32_t const corruptedProtocolVersion = 23;
+    uint32_t const fixedProtocolVersion = corruptedProtocolVersion + 1;
+    VirtualClock clock;
+    Config cfg(getTestConfig());
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = corruptedProtocolVersion;
+    auto app = createTestApplication(clock, cfg);
+    gIsProductionNetwork = true;
+    overrideSorobanNetworkConfigForTest(*app);
+
+    auto parseEntries = [](std::vector<std::string> const& encoded) {
+        UnorderedMap<LedgerKey, LedgerEntry> entryByKey;
+        std::vector<LedgerEntry> entries;
+
+        for (auto const& encodedEntry : encoded)
+        {
+            LedgerEntry le;
+            fromOpaqueBase64(le, encodedEntry);
+            entryByKey[LedgerEntryKey(le)] = le;
+            entries.push_back(le);
+        }
+        return std::make_pair(entryByKey, entries);
+    };
+    auto runUpgradeAndGetSnapshot = [&]() {
+        executeUpgrade(*app, makeProtocolVersionUpgrade(fixedProtocolVersion));
+        return app->getAppConnector()
+            .copySearchableHotArchiveBucketListSnapshot();
+    };
+    auto const& corruptedEntries =
+        p23_hot_archive_bug::internal::P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
+    std::vector<std::string> allEncodedCorruptedEntries(
+        corruptedEntries.begin(), corruptedEntries.end());
+    auto [allCorruptedEntriesByKey, allCorruptedEntries] =
+        parseEntries(allEncodedCorruptedEntries);
+    auto const& correctEntries = p23_hot_archive_bug::internal::
+        P23_CORRUPTED_HOT_ARCHIVE_ENTRY_CORRECT_STATE;
+    std::vector<std::string> allEncodedExpectedFixedEntries(
+        correctEntries.begin(), correctEntries.end());
+    auto [allExpectedFixedByKey, allExpectedFixed] =
+        parseEntries(allEncodedExpectedFixedEntries);
+
+    SECTION("all corrupted entries are archived and fixed")
+    {
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        for (auto const& [key, expectedEntry] : allExpectedFixedByKey)
+        {
+            auto actual = hotArchiveSnapshot->load(key);
+            REQUIRE(actual);
+            REQUIRE(actual->archivedEntry() == expectedEntry);
+        }
+    }
+    SECTION("entries not in hot archive are not changed")
+    {
+        auto removedKey = LedgerEntryKey(allCorruptedEntries.back());
+        allCorruptedEntries.pop_back();
+        BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
+            allCorruptedEntries, {});
+        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        auto actual = hotArchiveSnapshot->load(removedKey);
+        REQUIRE(!actual);
+    }
+}
+
+TEST_CASE("upgrades endpoint sets nomination timeout and expiration minutes",
+          "[upgrades][commandhandler]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& ch = app->getCommandHandler();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    SECTION("set upgrades with nominationtimeoutlimit and expirationminutes")
+    {
+        std::string retStr;
+
+        // Set upgrades via HTTP endpoint with both parameters
+        ch.upgrades("?mode=set&upgradetime=2017-01-01T00:00:00Z"
+                    "&basefee=10000"
+                    "&nominationtimeoutlimit=5"
+                    "&expirationminutes=10",
+                    retStr);
+
+        {
+            // Verify via getUpgrades() that parameters were propagated to
+            // Herder
+            auto const& params = herder.getUpgrades().getParameters();
+
+            REQUIRE(params.mBaseFee.value() == 10000);
+            REQUIRE(params.mNominationTimeoutLimit.value() == 5);
+            REQUIRE(params.mExpirationMinutes.value() ==
+                    std::chrono::minutes(10));
+        }
+
+        // Test clearing upgrades
+        ch.upgrades("?mode=clear", retStr);
+
+        auto const& params = herder.getUpgrades().getParameters();
+        REQUIRE(!params.mBaseFee.has_value());
+        REQUIRE(!params.mNominationTimeoutLimit.has_value());
+        REQUIRE(!params.mExpirationMinutes.has_value());
+    }
+
+    SECTION("get upgrades returns JSON with parameters")
+    {
+        std::string setResult;
+
+        // Set upgrades
+        ch.upgrades("?mode=set&upgradetime=2017-01-01T00:00:00Z"
+                    "&basefee=10000"
+                    "&nominationtimeoutlimit=7"
+                    "&expirationminutes=20",
+                    setResult);
+
+        // Get upgrades as JSON
+        std::string getResult;
+        ch.upgrades("?mode=get", getResult);
+
+        // Deserialize and verify parameters set properly
+        Upgrades::UpgradeParameters deserialized;
+        deserialized.fromJson(getResult);
+        REQUIRE(deserialized.mBaseFee.value() == 10000);
+        REQUIRE(deserialized.mNominationTimeoutLimit.value() == 7);
+        REQUIRE(deserialized.mExpirationMinutes.value() ==
+                std::chrono::minutes(20));
+    }
 }

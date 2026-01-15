@@ -14,6 +14,9 @@ STELLAR_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
 if [[ "$ALL_VERSIONS" != "" ]]; then
     STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --all-versions"
 fi
+if [[ "$INTERACTIVE" == "0" ]]; then
+    STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --disable-dots"
+fi
 
 : ${STELLAR_CORE_TEST_PARAMS=$STELLAR_CORE_DEFAULT_TEST_PARAMS}
 
@@ -65,7 +68,7 @@ runpg() {
 
     # pick a random utf locale if we can as to increase
     # detection of encoding issues
-    DB_LOC=`locale -a | grep -i utf | sort -R | head -1`
+    DB_LOC=`locale -a | grep -v '@latin' | grep -i utf | sort -R | head -1`
     if [ -z "$DB_LOC" ] ; then DB_LOC="--no-locale" ; else DB_LOC="--locale=$DB_LOC" ; fi
 
     echo Creating temporary PostgreSQL database cluster in "$PGDATA" with $DB_LOC

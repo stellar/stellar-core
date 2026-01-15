@@ -27,9 +27,10 @@ ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-ClawbackClaimableBalanceOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+ClawbackClaimableBalanceOpFrame::doApply(AppConnector& app,
+                                         AbstractLedgerTxn& ltx,
+                                         OperationResult& res,
+                                         OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "ClawbackClaimableBalanceOp apply", true);
 
@@ -69,6 +70,12 @@ ClawbackClaimableBalanceOpFrame::doApply(
     auto sourceAccount = loadSourceAccount(ltx, header);
     removeEntryWithPossibleSponsorship(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
+
+    // Emit event before we erase the claimable balance
+    opMeta.getEventManager().newClawbackEvent(
+        asset(),
+        makeClaimableBalanceAddress(mClawbackClaimableBalance.balanceID),
+        claimableBalanceLtxEntry.current().data.claimableBalance().amount);
 
     claimableBalanceLtxEntry.erase();
 

@@ -1,7 +1,8 @@
-#pragma once
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "util/Math.h"
 #include "util/NonCopyable.h"
@@ -12,6 +13,14 @@
 
 namespace stellar
 {
+
+// The global prng generator can only be accessed from the main thread, but
+// there's no reason RandomEvictionCache should be main-thread only. To get
+// around this, each RandomEvictionCache will have a local prng generator by
+// default with a seed specific to the cache. While technically there is a race
+// on this seed since it's managed via main thread's `initializeAllGlobalState`
+// functions, we only actually reset the seed in tests.
+static unsigned int randomEvictionCacheSeed{0};
 
 // Implements a simple fixed-size cache that does
 // least-recent-out-of-2-random-choices eviction. Degrades more-gracefully
@@ -57,8 +66,6 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // Each cache keeps some counters just to monitor its performance.
     Counters mCounters;
 
-    // Optionally use a dedicated random engine
-    bool const mSeparatePRNG{false};
     stellar_default_random_engine mRandEngine;
 
     // Randomly pick two elements and evict the less-recently-used one.
@@ -71,11 +78,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
             return;
         }
         auto getRandIndex = [&]() {
-            if (mSeparatePRNG)
-            {
-                return rand_uniform<size_t>(0, sz - 1, mRandEngine);
-            }
-            return rand_uniform<size_t>(0, sz - 1);
+            return rand_uniform<size_t>(0, sz - 1, mRandEngine);
         };
         MapValueType*& vp1 = mValuePtrs.at(getRandIndex());
         MapValueType*& vp2 = mValuePtrs.at(getRandIndex());
@@ -89,26 +92,16 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
   public:
     explicit RandomEvictionCache(size_t maxSize)
-        : mMaxSize(maxSize), mSeparatePRNG(false)
-    {
-        mValueMap.reserve(maxSize + 1);
-        mValuePtrs.reserve(maxSize + 1);
-    }
-
-    RandomEvictionCache(size_t maxSize, bool separatePRNG)
-        : mMaxSize(maxSize), mSeparatePRNG(separatePRNG)
+        : mMaxSize(maxSize), mRandEngine(randomEvictionCacheSeed)
     {
         mValueMap.reserve(maxSize + 1);
         mValuePtrs.reserve(maxSize + 1);
     }
 
     void
-    maybeSeed(unsigned int seed)
+    seed(unsigned int seed)
     {
-        if (mSeparatePRNG)
-        {
-            mRandEngine.seed(seed);
-        }
+        mRandEngine.seed(seed);
     }
 
     size_t

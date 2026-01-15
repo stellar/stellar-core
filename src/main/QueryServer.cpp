@@ -6,10 +6,15 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
+#include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <exception>
 #include <json/json.h>
+#include <unordered_map>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -52,9 +57,14 @@ parseOptionalParam(std::map<std::string, std::vector<std::string>> const& map,
 
 namespace stellar
 {
-QueryServer::QueryServer(const std::string& address, unsigned short port,
+QueryServer::QueryServer(std::string const& address, unsigned short port,
                          int maxClient, size_t threadPoolSize,
-                         BucketSnapshotManager& bucketSnapshotManager)
+                         BucketSnapshotManager& bucketSnapshotManager
+#ifdef BUILD_TESTS
+                         ,
+                         bool useMainThreadForTesting
+#endif
+                         )
     : mServer(address, port, maxClient, threadPoolSize)
     , mBucketSnapshotManager(bucketSnapshotManager)
 {
@@ -63,13 +73,35 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
 
     mServer.add404(std::bind(&QueryServer::notFound, this, _1, _2, _3));
     addRoute("getledgerentryraw", &QueryServer::getLedgerEntryRaw);
+    addRoute("getledgerentry", &QueryServer::getLedgerEntry);
 
-    auto workerPids = mServer.start();
-    for (auto pid : workerPids)
+#ifdef BUILD_TESTS
+    if (useMainThreadForTesting)
     {
-        mBucketListSnapshots[pid] = std::move(
-            bucketSnapshotManager.copySearchableLiveBucketListSnapshot());
+        mBucketListSnapshots[std::this_thread::get_id()] =
+            bucketSnapshotManager.copySearchableLiveBucketListSnapshot();
+        mHotArchiveBucketListSnapshots[std::this_thread::get_id()] =
+            bucketSnapshotManager.copySearchableHotArchiveBucketListSnapshot();
     }
+    else
+#endif
+    {
+        auto workerPids = mServer.start();
+        for (auto pid : workerPids)
+        {
+            mBucketListSnapshots[pid] =
+                bucketSnapshotManager.copySearchableLiveBucketListSnapshot();
+            mHotArchiveBucketListSnapshots[pid] =
+                bucketSnapshotManager
+                    .copySearchableHotArchiveBucketListSnapshot();
+        }
+    }
+}
+
+void
+QueryServer::shutdown()
+{
+    mServer.shutdown();
 }
 
 bool
@@ -160,7 +192,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
             // Return 404 if ledgerSeq not found
             if (!loadedKeysOp)
             {
-                retStr = "LedgerSeq not found";
+                retStr = "Ledger not found\n";
                 return false;
             }
 
@@ -169,15 +201,14 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         // Otherwise default to current ledger
         else
         {
-            loadedKeys = bl.loadKeysWithLimits(orderedKeys, "query",
-                                               /*lkMeter=*/nullptr);
+            loadedKeys = bl.loadKeys(orderedKeys, "query");
             root["ledgerSeq"] = bl.getLedgerSeq();
         }
 
         for (auto const& le : loadedKeys)
         {
             Json::Value entry;
-            entry["le"] = toOpaqueBase64(le);
+            entry["entry"] = toOpaqueBase64(le);
             root["entries"].append(entry);
         }
     }
@@ -187,6 +218,218 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
             "Must specify ledger key in POST body: key=<LedgerKey in base64 "
             "XDR format>");
     }
+    retStr = Json::FastWriter().write(root);
+    return true;
+}
+
+// This query needs to load all the given ledger entries and their "state"
+// (live, archived, new). This requires loading an entry and TTL from
+// the live BucketList and then checking the Hot Archive for any keys we didn't
+// find. We do three passes:
+// 1. Load all keys from the live BucketList
+// 2. For any Soroban keys not in the live BucketList, load them from the Hot
+//    Archive
+// 3. Load TTL keys for any live Soroban entries found in 1.
+bool
+QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
+                            std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::vector<std::string>> paramMap;
+    httpThreaded::server::server::parsePostParams(body, paramMap);
+
+    auto const keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
+
+    if (keys.empty())
+    {
+        retStr = "Must specify key in POST body: key=<LedgerKey in base64 "
+                 "XDR format>\n";
+        return false;
+    }
+
+    auto& liveBl = mBucketListSnapshots.at(std::this_thread::get_id());
+    auto& hotArchiveBl =
+        mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
+
+    LedgerKeySet keysToSearch;
+
+    // Keep track of keys in their original order for response ordering
+    std::vector<LedgerKey> inputOrderedKeys;
+
+    for (auto const& key : keys)
+    {
+        LedgerKey k;
+        fromOpaqueBase64(k, key);
+        if (k.type() == TTL)
+        {
+            retStr = "TTL keys are not allowed\n";
+            return false;
+        }
+
+        auto [_, inserted] = keysToSearch.emplace(k);
+        if (!inserted)
+        {
+            retStr = "Duplicate keys\n";
+            return false;
+        }
+
+        inputOrderedKeys.push_back(k);
+    }
+
+    mBucketSnapshotManager.maybeCopyLiveAndHotArchiveSnapshots(liveBl,
+                                                               hotArchiveBl);
+
+    std::vector<LedgerEntry> liveEntries;
+    std::vector<HotArchiveBucketEntry> archivedEntries;
+    uint32_t ledgerSeq =
+        snapshotLedger ? *snapshotLedger : liveBl->getLedgerSeq();
+    root["ledgerSeq"] = ledgerSeq;
+
+    auto liveEntriesOp = liveBl->loadKeysFromLedger(keysToSearch, ledgerSeq);
+
+    // Return 404 if ledgerSeq not found
+    if (!liveEntriesOp)
+    {
+        retStr = "Ledger not found\n";
+        return false;
+    }
+
+    liveEntries = std::move(*liveEntriesOp);
+
+    // Remove keys found in live bucketList from subsequent searches
+    for (auto const& le : liveEntries)
+    {
+        keysToSearch.erase(LedgerEntryKey(le));
+    }
+
+    LedgerKeySet hotArchiveKeysToSearch;
+    for (auto const& lk : keysToSearch)
+    {
+        if (isSorobanEntry(lk))
+        {
+            hotArchiveKeysToSearch.emplace(lk);
+        }
+    }
+
+    // Only query archive for soroban keys we didn't find in the live bucketList
+    if (!hotArchiveKeysToSearch.empty())
+    {
+        auto archivedEntriesOp =
+            hotArchiveBl->loadKeysFromLedger(hotArchiveKeysToSearch, ledgerSeq);
+        if (!archivedEntriesOp)
+        {
+            retStr = "Ledger not found\n";
+            return false;
+        }
+        archivedEntries = std::move(*archivedEntriesOp);
+    }
+
+    // Collect TTL keys for Soroban entries in the live BucketList
+    LedgerKeySet ttlKeys;
+    for (auto const& le : liveEntries)
+    {
+        if (isSorobanEntry(le.data))
+        {
+            ttlKeys.emplace(getTTLKey(le));
+        }
+    }
+
+    std::vector<LedgerEntry> ttlEntries;
+    if (!ttlKeys.empty())
+    {
+        // We haven't updated the live snapshot so we know the have a snapshot
+        // available for ledgerSeq
+        ttlEntries =
+            std::move(liveBl->loadKeysFromLedger(ttlKeys, ledgerSeq).value());
+    }
+
+    std::unordered_map<LedgerKey, LedgerEntry> ttlMap;
+    for (auto const& ttlEntry : ttlEntries)
+    {
+        ttlMap.emplace(LedgerEntryKey(ttlEntry), ttlEntry);
+    }
+
+    // Store key -> formatted response
+    std::unordered_map<LedgerKey, Json::Value> responseEntries;
+
+    for (auto const& le : liveEntries)
+    {
+        LedgerKey lk = LedgerEntryKey(le);
+        Json::Value entry;
+
+        // Check TTL to set state for Soroban entries
+        if (isSorobanEntry(le.data))
+        {
+            auto ttlIter = ttlMap.find(getTTLKey(le));
+            releaseAssertOrThrow(ttlIter != ttlMap.end());
+            if (isLive(ttlIter->second, ledgerSeq))
+            {
+                entry["entry"] = toOpaqueBase64(le);
+                entry["state"] = "live";
+                entry["liveUntilLedgerSeq"] =
+                    ttlIter->second.data.ttl().liveUntilLedgerSeq;
+            }
+            else if (isPersistentEntry(lk))
+            {
+                entry["entry"] = toOpaqueBase64(le);
+                entry["state"] = "archived";
+                entry["liveUntilLedgerSeq"] = 0;
+            }
+            // Archived temporary entries are considered "not-found"
+            else
+            {
+                entry["state"] = "not-found";
+            }
+        }
+        else
+        {
+            entry["entry"] = toOpaqueBase64(le);
+            entry["state"] = "live";
+        }
+
+        responseEntries[lk] = entry;
+    }
+
+    for (auto const& be : archivedEntries)
+    {
+        auto const& le = be.archivedEntry();
+        LedgerKey lk = LedgerEntryKey(le);
+
+        // At this point we've "found" the key and know it's archived, so remove
+        // it from our search set
+        keysToSearch.erase(lk);
+
+        Json::Value entry;
+        entry["entry"] = toOpaqueBase64(le);
+        entry["state"] = "archived";
+
+        // Add placeholder TTL value for archived entries
+        entry["liveUntilLedgerSeq"] = 0;
+
+        responseEntries[lk] = entry;
+    }
+
+    // Since we removed entries found in the live BucketList and archived
+    // entries found in the Hot Archive, any remaining keys must be not-found.
+    for (auto const& key : keysToSearch)
+    {
+        Json::Value entry;
+        entry["state"] = "not-found";
+
+        responseEntries[key] = entry;
+    }
+
+    // Add entries to the response in the same order as the input keys
+    for (auto const& key : inputOrderedKeys)
+    {
+        auto it = responseEntries.find(key);
+        releaseAssertOrThrow(it != responseEntries.end());
+        root["entries"].append(it->second);
+    }
+
     retStr = Json::FastWriter().write(root);
     return true;
 }

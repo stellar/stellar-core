@@ -306,7 +306,7 @@ WriteVerifiedCheckpointHashesWork::endOutputFile()
         // The output file was written to a temporary file, so rename it to
         // the output path provided by the user.
         fs::durableRename(mTmpOutputPath.string(), mOutputPath.string(),
-                          mOutputPath.relative_path().string());
+                          mOutputPath.parent_path().string());
     }
 }
 

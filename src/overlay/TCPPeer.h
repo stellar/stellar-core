@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "overlay/Peer.h"
 #include "util/Timer.h"
@@ -127,7 +127,7 @@ class TCPPeer : public Peer
     // write-buffers freed during the ASIO write into those buffers, which
     // would cause memory corruption.
     //
-    // As a retult, the lifetime of a TCPPeer is _not_ the same as the time it
+    // As a result, the lifetime of a TCPPeer is _not_ the same as the time it
     // is known to the OverlayManager. We can drop a TCPPeer from the
     // OverlayManager's registration a while before it's actually destroyed.
     // To properly manage load, therefore, we have to separately track the
@@ -157,15 +157,5 @@ class TCPPeer : public Peer
 
     virtual void drop(std::string const& reason,
                       DropDirection dropDirection) override;
-
-#ifdef BUILD_TESTS
-    std::atomic<bool> mStopReadingForTesting{false};
-    void
-    scheduleReadForTesting()
-    {
-        releaseAssert(threadIsMain());
-        scheduleRead();
-    }
-#endif
 };
 }

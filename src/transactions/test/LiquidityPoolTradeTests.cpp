@@ -5,8 +5,8 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
@@ -21,7 +21,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-void
+static void
 testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 {
     auto share12 = makeChangeTrustAssetPoolShare(

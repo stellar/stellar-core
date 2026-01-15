@@ -5,8 +5,8 @@
 #include "test/TestMarket.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionUtils.h"
@@ -32,8 +32,8 @@ operator<(OfferKey const& x, OfferKey const& y)
     return x.offerID < y.offerID;
 }
 
-const OfferState OfferState::SAME{};
-const OfferState OfferState::DELETED{makeNativeAsset(), makeNativeAsset(),
+OfferState const OfferState::SAME{};
+OfferState const OfferState::DELETED{makeNativeAsset(), makeNativeAsset(),
                                      Price{1, 1}, 0};
 
 OfferState::OfferState(OfferEntry const& entry)

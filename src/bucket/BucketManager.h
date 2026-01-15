@@ -1,22 +1,27 @@
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #pragma once
 
 #include "bucket/BucketMergeMap.h"
+#include "history/HistoryArchive.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Config.h"
+#include "util/ThreadAnnotations.h"
 #include "util/TmpDir.h"
+#include "util/UnorderedMap.h"
 #include "util/types.h"
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
-
-// Copyright 2015 Stellar Development Foundation and contributors. Licensed
-// under the Apache License, Version 2.0. See the COPYING file at the root
-// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 namespace medida
 {
@@ -30,7 +35,7 @@ namespace stellar
 
 class TmpDir;
 class AbstractLedgerTxn;
-class Application;
+class AppConnector;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
@@ -38,7 +43,6 @@ class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
 enum class LedgerEntryTypeAndDurability : uint32_t;
-class SorobanNetworkConfig;
 
 struct HistoryArchiveState;
 
@@ -73,12 +77,10 @@ class BucketManager : NonMovableOrCopyable
 
     static std::string const kLockFilename;
 
-    // NB: ideally, BucketManager should have no access to mApp, as it's too
-    // dangerous in the context of parallel application. BucketManager is quite
-    // bloated, with lots of legacy code, so to ensure safety, annotate all
-    // functions using mApp with `releaseAssert(threadIsMain())` and avoid
-    // accessing mApp in the background.
-    Application& mApp;
+    // BucketManager uses AppConnector for thread-safe access to Application
+    // services. AppConnector methods are either explicitly main-thread only
+    // (with releaseAssert) or documented as thread-safe.
+    AppConnector& mAppConnector;
     std::unique_ptr<LiveBucketList> mLiveBucketList;
     std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
     std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
@@ -87,10 +89,24 @@ class BucketManager : NonMovableOrCopyable
     BucketMapT<LiveBucket> mSharedLiveBuckets;
     BucketMapT<HotArchiveBucket> mSharedHotArchiveBuckets;
 
+#ifdef THREAD_SAFETY
+  public:
+#endif
+
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
     // a BucketList (i.e. addLiveBatch).
-    mutable std::recursive_mutex mBucketMutex;
+    //
+    // LOCK ORDERING: This mutex must be acquired AFTER LedgerManagerImpl's
+    // mLedgerStateMutex to prevent deadlocks. Code must NOT hold mBucketMutex
+    // while trying to acquire LedgerManagerImpl::mLedgerStateMutex, as this
+    // will cause a deadlock.
+    mutable RecursiveMutex mBucketMutex;
+
+#ifdef THREAD_SAFETY
+  private:
+#endif
+
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketLiveObjectInsertBatch;
     medida::Meter& mBucketArchiveObjectInsertBatch;
@@ -102,15 +118,18 @@ class BucketManager : NonMovableOrCopyable
     medida::Counter& mArchiveBucketListSizeCounter;
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
-    EvictionCounters mBucketListEvictionCounters;
-    MergeCounters mMergeCounters;
+    medida::Counter& mLiveBucketIndexCacheEntries;
+    medida::Counter& mLiveBucketIndexCacheBytes;
+    EvictionMetrics mBucketListEvictionMetrics;
+    MergeCounters mLiveMergeCounters;
+    MergeCounters mHotArchiveMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntryCountCounters;
     std::map<LedgerEntryTypeAndDurability, medida::Counter&>
         mBucketListEntrySizeCounters;
 
-    std::future<EvictionResultCandidates> mEvictionFuture{};
+    std::future<std::unique_ptr<EvictionResultCandidates>> mEvictionFuture{};
 
     // Copy app's config for thread-safe access
     Config const mConfig;
@@ -120,15 +139,16 @@ class BucketManager : NonMovableOrCopyable
     // FutureBucket being resolved). Entries in this map will be cleared when
     // the FutureBucket is _cleared_ (typically when the owning BucketList level
     // is committed).
-    FutureMapT<LiveBucket> mLiveBucketFutures;
-    FutureMapT<HotArchiveBucket> mHotArchiveBucketFutures;
+    FutureMapT<LiveBucket> mLiveBucketFutures GUARDED_BY(mBucketMutex);
+    FutureMapT<HotArchiveBucket>
+        mHotArchiveBucketFutures GUARDED_BY(mBucketMutex);
 
     // Records bucket-merges that are _finished_, i.e. have been adopted as
     // (possibly redundant) bucket files. This is a "weak" (bi-multi-)map of
     // hashes, that does not count towards std::shared_ptr refcounts, i.e. does
     // not keep either the output bucket or any of its input buckets
     // alive. Needs to be queried and updated on mSharedBuckets GC events.
-    BucketMergeMap mFinishedMerges;
+    BucketMergeMap mFinishedMerges GUARDED_BY(mBucketMutex);
 
     std::atomic<bool> mIsShutdown{false};
 
@@ -141,50 +161,72 @@ class BucketManager : NonMovableOrCopyable
     template <class BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-        std::unique_ptr<typename BucketT::IndexT const> index,
-        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap);
+        std::shared_ptr<typename BucketT::IndexT const> index,
+        BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
+        std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     std::shared_ptr<BucketT>
-    getBucketByHashInternal(uint256 const& hash,
-                            BucketMapT<BucketT>& bucketMap);
+    getBucketByHashInternal(uint256 const& hash, BucketMapT<BucketT>& bucketMap)
+        REQUIRES(mBucketMutex);
     template <class BucketT>
     std::shared_ptr<BucketT>
     getBucketIfExistsInternal(uint256 const& hash,
-                              BucketMapT<BucketT> const& bucketMap) const;
+                              BucketMapT<BucketT> const& bucketMap) const
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     std::shared_future<std::shared_ptr<BucketT>>
-    getMergeFutureInternal(MergeKey const& key, FutureMapT<BucketT>& futureMap);
+    getMergeFutureInternal(MergeKey const& key, FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     void
     putMergeFutureInternal(MergeKey const& key,
                            std::shared_future<std::shared_ptr<BucketT>> future,
-                           FutureMapT<BucketT>& futureMap);
+                           FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
 
     template <class BucketT>
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
-                                      FutureMapT<BucketT>& futureMap);
+                                      FutureMapT<BucketT>& futureMap)
+        REQUIRES(mBucketMutex);
+
+    void reportLiveBucketIndexCacheMetrics();
+
+    template <class BucketT>
+    std::map<LedgerKey, LedgerEntry> loadCompleteBucketListStateHelper(
+        std::vector<HistoryStateBucket<BucketT>> const& buckets,
+        std::function<void(std::shared_ptr<BucketT>, std::string const&,
+                           std::map<LedgerKey, LedgerEntry>&)>
+            loadFunc);
+
+    // Return the set of buckets referenced by the BucketList, LCL HAS,
+    // and publish queue.
+    std::set<Hash> getAllReferencedBuckets(HistoryArchiveState const& has,
+                                           RecursiveMutexLocker& lock) const
+        REQUIRES(mBucketMutex);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
     uint32_t mFakeTestProtocolVersion;
     uint256 mFakeTestBucketListHash;
+    std::atomic<bool> mDelayMergesForTesting{false};
 #endif
 
   protected:
-    BucketManager(Application& app);
+    BucketManager(AppConnector& appConnector);
     void calculateSkipValues(LedgerHeader& currentHeader);
     std::string bucketFilename(std::string const& bucketHexHash);
     std::string bucketFilename(Hash const& hash);
 
   public:
-    static std::unique_ptr<BucketManager> create(Application& app);
+    static std::unique_ptr<BucketManager> create(AppConnector& app);
     virtual ~BucketManager();
 
     void initialize();
-    void dropAll();
+    void maybeDropAndCreateNew();
     std::string bucketIndexFilename(Hash const& hash) const;
     std::string const& getTmpDir();
     TmpDirManager& getTmpDirManager();
@@ -204,8 +246,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.
-    MergeCounters readMergeCounters();
-    void incrMergeCounters(MergeCounters const& delta);
+    template <class BucketT> MergeCounters readMergeCounters();
+    template <class BucketT> void incrMergeCounters(MergeCounters const& delta);
 
     // Get a reference to a persistent bucket (in the BucketManager's bucket
     // directory), from the BucketManager's shared bucket-set.
@@ -219,10 +261,10 @@ class BucketManager : NonMovableOrCopyable
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
     template <class BucketT>
-    std::shared_ptr<BucketT>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      MergeKey* mergeKey,
-                      std::unique_ptr<typename BucketT::IndexT const> index);
+    std::shared_ptr<BucketT> adoptFileAsBucket(
+        std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+        std::shared_ptr<typename BucketT::IndexT const> index,
+        std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
@@ -281,8 +323,7 @@ class BucketManager : NonMovableOrCopyable
                       std::vector<LedgerKey> const& deadEntries);
     void addHotArchiveBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& archivedEntries,
-                            std::vector<LedgerKey> const& restoredEntries,
-                            std::vector<LedgerKey> const& deletedEntries);
+                            std::vector<LedgerKey> const& restoredEntries);
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.
@@ -295,24 +336,23 @@ class BucketManager : NonMovableOrCopyable
     // this function, otherwise use BucketBase::setIndex().
     template <class BucketT>
     void maybeSetIndex(std::shared_ptr<BucketT> b,
-                       std::unique_ptr<typename BucketT::IndexT const>&& index);
+                       std::shared_ptr<typename BucketT::IndexT const> index);
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(uint32_t ledgerSeq, uint32_t ledgerVers,
-                                     SorobanNetworkConfig const& cfg);
+    void startBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+                                     SorobanNetworkConfig const& networkConfig);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
-    // the first vector constains all deleted keys (TTL and temporary), and
-    // the second vector contains all archived entries (persistent and
+    // the first vector contains all deleted keys (TTL and temporary), and the
+    // second vector contains all archived entries (persistent and
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
     EvictedStateVectors
-    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
-                                  LedgerKeySet const& modifiedKeys,
-                                  uint32_t ledgerVers,
-                                  SorobanNetworkConfig const& networkConfig);
+    resolveBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+                                  AbstractLedgerTxn& ltx,
+                                  LedgerKeySet const& modifiedKeys);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;
@@ -330,15 +370,26 @@ class BucketManager : NonMovableOrCopyable
     std::set<Hash> getBucketHashesInBucketDirForTesting() const;
 
     medida::Counter& getEntriesEvictedCounter() const;
+
+    // Enable merge delays for testing bucket reattachment
+    void enableDelayedMergesForTesting();
+    bool
+    shouldDelayMergesForTesting() const
+    {
+        return mDelayMergesForTesting;
+    }
 #endif
 
     // Return the set of buckets referenced by the BucketList
     std::set<Hash> getBucketListReferencedBuckets() const;
 
-    // Return the set of buckets referenced by the BucketList, LCL HAS,
-    // and publish queue.
     std::set<Hash>
-    getAllReferencedBuckets(HistoryArchiveState const& has) const;
+    getAllReferencedBuckets(HistoryArchiveState const& has) const
+        LOCKS_EXCLUDED(mBucketMutex)
+    {
+        RecursiveMutexLocker lock(mBucketMutex);
+        return getAllReferencedBuckets(has, lock);
+    }
 
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding
@@ -347,7 +398,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Assume state from `has` in BucketList: find and attach all buckets in
     // `has`, set current BL.
-    void assumeState(HistoryArchiveState const& has,
+    void assumeState(Application& app, HistoryArchiveState const& has,
                      uint32_t maxProtocolVersion, bool restartMerges);
 
     void shutdown();
@@ -366,9 +417,13 @@ class BucketManager : NonMovableOrCopyable
     std::map<LedgerKey, LedgerEntry>
     loadCompleteLedgerState(HistoryArchiveState const& has);
 
+    std::map<LedgerKey, LedgerEntry>
+    loadCompleteHotArchiveState(HistoryArchiveState const& has);
+
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.
-    std::shared_ptr<LiveBucket> mergeBuckets(HistoryArchiveState const& has);
+    std::shared_ptr<LiveBucket> mergeBuckets(asio::io_context& ctx,
+                                             HistoryArchiveState const& has);
 
     // Visits all the active ledger entries or subset thereof.
     //
@@ -388,7 +443,8 @@ class BucketManager : NonMovableOrCopyable
     // equivalent to iterating over `loadCompleteLedgerState`, so the same
     // memory/runtime implications apply.
     void visitLedgerEntries(
-        HistoryArchiveState const& has, std::optional<int64_t> minLedger,
+        bool visitLiveBucketList, HistoryArchiveState const& has,
+        std::optional<uint32_t> minLedger,
         std::function<bool(LedgerEntry const&)> const& filterEntry,
         std::function<bool(LedgerEntry const&)> const& acceptEntry,
         bool includeAllStates);
@@ -396,7 +452,8 @@ class BucketManager : NonMovableOrCopyable
     // Schedule a Work class that verifies the hashes of all referenced buckets
     // on background threads.
     std::shared_ptr<BasicWork>
-    scheduleVerifyReferencedBucketsWork(HistoryArchiveState const& has);
+    scheduleVerifyReferencedBucketsWork(Application& app,
+                                        HistoryArchiveState const& has);
 
     Config const& getConfig() const;
     void reportBucketEntryCountMetrics();

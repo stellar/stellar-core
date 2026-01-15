@@ -23,7 +23,7 @@ namespace stellar
 using namespace std::placeholders;
 
 // max number of transitions that can occur from processing one message
-static const int MAX_ADVANCE_SLOT_RECURSION = 50;
+static int const MAX_ADVANCE_SLOT_RECURSION = 50;
 
 BallotProtocol::BallotProtocol(Slot& slot)
     : mSlot(slot)
@@ -239,7 +239,7 @@ bool
 BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 {
     auto qSet = mSlot.getQuorumSetFromStatement(st);
-    const char* errString = nullptr;
+    char const* errString = nullptr;
     bool res = qSet != nullptr && isQuorumSetSane(*qSet, false, errString);
     if (!res)
     {
@@ -496,7 +496,7 @@ void
 BallotProtocol::startBallotProtocolTimer()
 {
     std::chrono::milliseconds timeout = mSlot.getSCPDriver().computeTimeout(
-        mCurrentBallot->getBallot().counter);
+        mCurrentBallot->getBallot().counter, /*isNomination=*/false);
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(
@@ -1893,13 +1893,18 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     // only bump after we're done with everything else
     if (mCurrentMessageLevel == 1)
     {
-        bool didBump = false;
-        do
+        while (true)
         {
             // attemptBump may invoke advanceSlot recursively
-            didBump = attemptBump();
-            didWork = didBump || didWork;
-        } while (didBump);
+            if (attemptBump())
+            {
+                didWork = true;
+            }
+            else
+            {
+                break;
+            }
+        }
 
         checkHeardFromQuorum();
     }
@@ -1996,7 +2001,7 @@ BallotProtocol::sendLatestEnvelope()
     }
 }
 
-std::array<const char*, BallotProtocol::SCP_PHASE_NUM>
+std::array<char const*, BallotProtocol::SCP_PHASE_NUM>
     BallotProtocol::phaseNames = std::array{"PREPARE", "FINISH", "EXTERNALIZE"};
 
 Json::Value

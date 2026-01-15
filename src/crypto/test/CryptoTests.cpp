@@ -12,7 +12,7 @@
 #include "crypto/SignerKey.h"
 #include "crypto/StrKey.h"
 #include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-types.h"
@@ -286,14 +286,14 @@ TEST_CASE("sign tests", "[crypto]")
     LOG_DEBUG(DEFAULT_LOG, "formed signature: {}", binToHex(sig));
 
     LOG_DEBUG(DEFAULT_LOG, "checking signature-verify");
-    CHECK(PubKeyUtils::verifySig(pk, sig, msg));
+    CHECK(PubKeyUtils::verifySig(pk, sig, msg).valid);
 
     LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad message");
-    CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo")));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo")).valid);
 
     LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad signature");
     sig[4] ^= 1;
-    CHECK(!PubKeyUtils::verifySig(pk, sig, msg));
+    CHECK(!PubKeyUtils::verifySig(pk, sig, msg).valid);
 }
 
 TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
@@ -324,7 +324,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     auto randomB32 = []() {
         char res;
-        char d = static_cast<char>(gRandomEngine() % 32);
+        char d = static_cast<char>(getGlobalRandomEngine()() % 32);
         if (d < 6)
         {
             res = d + '2';
@@ -371,7 +371,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     for (int round = 0; round < 100; round++)
     {
-        const int expectedSize = 32;
+        int const expectedSize = 32;
         std::vector<uint8_t> in(input(expectedSize));
         std::string encoded = strKey::toStrKey(version, in).value;
 
@@ -516,7 +516,7 @@ struct Iacr20201244TestVector
     bool should_fail;
 };
 
-const Iacr20201244TestVector IACR_2020_1244_TEST_VECTORS[12] = {
+Iacr20201244TestVector const IACR_2020_1244_TEST_VECTORS[12] = {
     // Case 0: Small-order A and R components (should be rejected) but verifies
     // under either equality check.
     Iacr20201244TestVector{
@@ -635,7 +635,7 @@ TEST_CASE("Ed25519 test vectors from IACR 2020/1244", "[crypto]")
         REQUIRE(s.size() == 64);
         Signature sig;
         sig.assign(s.begin(), s.end());
-        REQUIRE(PubKeyUtils::verifySig(pk, sig, hexToBin(tv.message)) !=
+        REQUIRE(PubKeyUtils::verifySig(pk, sig, hexToBin(tv.message)).valid !=
                 tv.should_fail);
     }
 }
@@ -1630,6 +1630,7 @@ ZcashTestVector const ZCASH_TEST_VECTORS[196] = {
 
 TEST_CASE("Ed25519 test vectors from Zcash", "[crypto]")
 {
+    PubKeyUtils::enableRustDalekVerify();
     for (auto const& tv : ZCASH_TEST_VECTORS)
     {
         PublicKey pk;
@@ -1639,6 +1640,6 @@ TEST_CASE("Ed25519 test vectors from Zcash", "[crypto]")
         REQUIRE(s.size() == 64);
         Signature sig;
         sig.assign(s.begin(), s.end());
-        REQUIRE(!PubKeyUtils::verifySig(pk, sig, std::string("Zcash")));
+        REQUIRE(!PubKeyUtils::verifySig(pk, sig, std::string("Zcash")).valid);
     }
 }

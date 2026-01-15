@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2021 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerManager.h"
@@ -19,8 +19,17 @@ class TxQueueLimiter
     uint32 const mPoolLedgerMultiplier;
     LedgerManager& mLedgerManager;
 
-    // all known transactions
+    // all known transactions sorted by fee in increasing order for eviction
+    // purposes
     std::unique_ptr<SurgePricingPriorityQueue> mTxs;
+    // Configuration of SurgePricingPriorityQueue with the per-lane operation
+    // limits.
+    std::shared_ptr<SurgePricingLaneConfig> mSurgePricingLaneConfig;
+
+    // all known transactions sorted by fee in decreasing order for flood
+    // priority purposes
+    std::unique_ptr<SurgePricingPriorityQueue> mTxsToFlood;
+    std::shared_ptr<SurgePricingLaneConfig> mTxsToFloodLaneConfig;
 
     // When non-nullopt, limit the number dex operations by this value
     std::optional<Resource> mMaxDexOperations;
@@ -28,10 +37,6 @@ class TxQueueLimiter
     // Stores the maximum inclusion fee among the transactions evicted from
     // every tx lane. Inclusion fees are stored as ratios (fee_bid / num_ops).
     std::vector<std::pair<int64, uint32_t>> mLaneEvictedInclusionFee;
-
-    // Configuration of SurgePricingPriorityQueue with the per-lane operation
-    // limits.
-    std::shared_ptr<SurgePricingLaneConfig> mSurgePricingLaneConfig;
 
     Application& mApp;
     bool const mIsSoroban;
@@ -73,12 +78,31 @@ class TxQueueLimiter
     canAddTx(TransactionFrameBasePtr const& tx,
              TransactionFrameBasePtr const& oldTx,
              std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-             uint32_t ledgerVersion);
+             uint32_t ledgerVersion, size_t broadcastSeed);
 
     // Resets the state related to evictions (maximum evicted bid).
     void resetEvictionState();
 
     // Resets the internal transaction container and the eviction state.
     void reset(uint32_t ledgerVersion);
+
+    // Visit transactions in priority order from the existing queue
+    // If customLimits is provided, use those instead of mLaneLimits
+    void visitTopTxs(std::function<SurgePricingPriorityQueue::VisitTxResult(
+                         TransactionFrameBasePtr const&)> const& visitor,
+                     std::vector<Resource>& laneResourcesLeftUntilLimit,
+                     uint32_t ledgerVersion,
+                     std::optional<std::vector<Resource>> const& customLimits =
+                         std::nullopt);
+
+    Resource
+    getTotalResourcesToFlood() const
+    {
+        return mTxsToFlood->totalResources();
+    }
+
+    void resetBestFeeTxs(uint32_t ledgerVersion, size_t seed);
+    void markTxForFlood(TransactionFrameBasePtr const& tx,
+                        uint32_t ledgerVersion);
 };
 }

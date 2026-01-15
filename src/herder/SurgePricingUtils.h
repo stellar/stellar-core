@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2021 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include <set>
 
@@ -55,7 +55,8 @@ class SurgePricingLaneConfig
     // configuration).
     virtual void updateGenericLaneLimit(Resource const& limit) = 0;
 
-    virtual Resource getTxResources(TransactionFrameBase const& tx) = 0;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) = 0;
 
     virtual ~SurgePricingLaneConfig() = default;
 };
@@ -76,7 +77,8 @@ class DexLimitingLaneConfig : public SurgePricingLaneConfig
     size_t getLane(TransactionFrameBase const& tx) const override;
     std::vector<Resource> const& getLaneLimits() const override;
     virtual void updateGenericLaneLimit(Resource const& limit) override;
-    virtual Resource getTxResources(TransactionFrameBase const& tx) override;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) override;
 
   private:
     std::vector<Resource> mLaneLimits;
@@ -91,7 +93,8 @@ class SorobanGenericLaneConfig : public SurgePricingLaneConfig
     size_t getLane(TransactionFrameBase const& tx) const override;
     std::vector<Resource> const& getLaneLimits() const override;
     virtual void updateGenericLaneLimit(Resource const& limit) override;
-    virtual Resource getTxResources(TransactionFrameBase const& tx) override;
+    virtual Resource getTxResources(TransactionFrameBase const& tx,
+                                    uint32_t ledgerVersion) override;
 
   private:
     std::vector<Resource> mLaneLimits;
@@ -117,13 +120,25 @@ class SurgePricingPriorityQueue
     static std::vector<TransactionFrameBasePtr> getMostTopTxsWithinLimits(
         std::vector<TransactionFrameBasePtr> const& txs,
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-        std::vector<bool>& hadTxNotFittingLane);
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion);
 
     // Returns total amount of resources in all the transactions in this queue.
     Resource totalResources() const;
 
     // Returns total amount of resources in the provided lane of the queue.
     Resource laneResources(size_t lane) const;
+
+    Resource
+    laneLimits(size_t lane) const
+    {
+        return mLaneConfig->getLaneLimits().at(lane);
+    }
+
+    size_t
+    getNumLanes() const
+    {
+        return mLaneConfig->getLaneLimits().size();
+    }
 
     // Result of visiting a transaction in the `visitTopTxs`.
     // This serves as a callback output to let the queue know how to process the
@@ -133,6 +148,9 @@ class SurgePricingPriorityQueue
         // Transaction should be skipped and not counted towards the lane
         // limits.
         SKIPPED,
+        // Like `SKIPPED`, but marks the fact that the transaction didn't fit
+        // into the lane due to reasons beyond the lane's resource limit.
+        REJECTED,
         // Transaction has been processed and should be counted towards the
         // lane limits.
         PROCESSED
@@ -147,11 +165,14 @@ class SurgePricingPriorityQueue
     // processed.
     // `laneResourcesLeftUntilLimit` is an output parameter that for each lane
     // will contain the number of resources left until lane's limit is reached.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
     void visitTopTxs(
-        std::vector<TransactionFrameBasePtr> const& txs,
         std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
             visitor,
-        std::vector<Resource>& laneResourcesLeftUntilLimit);
+        std::vector<Resource>& laneResourcesLeftUntilLimit,
+        uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
     // configuration.
@@ -164,9 +185,14 @@ class SurgePricingPriorityQueue
         size_t comparisonSeed);
 
     // Adds a transaction to this queue.
-    void add(TransactionFrameBasePtr tx);
+    void add(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
     // Erases a transaction from this queue.
-    void erase(TransactionFrameBasePtr tx);
+    void erase(TransactionFrameBasePtr tx, uint32_t ledgerVersion);
+
+    // Count resources per lane for `txs`.
+    std::vector<Resource>
+    countTxsResources(std::vector<TransactionFrameBasePtr> const& txs,
+                      uint32_t ledgerVersion) const;
 
     // Checks whether a provided transaction could fit into this queue without
     // violating the `laneConfig` limits while evicting some lower fee rate
@@ -181,8 +207,22 @@ class SurgePricingPriorityQueue
     // limit (as opposed to 'generic' lane's limit).
     std::pair<bool, int64_t> canFitWithEviction(
         TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
-        std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
-        const;
+        std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+        uint32_t ledgerVersion) const;
+
+    // Generalized method for visiting and popping the top transactions in the
+    // queue until the lane limits are reached.
+    // This is a destructive method that removes all or most of the queue
+    // elements and thus should be used with care.
+    // If `customLimits` is provided, use those instead of mLaneLimits.
+    void popTopTxs(
+        bool allowGaps,
+        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
+            visitor,
+        std::vector<Resource>& laneResourcesLeftUntilLimit,
+        std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion,
+        std::optional<std::vector<Resource>> const& customLimits =
+            std::nullopt);
 
   private:
     class TxComparator
@@ -204,7 +244,9 @@ class SurgePricingPriorityQueue
                         TransactionFrameBasePtr const& tx2) const;
 
         bool const mIsGreater;
+#ifndef BUILD_TESTS
         size_t mSeed;
+#endif
     };
 
     using TxSortedSet = std::set<TransactionFrameBasePtr, TxComparator>;
@@ -236,20 +278,10 @@ class SurgePricingPriorityQueue
         std::vector<LaneIter> mutable mIters;
     };
 
-    // Generalized method for visiting and popping the top transactions in the
-    // queue until the lane limits are reached.
-    // This is a destructive method that removes all or most of the queue
-    // elements and thus should be used with care.
-    void popTopTxs(
-        bool allowGaps,
-        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
-            visitor,
-        std::vector<Resource>& laneResourcesLeftUntilLimit,
-        std::vector<bool>& hadTxNotFittingLane);
-
-    void erase(Iterator const& it);
+    void erase(Iterator const& it, uint32_t ledgerVersion);
     void erase(size_t lane,
-               SurgePricingPriorityQueue::TxSortedSet::iterator iter);
+               SurgePricingPriorityQueue::TxSortedSet::iterator iter,
+               uint32_t ledgerVersion);
 
     Iterator getTop() const;
 

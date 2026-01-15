@@ -30,6 +30,7 @@
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
+#include "util/MetricsRegistry.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
@@ -50,7 +51,7 @@ namespace stellar
 {
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
-    if (mApp.getConfig().HTTP_PORT)
+    if (mApp.getConfig().HTTP_PORT || mApp.getConfig().HTTP_QUERY_PORT)
     {
         std::string ipStr;
         if (mApp.getConfig().PUBLIC_HTTP_PORT)
@@ -66,9 +67,12 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
-        mServer = std::make_unique<http::server::server>(
-            app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
-            httpMaxClient);
+        if (mApp.getConfig().HTTP_PORT)
+        {
+            mServer = std::make_unique<http::server::server>(
+                app.getClock().getIOContext(), ipStr,
+                mApp.getConfig().HTTP_PORT, httpMaxClient);
+        }
 
         if (mApp.getConfig().HTTP_QUERY_PORT)
         {
@@ -78,7 +82,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                 mApp.getBucketManager().getBucketSnapshotManager());
         }
     }
-    else
+
+    if (!mApp.getConfig().HTTP_PORT)
     {
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext());
@@ -126,12 +131,26 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("generateload", &CommandHandler::generateLoad);
     addRoute("testacc", &CommandHandler::testAcc);
     addRoute("testtx", &CommandHandler::testTx);
+    addRoute("toggleoverlayonlymode", &CommandHandler::toggleOverlayOnlyMode);
     addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
     addRoute("startsurveycollecting", &CommandHandler::startSurveyCollecting);
     addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
     addRoute("surveytopologytimesliced",
              &CommandHandler::surveyTopologyTimeSliced);
 #endif
+}
+
+void
+CommandHandler::shutdown()
+{
+    if (mServer)
+    {
+        mServer->shutdown();
+    }
+    if (mQueryServer)
+    {
+        mQueryServer->shutdown();
+    }
 }
 
 void
@@ -211,6 +230,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "<p>Have fun!</p>";
 }
 
+namespace
+{
 template <typename T>
 std::optional<T>
 parseOptionalParam(std::map<std::string, std::string> const& map,
@@ -285,6 +306,7 @@ parseRequiredParam(std::map<std::string, std::string> const& map,
     }
     return *res;
 }
+} // namespace
 
 void
 CommandHandler::manualClose(std::string const& params, std::string& retStr)
@@ -624,6 +646,14 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
                               SOROBAN_PROTOCOL_VERSION);
         p.mMaxSorobanTxSetSize =
             parseOptionalParam<uint32>(retMap, "maxsorobantxsetsize");
+        p.mNominationTimeoutLimit =
+            parseOptionalParam<uint32_t>(retMap, "nominationtimeoutlimit");
+        auto expirationMins =
+            parseOptionalParam<uint32_t>(retMap, "expirationminutes");
+        p.mExpirationMinutes = expirationMins.has_value()
+                                   ? std::make_optional<std::chrono::minutes>(
+                                         expirationMins.value())
+                                   : std::nullopt;
         mApp.getHerder().setUpgrades(p);
     }
     else if (s == "clear")
@@ -782,25 +812,32 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 
             // Ledger access settings
             res["ledger"]["max_read_ledger_entries"] =
-                conf.ledgerMaxReadLedgerEntries();
-            res["ledger"]["max_read_bytes"] = conf.ledgerMaxReadBytes();
+                conf.ledgerMaxDiskReadEntries();
+            res["ledger"]["max_read_bytes"] = conf.ledgerMaxDiskReadBytes();
             res["ledger"]["max_write_ledger_entries"] =
                 conf.ledgerMaxWriteLedgerEntries();
             res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
-            res["tx"]["max_read_ledger_entries"] =
-                conf.txMaxReadLedgerEntries();
-            res["tx"]["max_read_bytes"] = conf.txMaxReadBytes();
+            res["tx"]["max_read_ledger_entries"] = conf.txMaxDiskReadEntries();
+            res["tx"]["max_read_bytes"] = conf.txMaxDiskReadBytes();
             res["tx"]["max_write_ledger_entries"] =
                 conf.txMaxWriteLedgerEntries();
             res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
 
+            if (protocolVersionStartsFrom(
+                    lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                    ProtocolVersion::V_23))
+            {
+                res["tx"]["max_footprint_size"] = conf.txMaxFootprintEntries();
+            }
+
             // Fees
             res["fee_read_ledger_entry"] =
-                static_cast<Json::Int64>(conf.feeReadLedgerEntry());
+                static_cast<Json::Int64>(conf.feeDiskReadLedgerEntry());
             res["fee_write_ledger_entry"] =
                 static_cast<Json::Int64>(conf.feeWriteLedgerEntry());
-            res["fee_read_1kb"] = static_cast<Json::Int64>(conf.feeRead1KB());
-            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeWrite1KB());
+            res["fee_read_1kb"] =
+                static_cast<Json::Int64>(conf.feeDiskRead1KB());
+            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeRent1KB());
             res["fee_historical_1kb"] =
                 static_cast<Json::Int64>(conf.feeHistorical1KB());
 
@@ -839,18 +876,40 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             archivalInfo["max_entries_to_archive"] =
                 stateArchivalSettings.maxEntriesToArchive;
             archivalInfo["bucketlist_size_window_sample_size"] =
-                stateArchivalSettings.bucketListSizeWindowSampleSize;
+                stateArchivalSettings.liveSorobanStateSizeWindowSampleSize;
 
             archivalInfo["eviction_scan_size"] = static_cast<Json::UInt64>(
                 stateArchivalSettings.evictionScanSize);
             archivalInfo["starting_eviction_scan_level"] =
                 stateArchivalSettings.startingEvictionScanLevel;
             archivalInfo["bucket_list_size_snapshot_period"] =
-                stateArchivalSettings.bucketListSizeWindowSampleSize;
+                stateArchivalSettings.liveSorobanStateSizeWindowSampleSize;
 
             // non-configurable settings
             archivalInfo["average_bucket_list_size"] =
-                static_cast<Json::UInt64>(conf.getAverageBucketListSize());
+                static_cast<Json::UInt64>(conf.getAverageSorobanStateSize());
+
+            if (protocolVersionStartsFrom(
+                    lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                    ProtocolVersion::V_23))
+            {
+                res["max_dependent_tx_clusters"] =
+                    conf.ledgerMaxDependentTxClusters();
+
+                // SCP timing settings
+                auto& scpSettings = res["scp"];
+                scpSettings["ledger_close_time_ms"] =
+                    conf.ledgerTargetCloseTimeMilliseconds();
+                scpSettings["nomination_timeout_ms"] =
+                    conf.nominationTimeoutInitialMilliseconds();
+                scpSettings["nomination_timeout_inc_ms"] =
+                    conf.nominationTimeoutIncrementMilliseconds();
+                scpSettings["ballot_timeout_ms"] =
+                    conf.ballotTimeoutInitialMilliseconds();
+                scpSettings["ballot_timeout_inc_ms"] =
+                    conf.ballotTimeoutIncrementMilliseconds();
+            }
+
             retStr = res.toStyledString();
         }
         else if (format == "detailed")
@@ -861,6 +920,10 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             {
                 auto entry =
                     lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                if (!entry)
+                {
+                    continue;
+                }
                 entries.emplace_back(entry.current().data.configSetting());
             }
 
@@ -880,6 +943,10 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                     continue;
                 }
                 auto entry = lsg.load(configSettingKey(configSettingID));
+                if (!entry)
+                {
+                    continue;
+                }
                 upgradeSet.updatedEntry.emplace_back(
                     entry.current().data.configSetting());
             }
@@ -977,17 +1044,17 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 releaseAssertOrThrow(addResult.txResult);
 
                 auto const& payload = addResult.txResult;
-                auto resultBin = xdr::xdr_to_opaque(payload->getResult());
+                auto resultBin = xdr::xdr_to_opaque(payload->getXDR());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
                 if (mApp.getConfig().ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION &&
                     transaction->isSoroban() &&
-                    !payload->getDiagnosticEvents().empty())
+                    !addResult.mDiagnosticEvents.empty())
                 {
                     auto diagsBin =
-                        xdr::xdr_to_opaque(payload->getDiagnosticEvents());
+                        xdr::xdr_to_opaque(addResult.mDiagnosticEvents);
                     auto diagsBase64 = decoder::encode_b64(diagsBin);
                     root["diagnostic_events"] = diagsBase64;
                 }
@@ -1145,12 +1212,21 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
         auto modeStr =
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
+            parseOptionalParamOrDefault<std::string>(map, "mode", "pay");
         // First check if a current run needs to be stopped
         if (modeStr == "stop")
         {
             mApp.getLoadGenerator().stop();
             retStr = "Stopped load generation";
+            return;
+        }
+
+        // Check for deprecated CREATE mode
+        if (modeStr == "create")
+        {
+            retStr = "DEPRECATED: CREATE mode has been removed. "
+                     "Use GENESIS_TEST_ACCOUNT_COUNT configuration parameter "
+                     "to create test accounts at genesis instead.";
             return;
         }
 
@@ -1180,12 +1256,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32_t>(map, "maxfeerate");
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
-
-        if (cfg.mode == LoadGenMode::MIXED_CLASSIC)
-        {
-            cfg.getMutDexTxPercent() =
-                parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
-        }
 
         if (cfg.isSoroban())
         {
@@ -1218,9 +1288,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint64_t>(map, "txmxinstrc");
             upgradeCfg.txMemoryLimit =
                 parseOptionalParam<uint64_t>(map, "txmemlim");
-            upgradeCfg.ledgerMaxReadLedgerEntries =
+            upgradeCfg.ledgerMaxDiskReadEntries =
                 parseOptionalParam<uint32_t>(map, "ldgrmxrdntry");
-            upgradeCfg.ledgerMaxReadBytes =
+            upgradeCfg.ledgerMaxDiskReadBytes =
                 parseOptionalParam<uint32_t>(map, "ldgrmxrdbyt");
             upgradeCfg.ledgerMaxWriteLedgerEntries =
                 parseOptionalParam<uint32_t>(map, "ldgrmxwrntry");
@@ -1228,9 +1298,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "ldgrmxwrbyt");
             upgradeCfg.ledgerMaxTxCount =
                 parseOptionalParam<uint32_t>(map, "ldgrmxtxcnt");
-            upgradeCfg.txMaxReadLedgerEntries =
+            upgradeCfg.txMaxDiskReadEntries =
                 parseOptionalParam<uint32_t>(map, "txmxrdntry");
-            upgradeCfg.txMaxReadBytes =
+            upgradeCfg.txMaxDiskReadBytes =
                 parseOptionalParam<uint32_t>(map, "txmxrdbyt");
             upgradeCfg.txMaxWriteLedgerEntries =
                 parseOptionalParam<uint32_t>(map, "txmxwrntry");
@@ -1242,12 +1312,26 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParam<uint32_t>(map, "ldgrmxtxsz");
             upgradeCfg.txMaxSizeBytes =
                 parseOptionalParam<uint32_t>(map, "txmxsz");
-            upgradeCfg.bucketListSizeWindowSampleSize =
+            upgradeCfg.liveSorobanStateSizeWindowSampleSize =
                 parseOptionalParam<uint32_t>(map, "wndowsz");
             upgradeCfg.evictionScanSize =
                 parseOptionalParam<uint64_t>(map, "evctsz");
             upgradeCfg.startingEvictionScanLevel =
                 parseOptionalParam<uint32_t>(map, "evctlvl");
+            upgradeCfg.txMaxFootprintEntries =
+                parseOptionalParam<uint32_t>(map, "txmxftprnt");
+            upgradeCfg.ledgerTargetCloseTimeMilliseconds =
+                parseOptionalParam<uint32_t>(map, "ldgrclse");
+            upgradeCfg.ballotTimeoutIncrementMilliseconds =
+                parseOptionalParam<uint32_t>(map, "balinc");
+            upgradeCfg.ballotTimeoutInitialMilliseconds =
+                parseOptionalParam<uint32_t>(map, "balinit");
+            upgradeCfg.nominationTimeoutInitialMilliseconds =
+                parseOptionalParam<uint32_t>(map, "nominit");
+            upgradeCfg.nominationTimeoutIncrementMilliseconds =
+                parseOptionalParam<uint32_t>(map, "nominc");
+            upgradeCfg.ledgerMaxDependentTxClusters =
+                parseOptionalParam<uint32_t>(map, "maxtxclstrs");
         }
 
         if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
@@ -1413,6 +1497,20 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["detail"] = "Bad HTTP GET: try something like: "
                          "testtx?from=root&to=bob&amount=1000000000";
     }
+    retStr = root.toStyledString();
+}
+
+void
+CommandHandler::toggleOverlayOnlyMode(std::string const& params,
+                                      std::string& retStr)
+{
+    ZoneScoped;
+
+    bool currentMode = mApp.getRunInOverlayOnlyMode();
+    mApp.setRunInOverlayOnlyMode(!currentMode);
+
+    Json::Value root;
+    root["overlay_only_mode"] = !currentMode;
     retStr = root.toStyledString();
 }
 #endif

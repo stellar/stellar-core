@@ -1,15 +1,15 @@
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #pragma once
 
-// copyright 2015 stellar development foundation and contributors. licensed
-// under the apache license, version 2.0. see the copying file at the root
-// of this distribution or at http://www.apache.org/licenses/license-2.0
-
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
 #include <filesystem>
-#include <optional>
 #include <string>
 
 namespace asio
@@ -34,7 +34,7 @@ namespace stellar
  * extension the merge logic of those entries. Additionally, some types of
  * BucketList may have special operations only relevant to that specific type.
  * This pure virtual base class provides the core functionality of a BucketList
- * container and must be extened for each specific BucketList type. In
+ * container and must be extended for each specific BucketList type. In
  * particular, the fresh and merge functions must be defined for the specific
  * type, while other functionality can be shared.
  */
@@ -74,7 +74,7 @@ class BucketBase : public NonMovableOrCopyable
     Hash const mHash;
     size_t mSize{0};
 
-    std::unique_ptr<IndexT const> mIndex{};
+    std::shared_ptr<IndexT const> mIndex{};
 
     // Returns index, throws if index not yet initialized
     IndexT const& getIndex() const;
@@ -94,7 +94,7 @@ class BucketBase : public NonMovableOrCopyable
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
     BucketBase(std::string const& filename, Hash const& hash,
-               std::unique_ptr<IndexT const>&& index);
+               std::shared_ptr<IndexT const>&& index);
 
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;
@@ -109,7 +109,18 @@ class BucketBase : public NonMovableOrCopyable
     bool isIndexed() const;
 
     // Sets index, throws if index is already set
-    void setIndex(std::unique_ptr<IndexT const>&& index);
+    void setIndex(std::shared_ptr<IndexT const> index);
+
+    // Returns the bucket's index if it exists, otherwise
+    // nullptr. This is used by background merges to grab a shared_ptr to an
+    // existing index, preventing a race where GC could free the index between
+    // checking the index and adopting the finished merge result.
+    static std::shared_ptr<IndexT const>
+    maybeGetIndexForMerge(std::shared_ptr<BucketT> const& bucket)
+    {
+        releaseAssert(bucket);
+        return bucket->mIndex;
+    }
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
     // are overridden in the fresh bucket by keywise-equal entries in
@@ -129,6 +140,20 @@ class BucketBase : public NonMovableOrCopyable
           std::vector<std::shared_ptr<BucketT>> const& shadows,
           bool keepTombstoneEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Helper function that implements the core merge algorithm logic for both
+    // iterator based and in-memory merges.
+    // PutFunc will be called to write entries that are the result of the merge.
+    // Parameter pack is empty for HotArchiveBucket, since they do not support
+    // shadows.
+    // For Livebucket, parameter pack is
+    // std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+    //    bool keepShadowedLifecycleEntries
+    template <typename InputSource, typename PutFuncT, typename... ShadowParams>
+    static void mergeInternal(BucketManager& bucketManager,
+                              InputSource& inputSource, PutFuncT putFunc,
+                              uint32_t protocolVersion, MergeCounters& mc,
+                              ShadowParams&&... shadowParams);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);

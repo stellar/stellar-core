@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2023 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -14,19 +14,18 @@
 
 namespace stellar
 {
-class LedgerKeyMeter;
 bool isLive(LedgerEntry const& e, uint32_t cutoffLedger);
 
 LedgerKey getTTLKey(LedgerEntry const& e);
 LedgerKey getTTLKey(LedgerKey const& e);
+LedgerEntry getTTLEntryForTTLKey(LedgerKey const& ttlKey, uint32_t ttl);
 
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
 template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries,
-                      LedgerKeyMeter* lkMeter = nullptr)
+                      std::vector<LedgerEntry> const& entries)
 {
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
 
@@ -46,10 +45,9 @@ populateLoadedEntries(KeySetT const& keys,
 
     for (auto const& key : keys)
     {
-        // If the key was not loaded (but not due to metering), we should put
-        // a nullptr entry in the result.
-        if (res.find(key) == res.end() &&
-            (!lkMeter || !lkMeter->loadFailed(key)))
+        // If the key was not loaded, we should put a nullptr entry in the
+        // result.
+        if (res.find(key) == res.end())
         {
             res.emplace(key, nullptr);
         }
@@ -62,6 +60,13 @@ bool
 isSorobanEntry(T const& e)
 {
     return e.type() == CONTRACT_DATA || e.type() == CONTRACT_CODE;
+}
+
+template <typename T>
+bool
+isContractCodeEntry(T const& e)
+{
+    return e.type() == CONTRACT_CODE;
 }
 
 template <typename T>
@@ -80,4 +85,8 @@ isPersistentEntry(T const& e)
            (e.type() == CONTRACT_DATA &&
             e.contractData().durability == PERSISTENT);
 }
+
+uint32_t ledgerEntrySizeForRent(LedgerEntry const& entry, uint32_t entryXdrSize,
+                                uint32_t ledgerVersion,
+                                SorobanNetworkConfig const& sorobanConfig);
 }

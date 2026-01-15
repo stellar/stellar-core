@@ -60,21 +60,29 @@ TxQueueLimiter::size() const
 Resource
 TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
 {
-    return multiplyByDouble(mLedgerManager.maxLedgerResources(isSoroban),
-                            mPoolLedgerMultiplier);
+    return saturatedMultiplyByDouble(
+        mLedgerManager.maxLedgerResources(isSoroban), mPoolLedgerMultiplier);
 }
 
 void
 TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
     releaseAssert(tx->isSoroban() == mIsSoroban);
-    mTxs->add(tx);
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    mTxs->add(tx, ledgerVersion);
+    mTxsToFlood->add(tx, ledgerVersion);
 }
 
 void
 TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 {
-    mTxs->erase(tx);
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    mTxs->erase(tx, ledgerVersion);
+    mTxsToFlood->erase(tx, ledgerVersion);
 }
 
 #ifdef BUILD_TESTS
@@ -83,18 +91,41 @@ TxQueueLimiter::canAddTx(
     TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
-    return canAddTx(newTx, oldTx, txsToEvict,
-                    mApp.getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion);
+    return canAddTx(
+        newTx, oldTx, txsToEvict,
+        mApp.getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.ledgerVersion,
+        rand_uniform<uint64>(0, std::numeric_limits<uint64>::max()));
 }
 #endif
+
+void
+TxQueueLimiter::resetBestFeeTxs(uint32_t ledgerVersion, size_t seed)
+{
+    if (mIsSoroban)
+    {
+        mTxsToFloodLaneConfig = std::make_shared<SorobanGenericLaneConfig>(
+            maxScaledLedgerResources(mIsSoroban));
+    }
+    else
+    {
+        mTxsToFloodLaneConfig = std::make_shared<DexLimitingLaneConfig>(
+            maxScaledLedgerResources(mIsSoroban), mMaxDexOperations);
+        // Ensure byte limits aren't counted in tx limiter
+        releaseAssert(mTxsToFloodLaneConfig->getLaneLimits()[0].size() ==
+                      NUM_CLASSIC_TX_RESOURCES);
+    }
+
+    mTxsToFlood = std::make_unique<SurgePricingPriorityQueue>(
+        /* isHighestPriority */ true, mTxsToFloodLaneConfig, seed);
+}
 
 std::pair<bool, int64>
 TxQueueLimiter::canAddTx(
     TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-    uint32_t ledgerVersion)
+    uint32_t ledgerVersion, size_t broadcastSeed)
 {
     releaseAssert(newTx);
     releaseAssert(newTx->isSoroban() == mIsSoroban);
@@ -111,6 +142,11 @@ TxQueueLimiter::canAddTx(
     if (mTxs == nullptr)
     {
         reset(ledgerVersion);
+    }
+
+    if (mTxsToFlood == nullptr)
+    {
+        resetBestFeeTxs(ledgerVersion, broadcastSeed);
     }
 
     // If some transactions were evicted from this or generic lane, make sure
@@ -138,14 +174,15 @@ TxQueueLimiter::canAddTx(
     std::optional<Resource> oldTxDiscount = std::nullopt;
     if (oldTx)
     {
-        oldTxDiscount = oldTx->getResources(false);
+        oldTxDiscount = oldTx->getResources(false, ledgerVersion);
     }
 
     // Update the operation limit in case upgrade happened. This is cheap
     // enough to happen unconditionally without relying on upgrade triggers.
     mSurgePricingLaneConfig->updateGenericLaneLimit(
         Resource(maxScaledLedgerResources(newTx->isSoroban())));
-    return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict);
+    return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict,
+                                    ledgerVersion);
 }
 
 void
@@ -154,8 +191,11 @@ TxQueueLimiter::evictTransactions(
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
     auto resourcesToFit =
-        txToFit.getResources(/* useByteLimitInClassic */ false);
+        txToFit.getResources(/* useByteLimitInClassic */ false, ledgerVersion);
 
     auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
 
@@ -248,5 +288,28 @@ TxQueueLimiter::resetEvictionState()
     {
         releaseAssert(mLaneEvictedInclusionFee.empty());
     }
+}
+
+void
+TxQueueLimiter::visitTopTxs(
+    std::function<SurgePricingPriorityQueue::VisitTxResult(
+        TransactionFrameBasePtr const&)> const& visitor,
+    std::vector<Resource>& laneResourcesLeftUntilLimit, uint32_t ledgerVersion,
+    std::optional<std::vector<Resource>> const& customLimits)
+{
+    // Instead of creating a new queue each time, use the existing mTxsToFlood
+    // queue which already contains all transactions in best fee order
+    if (mTxsToFlood)
+    {
+        mTxsToFlood->visitTopTxs(visitor, laneResourcesLeftUntilLimit,
+                                 ledgerVersion, customLimits);
+    }
+}
+
+void
+TxQueueLimiter::markTxForFlood(TransactionFrameBasePtr const& tx,
+                               uint32_t ledgerVersion)
+{
+    mTxsToFlood->add(tx, ledgerVersion);
 }
 }

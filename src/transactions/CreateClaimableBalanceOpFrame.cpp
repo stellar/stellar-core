@@ -140,9 +140,10 @@ CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-CreateClaimableBalanceOpFrame::doApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
+CreateClaimableBalanceOpFrame::doApply(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
+                                       OperationResult& res,
+                                       OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateClaimableBalanceOpFrame apply", true);
 
@@ -247,6 +248,11 @@ CreateClaimableBalanceOpFrame::doApply(
     }
 
     ltx.create(newClaimableBalance);
+
+    opMeta.getEventManager().eventForTransferWithIssuerCheck(
+        asset, makeMuxedAccountAddress(getSourceAccount()),
+        makeClaimableBalanceAddress(claimableBalanceEntry.balanceID), amount,
+        true);
 
     innerResult(res).code(CREATE_CLAIMABLE_BALANCE_SUCCESS);
     innerResult(res).balanceID() = claimableBalanceEntry.balanceID;

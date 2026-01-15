@@ -138,9 +138,8 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
 
 bool
 CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                              Hash const& sorobanBasePrngSeed,
                               OperationResult& res,
-                              std::shared_ptr<SorobanTxData> sorobanData) const
+                              OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
@@ -149,15 +148,27 @@ CreateAccountOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
+    bool success = false;
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_14))
     {
-        return doApplyBeforeV14(ltx, res);
+        success = doApplyBeforeV14(ltx, res);
     }
     else
     {
-        return doApplyFromV14(ltx, res);
+        success = doApplyFromV14(ltx, res);
     }
+
+    if (success)
+    {
+        Asset native(ASSET_TYPE_NATIVE);
+        opMeta.getEventManager().newTransferEvent(
+            native, makeMuxedAccountAddress(getSourceAccount()),
+            makeAccountAddress(mCreateAccount.destination),
+            mCreateAccount.startingBalance, true);
+    }
+
+    return success;
 }
 
 bool

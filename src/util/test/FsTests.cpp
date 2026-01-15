@@ -4,7 +4,7 @@
 
 #include "crypto/Random.h"
 #include "history/FileTransferInfo.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/FileSystemException.h"
 #include "util/Fs.h"
 #include "util/TmpDir.h"

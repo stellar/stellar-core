@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/FilteredEntries.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/SurgePricingUtils.h"
@@ -11,6 +12,9 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxnImpl.h"
+#include "ledger/P23HotArchiveBug.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -23,7 +27,6 @@
 #include "util/Timer.h"
 #include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
-
 #include "xdrpp/autocheck.h"
 
 #include <chrono>
@@ -166,7 +169,7 @@ class TransactionQueueTest
     }
 
     void
-    check(const TransactionQueueState& state)
+    check(TransactionQueueState const& state)
     {
         std::map<AccountID, int64_t> expectedFees;
         for (auto const& accountState : state.mAccountStates)
@@ -519,7 +522,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     }
 }
 
-void
+static void
 testTransactionQueueBasicScenarios()
 {
     VirtualClock clock;
@@ -800,7 +803,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
         auto addResult = testQueue.add(
             tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
         REQUIRE(addResult.txResult->getResultCode() == txINSUFFICIENT_FEE);
-        REQUIRE(addResult.txResult->getResult().feeCharged == 300 * 3 + 1);
+        REQUIRE(addResult.txResult->getXDR().feeCharged == 300 * 3 + 1);
     }
     SECTION("cannot add - tx outside of limits")
     {
@@ -824,7 +827,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
             auto addResult = testQueue.add(
                 nextTx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
             REQUIRE(addResult.txResult->getResultCode() == txINSUFFICIENT_FEE);
-            REQUIRE(addResult.txResult->getResult().feeCharged == 301);
+            REQUIRE(addResult.txResult->getXDR().feeCharged == 301);
         }
         SECTION("then add tx with higher fee than evicted")
         {
@@ -1108,10 +1111,11 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
         mLaneOpsLimits[0] = limit;
     }
     virtual Resource
-    getTxResources(TransactionFrameBase const& tx) override
+    getTxResources(TransactionFrameBase const& tx,
+                   uint32_t ledgerVersion) override
     {
         releaseAssert(tx.isSoroban());
-        return tx.getResources(false);
+        return tx.getResources(false, ledgerVersion);
     }
 
   private:
@@ -1131,7 +1135,7 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
     resources.writeBytes = 1000;
 
     auto tx = createUploadWasmTx(*app, *root, 10'000'000,
@@ -1143,17 +1147,17 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
 }
 
-TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
+TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
 {
-    Config cfg = getTestConfig();
     VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, getTestConfig());
 
-    const int64_t startingBalance =
+    int64_t const startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
     auto root = app->getRoot();
     auto a1 = root->create("A", startingBalance);
+    auto feeBumper = root->create("feeBumper", startingBalance);
 
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     auto resources = defaultUploadWasmResourcesWithoutFootprint(
@@ -1186,7 +1190,7 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
             uploadResourceFee + 100, uploadResourceFee, "memo");
 
         REQUIRE(app->getHerder().recvTransaction(txWithMemo, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
 
     SECTION("non-source auth tx with memo")
@@ -1236,6 +1240,131 @@ TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
             app->getHerder().recvTransaction(txWithMuxedOpSource, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
+
+    SECTION("fee bump of Soroban tx with memo")
+    {
+        auto txWithMemo = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, "memo");
+        auto feeBumpTx =
+            feeBump(*app, feeBumper, txWithMemo, uploadResourceFee + 200);
+        REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("fee bump of Soroban tx with muxed tx source")
+    {
+        auto txWithMuxedTxSource = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, std::nullopt,
+            1 /*muxedData*/);
+        auto feeBumpTx = feeBump(*app, feeBumper, txWithMuxedTxSource,
+                                 uploadResourceFee + 200);
+        REQUIRE(app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+}
+
+TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
+{
+    gIsProductionNetwork = true;
+    auto runTestForKey = [&](LedgerKey const& key, uint32_t protocolVersion,
+                             bool shouldFilter = true) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        auto app = createTestApplication(clock, cfg);
+
+        int64_t const startingBalance =
+            app->getLedgerManager().getLastMinBalance(50);
+
+        auto root = app->getRoot();
+        auto a1 = root->create("A", startingBalance);
+        auto feeBumper = root->create("feeBumper", startingBalance);
+
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(*app));
+        resources.instructions = 0;
+
+        Operation uploadOp;
+        uploadOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+        uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        uploadHF.wasm().assign(wasm.data.begin(), wasm.data.end());
+
+        SorobanAuthorizationEntry sae;
+        SorobanCredentials sc(SOROBAN_CREDENTIALS_ADDRESS);
+        sae.credentials = sc;
+
+        if (resources.footprint.readWrite.empty())
+        {
+            resources.footprint.readWrite = {
+                contractCodeKey(sha256(uploadHF.wasm()))};
+        }
+        auto uploadResourceFee =
+            sorobanResourceFee(*app, resources, 1000 + wasm.data.size(), 40) +
+            DEFAULT_TEST_RESOURCE_FEE;
+        auto runTest = [&](SorobanResources const& resources, Operation op,
+                           bool filter) {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), a1, {op}, {}, resources,
+                uploadResourceFee + 100, uploadResourceFee);
+            auto feeBumpTx =
+                feeBump(*app, feeBumper, tx, uploadResourceFee + 200);
+
+            if (filter)
+            {
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                        TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+                REQUIRE(
+                    app->getHerder().recvTransaction(feeBumpTx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+            }
+            else
+            {
+                // Allow the tx to make it past the filter check
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code !=
+                        TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+                REQUIRE(
+                    app->getHerder().recvTransaction(feeBumpTx, false).code !=
+                    TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+            }
+        };
+        Operation restoreOp;
+        restoreOp.body.type(RESTORE_FOOTPRINT);
+        Operation extendOp;
+        extendOp.body.type(EXTEND_FOOTPRINT_TTL);
+        auto ops = std::vector<Operation>{uploadOp, restoreOp, extendOp};
+        auto resourcesRo = resources;
+        resourcesRo.footprint.readOnly.push_back(key);
+        auto resourcesRw = resources;
+        resourcesRw.footprint.readWrite.push_back(key);
+        for (auto const& op : ops)
+        {
+            INFO("Op type: " +
+                 std::to_string(static_cast<int>(op.body.type())));
+            runTest(resourcesRo, op, shouldFilter);
+            runTest(resourcesRw, op, shouldFilter);
+        }
+    };
+    UnorderedSet<LedgerKey> keysToFilterP24;
+    for (auto const& keyStr : KEYS_TO_FILTER_P24)
+    {
+        LedgerKey key;
+        fromOpaqueBase64(key, keyStr);
+        keysToFilterP24.insert(key);
+    }
+    SECTION("protocol version 24")
+    {
+        SECTION("should filter")
+        {
+            for (auto const& keyToFilter : keysToFilterP24)
+            {
+                runTestForKey(keyToFilter, 24);
+            }
+        }
+    }
 }
 
 TEST_CASE("Soroban TransactionQueue limits",
@@ -1260,10 +1389,13 @@ TEST_CASE("Soroban TransactionQueue limits",
 
     SorobanNetworkConfig conf =
         app->getLedgerManager().getLastClosedSorobanNetworkConfig();
+    auto ledgerVersion = app->getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
+    resources.diskReadBytes = 2000;
     resources.writeBytes = 1000;
 
     int const resourceFee = 2'000'000;
@@ -1453,7 +1585,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(addResult.txResult);
                 REQUIRE(addResult.txResult->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_FEE);
-                REQUIRE(addResult.txResult->getResult().feeCharged ==
+                REQUIRE(addResult.txResult->getXDR().feeCharged ==
                         expectedFeeCharged);
             }
             SECTION("insufficient account balance")
@@ -1578,8 +1710,10 @@ TEST_CASE("Soroban TransactionQueue limits",
 
         SECTION("generic fits")
         {
-            REQUIRE(
-                queue->canFitWithEviction(*tx, std::nullopt, toEvict).first);
+            REQUIRE(queue
+                        ->canFitWithEviction(*tx, std::nullopt, toEvict,
+                                             ledgerVersion)
+                        .first);
             REQUIRE(toEvict.empty());
         }
         SECTION("limited too big")
@@ -1594,8 +1728,10 @@ TEST_CASE("Soroban TransactionQueue limits",
             REQUIRE(config->getLane(*tx2) ==
                     SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
 
-            REQUIRE(
-                !queue->canFitWithEviction(*tx2, std::nullopt, toEvict).first);
+            REQUIRE(!queue
+                         ->canFitWithEviction(*tx2, std::nullopt, toEvict,
+                                              ledgerVersion)
+                         .first);
             REQUIRE(toEvict.empty());
         }
         SECTION("limited fits")
@@ -1610,14 +1746,16 @@ TEST_CASE("Soroban TransactionQueue limits",
             REQUIRE(config->getLane(*txNew) ==
                     SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
 
-            REQUIRE(
-                queue->canFitWithEviction(*txNew, std::nullopt, toEvict).first);
+            REQUIRE(queue
+                        ->canFitWithEviction(*txNew, std::nullopt, toEvict,
+                                             ledgerVersion)
+                        .first);
             REQUIRE(toEvict.empty());
 
             SECTION("limited evicts")
             {
                 // Add 2 generic transactions to reach generic limit
-                queue->add(tx);
+                queue->add(tx, ledgerVersion);
                 resources.instructions =
                     static_cast<uint32>(conf.ledgerMaxInstructions() / 2);
                 // The fee is slightly higher so this transactions is more
@@ -1628,17 +1766,18 @@ TEST_CASE("Soroban TransactionQueue limits",
 
                 REQUIRE(queue
                             ->canFitWithEviction(*secondGeneric, std::nullopt,
-                                                 toEvict)
+                                                 toEvict, ledgerVersion)
                             .first);
                 REQUIRE(toEvict.empty());
-                queue->add(secondGeneric);
+                queue->add(secondGeneric, ledgerVersion);
 
                 SECTION("limited evicts generic")
                 {
                     // Fit within limited lane
-                    REQUIRE(
-                        queue->canFitWithEviction(*txNew, std::nullopt, toEvict)
-                            .first);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*txNew, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
                     REQUIRE(toEvict.size() == 1);
                     REQUIRE(toEvict[0].first == tx);
                 }
@@ -1652,10 +1791,11 @@ TEST_CASE("Soroban TransactionQueue limits",
                         *app, account1, initialInclusionFee * 2, resourceFee,
                         resources, std::make_optional<std::string>("limit"));
 
-                    REQUIRE(
-                        queue->canFitWithEviction(*tx2, std::nullopt, toEvict)
-                            .first);
-                    queue->add(tx2);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*tx2, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
+                    queue->add(tx2, ledgerVersion);
 
                     // Add, new tx with max limited lane resources, set a high
                     // fee
@@ -1667,9 +1807,10 @@ TEST_CASE("Soroban TransactionQueue limits",
                         *app, account2, initialInclusionFee * 3, resourceFee,
                         resources, std::make_optional<std::string>("limit"));
 
-                    REQUIRE(
-                        queue->canFitWithEviction(*tx3, std::nullopt, toEvict)
-                            .first);
+                    REQUIRE(queue
+                                ->canFitWithEviction(*tx3, std::nullopt,
+                                                     toEvict, ledgerVersion)
+                                .first);
 
                     // Should evict generic _and_ limited tx
                     REQUIRE(toEvict.size() == 2);
@@ -1680,6 +1821,65 @@ TEST_CASE("Soroban TransactionQueue limits",
                 }
             }
         }
+    }
+    SECTION("queue can fit enough instructions for parallel apply")
+    {
+        // Ensure that the TX queue can fit at least 2 ledgers worth of "best
+        // case" TXs, assuming all TXs are non-conflicting and can all be
+        // scheduled in different clusters
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxDependentTxClusters = 2;
+            cfg.mLedgerMaxInstructions = 2'500'000;
+            cfg.mTxMaxInstructions = 2'500'000;
+            cfg.mLedgerMaxTxCount = 10;
+        });
+
+        auto account3 = root->create("a3", minBalance2);
+        auto account4 = root->create("a4", minBalance2);
+        auto account5 = root->create("a5", minBalance2);
+
+        // Create non-conflicting transactions that require the full cluster's
+        // instructions. We should be able to fit in 2 TXs per ledger, so 4
+        // total in the queue.
+        SorobanResources clusterResources;
+        clusterResources.instructions = 2'500'000;
+        clusterResources.diskReadBytes = 1000;
+        clusterResources.writeBytes = 500;
+
+        // First four transactions should fit in the queue
+        auto tx1 = createUploadWasmTx(*app, account1, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx2 = createUploadWasmTx(*app, account2, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx3 = createUploadWasmTx(*app, account3, initialInclusionFee,
+                                      resourceFee, clusterResources);
+        auto tx4 = createUploadWasmTx(*app, account4, initialInclusionFee,
+                                      resourceFee, clusterResources);
+
+        REQUIRE(app->getHerder().recvTransaction(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx2, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx3, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx4, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+
+        // Verify all 4 transactions are in the queue
+        REQUIRE(app->getHerder().getTx(tx1->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx2->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx3->getFullHash()) != nullptr);
+        REQUIRE(app->getHerder().getTx(tx4->getFullHash()) != nullptr);
+
+        // Now try to add a 5th transaction that would exceed the total limit
+        // (only 4 TXs should fit: 2 per ledger * 2 ledgers in queue)
+        auto tx5 = createUploadWasmTx(*app, account5, initialInclusionFee,
+                                      resourceFee, clusterResources);
+
+        auto result5 = app->getHerder().recvTransaction(tx5, false);
+        REQUIRE(result5.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+        REQUIRE(app->getHerder().getTx(tx5->getFullHash()) == nullptr);
     }
 }
 
@@ -2203,16 +2403,16 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             if (!isSoroban)
             {
                 TransactionQueueTest test{queue};
-                auto tx = transaction(*app, account1, 1, 1, 100, /* nbOps */ 1,
-                                      isSoroban);
+                auto tx = transaction(*app, account1, 1, 1, 100,
+                                      /* nbOps */ 1, isSoroban);
                 auto txMultiOps = transaction(*app, account1, 1, 1, 10 * 100,
                                               /* nbOps */ 10, isSoroban);
                 TransactionFrameBasePtr fb;
 
                 SECTION("more ops")
                 {
-                    // Set fee=150*10*10, such that feePerOp is higher than tx's
-                    // fee (150 > 100)
+                    // Set fee=150*10*10, such that feePerOp is higher than
+                    // tx's fee (150 > 100)
                     fb = feeBump(*app, account1, txMultiOps, 15000);
                     test.add(
                         tx,
@@ -2390,9 +2590,9 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             auto newInclusionToPay = 200;
             if (isSoroban)
             {
-                // In case of Soroban, provide additional discount to test the
-                // case where inclusion fee is less than balance, but total fee
-                // is not.
+                // In case of Soroban, provide additional discount to test
+                // the case where inclusion fee is less than balance, but
+                // total fee is not.
                 discount += newInclusionToPay;
             }
             // Available balance after fb1 is 1
@@ -2409,7 +2609,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             SECTION("transaction")
             {
                 // NB: source account limit does not apply here; fb1 has
-                // account1 as source account (account3 is just a fee source)
+                // account1 as source account (account3 is just a fee
+                // source)
                 auto tx2 = transaction(*app, account3, 1, 1, newInclusionToPay,
                                        1, isSoroban);
                 auto addResult = test.add(
@@ -2465,7 +2666,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                 }
                 SECTION("balance insufficient")
                 {
-                    // valid replace-by-fee, but not enough funds to pay for fb2
+                    // valid replace-by-fee, but not enough funds to pay for
+                    // fb2
                     auto tx2 =
                         transaction(*app, account1, 1, 1, 100, 1, isSoroban);
                     TransactionFrameBasePtr fb2;
@@ -2507,6 +2709,61 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                      TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE);
             test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
         }
+        if (isSoroban)
+        {
+            SECTION("fee bump for Soroban resource fee exceeding uint32")
+            {
+                TransactionQueueTest test{queue};
+                int64_t const stroopsInXlm = 10'000'000;
+                auto highBalanceAccount =
+                    root->create("highBalance", 20'000 * stroopsInXlm);
+                SorobanResources resources;
+                resources.instructions = 1;
+                auto tx = createUploadWasmTx(*app, account1, 0,
+                                             10'000 * stroopsInXlm, resources);
+                auto fb = feeBump(
+                    *app, highBalanceAccount, tx,
+                    tx->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        200,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2},
+                             {account3},
+                             {highBalanceAccount}},
+                            {}});
+                auto tx2 = createUploadWasmTx(
+                    *app, account2, 0, std::numeric_limits<uint32_t>::max(),
+                    resources);
+                auto fb2 = feeBump(
+                    *app, highBalanceAccount, tx2,
+                    tx2->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        1000,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb2,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2, 0, {fb2}},
+                             {account3},
+                             {highBalanceAccount}},
+                            {}});
+                auto tx3 = createUploadWasmTx(*app, highBalanceAccount, 0,
+                                              5000 * stroopsInXlm, resources);
+                auto fb3 = feeBump(
+                    *app, highBalanceAccount, tx3,
+                    tx3->getEnvelope().v1().tx.ext.sorobanData().resourceFee +
+                        1000,
+                    /*useInclusionAsFullFee=*/true);
+                test.add(fb3,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}},
+                             {account2, 0, {fb2}},
+                             {account3},
+                             {highBalanceAccount, 0, {fb3}}},
+                            {}});
+            }
+        }
     };
 
     SECTION("classic")
@@ -2516,7 +2773,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2, {}};
         testFeeBump(queue, /* isSoroban */ true);
     }
 }
@@ -2594,7 +2851,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 auto& txResult = addResult.txResult;
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
-                REQUIRE(txResult->getResult().feeCharged ==
+                REQUIRE(txResult->getXDR().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));
                 test.check({{{account1, 0, txs}, {account2}}, {}});
             }
@@ -2611,7 +2868,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 auto& txResult = addResult.txResult;
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
-                REQUIRE(txResult->getResult().feeCharged ==
+                REQUIRE(txResult->getXDR().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));
                 test.check({{{account1, 0, txs}, {account2}}, {}});
             }
@@ -2669,8 +2926,8 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
             submitTransactions(test, txs, isSoroban);
         }
 
-        SECTION(
-            "replace fee-bump having same source and fee-source with fee-bump")
+        SECTION("replace fee-bump having same source and fee-source with "
+                "fee-bump")
         {
             TransactionQueueTest test{queue};
             auto txs = setupFeeBumps(test, account1, isSoroban);
@@ -2693,7 +2950,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2, {}};
         testReplaceByFee(queue, /* isSoroban */ true);
     }
 }
@@ -2913,12 +3170,12 @@ TEST_CASE("arbitrage tx identification",
 TEST_CASE("arbitrage tx identification benchmark",
           "[herder][transactionqueue][arbitrage][bench][!hide]")
 {
-    // This test generates a tx with a single 600-step-long discontiguous loop
-    // formed from 100 7-step ops with 100 overlapping endpoints (forcing the
-    // use of the SCC checker) and then benchmarks how long it takes to check it
-    // for payment loops 100 times, giving a rough idea of how much time the
-    // arb-loop checker might take in the worst case in the middle of the
-    // txqueue flood loop.
+    // This test generates a tx with a single 600-step-long discontiguous
+    // loop formed from 100 7-step ops with 100 overlapping endpoints
+    // (forcing the use of the SCC checker) and then benchmarks how long it
+    // takes to check it for payment loops 100 times, giving a rough idea of
+    // how much time the arb-loop checker might take in the worst case in
+    // the middle of the txqueue flood loop.
     SecretKey bobSec = txtest::getAccount("bob");
     PublicKey bobPub = bobSec.getPublicKey();
     Asset xlm = txtest::makeNativeAsset();
@@ -2966,4 +3223,202 @@ TEST_CASE("arbitrage tx identification benchmark",
     auto end = clock::now();
     LOG_INFO(DEFAULT_LOG, "executed 100 loop-checks of 600-op tx loop in {}",
              ch::duration_cast<ch::milliseconds>(end - start));
+}
+
+TEST_CASE("TransactionQueue reset and rebuild on upgrades",
+          "[herder][transactionqueue][upgrades]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& sorobanQueue = herder.getSorobanTransactionQueue();
+
+    // Create test accounts
+    auto root = app->getRoot();
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(root->create(std::to_string(i), 1000000000));
+    }
+
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = 10;
+
+        cfg.mTxMaxInstructions = 10'000'000;
+        cfg.mTxMaxDiskReadBytes = 10000;
+        cfg.mTxMaxWriteBytes = 10000;
+        cfg.mTxMaxDiskReadEntries = 10;
+        cfg.mTxMaxWriteLedgerEntries = 10;
+        cfg.mTxMaxFootprintEntries = 40;
+        cfg.mTxMaxSizeBytes = 10000;
+
+        cfg.mLedgerMaxDiskReadBytes = cfg.mTxMaxDiskReadBytes * 10;
+        cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
+        cfg.mLedgerMaxDiskReadEntries = cfg.mTxMaxDiskReadEntries * 10;
+        cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
+
+        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
+        cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
+    });
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto defaultUploadWasmResources =
+        txtest::defaultUploadWasmResourcesWithoutFootprint(
+            rust_bridge::get_test_wasm_add_i32(),
+            lm.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    // Make 9 small TXs, one large TX
+    std::vector<TransactionFrameBasePtr> smallTxs;
+    for (auto i = 0; i < 9; ++i)
+    {
+        auto& acc = accounts[i];
+        auto tx = txtest::makeSorobanWasmUploadTx(
+            *app, acc, wasm, defaultUploadWasmResources, 100 + i);
+        smallTxs.push_back(tx);
+    }
+
+    // Create a TX with much larger instruction resources, right at the limit
+    auto largeResources = defaultUploadWasmResources;
+    largeResources.instructions = 10'000'000;
+    auto largeTx = txtest::makeSorobanWasmUploadTx(*app, accounts[9], wasm,
+                                                   largeResources, 1000);
+
+    auto populateQueue = [&]() {
+        for (auto& tx : smallTxs)
+        {
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        }
+
+        REQUIRE(herder.recvTransaction(largeTx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    };
+
+    auto executeUpgrade = [&](auto const& upgradeCfg, auto const& upgrade) {
+        auto lclHeader = lm.getLastClosedLedgerHeader();
+        TimePoint closeTime = lclHeader.header.scpValue.closeTime + 1;
+
+        app->getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lclHeader),
+                                          lclHeader.header.ledgerSeq + 1,
+                                          closeTime, {upgrade});
+        app->getRoot()->loadSequenceNumber();
+
+        // Check that the upgrade was actually applied.
+        auto postUpgradeCfg = lm.getLastClosedSorobanNetworkConfig();
+        releaseAssertOrThrow(postUpgradeCfg == upgradeCfg);
+    };
+
+    SECTION("ledger limit decreases")
+    {
+        // We need to prepare the upgrade first before adding to the TX queue,
+        // since this takes a few ledgers and our queue would get stale or
+        // included. After writing and arming the upgrade, we populate the queue
+        // then execute the upgrade.
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 4; });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // 2 TXs should be dropped since we only keep up to 2 ledgers worth of
+        // TXs
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 8);
+    }
+
+    SECTION("transaction limit decreases")
+    {
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) {
+                cfg.mTxMaxInstructions = 9'000'000;
+            });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // Large TX should be dropped since it exceeds instruction limit
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 9);
+        REQUIRE(!sorobanQueue.getTx(largeTx->getFullHash()));
+        for (auto& tx : smallTxs)
+        {
+            REQUIRE(sorobanQueue.getTx(tx->getFullHash()));
+        }
+    }
+
+    SECTION("Increasing limits does not drop TXs")
+    {
+        auto [upgradeCfg, upgrade] = prepareSorobanNetworkConfigUpgrade(
+            *app, [](SorobanNetworkConfig& cfg) {
+                cfg.mLedgerMaxTxCount = 11;
+                cfg.mTxMaxInstructions = 11'000'000;
+            });
+        populateQueue();
+        executeUpgrade(upgradeCfg, upgrade);
+
+        // All TXs should be kept since we increased the limits
+        REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    }
+}
+
+// Sanity check that no TXs are invalidated on protocol upgrades, since
+// limits aren't decreasing
+TEST_CASE("TXs not evicted from queue on protocol upgrade",
+          "[herder][transactionqueue][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto startingProtocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = startingProtocol;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& lm = app->getLedgerManager();
+    auto& sorobanQueue = herder.getSorobanTransactionQueue();
+
+    overrideSorobanNetworkConfigForTest(*app);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            startingProtocol);
+
+    auto root = app->getRoot();
+    std::vector<TestAccount> accounts;
+    for (size_t i = 0; i < 10; ++i)
+    {
+        accounts.emplace_back(root->create(std::to_string(i), 1000000000));
+    }
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto defaultUploadWasmResources =
+        txtest::defaultUploadWasmResourcesWithoutFootprint(
+            wasm, lm.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    std::vector<TransactionFrameBasePtr> txs;
+    for (auto i = 0; i < 10; ++i)
+    {
+        auto& acc = accounts[i];
+        auto tx = txtest::makeSorobanWasmUploadTx(
+            *app, acc, wasm, defaultUploadWasmResources, 100 + i);
+        txs.push_back(tx);
+    }
+
+    for (auto& tx : txs)
+    {
+        REQUIRE(herder.recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    // Verify queue has all transactions before upgrade
+    REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+
+    // Execute the protocol upgrade
+    LedgerUpgrade protocolUpgrade{LEDGER_UPGRADE_VERSION};
+    protocolUpgrade.newLedgerVersion() =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    ::executeUpgrade(*app, protocolUpgrade);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerVersion ==
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
+    // Verify queue still has all transactions after protocol upgrade
+    REQUIRE(sorobanQueue.getQueueSizeOps() == 10);
+    for (auto& tx : txs)
+    {
+        REQUIRE(sorobanQueue.getTx(tx->getFullHash()));
+    }
 }

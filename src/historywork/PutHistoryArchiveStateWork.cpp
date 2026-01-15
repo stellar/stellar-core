@@ -9,6 +9,7 @@
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
 #include "main/ErrorMessages.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -36,7 +37,7 @@ void
 PutHistoryArchiveStateWork::doReset()
 {
     mPutRemoteFileWork.reset();
-    std::remove(mLocalFilename.c_str());
+    fs::removeWithLog(mLocalFilename);
 }
 
 BasicWork::State

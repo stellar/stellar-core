@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
@@ -82,6 +82,8 @@ class HerderSCPDriver : public SCPDriver
                     std::function<void()> cb) override;
 
     void stopTimer(uint64 slotIndex, int timerID) override;
+    std::chrono::milliseconds computeTimeout(uint32 roundNumber,
+                                             bool isNomination) override;
 
     // hashing support
     Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override;
@@ -91,6 +93,10 @@ class HerderSCPDriver : public SCPDriver
     combineCandidates(uint64_t slotIndex,
                       ValueWrapperPtrSet const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
+
+    bool hasUpgrades(Value const& v) override;
+    ValueWrapperPtr stripAllUpgrades(Value const& v) override;
+    uint32_t getUpgradeNominationTimeoutLimit() const override;
 
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
@@ -115,10 +121,6 @@ class HerderSCPDriver : public SCPDriver
 
     std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
-    // converts a Value into a StellarValue
-    // returns false on error
-    bool toStellarValue(Value const& v, StellarValue& sv);
-
     // validate close time as much as possible
     bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
                         StellarValue const& b) const;
@@ -135,6 +137,14 @@ class HerderSCPDriver : public SCPDriver
 
     Json::Value getQsetLagInfo(bool summary, bool fullKeys);
 
+    // report the nodes identified as maybe dead (missing in SCP during the last
+    // CHECK_FOR_DEAD_NODES_MINUTES interval)
+    Json::Value getMaybeDeadNodes(bool fullKeys);
+
+    // Begin a new interval for checking for dead nodes--set current dead nodes
+    // as missing nodes from previous interval
+    void startCheckForDeadNodesInterval();
+
     // Application-specific weight function. This function uses the quality
     // levels from automatic quorum set generation to determine the weight of a
     // validator. It is designed to ensure that:
@@ -142,6 +152,28 @@ class HerderSCPDriver : public SCPDriver
     // 2. Higher quality orgs win more frequently than lower quality orgs.
     uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
                          bool isLocalNode) const override;
+    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
+    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
+    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
+
+    class TxSetValidityKeyHash
+    {
+      public:
+        size_t operator()(TxSetValidityKey const& key) const;
+    };
+    void cacheValidTxSet(ApplicableTxSetFrame const& txSet,
+                         LedgerHeaderHistoryEntry const& lcl,
+                         uint64_t closeTimeOffset) const;
+#ifdef BUILD_TESTS
+    RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>&
+    getTxSetValidityCache()
+    {
+        return mTxSetValidCache;
+    }
+
+    // Get the number of nomination timeouts that occurred for a given slot
+    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
+#endif
 
   private:
     Application& mApp;
@@ -210,23 +242,24 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
-    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
-    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
-    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
 
-    class TxSetValidityKeyHash
-    {
-      public:
-        size_t operator()(TxSetValidityKey const& key) const;
-    };
+    // The nodes that have exclusively been marked missing during the current
+    // interval.
+    std::set<NodeID> mMissingNodes;
+    // The nodes that were missing during the previous interval.
+    std::set<NodeID> mDeadNodes;
+
     // validity of txSet
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;
 
-    SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
-                                                   StellarValue const& sv,
-                                                   bool nomination) const;
+    SCPDriver::ValidationLevel
+    validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,
+                                   bool nomination) const;
 
+    SCPDriver::ValidationLevel
+    validatePastOrFutureValue(uint64_t slotIndex, StellarValue const& b,
+                              LedgerHeaderHistoryEntry const& lcl) const;
     void logQuorumInformationAndUpdateMetrics(uint64_t index);
 
     void clearSCPExecutionEvents();

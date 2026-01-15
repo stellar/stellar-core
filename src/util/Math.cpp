@@ -6,6 +6,8 @@
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
+#include "util/RandomEvictionCache.h"
 #include "util/UnorderedMap.h"
 #include <Tracy.hpp>
 #include <algorithm>
@@ -18,19 +20,27 @@
 namespace stellar
 {
 
-stellar_default_random_engine gRandomEngine;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
+
+stellar_default_random_engine&
+getGlobalRandomEngine()
+{
+    // gRandomEngine is for main thread only.
+    static stellar_default_random_engine gRandomEngine;
+    releaseAssert(threadIsMain());
+    return gRandomEngine;
+}
 
 double
 rand_fraction()
 {
-    return uniformFractionDistribution(gRandomEngine);
+    return uniformFractionDistribution(getGlobalRandomEngine());
 }
 
 bool
 rand_flip()
 {
-    return (gRandomEngine() & 1);
+    return (getGlobalRandomEngine()() & 1);
 }
 
 double
@@ -68,6 +78,7 @@ exponentialBackoff(uint64_t n)
 std::set<double>
 k_meansPP(std::vector<double> const& points, uint32_t k)
 {
+    auto& engine = getGlobalRandomEngine();
     if (k == 0)
     {
         throw std::runtime_error("k_means: k must be positive");
@@ -111,7 +122,7 @@ k_meansPP(std::vector<double> const& points, uint32_t k)
         // Select the next centroid based on weights, furthest away
         std::discrete_distribution<size_t> weightedDistribution(weights.begin(),
                                                                 weights.end());
-        auto nextIndex = weightedDistribution(gRandomEngine);
+        auto nextIndex = weightedDistribution(engine);
         moveIndexToCentroid(nextIndex);
     }
 
@@ -134,7 +145,7 @@ k_means(std::vector<double> const& points, uint32_t k)
     bool recalculate = true;
     uint32_t iteration = 0;
 
-    const uint32_t MAX_RECOMPUTE_ITERATIONS = 50;
+    uint32_t const MAX_RECOMPUTE_ITERATIONS = 50;
 
     // Run until convergence or iteration depth exhaustion
     while (recalculate && iteration++ < MAX_RECOMPUTE_ITERATIONS)
@@ -175,10 +186,14 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
     lastGlobalSeed = seed;
     PubKeyUtils::clearVerifySigCache();
-    PubKeyUtils::maybeSeedVerifySigCache(seed);
+    PubKeyUtils::seedVerifySigCache(seed);
     srand(seed);
-    gRandomEngine.seed(seed);
+    getGlobalRandomEngine().seed(seed);
     randHash::initialize();
+    randomEvictionCacheSeed = seed;
+#ifdef BUILD_THREAD_JITTER
+    JitterInjector::initialize(seed);
+#endif
 }
 
 void
@@ -202,6 +217,10 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     // test only prngs
     Catch::rng().seed(seed);
     autocheck::rng().seed(seed);
+    // Initialize jitter injection framework with test seed for reproducibility
+#ifdef BUILD_THREAD_JITTER
+    JitterInjector::initialize(seed);
+#endif
 }
 
 unsigned int

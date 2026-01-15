@@ -4,8 +4,11 @@
 
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
+#include "ledger/LedgerTypeUtils.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -14,7 +17,6 @@ std::shared_ptr<HotArchiveBucket>
 HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
                         std::vector<LedgerEntry> const& archivedEntries,
                         std::vector<LedgerKey> const& restoredEntries,
-                        std::vector<LedgerKey> const& deletedEntries,
                         bool countMergeEvents, asio::io_context& ctx,
                         bool doFsync)
 {
@@ -23,8 +25,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     meta.ledgerVersion = protocolVersion;
     meta.ext.v(1);
     meta.ext.bucketListType() = BucketListType::HOT_ARCHIVE;
-    auto entries =
-        convertToBucketEntry(archivedEntries, restoredEntries, deletedEntries);
+    auto entries = convertToBucketEntry(archivedEntries, restoredEntries);
 
     MergeCounters mc;
     HotArchiveBucketOutputIterator out(bucketManager.getTmpDir(), true, meta,
@@ -36,7 +37,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     if (countMergeEvents)
     {
-        bucketManager.incrMergeCounters(mc);
+        bucketManager.incrMergeCounters<HotArchiveBucket>(mc);
     }
 
     return out.getBucket(bucketManager);
@@ -45,8 +46,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 std::vector<HotArchiveBucketEntry>
 HotArchiveBucket::convertToBucketEntry(
     std::vector<LedgerEntry> const& archivedEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries)
+    std::vector<LedgerKey> const& restoredEntries)
 {
     std::vector<HotArchiveBucketEntry> bucket;
     for (auto const& e : archivedEntries)
@@ -54,6 +54,7 @@ HotArchiveBucket::convertToBucketEntry(
         HotArchiveBucketEntry be;
         be.type(HOT_ARCHIVE_ARCHIVED);
         be.archivedEntry() = e;
+        releaseAssertOrThrow(isPersistentEntry(e.data));
         bucket.push_back(be);
     }
     for (auto const& k : restoredEntries)
@@ -61,13 +62,7 @@ HotArchiveBucket::convertToBucketEntry(
         HotArchiveBucketEntry be;
         be.type(HOT_ARCHIVE_LIVE);
         be.key() = k;
-        bucket.push_back(be);
-    }
-    for (auto const& k : deletedEntries)
-    {
-        HotArchiveBucketEntry be;
-        be.type(HOT_ARCHIVE_DELETED);
-        be.key() = k;
+        releaseAssertOrThrow(isPersistentEntry(k));
         bucket.push_back(be);
     }
 
@@ -83,36 +78,23 @@ HotArchiveBucket::convertToBucketEntry(
 
 void
 HotArchiveBucket::maybePut(
-    HotArchiveBucketOutputIterator& out, HotArchiveBucketEntry const& entry,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    bool keepShadowedLifecycleEntries, MergeCounters& mc)
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    HotArchiveBucketEntry const& entry, MergeCounters& mc)
 {
-    // Archived BucketList is only present after protocol 21, so shadows are
-    // never supported
-    out.put(entry);
+    putFunc(entry);
 }
 
+template <typename InputSource>
 void
 HotArchiveBucket::mergeCasesWithEqualKeys(
-    MergeCounters& mc, HotArchiveBucketInputIterator& oi,
-    HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
-    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+    MergeCounters& mc, InputSource& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion)
 {
-    // If two identical keys have the same type, throw an error. Otherwise,
-    // take the newer key.
-    HotArchiveBucketEntry const& oldEntry = *oi;
-    HotArchiveBucketEntry const& newEntry = *ni;
-    if (oldEntry.type() == newEntry.type())
-    {
-        throw std::runtime_error(
-            "Malformed Hot Archive bucket: two identical keys with "
-            "the same type.");
-    }
-
-    out.put(newEntry);
-    ++ni;
-    ++oi;
+    // Always take the newer entry.
+    putFunc(inputSource.getNewEntry());
+    inputSource.advanceNew();
+    inputSource.advanceOld();
 }
 
 uint32_t
@@ -124,7 +106,7 @@ HotArchiveBucket::getBucketVersion() const
 
 HotArchiveBucket::HotArchiveBucket(
     std::string const& filename, Hash const& hash,
-    std::unique_ptr<HotArchiveBucket::IndexT const>&& index)
+    std::shared_ptr<HotArchiveBucket::IndexT const>&& index)
     : BucketBase(filename, hash, std::move(index))
 {
 }
@@ -146,4 +128,15 @@ HotArchiveBucket::bucketEntryToLoadResult(
     return isTombstoneEntry(*be) ? nullptr : be;
 }
 
+template void
+HotArchiveBucket::mergeCasesWithEqualKeys<FileMergeInput<HotArchiveBucket>>(
+    MergeCounters& mc, FileMergeInput<HotArchiveBucket>& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion);
+
+template void
+HotArchiveBucket::mergeCasesWithEqualKeys<MemoryMergeInput<HotArchiveBucket>>(
+    MergeCounters& mc, MemoryMergeInput<HotArchiveBucket>& inputSource,
+    std::function<void(HotArchiveBucketEntry const&)> putFunc,
+    uint32_t protocolVersion);
 }

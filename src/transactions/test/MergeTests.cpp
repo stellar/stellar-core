@@ -7,9 +7,9 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -36,6 +36,11 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
+    // Enable all invariants (including EventsAreConsistentWithEntryDiffs)
+    cfg.INVARIANT_CHECKS = {".*"};
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -48,7 +53,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
     auto txfee = app->getLedgerManager().getLastTxFee();
 
-    const int64_t minBalance =
+    int64_t const minBalance =
         app->getLedgerManager().getLastMinBalance(5) + 20 * txfee;
 
     auto a1 = root->create("A", 2 * minBalance);
@@ -444,7 +449,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     auto xlm = makeNativeAsset();
                     auto curIssued = a1.asset("CUR1");
 
-                    const Price somePrice(3, 2);
+                    Price const somePrice(3, 2);
                     for (int i = 0; i < 4; i++)
                     {
                         a1.manageOffer(0, xlm, curIssued, somePrice, 100);
@@ -764,8 +769,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -828,8 +834,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -901,8 +908,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                         {b1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaFrame txm(
-                        ltx.loadHeader().current().ledgerVersion);
+                    TransactionMetaBuilder txm(
+                        true, *tx, ltx.loadHeader().current().ledgerVersion,
+                        app->getAppConnector());
                     REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                      ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
@@ -925,8 +933,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaFrame txm(
-                            ltx.loadHeader().current().ledgerVersion);
+                        TransactionMetaBuilder txm(
+                            true, *tx, ltx.loadHeader().current().ledgerVersion,
+                            app->getAppConnector());
                         REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
                                                          ltx, 0, 0, 0));
                         REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
@@ -946,4 +955,39 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             }
         });
     }
+}
+
+TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
+{
+    Config cfg(getTestConfig(0));
+
+    // Enable all invariants (including EventsAreConsistentWithEntryDiffs)
+    cfg.INVARIANT_CHECKS = {".*"};
+    cfg.EMIT_CLASSIC_EVENTS = true;
+    cfg.BACKFILL_STELLAR_ASSET_EVENTS = true;
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    // set up world
+    auto root = app->getRoot();
+    auto txfee = app->getLedgerManager().getLastTxFee();
+
+    int64_t const minBalance =
+        app->getLedgerManager().getLastMinBalance(0) + txfee * 2;
+
+    auto a1 = root->create("A", minBalance);
+    auto b1 = root->create("B", minBalance);
+
+    for_versions_to(4, *app, [&] {
+        auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaBuilder txm(true, *txFrame,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
+        REQUIRE(txFrame->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
+                                              0));
+        REQUIRE(txFrame->apply(app->getAppConnector(), ltx, txm));
+    });
 }

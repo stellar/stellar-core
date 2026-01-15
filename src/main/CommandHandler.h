@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "lib/http/server.hpp"
 #include "main/QueryServer.h"
@@ -43,6 +43,8 @@ class CommandHandler
   public:
     CommandHandler(Application& app);
 
+    void shutdown();
+
     std::string manualCmd(std::string const& cmd);
 
     void fileNotFound(std::string const& params, std::string& retStr);
@@ -81,6 +83,7 @@ class CommandHandler
     void generateLoad(std::string const& params, std::string& retStr);
     void testAcc(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);
+    void toggleOverlayOnlyMode(std::string const& params, std::string& retStr);
 #endif
 };
 }

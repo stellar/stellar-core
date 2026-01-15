@@ -26,6 +26,15 @@ sha256(ByteSlice const& bin)
     return out;
 }
 
+Hash
+subSha256(ByteSlice const& seed, uint64_t counter)
+{
+    SHA256 sha;
+    sha.add(seed);
+    sha.add(xdr::xdr_to_opaque(counter));
+    return sha.finish();
+}
+
 SHA256::SHA256()
 {
     reset();

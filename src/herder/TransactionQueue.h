@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/SecretKey.h"
 #include "herder/TxQueueLimiter.h"
@@ -76,6 +76,7 @@ class TransactionQueue
     {
         TransactionQueue::AddResultCode code;
         MutableTxResultPtr txResult;
+        xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
 
         // AddResult with no txResult
         explicit AddResult(TransactionQueue::AddResultCode addCode);
@@ -84,10 +85,21 @@ class TransactionQueue
         explicit AddResult(TransactionQueue::AddResultCode addCode,
                            MutableTxResultPtr payload);
 
+        // Same as above, also populating diagnostics
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           MutableTxResultPtr payload,
+                           xdr::xvector<DiagnosticEvent>&& diagnostics);
+
         // AddResult with error txResult with the specified txErrorCode
         explicit AddResult(TransactionQueue::AddResultCode addCode,
-                           TransactionFrameBasePtr tx,
+                           TransactionFrameBase const& tx,
                            TransactionResultCode txErrorCode);
+
+        // Same as above, also populating diagnostics
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           TransactionFrameBase const& tx,
+                           TransactionResultCode txErrorCode,
+                           xdr::xvector<DiagnosticEvent>&& diagnostics);
     };
 
     /**
@@ -105,7 +117,6 @@ class TransactionQueue
     struct TimestampedTx
     {
         TransactionFrameBasePtr mTx;
-        bool mBroadcasted;
         VirtualClock::time_point mInsertionTime;
         bool mSubmittedFromSelf;
     };
@@ -180,35 +191,53 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
+    UnorderedSet<LedgerKey> mKeysToFilter;
 
     // counters
     struct QueueMetrics
     {
         QueueMetrics(std::vector<medida::Counter*> sizeByAge,
                      medida::Counter& bannedTransactionsCounter,
-                     medida::Counter& transactionsDelayAccumulator,
-                     medida::Counter& transactionsDelayCounter,
-                     medida::Counter& transactionsSelfDelayAccumulator,
-                     medida::Counter& transactionsSelfDelayCounter)
+                     SimpleTimer& transactionsDelay,
+                     SimpleTimer& transactionsSelfDelay,
+                     medida::Counter& txsEvictedByHigherFeeTxCounter,
+                     medida::Counter& txsEvictedDueToAgeCounter,
+                     medida::Counter& txsNotAcceptedDueToLowFeeCounter,
+                     medida::Counter& txsFilteredDueToFpKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
-            , mTransactionsDelayAccumulator(transactionsDelayAccumulator)
-            , mTransactionsSelfDelayAccumulator(
-                  transactionsSelfDelayAccumulator)
-            , mTransactionsDelayCounter(transactionsDelayCounter)
-            , mTransactionsSelfDelayCounter(transactionsSelfDelayCounter)
+            , mTransactionsDelay(transactionsDelay)
+            , mTransactionsSelfDelay(transactionsSelfDelay)
+            , mTxsEvictedByHigherFeeTxCounter(txsEvictedByHigherFeeTxCounter)
+            , mTxsEvictedDueToAgeCounter(txsEvictedDueToAgeCounter)
+            , mTxsNotAcceptedDueToLowFeeCounter(
+                  txsNotAcceptedDueToLowFeeCounter)
+            , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
         medida::Counter& mBannedTransactionsCounter;
 
-        // Sum of total delay, in milliseconds
-        medida::Counter& mTransactionsDelayAccumulator;
-        medida::Counter& mTransactionsSelfDelayAccumulator;
+        // Keep track of time (in milliseconds) for transaction to be included
+        // in ledger using `SimpleTimer`s since medida `Timer`s are too
+        // expensive
+        SimpleTimer& mTransactionsDelay;
+        SimpleTimer& mTransactionsSelfDelay;
 
-        // Count of transactions delay events
-        medida::Counter& mTransactionsDelayCounter;
-        medida::Counter& mTransactionsSelfDelayCounter;
+        // The following metrics provided more detailed insight into banned
+        // transactions: mBannedTransactionsCounter includes all these, as well
+        // as invalid transactions.
+        // Count of transactions evicted by higher fee txs when queue is
+        // near its capacity.
+        medida::Counter& mTxsEvictedByHigherFeeTxCounter;
+        // Count of transactions that had low fee for too long and have not
+        // been included into several ledgers in a row.
+        medida::Counter& mTxsEvictedDueToAgeCounter;
+        // Count of transactions that were not included into queue because it
+        // is at capacity and the fee is too low to replace other txs.
+        medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
+
+        medida::Counter& mTxsFilteredDueToFootprintKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;
@@ -223,7 +252,7 @@ class TransactionQueue
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
     virtual int getFloodPeriod() const = 0;
-    virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
+    virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -233,7 +262,7 @@ class TransactionQueue
         BROADCAST_STATUS_SUCCESS,
         BROADCAST_STATUS_SKIPPED
     };
-    BroadcastStatus broadcastTx(TimestampedTx& tx);
+    BroadcastStatus broadcastTx(TransactionFrameBasePtr const& tx);
 
 #ifdef BUILD_TESTS
     TransactionQueue::AddResult
@@ -264,7 +293,7 @@ class TransactionQueue
   public:
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
-    std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
+    std::function<void(TransactionFrameBasePtr const&)> mTxBroadcastedEvent;
 #endif
 };
 
@@ -272,7 +301,8 @@ class SorobanTransactionQueue : public TransactionQueue
 {
   public:
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
+                            uint32 banDepth, uint32 poolLedgerMultiplier,
+                            UnorderedSet<LedgerKey> const& keysToFilter);
     int
     getFloodPeriod() const override
     {
@@ -280,6 +310,16 @@ class SorobanTransactionQueue : public TransactionQueue
     }
 
     size_t getMaxQueueSizeOps() const override;
+
+    /**
+     * Reset and rebuild the Soroban transaction queue with respect to new
+     * limits. This method extracts all current transactions, clears the queue
+     * state, and re-adds transactions using surge pricing logic for
+     * sorting/evictions. Should be called synchronously during protocol or
+     * network config upgrades.
+     */
+    void resetAndRebuild(UnorderedSet<LedgerKey> const& keysToFilter);
+
 #ifdef BUILD_TESTS
     void
     clearBroadcastCarryover()
@@ -296,7 +336,7 @@ class SorobanTransactionQueue : public TransactionQueue
     std::vector<Resource> mBroadcastOpCarryover;
     // No special flooding rules for Soroban
     virtual bool
-    allowTxBroadcast(TimestampedTx const& tx) override
+    allowTxBroadcast(TransactionFrameBasePtr const& tx) override
     {
         return true;
     }
@@ -324,10 +364,10 @@ class ClassicTransactionQueue : public TransactionQueue
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
-    virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
+    virtual bool allowTxBroadcast(TransactionFrameBasePtr const& tx) override;
 };
 
-extern std::array<const char*,
+extern std::array<char const*,
                   static_cast<int>(
                       TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING;

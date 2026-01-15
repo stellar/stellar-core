@@ -352,9 +352,24 @@ LocalNode::toJson(SCPQuorumSet const& qSet,
     Json::Value ret;
     ret["t"] = qSet.threshold;
     auto& entries = ret["v"];
+    entries = Json::Value(Json::arrayValue);
+
     for (auto const& v : qSet.validators)
     {
-        entries.append(r(v));
+        try
+        {
+            std::string strKey = r(v);
+            if (strKey.empty())
+            {
+                throw std::runtime_error("Empty validator key generated");
+            }
+            entries.append(strKey);
+        }
+        catch (std::exception const& e)
+        {
+            throw std::runtime_error("Failed to convert validator to string: " +
+                                     std::string(e.what()));
+        }
     }
     for (auto const& s : qSet.innerSets)
     {
@@ -370,24 +385,39 @@ LocalNode::fromJson(Json::Value const& qSetJson)
     {
         throw std::runtime_error("JSON field 'qset' must be an object");
     }
-    SCPQuorumSet ret;
-    Json::Value const& thresholdJson = qSetJson["t"];
 
-    // NOTE: In addition to checking whether the field is a non-negative
-    // integer, `isUInt` will also return false when `thresholdJson` is too
-    // large to fit in an `unsigned int`.
-    if (!thresholdJson.isUInt())
+    SCPQuorumSet ret;
+
+    if (!qSetJson.isMember("t") || !qSetJson["t"].isUInt())
     {
-        throw std::runtime_error("JSON field 't' must be an unsigned integer");
+        throw std::runtime_error(
+            "JSON field 't' must exist and be an unsigned integer");
     }
-    ret.threshold = thresholdJson.asUInt();
+    if (!qSetJson.isMember("v") || !qSetJson["v"].isArray())
+    {
+        throw std::runtime_error("JSON field 'v' must exist and be an array");
+    }
+
+    ret.threshold = qSetJson["t"].asUInt();
     Json::Value const& entries = qSetJson["v"];
+    ret.validators.reserve(entries.size());
+    ret.innerSets.reserve(entries.size());
+
     for (Json::Value const& entry : entries)
     {
         if (entry.isString())
         {
-            ret.validators.push_back(
-                KeyUtils::fromStrKey<NodeID>(entry.asString()));
+            try
+            {
+                ret.validators.push_back(
+                    KeyUtils::fromStrKey<NodeID>(entry.asString()));
+            }
+            catch (std::exception const& e)
+            {
+                throw std::runtime_error(
+                    "Invalid validator key in 'v' array: " +
+                    std::string(e.what()));
+            }
         }
         else if (entry.isObject())
         {
@@ -396,7 +426,8 @@ LocalNode::fromJson(Json::Value const& qSetJson)
         else
         {
             throw std::runtime_error(
-                "JSON field 'v' must be either a string or an object");
+                "Each entry in 'v' must be either a string (validator key) or "
+                "an object (inner quorum set)");
         }
     }
     return ret;

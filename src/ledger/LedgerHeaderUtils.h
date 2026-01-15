@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2018 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "database/Database.h"
 #include "xdr/Stellar-ledger.h"
@@ -35,6 +35,6 @@ void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count);
 size_t copyToStream(soci::session& sess, uint32_t ledgerSeq,
                     uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder);
 
-void dropAll(Database& db);
+void maybeDropAndCreateNew(Database& db);
 }
 }

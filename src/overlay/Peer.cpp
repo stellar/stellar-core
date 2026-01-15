@@ -17,6 +17,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
@@ -34,7 +35,9 @@
 
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include "util/types.h"
 #include "xdrpp/marshal.h"
+#include <chrono>
 #include <fmt/format.h>
 
 #include <Tracy.hpp>
@@ -60,39 +63,67 @@ void
 populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 {
     ZoneScoped;
-    releaseAssert(app.getConfig().EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
+    releaseAssert(app.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
-    auto const& hash = tx->getContentsHash();
-    auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
     auto& snapshot = app.getOverlayThreadSnapshot();
     app.maybeCopySearchableBucketListSnapshot(snapshot);
     LedgerSnapshot ledgerSnapshot(snapshot);
 
-    SignatureChecker signatureChecker(
-        ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-        signatures);
+    // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to
+    // simplify checking of both outer and inner transactions in the case of fee
+    // bumps.
+    auto const checkTxSignatures = [&ledgerSnapshot](
+                                       TransactionFrameBaseConstPtr tx) {
+        auto const& hash = tx->getContentsHash();
+        auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
 
-    // NOTE: Use getFeeSourceID so that this works for both TransactionFrame and
-    // FeeBumpTransactionFrame
-    auto const sourceAccount = ledgerSnapshot.getAccount(tx->getFeeSourceID());
+        SignatureChecker signatureChecker(
+            ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
+            signatures);
 
-    // Check signature, which will add the result to the signature cache. This
-    // is safe to do here (pre-validation) because:
-    // 1. The signatures themselves are fixed and cannot change, and
-    // 2. In the unlikely case that the account's signers or thresholds have
-    //    changed (and we haven't heard of it yet), the validation and apply
-    //    functions still contain `checkSignature` calls, which will cause a
-    //    cache miss in that case and force a recheck of the signatures with
-    //    up-to-date signers/thresholds.
-    //
-    // Note that we always use a threshold of HIGH for the signatures to ensure
-    // we check all signatures for any possible operation that may be in the
-    // transaction. Performance analysis has shown that the overlay thread
-    // contains significant extra capacity and can handle this extra load.
-    tx->checkSignature(
-        signatureChecker, sourceAccount,
-        sourceAccount.current().data.account().thresholds[THRESHOLD_HIGH]);
+        // Do not report signature cache metrics during background validation.
+        // This allows us to more accurately measure the impact of background
+        // signature checking on cache hits during critical path signature
+        // checking.
+        signatureChecker.disableCacheMetricsTracking();
+
+        // NOTE: Use getFeeSourceID so that this works for both TransactionFrame
+        // and FeeBumpTransactionFrame
+        auto const sourceAccount =
+            ledgerSnapshot.getAccount(tx->getFeeSourceID());
+
+        if (!sourceAccount)
+        {
+            return;
+        }
+
+        // Check signatures, which will add the results to the signature cache.
+        // This is safe to do here (pre-validation) because:
+        // 1. The signatures themselves are fixed and cannot change, and
+        // 2. In the unlikely case that the account's signers or thresholds have
+        //    changed (and we haven't heard of it yet), the validation and apply
+        //    functions always directly call the same signature checking
+        //    functions which will fail upon detecting a different expected
+        //    signer/threshold. The cache *only* contains results for the low
+        //    level cryptographic signature checks, which cannot change (see
+        //    point (1) above).
+
+        // Check all transaction signatures
+        tx->checkAllTransactionSignatures(
+            signatureChecker, sourceAccount,
+            ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+
+        // Check all operation signatures.
+        tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+    };
+
+    checkTxSignatures(tx);
+
+    // Check signatures on inner transaction if there is one
+    tx->withInnerTx([&](TransactionFrameBaseConstPtr innerTx) {
+        checkTxSignatures(innerTx);
+    });
 }
 } // namespace
 
@@ -153,9 +184,9 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
 
     // Whether to check transaction signatures in the background, adding them to
     // the signature cache in the process.
-    bool const checkTxSig = self->mAppConnector.getConfig()
-                                .EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION &&
-                            self->useBackgroundThread();
+    bool const checkTxSig =
+        self->mAppConnector.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
+        self->useBackgroundThread();
 
     if (mMsg.type() == TRANSACTION)
     {
@@ -192,9 +223,19 @@ CapacityTrackedMessage::maybeGetHash() const
 CapacityTrackedMessage::~CapacityTrackedMessage()
 {
     auto self = mWeakPeer.lock();
-    if (self)
+    try
     {
-        self->endMessageProcessing(mMsg);
+        if (self)
+        {
+            self->endMessageProcessing(mMsg);
+        }
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(Overlay, "Exception in ~CapacityTrackedMessage: {}",
+                   e.what());
+        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+        throw;
     }
 }
 
@@ -563,6 +604,7 @@ Peer::maybeExecuteInBackground(std::string const& jobName,
     if (useBackgroundThread() &&
         !mAppConnector.threadIsType(Application::ThreadType::OVERLAY))
     {
+        releaseAssert(threadIsMain());
         mAppConnector.postOnOverlayThread(
             [self = shared_from_this(), f]() { f(self); }, jobName);
     }
@@ -941,6 +983,13 @@ Peer::shouldAbortForTesting() const
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return shouldAbort(guard);
 }
+
+void
+Peer::populateSignatureCacheForTesting(AppConnector& app,
+                                       TransactionFrameBaseConstPtr tx)
+{
+    populateSignatureCache(app, tx);
+}
 #endif
 
 std::chrono::seconds
@@ -1288,10 +1337,7 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
         auto start = mAppConnector.now();
         recvTransaction(*msgTracker);
         auto end = mAppConnector.now();
-        mOverlayMetrics.mRecvTransactionAccumulator.inc(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start)
-                .count());
-        mOverlayMetrics.mRecvTransactionCounter.inc();
+        mOverlayMetrics.mRecvTransactionTimer.Update(end - start);
     }
     break;
 
@@ -1368,7 +1414,9 @@ Peer::process(QueryInfo& queryInfo)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
-        cfg.getExpectedLedgerCloseTime() * cfg.MAX_SLOTS_TO_REMEMBER;
+        std::chrono::duration_cast<std::chrono::seconds>(
+            mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
+            cfg.MAX_SLOTS_TO_REMEMBER);
     uint32_t const QUERIES_PER_WINDOW =
         QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;
     if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)
@@ -1392,11 +1440,8 @@ Peer::recvTxBatch(CapacityTrackedMessage const& msgTracker)
         auto start = mAppConnector.now();
         mAppConnector.getOverlayManager().recvTransaction(
             tx, shared_from_this(), blake2Hash);
-        mOverlayMetrics.mRecvTransactionAccumulator.inc(
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                mAppConnector.now() - start)
-                .count());
-        mOverlayMetrics.mRecvTransactionCounter.inc();
+        mOverlayMetrics.mRecvTransactionTimer.Update(mAppConnector.now() -
+                                                     start);
     }
 }
 #endif
@@ -1662,8 +1707,9 @@ Peer::recvError(StellarMessage const& msg)
     std::string msgStr;
     msgStr.reserve(msg.error().msg.size());
     std::transform(msg.error().msg.begin(), msg.error().msg.end(),
-                   std::back_inserter(msgStr),
-                   [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
+                   std::back_inserter(msgStr), [](char c) {
+                       return (isAsciiAlphaNumeric(c) || c == ' ') ? c : '*';
+                   });
 
     drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
          Peer::DropDirection::REMOTE_DROPPED_US);

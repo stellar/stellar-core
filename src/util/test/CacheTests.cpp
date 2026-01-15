@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "util/RandomEvictionCache.h"
 #include <ctime>
 #include <map>
@@ -104,7 +104,7 @@ TEST_CASE("RandomEvictionCache works as a cache", "[randomevictioncache]")
 TEST_CASE("RandomEvictionCache does not thrash",
           "[randomevictioncachethrash][!hide]")
 {
-    gRandomEngine.seed(std::time(nullptr) & UINT32_MAX);
+    getGlobalRandomEngine().seed(std::time(nullptr) & UINT32_MAX);
     size_t sz = 1000;
     RandomEvictionCache<size_t, size_t> cache(sz);
     auto const& ctrs = cache.getCounters();

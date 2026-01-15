@@ -4,10 +4,10 @@
 
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
+#include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Math.h"
 #include <fmt/format.h>
@@ -18,11 +18,11 @@ namespace
 {
 
 bool
-keyMatches(PublicKey& key, const std::vector<std::string>& keys)
+keyMatches(PublicKey& key, std::vector<std::string> const& keys)
 {
     auto keyStr = KeyUtils::toStrKey<PublicKey>(key);
     return std::any_of(std::begin(keys), std::end(keys),
-                       [&](const std::string& x) { return keyStr == x; });
+                       [&](std::string const& x) { return keyStr == x; });
 }
 }
 
@@ -58,7 +58,7 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(!cfg.resolveNodeID("@", publicKey));
     }
 
-    SECTION("unique uppercase abbrevated id")
+    SECTION("unique uppercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@GD", publicKey);
@@ -66,14 +66,14 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(keyMatches(publicKey, {validator1Key}));
     }
 
-    SECTION("unique lowercase abbrevated id")
+    SECTION("unique lowercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@gd", publicKey);
         REQUIRE(!result);
     }
 
-    SECTION("non unique uppercase abbrevated id")
+    SECTION("non unique uppercase abbreviated id")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("@GC", publicKey);
@@ -113,7 +113,7 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(keyMatches(publicKey, {validator1Key}));
     }
 
-    SECTION("abbrevated node id without prefix")
+    SECTION("abbreviated node id without prefix")
     {
         auto publicKey = PublicKey{};
         REQUIRE(!cfg.resolveNodeID("GDKXE2OZMJIPOSLNA6N6F2BVCI3O7", publicKey));
@@ -147,7 +147,8 @@ TEST_CASE("resolve node id", "[config]")
 TEST_CASE("load validators config", "[config]")
 {
     Config c;
-    c.load("testdata/stellar-core_example_validators.cfg");
+    c.load(
+        getBuildTestDataPath("stellar-core_example_validators.cfg").string());
     auto actualS = c.toString(c.QUORUM_SET);
     std::string expected = R"({
    "t" : 4,
@@ -286,6 +287,7 @@ TEST_CASE("bad validators configs", "[config]")
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 {NODE_HOME_DOMAIN}
 NODE_IS_VALIDATOR=true
+DATABASE="sqlite3://test.db"
 
 ############################
 # list of HOME_DOMAINS
@@ -456,11 +458,10 @@ TEST_CASE("load example configs", "[config]")
         "stellar-core_testnet_validator.cfg"};
     for (auto const& fn : testFiles)
     {
-        std::string fnPath = "testdata/";
-        fnPath += fn;
-        SECTION("load config " + fnPath)
+        auto fnPath = getBuildTestDataPath(fn);
+        SECTION("load config " + fnPath.string())
         {
-            c.load(fnPath);
+            c.load(fnPath.string());
         }
     }
 }
@@ -563,8 +564,8 @@ TEST_CASE("operation filter configuration", "[config]")
         {
             vals.emplace_back(static_cast<OperationType>(v));
         }
-        stellar::shuffle(vals.begin(), vals.end(), gRandomEngine);
-        vals.resize(dist(gRandomEngine));
+        stellar::shuffle(vals.begin(), vals.end(), getGlobalRandomEngine());
+        vals.resize(dist(getGlobalRandomEngine()));
         loadConfig(vals);
     }
 }
@@ -578,7 +579,6 @@ TEST_CASE("reject all low quality validators config", "[config]")
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 NODE_HOME_DOMAIN="domain"
 NODE_IS_VALIDATOR=true
-DEPRECATED_SQL_LEDGER_STATE=false
 UNSAFE_QUORUM=true
 
 [[HOME_DOMAINS]]
@@ -610,7 +610,6 @@ TEST_CASE("skip validator checks", "[config]")
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 NODE_HOME_DOMAIN="domain"
 NODE_IS_VALIDATOR=true
-DEPRECATED_SQL_LEDGER_STATE=false
 UNSAFE_QUORUM=true
 SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING=true
 

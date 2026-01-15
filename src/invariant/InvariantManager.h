@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "herder/TxSetFrame.h"
 #include "lib/json/json.h"
@@ -11,9 +11,12 @@
 namespace stellar
 {
 
+class AppConnector;
 class Application;
 class Bucket;
 class Invariant;
+class LedgerManager;
+struct EvictedStateVectors;
 struct LedgerTxnDelta;
 struct Operation;
 
@@ -46,11 +49,36 @@ class InvariantManager
 
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,
-                                       LedgerTxnDelta const& ltxDelta) = 0;
+                                       LedgerTxnDelta const& ltxDelta,
+                                       std::vector<ContractEvent> const& events,
+                                       AppConnector& app) = 0;
+
+    virtual void checkOnLedgerCommit(
+        SearchableSnapshotConstPtr lclLiveState,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState) = 0;
+
+    // This is used for expensive invariants that can't run in a blocking
+    // fashion, such as invariants that require scanning the entire BucketList.
+    // The invariant will periodically run on a background thread against the
+    // given ledger state snapshot. These invariants will only run if
+    // INVARIANT_EXTRA_CHECKS is enabled.
+    virtual void runStateSnapshotInvariant(
+        SearchableSnapshotConstPtr liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+        InMemorySorobanState const& inMemorySnapshot,
+        std::function<bool()> isStopping) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 
     virtual void enableInvariant(std::string const& name) = 0;
+
+    virtual void start(LedgerManager const& ledgerManager) = 0;
+
+    virtual bool shouldRunInvariantSnapshot() const = 0;
 
 #ifdef BUILD_TESTS
     virtual void snapshotForFuzzer() = 0;

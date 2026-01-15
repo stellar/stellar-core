@@ -206,6 +206,7 @@ Scheduler::shutdown()
             std::priority_queue<Qptr, std::vector<Qptr>,
                                 std::function<bool(Qptr, Qptr)>>();
         mIdleActionQueues.clear();
+        mSize = 0;
     }
 }
 

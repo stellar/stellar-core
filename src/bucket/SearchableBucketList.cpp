@@ -13,11 +13,11 @@
 
 namespace stellar
 {
-EvictionResultCandidates
+std::unique_ptr<EvictionResultCandidates>
 SearchableLiveBucketListSnapshot::scanForEviction(
-    uint32_t ledgerSeq, EvictionCounters& counters,
-    EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
-    StateArchivalSettings const& sas, uint32_t ledgerVers) const
+    uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator evictionIter,
+    std::shared_ptr<EvictionStatistics> stats, StateArchivalSettings const& sas,
+    uint32_t ledgerVers) const
 {
     releaseAssert(mSnapshot);
     releaseAssert(stats);
@@ -32,7 +32,22 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     LiveBucketList::updateStartingEvictionIterator(
         evictionIter, sas.startingEvictionScanLevel, ledgerSeq);
 
-    EvictionResultCandidates result(sas);
+    // We need to keep track of evicted keys in two ways. First, we need to
+    // track keys in the order in which they were evicted via the
+    // result linked list. This scan is happening in the background, and
+    // depending on what happens during TX apply, some of the eviction
+    // candidates may be invalidated. We need to evict at most N keys and
+    // len(result) can be > N. We track the order so we know in the
+    // main thread the cutoff point for what is actually getting evicted from
+    // result. Second, we need to make sure we don't evict the same key twice.
+    // It's possible for an entry to be expired and for two different versions
+    // of the entry to exist in two different buckets. We will scan both
+    // versions of the entry, but we should only evict it once. keysToEvict just
+    // maps the keys in result in a hash set so we don't have to iterate over
+    // the linked list to check if an entry has already been evicted.
+    std::unique_ptr<EvictionResultCandidates> result =
+        std::make_unique<EvictionResultCandidates>(sas, ledgerSeq, ledgerVers);
+    UnorderedSet<LedgerKey> keysToEvict;
     auto startIter = evictionIter;
     auto scanSize = sas.evictionScanSize;
 
@@ -40,12 +55,12 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     {
         auto const& b = getBucketFromIter(evictionIter);
         LiveBucketList::checkIfEvictionScanIsStuck(
-            evictionIter, sas.evictionScanSize, b.getRawBucket(), counters);
+            evictionIter, sas.evictionScanSize, b.getRawBucket(), metrics);
 
         // If we scan scanSize before hitting bucket EOF, exit early
         if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
-                              result.eligibleEntries, *this,
-                              ledgerVers) == Loop::COMPLETE)
+                              result->eligibleEntries, *this, ledgerVers,
+                              keysToEvict) == Loop::COMPLETE)
         {
             break;
         }
@@ -53,15 +68,27 @@ SearchableLiveBucketListSnapshot::scanForEviction(
         // If we return back to the Bucket we started at, exit
         if (LiveBucketList::updateEvictionIterAndRecordStats(
                 evictionIter, startIter, sas.startingEvictionScanLevel,
-                ledgerSeq, stats, counters))
+                ledgerSeq, stats, metrics))
         {
             break;
         }
     }
 
-    result.endOfRegionIterator = evictionIter;
-    result.initialLedger = ledgerSeq;
+    result->endOfRegionIterator = evictionIter;
     return result;
+}
+
+void
+SearchableLiveBucketListSnapshot::scanForEntriesOfType(
+    LedgerEntryType type,
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    releaseAssert(mSnapshot);
+    auto f = [type, &callback](auto const& b) {
+        return b.scanForEntriesOfType(type, callback);
+    };
+    loopAllBuckets(f, *mSnapshot);
 }
 
 // This query has two steps:
@@ -102,7 +129,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     std::vector<LedgerEntry> result;
     auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(trustlinesToLoad, result, /*lkMeter=*/nullptr);
+        b.loadKeys(trustlinesToLoad, result);
         return trustlinesToLoad.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
@@ -202,33 +229,29 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 }
 
 std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeysWithLimits(
+SearchableLiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    std::string const& label, LedgerKeyMeter* lkMeter) const
+    std::string const& label) const
 {
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
-    auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
+    auto op = loadKeysInternal(inKeys, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
 }
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager,
     AppConnector const& appConnector, SnapshotPtrT<LiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<LiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<LiveBucket>(
-          snapshotManager, appConnector, std::move(snapshot),
-          std::move(historicalSnapshots))
+          appConnector, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager,
     AppConnector const& appConnector, SnapshotPtrT<HotArchiveBucket>&& snapshot,
     std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>&& historicalSnapshots)
     : SearchableBucketListSnapshotBase<HotArchiveBucket>(
-          snapshotManager, appConnector, std::move(snapshot),
-          std::move(historicalSnapshots))
+          appConnector, std::move(snapshot), std::move(historicalSnapshots))
 {
 }
 
@@ -236,7 +259,7 @@ std::vector<HotArchiveBucketEntry>
 SearchableHotArchiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
-    auto op = loadKeysInternal(inKeys, /*lkMeter=*/nullptr, std::nullopt);
+    auto op = loadKeysInternal(inKeys, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
 }

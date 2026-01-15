@@ -36,7 +36,10 @@ Maintainer::start()
         // number
         int64 ledgersPerMaintenancePeriod = bigDivideOrThrow(
             c.AUTOMATIC_MAINTENANCE_PERIOD.count(), 1,
-            c.getExpectedLedgerCloseTime().count(), Rounding::ROUND_UP);
+            std::chrono::duration_cast<std::chrono::seconds>(
+                mApp.getLedgerManager().getExpectedLedgerCloseTime())
+                .count(),
+            Rounding::ROUND_UP);
         if (c.AUTOMATIC_MAINTENANCE_COUNT <= ledgersPerMaintenancePeriod)
         {
             LOG_WARNING(
@@ -96,7 +99,7 @@ Maintainer::performMaintenance(uint32_t count)
     CLOG_INFO(History, "Trimming history <= ledger {}", lmin);
 
     // Cleanup SCP history, always from main
-    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawSession(),
+    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawMiscSession(),
                                         lmin, count);
 
     if (mApp.getConfig().parallelLedgerClose())

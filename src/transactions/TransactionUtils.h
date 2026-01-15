@@ -1,14 +1,16 @@
-#pragma once
-
 // Copyright 2018 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
+#include "transactions/EventManager.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
+#include <xdrpp/marshal.h>
 
 #include <algorithm>
 #include <optional>
@@ -28,7 +30,6 @@ class InternalLedgerKey;
 class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
-class SorobanTxData;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -247,7 +248,8 @@ void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 AccountID toAccountID(MuxedAccount const& m);
-MuxedAccount toMuxedAccount(AccountID const& a);
+MuxedAccount toMuxedAccount(AccountID const& a,
+                            std::optional<uint64> id = std::nullopt);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
@@ -259,9 +261,6 @@ bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
-
-bool isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                      TransactionEnvelope const& envelope);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
@@ -282,7 +281,8 @@ enum class RemoveResult
 
 RemoveResult removeOffersAndPoolShareTrustLines(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset,
-    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex);
+    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex,
+    OpEventManager& opEventManager);
 
 // this can delete the pool
 void decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool);
@@ -314,19 +314,33 @@ bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                                  SorobanNetworkConfig const& config,
                                  Config const& appConfig,
                                  TransactionFrame const& parentTx,
-                                 SorobanTxData& sorobanData);
+                                 DiagnosticEventManager& diagnosticEvents);
 
-struct LumenContractInfo
+struct AssetContractInfo
 {
-    Hash mLumenContractID;
+    Hash mAssetContractID;
     SCVal mBalanceSymbol;
     SCVal mAmountSymbol;
 };
-LumenContractInfo getLumenContractInfo(Hash const& networkID);
+AssetContractInfo getAssetContractInfo(Asset const& asset,
+                                       Hash const& networkID);
+Hash getAssetContractID(Hash const& networkID, Asset const& asset);
+
+struct AssetBalanceResult
+{
+    bool overflowed{false};
+    bool assetMatched{false};
+    std::optional<int64_t> balance; // Only set if !overflowed && assetMatched
+};
+
+AssetBalanceResult getAssetBalance(LedgerEntry const& le, Asset const& asset,
+                                   AssetContractInfo const& assetContractInfo);
 
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
+SCVal makeStringSCVal(std::string const& str);
+SCVal makeU32SCVal(uint32_t u);
 SCVal makeU64SCVal(uint64_t u);
 template <typename T>
 SCVal
@@ -337,4 +351,36 @@ makeBytesSCVal(T const& bytes)
     return val;
 }
 SCVal makeAddressSCVal(SCAddress const& address);
+SCVal makeI128SCVal(int64_t v);
+SCVal makeAccountIDSCVal(AccountID const& id);
+SCVal makeSep0011AssetStringSCVal(Asset const& asset);
+SCVal makeClassicMemoSCVal(Memo const& memo);
+SCVal makeMuxIDSCVal(MuxedEd25519Account const& acc);
+
+SCAddress makeMuxedAccountAddress(MuxedAccount const& account);
+SCAddress makeAccountAddress(AccountID const& account);
+SCAddress makeClaimableBalanceAddress(ClaimableBalanceID const& id);
+SCAddress makeLiquidityPoolAddress(PoolID const& id);
+SCAddress getAddressWithDroppedMuxedInfo(SCAddress const& addr);
+bool isIssuer(SCAddress const& addr, Asset const& asset);
+bool canHoldAsset(LedgerEntryType type, Asset const& asset);
+
+template <typename T>
+CxxBuf
+toCxxBuf(T const& t)
+{
+    return CxxBuf{
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};
+}
+
+// Creates a ledger entry change for the rent computation via Rust bridge.
+// This only allows creating rent changes that don't involve the entry
+// modification (as entries with TTL currently only may be modified by the
+// Soroban host). When `entryLiveUntilLedger` is `nullopt`, this creates a rent
+// change corresponding to the entry restoration (or creation). Otherwise,
+// creates a rent change for TTL extension.
+CxxLedgerEntryRentChange createEntryRentChangeWithoutModification(
+    LedgerEntry const& entry, uint32_t entrySize,
+    std::optional<uint32_t> entryLiveUntilLedger, uint32_t newLiveUntilLedger,
+    uint32_t ledgerVersion, SorobanNetworkConfig const& sorobanConfig);
 }

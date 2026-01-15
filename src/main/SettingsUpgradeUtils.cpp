@@ -8,14 +8,14 @@ namespace stellar
 {
 
 std::pair<TransactionEnvelope, LedgerKey>
-getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
+getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum,
+                 int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -42,25 +42,27 @@ getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
     SorobanResources restoreResources;
     restoreResources.footprint.readWrite = {contractCodeLedgerKey};
     restoreResources.instructions = 0;
-    restoreResources.readBytes = 2000;
+    restoreResources.diskReadBytes = 2000;
     restoreResources.writeBytes = 2000;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = restoreResources;
-    tx.ext.sorobanData().resourceFee = 55'000'000;
+    tx.ext.sorobanData().resourceFee = 55'000'000 + addResourceFee;
+
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     return {txEnv, contractCodeLedgerKey};
 }
 
 std::pair<TransactionEnvelope, LedgerKey>
-getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
+getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -89,26 +91,27 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
     SorobanResources uploadResources;
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
     uploadResources.instructions = 2'000'000;
-    uploadResources.readBytes = 2000;
+    uploadResources.diskReadBytes = 2000;
     uploadResources.writeBytes = 2000;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 55'000'000;
+    tx.ext.sorobanData().resourceFee = 55'000'000 + addResourceFee;
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     return {txEnv, contractCodeLedgerKey};
 }
 
 std::tuple<TransactionEnvelope, LedgerKey, Hash>
 getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
-            std::string const& networkPassphrase, SequenceNumber seqNum)
+            std::string const& networkPassphrase, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 25'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -173,24 +176,24 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     uploadResources.footprint.readOnly = {contractCodeLedgerKey};
     uploadResources.footprint.readWrite = {contractSourceRefLedgerKey};
     uploadResources.instructions = 2'000'000;
-    uploadResources.readBytes = 2000;
+    uploadResources.diskReadBytes = 2000;
     uploadResources.writeBytes = 120;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 15'000'000;
-
+    tx.ext.sorobanData().resourceFee = 15'000'000 + addResourceFee;
+    tx.fee = 25'000'000 + tx.ext.sorobanData().resourceFee;
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
-void
+static void
 validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 {
     for (auto const& entry : upgradeSet.updatedEntry)
     {
         if (entry.configSettingID() == CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
         {
-            if (entry.contractLedgerCost().bucketListWriteFeeGrowthFactor >
+            if (entry.contractLedgerCost().sorobanStateRentFeeGrowthFactor >
                 50'000)
             {
                 throw std::runtime_error("Invalid contractLedgerCost");
@@ -211,7 +214,8 @@ validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
 std::pair<TransactionEnvelope, ConfigUpgradeSetKey>
 getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             LedgerKey const& contractSourceRefLedgerKey, Hash const& contractID,
-            ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum)
+            ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum,
+            int64_t addResourceFee)
 {
 
     validateConfigUpgradeSet(upgradeSet);
@@ -221,7 +225,6 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -241,7 +244,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     addr.contractId() = contractID;
     invokeHF.invokeContract().contractAddress = addr;
 
-    const std::string& functionNameStr = "write";
+    std::string const& functionNameStr = "write";
     SCSymbol functionName;
     functionName.assign(functionNameStr.begin(), functionNameStr.end());
     invokeHF.invokeContract().functionName = functionName;
@@ -267,12 +270,15 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
                                           contractCodeLedgerKey};
     invokeResources.footprint.readWrite = {upgrade};
     invokeResources.instructions = 2'000'000;
-    invokeResources.readBytes = 3200;
-    invokeResources.writeBytes = 3200;
+    invokeResources.diskReadBytes =
+        rust_bridge::get_write_bytes().data.size() + 300;
+    invokeResources.writeBytes = upgradeSetBytes.size() + 200;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
-    tx.ext.sorobanData().resourceFee = 65'000'000;
+    tx.ext.sorobanData().resourceFee = 95'000'000 + addResourceFee;
+
+    tx.fee = 100'000'000 + tx.ext.sorobanData().resourceFee;
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;

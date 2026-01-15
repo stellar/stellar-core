@@ -28,7 +28,9 @@ isSponsoringSubentrySumIncreaseValid(LedgerHeader const& lh,
 }
 }
 
-static bool
+namespace
+{
+bool
 tooManySponsoring(LedgerHeader const& lh, LedgerEntry const& acc, uint32_t mult)
 {
     if (getNumSponsoring(acc) > UINT32_MAX - mult)
@@ -39,7 +41,7 @@ tooManySponsoring(LedgerHeader const& lh, LedgerEntry const& acc, uint32_t mult)
     return !detail::isSponsoringSubentrySumIncreaseValid(lh, acc, mult);
 }
 
-static bool
+bool
 tooManyNumSubEntries(LedgerHeader const& lh, LedgerEntry const& acc,
                      uint32_t mult)
 {
@@ -53,7 +55,7 @@ tooManyNumSubEntries(LedgerHeader const& lh, LedgerEntry const& acc,
     return !detail::isSponsoringSubentrySumIncreaseValid(lh, acc, mult);
 }
 
-static SponsorshipResult
+SponsorshipResult
 canEstablishSponsorshipHelper(LedgerHeader const& lh,
                               LedgerEntry const& sponsoringAcc,
                               LedgerEntry const* sponsoredAcc, uint32_t mult)
@@ -77,7 +79,7 @@ canEstablishSponsorshipHelper(LedgerHeader const& lh,
     return SponsorshipResult::SUCCESS;
 }
 
-static SponsorshipResult
+SponsorshipResult
 canRemoveSponsorshipHelper(LedgerHeader const& lh,
                            LedgerEntry const& sponsoringAcc,
                            LedgerEntry const* sponsoredAcc, uint32_t mult)
@@ -100,7 +102,7 @@ canRemoveSponsorshipHelper(LedgerHeader const& lh,
     return SponsorshipResult::SUCCESS;
 }
 
-static SponsorshipResult
+SponsorshipResult
 canTransferSponsorshipHelper(LedgerHeader const& lh,
                              LedgerEntry const& oldSponsoringAcc,
                              LedgerEntry const& newSponsoringAcc, uint32_t mult)
@@ -115,7 +117,7 @@ canTransferSponsorshipHelper(LedgerHeader const& lh,
     return canEstablishSponsorshipHelper(lh, newSponsoringAcc, nullptr, mult);
 }
 
-static void
+void
 accountIsSponsor(SponsorshipDescriptor const& sponsoringID,
                  LedgerEntry const& sponsoringAcc)
 {
@@ -125,6 +127,7 @@ accountIsSponsor(SponsorshipDescriptor const& sponsoringID,
         throw std::runtime_error("sponsorship doesn't match");
     }
 }
+} // namespace
 
 namespace stellar
 {
@@ -513,6 +516,8 @@ canCreateEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     return SponsorshipResult::SUCCESS;
 }
 
+namespace
+{
 SponsorshipResult
 canCreateEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
                               LedgerEntry const& sponsoringAcc,
@@ -645,6 +650,7 @@ canRemoveSignerWithSponsorship(LedgerHeader const& lh,
         throw std::runtime_error("invalid sponsored account state");
     }
 }
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -660,6 +666,8 @@ createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
     }
 }
 
+namespace
+{
 void
 createEntryWithSponsorship(LedgerEntry& le, LedgerEntry& sponsoringAcc,
                            LedgerEntry* sponsoredAcc)
@@ -730,6 +738,7 @@ removeSignerWithSponsorship(std::vector<Signer>::const_iterator const& signerIt,
     removeSignerSponsorship(signerIt, sponsoringAcc, sponsoredAcc);
     removeSignerWithoutSponsorship(signerIt, sponsoredAcc);
 }
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //

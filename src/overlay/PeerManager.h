@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "overlay/PeerBareAddress.h"
 #include "util/Timer.h"
@@ -18,6 +18,7 @@ namespace stellar
 {
 
 class Database;
+class SessionWrapper;
 class RandomPeerSource;
 
 enum class PeerType
@@ -76,7 +77,7 @@ class PeerManager
         INCREASE
     };
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
 
     explicit PeerManager(Application& app);
 
@@ -150,7 +151,7 @@ class PeerManager
     void storePeers(std::vector<std::pair<PeerBareAddress, PeerRecord>>);
 
   private:
-    static const char* kSQLCreateStatement;
+    static char const* kSQLCreateStatement;
 
     Application& mApp;
     std::unique_ptr<RandomPeerSource> mOutboundPeersToSend;

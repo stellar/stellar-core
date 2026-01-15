@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/LedgerCmp.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -30,7 +30,7 @@ bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 bool isStringValid(std::string const& str);
 
 // returns true if the currencies are the same
-bool compareAsset(Asset const& first, Asset const& second);
+template <typename T> bool compareAsset(T const& first, Asset const& second);
 
 // returns the int32_t of a non-negative uint32_t if it fits,
 // otherwise throws.
@@ -107,7 +107,7 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 }
 
 inline std::string
-assetToString(const Asset& asset)
+assetToString(Asset const& asset)
 {
     auto r = std::string{};
     switch (asset.type())
@@ -134,7 +134,6 @@ getBucketLedgerKey(HotArchiveBucketEntry const& be)
     switch (be.type())
     {
     case HOT_ARCHIVE_LIVE:
-    case HOT_ARCHIVE_DELETED:
         return be.key();
     case HOT_ARCHIVE_ARCHIVED:
         return LedgerEntryKey(be.archivedEntry());
@@ -176,4 +175,40 @@ bool iequals(std::string const& a, std::string const& b);
 bool operator>=(Price const& a, Price const& b);
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
+
+// Rather than using <cctype> functions, which can be locale-dependent, and more
+// importantly are easy to accidentally misuse, we provide a few simpler
+// ascii-only functions.
+
+inline bool
+isAsciiAlphaNumeric(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    if ('a' <= uc && uc <= 'z')
+        return true;
+    if ('A' <= uc && uc <= 'Z')
+        return true;
+    if ('0' <= uc && uc <= '9')
+        return true;
+    return false;
+}
+
+inline bool
+isAsciiNonControl(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    return (0x1f < uc && uc < 0x7F);
+}
+
+inline char
+toAsciiLower(char c)
+{
+    unsigned char uc = static_cast<unsigned char>(c);
+    if ('A' <= uc && uc <= 'Z')
+    {
+        return static_cast<char>(uc + ('a' - 'A'));
+    }
+    return c;
+}
+
 }

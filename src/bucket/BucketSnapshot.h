@@ -1,14 +1,15 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
@@ -18,7 +19,6 @@ namespace stellar
 {
 
 struct EvictionResultEntry;
-class LedgerKeyMeter;
 class SearchableLiveBucketListSnapshot;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
@@ -62,12 +62,8 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
-    // If a pointer to a LedgerKeyMeter is provided, a key will only be loaded
-    // if the meter has a transaction with sufficient read quota for the key.
-    // If Bucket is not of type LiveBucket, lkMeter is ignored.
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<typename BucketT::LoadT>& result,
-                  LedgerKeyMeter* lkMeter) const;
+                  std::vector<typename BucketT::LoadT>& result) const;
 };
 
 class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
@@ -84,9 +80,15 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
 
     Loop scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
-                         std::list<EvictionResultEntry>& evictableKeys,
+                         std::list<EvictionResultEntry>& evictableEntries,
                          SearchableLiveBucketListSnapshot const& bl,
-                         uint32_t ledgerVers) const;
+                         uint32_t ledgerVers,
+                         UnorderedSet<LedgerKey>& keysInEvictableEntries) const;
+
+    // Scans entries of the specified type in the bucket.
+    Loop scanForEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const;
 };
 
 class HotArchiveBucketSnapshot : public BucketSnapshotBase<HotArchiveBucket>

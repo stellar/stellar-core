@@ -1,20 +1,26 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
+
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
+#include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/NetworkConfig.h"
+#include "ledger/SharedModuleCacheCompiler.h"
 #include "ledger/SorobanMetrics.h"
-#include "main/PersistentState.h"
+#include "main/ApplicationImpl.h"
+#include "rust/RustBridge.h"
+#include "transactions/ParallelApplyStage.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 
 /*
@@ -38,6 +44,14 @@ class Application;
 class Database;
 class LedgerTxnHeader;
 class BasicWork;
+class ParallelLedgerInfo;
+
+#ifdef BUILD_TESTS
+namespace BucketTestUtils
+{
+class LedgerManagerForBucketTests;
+}
+#endif
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -49,30 +63,11 @@ class LedgerManagerImpl : public LedgerManager
     std::filesystem::path mMetaDebugPath;
 
   private:
-    // Output of the apply process, also what gets held as "LCL".
-    struct LedgerState
-    {
-        LedgerHeaderHistoryEntry ledgerHeader;
-        std::shared_ptr<SorobanNetworkConfig const> sorobanConfig;
-        HistoryArchiveState has;
-        std::shared_ptr<SearchableLiveBucketListSnapshot const> snapshot;
-    };
-
-    // Any state that apply needs to access through the app connector should go
-    // here, at very least just to make it clear what is being accessed by which
-    // threads. We may try to further encapsulate it.
-    struct ApplyState
-    {
-        // Latest Soroban config during apply (should not be used outside of
-        // application, as it may be in half-valid state). Note that access to
-        // this variable is not synchronized, since it should only be used by
-        // one thread (main or ledger close).
-        std::shared_ptr<SorobanNetworkConfig> mSorobanNetworkConfig;
-    };
-
     struct LedgerApplyMetrics
     {
+        SorobanMetrics mSorobanMetrics;
         medida::Timer& mTransactionApply;
+        medida::Timer& mTotalTxApply;
         medida::Histogram& mTransactionCount;
         medida::Histogram& mOperationCount;
         medida::Histogram& mPrefetchHitRate;
@@ -83,9 +78,210 @@ class LedgerManagerImpl : public LedgerManager
         medida::Counter& mTransactionApplyFailed;
         medida::Counter& mSorobanTransactionApplySucceeded;
         medida::Counter& mSorobanTransactionApplyFailed;
+        medida::Counter& mMaxClustersPerLedger;
+        medida::Counter& mStagesPerLedger;
         medida::Meter& mMetaStreamBytes;
         medida::Timer& mMetaStreamWriteTime;
-        LedgerApplyMetrics(medida::MetricsRegistry& registry);
+        LedgerApplyMetrics(MetricsRegistry& registry);
+    };
+
+    // LedgerManager thread model is as follows. There is a "primary apply
+    // thread" responsible for applying classic transactions, orchestrating
+    // parallel Soroban transaction execution, committing state, and advancing
+    // the ledger header. This "primary apply thread" is either the stellar-core
+    // main thread (if background ledger apply is disabled) or the "apply
+    // thread."
+    //
+    // In addition to the primary thread, LedgerManager will spin up "Soroban
+    // threads" responsible for executing Soroban transactions. These threads
+    // only execute transactions based on read-only state snapshots and never
+    // commit changes. Soroban thread changes are accumulated and applied by the
+    // primary apply thread. The primary apply thread is long lasting between
+    // ledgers. Soroban threads are short lived, spawned during ledger
+    // application and joined before committing state and advancing the ledger
+    // header.
+    //
+    // ApplyState is the encapsulation used to store any state needed by the
+    // primary apply thread and Soroban execution threads. Only the primary
+    // apply thread can modify ApplyState. Soroban execution threads view
+    // ApplyState as a immutable snapshot and can only call const functions.
+    // While Soroban execution threads are live, the primary apply thread must
+    // not mutate ApplyState. This is enforced via different "phases" of state
+    // application (see below).
+    //
+    // Any state that apply needs to access through the app connector should go
+    // here, at very least just to make it clear what is being accessed by which
+    // threads. We may try to further encapsulate it.
+    class ApplyState
+    {
+      public:
+        // During the ledger close process, the apply state goes through these
+        // phases:
+        // - SETTING_UP_STATE: LedgerManager is waiting for or setting up
+        //   ApplyState. This occurs on startup and after BucketApply during
+        //   catchup.
+        // - READY_TO_APPLY: Apply State is ready but not actively executing
+        //   transactions or committing ledger state. ApplyState is immutable.
+        // - APPLYING: ApplyState is actively executing transactions.
+        //   During this time, ApplyState is immutable and multiple Soroban
+        //   execution threads may read ApplyState concurrently. During TX
+        //   execution, apply state changes are aggregated, but will not be
+        //   committed until the COMMITTING phase.
+        // - COMMITTING: ApplyState is committing ledger state.
+        //   During this time, ApplyState is being modified and must only be
+        //   accessed by the primary apply thread. This phase applies upgrades,
+        //   commits state to disk, and advances the ledger header.
+        //
+        //  Phase transitions:
+        //  SETTING_UP_STATE -> READY_TO_APPLY  -> SETTING_UP_STATE
+        //                |
+        //                -> APPLYING -> COMMITTING -> READY_TO_APPLY
+        //
+        //  SETTING_UP_STATE is the initial phase on startup. ApplyState may
+        //  also transition from READY_TO_APPLY -> SETTING_UP_STATE if a node
+        //  falls out of sync and must enter catchup, which requires re-entering
+        //  the SETTING_UP_STATE phase to reset lcl state.
+        //
+        //  APPLYING is the only phase in which Soroban execution
+        //  threads are active.
+        enum class Phase
+        {
+            SETTING_UP_STATE,
+            READY_TO_APPLY,
+            APPLYING,
+            COMMITTING
+        };
+
+      private:
+        LedgerApplyMetrics mMetrics;
+
+        AppConnector& mAppConnector;
+
+        // The current reusable / inter-ledger soroban module cache.
+        ::rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
+
+        // Manager object that (re)builds the module cache in background
+        // threads. Only non-nullptr when there's a background compilation in
+        // progress.
+        std::unique_ptr<SharedModuleCacheCompiler> mCompiler;
+
+        // Protocol versions to compile each contract for in the module cache.
+        std::vector<uint32_t> mModuleCacheProtocols;
+
+        // Number of threads to use for compilation (cached from config).
+        size_t const mNumCompilationThreads;
+
+        // In-memory map of live Soroban state for the current ledger.
+        InMemorySorobanState mInMemorySorobanState;
+
+        // Phase is not synchronized, should only be modified by the primary
+        // apply thread.
+        Phase mPhase{Phase::SETTING_UP_STATE};
+
+        // Kicks off (on auxiliary threads) compilation of all contracts in the
+        // provided snapshot, for ledger protocols starting at minLedgerVersion
+        // and running through to Config::CURRENT_LEDGER_PROTOCOL_VERSION (to
+        // enable upgrades).
+        void startCompilingAllContracts(SearchableSnapshotConstPtr snap,
+                                        uint32_t minLedgerVersion);
+
+        // Checks if ApplyState can currently be modified. For functions that
+        // are only called in ledgerClose, use the stronger
+        // assertCommittingPhase. This is for functions that can be called on
+        // the commit or init path.
+        void assertWritablePhase() const;
+
+      public:
+        LedgerApplyMetrics& getMetrics();
+
+        ApplyState(Application& app);
+
+        // Asserts that calling thread is the primary apply thread.
+        void threadInvariant() const;
+
+        // The following methods are const getters, and can be accessed from any
+        // thread for read-only purposes during the APPLYING or READY_FOR_APPLY
+        // phase.
+        InMemorySorobanState const& getInMemorySorobanState() const;
+
+#ifdef BUILD_TESTS
+        InMemorySorobanState& getInMemorySorobanStateForTesting();
+        ::rust::Box<rust_bridge::SorobanModuleCache> const&
+        getModuleCacheForTesting();
+        uint64_t getSorobanInMemoryStateSizeForTesting() const;
+#endif
+
+        ::rust::Box<rust_bridge::SorobanModuleCache> const&
+        getModuleCache() const;
+
+        bool isCompilationRunning() const;
+
+        // Non-const mutating methods, must always be called from the applying
+        // thread (either main or parallel apply thread).
+        void updateInMemorySorobanState(
+            std::vector<LedgerEntry> const& initEntries,
+            std::vector<LedgerEntry> const& liveEntries,
+            std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+            std::optional<SorobanNetworkConfig const> const& sorobanConfig);
+
+        // Note: These are const getters, but should still only be called in the
+        // COMMITTING phase.
+        uint64_t getSorobanInMemoryStateSize() const;
+
+        void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
+        // Finishes a compilation started by `startCompilingAllContracts`.
+        void finishPendingCompilation();
+
+        // Equivalent to calling `startCompilingAllContracts` followed by
+        // `finishPendingCompilation`.
+        void compileAllContractsInLedger(SearchableSnapshotConstPtr snap,
+                                         uint32_t minLedgerVersion);
+
+        // Estimates the size of the arena underlying the module cache's shared
+        // wasmi engine, from metrics, and rebuilds if it has likely built up a
+        // lot of dead space inside of it.
+        void maybeRebuildModuleCache(SearchableSnapshotConstPtr snap,
+                                     uint32_t minLedgerVersion);
+
+        // Evicts a single contract from the module cache, if it is present.
+        // This should be done whenever a contract LE is evicted from the
+        // live BL.
+        void evictFromModuleCache(uint32_t ledgerVersion,
+                                  EvictedStateVectors const& evictedState);
+
+        // Adds all contracts in the provided set of LEs to the module cache.
+        // This should be called as entries are added to the live bucketlist.
+        void addAnyContractsToModuleCache(uint32_t ledgerVersion,
+                                          std::vector<LedgerEntry> const& le);
+
+        // Populates all live Soroban state into the cache from the provided
+        // snapshot.
+        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap,
+                                          uint32_t ledgerVersion);
+
+        void handleUpgradeAffectingSorobanInMemoryStateSize(
+            AbstractLedgerTxn& upgradeLtx);
+
+        // Throws if current state is not READY_TO_APPLY, advances to APPLYING
+        void markStartOfApplying();
+
+        // Throws if current state is not APPLYING, advances to
+        // COMMITTING
+        void markStartOfCommitting();
+
+        // Throws if current state is not COMMITTING, advances to READY_TO_APPLY
+        void markEndOfCommitting();
+
+        // Throws if current state is not SETTING_UP_STATE, advances to
+        // READY_TO_APPLY
+        void markEndOfSetupPhase();
+
+        // Throws if current state is not READY_TO_APPLY, advances to
+        // SETTING_UP_STATE.
+        void resetToSetupPhase();
+
+        void assertSetupPhase() const;
+        void assertCommittingPhase() const;
     };
 
     // This state is private to the apply thread and holds work-in-progress
@@ -93,15 +289,16 @@ class LedgerManagerImpl : public LedgerManager
     ApplyState mApplyState;
 
     // Cached LCL state output from last apply (or loaded from DB on startup).
-    LedgerState mLastClosedLedgerState;
-
-    LedgerApplyMetrics mLedgerApplyMetrics;
-    SorobanMetrics mSorobanMetrics;
+    CompleteConstLedgerStatePtr mLastClosedLedgerState;
 
     VirtualClock::time_point mLastClose;
 
     // Use mutex to guard ledger state during apply
-    mutable std::recursive_mutex mLedgerStateMutex;
+    mutable RecursiveMutex mLedgerStateMutex
+#ifdef THREAD_SAFETY
+        ACQUIRED_BEFORE(BucketManager::mBucketMutex)
+#endif
+            ;
 
     medida::Timer& mCatchupDuration;
 
@@ -111,13 +308,17 @@ class LedgerManagerImpl : public LedgerManager
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
 
-    LedgerState& getLCLState();
-    LedgerState const& getLCLState() const;
-
     static std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
+
+    void processResultAndMeta(
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t txIndex, TransactionMetaBuilder& txMetaBuilder,
+        TransactionFrameBase const& tx,
+        MutableTransactionResultBase const& result,
+        TransactionResultSet& txResultSet);
 
     TransactionResultSet applyTransactions(
         ApplicableTxSetFrame const& txSet,
@@ -125,10 +326,62 @@ class LedgerManagerImpl : public LedgerManager
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
+    void applyParallelPhase(
+        TxSetPhaseFrame const& phase, std::vector<ApplyStage>& applyStages,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
+        SorobanNetworkConfig const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed);
+
+    void applySequentialPhase(
+        TxSetPhaseFrame const& phase,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        uint32_t& index, AbstractLedgerTxn& ltx, bool enableTxMeta,
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        Hash const& sorobanBasePrngSeed,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    void processPostTxSetApply(
+        std::vector<TxSetPhaseFrame> const& phases,
+        std::vector<ApplyStage> const& applyStages, AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        TransactionResultSet& txResultSet);
+
+    std::unique_ptr<ThreadParallelApplyLedgerState>
+    applyThread(AppConnector& app,
+                std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
+                Cluster const& cluster, Config const& config,
+                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
+
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
+    applySorobanStageClustersInParallel(
+        AppConnector& app, ApplyStage const& stage,
+        GlobalParallelApplyLedgerState const& globalState,
+        Hash const& sorobanBasePrngSeed, Config const& config,
+        ParallelLedgerInfo const& ledgerInfo);
+
+    void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
+                                    Config const& config,
+                                    ParallelLedgerInfo const& ledgerInfo,
+                                    LedgerHeader const& header);
+
+    void applySorobanStage(AppConnector& app, LedgerHeader const& header,
+                           GlobalParallelApplyLedgerState& globalParState,
+                           ApplyStage const& stage,
+                           Hash const& sorobanBasePrngSeed);
+
+    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
+                            std::vector<ApplyStage> const& stages,
+                            SorobanNetworkConfig const& sorobanConfig,
+                            Hash const& sorobanBasePrngSeed);
+
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
-    LedgerState sealLedgerTxnAndStoreInBucketsAndDB(
+    CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
+        SearchableSnapshotConstPtr lclSnapshot,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
@@ -136,6 +389,23 @@ class LedgerManagerImpl : public LedgerManager
     HistoryArchiveState
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
                                             bool appendToCheckpoint);
+
+    // Copies in-memory Soroban state for snapshot invariant if required for
+    // this ledger, or returns nullptr otherwise. Should be called in
+    // READY_TO_APPLY phase when InMemorySorobanState is read only.
+    std::shared_ptr<InMemorySorobanState const>
+    maybeCopySorobanStateForInvariant() const;
+
+    // Trigger snapshot invariant on background thread if
+    // inMemorySnapshotForInvariant is not null.
+    // If runInParallel is false, runs on the calling thread (this is useful in
+    // certain scenarios such as startup)
+    void maybeRunSnapshotInvariantFromLedgerState(
+        CompleteConstLedgerStatePtr const& ledgerState,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant,
+        bool runInParallel = true) const;
+
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
                                         Config const& config);
@@ -147,6 +417,7 @@ class LedgerManagerImpl : public LedgerManager
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
+    std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
 #endif
 
     void setState(State s);
@@ -158,7 +429,15 @@ class LedgerManagerImpl : public LedgerManager
     void publishSorobanMetrics();
 
     // Update cached last closed ledger state values managed by this class.
-    void advanceLastClosedLedgerState(LedgerState const& output);
+    void
+    advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
+
+    // Internal helper for loading last known ledger and an option to skip
+    // building the 'full' state (including in-memory Soroban state, module
+    // cache, etc).
+    // Full state building should not be skipped in any flows where new ledgers
+    // have to actually be closed.
+    void loadLastKnownLedgerInternal(bool skipBuildingFullState);
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -169,7 +448,9 @@ class LedgerManagerImpl : public LedgerManager
 
     // NB: LedgerHeader is a copy here to prevent footguns in case ltx
     // invalidates any header references
-    virtual void sealLedgerTxnAndTransferEntriesToBucketList(
+    virtual void finalizeLedgerTxnChanges(
+        SearchableSnapshotConstPtr lclSnapshot,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
@@ -177,19 +458,28 @@ class LedgerManagerImpl : public LedgerManager
     // Update bucket list snapshot, and construct LedgerState return
     // value, which contains all information relevant to ledger state (HAS,
     // ledger header, network config, bucketlist snapshot).
-    LedgerState
+    CompleteConstLedgerStatePtr
     advanceBucketListSnapshotAndMakeLedgerState(LedgerHeader const& header,
                                                 HistoryArchiveState const& has);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
+    // Friend declaration for App LedgerTxnRoot initialization
+    friend void ApplicationImpl::initialize(bool createNewDB,
+                                            bool forceRebuild);
+
+    std::unique_ptr<LedgerTxnRoot>
+    createLedgerTxnRoot(Application& app, size_t entryCacheSize,
+                        size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                        ,
+                        bool bestOfferDebuggingEnabled
+#endif
+                        ) override;
+
   public:
     LedgerManagerImpl(Application& app);
 
-    // Reloads the network configuration from the ledger.
-    // This needs to be called every time a ledger is closed.
-    // This call is read-only and hence `ltx` can be read-only.
-    void updateSorobanNetworkConfigForApply(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
     void beginApply() override;
     State getState() const override;
@@ -206,17 +496,26 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() override;
-    SorobanNetworkConfig const& getSorobanNetworkConfigForApply() override;
+    SorobanNetworkConfig const&
+    getLastClosedSorobanNetworkConfig() const override;
 
     bool hasLastClosedSorobanNetworkConfig() const override;
+    std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
 #ifdef BUILD_TESTS
-    SorobanNetworkConfig& getMutableSorobanNetworkConfigForApply() override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
+    std::optional<LedgerCloseMetaFrame> const&
+    getLastClosedLedgerCloseMeta() override;
     TransactionResultSet mLatestTxResultSet{};
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
+    std::function<void()> mAdvanceLedgerStateAndPublishOverride;
+    InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
+    CompleteConstLedgerStatePtr getLastClosedLedgerStateForTesting() override;
+    ::rust::Box<rust_bridge::SorobanModuleCache>
+    getModuleCacheForTesting() override;
+    void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
+    uint64_t getSorobanInMemoryStateSizeForTesting() override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -224,25 +523,33 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(bool restoreBucketlist) override;
+    void loadLastKnownLedger() override;
+    void partiallyLoadLastKnownLedgerForUtils() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
-    HistoryArchiveState getLastClosedLedgerHAS() override;
+    HistoryArchiveState getLastClosedLedgerHAS() const override;
 
     Database& getDatabase() override;
 
-    void startCatchup(
-        CatchupConfiguration configuration,
-        std::shared_ptr<HistoryArchive> archive,
-        std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) override;
+    void startCatchup(CatchupConfiguration configuration,
+                      std::shared_ptr<HistoryArchive> archive) override;
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
+    void advanceLedgerStateAndPublish(
+        uint32_t ledgerSeq, bool calledViaExternalize,
+        LedgerCloseData const& ledgerData,
+        CompleteConstLedgerStatePtr newLedgerState, bool queueRebuildNeeded,
+        std::shared_ptr<InMemorySorobanState const>
+            inMemorySnapshotForInvariant = nullptr) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
-                             LedgerCloseData const& ledgerData);
-    void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
+                             LedgerCloseData const& ledgerData,
+                             bool queueRebuildNeeded,
+                             std::shared_ptr<InMemorySorobanState const>
+                                 inMemorySnapshotForInvariant);
+    void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                             bool rebuildInMemoryState) override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 
@@ -250,11 +557,26 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    SearchableSnapshotConstPtr getLastClosedSnaphot() override;
+    SearchableSnapshotConstPtr getLastClosedSnapshot() const override;
     virtual bool
     isApplying() const override
     {
         return mCurrentlyApplyingLedger;
     }
+    void markApplyStateReset() override;
+    ::rust::Box<rust_bridge::SorobanModuleCache> getModuleCache() override;
+
+    void handleUpgradeAffectingSorobanInMemoryStateSize(
+        AbstractLedgerTxn& upgradeLtx) override;
+
+    void
+    assertSetupPhase() const override
+    {
+        mApplyState.assertSetupPhase();
+    }
+
+#ifdef BUILD_TESTS
+    friend class BucketTestUtils::LedgerManagerForBucketTests;
+#endif
 };
 }

@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -21,7 +21,7 @@ namespace
 {
 
 int64_t
-operator*(int64_t x, const Price& y)
+operator*(int64_t x, Price const& y)
 {
     bool xNegative = (x < 0);
     int64_t m =
@@ -30,7 +30,7 @@ operator*(int64_t x, const Price& y)
 }
 
 Price
-operator*(const Price& x, const Price& y)
+operator*(Price const& x, Price const& y)
 {
     int64_t n = int64_t(x.n) * int64_t(y.n);
     int64_t d = int64_t(x.d) * int64_t(y.d);
@@ -51,7 +51,7 @@ rotateRight(std::deque<T>& d)
 }
 
 std::string
-assetPathToString(const std::deque<Asset>& assets)
+assetPathToString(std::deque<Asset> const& assets)
 {
     auto r = assetToString(assets[0]);
     for (auto i = assets.rbegin(); i != assets.rend(); i++)
@@ -2066,7 +2066,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
             int pathSize = (int)assets.size();
             auto accounts = std::deque<TestAccount>{};
 
-            auto setupAccount = [&](const std::string& name) {
+            auto setupAccount = [&](std::string const& name) {
                 // setup account with required trustlines and money both in
                 // native and assets
                 auto account = root->create(name, initialBalance);
@@ -2078,7 +2078,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
                 return account;
             };
 
-            auto validateAccountAsset = [&](const TestAccount& account,
+            auto validateAccountAsset = [&](TestAccount const& account,
                                             int assetIndex, int64_t difference,
                                             int feeCount) {
                 if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
@@ -2092,7 +2092,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
                             initialBalance + difference);
                 }
             };
-            auto validateAccountAssets = [&](const TestAccount& account,
+            auto validateAccountAssets = [&](TestAccount const& account,
                                              int assetIndex, int64_t difference,
                                              int feeCount) {
                 for (int i = 0; i < pathSize; i++)
@@ -2102,7 +2102,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
                                          feeCount);
                 }
             };
-            auto validateOffer = [&](const TestAccount& account,
+            auto validateOffer = [&](TestAccount const& account,
                                      int64_t offerId, int64_t difference) {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto offer =
@@ -2130,7 +2130,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
                 validateAccountAssets(accounts[i], 0, 0, 2);
             }
 
-            auto testPath = [&](const std::string& name, const Price& price,
+            auto testPath = [&](std::string const& name, Price const& price,
                                 int64_t destAmount, bool underDestMin) {
                 SECTION(name)
                 {

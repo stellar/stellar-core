@@ -29,7 +29,7 @@ std::streamoff
 LiveBucketIndex::getPageSize(Config const& cfg, size_t bucketSize)
 {
     // Convert cfg param from MB to bytes
-    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1'000'000;
+    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1024 * 1024;
         bucketSize < cutoff)
     {
         return 0;
@@ -79,6 +79,16 @@ LiveBucketIndex::LiveBucketIndex(BucketManager const& bm, Archive& ar,
 {
     // Only disk indexes are serialized
     releaseAssertOrThrow(pageSize != 0);
+}
+
+LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
+                                 std::vector<BucketEntry> const& inMemoryState,
+                                 BucketMetadata const& metadata)
+    : mInMemoryIndex(
+          std::make_unique<InMemoryIndex>(bm, inMemoryState, metadata))
+    , mCacheHitMeter(bm.getCacheHitMeter())
+    , mCacheMissMeter(bm.getCacheMissMeter())
+{
 }
 
 void
@@ -249,7 +259,7 @@ LiveBucketIndex::scan(IterT start, LedgerKey const& k) const
 std::vector<PoolID> const&
 LiveBucketIndex::getPoolIDsByAsset(Asset const& asset) const
 {
-    static const std::vector<PoolID> emptyVec = {};
+    static std::vector<PoolID> const emptyVec = {};
 
     if (mDiskIndex)
     {
@@ -273,26 +283,15 @@ LiveBucketIndex::getPoolIDsByAsset(Asset const& asset) const
 }
 
 std::optional<std::pair<std::streamoff, std::streamoff>>
-LiveBucketIndex::getOfferRange() const
+LiveBucketIndex::getRangeForType(LedgerEntryType type) const
 {
     if (mDiskIndex)
     {
-        // Get the smallest and largest possible offer keys
-        LedgerKey upperBound(OFFER);
-        upperBound.offer().sellerID.ed25519().fill(
-            std::numeric_limits<uint8_t>::max());
-        upperBound.offer().offerID = std::numeric_limits<int64_t>::max();
-
-        LedgerKey lowerBound(OFFER);
-        lowerBound.offer().sellerID.ed25519().fill(
-            std::numeric_limits<uint8_t>::min());
-        lowerBound.offer().offerID = std::numeric_limits<int64_t>::min();
-
-        return mDiskIndex->getOffsetBounds(lowerBound, upperBound);
+        return mDiskIndex->getRangeForType(type);
     }
 
     releaseAssertOrThrow(mInMemoryIndex);
-    return mInMemoryIndex->getOfferRange();
+    return mInMemoryIndex->getRangeForType(type);
 }
 
 uint32_t
@@ -400,6 +399,18 @@ LiveBucketIndex::getMaxCacheSize() const
     return 0;
 }
 #endif
+
+size_t
+LiveBucketIndex::getCurrentCacheSize() const
+{
+    if (shouldUseCache())
+    {
+        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        return mCache->size();
+    }
+
+    return 0;
+}
 
 template LiveBucketIndex::LiveBucketIndex(BucketManager const& bm,
                                           cereal::BinaryInputArchive& ar,

@@ -3,7 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/HistoryArchive.h"
-#include "lib/catch.hpp"
+#include "test/Catch2.h"
+#include "test/test.h"
 
 #include <fstream>
 #include <string>
@@ -15,12 +16,12 @@ TEST_CASE("Serialization round trip", "[history]")
     std::vector<std::string> testFiles = {
         "stellar-history.testnet.6714239.json",
         "stellar-history.livenet.15686975.json",
-        "stellar-history.testnet.6714239.networkPassphrase.json"};
+        "stellar-history.testnet.6714239.networkPassphrase.json",
+        "stellar-history.testnet.6714239.networkPassphrase.v2.json"};
     for (size_t i = 0; i < testFiles.size(); i++)
     {
-        std::string fnPath = "testdata/";
-        std::string testFilePath = fnPath + testFiles[i];
-        SECTION("Serialize " + testFilePath)
+        auto testFilePath = getBuildTestDataPath(testFiles[i]);
+        SECTION("Serialize " + testFilePath.string())
         {
             std::ifstream in(testFilePath);
             REQUIRE(in);
@@ -35,7 +36,7 @@ TEST_CASE("Serialization round trip", "[history]")
 
             // Test load
             HistoryArchiveState hasLoad;
-            hasLoad.load(testFilePath);
+            hasLoad.load(testFilePath.string());
             REQUIRE(hasString == hasLoad.toString());
         }
     }

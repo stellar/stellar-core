@@ -18,7 +18,7 @@
 namespace stellar
 {
 
-static const uint32 allAccountAuthFlags =
+static uint32 const allAccountAuthFlags =
     (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG |
      AUTH_CLAWBACK_ENABLED_FLAG);
 
@@ -122,9 +122,8 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
 
 bool
 SetOptionsOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                           Hash const& sorobanBasePrngSeed,
                            OperationResult& res,
-                           std::shared_ptr<SorobanTxData> sorobanData) const
+                           OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
 

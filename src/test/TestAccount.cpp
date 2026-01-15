@@ -102,6 +102,25 @@ TestAccount::exists() const
     return doesAccountExist(mApp, getPublicKey());
 }
 
+void
+TestAccount::applyOpsBatch(std::vector<Operation> const& ops)
+{
+
+    for (int i = 0; i < ops.size(); i += MAX_OPS_PER_TX)
+    {
+        std::vector<Operation> txOps(
+            ops.begin() + i,
+            ops.begin() + std::min<int>(ops.size(), i + MAX_OPS_PER_TX));
+
+        auto resultSet = closeLedger(mApp, {tx(txOps)});
+        REQUIRE(resultSet.results.size() == 1);
+        for (auto const& r : resultSet.results)
+        {
+            REQUIRE(isSuccessResult(r.result));
+        }
+    }
+}
+
 TransactionTestFramePtr
 TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 {
@@ -159,10 +178,43 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     return TestAccount{mApp, secretKey};
 }
 
+std::vector<TestAccount>
+TestAccount::createBatch(std::vector<SecretKey> const& secretKeys,
+                         uint64_t initialBalance)
+{
+    std::vector<Operation> ops;
+
+    for (auto const& secretKey : secretKeys)
+    {
+        ops.push_back(createAccount(secretKey.getPublicKey(), initialBalance));
+    }
+    applyOpsBatch(ops);
+    std::vector<TestAccount> accounts;
+    LedgerSnapshot ls(mApp);
+    for (auto const& secretKey : secretKeys)
+    {
+        REQUIRE(ls.getAccount(secretKey.getPublicKey()));
+        accounts.emplace_back(mApp, secretKey);
+    }
+    return accounts;
+}
+
 TestAccount
 TestAccount::create(std::string const& name, uint64_t initialBalance)
 {
     return create(getAccount(name.c_str()), initialBalance);
+}
+
+std::vector<TestAccount>
+TestAccount::createBatch(std::vector<std::string> const& names,
+                         uint64_t initialBalance)
+{
+    std::vector<SecretKey> keys;
+    for (auto const& name : names)
+    {
+        keys.push_back(getAccount(name.c_str()));
+    }
+    return createBatch(keys, initialBalance);
 }
 
 void
@@ -590,5 +642,4 @@ TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
                                               minAmountB)}),
             mApp);
 }
-
 };

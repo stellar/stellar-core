@@ -1,11 +1,14 @@
-#pragma once
-
 // Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
+#include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
+#include "xdr/Stellar-ledger.h"
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -13,6 +16,7 @@
 namespace stellar
 {
 
+class AppConnector;
 class LiveBucket;
 enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
@@ -61,7 +65,30 @@ class Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& ltxDelta)
+                          LedgerTxnDelta const& ltxDelta,
+                          std::vector<ContractEvent> const& events,
+                          AppConnector& app)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    checkOnLedgerCommit(
+        SearchableSnapshotConstPtr lclLiveState,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        std::vector<LedgerEntry> const& persitentEvictedFromLive,
+        std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
+        UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromLiveState)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    checkSnapshot(SearchableSnapshotConstPtr liveSnapshot,
+                  SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+                  InMemorySorobanState const& inMemorySnapshot,
+                  std::function<bool()> isStopping)
     {
         return std::string{};
     }

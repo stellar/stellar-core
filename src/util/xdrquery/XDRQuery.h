@@ -4,23 +4,31 @@
 
 #pragma once
 
+#include "ledger/LedgerTypeUtils.h"
 #include "util/xdrquery/XDRFieldResolver.h"
 #include "util/xdrquery/XDRQueryEval.h"
 #include "util/xdrquery/XDRQueryParser.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <string>
 #include <variant>
 
 namespace xdrquery
 {
+using namespace stellar;
+
+using TTLGetter = std::function<uint32_t(LedgerKey const&)>;
+
+uint32_t noTtlGetter(LedgerKey const&);
 
 // Concrete implementation of DynamicXDRGetter for a given XDR message type T.
 template <typename T>
 class TypedDynamicXDRGetterResolver : public DynamicXDRGetter
 {
   public:
-    TypedDynamicXDRGetterResolver(T const& xdrMessage, bool validate)
-        : mXdrMessage(xdrMessage), mValidate(validate)
+    TypedDynamicXDRGetterResolver(T const& xdrMessage, TTLGetter ttlGetter,
+                                  bool validate)
+        : mXdrMessage(xdrMessage), mTtlGetter(ttlGetter), mValidate(validate)
     {
     }
 
@@ -40,19 +48,43 @@ class TypedDynamicXDRGetterResolver : public DynamicXDRGetter
         return xdr::xdr_size(mXdrMessage);
     }
 
+    uint32_t
+    getLiveUntilLedger() const override
+    {
+        // XDR getter is implemented in generic fashion as it can normally work
+        // for any XDR message. TTL getter is a special case because TTL is
+        // only defined for a few types.
+        // Since we really only process `LedgerEntry` in practice at the
+        // moment, we condition the TTL getter code for ledger entries only.
+        if constexpr (std::is_same_v<T, LedgerEntry>)
+        {
+            if (isSorobanEntry(mXdrMessage.data))
+            {
+                auto ttlKey = getTTLKey(mXdrMessage);
+                return mTtlGetter(ttlKey);
+            }
+            if (mXdrMessage.data.type() == TTL)
+            {
+                return mXdrMessage.data.ttl().liveUntilLedgerSeq;
+            }
+        }
+        return std::numeric_limits<uint32_t>::max();
+    }
+
     ~TypedDynamicXDRGetterResolver() override = default;
 
   private:
     T const& mXdrMessage;
+    TTLGetter mTtlGetter;
     bool mValidate;
 };
 
 template <typename T>
-std::unique_ptr<DynamicXDRGetter>
-createXDRGetter(T const& xdrMessage, bool validate)
+static std::unique_ptr<DynamicXDRGetter>
+createXDRGetter(T const& xdrMessage, TTLGetter ttlGetter, bool validate)
 {
-    return std::make_unique<TypedDynamicXDRGetterResolver<T>>(xdrMessage,
-                                                              validate);
+    return std::make_unique<TypedDynamicXDRGetterResolver<T>>(
+        xdrMessage, ttlGetter, validate);
 }
 
 // Helper to match multiple XDR messages of the same type using the provided
@@ -64,7 +96,7 @@ createXDRGetter(T const& xdrMessage, bool validate)
 class XDRMatcher
 {
   public:
-    XDRMatcher(std::string const& query);
+    XDRMatcher(std::string const& query, TTLGetter ttlGetter = noTtlGetter);
 
     template <typename T>
     bool
@@ -85,11 +117,13 @@ class XDRMatcher
             }
             mEvalRoot = std::get<std::shared_ptr<BoolEvalNode>>(statement);
         }
-        return mEvalRoot->evalBool(*createXDRGetter(xdrMessage, firstEval));
+        return mEvalRoot->evalBool(
+            *createXDRGetter(xdrMessage, mTtlGetter, firstEval));
     }
 
   private:
     std::string const mQuery;
+    TTLGetter mTtlGetter;
     std::shared_ptr<BoolEvalNode> mEvalRoot;
 };
 
@@ -100,7 +134,8 @@ class XDRMatcher
 class XDRFieldExtractor
 {
   public:
-    XDRFieldExtractor(std::string const& query);
+    XDRFieldExtractor(std::string const& query,
+                      TTLGetter ttlGetter = noTtlGetter);
 
     template <typename T>
     std::vector<ResultType>
@@ -121,7 +156,8 @@ class XDRFieldExtractor
             }
             mFieldList = std::get<std::shared_ptr<ColumnList>>(statement);
         }
-        return mFieldList->getValues(*createXDRGetter(xdrMessage, firstEval));
+        return mFieldList->getValues(
+            *createXDRGetter(xdrMessage, mTtlGetter, firstEval));
     }
 
     // Gets names of the fields from the query.
@@ -129,6 +165,7 @@ class XDRFieldExtractor
 
   private:
     std::string mQuery;
+    TTLGetter mTtlGetter;
     std::shared_ptr<ColumnList> mFieldList;
 };
 
@@ -141,7 +178,7 @@ class XDRFieldExtractor
 class XDRAccumulator
 {
   public:
-    XDRAccumulator(std::string const& query);
+    XDRAccumulator(std::string const& query, TTLGetter ttlGetter = noTtlGetter);
 
     template <typename T>
     void
@@ -164,7 +201,8 @@ class XDRAccumulator
             mAccumulatorList =
                 std::get<std::shared_ptr<AccumulatorList>>(statement);
         }
-        mAccumulatorList->addEntry(*createXDRGetter(xdrMessage, firstEval));
+        mAccumulatorList->addEntry(
+            *createXDRGetter(xdrMessage, mTtlGetter, firstEval));
     }
 
     // Gets the accumulators with aggregated values of each field.
@@ -172,6 +210,7 @@ class XDRAccumulator
 
   private:
     std::string mQuery;
+    TTLGetter mTtlGetter;
     std::shared_ptr<AccumulatorList> mAccumulatorList;
 };
 } // namespace xdrquery

@@ -8,6 +8,7 @@
 #include "util/asio.h"
 
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "herder/HerderImpl.h"
 #include <cereal/archives/binary.hpp>
@@ -28,11 +29,12 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "transactions/TransactionSQL.h"
 #include "util/BufferedAsioCerealOutputArchive.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
 #include "work/ConditionalWork.h"
@@ -47,20 +49,6 @@ namespace stellar
 
 using namespace std;
 
-static std::string kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS publishqueue ("
-    "ledger   INTEGER PRIMARY KEY,"
-    "state    TEXT"
-    "); ";
-
-void
-HistoryManager::dropAll(Database& db)
-{
-    db.getRawSession() << "DROP TABLE IF EXISTS publishqueue;";
-    soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
-    st.execute(true);
-}
-
 std::filesystem::path
 HistoryManager::publishQueuePath(Config const& cfg)
 {
@@ -74,6 +62,8 @@ HistoryManager::createPublishQueueDir(Config const& cfg)
     fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
 }
 
+namespace
+{
 std::filesystem::path
 publishQueueFileName(uint32_t seq)
 {
@@ -131,88 +121,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
             HistoryManager::publishQueuePath(app.getConfig()).string());
     }
 }
-
-void
-HistoryManagerImpl::dropSQLBasedPublish()
-{
-    if (!mApp.getHistoryArchiveManager().publishEnabled())
-    {
-        // Publish is disabled, nothing to do
-        return;
-    }
-
-    // soci::transaction is created externally during schema upgrade, so this
-    // function is atomic
-    releaseAssert(threadIsMain());
-
-    auto const& cfg = mApp.getConfig();
-    auto& db = mApp.getDatabase();
-    auto& sess = db.getSession();
-
-    // In case previous schema migration rolled back, cleanup files
-    fs::deltree(publishQueuePath(cfg).string());
-    fs::deltree(getPublishHistoryDir(FileType::HISTORY_FILE_TYPE_LEDGER, cfg)
-                    .parent_path()
-                    .string());
-    createPublishDir(FileType::HISTORY_FILE_TYPE_LEDGER, cfg);
-    createPublishDir(FileType::HISTORY_FILE_TYPE_TRANSACTIONS, cfg);
-    createPublishDir(FileType::HISTORY_FILE_TYPE_RESULTS, cfg);
-    HistoryManager::createPublishQueueDir(cfg);
-
-    std::set<uint32_t> checkpointLedgers;
-    // Migrate all the existing queued checkpoints to the new format
-    {
-        std::string state;
-        auto prep =
-            db.getPreparedStatement("SELECT state FROM publishqueue;", sess);
-        auto& st = prep.statement();
-        st.exchange(soci::into(state));
-        st.define_and_bind();
-        st.execute(true);
-        while (st.got_data())
-        {
-            HistoryArchiveState has;
-            has.fromString(state);
-            releaseAssert(isLastLedgerInCheckpoint(has.currentLedger, cfg));
-            checkpointLedgers.insert(has.currentLedger);
-            writeCheckpointFile(mApp, has, /* finalize */ true);
-            st.fetch();
-        }
-    }
-
-    auto freq = getCheckpointFrequency(mApp.getConfig());
-    uint32_t lastQueued = 0;
-    for (auto const& checkpoint : checkpointLedgers)
-    {
-        auto begin = firstLedgerInCheckpointContaining(checkpoint, cfg);
-        populateCheckpointFilesFromDB(mApp, sess.session(), begin, freq,
-                                      mCheckpointBuilder);
-        LedgerHeaderUtils::copyToStream(sess.session(), begin, freq,
-                                        mCheckpointBuilder);
-        // Checkpoints in publish queue are complete, so we can finalize them
-        mCheckpointBuilder.checkpointComplete(checkpoint);
-        lastQueued = std::max(lastQueued, checkpoint);
-    }
-
-    auto lcl = LedgerHeaderUtils::loadMaxLedgerSeq(db);
-    if (lastQueued < lcl)
-    {
-        // Then, reconstruct any partial checkpoints that haven't yet been
-        // queued
-        populateCheckpointFilesFromDB(
-            mApp, sess.session(), firstLedgerInCheckpointContaining(lcl, cfg),
-            freq, mCheckpointBuilder);
-        LedgerHeaderUtils::copyToStream(
-            sess.session(), firstLedgerInCheckpointContaining(lcl, cfg), freq,
-            mCheckpointBuilder);
-    }
-    db.clearPreparedStatementCache(sess);
-
-    // Now it's safe to drop obsolete SQL tables
-    sess.session() << "DROP TABLE IF EXISTS publishqueue;";
-    dropSupportTxHistory(db);
-    dropSupportTxSetHistory(db);
-}
+} // namespace
 
 std::unique_ptr<HistoryManager>
 HistoryManager::create(Application& app)
@@ -280,6 +189,8 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
     }
 }
 
+namespace
+{
 bool
 isPublishFile(std::string const& name)
 {
@@ -326,6 +237,7 @@ forEveryTmpCheckpoint(std::string const& dir,
 {
     iterateOverCheckpoints(fs::findfiles(dir, isPublishTmpFile), f);
 }
+} // namespace
 
 size_t
 HistoryManager::publishQueueLength(Config const& cfg)
@@ -375,7 +287,8 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
+                                                uint32_t ledgerVers)
 {
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
@@ -389,26 +302,43 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl)
         return false;
     }
 
-    queueCurrentHistory(lcl);
+    if (mCheckpointBuilder.skipIncompleteFirstCheckpointSinceRestart())
+    {
+        CLOG_INFO(
+            History,
+            "Skipping incomplete checkpoint, publish was previously disabled");
+        return false;
+    }
+
+    queueCurrentHistory(lcl, ledgerVers);
     return true;
 }
 
 void
-HistoryManagerImpl::queueCurrentHistory(uint32_t ledger)
+HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
 {
     ZoneScoped;
 
-    LiveBucketList bl;
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    // Only one thread can modify the bucketlist, access BL from the _same_
+    // thread
+    LiveBucketList bl = mApp.getBucketManager().getLiveBucketList();
+
+    HistoryArchiveState has;
+    if (protocolVersionStartsFrom(
+            ledgerVers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
-        // Only one thread can modify the bucketlist, access BL from the _same_
-        // thread
-        bl = mApp.getBucketManager().getLiveBucketList();
+        auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
+        has = HistoryArchiveState(ledger, bl, hotBl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
+    }
+    else
+    {
+        has = HistoryArchiveState(ledger, bl,
+                                  mApp.getConfig().NETWORK_PASSPHRASE);
     }
 
-    HistoryArchiveState has(ledger, bl, mApp.getConfig().NETWORK_PASSPHRASE);
-
-    CLOG_DEBUG(History, "Queueing publish state for ledger {}", ledger);
+    CLOG_INFO(History, "Queueing publish state for ledger {}", ledger);
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
 
     // We queue history inside ledger commit, so do not finalize the file yet
@@ -443,7 +373,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     }
     auto allBucketsFromHAS = has.allBuckets();
     auto ledgerSeq = has.currentLedger;
-    CLOG_DEBUG(History, "Activating publish for ledger {}", ledgerSeq);
+    CLOG_INFO(History, "Activating publish for ledger {}", ledgerSeq);
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
 
     // Phase 1: resolve futures in snapshot
@@ -479,7 +409,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
-HistoryArchiveState
+static HistoryArchiveState
 loadCheckpointHAS(std::string const& filename)
 {
     HistoryArchiveState has;
@@ -605,19 +535,60 @@ void
 HistoryManager::deletePublishedFiles(uint32_t ledgerSeq, Config const& cfg)
 {
     releaseAssert(HistoryManager::isLastLedgerInCheckpoint(ledgerSeq, cfg));
-    FileTransferInfo res(FileType::HISTORY_FILE_TYPE_RESULTS, ledgerSeq, cfg);
-    FileTransferInfo txs(FileType::HISTORY_FILE_TYPE_TRANSACTIONS, ledgerSeq,
-                         cfg);
-    FileTransferInfo headers(FileType::HISTORY_FILE_TYPE_LEDGER, ledgerSeq,
-                             cfg);
-    // Dirty files shouldn't exist, but cleanup just in case
-    std::remove(res.localPath_nogz_dirty().c_str());
-    std::remove(txs.localPath_nogz_dirty().c_str());
-    std::remove(headers.localPath_nogz_dirty().c_str());
-    // Remove published files
-    std::remove(res.localPath_nogz().c_str());
-    std::remove(txs.localPath_nogz().c_str());
-    std::remove(headers.localPath_nogz().c_str());
+
+    // Delete published files for all checkpoints <= ledgerSeq, walking
+    // backwards
+    uint32_t currentCheckpoint = ledgerSeq;
+    uint32_t checkpointFreq = getCheckpointFrequency(cfg);
+    uint32_t const MAX_CHECKPOINTS = 100;
+    uint32_t currentCheckpointCount = 0;
+
+    while (currentCheckpointCount < MAX_CHECKPOINTS)
+    {
+        FileTransferInfo res(FileType::HISTORY_FILE_TYPE_RESULTS,
+                             currentCheckpoint, cfg);
+        FileTransferInfo txs(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
+                             currentCheckpoint, cfg);
+        FileTransferInfo headers(FileType::HISTORY_FILE_TYPE_LEDGER,
+                                 currentCheckpoint, cfg);
+
+        auto snapshotFile =
+            publishQueuePath(cfg) / publishQueueFileName(ledgerSeq);
+
+        // Check if any files exist before attempting removal
+        bool filesExist = fs::exists(res.localPath_nogz()) ||
+                          fs::exists(txs.localPath_nogz()) ||
+                          fs::exists(headers.localPath_nogz()) ||
+                          fs::exists(res.localPath_nogz_dirty()) ||
+                          fs::exists(txs.localPath_nogz_dirty()) ||
+                          fs::exists(headers.localPath_nogz_dirty()) ||
+                          fs::exists(snapshotFile.string());
+
+        if (!filesExist)
+        {
+            // No files exist for this checkpoint, stop going backwards
+            break;
+        }
+
+        // Dirty files shouldn't exist, but cleanup just in case
+        fs::removeWithLog(res.localPath_nogz_dirty());
+        fs::removeWithLog(txs.localPath_nogz_dirty());
+        fs::removeWithLog(headers.localPath_nogz_dirty());
+
+        // Remove published files
+        fs::removeWithLog(res.localPath_nogz());
+        fs::removeWithLog(txs.localPath_nogz());
+        fs::removeWithLog(headers.localPath_nogz());
+        fs::removeWithLog(snapshotFile.string());
+
+        if (currentCheckpoint < checkpointFreq)
+        {
+            // We're at the first checkpoint, stop
+            break;
+        }
+        currentCheckpoint -= checkpointFreq;
+        currentCheckpointCount++;
+    }
 }
 
 void
@@ -632,7 +603,7 @@ HistoryManagerImpl::historyPublished(
         if (iter != mEnqueueTimes.end())
         {
             auto now = std::chrono::steady_clock::now();
-            CLOG_DEBUG(
+            CLOG_INFO(
                 Perf, "Published history for ledger {} in {} seconds",
                 ledgerSeq,
                 std::chrono::duration<double>(now - iter->second).count());
@@ -641,9 +612,6 @@ HistoryManagerImpl::historyPublished(
         }
 
         this->mPublishSuccess.Mark();
-        auto file = publishQueuePath(mApp.getConfig()) /
-                    publishQueueFileName(ledgerSeq);
-        std::filesystem::remove(file);
         deletePublishedFiles(ledgerSeq, mApp.getConfig());
     }
     else
@@ -690,13 +658,38 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
         // Remove any tmp checkpoints that were potentially queued _before_ a
         // crash, causing ledger rollback. These files will be finalized during
         // successful ledger close.
-        forEveryTmpCheckpoint(publishQueuePath(mApp.getConfig()).string(),
-                              [&](uint32_t seq, std::string const& f) {
-                                  if (seq > lcl)
-                                  {
-                                      std::remove(f.c_str());
-                                  }
-                              });
+        forEveryTmpCheckpoint(
+            publishQueuePath(mApp.getConfig()).string(),
+            [&](uint32_t seq, std::string const& f) {
+                if (seq > lcl)
+                {
+                    // Retry removal up to 5 times with 500ms delay
+                    bool removed = false;
+                    uint32_t const ATTEMPTS = 5;
+                    for (int attempt = 0; attempt < ATTEMPTS; ++attempt)
+                    {
+                        if (fs::removeWithLog(f))
+                        {
+                            removed = true;
+                            break;
+                        }
+                        if (attempt < ATTEMPTS - 1)
+                        {
+                            std::this_thread::sleep_for(
+                                std::chrono::milliseconds(500));
+                        }
+                    }
+                    if (!removed)
+                    {
+                        auto msg =
+                            fmt::format("Failed to remove stale checkpoint "
+                                        "file {} after 5 attempts",
+                                        f);
+                        CLOG_ERROR(History, "{}", msg);
+                        throw std::runtime_error(msg);
+                    }
+                }
+            });
         // Maybe finalize checkpoint if we're at a checkpoint boundary and
         // haven't rotated yet. No-op if checkpoint has been rotated already
         maybeCheckpointComplete(lcl);
@@ -730,6 +723,21 @@ HistoryManagerImpl::setPublicationEnabled(bool enabled)
     mPublicationEnabled = enabled;
 }
 #endif
+
+void
+HistoryManagerImpl::waitForCheckpointPublish()
+{
+    // This may only be used for the load testing (apply-load specifically, but
+    // we don't have a separate flag for that).
+    releaseAssert(mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING &&
+                  mApp.getConfig().RUN_STANDALONE);
+    auto& clock = mApp.getClock();
+    while (!clock.getIOContext().stopped() && mPublishWork &&
+           publishQueueLength(mApp.getConfig()) > 0)
+    {
+        clock.crank(true);
+    }
+}
 
 Config const&
 HistoryManagerImpl::getConfig() const

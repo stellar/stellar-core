@@ -11,6 +11,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 
 namespace stellar
 {
@@ -53,7 +54,7 @@ GetRemoteFileWork::getCommand()
 void
 GetRemoteFileWork::onReset()
 {
-    std::remove(mLocal.c_str());
+    fs::removeWithLog(mLocal);
     RunCommandWork::onReset();
 }
 

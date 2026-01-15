@@ -1,12 +1,13 @@
-#pragma once
-
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#pragma once
+
 // This structure just exists to cache frequently-accessed, overlay-wide
 // (non-peer-specific) metrics.
 
+#include "util/SimpleTimer.h"
 namespace medida
 {
 class Timer;
@@ -51,15 +52,8 @@ struct OverlayMetrics
 
     // For frequently occurring events, using medida timers can be very
     // expensive, as we are constantly compressing and copying data to maintain
-    // histograms. To avoid this, we use counters to sum the total time. This
-    // means we don't have histogram data, but the runtime cost of counters is
-    // negligible.
-    // Sum of total delay to process transaction message, in
-    // microseconds
-    medida::Counter& mRecvTransactionAccumulator;
-
-    // Count of transaction messages received
-    medida::Counter& mRecvTransactionCounter;
+    // histograms. So, we use a `SimpleTimer` of microseconds instead.
+    SimpleTimer& mRecvTransactionTimer;
 
     medida::Timer& mRecvGetSCPQuorumSetTimer;
     medida::Timer& mRecvSCPQuorumSetTimer;

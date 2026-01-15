@@ -1,8 +1,8 @@
-#pragma once
+// Copyright 2024 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-// copyright 2024 stellar development foundation and contributors. licensed
-// under the apache license, version 2.0. see the copying file at the root
-// of this distribution or at http://www.apache.org/licenses/license-2.0
+#pragma once
 
 #include "bucket/BucketBase.h"
 #include "bucket/BucketUtils.h"
@@ -27,11 +27,6 @@ class HotArchiveBucket
     : public BucketBase<HotArchiveBucket, HotArchiveBucketIndex>,
       public std::enable_shared_from_this<HotArchiveBucket>
 {
-    static std::vector<HotArchiveBucketEntry>
-    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
-                         std::vector<LedgerKey> const& restoredEntries,
-                         std::vector<LedgerKey> const& deletedEntries);
-
   public:
     // Entry type that this bucket stores
     using EntryT = HotArchiveBucketEntry;
@@ -49,14 +44,13 @@ class HotArchiveBucket
     {
     }
     HotArchiveBucket(std::string const& filename, Hash const& hash,
-                     std::unique_ptr<HotArchiveBucketIndex const>&& index);
+                     std::shared_ptr<HotArchiveBucketIndex const>&& index);
     uint32_t getBucketVersion() const;
 
     static std::shared_ptr<HotArchiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& archivedEntries,
-          std::vector<LedgerKey> const& restoredEntries,
-          std::vector<LedgerKey> const& deletedEntries, bool countMergeEvents,
+          std::vector<LedgerKey> const& restoredEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
@@ -64,13 +58,11 @@ class HotArchiveBucket
     static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     // Note: this functions is called maybePut for interoperability with
-    // LiveBucket. This function always writes te given entry to the output
-    // iterator.
+    // LiveBucket. This function always writes the given entry to the output
+    // iterator using putFunc.
     static void
-    maybePut(HotArchiveBucketOutputIterator& out,
-             HotArchiveBucketEntry const& entry,
-             std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-             bool keepShadowedLifecycleEntries, MergeCounters& mc);
+    maybePut(std::function<void(HotArchiveBucketEntry const&)> putFunc,
+             HotArchiveBucketEntry const& entry, MergeCounters& mc);
 
     // For now, we only count LiveBucket merge events
     static void
@@ -89,14 +81,18 @@ class HotArchiveBucket
     {
     }
 
+    template <typename InputSource>
     static void mergeCasesWithEqualKeys(
-        MergeCounters& mc, HotArchiveBucketInputIterator& oi,
-        HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
-        std::vector<HotArchiveBucketInputIterator>& shadowIterators,
-        uint32_t protocolVersion, bool keepShadowedLifecycleEntries);
+        MergeCounters& mc, InputSource& inputSource,
+        std::function<void(HotArchiveBucketEntry const&)> putFunc,
+        uint32_t protocolVersion);
 
     static std::shared_ptr<LoadT const>
     bucketEntryToLoadResult(std::shared_ptr<EntryT const> const& be);
+
+    static std::vector<HotArchiveBucketEntry>
+    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
+                         std::vector<LedgerKey> const& restoredEntries);
 
     friend class HotArchiveBucketSnapshot;
 };

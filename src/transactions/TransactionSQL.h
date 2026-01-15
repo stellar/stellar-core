@@ -15,7 +15,4 @@ class CheckpointBuilder;
 size_t populateCheckpointFilesFromDB(Application& app, soci::session& sess,
                                      uint32_t ledgerSeq, uint32_t ledgerCount,
                                      CheckpointBuilder& checkpointBuilder);
-void dropSupportTransactionFeeHistory(Database& db);
-void dropSupportTxSetHistory(Database& db);
-void dropSupportTxHistory(Database& db);
 }

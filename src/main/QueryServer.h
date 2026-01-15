@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2024 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "lib/httpthreaded/server.hpp"
 
@@ -29,6 +29,9 @@ class QueryServer
     std::unordered_map<std::thread::id, SearchableSnapshotConstPtr>
         mBucketListSnapshots;
 
+    std::unordered_map<std::thread::id, SearchableHotArchiveSnapshotConstPtr>
+        mHotArchiveBucketListSnapshots;
+
     BucketSnapshotManager& mBucketSnapshotManager;
 
     bool safeRouter(HandlerRoute route, std::string const& params,
@@ -39,14 +42,27 @@ class QueryServer
 
     void addRoute(std::string const& name, HandlerRoute route);
 
+#ifdef BUILD_TESTS
+  public:
+#endif
     // Returns raw LedgerKeys for the given keys from the Live BucketList. Does
     // not query other BucketLists or reason about archival.
     bool getLedgerEntryRaw(std::string const& params, std::string const& body,
                            std::string& retStr);
 
+    bool getLedgerEntry(std::string const& params, std::string const& body,
+                        std::string& retStr);
+
   public:
-    QueryServer(const std::string& address, unsigned short port, int maxClient,
+    QueryServer(std::string const& address, unsigned short port, int maxClient,
                 size_t threadPoolSize,
-                BucketSnapshotManager& bucketSnapshotManager);
+                BucketSnapshotManager& bucketSnapshotManager
+#ifdef BUILD_TESTS
+                ,
+                bool useMainThreadForTesting = false
+#endif
+    );
+
+    void shutdown();
 };
 }

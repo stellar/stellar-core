@@ -38,6 +38,7 @@ sum { return xdrquery::XDRQueryParser::make_SUM(); }
 avg { return xdrquery::XDRQueryParser::make_AVG(); }
 count { return xdrquery::XDRQueryParser::make_COUNT(); }
 entry_size { return xdrquery::XDRQueryParser::make_ENTRY_SIZE(); }
+ttl { return xdrquery::XDRQueryParser::make_TTL(); }
 
 {IDENTIFIER}  { return xdrquery::XDRQueryParser::make_ID(yytext); }
 {INT}         { return xdrquery::XDRQueryParser::make_INT(yytext); }

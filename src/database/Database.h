@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "medida/timer_context.h"
@@ -26,13 +26,14 @@ class Counter;
 namespace stellar
 {
 class Application;
-class SQLLogContext;
-using PreparedStatementCache =
-    std::map<std::string, std::shared_ptr<soci::statement>>;
 
 // smallest schema version supported
-static constexpr unsigned long MIN_SCHEMA_VERSION = 21;
-static constexpr unsigned long SCHEMA_VERSION = 24;
+static constexpr unsigned long MIN_SCHEMA_VERSION = 25;
+static constexpr unsigned long SCHEMA_VERSION = 26;
+static constexpr unsigned long FIRST_MAIN_VERSION_WITH_MISC = 26;
+// Misc schema version 0 means no misc table exists yet
+static constexpr unsigned long MIN_MISC_SCHEMA_VERSION = 0;
+static constexpr unsigned long MISC_SCHEMA_VERSION = 1;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -81,7 +82,6 @@ class SessionWrapper : NonCopyable
         : mSession(pool), mSessionName(std::move(sessionName))
     {
     }
-
     soci::session&
     session()
     {
@@ -123,27 +123,33 @@ class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
+
+    // SQLite locks the entire database file during writes, which prevents
+    // parallelism between ledger apply and consensus/mempool. To work around
+    // this, we split into two database files that can handle independent
+    // writes:
+    //   - Main: ledger state, touched on startup and during apply
+    //   - Misc: consensus data, overlay data, upgrades
+    // Postgres concurrency model allows concurrent writes to different tables,
+    // so this only applies to SQLite.
     SessionWrapper mSession;
+    SessionWrapper mMiscSession;
 
     std::unique_ptr<soci::connection_pool> mPool;
-
-    // Cache key -> session name <> query
-    using PreparedStatementCache =
-        std::unordered_map<std::string, std::shared_ptr<soci::statement>>;
-    std::unordered_map<std::string, PreparedStatementCache> mCaches;
-
-    medida::Counter& mStatementsSize;
+    std::unique_ptr<soci::connection_pool> mMiscPool;
 
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
+    void applyMiscSchemaUpgrade(unsigned long vers);
     void open();
-    // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
 
-    // Prepared statements cache may be accessed by mutliple threads (each using
-    // a different session), so use a mutex to synchronize access.
-    std::mutex mutable mStatementsMutex;
+    // Save `vers` as schema version of main DB.
+    void putMainSchemaVersion(unsigned long vers);
+    // Save `vers` as schema version of misc DB.
+    void putMiscSchemaVersion(unsigned long vers);
+    void populateMiscDatabase();
+    std::string getSQLiteDBLocation(soci::session& session);
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
@@ -154,23 +160,12 @@ class Database : NonMovableOrCopyable
     {
     }
 
-    // Return a logging helper that will capture all SQL statements made
-    // on the main connection while active, and will log those statements
-    // to the process' log for diagnostics. For testing and perf tuning.
-    std::shared_ptr<SQLLogContext> captureAndLogSQL(std::string contextName);
-
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
-    // is created if necessary before borrowing, and reset (unbound from data)
-    // when the statement context is destroyed. Prepared statements caches are
-    // per DB session.
+    // is created and reset (unbound from data) when the statement context
+    // is destroyed.
     StatementContext getPreparedStatement(std::string const& query,
                                           SessionWrapper& session);
-
-    // Purge all cached prepared statements, closing their handles with the
-    // database.
-    void clearPreparedStatementCache(SessionWrapper& session);
-    void clearPreparedStatementCache();
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
@@ -189,6 +184,10 @@ class Database : NonMovableOrCopyable
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
 
+    // Return true if the Database can use a miscellaneous database, which is
+    // supported only for on-disk SQLite
+    bool canUseMiscDB() const;
+
     // Return an optional SQL COLLATION clause to use for text-typed columns in
     // this database, in order to ensure they're compared "simply" using
     // byte-value comparisons, i.e. in a non-language-sensitive fashion.  For
@@ -198,8 +197,8 @@ class Database : NonMovableOrCopyable
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                      SessionWrapper& session);
+    T doDatabaseTypeSpecificOperation(SessionWrapper& session,
+                                      DatabaseTypeSpecificOperation<T>& op);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -209,24 +208,31 @@ class Database : NonMovableOrCopyable
     // by the new-db command on stellar-core.
     void initialize();
 
-    // Get current schema version in DB.
-    unsigned long getDBSchemaVersion();
+    // Get current schema version of main DB.
+    unsigned long getMainDBSchemaVersion();
+    // Get current schema version of misc DB.
+    unsigned long getMiscDBSchemaVersion();
 
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
 
     void dropTxMetaIfExists();
-    void maybeUpgradeToBucketListDB();
 
     // Soci named session wrapper
     SessionWrapper& getSession();
+    SessionWrapper& getMiscSession();
     // Access the underlying SOCI session object
     // Use these to directly access the soci session object
     soci::session& getRawSession();
+    soci::session& getRawMiscSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+    soci::connection_pool& getMiscPool();
+
+    // Exposed for testing
+    static std::string getMiscDBName(std::string const& mainDB);
 };
 
 template <typename T>
@@ -254,8 +260,8 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 
 template <typename T>
 T
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                          SessionWrapper& session)
+Database::doDatabaseTypeSpecificOperation(SessionWrapper& session,
+                                          DatabaseTypeSpecificOperation<T>& op)
 {
     return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }

@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
@@ -91,6 +91,10 @@ closeLedger(Application& app,
             xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
 
 TransactionResultSet
+closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
+            ParallelSorobanOrder const& parallelSorobanOrder);
+
+TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
@@ -99,7 +103,8 @@ TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false,
-              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
+              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps,
+              ParallelSorobanOrder const& parallelSorobanOrder = {});
 
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
@@ -126,18 +131,43 @@ bool doesAccountExist(Application& app, PublicKey const& k);
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionTestFramePtr transactionFromOperationsV0(
+TransactionTestFramePtr
+transactionFromOperationsV0(Application& app, SecretKey const& from,
+                            SequenceNumber seq,
+                            std::vector<Operation> const& ops, uint32_t fee = 0,
+                            std::optional<Memo> memo = std::nullopt);
+
+// Create TxFrame from arguments with padding to get close to `desiredSize`.
+// Note that if `desiredSize` is less than the size of the TxFrame without
+// padding, the frame will be created as normal. Otherwise, the frame is padded
+// up to the nearest multiple of 4 to `desiredSize`, with a minimum padding of
+// the cost to enable the sorobanData extension (~36 bytes).
+TransactionTestFramePtr paddedTransactionFromOperationsV1(
     Application& app, SecretKey const& from, SequenceNumber seq,
-    std::vector<Operation> const& ops, uint32_t fee = 0);
+    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize);
+
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             std::vector<Operation> const& ops, uint32_t fee,
-                            std::optional<PreconditionsV2> cond = std::nullopt);
+                            std::optional<PreconditionsV2> cond = std::nullopt,
+                            std::optional<uint64_t> sourceMux = std::nullopt,
+                            std::optional<Memo> memo = std::nullopt);
+
+// If `app` protocol version is >=23, attempts to pad to around `desiredSize`
+// (see comment on `paddedTransactionFromOperationsV1`). Otherwise, throw an
+// error.
+TransactionTestFramePtr
+paddedTransactionFromOperations(Application& app, SecretKey const& from,
+                                SequenceNumber seq,
+                                std::vector<Operation> const& ops,
+                                uint32_t fee = 0, uint32_t desiredSize = 0);
+
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, std::vector<Operation> const& ops,
-                          uint32_t fee = 0);
+                          uint32_t fee = 0,
+                          std::optional<Memo> memo = std::nullopt);
 TransactionTestFramePtr
 transactionWithV2Precondition(Application& app, TestAccount& account,
                               int64_t sequenceDelta, uint32_t fee,
@@ -146,7 +176,7 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 // If useInclusionAsFullFee is true, `inclusion` will be used as the full fee.
 // Otherwise, `tx` resource fee is added to full fee.
 TransactionTestFramePtr feeBump(Application& app, TestAccount& feeSource,
-                                std::shared_ptr<TransactionTestFrame const> tx,
+                                TransactionFrameBaseConstPtr tx,
                                 int64_t inclusion,
                                 bool useInclusionAsFullFee = false);
 
@@ -195,16 +225,22 @@ TransactionTestFramePtr createSimpleDexTx(Application& app,
 // valid Wasm of *roughly* `generatedWasmSize` (within a few bytes).
 // The output size deterministically depends on the input
 // `generatedWasmSize`.
-Operation createUploadWasmOperation(uint32_t generatedWasmSize);
+Operation
+createUploadWasmOperation(uint32_t generatedWasmSize,
+                          std::optional<uint64_t> wasmSeed = std::nullopt);
 
 TransactionTestFramePtr createUploadWasmTx(
     Application& app, TestAccount& account, uint32_t inclusionFee,
     int64_t resourceFee, SorobanResources resources,
     std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
     std::optional<uint32_t> wasmSize = std::nullopt,
-    std::optional<SequenceNumber> seq = std::nullopt);
-int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
-                           size_t txSize, uint32_t eventsSize);
+    std::optional<SequenceNumber> seq = std::nullopt,
+    std::optional<uint64_t> wasmSeed = std::nullopt);
+int64_t sorobanResourceFee(
+    Application& app, SorobanResources const& resources, size_t txSize,
+    uint32_t eventsSize,
+    std::optional<std::vector<uint32_t>> archivedIndexes = std::nullopt,
+    bool isRestoreFootprintOp = false);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
@@ -286,6 +322,8 @@ ChangeTrustAsset makeChangeTrustAssetPoolShare(Asset const& assetA,
 OperationResult const& getFirstResult(TransactionTestFramePtr tx);
 OperationResultCode getFirstResultCode(TransactionTestFramePtr tx);
 
+void sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env);
+
 // methods to check results based off meta data
 void checkTx(int index, TransactionResultSet& r,
              TransactionResultCode expected);
@@ -304,13 +342,15 @@ TransactionTestFramePtr sorobanTransactionFrameFromOps(
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t inclusionFee,
     int64_t resourceFee, std::optional<std::string> memo = std::nullopt,
-    std::optional<SequenceNumber> seq = std::nullopt);
+    std::optional<SequenceNumber> seq = std::nullopt,
+    std::optional<std::vector<uint32_t>> archivedIndexes = std::nullopt);
 TransactionTestFramePtr sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
     std::optional<std::string> memo = std::nullopt,
-    std::optional<uint64> muxedData = std::nullopt);
+    std::optional<uint64> muxedData = std::nullopt,
+    std::optional<std::vector<uint32_t>> archivedIndexes = std::nullopt);
 
 ConfigUpgradeSetFrameConstPtr makeConfigUpgradeSet(
     AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
@@ -337,6 +377,8 @@ int64_t getBalance(Application& app, AccountID const& accountID,
 uint32_t getLclProtocolVersion(Application& app);
 
 bool isSuccessResult(TransactionResult const& res);
+
+TestAccount getGenesisAccount(Application& app, uint32_t accountIndex);
 
 } // end txtest namespace
 }

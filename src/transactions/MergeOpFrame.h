@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "transactions/OperationFrame.h"
 
@@ -19,8 +19,10 @@ class MergeOpFrame : public OperationFrame
         return res.tr().accountMergeResult();
     }
 
-    bool doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
-    bool doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res,
+                          OpEventManager& opEventManager) const;
+    bool doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res,
+                        OpEventManager& opEventManager) const;
 
     ThresholdLevel getThresholdLevel() const override;
 
@@ -32,8 +34,8 @@ class MergeOpFrame : public OperationFrame
     MergeOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

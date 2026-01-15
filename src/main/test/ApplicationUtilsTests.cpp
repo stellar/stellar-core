@@ -7,12 +7,12 @@
 #include "history/test/HistoryTestsUtils.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "simulation/Simulation.h"
+#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
@@ -45,174 +45,6 @@ class TemporaryFileDamager
     {
         std::filesystem::remove(mVictim);
         std::filesystem::rename(mVictimSaved, mVictim);
-    }
-};
-
-// Sets up a network with a main validator node that publishes checkpoints to
-// a test node. Tests startup behavior of the test node when up to date with
-// validator and out of sync.
-class SimulationHelper
-{
-    Simulation::pointer mSimulation;
-    Application::pointer mMainNode;
-    Config& mMainCfg;
-    Config& mTestCfg;
-    PublicKey mMainNodeID;
-    PublicKey mTestNodeID;
-    SCPQuorumSet mQuorum;
-    TmpDirHistoryConfigurator mHistCfg;
-
-  public:
-    SimulationHelper(Config& mainCfg, Config& testCfg)
-        : mMainCfg(mainCfg), mTestCfg(testCfg)
-    {
-        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-        mSimulation =
-            std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
-
-        // Main node never shuts down, publishes checkpoints for test node
-        mMainNodeID = mMainCfg.NODE_SEED.getPublicKey();
-
-        // Test node may shutdown, lose sync, etc.
-        mTestNodeID = testCfg.NODE_SEED.getPublicKey();
-
-        mQuorum.threshold = 1;
-        mQuorum.validators.push_back(mMainNodeID);
-
-        // Setup validator to publish
-        mMainCfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        mMainCfg = mHistCfg.configure(mMainCfg, /* writable */ true);
-        mMainCfg.MAX_SLOTS_TO_REMEMBER = 50;
-        mMainCfg.USE_CONFIG_FOR_GENESIS = false;
-        mMainCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
-
-        mTestCfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        mTestCfg.NODE_IS_VALIDATOR = false;
-        mTestCfg.FORCE_SCP = false;
-        mTestCfg.INVARIANT_CHECKS = {};
-        mTestCfg.MODE_AUTO_STARTS_OVERLAY = false;
-        mTestCfg.USE_CONFIG_FOR_GENESIS = false;
-        mTestCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
-
-        // Test node points to a read-only archive maintained by the
-        // main validator
-        mTestCfg = mHistCfg.configure(mTestCfg, /* writable */ false);
-
-        mMainNode =
-            mSimulation->addNode(mMainCfg.NODE_SEED, mQuorum, &mMainCfg);
-        mMainNode->getHistoryArchiveManager().initializeHistoryArchive(
-            mHistCfg.getArchiveDirName());
-
-        mSimulation->addNode(testCfg.NODE_SEED, mQuorum, &mTestCfg);
-        mSimulation->addPendingConnection(mMainNodeID, mTestNodeID);
-        mSimulation->startAllNodes();
-
-        mSimulation->crankUntil(
-            [&simulation = mSimulation]() {
-                return simulation->haveAllExternalized(3, 5);
-            },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    }
-
-    void
-    generateLoad(bool soroban)
-    {
-        auto& loadGen = mMainNode->getLoadGenerator();
-        auto& loadGenDone = mMainNode->getMetrics().NewMeter(
-            {"loadgen", "run", "complete"}, "run");
-
-        // Generate a bit of load, and crank for some time
-        if (soroban)
-        {
-            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::SOROBAN_UPLOAD, /* nAccounts */ 50, /* nTxs */ 10,
-                /*txRate*/ 1));
-        }
-        else
-        {
-            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::PAY, /* nAccounts */ 50, /* nTxs */ 10,
-                /*txRate*/ 1));
-        }
-
-        auto currLoadGenCount = loadGenDone.count();
-
-        mSimulation->crankUntil(
-            [&]() {
-                bool loadDone = loadGenDone.count() > currLoadGenCount;
-                return loadDone && mSimulation->getNode(mTestNodeID)
-                                       ->getLedgerManager()
-                                       .isSynced();
-            },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    }
-
-    // Publish checkpoints until selected checkpoint reached. Returns seqno and
-    // hash for a ledger within selected checkpoint
-    std::pair<uint32_t, std::string>
-    publishCheckpoints(uint32_t selectedCheckpoint)
-    {
-        uint32_t selectedLedger = 0;
-        std::string selectedHash;
-
-        auto& loadGen = mMainNode->getLoadGenerator();
-        auto& loadGenDone = mMainNode->getMetrics().NewMeter(
-            {"loadgen", "run", "complete"}, "run");
-
-        loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 50,
-                                                    /* txRate */ 1));
-        auto currLoadGenCount = loadGenDone.count();
-
-        auto checkpoint = HistoryManager::getCheckpointFrequency(mMainCfg);
-
-        // Make sure validator publishes something
-        mSimulation->crankUntil(
-            [&]() {
-                bool loadDone = loadGenDone.count() > currLoadGenCount;
-                auto lcl =
-                    mMainNode->getLedgerManager().getLastClosedLedgerHeader();
-                // Pick some ledger in the selected checkpoint to run
-                // catchup against later
-                if (lcl.header.ledgerSeq < selectedCheckpoint * checkpoint)
-                {
-                    selectedLedger = lcl.header.ledgerSeq;
-                    selectedHash = binToHex(lcl.hash);
-                }
-
-                // Validator should publish up to and including the selected
-                // checkpoint
-                return loadDone &&
-                       mSimulation->haveAllExternalized(
-                           (selectedCheckpoint + 1) * checkpoint, 5);
-            },
-            50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        REQUIRE(selectedLedger != 0);
-        REQUIRE(!selectedHash.empty());
-        return std::make_pair(selectedLedger, selectedHash);
-    }
-
-    LedgerHeaderHistoryEntry
-    getMainNodeLCL()
-    {
-        return mSimulation->getNode(mMainNodeID)
-            ->getLedgerManager()
-            .getLastClosedLedgerHeader();
-    }
-
-    LedgerHeaderHistoryEntry
-    getTestNodeLCL()
-    {
-        return mSimulation->getNode(mTestNodeID)
-            ->getLedgerManager()
-            .getLastClosedLedgerHeader();
-    }
-
-    void
-    shutdownTestNode()
-    {
-        mSimulation->removeNode(mTestNodeID);
     }
 };
 
@@ -341,18 +173,18 @@ TEST_CASE("application major version numbers", "[applicationutils]")
 TEST_CASE("standalone quorum intersection check", "[applicationutils]")
 {
     Config cfg = getTestConfig();
-    const std::string JSON_ROOT = "testdata/check-quorum-intersection-json/";
+    auto JSON_ROOT = getSrcTestDataPath("check-quorum-intersection-json");
 
     SECTION("enjoys quorum intersection")
     {
         REQUIRE(checkQuorumIntersectionFromJson(
-            JSON_ROOT + "enjoys-intersection.json", cfg));
+            (JSON_ROOT / "enjoys-intersection.json").string(), cfg));
     }
 
     SECTION("does not enjoy quorum intersection")
     {
         REQUIRE(!checkQuorumIntersectionFromJson(
-            JSON_ROOT + "no-intersection.json", cfg));
+            (JSON_ROOT / "no-intersection.json").string(), cfg));
     }
 
     SECTION("malformed JSON")
@@ -360,18 +192,19 @@ TEST_CASE("standalone quorum intersection check", "[applicationutils]")
         // Test various bad JSON inputs
 
         // Malformed key
-        REQUIRE_THROWS_AS(
-            checkQuorumIntersectionFromJson(JSON_ROOT + "bad-key.json", cfg),
-            KeyUtils::InvalidStrKey);
+        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
+                              (JSON_ROOT / "bad-key.json").string(), cfg),
+                          KeyUtils::InvalidStrKey);
 
         // Wrong datatype
-        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
-                              JSON_ROOT + "bad-threshold-type.json", cfg),
-                          std::runtime_error);
+        REQUIRE_THROWS_AS(
+            checkQuorumIntersectionFromJson(
+                (JSON_ROOT / "bad-threshold-type.json").string(), cfg),
+            std::runtime_error);
 
         // No such file
-        REQUIRE_THROWS_AS(
-            checkQuorumIntersectionFromJson(JSON_ROOT + "no-file.json", cfg),
-            std::runtime_error);
+        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
+                              (JSON_ROOT / "no-file.json").string(), cfg),
+                          std::runtime_error);
     }
 }

@@ -3,13 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
+#include "bucket/BucketIndexUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include <type_traits>
 
 namespace stellar
@@ -45,6 +48,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
                                               size_t pageSize) const
 {
     ZoneScoped;
+    releaseAssertOrThrow(pageSize > 0);
     if (isEmpty())
     {
         return {nullptr, false};
@@ -54,16 +58,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     stream.seek(pos);
 
     typename BucketT::EntryT be;
-    if (pageSize == 0)
-    {
-        if (stream.readOne(be))
-        {
-            auto entry = std::make_shared<typename BucketT::EntryT const>(be);
-            mBucket->getIndex().maybeAddToCache(entry);
-            return {entry, false};
-        }
-    }
-    else if (stream.readPage(be, k, pageSize))
+    if (stream.readPage(be, k, pageSize))
     {
         auto entry = std::make_shared<typename BucketT::EntryT const>(be);
         mBucket->getIndex().maybeAddToCache(entry);
@@ -113,7 +108,7 @@ template <class BucketT>
 void
 BucketSnapshotBase<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-    std::vector<typename BucketT::LoadT>& result, LedgerKeyMeter* lkMeter) const
+    std::vector<typename BucketT::LoadT>& result) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -169,16 +164,6 @@ BucketSnapshotBase<BucketT>::loadKeys(
                 if constexpr (std::is_same_v<BucketT, LiveBucket>)
                 {
                     bool addEntry = true;
-                    if (lkMeter)
-                    {
-                        // Here, we are metering after the entry has been
-                        // loaded. This is because we need to know the size
-                        // of the entry to meter it. Future work will add
-                        // metering at the xdr level.
-                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
-                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
-                    }
                     if (addEntry)
                     {
                         result.push_back(entryOp->liveEntry());
@@ -212,11 +197,15 @@ LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
+// Note: evicatbleKeys and keysInEvictableEntries both reference the same
+// entries. evictableEntries in order of eviction, keysInEvictableEntries in an
+// unordered but searchable set.
 Loop
 LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
-    std::list<EvictionResultEntry>& evictableKeys,
-    SearchableLiveBucketListSnapshot const& bl, uint32_t ledgerVers) const
+    std::list<EvictionResultEntry>& evictableEntries,
+    SearchableLiveBucketListSnapshot const& bl, uint32_t ledgerVers,
+    UnorderedSet<LedgerKey>& keysInEvictableEntries) const
 {
     ZoneScoped;
     if (isEmpty() || protocolVersionIsBefore(mBucket->getBucketVersion(),
@@ -237,8 +226,12 @@ LiveBucketSnapshot::scanForEviction(
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
-            keysToSearch,
-            bl.loadKeysWithLimits(keysToSearch, "eviction", nullptr));
+            // Note: load from a stale snapshot here. Expired entries should
+            // never be modified by the ltx, unless they're getting restored.
+            // `resolveBackgroundEviction` checks that entries loaded from the
+            // snapshot are indeed not touched by the ltx, so it should be safe
+            // to evict these candidates.
+            keysToSearch, bl.loadKeys(keysToSearch, "eviction"));
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted
@@ -248,10 +241,30 @@ LiveBucketSnapshot::scanForEviction(
                 // If TTL of entry is expired
                 if (!isLive(*ttl, ledgerSeq))
                 {
-                    // If entry is expired but not yet deleted, add it to
-                    // evictable keys
+                    // Note: There was a bug in protocol 23 where we would
+                    // not check if an entry was the newest version and would
+                    // evict whatever version was scanned.
+                    if (protocolVersionStartsFrom(ledgerVers,
+                                                  ProtocolVersion::V_24) &&
+                        isPersistentEntry(e.entry.data))
+                    {
+                        // Make sure we only ever evict the most recent version
+                        // of persistent entries. Make sure we use the entry
+                        // from loadKeys, as they are guaranteed to be the
+                        // newest version. We could have scanned and populated
+                        // `e` with an older version.
+                        auto newestVersionIter =
+                            loadResult.find(LedgerEntryKey(e.entry));
+                        releaseAssertOrThrow(newestVersionIter !=
+                                             loadResult.end());
+                        e.entry = *newestVersionIter->second;
+                    }
+
                     e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
-                    evictableKeys.emplace_back(e);
+                    evictableEntries.emplace_back(e);
+                    keysInEvictableEntries.insert(LedgerEntryKey(e.entry));
+                    releaseAssertOrThrow(evictableEntries.size() ==
+                                         keysInEvictableEntries.size());
                 }
             }
         }
@@ -292,9 +305,28 @@ LiveBucketSnapshot::scanForEviction(
         if (be.type() == INITENTRY || be.type() == LIVEENTRY)
         {
             auto const& le = be.liveEntry();
-            if (isEvictableType(le.data))
+
+            // Make sure we don't redundantly search for a key we've already
+            // evicted in the previous bucket.
+            if (isEvictableType(le.data) &&
+                keysInEvictableEntries.find(LedgerEntryKey(le)) ==
+                    keysInEvictableEntries.end())
             {
                 keysToSearch.emplace(getTTLKey(le));
+
+                // For temp entries, we don't care if we evict the newest
+                // version of the entry, since it's just a deletion. However,
+                // for persistent entries, we need to make sure we evict the
+                // newest version of the entry, since it will be persisted in
+                // the hot archive. So we add persistent entries to our DB
+                // lookup to find the newest version. Note that there was a
+                // bug in protocol 23 where this check was not performed.
+                if (isPersistentEntry(le.data) &&
+                    protocolVersionStartsFrom(ledgerVers,
+                                              ProtocolVersion::V_24))
+                {
+                    keysToSearch.emplace(LedgerEntryKey(le));
+                }
 
                 // Set lifetime to 0 as default, will be updated after TTL keys
                 // loaded
@@ -315,6 +347,59 @@ LiveBucketSnapshot::scanForEviction(
 
     // Hit eof
     processQueue();
+    return Loop::INCOMPLETE;
+}
+
+// Scans entries of the specified type in the bucket.
+Loop
+LiveBucketSnapshot::scanForEntriesOfType(
+    LedgerEntryType type,
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    if (isEmpty())
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto range = mBucket->getRangeForType(type);
+    if (!range)
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto& stream = getStream();
+    stream.seek(range->first);
+
+    BucketEntry be;
+    while (stream.readOne(be))
+    {
+        if (!isBucketMetaEntry<LiveBucket>(be))
+        {
+            if (LedgerKey key = getBucketLedgerKey(be); key.type() > type)
+            {
+                break;
+            }
+        }
+
+        bool matchesType = false;
+        if (be.type() == LIVEENTRY || be.type() == INITENTRY)
+        {
+            matchesType = be.liveEntry().data.type() == type;
+        }
+        else if (be.type() == DEADENTRY)
+        {
+            matchesType = be.deadEntry().type() == type;
+        }
+
+        if (matchesType)
+        {
+            if (callback(be) == Loop::COMPLETE)
+            {
+                return Loop::COMPLETE;
+            }
+        }
+    }
     return Loop::INCOMPLETE;
 }
 

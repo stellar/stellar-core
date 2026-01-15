@@ -34,7 +34,7 @@ InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
 void
 InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
-                                   RestoredKeys const& restoredKeys,
+                                   RestoredEntries const& restoredEntries,
                                    LedgerTxnConsistency cons) noexcept
 {
     printErrorAndAbort("committing to stub InMemoryLedgerTxnRoot");
@@ -97,6 +97,25 @@ InMemoryLedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
     return nullptr;
 }
 
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxnRoot::getRestoredHotArchiveKeys() const
+{
+    return {};
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxnRoot::getRestoredLiveBucketListKeys() const
+{
+    return {};
+}
+
+std::pair<bool, std::shared_ptr<InternalLedgerEntry const> const>
+InMemoryLedgerTxnRoot::getNewestVersionBelowRoot(
+    InternalLedgerKey const& key) const
+{
+    return {false, nullptr};
+}
+
 uint64_t
 InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
@@ -121,20 +140,13 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 }
 
 uint32_t
-InMemoryLedgerTxnRoot::prefetchClassic(UnorderedSet<LedgerKey> const&)
+InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
 {
     return 0;
 }
 
-uint32_t
-InMemoryLedgerTxnRoot::prefetchSoroban(UnorderedSet<LedgerKey> const&,
-                                       LedgerKeyMeter*)
-
-{
-    return 0;
-}
-
-void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
+void
+InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
 {
 }
 

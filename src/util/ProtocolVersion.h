@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include <cstdint>
 namespace stellar
@@ -35,7 +35,9 @@ enum class ProtocolVersion : uint32_t
     V_20,
     V_21,
     V_22,
-    V_23
+    V_23,
+    V_24,
+    V_25,
 };
 
 // Checks whether provided protocolVersion is before (i.e. strictly lower than)
@@ -53,4 +55,7 @@ bool protocolVersionEquals(uint32_t protocolVersion,
 constexpr ProtocolVersion SOROBAN_PROTOCOL_VERSION = ProtocolVersion::V_20;
 constexpr ProtocolVersion PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION =
     ProtocolVersion::V_23;
+constexpr ProtocolVersion REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION =
+    ProtocolVersion::V_23;
+constexpr ProtocolVersion AUTO_RESTORE_PROTOCOL_VERSION = ProtocolVersion::V_23;
 }

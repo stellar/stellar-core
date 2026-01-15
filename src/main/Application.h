@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "main/Config.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -15,14 +15,9 @@
 namespace asio
 {
 }
-namespace medida
-{
-class MetricsRegistry;
-}
 
 namespace stellar
 {
-
 class VirtualClock;
 class TmpDirManager;
 class LedgerManager;
@@ -47,11 +42,18 @@ class BasicWork;
 enum class LoadGenMode;
 struct GeneratedLoadConfig;
 class AppConnector;
+namespace p23_hot_archive_bug
+{
+class Protocol23CorruptionDataVerifier;
+class Protocol23CorruptionEventReconciler;
+} // namespace p23_hot_archive_bug
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
 class TestAccount;
 #endif
+
+class MetricsRegistry;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -175,7 +177,7 @@ class Application
         APPLY
     };
 
-    virtual ~Application(){};
+    virtual ~Application() {};
 
     virtual void initialize(bool createNewDB, bool forceRebuild) = 0;
 
@@ -202,7 +204,7 @@ class Application
 
     // Get the registry of metrics owned by this application. Metrics are
     // reported through the administrative HTTP interface, see CommandHandler.
-    virtual medida::MetricsRegistry& getMetrics() = 0;
+    virtual MetricsRegistry& getMetrics() = 0;
 
     // Ensure any App-local metrics that are "current state" gauge-like counters
     // reflect the current reality as best as possible.
@@ -233,6 +235,17 @@ class Application
     virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+
+    // Protocol 23 data corruption bug data verifier. This typically is null,
+    // unless a path to a CSV file containing the corruption data was provided
+    // in the config at startup.
+    virtual std::unique_ptr<
+        p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
+    getProtocol23CorruptionDataVerifier() = 0;
+
+    virtual std::unique_ptr<
+        p23_hot_archive_bug::Protocol23CorruptionEventReconciler>&
+    getProtocol23CorruptionEventReconciler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_context will execute in parallel with the calling thread, so use
@@ -290,12 +303,11 @@ class Application
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
 
-    // Returns the mutable config of the app. This is only useful for testing
-    // the config flags that are used in dynamic fashion (i.e. not for the app
-    // initialization), use with caution.
-    virtual Config& getMutableConfig() = 0;
-
     virtual std::shared_ptr<TestAccount> getRoot() = 0;
+
+    // Access the runtime overlay-only mode flag for testing
+    virtual bool getRunInOverlayOnlyMode() const = 0;
+    virtual void setRunInOverlayOnlyMode(bool mode) = 0;
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS

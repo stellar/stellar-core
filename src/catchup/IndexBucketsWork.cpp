@@ -4,9 +4,8 @@
 
 #include "IndexBucketsWork.h"
 #include "bucket/BucketManager.h"
-#include "bucket/DiskIndex.h"
+#include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
-#include "crypto/SHA.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"
@@ -14,14 +13,16 @@
 
 namespace stellar
 {
-IndexBucketsWork::IndexWork::IndexWork(Application& app,
-                                       std::shared_ptr<LiveBucket> b)
+template <class BucketT>
+IndexBucketsWork<BucketT>::IndexWork::IndexWork(Application& app,
+                                                std::shared_ptr<BucketT> b)
     : BasicWork(app, "index-work", BasicWork::RETRY_NEVER), mBucket(b)
 {
 }
 
+template <class BucketT>
 BasicWork::State
-IndexBucketsWork::IndexWork::onRun()
+IndexBucketsWork<BucketT>::IndexWork::onRun()
 {
     if (mState == State::WORK_WAITING)
     {
@@ -31,20 +32,23 @@ IndexBucketsWork::IndexWork::onRun()
     return mState;
 }
 
+template <class BucketT>
 bool
-IndexBucketsWork::IndexWork::onAbort()
+IndexBucketsWork<BucketT>::IndexWork::onAbort()
 {
     return true;
 };
 
+template <class BucketT>
 void
-IndexBucketsWork::IndexWork::onReset()
+IndexBucketsWork<BucketT>::IndexWork::onReset()
 {
     mState = BasicWork::State::WORK_WAITING;
 }
 
+template <class BucketT>
 void
-IndexBucketsWork::IndexWork::postWork()
+IndexBucketsWork<BucketT>::IndexWork::postWork()
 {
     Application& app = this->mApp;
     asio::io_context& ctx = app.getWorkerIOContext();
@@ -66,8 +70,18 @@ IndexBucketsWork::IndexWork::postWork()
             if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX &&
                 fs::exists(indexFilename))
             {
-                self->mIndex = loadIndex<LiveBucket>(bm, indexFilename,
-                                                     self->mBucket->getSize());
+                try
+                {
+                    self->mIndex = loadIndex<BucketT>(bm, indexFilename,
+                                                      self->mBucket->getSize());
+                }
+                // If we get an exception from an invalid index file, ignore it
+                // and reindex the Bucket.
+                catch (std::runtime_error&)
+                {
+                    CLOG_WARNING(Bucket, "Invalid or corrupt index file: {}",
+                                 indexFilename);
+                }
 
                 // If we could not load the index from the file, file is out of
                 // date. Delete and create a new index.
@@ -75,7 +89,7 @@ IndexBucketsWork::IndexWork::postWork()
                 {
                     CLOG_WARNING(Bucket, "Outdated index file: {}",
                                  indexFilename);
-                    std::remove(indexFilename.c_str());
+                    fs::removeWithLog(indexFilename, /*ignoreEnoent=*/true);
                 }
                 else
                 {
@@ -86,8 +100,7 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                // TODO: Fix this when archive BucketLists assume state
-                self->mIndex = createIndex<LiveBucket>(
+                self->mIndex = createIndex<BucketT>(
                     bm, self->mBucket->getFilename(), self->mBucket->getHash(),
                     ctx, nullptr);
             }
@@ -118,14 +131,16 @@ IndexBucketsWork::IndexWork::postWork()
         "IndexWork: starting in background");
 }
 
-IndexBucketsWork::IndexBucketsWork(
-    Application& app, std::vector<std::shared_ptr<LiveBucket>> const& buckets)
+template <class BucketT>
+IndexBucketsWork<BucketT>::IndexBucketsWork(
+    Application& app, std::vector<std::shared_ptr<BucketT>> const& buckets)
     : Work(app, "index-bucketList", BasicWork::RETRY_NEVER), mBuckets(buckets)
 {
 }
 
+template <class BucketT>
 BasicWork::State
-IndexBucketsWork::doWork()
+IndexBucketsWork<BucketT>::doWork()
 {
     if (!mWorkSpawned)
     {
@@ -135,17 +150,19 @@ IndexBucketsWork::doWork()
     return checkChildrenStatus();
 }
 
+template <class BucketT>
 void
-IndexBucketsWork::doReset()
+IndexBucketsWork<BucketT>::doReset()
 {
     mWorkSpawned = false;
 }
 
+template <class BucketT>
 void
-IndexBucketsWork::spawnWork()
+IndexBucketsWork<BucketT>::spawnWork()
 {
     UnorderedSet<Hash> indexedBuckets;
-    auto spawnIndexWork = [&](std::shared_ptr<LiveBucket> const& b) {
+    auto spawnIndexWork = [&](auto const& b) {
         // Don't index empty bucket or buckets that are already being
         // indexed. Sometimes one level's snap bucket may be another
         // level's future bucket. The indexing job may have started but
@@ -168,4 +185,7 @@ IndexBucketsWork::spawnWork()
 
     mWorkSpawned = true;
 }
+
+template class IndexBucketsWork<LiveBucket>;
+template class IndexBucketsWork<HotArchiveBucket>;
 }

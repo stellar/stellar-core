@@ -157,15 +157,6 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     {
         throw std::runtime_error(s);
     }
-
-    if (mApp.getPersistentState().getState(PersistentState::kDBBackend,
-                                           mApp.getDatabase().getSession()) !=
-        LiveBucketIndex::DB_BACKEND_STATE)
-    {
-        throw std::runtime_error(
-            "Corrupt DB: BucketListDB flag "
-            "not set in PersistentState. Please run new-db or upgrade-db");
-    }
 }
 
 std::string

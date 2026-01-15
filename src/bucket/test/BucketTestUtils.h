@@ -1,8 +1,8 @@
-#pragma once
-
 // Copyright 2022 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#pragma once
 
 #include "test/TestUtils.h"
 #include "xdr/Stellar-ledger.h"
@@ -20,8 +20,7 @@ void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
 void addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archiveEntries,
-    std::vector<LedgerKey> const& restoredEntries,
-    std::vector<LedgerKey> const& deletedEntries);
+    std::vector<LedgerKey> const& restoredEntries);
 
 uint32_t getAppLedgerVersion(Application& app);
 
@@ -62,12 +61,20 @@ Hash closeLedger(Application& app);
 class LedgerManagerForBucketTests : public LedgerManagerImpl
 {
     bool mUseTestEntries{false};
+    bool mAlsoAddActualEntries{false};
+
     std::vector<LedgerEntry> mTestInitEntries;
     std::vector<LedgerEntry> mTestLiveEntries;
     std::vector<LedgerKey> mTestDeadEntries;
 
+    std::vector<LedgerEntry> mTestArchiveEntries;
+    std::vector<LedgerKey> mTestRestoredEntries;
+    std::vector<LedgerKey> mTestDeletedEntries;
+
   protected:
-    void sealLedgerTxnAndTransferEntriesToBucketList(
+    void finalizeLedgerTxnChanges(
+        SearchableSnapshotConstPtr lclSnapshot,
+        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers) override;
@@ -77,12 +84,24 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     setNextLedgerEntryBatchForBucketTesting(
         std::vector<LedgerEntry> const& initEntries,
         std::vector<LedgerEntry> const& liveEntries,
-        std::vector<LedgerKey> const& deadEntries)
+        std::vector<LedgerKey> const& deadEntries,
+        bool alsoAddActualEntries = false)
     {
         mUseTestEntries = true;
+        mAlsoAddActualEntries = alsoAddActualEntries;
         mTestInitEntries = initEntries;
         mTestLiveEntries = liveEntries;
         mTestDeadEntries = deadEntries;
+    }
+
+    void
+    setNextArchiveBatchForBucketTesting(
+        std::vector<LedgerEntry> const& archiveEntries,
+        std::vector<LedgerKey> const& restoredEntries)
+    {
+        mUseTestEntries = true;
+        mTestArchiveEntries = archiveEntries;
+        mTestRestoredEntries = restoredEntries;
     }
 
     LedgerManagerForBucketTests(Application& app) : LedgerManagerImpl(app)

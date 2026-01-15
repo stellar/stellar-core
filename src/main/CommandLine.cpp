@@ -15,7 +15,9 @@
 #include "catchup/ReplayDebugMetaWork.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
+#include "herder/RustQuorumCheckerAdaptor.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryManagerImpl.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "ledger/LedgerManager.h"
@@ -28,12 +30,12 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 
@@ -41,6 +43,7 @@
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
+#include <stdexcept>
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
@@ -58,7 +61,7 @@
 namespace stellar
 {
 
-static const uint32_t MAINTENANCE_LEDGER_COUNT = 1000000;
+static uint32_t const MAINTENANCE_LEDGER_COUNT = 1000000;
 
 void
 writeWithTextFlow(std::ostream& os, std::string const& text)
@@ -76,7 +79,7 @@ class CommandLine
     struct ConfigOption
     {
         using Common = std::pair<std::string, bool>;
-        static const std::vector<Common> COMMON_OPTIONS;
+        static std::vector<Common> const COMMON_OPTIONS;
 
         LogLevel mLogLevel{LogLevel::LVL_INFO};
         std::vector<std::string> mMetrics;
@@ -115,7 +118,7 @@ class CommandLine
     std::vector<Command> mCommands;
 };
 
-const std::vector<std::pair<std::string, bool>>
+std::vector<std::pair<std::string, bool>> const
     CommandLine::ConfigOption::COMMON_OPTIONS{{"--conf", true},
                                               {"--ll", true},
                                               {"--metric", true},
@@ -149,7 +152,7 @@ class ParserWithValidation
         mIsValid = isValid;
     }
 
-    const clara::Parser&
+    clara::Parser const&
     parser() const
     {
         return mParser;
@@ -363,6 +366,13 @@ ledgerHashParser(std::string& ledgerHash)
 }
 
 clara::Opt
+wasmHashParser(std::string& wasmHash)
+{
+    return clara::Opt{wasmHash, "HASH"}["--wasm-hash"](
+        "Hash of the a specific Wasm blob to dump, or 'ALL' to dump all");
+}
+
+clara::Opt
 forceUntrustedCatchup(bool& force)
 {
     return clara::Opt{force}["--force-untrusted-catchup"](
@@ -432,6 +442,13 @@ limitParser(std::optional<std::uint64_t>& limit)
     return clara::Opt{[&](std::string const& arg) { limit = std::stoull(arg); },
                       "LIMIT"}["--limit"](
         "process only this many recent ledger entries (not *most* recent)");
+}
+
+clara::Opt
+dumpHotArchiveParser(bool& dumpHotArchive)
+{
+    return clara::Opt{dumpHotArchive}["--hot-archive"](
+        "run query on Hot Archive instead of the Live ledger state");
 }
 
 clara::Opt
@@ -697,7 +714,6 @@ CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
                        .width(consoleWidth - 7 - commandWidth);
         os << row << std::endl;
     }
-}
 }
 
 int
@@ -1029,38 +1045,61 @@ runDumpXDR(CommandLineArgs const& args)
 }
 
 int
+runDumpWasm(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string hash;
+    std::string dir;
+
+    return runWithHelp(args,
+                       {configurationParser(configOption), wasmHashParser(hash),
+                        outputDirParser(dir)},
+                       [&] {
+                           dumpWasmBlob(configOption.getConfig(), hash, dir);
+                           return 0;
+                       });
+}
+
+Asset
+parseCodeAndIssuer(std::string const& code, std::string const& issuer)
+{
+    Asset asset;
+    if (code.empty() && issuer.empty())
+    {
+        asset.type(ASSET_TYPE_NATIVE);
+    }
+    else if (code.empty() || issuer.empty())
+    {
+        throw std::runtime_error("If one of code or issuer is defined, the "
+                                 "other must be defined");
+    }
+    else if (code.size() <= 4)
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        strToAssetCode(asset.alphaNum4().assetCode, code);
+        asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+    }
+    else if (code.size() <= 12)
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        strToAssetCode(asset.alphaNum12().assetCode, code);
+        asset.alphaNum12().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+    }
+    else
+    {
+        throw std::runtime_error("Asset code must be <= 12 characters");
+    }
+    return asset;
+}
+
+int
 runEncodeAsset(CommandLineArgs const& args)
 {
     std::string code, issuer;
 
     return runWithHelp(args, {codeParser(code), issuerParser(issuer)}, [&] {
-        Asset asset;
-        if (code.empty() && issuer.empty())
-        {
-            asset.type(ASSET_TYPE_NATIVE);
-        }
-        else if (code.empty() || issuer.empty())
-        {
-            throw std::runtime_error("If one of code or issuer is defined, the "
-                                     "other must be defined");
-        }
-        else if (code.size() <= 4)
-        {
-            asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(asset.alphaNum4().assetCode, code);
-            asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
-        }
-        else if (code.size() <= 12)
-        {
-            asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
-            strToAssetCode(asset.alphaNum12().assetCode, code);
-            asset.alphaNum12().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
-        }
-        else
-        {
-            throw std::runtime_error("Asset code must be <= 12 characters");
-        }
-        std::cout << decoder::encode_b64(xdr::xdr_to_opaque(asset))
+        std::cout << decoder::encode_b64(
+                         xdr::xdr_to_opaque(parseCodeAndIssuer(code, issuer)))
                   << std::endl;
         return 0;
     });
@@ -1141,6 +1180,22 @@ runDumpStateArchivalStatistics(CommandLineArgs const& args)
 }
 
 int
+runCalculateAssetSupply(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string code, issuer;
+
+    return runWithHelp(args,
+                       {configurationParser(configOption), codeParser(code),
+                        issuerParser(issuer)},
+                       [&] {
+                           Asset asset = parseCodeAndIssuer(code, issuer);
+                           return calculateAssetSupply(configOption.getConfig(),
+                                                       asset);
+                       });
+}
+
+int
 runDumpLedger(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1150,6 +1205,7 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<uint64_t> limit;
     std::optional<std::string> groupBy;
     std::optional<std::string> aggregate;
+    bool dumpHotArchive = false;
     bool includeAllStates = false;
     return runWithHelp(
         args,
@@ -1158,11 +1214,12 @@ runDumpLedger(CommandLineArgs const& args)
          filterQueryParser(filterQuery),
          lastModifiedLedgerCountParser(lastModifiedLedgerCount),
          limitParser(limit), groupByParser(groupBy), aggregateParser(aggregate),
+         dumpHotArchiveParser(dumpHotArchive),
          includeAllStatesParser(includeAllStates)},
         [&] {
             return dumpLedger(configOption.getConfig(), outputFile, filterQuery,
                               lastModifiedLedgerCount, limit, groupBy,
-                              aggregate, includeAllStates);
+                              aggregate, dumpHotArchive, includeAllStates);
         });
 }
 
@@ -1209,11 +1266,15 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 
     int64_t seqNum;
     std::string upgradeFile;
+    int64_t additionalResourceFee = 0;
 
     bool signTxs = false;
 
     auto signTxnOption =
         clara::Opt{signTxs}["--signtxs"]("sign all transactions");
+    auto additionalResourceFeeOption = clara::Opt(
+        additionalResourceFee, "ADD-RESOURCE-FEE")["--add-resource-fee"](
+        "additional resource fee for all the transactions");
 
     auto netIdOption = clara::Opt(netId, "NETWORK-PASSPHRASE")["--netid"](
                            "network ID used for signing")
@@ -1240,7 +1301,7 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
         args,
         {requiredArgParser(id, "PublicKey"), seqNumParser,
          requiredArgParser(netId, "NetworkPassphrase"), base64Parser,
-         signTxnOption},
+         signTxnOption, additionalResourceFeeOption},
         [&] {
             ConfigUpgradeSet upgradeSet;
             std::vector<uint8_t> binBlob;
@@ -1250,22 +1311,23 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
             PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
 
             std::vector<TransactionEnvelope> txsToSign;
-            auto restoreRes = getWasmRestoreTx(pk, seqNum + 1);
+            auto restoreRes =
+                getWasmRestoreTx(pk, seqNum + 1, additionalResourceFee);
             txsToSign.emplace_back(restoreRes.first);
 
-            auto uploadRes = getUploadTx(pk, seqNum + 2);
+            auto uploadRes = getUploadTx(pk, seqNum + 2, 0);
             txsToSign.emplace_back(uploadRes.first);
             auto const& contractCodeLedgerKey = uploadRes.second;
 
-            auto createRes =
-                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 3);
+            auto createRes = getCreateTx(pk, contractCodeLedgerKey, netId,
+                                         seqNum + 3, additionalResourceFee);
             txsToSign.emplace_back(std::get<0>(createRes));
             auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
             auto const& contractID = std::get<2>(createRes);
 
-            auto invokeRes = getInvokeTx(pk, contractCodeLedgerKey,
-                                         contractSourceRefLedgerKey, contractID,
-                                         upgradeSet, seqNum + 4);
+            auto invokeRes = getInvokeTx(
+                pk, contractCodeLedgerKey, contractSourceRefLedgerKey,
+                contractID, upgradeSet, seqNum + 4, additionalResourceFee);
             txsToSign.emplace_back(invokeRes.first);
             auto const& upgradeSetKey = invokeRes.second;
 
@@ -1353,10 +1415,104 @@ int
 runCheckQuorumIntersection(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    std::optional<Config> cfg = std::nullopt;
     std::string jsonPath;
+    std::string resultJson;
+    bool analyzeCriticalGroups;
+    uint64_t timeLimitMs = 5000;                 // Default: 5 seconds
+    size_t memoryLimitBytes = 100 * 1024 * 1024; // Default: 100 MiB
+    bool v2 = true;
+
+    auto runV2 = [&]() -> int {
+        try
+        {
+            QuorumCheckerStatus status =
+                quorum_checker::networkEnjoysQuorumIntersection(
+                    jsonPath, timeLimitMs, memoryLimitBytes,
+                    analyzeCriticalGroups, resultJson);
+
+            if (status == QuorumCheckerStatus::UNSAT)
+            {
+                CLOG_INFO(SCP, "Network enjoys quorum intersection");
+            }
+            else if (status == QuorumCheckerStatus::SAT)
+            {
+                CLOG_WARNING(SCP, "Network does not enjoy quorum intersection");
+            }
+            else
+            {
+                CLOG_WARNING(SCP, "UNKNOWN result -- quorum intersection "
+                                  "checker did not finish, check logs");
+            }
+            return static_cast<int>(status);
+        }
+        catch (KeyUtils::InvalidStrKey const& e)
+        {
+            CLOG_FATAL(
+                SCP,
+                "check-quorum-intersection encountered an "
+                "error: Invalid public key in JSON file. JSON file must be "
+                "generated with the 'fullkeys' parameter set to 'true'.");
+            return -1;
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_FATAL(SCP,
+                       "check-quorum-intersection encountered an error: {}",
+                       e.what());
+            return -1;
+        }
+    };
+
+    auto runV1 = [&]() -> int {
+        try
+        {
+            if (checkQuorumIntersectionFromJson(jsonPath, cfg))
+            {
+                CLOG_INFO(SCP, "Network enjoys quorum intersection");
+                return 0;
+            }
+            else
+            {
+                CLOG_WARNING(SCP, "Network does not enjoy quorum intersection");
+                return 1;
+            }
+        }
+        catch (KeyUtils::InvalidStrKey const& e)
+        {
+            CLOG_FATAL(
+                SCP,
+                "check-quorum-intersection encountered an "
+                "error: Invalid public key in JSON file. JSON file must be "
+                "generated with the 'fullkeys' parameter set to 'true'.");
+            return 2;
+        }
+        catch (std::exception const& e)
+        {
+            CLOG_FATAL(SCP,
+                       "check-quorum-intersection encountered an error: {}",
+                       e.what());
+            return 2;
+        }
+    };
+
     return runWithHelp(
         args,
         {logLevelParser(configOption.mLogLevel), fileNameParser(jsonPath),
+         clara::Opt{v2,
+                    "V2"}["--v2"]("Runs v2, the SAT-solving based approach"),
+         clara::Opt{resultJson, "RESULT-JSON"}["--result-json"](
+             "File to store the analysis results"),
+         clara::Opt{analyzeCriticalGroups}["--analyze-critical-groups"](
+             "additionally runs critical groups analysis (only if network "
+             "enjoys quorum intersection)"),
+         clara::Opt{timeLimitMs, "TIME-LIMIT-MS"}["--time-limit-ms"](
+             "maximum time to spend on quorum intersection check in "
+             "milliseconds (default: 5000)"),
+         clara::Opt{memoryLimitBytes,
+                    "MEMORY-LIMIT-BYTES"}["--memory-limit-bytes"](
+             "maximum memory to use for quorum intersection check in bytes "
+             "(default: 100MiB)"),
          consoleParser(configOption.mConsoleLog),
          clara::Opt{configOption.mConfigFile,
                     "FILE-NAME"}["--conf"](fmt::format(
@@ -1364,48 +1520,26 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
                         "node names (optional, '{}' for STDIN)"),
              Config::STDIN_SPECIAL_NAME))},
         [&] {
-            try
+            if (configOption.mConfigFile.empty())
             {
-                std::optional<Config> cfg = std::nullopt;
-                if (configOption.mConfigFile.empty())
-                {
-                    // Need to set up logging in this case because there is no
-                    // `getConfig` call (which would otherwise set up logging)
-                    Logging::setLoggingToConsole(true);
-                    Logging::setLogLevel(configOption.mLogLevel, nullptr);
-                }
-                else
-                {
-                    cfg.emplace(configOption.getConfig(true));
-                }
-                if (checkQuorumIntersectionFromJson(jsonPath, cfg))
-                {
-                    CLOG_INFO(SCP, "Network enjoys quorum intersection");
-                    return 0;
-                }
-                else
-                {
-                    CLOG_WARNING(SCP,
-                                 "Network does not enjoy quorum intersection");
-                    return 1;
-                }
+                // Need to set up logging in this case because there is no
+                // `getConfig` call (which would otherwise set up logging)
+                Logging::setLoggingToConsole(true);
+                Logging::setLogLevel(configOption.mLogLevel, nullptr);
             }
-            catch (KeyUtils::InvalidStrKey const& e)
+            else
             {
-                CLOG_FATAL(
-                    SCP,
-                    "check-quorum-intersection encountered an "
-                    "error: Invalid public key in JSON file. JSON file must be "
-                    "generated with the 'fullkeys' parameter set to 'true'.");
-                return 2;
+                cfg.emplace(configOption.getConfig(true));
             }
-            catch (std::exception const& e)
+
+            if (v2 && resultJson.empty())
             {
                 CLOG_FATAL(SCP,
-                           "check-quorum-intersection encountered an error: {}",
-                           e.what());
-                return 2;
+                           "When using --v2, --result-json must be specified");
+                return -1;
             }
+
+            return v2 ? runV2() : runV1();
         });
 }
 
@@ -1506,10 +1640,7 @@ run(CommandLineArgs const& args)
                 if (!cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
                     !cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
                 {
-                    cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.MODE_STORES_HISTORY_MISC = false;
-                    cfg.MODE_ENABLES_BUCKETLIST = false;
-                    cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
                 maybeSetMetadataOutputStream(cfg, stream);
@@ -1603,6 +1734,7 @@ runSignTransaction(CommandLineArgs const& args)
             return 0;
         });
 }
+} // namespace
 
 int
 runVersion(CommandLineArgs const&)
@@ -1649,6 +1781,8 @@ runVersion(CommandLineArgs const&)
 }
 
 #ifdef BUILD_TESTS
+namespace
+{
 int
 runLoadXDR(CommandLineArgs const& args)
 {
@@ -1755,121 +1889,155 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
+ParserWithValidation
+applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
+{
+    auto validateMode = [&] {
+        if (iequals(modeArg, "ledger-limits"))
+        {
+            mode = ApplyLoadMode::LIMIT_BASED;
+            return "";
+        }
+        if (iequals(modeArg, "max-sac-tps"))
+        {
+            mode = ApplyLoadMode::MAX_SAC_TPS;
+            return "";
+        }
+        if (iequals(modeArg, "limits-for-model-tx"))
+        {
+            mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
+            return "";
+        }
+        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
+               "or 'max-sac-tps'.";
+    };
+
+    return {clara::Opt{modeArg, "MODE"}["--mode"](
+                "set the apply-load mode. Expected modes: ledger-limits, "
+                "max-sac-tps. Defaults to ledger-limits."),
+            validateMode};
+}
+
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
+    std::string modeArg = "ledger-limits";
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        auto config = configOption.getConfig();
-        config.RUN_STANDALONE = true;
-        config.MANUAL_CLOSE = true;
-        config.USE_CONFIG_FOR_GENESIS = true;
-        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-        config.LEDGER_PROTOCOL_VERSION =
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-
-        TmpDirManager tdm(std::string("soroban-storage-meta-"));
-        TmpDir td = tdm.tmpDir("soroban-meta-ok");
-        std::string metaPath = td.getName() + "/stream.xdr";
-
-        config.METADATA_OUTPUT_STREAM = metaPath;
-
-        VirtualClock clock(VirtualClock::REAL_TIME);
-        auto appPtr = Application::create(clock, config);
-
-        auto& app = *appPtr;
-        {
-            app.start();
-
-            ApplyLoad al(app);
-
-            auto& ledgerClose =
-                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-            ledgerClose.Clear();
-
-            auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
-            cpuInsRatio.Clear();
-
-            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op",
-                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-            cpuInsRatioExclVm.Clear();
-
-            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-            ledgerCpuInsRatio.Clear();
-
-            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
-            ledgerCpuInsRatioExclVm.Clear();
-
-            for (size_t i = 0; i < 100; ++i)
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
+        [&] {
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+            config.MANUAL_CLOSE = true;
+            config.USE_CONFIG_FOR_GENESIS = true;
+            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            config.LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            if (config.APPLY_LOAD_NUM_LEDGERS == 0)
             {
-                app.getBucketManager().getLiveBucketList().resolveAllFutures();
-                releaseAssert(app.getBucketManager()
-                                  .getLiveBucketList()
-                                  .futuresAllResolved());
-                al.benchmark();
+                throw std::runtime_error(
+                    "APPLY_LOAD_NUM_LEDGERS must be greater than 0");
+            }
+            if (mode == ApplyLoadMode::MAX_SAC_TPS)
+            {
+                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >=
+                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                {
+                    throw std::runtime_error(
+                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must be less than "
+                        "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
+                }
+
+                // For now, metrics are expensive at high, parallel load. We
+                // disable them so they don't bottleneck the test, but this
+                // should be addressed in the future.
+                config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
+                config.METADATA_OUTPUT_STREAM = "";
+                config.METADATA_DEBUG_LEDGERS = 0;
+
+                // Apply Load may exceed TX_SET byte size limits, so ignore them
+                config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
             }
 
-            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                      ledgerClose.max());
-            CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
-                      ledgerClose.min());
-            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                      ledgerClose.mean());
-            CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
-                      ledgerClose.std_dev());
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto appPtr = Application::create(clock, config);
 
-            CLOG_INFO(Perf, "Max CPU ins ratio: {}",
-                      cpuInsRatio.max() / 1000000);
-            CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
-                      cpuInsRatio.mean() / 1000000);
+            auto& app = *appPtr;
+            {
+                app.start();
 
-            CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
-                      cpuInsRatioExclVm.max() / 1000000);
-            CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
-                      cpuInsRatioExclVm.mean() / 1000000);
-            CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
-                      cpuInsRatioExclVm.std_dev() / 1000000);
+                // Constructs and sets up the apply load benchmarking harness.
+                // The setup may take some time as it involves injecting the
+                // test entries into bucket list across multiple ledgers (
+                // depending on the configuration).
+                ApplyLoad al(app, mode);
 
-            CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
-                      ledgerCpuInsRatio.max() / 1000000);
-            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
-                      ledgerCpuInsRatio.mean() / 1000000);
-            CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
-                      ledgerCpuInsRatio.std_dev() / 1000000);
+                // In the limit-based mode, we may want publish the history
+                // checkpoint just before performing the benchmark. This way
+                // the 'checkpointed' bucket list could be used downstream in
+                // order to setup the test environment for meta ingestion
+                // benchmarking. Note, that the apply load test setup avoids
+                // using transactions in order to make it faster, so the
+                // injected test entries are only observable in the bucket
+                // list and not in the meta or transaction history.
+                if (mode == ApplyLoadMode::LIMIT_BASED &&
+                    app.getHistoryArchiveManager().publishEnabled())
+                {
+                    app.getHistoryManager().waitForCheckpointPublish();
+                    CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
+                                    "history archive publication");
+                    while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
+                        app.getLedgerManager().getLastClosedLedgerNum(),
+                        app.getConfig()))
+                    {
+                        al.closeLedger({});
+                    }
+                    app.getHistoryManager().waitForCheckpointPublish();
+                    CLOG_INFO(
+                        Perf,
+                        "Published final checkpoint before benchmark: "
+                        "ledger {} ({})",
+                        app.getLedgerManager().getLastClosedLedgerNum(),
+                        fmt::format(
+                            FMT_STRING("{:08x}"),
+                            app.getLedgerManager().getLastClosedLedgerNum()));
+                }
 
-            CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
-                      ledgerCpuInsRatioExclVm.max() / 1000000);
-            CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
-                      ledgerCpuInsRatioExclVm.mean() / 1000000);
-            CLOG_INFO(Perf,
-                      "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
-                      ledgerCpuInsRatioExclVm.std_dev() / 1000000);
+                auto& ledgerClose =
+                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+                ledgerClose.Clear();
 
-            CLOG_INFO(Perf, "Tx count utilization {}%",
-                      al.getTxCountUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Instruction utilization {}%",
-                      al.getInstructionUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Tx size utilization {}%",
-                      al.getTxSizeUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Read bytes utilization {}%",
-                      al.getReadByteUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Write bytes utilization {}%",
-                      al.getWriteByteUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Read entry utilization {}%",
-                      al.getReadEntryUtilization().mean() / 1000.0);
-            CLOG_INFO(Perf, "Write entry utilization {}%",
-                      al.getWriteEntryUtilization().mean() / 1000.0);
+                auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio"});
+                cpuInsRatio.Clear();
 
-            CLOG_INFO(Perf, "Tx Success Rate: {:f}%", al.successRate() * 100);
-        }
+                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+                cpuInsRatioExclVm.Clear();
 
-        return 0;
-    });
+                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+                ledgerCpuInsRatio.Clear();
+
+                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "ledger-cpu-insns-ratio-excl-vm"});
+                ledgerCpuInsRatioExclVm.Clear();
+
+                auto& totalTxApplyTime = app.getMetrics().NewTimer(
+                    {"ledger", "transaction", "total-apply"});
+                totalTxApplyTime.Clear();
+
+                al.execute();
+            }
+
+            return 0;
+        });
 }
 
 int
@@ -1915,13 +2083,14 @@ runGenerateSyntheticLoad(CommandLineArgs const& args)
 
                 return 0;
             }
-            catch (const std::exception& e)
+            catch (std::exception const& e)
             {
                 LOG_ERROR(DEFAULT_LOG, "Error: {}", e.what());
                 return 1;
             }
         });
 }
+} // namespace
 #endif
 
 int
@@ -1942,6 +2111,8 @@ handleCommandLine(int argc, char* const* argv)
          {"dump-ledger", "dumps the current ledger state as JSON for debugging",
           runDumpLedger},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
+         {"dump-wasm", "dump WASM blobs from ledger, for debugging",
+          runDumpWasm},
          {"encode-asset", "Print an encoded asset in base 64 for debugging",
           runEncodeAsset},
          {"force-scp", "deprecated, use --wait-for-consensus option instead",
@@ -1955,6 +2126,11 @@ handleCommandLine(int argc, char* const* argv)
          {"dump-archival-stats",
           "prints statistics about expired/evicted entries in the BucketList",
           runDumpStateArchivalStatistics},
+         {"calculate-asset-supply",
+          "calculates total supply of an asset from the live and hot archive "
+          "bucket lists. Also validates against totalCoins for native asset. "
+          "Uses the Native asset by default if no input is provided.",
+          runCalculateAssetSupply},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
@@ -2012,7 +2188,8 @@ handleCommandLine(int argc, char* const* argv)
         fmt::format(FMT_STRING("{0} {1}"), exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 adjustedCommandLine.second};
-    if (command->name() == "run" || command->name() == "fuzz")
+    if (command->name() == "run" || command->name() == "fuzz" ||
+        command->name() == "test")
     {
         // run outside of catch block so that we properly capture crashes
         return command->run(args);

@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
@@ -188,8 +188,9 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
+                TransactionMetaBuilder txm(
+                    true, *tx, ltx.loadHeader().current().ledgerVersion,
+                    app->getAppConnector());
                 REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
                                                  0, 0));
                 REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
