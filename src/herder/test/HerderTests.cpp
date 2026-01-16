@@ -6727,7 +6727,7 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
-#ifdef USE_POSTGRESQL
+#ifdef USE_POSTGRES
     SECTION("with parallel apply, PostgreSQL")
     {
         simulation = Topologies::core(
