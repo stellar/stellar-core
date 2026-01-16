@@ -3385,7 +3385,6 @@ TEST_CASE("randomized parallel features with jitter injection",
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
                         cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
-                        cfg.PARALLEL_LEDGER_APPLY = true;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
                         // Tight DB tuning to trigger cache
@@ -3405,7 +3404,6 @@ TEST_CASE("randomized parallel features with jitter injection",
                         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
                         // Enable ALL parallel features
                         cfg.BACKGROUND_TX_SIG_VERIFICATION = true;
-                        cfg.PARALLEL_LEDGER_APPLY = false;
                         cfg.BACKGROUND_OVERLAY_PROCESSING = true;
                         cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
                         // Tight DB tuning to trigger cache
@@ -4361,23 +4359,15 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
     auto setupAndRunTests = [&](bool enableParallelApply) {
-        auto sim = Topologies::core(
-            4, 1.0, Simulation::OVER_TCP, networkID,
-            [enableParallelApply](int i) {
-                Config cfg;
-                if (enableParallelApply)
-                {
-#ifdef USE_POSTGRES
-                    cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-#endif
-                }
-                else
-                {
-                    cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-                }
-                cfg.PARALLEL_LEDGER_APPLY = enableParallelApply;
-                return cfg;
-            });
+        auto sim =
+            Topologies::core(4, 1.0, Simulation::OVER_TCP, networkID,
+                             [enableParallelApply](int i) {
+                                 Config cfg;
+                                 cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+                                 cfg.PARALLEL_LEDGER_APPLY =
+                                     enableParallelApply;
+                                 return cfg;
+                             });
 
         sim->startAllNodes();
         sim->crankUntil([&]() { return sim->haveAllExternalized(2, 1); },
@@ -4497,12 +4487,10 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
         }
     };
 
-#ifdef USE_POSTGRES
     SECTION("parallel ledger apply enabled")
     {
         setupAndRunTests(true);
     }
-#endif
     SECTION("parallel ledger apply disabled")
     {
         setupAndRunTests(false);
@@ -6740,16 +6728,23 @@ TEST_CASE("trigger next ledger side effects", "[herder][parallel]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
 #ifdef USE_POSTGRES
-    SECTION("with parallel apply")
+    SECTION("with parallel apply, PostgreSQL")
     {
         simulation = Topologies::core(
             3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_POSTGRESQL);
-                cfg.PARALLEL_LEDGER_APPLY = true;
                 return cfg;
             });
     }
-#endif // USE_POSTGRES
+#endif
+    SECTION("with parallel apply, SQLite")
+    {
+        simulation = Topologies::core(
+            3, 0.5, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+                return cfg;
+            });
+    }
     SECTION("without parallel apply")
     {
         simulation = Topologies::core(
