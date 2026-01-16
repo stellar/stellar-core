@@ -292,6 +292,13 @@ class SorobanNetworkConfig
     // upgrade.
     static void createCostTypesForV25(AbstractLedgerTxn& ltx, Application& app);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Updates the cost types for v26.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void updateCostTypesForV26(AbstractLedgerTxn& ltx, Application& app);
+#endif
+
     // Creates the new ledger entries introduced in v23 and updates the existing
     // entries.
     // This should happen once during the correspondent protocol version
