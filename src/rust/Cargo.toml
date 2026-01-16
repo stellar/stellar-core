@@ -159,7 +159,7 @@ rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "de80f85128feb560a626c4d3abc9704d3d32e2a2"
+rev = "956ba5b8d786d755f5c575160dfc1dec6b313f40"
 
 [features]
 
