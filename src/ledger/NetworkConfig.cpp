@@ -629,6 +629,63 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsCpuInsns();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have been updated in v26
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // Updating existing BLS12-381 cost types
+        case Bls12381G1Msm:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 2347584, 94135478);
+            break;
+        case Bls12381MapFpToG1:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1020885, 0);
+            break;
+        case Bls12381HashToG1:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 2638451, 6803);
+            break;
+        case Bls12381G2Msm:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 7663880, 298580871);
+            break;
+        case Bls12381MapFp2ToG2:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1856539, 0);
+            break;
+        case Bls12381HashToG2:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 6315452, 7232);
+            break;
+        // Updating existing BN254 cost type
+        case Bn254G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1706052, 0);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+#endif
+
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
 {
@@ -1066,6 +1123,56 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+    auto txle = ltx.load(key);
+    releaseAssertOrThrow(txle);
+    auto& params =
+        txle.current().data.configSetting().contractCostParamsMemBytes();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // Updating existing BLS12-381 cost types
+        case Bls12381G1Msm:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 109494, 266603};
+            break;
+        case Bls12381MapFpToG1:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2776, 0};
+            break;
+        case Bls12381HashToG1:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5896, 0};
+            break;
+        case Bls12381G2Msm:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 219654, 266603};
+            break;
+        case Bls12381MapFp2ToG2:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1672, 0};
+            break;
+        case Bls12381HashToG2:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3960, 0};
+            break;
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
+}
+#endif
+
 ConfigSettingEntry
 initialParallelComputeEntry()
 {
@@ -1456,6 +1563,17 @@ SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
     updateMemCostParamsEntryForV25(ltx);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+SorobanNetworkConfig::updateCostTypesForV26(AbstractLedgerTxn& ltx,
+                                            Application& app)
+{
+    ZoneScoped;
+    updateCpuCostParamsEntryForV26(ltx);
+    updateMemCostParamsEntryForV26(ltx);
+}
+#endif
+
 void
 SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
                                                          Application& app)
@@ -1522,6 +1640,12 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     {
         SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_26))
+    {
+        SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
+    }
+#endif
 }
 
 SorobanNetworkConfig
