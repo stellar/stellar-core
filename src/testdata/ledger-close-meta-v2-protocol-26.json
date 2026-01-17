@@ -6,24 +6,24 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "9dc74e30127db15c9ab287a572608781cb2e526977aea8b2966b8f7ed3008845",
+                "hash": "67f7a9b8aad3b94ef6cf718a0d7e19d0609ce1370811e50a14db656e403a90b0",
                 "header": {
                     "ledgerVersion": 26,
-                    "previousLedgerHash": "90643a66e0ad62f31dbe03ec011b336208246b07ffd8c816d7eab49d8327afb1",
+                    "previousLedgerHash": "1ca2db908df9403672d4713ed54422b3f3c71a43759172b190b7380cbcc58701",
                     "scpValue": {
-                        "txSetHash": "f6b5ff412c8e37f351295fb612c67e31060081de9462c1f6f115bd0321460657",
+                        "txSetHash": "e8c6a03eca7e09b8d104908e502062d797bd6beb3270345cd7f9af994ececc07",
                         "closeTime": 1451692801,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "5290ca74aec63ec9ed58b24c478595b5775475dd7336870a668af4e770f906ad1b670d67a7861204363b92c819a0621ad2d76c46b236ee8469940330250da10b"
+                                "signature": "19459a2a104651e861ea503dc2fbab4b6bc6c3039ee521d2b1e03a235b7ef4af70211e82b2813821d99f24e4bb3cf4b1b88f5ee0941010a0782296ebc5cdd105"
                             }
                         }
                     },
                     "txSetResultHash": "7f284d6f6089dcf4f3b44a28922ac95858dcbfc529cadb03e4ebc4d20a558dea",
-                    "bucketListHash": "9171cba98f6a77f4737e16ca99330a8351b03452a98c9c30f3e62c1bc0a65c97",
+                    "bucketListHash": "3b293482bc01812b90420361c468100a026b61fc732fc2235be9a5b551ce0e20",
                     "ledgerSeq": 10,
                     "totalCoins": 1000000000000000000,
                     "feePool": 8198832,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "90643a66e0ad62f31dbe03ec011b336208246b07ffd8c816d7eab49d8327afb1",
+                    "previousLedgerHash": "1ca2db908df9403672d4713ed54422b3f3c71a43759172b190b7380cbcc58701",
                     "phases": [
                         {
                             "v": 0,

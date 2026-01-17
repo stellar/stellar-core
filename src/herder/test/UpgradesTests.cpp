@@ -2797,6 +2797,62 @@ TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(25));
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(26));
+
+    // After upgrade to v26, verify cost parameter values were updated to the
+    // expected v26 values
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        // Check CPU cost params
+        LedgerKey cpuKey(CONFIG_SETTING);
+        cpuKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+        auto cpuLtxe = ltx.load(cpuKey);
+        auto const& cpuParams =
+            cpuLtxe.current().data.configSetting().contractCostParamsCpuInsns();
+
+        // Verify v26 CPU cost values
+        REQUIRE(cpuParams[static_cast<size_t>(ContractCostType::Bls12381G1Msm)]
+                    .linearTerm == 94135478);
+        REQUIRE(cpuParams[static_cast<size_t>(
+                              ContractCostType::Bn254G2CheckPointInSubgroup)]
+                    .constTerm == 1706052);
+
+        // Check memory cost params
+        LedgerKey memKey(CONFIG_SETTING);
+        memKey.configSetting().configSettingID =
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+        auto memLtxe = ltx.load(memKey);
+        auto const& memParams =
+            memLtxe.current().data.configSetting().contractCostParamsMemBytes();
+
+        // Verify v26 memory cost values
+        REQUIRE(memParams[static_cast<size_t>(ContractCostType::Bls12381G1Msm)]
+                    .linearTerm == 266603);
+
+        // Sanity check: sizes should remain the same (no new cost types added)
+        REQUIRE(cpuParams.size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+        REQUIRE(memParams.size() ==
+                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+    }
+}
+#endif
+
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
