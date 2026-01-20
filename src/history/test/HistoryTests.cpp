@@ -4,6 +4,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "catchup/DownloadApplyTxsWork.h"
 #include "catchup/LedgerApplyManagerImpl.h"
 #include "catchup/test/CatchupWorkTests.h"
 #include "herder/HerderPersistence.h"
@@ -338,6 +339,72 @@ TEST_CASE("History bucket verification", "[history][catchup]")
             REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
         }
     }
+    SECTION("truncated file")
+    {
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::TRUNCATED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::TRUNCATED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::TRUNCATED_FILE));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::TRUNCATED_FILE));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+    }
+    SECTION("invalid enum variant")
+    {
+        SECTION("live buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::INVALID_ENUM));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("hot archive buckets")
+        {
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::INVALID_ENUM));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+
+        SECTION("both live and hot archive buckets")
+        {
+            liveHashes.push_back(bucketGenerator.generateBucket<LiveBucket>(
+                TestBucketState::INVALID_ENUM));
+            hotHashes.push_back(
+                bucketGenerator.generateBucket<HotArchiveBucket>(
+                    TestBucketState::INVALID_ENUM));
+            auto verify = wm.executeWork<DownloadBucketsWork>(
+                buckets, hotBuckets, liveHashes, hotHashes, *tmpDir);
+            REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+        }
+    }
 }
 
 TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
@@ -401,6 +468,22 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             HistoryManager::VERIFY_STATUS_OK);
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
+        REQUIRE(!w);
+    }
+    SECTION("truncated XDR")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            TestLedgerChainGenerator::XDRErrors::TRUNCATED);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
+    }
+    SECTION("invalid XDR enum variant")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            TestLedgerChainGenerator::XDRErrors::INVALID_ENUM);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(!w);
     }
     SECTION("invalid link due to bad hash")
@@ -512,6 +595,265 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(!w);
     }
+}
+
+// Hack to access private members of DownloadApplyTxsWork and BasicWork for
+// testing purposes. From
+// https://bloglitb.blogspot.com/2011/12/access-to-private-members-safer.html
+namespace
+{
+template <typename Tag, typename Tag::type M> struct Rob
+{
+    friend typename Tag::type
+    get(Tag)
+    {
+        return M;
+    }
+};
+
+// tag used to access BasicWork::mRetries
+struct BasicWork_mRetries
+{
+    typedef size_t BasicWork::* type;
+    friend type get(BasicWork_mRetries);
+};
+
+template struct Rob<BasicWork_mRetries, &BasicWork::mRetries>;
+} // namespace
+
+TEST_CASE("DownloadApplyTxsWork handles apply failure", "[history][catchup]")
+{
+    // Three archives: A with truncated transaction file (invalid XDR), B with
+    // truncated transaction file (subset of transactions), and C with correct
+    // transaction file. Helper to configure an archive in a Config
+    auto configureArchive = [](Config& cfg, std::string const& name,
+                               std::string const& dir) {
+        std::string getCmd = "cp " + dir + "/{0} {1}";
+        cfg.HISTORY[name] = HistoryArchiveConfiguration{name, getCmd};
+    };
+
+    // Helper to create a test config with matching genesis settings
+    auto makeTestConfig = []() {
+        // We use 1 as the instance since 0 is taken by the catchup simulation
+        Config cfg = getTestConfig(1, Config::TESTDB_BUCKET_DB_PERSISTENT);
+        cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+        cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+        cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+        cfg.TESTING_EVICTION_SCAN_SIZE = 100'000;
+        cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 1;
+        cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+        cfg.HISTORY.clear();
+        return cfg;
+    };
+
+    // Set up simulation with two archives and truncate archive A and B's tx
+    // file
+    auto multiCfg =
+        std::make_shared<MultiArchiveHistoryConfigurator>(/*numArchives=*/3);
+    auto const& configurators = multiCfg->getConfigurators();
+    std::string archiveADir = configurators[0]->getArchiveDirName();
+    std::string archiveBDir = configurators[1]->getArchiveDirName();
+    std::string archiveCDir = configurators[2]->getArchiveDirName();
+
+    CatchupSimulation simulation(VirtualClock::VIRTUAL_TIME, multiCfg, false);
+    auto& simApp = simulation.getApp();
+    for (auto const& cfgtor : configurators)
+    {
+        CHECK(simApp.getHistoryArchiveManager().initializeHistoryArchive(
+            cfgtor->getArchiveDirName()));
+    }
+    simApp.start();
+
+    auto checkpointLedger = simulation.getLastCheckpointLedger(1);
+    simulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    // Truncate transaction file in archive A
+    FileTransferInfo txFileInfo(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
+                                checkpointLedger, simApp.getConfig());
+    std::string truncatedPath = archiveADir + "/" + txFileInfo.remoteName();
+    fs::checkGzipSuffix(truncatedPath);
+    auto nonGzPath = truncatedPath.substr(0, truncatedPath.size() - 3);
+    {
+        std::ofstream out(nonGzPath,
+                          std::ios::out | std::ios::binary | std::ios::trunc);
+        out.exceptions(std::ios::failbit | std::ios::badbit);
+        uint8_t buf[4] = {0xff, 0xff, 0xff, 0xff};
+        out.write(reinterpret_cast<char*>(buf), 4);
+    }
+    auto& wm = simApp.getWorkScheduler();
+    // re-gzip the truncated file
+    REQUIRE(wm.executeWork<GzipFileWork>(nonGzPath)->getState() ==
+            BasicWork::State::WORK_SUCCESS);
+
+    // Truncate transaction file in archive B
+    truncatedPath = archiveBDir + "/" + txFileInfo.remoteName();
+    fs::checkGzipSuffix(truncatedPath);
+    uint32_t lastLedgerSeqB;
+    {
+        nonGzPath = truncatedPath.substr(0, truncatedPath.size() - 3);
+        REQUIRE(wm.executeWork<GunzipFileWork>(truncatedPath)->getState() ==
+                BasicWork::State::WORK_SUCCESS);
+
+        XDRInputFileStream in;
+        in.open(nonGzPath);
+        std::vector<TransactionHistoryEntry> txs;
+        TransactionHistoryEntry tx;
+        while (in && in.readOne(tx))
+        {
+            txs.push_back(tx);
+        }
+        REQUIRE(txs.size() >= 2);
+        in.close();
+        REQUIRE(std::filesystem::remove(nonGzPath));
+
+        XDROutputFileStream out(simApp.getClock().getIOContext(), true);
+        out.open(nonGzPath);
+        // Write only half the transactions to create a truncated file
+        for (size_t i = 0; i < txs.size() / 2; ++i)
+        {
+            out.writeOne(txs[i]);
+        }
+        lastLedgerSeqB = txs[txs.size() / 2].ledgerSeq;
+        out.close();
+        REQUIRE(wm.executeWork<GzipFileWork>(nonGzPath)->getState() ==
+                BasicWork::State::WORK_SUCCESS);
+    }
+
+    // Helper to run DownloadApplyTxsWork
+    auto runDownloadApplyTxs = [&](Application& app, uint32_t targetLedger,
+                                   std::shared_ptr<HistoryArchive> archive =
+                                       nullptr) {
+        auto& wm = app.getWorkScheduler();
+        auto tmpDir = app.getTmpDirManager().tmpDir("download-apply-test");
+
+        LedgerRange range = LedgerRange::inclusive(
+            LedgerManager::GENESIS_LEDGER_SEQ + 1, targetLedger);
+        CheckpointRange checkpointRange{range, app.getHistoryManager()};
+
+        auto downloadHeaders = wm.executeWork<BatchDownloadWork>(
+            checkpointRange, FileType::HISTORY_FILE_TYPE_LEDGER, tmpDir);
+        REQUIRE(downloadHeaders->getState() == BasicWork::State::WORK_SUCCESS);
+
+        auto lastApplied = app.getLedgerManager().getLastClosedLedgerHeader();
+        auto work = wm.executeWork<DownloadApplyTxsWork>(
+            tmpDir, range, lastApplied, /*waitForPublish=*/true, archive);
+        return work;
+    };
+
+    // truncated file fails with only archive A
+    {
+        auto cfg = makeTestConfig();
+        configureArchive(cfg, "archiveA", archiveADir);
+
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+
+        CHECK(runDownloadApplyTxs(*app, checkpointLedger)->getState() ==
+              BasicWork::State::WORK_FAILURE);
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              LedgerManager::GENESIS_LEDGER_SEQ);
+    }
+
+    // truncated file fails with only archive B
+    {
+        auto cfg = makeTestConfig();
+        configureArchive(cfg, "archiveB", archiveBDir);
+
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+
+        CHECK(runDownloadApplyTxs(*app, checkpointLedger)->getState() ==
+              BasicWork::State::WORK_FAILURE);
+        // Subtract 1 because the replay txset hash differs from txset hash in
+        // the last replay ledger
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              lastLedgerSeqB - 1);
+    }
+
+    // Check that archive C succeeds
+    {
+        auto cfg = makeTestConfig();
+        configureArchive(cfg, "archiveC", archiveCDir);
+
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+
+        CHECK(runDownloadApplyTxs(*app, checkpointLedger)->getState() ==
+              BasicWork::State::WORK_SUCCESS);
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              checkpointLedger);
+    }
+
+    // We successfully catchup when using, in order, archive A, archive B,
+    // archive C
+    {
+        auto cfg = makeTestConfig();
+        configureArchive(cfg, "archiveA", archiveADir);
+        configureArchive(cfg, "archiveB", archiveBDir);
+        configureArchive(cfg, "archiveC", archiveCDir);
+
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+        auto const& ham = app->getHistoryArchiveManager();
+        auto archiveA = ham.getHistoryArchive("archiveA");
+        auto archiveB = ham.getHistoryArchive("archiveB");
+        auto archiveC = ham.getHistoryArchive("archiveC");
+
+        CHECK(
+            runDownloadApplyTxs(*app, checkpointLedger, archiveA)->getState() ==
+            BasicWork::State::WORK_FAILURE);
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              LedgerManager::GENESIS_LEDGER_SEQ);
+        CHECK(
+            runDownloadApplyTxs(*app, checkpointLedger, archiveB)->getState() ==
+            BasicWork::State::WORK_FAILURE);
+        // Subtract 1 because the replay txset hash differs from txset hash in
+        // the last replay ledger
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              lastLedgerSeqB - 1);
+        CHECK(
+            runDownloadApplyTxs(*app, checkpointLedger, archiveC)->getState() ==
+            BasicWork::State::WORK_SUCCESS);
+        CHECK(app->getLedgerManager().getLastClosedLedgerNum() ==
+              checkpointLedger);
+    }
+
+    auto checkRetryLogic = [&](std::string const& badArchiveDir) {
+        auto cfg = makeTestConfig();
+        // We use a few more badArchiveDir in the hope that we're more likely to
+        // pick it as the first archive, but not so many that we run out of
+        // retries before picking archive C
+        configureArchive(cfg, "archive1", badArchiveDir);
+        configureArchive(cfg, "archive2", badArchiveDir);
+        configureArchive(cfg, "archive3", archiveCDir);
+
+        for (int i = 0; i < 10; ++i)
+        {
+            VirtualClock clock;
+            auto app = createTestApplication(clock, cfg);
+            app->start();
+            auto work = runDownloadApplyTxs(*app, checkpointLedger);
+            if (work->getState() == BasicWork::State::WORK_SUCCESS)
+            {
+                if ((*work).*get(BasicWork_mRetries{}) > 0)
+                {
+                    // We succeeded and had to retry at least once, so the retry
+                    // logic works
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    CHECK(checkRetryLogic(archiveADir));
+    CHECK(checkRetryLogic(archiveBDir));
+    // archiveC is good, so we should never retry
+    CHECK(!checkRetryLogic(archiveCDir));
 }
 
 TEST_CASE("Tx results verification", "[batching][resultsverification]")

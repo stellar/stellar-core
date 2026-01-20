@@ -199,7 +199,8 @@ class HistoryManager
         VERIFY_STATUS_ERR_BAD_LEDGER_VERSION,
         VERIFY_STATUS_ERR_OVERSHOT,
         VERIFY_STATUS_ERR_UNDERSHOT,
-        VERIFY_STATUS_ERR_MISSING_ENTRIES
+        VERIFY_STATUS_ERR_MISSING_ENTRIES,
+        VERIFY_STATUS_ERR_CORRUPT_HEADER,
     };
 
     // Check that config settings are at least somewhat reasonable.
