@@ -24,7 +24,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish,
     std::shared_ptr<HistoryArchive> archive)
-    : BatchWork(app, "download-apply-ledgers")
+    : BatchWork(app, "download-apply-ledgers", BasicWork::RETRY_A_FEW)
     , mRange(range)
     , mDownloadDir(downloadDir)
     , mLastApplied(lastApplied)
@@ -223,7 +223,7 @@ void
 DownloadApplyTxsWork::resetIter()
 {
     mCheckpointToQueue = HistoryManager::checkpointContainingLedger(
-        mRange.mFirst, mApp.getConfig());
+        mApp.getLedgerManager().getLastClosedLedgerNum() + 1, mApp.getConfig());
     mLastYieldedWork.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
