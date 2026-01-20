@@ -214,12 +214,35 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         // Skip uploading the file, return any hash
         return binToHex(hash);
     }
-    MergeCounters mc;
-    BucketOutputIteratorForTesting<BucketT> bucketOut{
-        mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc,
-        mApp.getClock().getIOContext()};
     std::string filename;
-    std::tie(filename, hash) = bucketOut.writeTmpTestBucket();
+    if (state == TestBucketState::TRUNCATED_FILE)
+    {
+        filename = BucketT::randomBucketName(mTmpDir->getName());
+        std::ofstream out;
+        out.exceptions(std::ios::failbit | std::ios::badbit);
+        out.open(filename, std::ios::out | std::ios::binary);
+        uint8_t buf[4] = {0xff, 0xff, 0xff, 0xff};
+        out.write(reinterpret_cast<char*>(buf), 4);
+        out.close();
+    }
+    else if (state == TestBucketState::INVALID_ENUM)
+    {
+        filename = BucketT::randomBucketName(mTmpDir->getName());
+        std::ofstream out;
+        out.exceptions(std::ios::failbit | std::ios::badbit);
+        out.open(filename, std::ios::out | std::ios::binary);
+        uint8_t buf[] = {0x80, 0x00, 0x00, 0x04, 0xff, 0x00, 0xcc, 0x00};
+        out.write(reinterpret_cast<char*>(buf), sizeof(buf));
+        out.close();
+    }
+    else
+    {
+        MergeCounters mc;
+        BucketOutputIteratorForTesting<BucketT> bucketOut{
+            mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc,
+            mApp.getClock().getIOContext()};
+        std::tie(filename, hash) = bucketOut.writeTmpTestBucket();
+    }
 
     if (state == TestBucketState::HASH_MISMATCH)
     {
@@ -338,6 +361,60 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
         if (beginRange.header.ledgerSeq == 0)
         {
             beginRange = first;
+        }
+    }
+
+    return CheckpointEnds(beginRange, last);
+}
+
+TestLedgerChainGenerator::CheckpointEnds
+TestLedgerChainGenerator::makeLedgerChainFiles(XDRErrors error)
+{
+    Hash hash = HashUtils::pseudoRandomForTesting();
+    LedgerHeaderHistoryEntry beginRange;
+
+    LedgerHeaderHistoryEntry first, last;
+    for (auto i = mCheckpointRange.mFirst; i < mCheckpointRange.limit();
+         i += HistoryManager::sizeOfCheckpointContaining(i, mApp.getConfig()))
+    {
+        std::tie(first, last) =
+            makeOneLedgerFile(i, hash, HistoryManager::VERIFY_STATUS_OK);
+        hash = last.hash;
+
+        if (beginRange.header.ledgerSeq == 0)
+        {
+            beginRange = first;
+        }
+
+        // Only corrupt first checkpoint (last to be verified)
+        if (i == mCheckpointRange.mFirst)
+        {
+            FileTransferInfo ft{mTmpDir, FileType::HISTORY_FILE_TYPE_LEDGER, i};
+            XDROutputFileStream ledgerOut(mApp.getClock().getIOContext(),
+                                          /*doFsync=*/true);
+            ledgerOut.open(ft.localPath_nogz());
+            if (error == XDRErrors::INVALID_ENUM)
+            {
+                LedgerHeaderHistoryEntry he;
+                std::vector<char> buf;
+                uint32_t size = static_cast<uint32_t>(xdr::xdr_size(he));
+                buf.resize(size + 4);
+                buf[0] = static_cast<char>((size >> 24) & 0xFF) | '\x80';
+                buf[1] = static_cast<char>((size >> 16) & 0xFF);
+                buf[2] = static_cast<char>((size >> 8) & 0xFF);
+                buf[3] = static_cast<char>(size & 0xFF);
+                xdr::xdr_put p(buf.data() + 4, buf.data() + 4 + size);
+                xdr_argpack_archive(p, he);
+                // Corrupt variant
+                buf[buf.size() - 3] = 0xff;
+                ledgerOut.writeBytes(buf.data(), buf.size());
+            }
+            else
+            {
+                uint8_t buf[] = {0xff, 0xff, 0xff, 0xff};
+                ledgerOut.writeBytes(reinterpret_cast<char*>(buf), sizeof(buf));
+            }
+            ledgerOut.close();
         }
     }
 
