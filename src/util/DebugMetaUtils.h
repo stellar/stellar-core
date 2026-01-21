@@ -15,7 +15,7 @@ namespace metautils
 
 std::string const META_DEBUG_DIRNAME{"meta-debug"};
 std::string const DEBUG_TX_SET_FILENAME{"debug-tx-set.xdr"};
-std::string const META_DEBUG_FILE_FMT_STR{"meta-debug-{:08x}-{}.xdr"};
+constexpr char META_DEBUG_FILE_FMT_STR[]{"meta-debug-{:08x}-{}.xdr"};
 std::regex const META_DEBUG_FILE_REGEX{
     "meta-debug-[[:xdigit:]]+-[[:xdigit:]]+\\.xdr(\\.gz)?"};
 std::regex const META_DEBUG_ZIP_FILE_REGEX{

@@ -28,6 +28,7 @@
 
 #include <cstdlib>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <numeric>
 #include <time.h>
 
