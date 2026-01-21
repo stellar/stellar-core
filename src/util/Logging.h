@@ -34,46 +34,46 @@
 
 #define CLOG_TRACE(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::trace, \
-              SPDLOG_LOGGER_TRACE(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_TRACE(lg, f, ##__VA_ARGS__))
 
 #define CLOG_DEBUG(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::debug, \
-              SPDLOG_LOGGER_DEBUG(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_DEBUG(lg, f, ##__VA_ARGS__))
 
 #define CLOG_INFO(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::info, \
-              SPDLOG_LOGGER_INFO(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_INFO(lg, f, ##__VA_ARGS__))
 
 #define CLOG_WARNING(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::warn, \
-              SPDLOG_LOGGER_WARN(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_WARN(lg, f, ##__VA_ARGS__))
 
 #define CLOG_ERROR(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::err, \
-              SPDLOG_LOGGER_ERROR(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_ERROR(lg, f, ##__VA_ARGS__))
 
 #define CLOG_FATAL(partition, f, ...) \
     LOG_CHECK(Logging::get##partition##LogPtr(), spdlog::level::critical, \
-              SPDLOG_LOGGER_CRITICAL(lg, FMT_STRING(f), ##__VA_ARGS__))
+              SPDLOG_LOGGER_CRITICAL(lg, f, ##__VA_ARGS__))
 
 #define LOG_TRACE(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::trace, \
-              SPDLOG_LOGGER_TRACE(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_TRACE(lg, fmt, ##__VA_ARGS__))
 #define LOG_DEBUG(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::debug, \
-              SPDLOG_LOGGER_DEBUG(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_DEBUG(lg, fmt, ##__VA_ARGS__))
 #define LOG_INFO(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::info, \
-              SPDLOG_LOGGER_INFO(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_INFO(lg, fmt, ##__VA_ARGS__))
 #define LOG_WARNING(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::warn, \
-              SPDLOG_LOGGER_WARN(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_WARN(lg, fmt, ##__VA_ARGS__))
 #define LOG_ERROR(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::err, \
-              SPDLOG_LOGGER_ERROR(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_ERROR(lg, fmt, ##__VA_ARGS__))
 #define LOG_FATAL(lg, fmt, ...) \
     LOG_CHECK(lg, spdlog::level::critical, \
-              SPDLOG_LOGGER_CRITICAL(lg, FMT_STRING(fmt), ##__VA_ARGS__))
+              SPDLOG_LOGGER_CRITICAL(lg, fmt, ##__VA_ARGS__))
 
 #define GET_LOG(name) spdlog::get(name)
 #define DEFAULT_LOG spdlog::default_logger()
