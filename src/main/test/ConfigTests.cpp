@@ -283,7 +283,7 @@ TEST_CASE("load validators config", "[config]")
 TEST_CASE("bad validators configs", "[config]")
 {
     // basic config has 4 top level as to meet safety requirement
-    std::string const configPattern = R"(
+    static char constexpr configPattern[] = R"(
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 {NODE_HOME_DOMAIN}
 NODE_IS_VALIDATOR=true
@@ -429,7 +429,8 @@ PUBLIC_KEY="GCWD2OTEJXLIDSOFSTWDPM5IDY27ZGEXIUIBGGA45Q2VXGQ2QAEBG7ZS"
         ++i;
         DYNAMIC_SECTION(t[0] << " " << i)
         {
-            auto other2 = fmt::format(t[5], fmt::arg("QUALITY_G", t[6]));
+            auto other2 =
+                fmt::format(fmt::runtime(t[5]), fmt::arg("QUALITY_G", t[6]));
             auto newConfig = fmt::format(
                 configPattern, fmt::arg("NODE_HOME_DOMAIN", t[1]),
                 fmt::arg("A1_HOME_DOMAIN", t[2]), fmt::arg("A1_HISTORY", t[3]),
@@ -475,7 +476,7 @@ TEST_CASE("nesting level", "[config]")
     };
     std::string configNesting = "UNSAFE_QUORUM=true";
     std::string quorumSetNumber = "";
-    std::string quorumSetTemplate = R"(
+    static char constexpr quorumSetTemplate[] = R"(
 
 [QUORUM_SET{}]
 THRESHOLD_PERCENT=50
