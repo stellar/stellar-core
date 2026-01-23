@@ -71,6 +71,7 @@ class AppConnector
     MetricsRegistry& getMetrics() const;
 
     bool isStopping() const;
+    bool isLedgerStateLoaded() const;
 
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot();
@@ -80,6 +81,13 @@ class AppConnector
     // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
     void
     maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
+
+    void maybeCopyLiveAndHotArchiveSnapshots(
+        SearchableSnapshotConstPtr& liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot);
+
+    std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+    copySearchableBucketListSnapshots();
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.

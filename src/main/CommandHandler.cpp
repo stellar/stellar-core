@@ -79,7 +79,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             mQueryServer = std::make_unique<QueryServer>(
                 ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
-                mApp.getBucketManager().getBucketSnapshotManager());
+                mApp.getAppConnector());
         }
     }
 
@@ -332,6 +332,8 @@ void
 CommandHandler::peers(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -382,6 +384,8 @@ void
 CommandHandler::info(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -464,6 +468,8 @@ void
 CommandHandler::connect(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -488,6 +494,8 @@ void
 CommandHandler::dropPeer(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -534,6 +542,8 @@ void
 CommandHandler::bans(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     Json::Value root;
 
     root["bans"];
@@ -552,6 +562,8 @@ void
 CommandHandler::unban(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -582,6 +594,8 @@ void
 CommandHandler::upgrades(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
     auto s = retMap["mode"];
@@ -672,6 +686,8 @@ CommandHandler::dumpProposedSettings(std::string const& params,
                                      std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
     auto blob = retMap["blob"];
@@ -709,6 +725,8 @@ void
 CommandHandler::selfCheck(std::string const&, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     // NB: this only runs the online "self-check" routine; running the
     // offline "self-check" from command-line will also do an expensive,
     // synchronous database-vs-bucketlist consistency check. We can't do
@@ -721,6 +739,8 @@ void
 CommandHandler::quorum(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -758,6 +778,8 @@ void
 CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
     size_t lim = parseOptionalParamOrDefault<size_t>(retMap, "limit", 2);
@@ -770,6 +792,8 @@ void
 CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     auto& lm = mApp.getLedgerManager();
 
     if (lm.hasLastClosedSorobanNetworkConfig())
@@ -1006,6 +1030,8 @@ void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     Json::Value root;
 
     std::map<std::string, std::string> paramMap;
@@ -1074,6 +1100,8 @@ void
 CommandHandler::maintenance(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+    checkLedgerStateLoaded();
+
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
@@ -1106,7 +1134,7 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::checkBooted() const
+CommandHandler::checkHerderBooted() const
 {
     if (mApp.getState() == Application::APP_CREATED_STATE ||
         mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
@@ -1117,9 +1145,22 @@ CommandHandler::checkBooted() const
 }
 
 void
+CommandHandler::checkLedgerStateLoaded() const
+{
+    checkHerderBooted();
+    if (mApp.getLedgerManager().getState() == LedgerManager::LM_BOOTING_STATE)
+    {
+        throw std::runtime_error(
+            "Ledger state not yet loaded, try again later");
+    }
+}
+
+void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     surveyManager.stopSurveyReporting();
     retStr = "survey stopped";
@@ -1129,6 +1170,8 @@ void
 CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
 {
     ZoneScoped;
+    checkHerderBooted();
+
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     retStr = surveyManager.getJsonResults().toStyledString();
 }
@@ -1138,7 +1181,7 @@ CommandHandler::startSurveyCollecting(std::string const& params,
                                       std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
+    checkHerderBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -1161,7 +1204,7 @@ void
 CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
+    checkHerderBooted();
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     if (surveyManager.broadcastStopSurveyCollecting())
@@ -1180,7 +1223,7 @@ CommandHandler::surveyTopologyTimeSliced(std::string const& params,
                                          std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
+    checkHerderBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);

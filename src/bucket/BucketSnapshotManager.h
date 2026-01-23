@@ -121,5 +121,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
         SearchableSnapshotConstPtr& liveSnapshot,
         SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
         LOCKS_EXCLUDED(mSnapshotMutex);
+
+    // Copy both live and hot archive snapshots atomically under a single lock.
+    // This guarantees both snapshots are from the same ledger.
+    std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+    copySearchableBucketListSnapshots() const LOCKS_EXCLUDED(mSnapshotMutex);
 };
 }
