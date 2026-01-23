@@ -2293,9 +2293,9 @@ LedgerManagerImpl::applyThread(
             app, *threadState, config, ledgerInfo, txBundle.getResPayload(),
             getSorobanMetrics(), txSubSeed, txBundle.getEffects());
 
-        if (res.getSuccess())
+        if (res)
         {
-            threadState->commitChangesFromSuccessfulTx(res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(*res, txBundle);
         }
         else
         {

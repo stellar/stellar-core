@@ -384,7 +384,7 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
 void
 OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
     ThreadParallelApplyLedgerState const& threadState,
-    ParallelTxReturnVal const& res, uint32_t ledgerSeq)
+    ParallelTxSuccessVal const& res, uint32_t ledgerSeq)
 {
     ZoneScoped;
     if (!mEnabled)
