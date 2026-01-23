@@ -8,6 +8,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -30,6 +31,7 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // 5. No live entry in the live BL is also present in the hot archive BL
 // 6. Only persistent CONTRACT_DATA and CONTRACT_CODE entries exist in the
 //    hot archive (TEMPORARY entries are deleted, not archived)
+// 7. The cached total entry sizes match the sum of actual entry sizes
 std::string
 BucketListStateConsistency::checkSnapshot(
     SearchableSnapshotConstPtr liveSnapshot,
@@ -62,10 +64,14 @@ BucketListStateConsistency::checkSnapshot(
     UnorderedSet<LedgerKey> seenDeadKeys;
     std::string errorMsg;
 
+    // Property 7: Track total entry sizes for validation
+    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(liveSnapshot);
+    uint64_t expectedSorobanSize = 0;
+
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
                            &inMemorySnapshot, &hotArchiveSnapshot,
-                           checkHotArchive,
-                           &isStopping](BucketEntry const& be) {
+                           checkHotArchive, &isStopping, &expectedSorobanSize,
+                           &header, &sorobanConfig](BucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
@@ -117,6 +123,19 @@ BucketListStateConsistency::checkSnapshot(
                                "archived BucketList: {}"),
                     xdrToCerealString(lk, "entryKey"));
                 return Loop::COMPLETE;
+            }
+
+            // Property 7: Accumulate entry size for size validation
+            if (lk.type() == CONTRACT_CODE)
+            {
+                uint32_t entryXdrSize = xdr::xdr_size(be.liveEntry());
+                expectedSorobanSize +=
+                    ledgerEntrySizeForRent(be.liveEntry(), entryXdrSize,
+                                           header.ledgerVersion, sorobanConfig);
+            }
+            else
+            {
+                expectedSorobanSize += xdr::xdr_size(be.liveEntry());
             }
 
             seenLiveNonTTLKeys.emplace(lk);
@@ -356,6 +375,20 @@ BucketListStateConsistency::checkSnapshot(
         {
             return errorMsg;
         }
+    }
+
+    // Check property 7: Verify cached size matches computed size from
+    // BucketList
+    uint64_t cachedSize = inMemorySnapshot.getSize();
+    if (expectedSorobanSize != cachedSize)
+    {
+        errorMsg = fmt::format(
+            FMT_STRING("BucketListStateConsistency invariant failed: "
+                       "Soroban state size mismatch. "
+                       "BucketList total size: {} bytes, "
+                       "InMemorySorobanState cached size: {} bytes"),
+            expectedSorobanSize, cachedSize);
+        return errorMsg;
     }
 
     return std::string{};
