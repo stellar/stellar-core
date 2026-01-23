@@ -352,17 +352,10 @@ class RestoreFootprintParallelApplyHelper
         }
     }
 
-    ParallelTxReturnVal
-    takeResults(bool applySucceeded)
+    std::optional<ParallelTxSuccessVal>
+    takeResult(bool success)
     {
-        if (applySucceeded)
-        {
-            return mTxState.takeSuccess();
-        }
-        else
-        {
-            return mTxState.takeFailure();
-        }
+        return mTxState.takeResult(success);
     }
 };
 
@@ -373,7 +366,7 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
                                      SOROBAN_PROTOCOL_VERSION);
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 RestoreFootprintOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
@@ -389,8 +382,7 @@ RestoreFootprintOpFrame::doParallelApply(
     releaseAssertOrThrow(refundableFeeTracker);
     RestoreFootprintParallelApplyHelper helper(
         app, threadState, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
-    bool success = helper.apply();
-    return helper.takeResults(success);
+    return helper.takeResult(helper.apply());
 }
 
 bool

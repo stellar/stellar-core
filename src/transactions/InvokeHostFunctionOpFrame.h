@@ -55,7 +55,7 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    ParallelTxReturnVal
+    std::optional<ParallelTxSuccessVal>
     doParallelApply(AppConnector& app,
                     ThreadParallelApplyLedgerState const& threadState,
                     Config const& appConfig, Hash const& txPrngSeed,

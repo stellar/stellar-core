@@ -58,7 +58,7 @@ class OperationFrame
                          OperationResult& res,
                          OperationMetaBuilder& opMeta) const = 0;
 
-    virtual ParallelTxReturnVal
+    virtual std::optional<ParallelTxSuccessVal>
     doParallelApply(AppConnector& app,
                     ThreadParallelApplyLedgerState const& threadState,
                     Config const& config, Hash const& txPrngSeed,
@@ -108,7 +108,8 @@ class OperationFrame
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
 
-    ParallelTxReturnVal parallelApply(
+    // Returns std::nullopt if operation fails.
+    std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         SorobanMetrics& sorobanMetrics, OperationResult& res,

@@ -349,7 +349,7 @@ TransactionTestFrame::preParallelApply(
                                         sorobanConfig);
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 TransactionTestFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,

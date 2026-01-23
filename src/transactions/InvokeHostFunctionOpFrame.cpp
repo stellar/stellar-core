@@ -1197,17 +1197,10 @@ class InvokeHostFunctionParallelApplyHelper
         }
     }
 
-    ParallelTxReturnVal
-    takeResults(bool applySucceeded)
+    std::optional<ParallelTxSuccessVal>
+    takeResult(bool success)
     {
-        if (applySucceeded)
-        {
-            return mTxState.takeSuccess();
-        }
-        else
-        {
-            return mTxState.takeFailure();
-        }
+        return mTxState.takeResult(success);
     }
 };
 
@@ -1256,7 +1249,7 @@ InvokeHostFunctionOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         "InvokeHostFunctionOpFrame may only be applied via doApplyForSoroban");
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 InvokeHostFunctionOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
@@ -1275,8 +1268,7 @@ InvokeHostFunctionOpFrame::doParallelApply(
         app, threadState, ledgerInfo, txPrngSeed, res, refundableFeeTracker,
         opMeta, *this);
 
-    bool success = helper.apply();
-    return helper.takeResults(success);
+    return helper.takeResult(helper.apply());
 }
 
 bool

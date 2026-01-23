@@ -780,11 +780,10 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
 
 void
 ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
-    ParallelTxReturnVal const& res, ParallelLedgerInfo const& ledgerInfo,
+    ParallelTxSuccessVal const& res, ParallelLedgerInfo const& ledgerInfo,
     TxEffects& effects) const
 {
     ZoneScoped;
-    releaseAssertOrThrow(res.getSuccess());
     for (auto const& [lk, scopedEntryOpt] : res.getModifiedEntryMap())
     {
         ThreadParApplyLedgerEntryOpt prevScopedLe = getLiveEntryOpt(lk);
@@ -823,9 +822,8 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
 
 void
 ThreadParallelApplyLedgerState::commitChangesFromSuccessfulTx(
-    ParallelTxReturnVal const& res, TxBundle const& txBundle)
+    ParallelTxSuccessVal const& res, TxBundle const& txBundle)
 {
-    releaseAssertOrThrow(res.getSuccess());
     auto roTTLSet = buildRoTTLSet(txBundle);
     for (auto const& [key, txScopedEntryOpt] : res.getModifiedEntryMap())
     {
@@ -1004,22 +1002,23 @@ TxParallelApplyLedgerState::addLiveBucketlistRestore(
     mTxRestoredEntries.addLiveBucketlistRestore(key, entry, ttlKey, ttlEntry);
 }
 
-ParallelTxReturnVal
-TxParallelApplyLedgerState::takeSuccess()
+std::optional<ParallelTxSuccessVal>
+TxParallelApplyLedgerState::takeResult(bool success)
 {
-    CLOG_TRACE(Tx, "parallel apply thread {} succeeded with {} dirty entries",
-               std::this_thread::get_id(), mTxEntryMap.size());
-
-    return ParallelTxReturnVal{true, std::move(mTxEntryMap),
-                               std::move(mTxRestoredEntries), mScopeID};
-}
-
-ParallelTxReturnVal
-TxParallelApplyLedgerState::takeFailure()
-{
-    CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
-               std::this_thread::get_id(), mTxEntryMap.size());
-    return ParallelTxReturnVal{false, {}, mScopeID};
+    if (success)
+    {
+        CLOG_TRACE(Tx,
+                   "parallel apply thread {} succeeded with {} dirty entries",
+                   std::this_thread::get_id(), mTxEntryMap.size());
+        return ParallelTxSuccessVal{std::move(mTxEntryMap),
+                                    std::move(mTxRestoredEntries), mScopeID};
+    }
+    else
+    {
+        CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
+                   std::this_thread::get_id(), mTxEntryMap.size());
+        return std::nullopt;
+    }
 }
 
 uint32_t

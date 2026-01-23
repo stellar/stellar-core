@@ -160,11 +160,11 @@ class ThreadParallelApplyLedgerState
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
-    void setEffectsDeltaFromSuccessfulTx(ParallelTxReturnVal const& res,
+    void setEffectsDeltaFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                          ParallelLedgerInfo const& ledgerInfo,
                                          TxEffects& effects) const;
 
-    void commitChangesFromSuccessfulTx(ParallelTxReturnVal const& res,
+    void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                        TxBundle const& txBundle);
 
     // The snapshot ledger sequence number is one less than the
@@ -325,8 +325,7 @@ class TxParallelApplyLedgerState
                                   LedgerEntry const& entry,
                                   LedgerKey const& ttlKey,
                                   LedgerEntry const& ttlEntry);
-    ParallelTxReturnVal takeSuccess();
-    ParallelTxReturnVal takeFailure();
+    std::optional<ParallelTxSuccessVal> takeResult(bool success);
     uint32_t getSnapshotLedgerSeq() const;
 };
 

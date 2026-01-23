@@ -2007,7 +2007,7 @@ TransactionFrame::preParallelApply(
     }
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 TransactionFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
@@ -2018,18 +2018,12 @@ TransactionFrame::parallelApply(
     // This tx failed validation earlier, do not apply it
     if (!txResult.isSuccess())
     {
-        return ParallelTxReturnVal{
-            false,
-            {},
-            LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
+        return std::nullopt;
     }
 
     if (!maybeAdoptFailedReplayResult(txResult))
     {
-        return ParallelTxReturnVal{
-            false,
-            {},
-            LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
+        return std::nullopt;
     }
 
     bool reportInternalErrOnException = true;
@@ -2064,11 +2058,11 @@ TransactionFrame::parallelApply(
         maybeTriggerTestInternalError(mEnvelope);
 #endif
 
-        if (res.getSuccess())
+        if (res)
         {
-            threadState.setEffectsDeltaFromSuccessfulTx(res, ledgerInfo,
+            threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
                                                         effects);
-            opMeta.setLedgerChangesFromSuccessfulOp(threadState, res,
+            opMeta.setLedgerChangesFromSuccessfulOp(threadState, *res,
                                                     ledgerInfo.getLedgerSeq());
         }
         else
@@ -2118,10 +2112,7 @@ TransactionFrame::parallelApply(
             {"ledger", "transaction", "internal-error"});
         internalErrorCounter.inc();
     }
-    return ParallelTxReturnVal{
-        false,
-        {},
-        LedgerEntryScopeID<StaticLedgerEntryScope::TxParApply>(0, 0)};
+    return std::nullopt;
 }
 
 bool
