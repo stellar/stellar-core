@@ -410,9 +410,9 @@ InvariantManagerImpl::markStartOfInvariantSnapshot()
 {
     // Safe to call from any thread since both flags are atomic. Since we check
     // mStateSnapshotInvariantRunning before setting
-    // mShouldRunStateSnapshotInvariant in mStateSnapshotInvariantRunning, make
-    // sure we reset mStateSnapshotInvariantRunning first to prevent mutiple
-    // snapshot triggers.
+    // mShouldRunStateSnapshotInvariant, make sure we reset
+    // mStateSnapshotInvariantRunning first to prevent multiple snapshot
+    // triggers.
     mStateSnapshotInvariantRunning = true;
     mShouldRunStateSnapshotInvariant = false;
 }

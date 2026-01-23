@@ -66,5 +66,9 @@ class SearchableHotArchiveBucketListSnapshot
     friend SearchableHotArchiveSnapshotConstPtr
     BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
         SharedLockShared const& guard) const;
+
+    friend SearchableHotArchiveSnapshotConstPtr
+    BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveSnapshotConstPtr const& snapshot);
 };
 }

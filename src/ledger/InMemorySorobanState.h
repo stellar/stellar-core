@@ -401,6 +401,7 @@ class InMemorySorobanState
 
   public:
     InMemorySorobanState() = default;
+    InMemorySorobanState(InMemorySorobanState const& other);
 
     // These following functions are read-only and may be called concurrently so
     // long as no updates are occurring.

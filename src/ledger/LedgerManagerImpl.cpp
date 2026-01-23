@@ -743,14 +743,13 @@ LedgerManagerImpl::maybeCopySorobanStateForInvariant()
         nullptr;
     if (mApp.getInvariantManager().shouldRunInvariantSnapshot())
     {
-        // The in memory state copy is expensive, so we make so we need to mark
+        // The in memory state copy is expensive, so we need to mark
         // that start of the invariant scan here, not in the callback, to ensure
         // we don't trigger a race condition that creates two copies.
         mApp.getInvariantManager().markStartOfInvariantSnapshot();
         inMemorySnapshotForInvariant =
-            std::shared_ptr<InMemorySorobanState const>(
-                new InMemorySorobanState(
-                    mApplyState.getInMemorySorobanState()));
+            std::make_shared<InMemorySorobanState const>(
+                mApplyState.getInMemorySorobanState());
     }
     return inMemorySnapshotForInvariant;
 }
@@ -773,11 +772,14 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     auto ledgerSeq = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
     inMemorySnapshotForInvariant->assertLastClosedLedger(ledgerSeq);
 
-    // Copy snapshots to avoid sharing with apply/main thread (thread-safety).
+    // Copy snapshots from ledgerState to ensure consistency with the
+    // in-memory Soroban state
     auto liveSnapshotCopy =
-        mApp.getAppConnector().copySearchableLiveBucketListSnapshot();
+        BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
+            ledgerState->getBucketSnapshot());
     auto hotArchiveSnapshotCopy =
-        mApp.getAppConnector().copySearchableHotArchiveBucketListSnapshot();
+        BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+            ledgerState->getHotArchiveSnapshot());
     releaseAssertOrThrow(liveSnapshotCopy->getLedgerSeq() == ledgerSeq);
     releaseAssertOrThrow(hotArchiveSnapshotCopy->getLedgerSeq() == ledgerSeq);
 

@@ -87,6 +87,11 @@ class BucketSnapshotManager : NonMovableOrCopyable
     static SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot(
         SearchableSnapshotConstPtr const& snapshot);
 
+    // Create a deep copy from an existing searchable hot archive snapshot
+    static SearchableHotArchiveSnapshotConstPtr
+    copySearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveSnapshotConstPtr const& snapshot);
+
     // Copy the most recent snapshot for the hot archive bucket list
     SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot() const

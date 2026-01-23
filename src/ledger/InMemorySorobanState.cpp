@@ -367,6 +367,32 @@ InMemorySorobanState::getContractCodeEntryCount() const
     return mContractCodeEntries.size();
 }
 
+InMemorySorobanState::InMemorySorobanState(InMemorySorobanState const& other)
+    : mLastClosedLedgerSeq(other.mLastClosedLedgerSeq)
+    , mContractCodeStateSize(other.mContractCodeStateSize)
+    , mContractDataStateSize(other.mContractDataStateSize)
+{
+    // InternalContractDataMapEntry has an explicit copy constructor that
+    // deep-copies via clone(), so we can just use emplace.
+    for (auto const& entry : other.mContractDataEntries)
+    {
+        mContractDataEntries.emplace(entry);
+    }
+
+    // ContractCodeMapEntryT uses shared_ptr, so we must explicitly deep-copy
+    // each LedgerEntry.
+    for (auto const& [key, entry] : other.mContractCodeEntries)
+    {
+        mContractCodeEntries.emplace(
+            key, ContractCodeMapEntryT(
+                     std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
+                     entry.ttlData, entry.sizeBytes));
+    }
+
+    // mPendingTTLs should be empty outside of initialization
+    releaseAssertOrThrow(other.mPendingTTLs.empty());
+}
+
 uint32_t
 InMemorySorobanState::getLedgerSeq() const
 {

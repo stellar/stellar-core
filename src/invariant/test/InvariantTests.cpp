@@ -11,6 +11,7 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
+#include "invariant/BucketListStateConsistency.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
@@ -626,13 +627,14 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
     auto noopIsStopping = []() { return false; };
 
-    app->getInvariantManager().enableInvariant("BucketListStateConsistency");
+    BucketListStateConsistency invariant;
 
     SECTION("Valid state passes invariant")
     {
-        REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
+        auto result = invariant.checkSnapshot(
             getLiveSnapshot(), getHotArchiveSnapshot(),
-            lm.getInMemorySorobanStateForTesting(), noopIsStopping));
+            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+        REQUIRE(result.empty());
     }
 
     auto testLiveEntryNotInCache = [&](bool isContractCode) {
@@ -650,10 +652,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 modifiedState.mContractDataEntries.begin());
         }
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              modifiedState, noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result =
+            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
+                                    modifiedState, noopIsStopping);
+        REQUIRE(!result.empty());
     };
 
     SECTION("Live CONTRACT_DATA entry not in cache")
@@ -698,10 +700,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 InternalContractDataMapEntry(modifiedEntry, ttlData));
         }
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              modifiedState, noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result =
+            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
+                                    modifiedState, noopIsStopping);
+        REQUIRE(!result.empty());
     };
 
     SECTION("CONTRACT_DATA entry in cache has wrong value")
@@ -740,10 +742,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 InternalContractDataMapEntry(extraEntry, ttlData));
         }
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              modifiedState, noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result =
+            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
+                                    modifiedState, noopIsStopping);
+        REQUIRE(!result.empty());
     };
 
     SECTION("Extra CONTRACT_DATA entry in cache not in BL")
@@ -771,10 +773,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         modifiedState.mContractDataEntries.emplace(
             InternalContractDataMapEntry(entryCopy, wrongTTL));
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              modifiedState, noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result =
+            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
+                                    modifiedState, noopIsStopping);
+        REQUIRE(!result.empty());
     }
 
     SECTION("Orphan TTL in BL without Soroban entry")
@@ -787,11 +789,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
             *app, lm.getLastClosedLedgerHeader().header, {phantomTTL}, {}, {});
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              lm.getInMemorySorobanStateForTesting(),
-                              noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result = invariant.checkSnapshot(
+            getLiveSnapshot(), getHotArchiveSnapshot(),
+            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+        REQUIRE(!result.empty());
     }
 
     SECTION("Live entry also in hot archive")
@@ -801,10 +802,9 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
             *app, lm.getLastClosedLedgerHeader().header, {dataEntry1}, {});
 
-        REQUIRE_THROWS_AS(app->getInvariantManager().runStateSnapshotInvariant(
-                              getLiveSnapshot(), getHotArchiveSnapshot(),
-                              lm.getInMemorySorobanStateForTesting(),
-                              noopIsStopping),
-                          InvariantDoesNotHold);
+        auto result = invariant.checkSnapshot(
+            getLiveSnapshot(), getHotArchiveSnapshot(),
+            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+        REQUIRE(!result.empty());
     }
 }
