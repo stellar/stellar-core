@@ -1264,12 +1264,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         header.current().feePool += 31879035;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(ProtocolVersion::V_26, prevVersion, newVersion))
     {
         SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
     }
-#endif
 }
 
 void

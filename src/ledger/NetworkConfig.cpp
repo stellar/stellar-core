@@ -629,10 +629,10 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
 {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerTxn ltx(ltxRoot);
 
     LedgerKey key(CONFIG_SETTING);
@@ -683,8 +683,8 @@ updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
         }
     }
     ltx.commit();
-}
 #endif
+}
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -1123,10 +1123,10 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
 {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerTxn ltx(ltxRoot);
 
     LedgerKey key(CONFIG_SETTING);
@@ -1170,8 +1170,8 @@ updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
     }
 
     ltx.commit();
-}
 #endif
+}
 
 ConfigSettingEntry
 initialParallelComputeEntry()
@@ -1563,7 +1563,6 @@ SorobanNetworkConfig::createCostTypesForV25(AbstractLedgerTxn& ltx,
     updateMemCostParamsEntryForV25(ltx);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 SorobanNetworkConfig::updateCostTypesForV26(AbstractLedgerTxn& ltx,
                                             Application& app)
@@ -1572,7 +1571,6 @@ SorobanNetworkConfig::updateCostTypesForV26(AbstractLedgerTxn& ltx,
     updateCpuCostParamsEntryForV26(ltx);
     updateMemCostParamsEntryForV26(ltx);
 }
-#endif
 
 void
 SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
@@ -1640,12 +1638,10 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     {
         SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_26))
     {
         SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
     }
-#endif
 }
 
 SorobanNetworkConfig
