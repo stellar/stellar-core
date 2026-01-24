@@ -62,6 +62,7 @@ compile_commands.json
 /autom4te.cache
 /build
 /src/stellar-core
+/src/fuzz_*
 /buckets
 /compile
 /config.h

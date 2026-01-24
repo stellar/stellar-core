@@ -67,6 +67,14 @@ pub(crate) mod rust_bridge {
         LVL_TRACE = 5,
     }
 
+    #[namespace = "stellar"]
+    enum FuzzResultCode {
+        FUZZ_SUCCESS = 0,
+        FUZZ_TARGET_UNKNOWN = -1,
+        FUZZ_REJECTED = -2,
+        FUZZ_DISABLED = -3,
+    }
+
     struct CxxLedgerInfo {
         pub protocol_version: u32,
         pub sequence_number: u32,
@@ -364,6 +372,10 @@ pub(crate) mod rust_bridge {
             resource_limit: &QuorumCheckerResource,
             resource_usage: &mut QuorumCheckerResource,
         ) -> Result<QuorumCheckerStatus>;
+
+        // Soroban fuzzing support - always declared but only functional with --features fuzz.
+        // Panics on internal errors (which libfuzzer will catch as crashes).
+        fn run_soroban_fuzz_target(name: &str, data: &[u8]) -> FuzzResultCode;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -396,6 +408,7 @@ use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
 use crate::quorum_checker::*;
+use crate::soroban_fuzz::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;
