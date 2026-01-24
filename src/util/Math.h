@@ -7,6 +7,7 @@
 #include "lib/util/stdrandom.h"
 #include "util/Timer.h"
 #include <cstdlib>
+#include <optional>
 #include <random>
 #include <set>
 #include <stdexcept>
@@ -76,7 +77,13 @@ void initializeAllGlobalState();
 // shouldn't be resetting globals like this mid-run -- especially not things
 // like hash function keys.
 void reinitializeAllGlobalStateWithSeed(unsigned int seed);
-unsigned int getLastGlobalStateSeed();
+std::optional<unsigned int> getLastGlobalStateSeed();
+
+// This function reseeds global state only if not already seeded by the unit
+// test framework. Fuzz targets should use this instead of calling
+// reinitializeAllGlobalStateWithSeed directly, so they work both as standalone
+// fuzz binaries AND when run as regression tests inside the Catch2 framework.
+void reinitializeAllGlobalStateForFuzzing(unsigned int seed);
 #endif
 
 }

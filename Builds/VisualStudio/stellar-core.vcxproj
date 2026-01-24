@@ -670,7 +670,13 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp" />
     <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
     <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
-    <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\FuzzMain.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\FuzzRegressionTests.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\FuzzTargetRegistry.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\FuzzUtils.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\targets\OverlayFuzzTarget.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\targets\SorobanFuzzTargets.cpp" />
+    <ClCompile Include="..\..\src\test\fuzz\targets\TxFuzzTarget.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.cpp" />
@@ -875,7 +881,6 @@ exit /b 0
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
     <ClCompile Include="..\..\src\simulation\test\LoadGeneratorTests.cpp" />
-    <ClCompile Include="..\..\src\test\fuzz.cpp" />
     <ClCompile Include="..\..\src\test\test.cpp" />
     <ClCompile Include="..\..\src\test\TestAccount.cpp" />
     <ClCompile Include="..\..\src\test\TestExceptions.cpp" />
@@ -1120,7 +1125,12 @@ exit /b 0
     <ClInclude Include="..\..\src\simulation\ApplyLoad.h" />
     <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
     <ClInclude Include="..\..\src\test\Fuzzer.h" />
-    <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
+    <ClInclude Include="..\..\src\test\fuzz\FuzzTargetRegistry.h" />
+    <ClInclude Include="..\..\src\test\fuzz\FuzzUtils.h" />
+    <ClInclude Include="..\..\src\test\fuzz\TxFuzzTarget.h" />
+    <ClInclude Include="..\..\src\test\fuzz\targets\OverlayFuzzTarget.h" />
+    <ClInclude Include="..\..\src\test\fuzz\targets\SorobanFuzzTargets.h" />
+    <ClInclude Include="..\..\src\test\fuzz\targets\TxFuzzTarget.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.h" />
@@ -1237,7 +1247,6 @@ exit /b 0
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
-    <ClInclude Include="..\..\src\test\fuzz.h" />
     <ClInclude Include="..\..\src\test\SimpleTestReporter.h" />
     <ClInclude Include="..\..\src\test\test.h" />
     <ClInclude Include="..\..\src\test\TestAccount.h" />
