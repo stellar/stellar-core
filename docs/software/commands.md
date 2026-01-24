@@ -110,8 +110,8 @@ Command options can only by placed after command.
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
 * **dump-archival-stats**:  Logs state archival statistics about the BucketList.
 * **encode-asset**: Prints a base-64 encoded asset built from  `--code <CODE>` and `--issuer <ISSUER>`. Prints the native asset if neither `--code` nor `--issuer` is given.
-* **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
-* **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
+* **fuzz-one <FILE-NAME>**: Run a single fuzz input and exit.
+* **gen-fuzz**: Generate fuzz input files for a seed corpus. Requires `--target <target-name>`, `--output-dir <directory>`, and optionally `--count <n>` (default: 100).
 * **gen-seed**: Generate and print a random public/private key and then exit.
 * **get-settings-upgrade-txs <PUBLIC-KEY> <SEQ-NUM> <NETWORK-PASSPHRASE>**: Generates the three transactions needed to propose
   a Soroban Settings upgrade from scratch, as will as the XDR `ConfigUpgradeSetKey` to submit to the `upgrades` endpoint. The results will be dumped to standard output. <PUBLIC-KEY> is the key that will be used as the source account on the transactions.

@@ -47,13 +47,14 @@
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
-#include "test/Fuzzer.h"
 #include "test/TestUtils.h"
-#include "test/fuzz.h"
+#include "test/fuzz/FuzzTargetRegistry.h"
 #include "test/test.h"
 #endif
 
+#include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
 #include <iostream>
 #include <lib/clara.hpp>
 #include <optional>
@@ -196,13 +197,6 @@ ParserWithValidation
 fileNameParser(std::string& string)
 {
     return requiredArgParser(string, "FILE-NAME");
-}
-
-clara::Opt
-processIDParser(int& num)
-{
-    return clara::Opt{num, "PROCESS-ID"}["--process-id"](
-        "for spawning multiple instances in fuzzing parallelization");
 }
 
 clara::Opt
@@ -1808,75 +1802,36 @@ runRebuildLedgerFromBuckets(CommandLineArgs const& args)
 }
 
 ParserWithValidation
-fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+fuzzTargetParser(std::string& targetName)
 {
-    auto validateFuzzerMode = [&] {
-        if (iequals(fuzzerModeArg, "overlay"))
+    auto validateTarget = [&] {
+        // Validate against the registry
+        if (FuzzTargetRegistry::instance().findTarget(targetName))
         {
-            fuzzerMode = FuzzerMode::OVERLAY;
             return "";
         }
-
-        if (iequals(fuzzerModeArg, "tx"))
-        {
-            fuzzerMode = FuzzerMode::TRANSACTION;
-            return "";
-        }
-
-        return "Unrecognized fuzz mode. Please select a valid mode.";
+        return "Unrecognized fuzz target. Use 'stellar-core fuzz-list' to see "
+               "available targets.";
     };
 
-    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
-                "set the fuzzer mode. Expected modes: overlay, "
-                "tx. Defaults to overlay."),
-            validateFuzzerMode};
+    return {clara::Opt{targetName, "FUZZ-TARGET"}["--target"](
+                "set the fuzz target. Use 'stellar-core fuzz-list' to see "
+                "available targets. Defaults to overlay."),
+            validateTarget};
 }
 
 int
 runFuzz(CommandLineArgs const& args)
 {
     LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::vector<std::string> metrics;
     std::string fileName;
     std::string outputFile;
-    int processID = 0;
-    bool consoleLog = false;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
-
-    return runWithHelp(args,
-                       {logLevelParser(logLevel), metricsParser(metrics),
-                        consoleParser(consoleLog), fileNameParser(fileName),
-                        outputFileParser(outputFile),
-                        processIDParser(processID),
-                        fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
-                       [&] {
-                           Logging::setLogLevel(logLevel, nullptr);
-                           if (!outputFile.empty())
-                           {
-                               Logging::setLoggingToFile(outputFile);
-                           }
-
-                           fuzz(fileName, metrics, processID, fuzzerMode);
-                           return 0;
-                       });
-}
-
-int
-runGenFuzz(CommandLineArgs const& args)
-{
-    LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::string fileName;
-    std::string outputFile;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
-    int processID = 0;
+    std::string targetName;
 
     return runWithHelp(
         args,
         {logLevelParser(logLevel), fileNameParser(fileName),
-         outputFileParser(outputFile),
-         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+         outputFileParser(outputFile), fuzzTargetParser(targetName)},
         [&] {
             Logging::setLogLevel(logLevel, nullptr);
             if (!outputFile.empty())
@@ -1884,7 +1839,82 @@ runGenFuzz(CommandLineArgs const& args)
                 Logging::setLoggingToFile(outputFile);
             }
 
-            FuzzUtils::createFuzzer(processID, fuzzerMode)->genFuzz(fileName);
+            auto target =
+                FuzzTargetRegistry::instance().createTarget(targetName);
+            target->initialize();
+
+            std::ifstream in(fileName, std::ios::binary);
+            std::vector<uint8_t> data(target->maxInputSize());
+            in.read(reinterpret_cast<char*>(data.data()), data.size());
+            auto actual = in.gcount();
+            if (actual > 0)
+            {
+                data.resize(actual);
+                target->run(data.data(), data.size());
+            }
+
+            target->shutdown();
+            return 0;
+        });
+}
+
+int
+runFuzzList(CommandLineArgs const& args)
+{
+    // List all available fuzz targets from the registry
+    std::cout << "Available fuzz targets:\n";
+    for (auto const& target : FuzzTargetRegistry::instance().targets())
+    {
+        std::cout << "  " << target.name << " - " << target.description << "\n";
+    }
+    std::cout << "\nUsage:\n";
+    std::cout << "  stellar-core fuzz-one --target=<target> <input-file>\n";
+    std::cout << "  stellar-core gen-fuzz --target=<target> "
+                 "--output-dir=<dir> [--count=<n>]\n";
+    return 0;
+}
+
+int
+runGenFuzz(CommandLineArgs const& args)
+{
+    constexpr int DEFAULT_CORPUS_SIZE = 100;
+    LogLevel logLevel{LogLevel::LVL_FATAL};
+    std::string outputDir;
+    std::string targetName;
+    int count = DEFAULT_CORPUS_SIZE;
+
+    auto outputDirParser = [](std::string& dir) {
+        return clara::Opt{dir, "DIR"}["--output-dir"]["-o"](
+            "output directory for corpus files (required)");
+    };
+
+    auto countParser = [](int& c) {
+        return clara::Opt{c, "COUNT"}["--count"]["-n"](
+            "number of corpus files to generate (default: 100)");
+    };
+
+    return runWithHelp(
+        args,
+        {logLevelParser(logLevel), outputDirParser(outputDir),
+         countParser(count), fuzzTargetParser(targetName)},
+        [&] {
+            if (outputDir.empty())
+            {
+                std::cerr << "Error: --output-dir is required\n";
+                return 1;
+            }
+
+            Logging::setLogLevel(logLevel, nullptr);
+
+            // Create output directory if it doesn't exist
+            std::filesystem::create_directories(outputDir);
+
+            auto target =
+                FuzzTargetRegistry::instance().createTarget(targetName);
+            target->generateSeedCorpus(outputDir, count);
+
+            std::cout << "Generated " << count << " corpus files in "
+                      << outputDir << "\n";
             return 0;
         });
 }
@@ -2169,8 +2199,10 @@ handleCommandLine(int argc, char* const* argv)
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",
           runRebuildLedgerFromBuckets},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
+         {"fuzz-one", "run a single fuzz input and exit", runFuzz},
+         {"gen-fuzz", "generate fuzz input files for a seed corpus",
+          runGenFuzz},
+         {"fuzz-list", "list available fuzz targets", runFuzzList},
          {"test", "execute test suite", runTest},
          {"apply-load", "run apply time load test", runApplyLoad},
          {"pregenerate-loadgen-txs",
@@ -2188,7 +2220,7 @@ handleCommandLine(int argc, char* const* argv)
         fmt::format(FMT_STRING("{0} {1}"), exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 adjustedCommandLine.second};
-    if (command->name() == "run" || command->name() == "fuzz" ||
+    if (command->name() == "run" || command->name() == "fuzz-one" ||
         command->name() == "test")
     {
         // run outside of catch block so that we properly capture crashes
