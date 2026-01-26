@@ -292,6 +292,11 @@ class SorobanNetworkConfig
     // upgrade.
     static void createCostTypesForV25(AbstractLedgerTxn& ltx, Application& app);
 
+    // Updates the cost types for v26.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void updateCostTypesForV26(AbstractLedgerTxn& ltx, Application& app);
+
     // Creates the new ledger entries introduced in v23 and updates the existing
     // entries.
     // This should happen once during the correspondent protocol version

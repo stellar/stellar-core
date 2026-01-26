@@ -1246,7 +1246,6 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         PubKeyUtils::enableRustDalekVerify();
         SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
-
     // Starting from protocol 23 we need to fully override the Soroban in-memory
     // state size on upgrade, as before protocol 23 bucket list size has bene
     // used.
@@ -1263,6 +1262,11 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         auto header = ltx.loadHeader();
         // Reflect the 3.1879035 XLM burn in p23 in the fee pool for p24
         header.current().feePool += 31879035;
+    }
+
+    if (needUpgradeToVersion(ProtocolVersion::V_26, prevVersion, newVersion))
+    {
+        SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
     }
 }
 

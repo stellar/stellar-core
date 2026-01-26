@@ -19,10 +19,15 @@ use crate::{
     soroban_proto_all::{get_host_module_for_protocol, p23, p24, p25, protocol_agnostic},
 };
 
+#[cfg(feature = "next")]
+use crate::soroban_proto_all::p26;
+
 pub(crate) struct SorobanModuleCache {
     pub(crate) p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache,
+    #[cfg(feature = "next")]
+    pub(crate) p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache,
 }
 
 impl SorobanModuleCache {
@@ -31,6 +36,8 @@ impl SorobanModuleCache {
             p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            #[cfg(feature = "next")]
+            p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
         })
     }
     pub fn compile(
@@ -42,10 +49,8 @@ impl SorobanModuleCache {
             23 => self.p23_cache.compile(_wasm),
             24 => self.p24_cache.compile(_wasm),
             25 => self.p25_cache.compile(_wasm),
-            // Currently p26 uses the same env as p25 and thus can keep using
-            // p25 module cache.
             #[cfg(feature = "next")]
-            26 => self.p25_cache.compile(_wasm),
+            26 => self.p26_cache.compile(_wasm),
             // Add other protocols here as needed.
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
@@ -55,6 +60,8 @@ impl SorobanModuleCache {
             p23_cache: self.p23_cache.shallow_clone()?,
             p24_cache: self.p24_cache.shallow_clone()?,
             p25_cache: self.p25_cache.shallow_clone()?,
+            #[cfg(feature = "next")]
+            p26_cache: self.p26_cache.shallow_clone()?,
         }))
     }
 
@@ -66,12 +73,16 @@ impl SorobanModuleCache {
         self.p23_cache.evict(&_hash)?;
         self.p24_cache.evict(&_hash)?;
         self.p25_cache.evict(&_hash)?;
+        #[cfg(feature = "next")]
+        self.p26_cache.evict(&_hash)?;
         Ok(())
     }
     pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.p23_cache.clear()?;
         self.p24_cache.clear()?;
         self.p25_cache.clear()?;
+        #[cfg(feature = "next")]
+        self.p26_cache.clear()?;
         Ok(())
     }
 
@@ -89,7 +100,7 @@ impl SorobanModuleCache {
             24 => self.p24_cache.contains_module(&_hash),
             25 => self.p25_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
-            26 => self.p25_cache.contains_module(&_hash),
+            26 => self.p26_cache.contains_module(&_hash),
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
@@ -104,7 +115,7 @@ impl SorobanModuleCache {
             24 => bytes = bytes.max(self.p24_cache.get_mem_bytes_consumed()?),
             25 => bytes = bytes.max(self.p25_cache.get_mem_bytes_consumed()?),
             #[cfg(feature = "next")]
-            26 => bytes = bytes.max(self.p25_cache.get_mem_bytes_consumed()?),
+            26 => bytes = bytes.max(self.p26_cache.get_mem_bytes_consumed()?),
             _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
         }
         Ok(bytes)
