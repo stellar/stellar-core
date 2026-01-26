@@ -270,29 +270,26 @@ scanLiveBuckets(
     }
 }
 
-static Loop
-scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
-                     std::unordered_set<LedgerKey>& countedKeys,
-                     Asset const& asset,
-                     AssetContractInfo const& assetContractInfo,
-                     int64_t& sumBalance, std::string& errorMsg,
-                     std::function<bool()> const& isStopping)
+static void
+scanHotArchiveBuckets(
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const> const&
+        hotArchiveSnapshot,
+    Asset const& asset, AssetContractInfo const& assetContractInfo,
+    int64_t& sumBalance, std::string& errorMsg,
+    std::function<bool()> const& isStopping)
 {
-    for (HotArchiveBucketInputIterator iter(bucket.getRawBucket()); iter;
-         ++iter)
-    {
-        // Allow early termination if application is stopping
+    std::unordered_set<LedgerKey> countedKeys;
+    hotArchiveSnapshot->scanAllEntries([&](HotArchiveBucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
         }
 
-        auto const& be = *iter;
         if (be.type() == HOT_ARCHIVE_ARCHIVED)
         {
             if (!canHoldAsset(be.archivedEntry().data.type(), asset))
             {
-                continue;
+                return Loop::INCOMPLETE;
             }
             if (!processEntryIfNew(be.archivedEntry(),
                                    LedgerEntryKey(be.archivedEntry()),
@@ -309,8 +306,8 @@ scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
             // so mark it as seen (shadowing any archived versions)
             countedKeys.emplace(be.key());
         }
-    }
-    return Loop::INCOMPLETE;
+        return Loop::INCOMPLETE;
+    });
 }
 
 std::string
@@ -357,21 +354,13 @@ ConservationOfLumens::checkSnapshot(
         return errorMsg;
     }
 
-    // Scan the Hot Archive for native balances using loopAllBuckets
-    {
-        std::unordered_set<LedgerKey> countedKeys;
-        hotArchiveSnapshot->loopAllBuckets(
-            [&countedKeys, &nativeAsset, &sumBalance, &errorMsg, &isStopping,
-             this](HotArchiveBucketSnapshot const& bucket) {
-                return scanHotArchiveBucket(bucket, countedKeys, nativeAsset,
-                                            mLumenContractInfo, sumBalance,
-                                            errorMsg, isStopping);
-            });
+    // Scan the Hot Archive for native balances
+    scanHotArchiveBuckets(hotArchiveSnapshot, nativeAsset, mLumenContractInfo,
+                          sumBalance, errorMsg, isStopping);
 
-        if (shouldAbortInvariantScan(errorMsg, isStopping))
-        {
-            return errorMsg;
-        }
+    if (shouldAbortInvariantScan(errorMsg, isStopping))
+    {
+        return errorMsg;
     }
 
     // Compare the calculated total with totalCoins from the ledger header

@@ -776,10 +776,10 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     // in-memory Soroban state
     auto liveSnapshotCopy =
         BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-            ledgerState->getBucketSnapshot());
+            ledgerState->getBucketSnapshot(), mApp.getMetrics());
     auto hotArchiveSnapshotCopy =
         BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
-            ledgerState->getHotArchiveSnapshot());
+            ledgerState->getHotArchiveSnapshot(), mApp.getMetrics());
     releaseAssertOrThrow(liveSnapshotCopy->getLedgerSeq() == ledgerSeq);
     releaseAssertOrThrow(hotArchiveSnapshotCopy->getLedgerSeq() == ledgerSeq);
 

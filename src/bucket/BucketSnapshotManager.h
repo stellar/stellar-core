@@ -79,14 +79,13 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     // Create a deep copy from an existing searchable snapshot
     static SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot(
-        SearchableSnapshotConstPtr const& snapshot,
-        medida::MetricsRegistry& metrics);
+        SearchableSnapshotConstPtr const& snapshot, MetricsRegistry& metrics);
 
     // Create a deep copy from an existing hot archive snapshot
     static SearchableHotArchiveSnapshotConstPtr
     copySearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveSnapshotConstPtr const& snapshot,
-        medida::MetricsRegistry& metrics);
+        MetricsRegistry& metrics);
 
     // Copy the most recent snapshot for the hot archive bucket list
     SearchableHotArchiveSnapshotConstPtr

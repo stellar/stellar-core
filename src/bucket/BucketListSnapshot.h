@@ -8,6 +8,7 @@
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "util/SimpleTimer.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
@@ -27,7 +28,6 @@ namespace medida
 {
 class Counter;
 class Meter;
-class MetricsRegistry;
 class Timer;
 }
 
@@ -35,7 +35,7 @@ namespace stellar
 {
 
 class BucketSnapshotManager;
-struct EvictionCounters;
+struct EvictionMetrics;
 struct EvictionResultCandidates;
 struct EvictionResultEntry;
 struct InflationWinner;
@@ -53,16 +53,16 @@ template <class BucketT> struct BucketListSnapshotData
 
     struct Level
     {
-        std::shared_ptr<BucketT const> curr;
-        std::shared_ptr<BucketT const> snap;
+        std::shared_ptr<BucketT const> const curr;
+        std::shared_ptr<BucketT const> const snap;
 
         Level(BucketLevel<BucketT> const& level);
         Level(std::shared_ptr<BucketT const> currBucket,
               std::shared_ptr<BucketT const> snapBucket);
     };
 
-    std::vector<Level> levels;
-    LedgerHeader header;
+    std::vector<Level> const levels;
+    LedgerHeader const header;
 
     BucketListSnapshotData(BucketListBase<BucketT> const& bl,
                            LedgerHeader const& header);
@@ -92,13 +92,11 @@ template <class BucketT> class SearchableBucketListSnapshot
     mutable UnorderedMap<BucketT const*, std::unique_ptr<XDRInputFileStream>>
         mStreams;
 
-    medida::MetricsRegistry& mMetrics;
+    MetricsRegistry& mMetrics;
 
-    // Tracks the sum of point load times for each LedgerEntryType, in
-    // microseconds. For point loads, Timers are too expensive to maintain, so
-    // we use a Counter to keep track of the total trend instead.
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointAccumulators;
-    UnorderedMap<LedgerEntryType, medida::Counter&> mPointCounters;
+    // Tracks load times for each LedgerEntryType. We use
+    // SimpleTimer since medida Timer overhead is too expensive for point loads.
+    UnorderedMap<LedgerEntryType, SimpleTimer&> mPointTimers;
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.
@@ -149,7 +147,7 @@ template <class BucketT> class SearchableBucketListSnapshot
     template <typename Func> void loopAllBuckets(Func&& f) const;
 
     SearchableBucketListSnapshot(
-        medida::MetricsRegistry& metrics,
+        MetricsRegistry& metrics,
         std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
         std::map<uint32_t,
                  std::shared_ptr<BucketListSnapshotData<BucketT> const>>
@@ -189,7 +187,7 @@ class SearchableLiveBucketListSnapshot
     : public SearchableBucketListSnapshot<LiveBucket>
 {
     SearchableLiveBucketListSnapshot(
-        medida::MetricsRegistry& metrics,
+        MetricsRegistry& metrics,
         std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
         std::map<uint32_t,
                  std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
@@ -232,7 +230,7 @@ class SearchableHotArchiveBucketListSnapshot
     : public SearchableBucketListSnapshot<HotArchiveBucket>
 {
     SearchableHotArchiveBucketListSnapshot(
-        medida::MetricsRegistry& metrics,
+        MetricsRegistry& metrics,
         std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
         std::map<uint32_t, std::shared_ptr<
                                BucketListSnapshotData<HotArchiveBucket> const>>
@@ -242,6 +240,8 @@ class SearchableHotArchiveBucketListSnapshot
     std::vector<HotArchiveBucketEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
+    // Iterate over all entries in all buckets. Note this iterates over all
+    // HotArchiveBucketEntry, so some may be shadowed and outdated.
     void scanAllEntries(
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 

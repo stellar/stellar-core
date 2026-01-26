@@ -56,8 +56,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
 
   public:
     SharedModuleCacheCompiler(SearchableSnapshotConstPtr snap,
-                              medida::MetricsRegistry& metrics,
-                              size_t numThreads,
+                              MetricsRegistry& metrics, size_t numThreads,
                               std::vector<uint32_t> const& ledgerVersions);
     ~SharedModuleCacheCompiler();
     void start();

@@ -10,11 +10,11 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 
 #include <medida/counter.h>
 #include <medida/meter.h>
-#include <medida/metrics_registry.h>
 #include <medida/timer.h>
 
 namespace stellar
@@ -41,12 +41,17 @@ BucketListSnapshotData<BucketT>::Level::Level(
 template <class BucketT>
 BucketListSnapshotData<BucketT>::BucketListSnapshotData(
     BucketListBase<BucketT> const& bl, LedgerHeader const& header)
-    : header(header)
+    : levels([&bl]() {
+        std::vector<Level> v;
+        v.reserve(BucketListBase<BucketT>::kNumLevels);
+        for (uint32_t i = 0; i < BucketListBase<BucketT>::kNumLevels; ++i)
+        {
+            v.emplace_back(bl.getLevel(i));
+        }
+        return v;
+    }())
+    , header(header)
 {
-    for (uint32_t i = 0; i < BucketListBase<BucketT>::kNumLevels; ++i)
-    {
-        levels.emplace_back(bl.getLevel(i));
-    }
 }
 
 template <class BucketT>
@@ -62,7 +67,7 @@ BucketListSnapshotData<BucketT>::getLedgerSeq() const
 
 template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
-    medida::MetricsRegistry& metrics,
+    MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
     std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
         historicalSnapshots)
@@ -72,18 +77,13 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     , mBulkLoadMeter(
           metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
 {
-    // Pre-register point load metrics for each LedgerEntryType
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
             static_cast<LedgerEntryType>(t));
-        auto& accumulator =
-            metrics.NewCounter({BucketT::METRIC_STRING, label, "sum"});
-        mPointAccumulators.emplace(static_cast<LedgerEntryType>(t),
-                                   accumulator);
-        auto& counter =
-            metrics.NewCounter({BucketT::METRIC_STRING, label, "count"});
-        mPointCounters.emplace(static_cast<LedgerEntryType>(t), counter);
+        auto& metric = metrics.NewSimpleTimer({BucketT::METRIC_STRING, label},
+                                              std::chrono::microseconds{1});
+        mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
     }
 }
 
@@ -290,8 +290,11 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
     ZoneScoped;
     releaseAssert(mData);
 
+    auto timerIter = mPointTimers.find(k.type());
+    releaseAssert(timerIter != mPointTimers.end());
+    auto timer = timerIter->second.TimeScope();
+
     std::shared_ptr<typename BucketT::LoadT const> result{};
-    auto startTime = std::chrono::steady_clock::now();
 
     // Search function called on each Bucket in BucketList until we find the key
     auto loadKeyBucketLoop = [&](std::shared_ptr<BucketT const> const& bucket) {
@@ -300,7 +303,7 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
         {
             // Reset timer on bloom miss to avoid outlier metrics, since we
             // really only want to measure disk performance
-            startTime = std::chrono::steady_clock::now();
+            timer.Reset();
         }
 
         if (be)
@@ -312,18 +315,6 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
     };
 
     loopAllBuckets(loadKeyBucketLoop);
-    auto endTime = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        endTime - startTime);
-
-    auto accumulatorIter = mPointAccumulators.find(k.type());
-    releaseAssert(accumulatorIter != mPointAccumulators.end());
-    accumulatorIter->second.inc(duration.count());
-
-    auto counterIter = mPointCounters.find(k.type());
-    releaseAssert(counterIter != mPointCounters.end());
-    counterIter->second.inc();
-
     return result;
 }
 
@@ -429,7 +420,7 @@ SearchableBucketListSnapshot<BucketT>::getHistoricalSnapshots() const
 //
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
-    medida::MetricsRegistry& metrics,
+    MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
@@ -596,9 +587,9 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 //    We scan both versions but should only evict once.
 std::unique_ptr<EvictionResultCandidates>
 SearchableLiveBucketListSnapshot::scanForEviction(
-    uint32_t ledgerSeq, EvictionMetrics& metrics,
-    EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
-    StateArchivalSettings const& sas, uint32_t ledgerVers) const
+    uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator evictionIter,
+    std::shared_ptr<EvictionStatistics> stats, StateArchivalSettings const& sas,
+    uint32_t ledgerVers) const
 {
     ZoneScoped;
     releaseAssert(mData);
@@ -860,7 +851,7 @@ SearchableLiveBucketListSnapshot::scanForEvictionInBucket(
 //
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
-    medida::MetricsRegistry& metrics,
+    MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
@@ -893,18 +884,9 @@ SearchableHotArchiveBucketListSnapshot::scanAllEntries(
                 return Loop::INCOMPLETE;
             }
 
-            auto& stream = getStream(bucket);
-            stream.seek(0);
-
-            HotArchiveBucketEntry entry;
-            while (stream.readOne(entry))
+            for (HotArchiveBucketInputIterator iter(bucket); iter; ++iter)
             {
-                if (isBucketMetaEntry<HotArchiveBucket>(entry))
-                {
-                    continue;
-                }
-
-                if (callback(entry) == Loop::COMPLETE)
+                if (callback(*iter) == Loop::COMPLETE)
                 {
                     return Loop::COMPLETE;
                 }

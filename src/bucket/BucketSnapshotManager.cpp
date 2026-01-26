@@ -8,6 +8,7 @@
 #include "bucket/LiveBucketList.h"
 #include "main/AppConnector.h"
 #include "util/GlobalChecks.h"
+#include "util/MetricsRegistry.h"
 
 namespace stellar
 {
@@ -59,10 +60,10 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 
 SearchableSnapshotConstPtr
 BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-    SearchableSnapshotConstPtr const& snapshot,
-    medida::MetricsRegistry& metrics)
+    SearchableSnapshotConstPtr const& snapshot, MetricsRegistry& metrics)
 {
     // Can't use std::make_shared due to private constructor
+    releaseAssert(snapshot);
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
             metrics, snapshot->getSnapshotData(),
@@ -72,8 +73,9 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     SearchableHotArchiveSnapshotConstPtr const& snapshot,
-    medida::MetricsRegistry& metrics)
+    MetricsRegistry& metrics)
 {
+    releaseAssert(snapshot);
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(

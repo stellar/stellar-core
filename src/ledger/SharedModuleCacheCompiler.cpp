@@ -22,7 +22,7 @@ size_t const SharedModuleCacheCompiler::BUFFERED_WASM_CAPACITY =
 // The snapshot is copied here to ensure the background loading thread has its
 // own instance since snapshots themselves aren't thread safe.
 SharedModuleCacheCompiler::SharedModuleCacheCompiler(
-    SearchableSnapshotConstPtr snap, medida::MetricsRegistry& metrics,
+    SearchableSnapshotConstPtr snap, MetricsRegistry& metrics,
     size_t numThreads, std::vector<uint32_t> const& ledgerVersions)
     : mModuleCache(rust_bridge::new_module_cache())
     , mSnap(BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
