@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/ConservationOfLumens.h"
+#include "invariant/Invariant.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -351,7 +352,7 @@ ConservationOfLumens::checkSnapshot(
     scanLiveBuckets(liveSnapshot, nativeAsset, mLumenContractInfo, sumBalance,
                     errorMsg, isStopping);
 
-    if (!errorMsg.empty())
+    if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
     }
@@ -367,16 +368,10 @@ ConservationOfLumens::checkSnapshot(
                                             errorMsg, isStopping);
             });
 
-        if (!errorMsg.empty())
+        if (shouldAbortInvariantScan(errorMsg, isStopping))
         {
             return errorMsg;
         }
-    }
-
-    // We stopped early, so it's likely we didn't finish scanning everything
-    if (isStopping())
-    {
-        return std::string{};
     }
 
     // Compare the calculated total with totalCoins from the ledger header

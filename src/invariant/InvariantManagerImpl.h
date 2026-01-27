@@ -22,6 +22,7 @@ class MetricsRegistry;
 class InvariantManagerImpl : public InvariantManager
 {
     Config const& mConfig;
+    std::function<bool()> mIsStopping;
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::Counter& mInvariantFailureCount;

@@ -21,6 +21,7 @@
 #include "main/ErrorMessages.h"
 #include "medida/counter.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
@@ -44,6 +45,7 @@ InvariantManager::create(Application& app)
 
 InvariantManagerImpl::InvariantManagerImpl(Application& app)
     : mConfig(app.getConfig())
+    , mIsStopping([&app]() { return app.isStopping(); })
     , mInvariantFailureCount(
           app.getMetrics().NewCounter({"ledger", "invariant", "failure"}))
     , mStateSnapshotInvariantSkipped(app.getMetrics().NewCounter(
@@ -336,6 +338,7 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
+    JITTER_INJECT_DELAY_CUSTOM(100, 100'000, 1'000'000);
     auto reset =
         gsl::finally([this]() { mStateSnapshotInvariantRunning = false; });
 
@@ -364,6 +367,11 @@ InvariantManagerImpl::runStateSnapshotInvariant(
 void
 InvariantManagerImpl::scheduleSnapshotTimer()
 {
+    if (mIsStopping())
+    {
+        return;
+    }
+
     auto frequencySeconds = mConfig.STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY;
     mStateSnapshotTimer.expires_from_now(
         std::chrono::seconds(frequencySeconds));
@@ -374,6 +382,11 @@ InvariantManagerImpl::scheduleSnapshotTimer()
 void
 InvariantManagerImpl::snapshotTimerFired()
 {
+    if (mIsStopping())
+    {
+        return;
+    }
+
     // Check if the previous invariant is still running. If we haven't finished
     // the invariant in time, we will reset the timer, but not mark the
     // invariant as ready to run.

@@ -763,7 +763,7 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     releaseAssert(threadIsMain());
 
     if (!inMemorySnapshotForInvariant ||
-        !mApp.getConfig().INVARIANT_EXTRA_CHECKS)
+        !mApp.getConfig().INVARIANT_EXTRA_CHECKS || mApp.isStopping())
     {
         return;
     }

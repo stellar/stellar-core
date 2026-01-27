@@ -105,4 +105,13 @@ class Invariant
     }
 #endif // BUILD_TESTS
 };
+
+// Helper function to check if an invariant scan should abort early.
+// Returns true if we should stop scanning (either due to an error or shutdown).
+inline bool
+shouldAbortInvariantScan(std::string const& errorMsg,
+                         std::function<bool()> const& isStopping)
+{
+    return !errorMsg.empty() || isStopping();
+}
 }

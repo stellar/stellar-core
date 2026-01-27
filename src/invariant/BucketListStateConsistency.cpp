@@ -5,6 +5,7 @@
 #include "invariant/BucketListStateConsistency.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "invariant/Invariant.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -158,7 +159,12 @@ BucketListStateConsistency::checkSnapshot(
 
     // First check contract data entries.
     liveSnapshot->scanForEntriesOfType(CONTRACT_DATA, checkLiveEntry);
-    if (!errorMsg.empty())
+
+    // Note: All BucketList scans will exit early if isStopping() is true or if
+    // there is an error, so we need to call shouldAbortInvariantScan after each
+    // scan to make sure we don't continue checks based on bad state if we
+    // stopped early.
+    if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
     }
@@ -170,7 +176,7 @@ BucketListStateConsistency::checkSnapshot(
     seenDeadKeys.clear();
 
     liveSnapshot->scanForEntriesOfType(CONTRACT_CODE, checkLiveEntry);
-    if (!errorMsg.empty())
+    if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
     }
@@ -299,7 +305,7 @@ BucketListStateConsistency::checkSnapshot(
 
     seenDeadKeys.clear();
     liveSnapshot->scanForEntriesOfType(TTL, checkTTLEntry);
-    if (!errorMsg.empty())
+    if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
     }
@@ -371,7 +377,7 @@ BucketListStateConsistency::checkSnapshot(
         };
 
         hotArchiveSnapshot->scanAllEntries(checkHotArchiveEntry);
-        if (!errorMsg.empty())
+        if (shouldAbortInvariantScan(errorMsg, isStopping))
         {
             return errorMsg;
         }
