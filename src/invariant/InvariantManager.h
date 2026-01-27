@@ -66,10 +66,11 @@ class InvariantManager
     // The invariant will periodically run on a background thread against the
     // given ledger state snapshot. These invariants will only run if
     // INVARIANT_EXTRA_CHECKS is enabled.
-    virtual void
-    runStateSnapshotInvariant(CompleteConstLedgerStatePtr ledgerState,
-                              InMemorySorobanState const& inMemorySnapshot,
-                              std::function<bool()> isStopping) = 0;
+    virtual void runStateSnapshotInvariant(
+        SearchableSnapshotConstPtr liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+        InMemorySorobanState const& inMemorySnapshot,
+        std::function<bool()> isStopping) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 

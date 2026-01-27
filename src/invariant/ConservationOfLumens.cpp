@@ -314,7 +314,8 @@ scanHotArchiveBucket(HotArchiveBucketSnapshot const& bucket,
 
 std::string
 ConservationOfLumens::checkSnapshot(
-    CompleteConstLedgerStatePtr ledgerState,
+    SearchableSnapshotConstPtr liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -322,8 +323,6 @@ ConservationOfLumens::checkSnapshot(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::seconds(90));
 
-    auto liveSnapshot = ledgerState->getBucketSnapshot();
-    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
     auto const& header = liveSnapshot->getLedgerHeader();
 
     // This invariant can fail prior to v24 due to bugs

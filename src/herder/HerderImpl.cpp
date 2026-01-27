@@ -703,7 +703,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     // returns true if one of the values is valid
     auto checkCTHelper = [&](std::vector<Value> const& values) {
         return std::any_of(values.begin(), values.end(), [&](Value const& e) {
-            auto r = scpD.toStellarValue(e, sv);
+            auto r = toStellarValue(e, sv);
             // sv must be after cutoff
             r = r && sv.closeTime >= ctCutoff;
             if (r)
@@ -2080,7 +2080,7 @@ HerderImpl::persistSCPState(uint64 slot)
         latestEnvs.emplace_back(e);
 
         // saves transaction sets referred by the statement
-        for (auto const& h : getTxSetHashes(e))
+        for (auto const& h : getValidatedTxSetHashes(e))
         {
             auto txSet = mPendingEnvelopes.getTxSet(h);
             if (txSet && !mApp.getPersistentState().hasTxSet(h))
@@ -2202,8 +2202,7 @@ HerderImpl::persistUpgrades()
     ZoneScoped;
     releaseAssert(threadIsMain());
     auto s = mUpgrades.getParameters().toJson();
-    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s,
-                                       mApp.getDatabase().getSession());
+    mApp.getPersistentState().setMiscState(PersistentState::kLedgerUpgrades, s);
 }
 
 void
@@ -2211,8 +2210,9 @@ HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+
     std::string s = mApp.getPersistentState().getState(
-        PersistentState::kLedgerUpgrades, mApp.getDatabase().getSession());
+        PersistentState::kLedgerUpgrades, mApp.getDatabase().getMiscSession());
     if (!s.empty())
     {
         Upgrades::UpgradeParameters p;
@@ -2385,7 +2385,7 @@ HerderImpl::purgeOldPersistedTxSets()
                 xdr::xdr_from_opaque(buffer, scpState);
                 for (auto const& e : scpState.v1().scpEnvelopes)
                 {
-                    for (auto const& hash : getTxSetHashes(e))
+                    for (auto const& hash : getValidatedTxSetHashes(e))
                     {
                         hashesToDelete.erase(hash);
                     }

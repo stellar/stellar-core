@@ -307,16 +307,14 @@ TEST_CASE("Inflation changes are consistent",
     }
 }
 
-// This test ensures that the invariant is called in the right path,
-// while the next test corrups the bucket list and calls into the invariant
-// directly.
+// This test validates that the ConservationOfLumens invariant correctly detects
+// when totalCoins doesn't match the actual balance in buckets.
 TEST_CASE(
     "ConservationOfLumens snapshot invariant validates corrupted total lumens",
     "[invariant][conservationoflumens]")
 {
     auto cfg = getTestConfig();
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
-    cfg.INVARIANT_EXTRA_CHECKS = true;
 
     SorobanTest test(cfg);
 
@@ -340,11 +338,13 @@ TEST_CASE(
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     // Now, manually modify totalCoins to be inconsistent. The invariant should
-    // trigger.
+    // detect the mismatch.
     {
         {
             LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -359,10 +359,16 @@ TEST_CASE(
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
-        REQUIRE_THROWS_AS(
-            app.getInvariantManager().runStateSnapshotInvariant(
-                ledgerState, inMemoryState, []() { return false; }),
-            InvariantDoesNotHold);
+        Asset native(ASSET_TYPE_NATIVE);
+        auto lumenInfo = getAssetContractInfo(native, app.getNetworkID());
+        ConservationOfLumens invariant(lumenInfo);
+        auto result =
+            invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
+                                    ledgerState->getHotArchiveSnapshot(),
+                                    inMemoryState, []() { return false; });
+        REQUIRE_FALSE(result.empty());
+        REQUIRE(result.find("Total native asset supply mismatch") !=
+                std::string::npos);
     }
 }
 
@@ -422,7 +428,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     SECTION("Invariant fails when bucket balance doesn't match totalCoins")
@@ -450,17 +458,21 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         BucketTestUtils::closeLedger(*app);
 
-        app->getInvariantManager().enableInvariant("ConservationOfLumens");
-
         auto ledgerState =
             app->getLedgerManager().getLastClosedLedgerStateForTesting();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().runStateSnapshotInvariant(
-                ledgerState, inMemoryState, []() { return false; }),
-            InvariantDoesNotHold);
+        Asset native(ASSET_TYPE_NATIVE);
+        auto lumenInfo = getAssetContractInfo(native, app->getNetworkID());
+        ConservationOfLumens invariant(lumenInfo);
+        auto result =
+            invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
+                                    ledgerState->getHotArchiveSnapshot(),
+                                    inMemoryState, []() { return false; });
+        REQUIRE_FALSE(result.empty());
+        REQUIRE(result.find("Total native asset supply mismatch") !=
+                std::string::npos);
     }
 
     SECTION("Invariant handles shadowing correctly")
@@ -515,7 +527,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, inMemoryState, []() { return false; }));
+            ledgerState->getBucketSnapshot(),
+            ledgerState->getHotArchiveSnapshot(), inMemoryState,
+            []() { return false; }));
     }
 
     SECTION("Invariant detects corrupted native balance in hot archive")
@@ -573,7 +587,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
             REQUIRE_NOTHROW(
                 app->getInvariantManager().runStateSnapshotInvariant(
-                    ledgerState, inMemoryState, []() { return false; }));
+                    ledgerState->getBucketSnapshot(),
+                    ledgerState->getHotArchiveSnapshot(), inMemoryState,
+                    []() { return false; }));
         }
 
         // Corrupt the other live balance by adding 123 stroops to the balance
@@ -592,10 +608,16 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
             auto& inMemoryState =
                 app->getLedgerManager().getInMemorySorobanStateForTesting();
 
-            REQUIRE_THROWS_AS(
-                app->getInvariantManager().runStateSnapshotInvariant(
-                    ledgerState, inMemoryState, []() { return false; }),
-                InvariantDoesNotHold);
+            Asset native(ASSET_TYPE_NATIVE);
+            auto lumenInfo = getAssetContractInfo(native, app->getNetworkID());
+            ConservationOfLumens invariant(lumenInfo);
+            auto result =
+                invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
+                                        ledgerState->getHotArchiveSnapshot(),
+                                        inMemoryState, []() { return false; });
+            REQUIRE_FALSE(result.empty());
+            REQUIRE(result.find("Total native asset supply mismatch") !=
+                    std::string::npos);
         }
     }
 }

@@ -66,6 +66,7 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 - 64-bit system
 - `clang-format-20` (for `make format` to work)
 - `sed` and `perl`
+- `libgoogle-perftools-dev` (Linux only, for tcmalloc memory allocator)
 - Rust toolchain (see [Installing Rust](#installing-rust) subsection)
   - `cargo` >= 1.74
   - `rust` >= 1.74
@@ -117,7 +118,7 @@ sudo apt install gcc-14 g++-14
 ```zsh
 # common packages
 sudo apt-get update
-sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel sed perl
+sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libgoogle-perftools-dev parallel sed perl
 # if using clang
 sudo apt-get -y install clang-20 llvm-20
 # clang with libc++

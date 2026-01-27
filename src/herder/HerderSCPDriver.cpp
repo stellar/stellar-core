@@ -130,7 +130,7 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
                            "qset {} from envelope"),
                 hexAbbrev(qSetH)));
         }
-        auto txSets = getTxSetHashes(e);
+        auto txSets = getValidatedTxSetHashes(e);
         for (auto const& txSetH : txSets)
         {
             auto txSet = mHerder.getTxSet(txSetH);
@@ -676,14 +676,33 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     {
         candidateValues.emplace_back();
         StellarValue& sv = candidateValues.back();
+        Value const& val = c->getValue();
+        uint256 const valHash = sha256(val);
 
-        xdr::xdr_from_opaque(c->getValue(), sv);
-        candidatesHash ^= sha256(c->getValue());
+        if (!toStellarValue(val, sv))
+        {
+            throw std::runtime_error(fmt::format(
+                "HerderSCPDriver::combineCandidates: cannot parse candidate "
+                "value with hash {}",
+                binToHex(valHash)));
+        }
+
+        candidatesHash ^= valHash;
 
         for (auto const& upgrade : sv.upgrades)
         {
             LedgerUpgrade lupgrade;
-            xdr::xdr_from_opaque(upgrade, lupgrade);
+            try
+            {
+                xdr::xdr_from_opaque(upgrade, lupgrade);
+            }
+            catch (...)
+            {
+                throw std::runtime_error(
+                    fmt::format("HerderSCPDriver::combineCandidates: cannot "
+                                "parse upgrade in candidate with hash {}",
+                                binToHex(valHash)));
+            }
             auto it = upgrades.find(lupgrade.type());
             if (it == upgrades.end())
             {
@@ -794,20 +813,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
     auto res = wrapStellarValue(comp);
     return res;
-}
-
-bool
-HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
-{
-    try
-    {
-        xdr::xdr_from_opaque(v, sv);
-    }
-    catch (...)
-    {
-        return false;
-    }
-    return true;
 }
 
 bool
@@ -939,7 +944,7 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 
     std::unordered_set<Hash> referencedValues;
     auto collectReferencedHashes = [&](SCPEnvelope const& envelope) {
-        for (auto const& hash : getTxSetHashes(envelope))
+        for (auto const& hash : getValidatedTxSetHashes(envelope))
         {
             referencedValues.insert(hash);
         }
@@ -1326,7 +1331,7 @@ ValueWrapperPtr
 HerderSCPDriver::wrapValue(Value const& val)
 {
     StellarValue sv;
-    auto b = mHerder.getHerderSCPDriver().toStellarValue(val, sv);
+    auto b = toStellarValue(val, sv);
     if (!b)
     {
         throw std::runtime_error(

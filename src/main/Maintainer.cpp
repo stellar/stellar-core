@@ -99,7 +99,7 @@ Maintainer::performMaintenance(uint32_t count)
     CLOG_INFO(History, "Trimming history <= ledger {}", lmin);
 
     // Cleanup SCP history, always from main
-    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawSession(),
+    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawMiscSession(),
                                         lmin, count);
 
     if (mApp.getConfig().parallelLedgerClose())

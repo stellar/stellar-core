@@ -341,6 +341,31 @@ if test x"$enable_postgres" != xno; then
 fi
 AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 
+# tcmalloc_minimal - enabled by default on Linux for improved memory allocation performance
+# Disabled when using sanitizers (asan, memcheck, tsan) as they replace malloc
+unset have_tcmalloc
+if test "x$enable_asan" = "xyes" -o "x$enable_memcheck" = "xyes" -o "x$enable_threadsanitizer" = "xyes"; then
+    AC_MSG_NOTICE([tcmalloc disabled due to sanitizer being enabled])
+else
+    case "${host_os}" in
+        linux*)
+            PKG_CHECK_MODULES(libtcmalloc, [libtcmalloc_minimal >= 2.0], [
+                have_tcmalloc=1
+                AC_DEFINE([USE_TCMALLOC], [1], [Define to 1 if using tcmalloc])
+                AC_MSG_NOTICE([tcmalloc_minimal found and will be used])
+            ], [
+                AC_MSG_ERROR([tcmalloc_minimal not found. Install libgoogle-perftools-dev])
+            ])
+            ;;
+        *)
+            AC_MSG_NOTICE([tcmalloc is only used on Linux, skipping])
+            ;;
+    esac
+fi
+AM_CONDITIONAL(USE_TCMALLOC, [test -n "$have_tcmalloc"])
+AC_SUBST(libtcmalloc_CFLAGS)
+AC_SUBST(libtcmalloc_LIBS)
+
 AC_ARG_ENABLE(tests,
     AS_HELP_STRING([--disable-tests],
         [Disable building test suite]))

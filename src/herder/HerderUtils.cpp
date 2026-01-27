@@ -16,10 +16,29 @@
 namespace stellar
 {
 
-std::vector<Hash>
+bool
+toStellarValue(Value const& v, StellarValue& sv)
+{
+    try
+    {
+        xdr::xdr_from_opaque(v, sv);
+    }
+    catch (...)
+    {
+        return false;
+    }
+    return true;
+}
+
+std::optional<std::vector<Hash>>
 getTxSetHashes(SCPEnvelope const& envelope)
 {
-    auto values = getStellarValues(envelope.statement);
+    auto maybeValues = getStellarValues(envelope.statement);
+    if (!maybeValues.has_value())
+    {
+        return std::nullopt;
+    }
+    auto const& values = maybeValues.value();
     auto result = std::vector<Hash>{};
     result.resize(values.size());
 
@@ -29,20 +48,36 @@ getTxSetHashes(SCPEnvelope const& envelope)
     return result;
 }
 
-std::vector<StellarValue>
+std::vector<Hash>
+getValidatedTxSetHashes(SCPEnvelope const& envelope)
+{
+    auto const maybeHashes = getTxSetHashes(envelope);
+    if (!maybeHashes.has_value())
+    {
+        SCPStatement const& st = envelope.statement;
+        throw std::runtime_error(
+            fmt::format("SCPEnvelope from node {} for slot {} contains invalid "
+                        "StellarValues",
+                        KeyUtils::toStrKey(st.nodeID), st.slotIndex));
+    }
+    return maybeHashes.value();
+}
+
+std::optional<std::vector<StellarValue>>
 getStellarValues(SCPStatement const& statement)
 {
     auto values = Slot::getStatementValues(statement);
     auto result = std::vector<StellarValue>{};
-    result.resize(values.size());
 
-    std::transform(std::begin(values), std::end(values), std::begin(result),
-                   [](Value const& v) {
-                       auto wb = StellarValue{};
-                       xdr::xdr_from_opaque(v, wb);
-                       return wb;
-                   });
-
+    for (auto const& v : values)
+    {
+        StellarValue sv{};
+        if (!toStellarValue(v, sv))
+        {
+            return std::nullopt;
+        }
+        result.push_back(sv);
+    }
     return result;
 }
 

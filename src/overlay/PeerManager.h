@@ -18,6 +18,7 @@ namespace stellar
 {
 
 class Database;
+class SessionWrapper;
 class RandomPeerSource;
 
 enum class PeerType
@@ -76,7 +77,7 @@ class PeerManager
         INCREASE
     };
 
-    static void dropAll(Database& db);
+    static void maybeDropAndCreateNew(SessionWrapper& sess);
 
     explicit PeerManager(Application& app);
 

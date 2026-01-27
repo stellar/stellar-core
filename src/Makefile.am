@@ -74,7 +74,8 @@ endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
-	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
+	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS) \
+	$(libtcmalloc_LIBS)
 
 TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg \
@@ -187,7 +188,7 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
 ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25
-WIP_SOROBAN_PROTOCOL=
+WIP_SOROBAN_PROTOCOL=p26
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)

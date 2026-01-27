@@ -161,8 +161,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 35;
-    OVERLAY_PROTOCOL_VERSION = 38;
+    OVERLAY_PROTOCOL_MIN_VERSION = 38;
+    OVERLAY_PROTOCOL_VERSION = 39;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -172,7 +172,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    EXPERIMENTAL_PARALLEL_LEDGER_APPLY = false;
+    PARALLEL_LEDGER_APPLY = true;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
@@ -315,7 +315,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
         100 * 1024 * 1024; // 100 MiB
 
-    DATABASE = SecretValue{"sqlite3://:memory:"};
+    DATABASE = SecretValue{"sqlite3://stellar.db"};
 
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
@@ -1115,8 +1115,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
                 {"EXPERIMENTAL_PARALLEL_LEDGER_APPLY",
                  [&]() {
-                     EXPERIMENTAL_PARALLEL_LEDGER_APPLY = readBool(item);
+                     CLOG_WARNING(Ledger,
+                                  "EXPERIMENTAL_PARALLEL_LEDGER_APPLY has been "
+                                  "renamed. This config will cause an error in "
+                                  "the future. Remove it and "
+                                  "configure PARALLEL_LEDGER_APPLY instead.");
                  }},
+                {"PARALLEL_LEDGER_APPLY",
+                 [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
@@ -1958,14 +1964,21 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
-        if (EXPERIMENTAL_PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
+        if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
-            std::string msg =
-                "Invalid configuration: EXPERIMENTAL_PARALLEL_LEDGER_APPLY "
-                "does not support SQLite or RUN_STANDALONE mode. Either switch "
-                "to Postgres or set "
-                "EXPERIMENTAL_PARALLEL_LEDGER_APPLY=false";
-            throw std::runtime_error(msg);
+            if (RUN_STANDALONE)
+            {
+                LOG_WARNING(DEFAULT_LOG, "RUN_STANDALONE is enabled, disabling "
+                                         "PARALLEL_LEDGER_APPLY");
+                PARALLEL_LEDGER_APPLY = false;
+            }
+            else
+            {
+                std::string msg =
+                    "Invalid configuration: PARALLEL_LEDGER_APPLY "
+                    "does not support in-memory database modes.";
+                throw std::runtime_error(msg);
+            }
         }
 
         if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
@@ -2254,9 +2267,9 @@ Config::logBasicInfo() const
              "{}",
              BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
     LOG_INFO(DEFAULT_LOG,
-             "EXPERIMENTAL_PARALLEL_LEDGER_APPLY="
+             "PARALLEL_LEDGER_APPLY="
              "{}",
-             EXPERIMENTAL_PARALLEL_LEDGER_APPLY ? "true" : "false");
+             PARALLEL_LEDGER_APPLY ? "true" : "false");
 }
 
 void
@@ -2535,9 +2548,8 @@ bool
 Config::parallelLedgerClose() const
 {
     // Standalone mode expects synchronous ledger application
-    return EXPERIMENTAL_PARALLEL_LEDGER_APPLY &&
-           DATABASE.value.find("sqlite3://") == std::string::npos &&
-           !RUN_STANDALONE;
+    return PARALLEL_LEDGER_APPLY && !RUN_STANDALONE &&
+           DATABASE.value != "sqlite3://:memory:";
 }
 
 void

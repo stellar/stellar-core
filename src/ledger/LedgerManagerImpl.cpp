@@ -22,6 +22,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
+#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -766,18 +767,23 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
 
     // Verify consistency of all snapshot state.
     auto ledgerSeq = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
-    auto liveBLSnapshot = ledgerState->getBucketSnapshot();
-    auto hotArchiveSnapshot = ledgerState->getHotArchiveSnapshot();
-    releaseAssertOrThrow(liveBLSnapshot->getLedgerSeq() == ledgerSeq);
-    releaseAssertOrThrow(hotArchiveSnapshot->getLedgerSeq() == ledgerSeq);
     inMemorySnapshotForInvariant->assertLastClosedLedger(ledgerSeq);
+
+    // Copy snapshots to avoid sharing with apply/main thread (thread-safety).
+    auto liveSnapshotCopy =
+        mApp.getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto hotArchiveSnapshotCopy =
+        mApp.getAppConnector().copySearchableHotArchiveBucketListSnapshot();
+    releaseAssertOrThrow(liveSnapshotCopy->getLedgerSeq() == ledgerSeq);
+    releaseAssertOrThrow(hotArchiveSnapshotCopy->getLedgerSeq() == ledgerSeq);
 
     // Note: No race condition acquiring app by reference, as all worker
     // threads are joined before application destruction.
-    auto cb = [ledgerState = ledgerState, &app = mApp,
+    auto cb = [liveSnapshot = liveSnapshotCopy,
+               hotArchiveSnapshot = hotArchiveSnapshotCopy, &app = mApp,
                inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState, *inMemorySnapshotForInvariant,
+            liveSnapshot, hotArchiveSnapshot, *inMemorySnapshotForInvariant,
             [&app]() { return app.isStopping(); });
     };
 
@@ -1384,9 +1390,6 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
         return;
     }
 #endif
-
-    mApp.getDatabase().clearPreparedStatementCache(
-        mApp.getDatabase().getSession(), false);
 
     // Perform LCL->appliedLedgerState transition on the _main_ thread, and kick
     // off publishing, cleanup bucket files, notify herder to trigger next
@@ -2281,7 +2284,7 @@ LedgerManagerImpl::applyThread(
 
         if (res.getSuccess())
         {
-            threadState->commitChangesFromSuccessfulOp(res, txBundle);
+            threadState->commitChangesFromSuccessfulTx(res, txBundle);
         }
         else
         {
@@ -2316,11 +2319,13 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
     auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
 
+    DeactivateScopeGuard globalStateDeactivateGuard(globalState);
+
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
         auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster);
+            app, globalState, cluster, i);
         threadFutures.emplace_back(std::async(
             std::launch::async, &LedgerManagerImpl::applyThread, this,
             std::ref(app), std::move(threadStatePtr), std::cref(cluster),
@@ -2778,8 +2783,8 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     Hash hash = xdrSha256(header);
     releaseAssert(!isZero(hash));
     auto& sess = mApp.getLedgerTxnRoot().getSession();
-    mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
-                                       binToHex(hash), sess);
+    mApp.getPersistentState().setMainState(PersistentState::kLastClosedLedger,
+                                           binToHex(hash), sess);
 
     if (mApp.getConfig().ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING.count() >
         0)
@@ -2807,8 +2812,8 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
                                   mApp.getConfig().NETWORK_PASSPHRASE);
     }
 
-    mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
-                                       has.toString(), sess);
+    mApp.getPersistentState().setMainState(
+        PersistentState::kHistoryArchiveState, has.toString(), sess);
     LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
     if (appendToCheckpoint)
     {

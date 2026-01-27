@@ -5,25 +5,25 @@
     },
     {
       "contract_compute_v0": {
-        "ledger_max_instructions": "100000000",
-        "tx_max_instructions": "100000000",
-        "fee_rate_per_instructions_increment": "25",
+        "ledger_max_instructions": "580000000",
+        "tx_max_instructions": "400000000",
+        "fee_rate_per_instructions_increment": "7",
         "tx_memory_limit": 41943040
       }
     },
     {
       "contract_ledger_cost_v0": {
-        "ledger_max_disk_read_entries": 500,
-        "ledger_max_disk_read_bytes": 3500000,
-        "ledger_max_write_ledger_entries": 250,
-        "ledger_max_write_bytes": 143360,
-        "tx_max_disk_read_entries": 100,
+        "ledger_max_disk_read_entries": 1000,
+        "ledger_max_disk_read_bytes": 400000,
+        "ledger_max_write_ledger_entries": 1000,
+        "ledger_max_write_bytes": 286720,
+        "tx_max_disk_read_entries": 200,
         "tx_max_disk_read_bytes": 200000,
-        "tx_max_write_ledger_entries": 50,
+        "tx_max_write_ledger_entries": 200,
         "tx_max_write_bytes": 132096,
-        "fee_disk_read_ledger_entry": "6250",
-        "fee_write_ledger_entry": "10000",
-        "fee_disk_read1_kb": "1786",
+        "fee_disk_read_ledger_entry": "1563",
+        "fee_write_ledger_entry": "2500",
+        "fee_disk_read1_kb": "447",
         "soroban_state_target_size_bytes": "3000000000",
         "rent_fee1_kb_soroban_state_size_low": "-17000",
         "rent_fee1_kb_soroban_state_size_high": "10000",
@@ -32,20 +32,20 @@
     },
     {
       "contract_historical_data_v0": {
-        "fee_historical1_kb": "16235"
+        "fee_historical1_kb": "4059"
       }
     },
     {
       "contract_events_v0": {
         "tx_max_contract_events_size_bytes": 16384,
-        "fee_contract_events1_kb": "10000"
+        "fee_contract_events1_kb": "5000"
       }
     },
     {
       "contract_bandwidth_v0": {
-        "ledger_max_txs_size_bytes": 133120,
+        "ledger_max_txs_size_bytes": 266240,
         "tx_max_size_bytes": 132096,
-        "fee_tx_size1_kb": "1624"
+        "fee_tx_size1_kb": "406"
       }
     },
     {
@@ -778,7 +778,7 @@
     },
     {
       "contract_execution_lanes": {
-        "ledger_max_tx_count": 100
+        "ledger_max_tx_count": 2000
       }
     },
     {
@@ -788,8 +788,8 @@
     },
     {
       "contract_ledger_cost_ext_v0": {
-        "tx_max_footprint_entries": 100,
-        "fee_write1_kb": "3500"
+        "tx_max_footprint_entries": 200,
+        "fee_write1_kb": "875"
       }
     },
     {

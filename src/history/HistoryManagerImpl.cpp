@@ -49,20 +49,6 @@ namespace stellar
 
 using namespace std;
 
-static std::string kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS publishqueue ("
-    "ledger   INTEGER PRIMARY KEY,"
-    "state    TEXT"
-    "); ";
-
-void
-HistoryManager::dropAll(Database& db)
-{
-    db.getRawSession() << "DROP TABLE IF EXISTS publishqueue;";
-    soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
-    st.execute(true);
-}
-
 std::filesystem::path
 HistoryManager::publishQueuePath(Config const& cfg)
 {
@@ -313,6 +299,14 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
     {
         CLOG_DEBUG(History,
                    "Skipping checkpoint, no writable history archives");
+        return false;
+    }
+
+    if (mCheckpointBuilder.skipIncompleteFirstCheckpointSinceRestart())
+    {
+        CLOG_INFO(
+            History,
+            "Skipping incomplete checkpoint, publish was previously disabled");
         return false;
     }
 
