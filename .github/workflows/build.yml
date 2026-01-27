@@ -17,7 +17,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [static-checks, build-linux, build-mac]
+    needs: [static-checks, build-linux, build-mac, build-without-tests]
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
     steps:
@@ -278,3 +278,92 @@ jobs:
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
           echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"
+
+  build-without-tests:
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-gcc-no-tests-${{ matrix.protocol }}
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: ["current", "next"]
+    steps:
+      - name: Fix kernel mmap rnd bits
+        # Asan in llvm provided in some ubuntu versions is incompatible with
+        # high-entropy ASLR in much newer kernels that GitHub runners are
+        # using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Checkout with Namespace Git mirrors cache
+        uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cargo
+            build-gcc-no-tests-${{ matrix.protocol }}
+
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-gcc-no-tests-${{ matrix.protocol }}/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: ./install-rust.sh
+
+      - name: Install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: rustup component add rustfmt
+
+      - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        with:
+          name: cargo-cache
+          version: 0.8.3
+
+      - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        with:
+          name: cargo-sweep
+          version: 0.7.0
+
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          #
+          # Note: git-restore-mtime needs to be baked into the image we're
+          # running on.
+          git restore-mtime
+
+      - name: Build
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          export CC='gcc'
+          export CXX='g++'
+          echo Building with $CC and $CXX with --disable-tests
+          ./ci-build.sh --disable-tests --protocol ${{ matrix.protocol }}
+
+      - name: Record successful test commit
+        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+        run: |
+          echo "${{ github.sha }}" > "build-gcc-no-tests-${{ matrix.protocol }}/.last-tested-commit-sha"
