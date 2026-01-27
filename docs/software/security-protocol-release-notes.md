@@ -53,6 +53,15 @@ It then follows that:
 
 # List of releases
 
+## v25.0.0 (2026-01-22)
+* `Ledger` - protocol - CAP0074 - Host functions for BN254
+* `Ledger` - protocol - CAP0075 - Cryptographic Primitives for Poseidon/Poseidon2 Hash Functions
+* `Ledger` - protocol - Fee bump Soroban transactions with memo and using Soroban auth credentials are banned
+* `Ledger` - security - Soroban transactions with re-entrant __check_auth calls do not observe the changes that the parent call made to the instance storage.
+    * exploited: no
+        * No evidence of on-chain contracts being affected.
+    * mitigation: code fix
+
 ## v24.0.0 (2025-10-20)
 * `Ledger` - security - Due to a bug in Protocol 23, 478 incorrect ledger entries were moved from live to hot archive bucket list. 396 of those entries could be repaired. The remaining 84 entries, that had been subsequently restored, remained corrupted. See [CAP-76](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0076.md) for more information. 
     * exploited: unknown
@@ -95,6 +104,9 @@ It then follows that:
 * `Overlay` - security - remote crash could be triggered due to race condition in error code processing from a third party library.
     * exploited: no
     * mitigation: code fix
+
+## v20.0.0 (2024-02-20)
+* `Ledger` - protocol - CAP0046 - Soroban Runtime Environment
 
 ## v19.14.0 (2023-09-19)
 
