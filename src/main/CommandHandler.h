@@ -76,8 +76,14 @@ class CommandHandler
     void surveyTopologyTimeSliced(std::string const& params,
                                   std::string& retStr);
 
-    // Checks if stellar-core is booted and throws an exception if not.
-    void checkBooted() const;
+    // Checks if the Herder is booted and throws an exception if not.
+    void checkHerderBooted() const;
+
+    // Checks if the last closed ledger state is loaded and throws an exception
+    // if not. This is stricter than checkHerderBooted() and should be used for
+    // endpoints that depend on LCL state (bucketlist snapshots, ledger header,
+    // etc.).
+    void checkLedgerStateLoaded() const;
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);

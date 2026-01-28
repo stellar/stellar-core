@@ -66,6 +66,13 @@ AppConnector::isStopping() const
     return mApp.isStopping();
 }
 
+bool
+AppConnector::isLedgerStateLoaded() const
+{
+    return mApp.getLedgerManager().getState() !=
+           LedgerManager::LM_BOOTING_STATE;
+}
+
 SorobanMetrics&
 AppConnector::getSorobanMetrics() const
 {
@@ -191,6 +198,24 @@ AppConnector::maybeCopySearchableBucketListSnapshot(
     mApp.getBucketManager()
         .getBucketSnapshotManager()
         .maybeCopySearchableBucketListSnapshot(snapshot);
+}
+
+void
+AppConnector::maybeCopyLiveAndHotArchiveSnapshots(
+    SearchableSnapshotConstPtr& liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
+{
+    mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .maybeCopyLiveAndHotArchiveSnapshots(liveSnapshot, hotArchiveSnapshot);
+}
+
+std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+AppConnector::copySearchableBucketListSnapshots()
+{
+    return mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .copySearchableBucketListSnapshots();
 }
 
 SearchableSnapshotConstPtr&

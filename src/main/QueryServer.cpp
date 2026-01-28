@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/QueryServer.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
@@ -59,14 +59,14 @@ namespace stellar
 {
 QueryServer::QueryServer(std::string const& address, unsigned short port,
                          int maxClient, size_t threadPoolSize,
-                         BucketSnapshotManager& bucketSnapshotManager
+                         AppConnector& appConnector
 #ifdef BUILD_TESTS
                          ,
                          bool useMainThreadForTesting
 #endif
                          )
     : mServer(address, port, maxClient, threadPoolSize)
-    , mBucketSnapshotManager(bucketSnapshotManager)
+    , mAppConnector(appConnector)
 {
     LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for Query requests", address,
              port);
@@ -78,10 +78,11 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
 #ifdef BUILD_TESTS
     if (useMainThreadForTesting)
     {
-        mBucketListSnapshots[std::this_thread::get_id()] =
-            bucketSnapshotManager.copySearchableLiveBucketListSnapshot();
+        auto [live, hotArchive] =
+            mAppConnector.copySearchableBucketListSnapshots();
+        mBucketListSnapshots[std::this_thread::get_id()] = std::move(live);
         mHotArchiveBucketListSnapshots[std::this_thread::get_id()] =
-            bucketSnapshotManager.copySearchableHotArchiveBucketListSnapshot();
+            std::move(hotArchive);
     }
     else
 #endif
@@ -89,11 +90,10 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
         auto workerPids = mServer.start();
         for (auto pid : workerPids)
         {
-            mBucketListSnapshots[pid] =
-                bucketSnapshotManager.copySearchableLiveBucketListSnapshot();
-            mHotArchiveBucketListSnapshots[pid] =
-                bucketSnapshotManager
-                    .copySearchableHotArchiveBucketListSnapshot();
+            auto [live, hotArchive] =
+                mAppConnector.copySearchableBucketListSnapshots();
+            mBucketListSnapshots[pid] = std::move(live);
+            mHotArchiveBucketListSnapshots[pid] = std::move(hotArchive);
         }
     }
 }
@@ -155,6 +155,16 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
                                std::string const& body, std::string& retStr)
 {
     ZoneScoped;
+
+    if (!mAppConnector.isLedgerStateLoaded())
+    {
+        retStr = "Ledger state not yet loaded, try again later\n";
+        return false;
+    }
+
+    auto& snapshotPtr = mBucketListSnapshots.at(std::this_thread::get_id());
+    mAppConnector.maybeCopySearchableBucketListSnapshot(snapshotPtr);
+
     Json::Value root;
 
     std::map<std::string, std::vector<std::string>> paramMap;
@@ -165,10 +175,6 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
     if (!keys.empty())
     {
-        auto& snapshotPtr = mBucketListSnapshots.at(std::this_thread::get_id());
-        mBucketSnapshotManager.maybeCopySearchableBucketListSnapshot(
-            snapshotPtr);
-
         auto& bl = *snapshotPtr;
 
         LedgerKeySet orderedKeys;
@@ -235,6 +241,19 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
                             std::string& retStr)
 {
     ZoneScoped;
+
+    if (!mAppConnector.isLedgerStateLoaded())
+    {
+        retStr = "Ledger state not yet loaded, try again later\n";
+        return false;
+    }
+
+    auto& liveBl = mBucketListSnapshots.at(std::this_thread::get_id());
+    auto& hotArchiveBl =
+        mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
+
+    mAppConnector.maybeCopyLiveAndHotArchiveSnapshots(liveBl, hotArchiveBl);
+
     Json::Value root;
 
     std::map<std::string, std::vector<std::string>> paramMap;
@@ -249,10 +268,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
                  "XDR format>\n";
         return false;
     }
-
-    auto& liveBl = mBucketListSnapshots.at(std::this_thread::get_id());
-    auto& hotArchiveBl =
-        mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
 
     LedgerKeySet keysToSearch;
 
@@ -278,9 +293,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
 
         inputOrderedKeys.push_back(k);
     }
-
-    mBucketSnapshotManager.maybeCopyLiveAndHotArchiveSnapshots(liveBl,
-                                                               hotArchiveBl);
 
     std::vector<LedgerEntry> liveEntries;
     std::vector<HotArchiveBucketEntry> archivedEntries;
