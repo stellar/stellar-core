@@ -53,11 +53,16 @@ class ApplyBucketsWork : public Work
     void startBucket();
     void prepareForNextBucket();
 
+    bool const mWaitForLedgerManager;
+    VirtualTimer mLedgerManagerReadyTimer;
+    void waitForLedgerManager();
+
   public:
     ApplyBucketsWork(
         Application& app,
         std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
-        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+        bool waitForLedgerManager = true);
     ~ApplyBucketsWork() = default;
 
     std::string getStatus() const override;

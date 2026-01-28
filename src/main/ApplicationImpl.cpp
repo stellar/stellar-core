@@ -100,9 +100,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)
-    , mLedgerCloseIOContext(mConfig.parallelLedgerClose()
-                                ? std::make_unique<asio::io_context>(1)
-                                : nullptr)
+    , mLedgerCloseIOContext(std::make_unique<asio::io_context>(1))
     , mLedgerCloseWork(
           mLedgerCloseIOContext
               ? std::make_unique<asio::io_context::work>(*mLedgerCloseIOContext)
@@ -199,12 +197,9 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mThreadTypes[mOverlayThread->get_id()] = ThreadType::OVERLAY;
     }
 
-    if (mConfig.parallelLedgerClose())
-    {
-        mLedgerCloseThread = std::make_unique<std::thread>(
-            [this]() { mLedgerCloseIOContext->run(); });
-        mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
-    }
+    mLedgerCloseThread = std::make_unique<std::thread>(
+        [this]() { mLedgerCloseIOContext->run(); });
+    mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
 }
 
 static void
@@ -757,44 +752,7 @@ ApplicationImpl::validateAndLogConfig()
 }
 
 void
-ApplicationImpl::startServices()
-{
-    mInvariantManager->start(*mLedgerManager);
-
-    // restores Herder's state before starting overlay
-    mHerder->start();
-    mMaintainer->start();
-    if (mConfig.MODE_AUTO_STARTS_OVERLAY)
-    {
-        mOverlayManager->start();
-    }
-    auto npub = mHistoryManager->publishQueuedHistory();
-    if (npub != 0)
-    {
-        CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
-    }
-    if (mConfig.FORCE_SCP)
-    {
-        LOG_INFO(DEFAULT_LOG, "* ");
-        LOG_INFO(DEFAULT_LOG,
-                 "* Force-starting scp from the current db state.");
-        LOG_INFO(DEFAULT_LOG, "* ");
-
-        mHerder->bootstrap();
-    }
-    if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
-    {
-        scheduleSelfCheck(true);
-    }
-
-    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
-    {
-        mHerder->setUpgrades(mConfig);
-    }
-}
-
-void
-ApplicationImpl::start()
+ApplicationImpl::start(bool asyncPopulateInMemoryState)
 {
     if (mStarted)
     {
@@ -805,7 +763,40 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    mLedgerManager->loadLastKnownLedger();
+    auto load = [this] {
+        auto npub = mHistoryManager->publishQueuedHistory();
+        if (npub != 0)
+        {
+            CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
+        }
+        if (mConfig.FORCE_SCP)
+        {
+            LOG_INFO(DEFAULT_LOG, "* ");
+            LOG_INFO(DEFAULT_LOG,
+                     "* Force-starting scp from the current db state.");
+            LOG_INFO(DEFAULT_LOG, "* ");
+
+            mHerder->bootstrap();
+        }
+        if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
+        {
+            scheduleSelfCheck(true);
+        }
+
+        if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+        {
+            mHerder->setUpgrades(mConfig);
+        }
+    };
+
+    if (asyncPopulateInMemoryState)
+    {
+        mLedgerManager->loadLastKnownLedger(load, true);
+    }
+    else
+    {
+        mLedgerManager->loadLastKnownLedger(std::nullopt, false);
+    }
 
     // Check if we're already on protocol V_24 or later and enable Rust Dalek
     auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
@@ -815,7 +806,20 @@ ApplicationImpl::start()
         PubKeyUtils::enableRustDalekVerify();
     }
 
-    startServices();
+    mInvariantManager->start(*mLedgerManager);
+
+    // restores Herder's state before starting overlay
+    mHerder->start();
+    mMaintainer->start();
+    if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+    {
+        mOverlayManager->start();
+    }
+
+    if (!asyncPopulateInMemoryState)
+    {
+        load();
+    }
 }
 
 void
@@ -1226,6 +1230,7 @@ ApplicationImpl::getState() const
         switch (mLedgerManager->getState())
         {
         case LedgerManager::LM_BOOTING_STATE:
+        case LedgerManager::LM_BOOTED_STATE:
             s = APP_CONNECTED_STANDBY_STATE;
             break;
         case LedgerManager::LM_CATCHING_UP_STATE:

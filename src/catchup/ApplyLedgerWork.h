@@ -13,6 +13,8 @@ namespace stellar
 class ApplyLedgerWork : public BasicWork
 {
     LedgerCloseData const mLedgerCloseData;
+    VirtualTimer mLedgerManagerReadyTimer;
+    void waitForLedgerManager();
 
   public:
     ApplyLedgerWork(Application& app, LedgerCloseData const& ledgerCloseData);

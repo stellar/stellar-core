@@ -53,7 +53,8 @@ class LedgerApplyManager
     enum class ProcessLedgerResult
     {
         PROCESSED_ALL_LEDGERS_SEQUENTIALLY,
-        WAIT_TO_APPLY_BUFFERED_OR_CATCHUP
+        WAIT_TO_APPLY_BUFFERED_OR_CATCHUP,
+        WAIT_FOR_STATE_REBUILD
     };
     static std::unique_ptr<LedgerApplyManager> create(Application& app);
 

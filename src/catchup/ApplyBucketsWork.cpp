@@ -54,7 +54,8 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
-    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+    bool waitForLedgerManager)
     : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -64,6 +65,8 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mCounters(app.getClock().now())
     , mIsApplyInvariantEnabled(
           app.getInvariantManager().isBucketApplyInvariantEnabled())
+    , mWaitForLedgerManager{waitForLedgerManager}
+    , mLedgerManagerReadyTimer(app)
 {
 }
 
@@ -179,6 +182,25 @@ ApplyBucketsWork::prepareForNextBucket()
     }
 }
 
+void
+ApplyBucketsWork::waitForLedgerManager()
+{
+    mLedgerManagerReadyTimer.expires_from_now(std::chrono::seconds{1});
+    mLedgerManagerReadyTimer.async_wait(
+        [this] {
+            if (mApp.getLedgerManager().getState() ==
+                LedgerManager::LM_BOOTING_STATE)
+            {
+                waitForLedgerManager();
+            }
+            else
+            {
+                wakeUp();
+            }
+        },
+        &VirtualTimer::onFailureNoop);
+}
+
 // We iterate through the live BucketList either in-order (level 0 curr, level 0
 // snap, level 1 curr, etc). We keep track of the keys we have already
 // seen, and only apply an entry to the DB if it has not been seen before. This
@@ -216,6 +238,12 @@ ApplyBucketsWork::doWork()
 
     if (!mAssumeStateWork)
     {
+        if (mWaitForLedgerManager && mApp.getLedgerManager().getState() ==
+                                         LedgerManager::LM_BOOTING_STATE)
+        {
+            waitForLedgerManager();
+            return BasicWork::State::WORK_WAITING;
+        }
         // Step 2: apply buckets.
         auto isCurr = mBucketToApplyIndex % 2 == 0;
         if (mBucketApplicator)
