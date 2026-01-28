@@ -263,4 +263,14 @@ SearchableHotArchiveBucketListSnapshot::loadKeys(
     releaseAssertOrThrow(op);
     return std::move(*op);
 }
+
+void
+SearchableHotArchiveBucketListSnapshot::scanAllEntries(
+    std::function<Loop(HotArchiveBucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    releaseAssert(mSnapshot);
+    auto f = [&callback](auto const& b) { return b.scanEntries(callback); };
+    loopAllBuckets(f, *mSnapshot);
+}
 }

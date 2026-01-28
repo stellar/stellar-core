@@ -7,6 +7,7 @@
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -83,12 +84,19 @@ InMemoryIndex::InMemoryIndex(BucketManager& bm,
     // 4 bytes of size info between BucketEntries on disk
     constexpr std::streamoff xdrOverheadBetweenEntries = 4;
 
-    // 4 bytes of BucketEntry overhead for METAENTRY
-    constexpr std::streamoff xdrOverheadForMetaEntry = 4;
-
-    std::streamoff lastOffset = xdr::xdr_size(metadata) +
-                                xdrOverheadForMetaEntry +
-                                xdrOverheadBetweenEntries;
+    // Calculate the starting offset for the first entry. Note for older
+    // protocols, there is no METAENTRY and the first entry starts at offset 0.
+    std::streamoff lastOffset = 0;
+    if (protocolVersionStartsFrom(
+            metadata.ledgerVersion,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+    {
+        // METAENTRY on disk is: 4 bytes size prefix + 4 bytes BucketEntry
+        // discriminant + metadata content
+        constexpr std::streamoff xdrOverheadForMetaEntry = 4;
+        lastOffset = xdr::xdr_size(metadata) + xdrOverheadForMetaEntry +
+                     xdrOverheadBetweenEntries;
+    }
 
     std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
     std::map<LedgerEntryType, std::streamoff> typeEndOffsets;

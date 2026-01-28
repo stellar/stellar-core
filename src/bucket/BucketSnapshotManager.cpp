@@ -97,6 +97,19 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 
 SearchableHotArchiveSnapshotConstPtr
 BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+    SearchableHotArchiveSnapshotConstPtr const& snapshot)
+{
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
+        new SearchableHotArchiveBucketListSnapshot(
+            snapshot->mAppConnector,
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                snapshot->getSnapshot()),
+            copyHistoricalSnapshots(snapshot->getHistoricalSnapshots())));
+}
+
+SearchableHotArchiveSnapshotConstPtr
+BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     SharedLockShared const& guard) const
 {
     releaseAssert(mCurrHotArchiveSnapshot);

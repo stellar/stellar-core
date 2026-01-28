@@ -60,8 +60,15 @@ class SearchableHotArchiveBucketListSnapshot
     std::vector<HotArchiveBucketEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
+    void scanAllEntries(
+        std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
+
     friend SearchableHotArchiveSnapshotConstPtr
     BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
         SharedLockShared const& guard) const;
+
+    friend SearchableHotArchiveSnapshotConstPtr
+    BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveSnapshotConstPtr const& snapshot);
 };
 }

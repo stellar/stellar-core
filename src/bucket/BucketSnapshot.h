@@ -64,6 +64,12 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
     // entry is added to result and the key is removed from keys.
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                   std::vector<typename BucketT::LoadT>& result) const;
+
+    // Scans all entries in the bucket, calling the callback for each entry.
+    // Returns Loop::COMPLETE if the callback returned Loop::COMPLETE,
+    // otherwise Loop::INCOMPLETE.
+    Loop scanEntries(
+        std::function<Loop(typename BucketT::EntryT const&)> callback) const;
 };
 
 class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>

@@ -393,8 +393,9 @@ class LedgerManagerImpl : public LedgerManager
     // Copies in-memory Soroban state for snapshot invariant if required for
     // this ledger, or returns nullptr otherwise. Should be called in
     // READY_TO_APPLY phase when InMemorySorobanState is read only.
+    // Also clears the snapshot trigger flag to prevent race conditions.
     std::shared_ptr<InMemorySorobanState const>
-    maybeCopySorobanStateForInvariant() const;
+    maybeCopySorobanStateForInvariant();
 
     // Trigger snapshot invariant on background thread if
     // inMemorySnapshotForInvariant is not null.
