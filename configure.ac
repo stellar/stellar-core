@@ -343,19 +343,22 @@ AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 
 # tcmalloc_minimal - enabled by default on Linux for improved memory allocation performance
 # Disabled when using sanitizers (asan, memcheck, tsan) as they replace malloc
+# Uses vendored gperftools from lib/gperftools
 unset have_tcmalloc
 if test "x$enable_asan" = "xyes" -o "x$enable_memcheck" = "xyes" -o "x$enable_threadsanitizer" = "xyes"; then
     AC_MSG_NOTICE([tcmalloc disabled due to sanitizer being enabled])
 else
     case "${host_os}" in
         linux*)
-            PKG_CHECK_MODULES(libtcmalloc, [libtcmalloc_minimal >= 2.0], [
-                have_tcmalloc=1
-                AC_DEFINE([USE_TCMALLOC], [1], [Define to 1 if using tcmalloc])
-                AC_MSG_NOTICE([tcmalloc_minimal found and will be used])
-            ], [
-                AC_MSG_ERROR([tcmalloc_minimal not found. Install libgoogle-perftools-dev])
-            ])
+            # Configure gperftools for minimal tcmalloc only
+            ac_configure_args="$ac_configure_args --enable-minimal --disable-cpu-profiler --disable-heap-profiler --disable-heap-checker --disable-debugalloc"
+            AC_CONFIG_SUBDIRS([lib/gperftools])
+            have_tcmalloc=1
+            AC_DEFINE([USE_TCMALLOC], [1], [Define to 1 if using tcmalloc])
+            # Use static library with early link order for malloc replacement
+            libtcmalloc_LIBS='$(top_builddir)/lib/gperftools/.libs/libtcmalloc_minimal.a -lpthread'
+            libtcmalloc_CFLAGS='-isystem $(top_srcdir)/lib/gperftools/src'
+            AC_MSG_NOTICE([Using vendored tcmalloc_minimal from lib/gperftools])
             ;;
         *)
             AC_MSG_NOTICE([tcmalloc is only used on Linux, skipping])
