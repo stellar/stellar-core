@@ -13,14 +13,14 @@
 
 namespace stellar
 {
-template <class BucketT>
+template <IsBucketType BucketT>
 IndexBucketsWork<BucketT>::IndexWork::IndexWork(Application& app,
                                                 std::shared_ptr<BucketT> b)
     : BasicWork(app, "index-work", BasicWork::RETRY_NEVER), mBucket(b)
 {
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BasicWork::State
 IndexBucketsWork<BucketT>::IndexWork::onRun()
 {
@@ -32,21 +32,21 @@ IndexBucketsWork<BucketT>::IndexWork::onRun()
     return mState;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 IndexBucketsWork<BucketT>::IndexWork::onAbort()
 {
     return true;
 };
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 IndexBucketsWork<BucketT>::IndexWork::onReset()
 {
     mState = BasicWork::State::WORK_WAITING;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 IndexBucketsWork<BucketT>::IndexWork::postWork()
 {
@@ -131,14 +131,14 @@ IndexBucketsWork<BucketT>::IndexWork::postWork()
         "IndexWork: starting in background");
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 IndexBucketsWork<BucketT>::IndexBucketsWork(
     Application& app, std::vector<std::shared_ptr<BucketT>> const& buckets)
     : Work(app, "index-bucketList", BasicWork::RETRY_NEVER), mBuckets(buckets)
 {
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BasicWork::State
 IndexBucketsWork<BucketT>::doWork()
 {
@@ -150,14 +150,14 @@ IndexBucketsWork<BucketT>::doWork()
     return checkChildrenStatus();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 IndexBucketsWork<BucketT>::doReset()
 {
     mWorkSpawned = false;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 IndexBucketsWork<BucketT>::spawnWork()
 {

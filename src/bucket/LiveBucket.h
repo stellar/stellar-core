@@ -19,8 +19,8 @@ class AbstractLedgerTxn;
 class Application;
 class EvictionStatistics;
 class LiveBucket;
-template <typename T> class BucketOutputIterator;
-template <typename T> class BucketInputIterator;
+template <IsBucketType T> class BucketOutputIterator;
+template <IsBucketType T> class BucketInputIterator;
 
 typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
 typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;

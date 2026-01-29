@@ -13,8 +13,8 @@ namespace stellar
 {
 
 class HotArchiveBucket;
-template <typename T> class BucketOutputIterator;
-template <typename T> class BucketInputIterator;
+template <IsBucketType T> class BucketOutputIterator;
+template <IsBucketType T> class BucketInputIterator;
 
 typedef BucketInputIterator<HotArchiveBucket> HotArchiveBucketInputIterator;
 typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;

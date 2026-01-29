@@ -67,9 +67,8 @@ using RangeIndex = std::vector<std::pair<RangeEntry, std::streamoff>>;
 // random eviction cache for partial caching, and a range based index + binary
 // fuse filter for disk lookups. Creating this index is expensive, so we persist
 // it to disk. We do not persist the random eviction cache.
-template <class BucketT> class DiskIndex : public NonMovableOrCopyable
+template <IsBucketType BucketT> class DiskIndex : public NonMovableOrCopyable
 {
-    BUCKET_TYPE_ASSERT(BucketT);
 
     // Fields from here are persisted on disk. Cereal doesn't like templates so
     // we define an inner struct to hold all serializable fields.

@@ -14,7 +14,7 @@ namespace stellar
 // These classes provide wrappers around the inputs to a BucketMerge, namely
 // either BucketInputIterators for file based merges, or a vector of bucket
 // entries for in-memory merges.
-template <class BucketT> class MergeInput
+template <IsBucketType BucketT> class MergeInput
 {
   public:
     // Check if we're done - both iterators are exhausted
@@ -39,7 +39,8 @@ template <class BucketT> class MergeInput
     virtual ~MergeInput() = default;
 };
 
-template <class BucketT> class FileMergeInput : public MergeInput<BucketT>
+template <IsBucketType BucketT>
+class FileMergeInput : public MergeInput<BucketT>
 {
   private:
     BucketInputIterator<BucketT>& mOldIter;
@@ -103,7 +104,8 @@ template <class BucketT> class FileMergeInput : public MergeInput<BucketT>
     }
 };
 
-template <class BucketT> class MemoryMergeInput : public MergeInput<BucketT>
+template <IsBucketType BucketT>
+class MemoryMergeInput : public MergeInput<BucketT>
 {
   private:
     std::vector<typename BucketT::EntryT> const& mOldEntries;

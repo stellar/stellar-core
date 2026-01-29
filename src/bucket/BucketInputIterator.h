@@ -17,9 +17,8 @@ class LiveBucket;
 class HotArchiveBucket;
 
 // Helper class that reads through the entries in a bucket.
-template <typename BucketT> class BucketInputIterator
+template <IsBucketType BucketT> class BucketInputIterator
 {
-    BUCKET_TYPE_ASSERT(BucketT);
 
     std::shared_ptr<BucketT const> mBucket;
 

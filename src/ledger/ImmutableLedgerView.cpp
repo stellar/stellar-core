@@ -227,7 +227,7 @@ namespace
 // Build the next historical snapshot map by copying the previous map,
 // evicting the oldest entry if at capacity, and inserting the previous
 // state's current snapshot keyed by its ledger sequence number.
-template <class BucketT>
+template <IsBucketType BucketT>
 auto
 rotateHistorical(
     std::shared_ptr<BucketListSnapshotData<BucketT> const> const& prevData,

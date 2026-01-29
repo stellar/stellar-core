@@ -322,7 +322,7 @@ isBucketMetaEntry<LiveBucket>(LiveBucket::EntryT const& be)
     return be.type() == METAENTRY;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 BucketEntryCounters::count(typename BucketT::EntryT const& be)
 {
