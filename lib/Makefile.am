@@ -1,6 +1,9 @@
 ## Process this file with automake to produce Makefile.in
 
 SUBDIRS = $(PKGCONFIG_SUBDIRS)
+if USE_TCMALLOC
+SUBDIRS += gperftools
+endif
 
 include $(top_srcdir)/common.mk
 
