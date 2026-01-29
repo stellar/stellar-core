@@ -10,6 +10,7 @@
 
 #include <sodium.h>
 
+#include <concepts>
 #include <string>
 
 namespace stellar
@@ -43,7 +44,11 @@ namespace KeyUtils
 {
 
 template <typename T>
-typename std::enable_if<!std::is_same<T, SecretKey>::value, std::string>::type
+concept IsKeyType = std::same_as<T, PublicKey> || std::same_as<T, SignerKey> ||
+                    std::same_as<T, SecretKey>;
+
+template <IsKeyType T>
+std::string
 toStrKey(T const& key)
 {
     return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
@@ -51,23 +56,28 @@ toStrKey(T const& key)
         .value;
 }
 
-template <typename T>
-typename std::enable_if<std::is_same<T, SecretKey>::value, SecretValue>::type
+// We use a template on this to avoid needing SecretKey's declaration to be
+// visible in this file
+template <IsKeyType T>
+    requires std::same_as<T, SecretKey>
+SecretValue
 toStrKey(T const& key)
 {
     return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
                             KeyFunctions<T>::getKeyValue(key));
 }
 
-template <typename T>
-typename std::enable_if<!std::is_same<T, SecretKey>::value, std::string>::type
+template <IsKeyType T>
+std::string
 toShortString(T const& key)
 {
     return toStrKey(key).substr(0, 5);
 }
 
-template <typename T>
-typename std::enable_if<std::is_same<T, SecretKey>::value, SecretValue>::type
+// We require a template here for the same reason as in toStrKey (above)
+template <IsKeyType T>
+    requires std::same_as<T, SecretKey>
+SecretValue
 toShortString(T const& key)
 {
     return SecretValue{toStrKey(key).value.substr(0, 5)};
@@ -81,7 +91,7 @@ struct InvalidStrKey : public std::invalid_argument
     using std::invalid_argument::invalid_argument;
 };
 
-template <typename T>
+template <IsKeyType T>
 T
 fromStrKey(std::string const& s)
 {

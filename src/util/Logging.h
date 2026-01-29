@@ -204,7 +204,8 @@ class Logging
 // custom formatters that can be used by fmt::format
 
 template <typename T>
-inline typename std::enable_if<xdr::xdr_traits<T>::is_enum, std::string>::type
+    requires xdr::xdr_traits<T>::is_enum
+inline std::string
 format_as(T const& u)
 {
     auto res = xdr::xdr_traits<T>::enum_name(u);

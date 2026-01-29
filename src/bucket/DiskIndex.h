@@ -15,6 +15,7 @@
 #include <cereal/types/memory.hpp>
 #include <cereal/types/vector.hpp>
 
+#include <concepts>
 #include <filesystem>
 #include <memory>
 
@@ -179,14 +180,13 @@ template <IsBucketType BucketT> class DiskIndex : public NonMovableOrCopyable
         ar(version, pageSize);
     }
 
-    // This messy template makes is such that this function is only defined
+    // This concept template makes is such that this function is only defined
     // when BucketT == LiveBucket
-    template <int..., typename T = BucketT,
-              std::enable_if_t<std::is_same_v<T, LiveBucket>, bool> = true>
+    template <typename T = BucketT>
+        requires std::same_as<T, BucketT> && std::same_as<T, LiveBucket>
     AssetPoolIDMap const&
     getAssetPoolIDMap() const
     {
-        static_assert(std::is_same_v<T, LiveBucket>);
         releaseAssert(mData.assetToPoolID);
         return *mData.assetToPoolID;
     }

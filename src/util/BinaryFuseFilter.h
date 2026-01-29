@@ -10,19 +10,22 @@
 #include "xdr/Stellar-types.h"
 
 #include <cereal/archives/binary.hpp>
+#include <concepts>
 
 namespace stellar
 {
 
+template <typename T>
+concept IsSupportedBinaryFuseFilterType =
+    std::same_as<T, uint8_t> || std::same_as<T, uint16_t> ||
+    std::same_as<T, uint32_t>;
+
 // This class is a wrapper around the binary_fuse_t library that provides
 // serialization for the XDR BinaryFuseFilter type and provides a deterministic
 // LedgerKey interface.
-template <typename T> class BinaryFuseFilter : public NonMovableOrCopyable
+template <IsSupportedBinaryFuseFilterType T>
+class BinaryFuseFilter : public NonMovableOrCopyable
 {
-    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
-                      std::is_same_v<T, uint32_t>,
-                  "Binary Fuse Filter only supports 8, 16, or 32 bit width");
-
   private:
     binary_fuse_t<T> const mFilter;
 

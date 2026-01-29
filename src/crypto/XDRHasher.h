@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <xdrpp/endian.h>
 #include <xdrpp/marshal.h>
 
@@ -57,8 +58,9 @@ template <typename Derived> struct XDRHasher
         }
     }
     template <typename T>
-    typename std::enable_if<std::is_same<
-        std::uint32_t, typename xdr::xdr_traits<T>::uint_type>::value>::type
+        requires std::same_as<std::uint32_t,
+                              typename xdr::xdr_traits<T>::uint_type>
+    void
     operator()(T t)
     {
         auto u = xdr::swap32le(xdr::xdr_traits<T>::to_uint(t));
@@ -66,8 +68,9 @@ template <typename Derived> struct XDRHasher
     }
 
     template <typename T>
-    typename std::enable_if<std::is_same<
-        std::uint64_t, typename xdr::xdr_traits<T>::uint_type>::value>::type
+        requires std::same_as<std::uint64_t,
+                              typename xdr::xdr_traits<T>::uint_type>
+    void
     operator()(T t)
     {
         auto u = xdr::swap64le(xdr::xdr_traits<T>::to_uint(t));
@@ -75,7 +78,8 @@ template <typename Derived> struct XDRHasher
     }
 
     template <typename T>
-    typename std::enable_if<xdr::xdr_traits<T>::is_bytes>::type
+        requires xdr::xdr_traits<T>::is_bytes
+    void
     operator()(T const& t)
     {
         size_t len = t.size();
@@ -95,8 +99,9 @@ template <typename Derived> struct XDRHasher
     }
 
     template <typename T>
-    typename std::enable_if<xdr::xdr_traits<T>::is_class ||
-                            xdr::xdr_traits<T>::is_container>::type
+        requires xdr::xdr_traits<T>::is_class ||
+                 xdr::xdr_traits<T>::is_container
+    void
     operator()(T const& t)
     {
         xdr::xdr_traits<T>::save(*this, t);

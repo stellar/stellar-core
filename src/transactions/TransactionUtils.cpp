@@ -1287,8 +1287,9 @@ struct MuxChecker
     }
 
     template <typename T>
-    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
-                      xdr::xdr_traits<T>::is_class)>
+        requires xdr::xdr_traits<T>::is_container ||
+                 xdr::xdr_traits<T>::is_class
+    void
     operator()(T const& t)
     {
         if (!mHasMuxedAccount)
@@ -1298,8 +1299,7 @@ struct MuxChecker
     }
 
     template <typename T>
-    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
-                       xdr::xdr_traits<T>::is_class)>
+    void
     operator()(T const& t)
     {
     }
