@@ -14,9 +14,9 @@ namespace cereal
 
 // Mirrors CEREAL_ARCHIVE_RESTRICT from cereal/details/traits.hpp for single
 // types
-#define CEREAL_ARCHIVE_RESTRICT_SINGLE_TYPE(TYPE) \
-    typename std::enable_if< \
-        cereal::traits::is_same_archive<Archive, TYPE>::value, void>::type
+template <typename Archive, typename T>
+concept IsRestrictedToSingleArchiveType =
+    cereal::traits::is_same_archive<Archive, T>::value;
 
 // This is a basic reimplementation of BinaryOutputArchive
 // (cereal/archives/binary.hpp) that uses our own OutputFileStream instead of
@@ -50,7 +50,8 @@ class BufferedAsioOutputArchive
 
 // Saving for POD types to binary
 template <class T>
-inline typename std::enable_if<std::is_arithmetic<T>::value, void>::type
+    requires std::is_arithmetic_v<T>
+void
 CEREAL_SAVE_FUNCTION_NAME(BufferedAsioOutputArchive& ar, T const& t)
 {
     ar.saveBinary(std::addressof(t), sizeof(t));
@@ -58,17 +59,18 @@ CEREAL_SAVE_FUNCTION_NAME(BufferedAsioOutputArchive& ar, T const& t)
 
 // Serializing NVP types to binary
 template <class Archive, class T>
-
-inline CEREAL_ARCHIVE_RESTRICT_SINGLE_TYPE(BufferedAsioOutputArchive)
-    CEREAL_SERIALIZE_FUNCTION_NAME(Archive& ar, NameValuePair<T>& t)
+    requires IsRestrictedToSingleArchiveType<Archive, BufferedAsioOutputArchive>
+inline void
+CEREAL_SERIALIZE_FUNCTION_NAME(Archive& ar, NameValuePair<T>& t)
 {
     ar(t.value);
 }
 
 // Serializing SizeTags to binary
 template <class Archive, class T>
-inline CEREAL_ARCHIVE_RESTRICT_SINGLE_TYPE(BufferedAsioOutputArchive)
-    CEREAL_SERIALIZE_FUNCTION_NAME(Archive& ar, SizeTag<T>& t)
+    requires IsRestrictedToSingleArchiveType<Archive, BufferedAsioOutputArchive>
+inline void
+CEREAL_SERIALIZE_FUNCTION_NAME(Archive& ar, SizeTag<T>& t)
 {
     ar(t.size);
 }
