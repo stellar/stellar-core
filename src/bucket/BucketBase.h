@@ -20,7 +20,7 @@ class io_context;
 namespace stellar
 {
 
-template <class BucketT> class SearchableBucketListSnapshot;
+template <IsBucketType BucketT> class SearchableBucketListSnapshot;
 
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
@@ -54,11 +54,9 @@ class LiveBucket;
 class LiveBucketIndex;
 class HotArchiveBucketIndex;
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 class BucketBase : public NonMovableOrCopyable
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     // Because of the CRTP design with derived Bucket classes, this base class
     // does not have direct access to BucketT::IndexT, so we take two templates
     // and make this assert.
@@ -169,6 +167,6 @@ class BucketBase : public NonMovableOrCopyable
 
 #endif // BUILD_TESTS
 
-    template <class T> friend class SearchableBucketListSnapshot;
+    template <IsBucketType T> friend class SearchableBucketListSnapshot;
 };
 }

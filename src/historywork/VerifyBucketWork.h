@@ -20,10 +20,8 @@ class LiveBucketIndex;
 
 class Bucket;
 
-template <typename BucketT> class VerifyBucketWork : public BasicWork
+template <IsBucketType BucketT> class VerifyBucketWork : public BasicWork
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     std::string mBucketFile;
     uint256 mHash;
     bool mDone{false};

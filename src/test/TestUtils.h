@@ -34,10 +34,8 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
-template <class BucketT> class BucketListDepthModifier
+template <IsBucketType BucketT> class BucketListDepthModifier
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     uint32_t const mPrevDepth;
 
   public:

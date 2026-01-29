@@ -162,7 +162,7 @@ EntryCounts<HotArchiveBucket>::EntryCounts(
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 size_t
 countEntries(std::shared_ptr<BucketT> bucket)
 {

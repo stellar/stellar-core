@@ -31,7 +31,7 @@
 namespace stellar
 {
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 IndexT const&
 BucketBase<BucketT, IndexT>::getIndex() const
 {
@@ -41,14 +41,14 @@ BucketBase<BucketT, IndexT>::getIndex() const
     return *mIndex;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 bool
 BucketBase<BucketT, IndexT>::isIndexed() const
 {
     return static_cast<bool>(mIndex);
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 void
 BucketBase<BucketT, IndexT>::setIndex(std::shared_ptr<IndexT const> index)
 {
@@ -56,7 +56,7 @@ BucketBase<BucketT, IndexT>::setIndex(std::shared_ptr<IndexT const> index)
     mIndex = std::move(index);
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
                                         Hash const& hash,
                                         std::shared_ptr<IndexT const>&& index)
@@ -71,32 +71,33 @@ BucketBase<BucketT, IndexT>::BucketBase(std::string const& filename,
     }
 }
 
-template <class BucketT, class IndexT> BucketBase<BucketT, IndexT>::BucketBase()
+template <IsBucketType BucketT, class IndexT>
+BucketBase<BucketT, IndexT>::BucketBase()
 {
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 Hash const&
 BucketBase<BucketT, IndexT>::getHash() const
 {
     return mHash;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 std::filesystem::path const&
 BucketBase<BucketT, IndexT>::getFilename() const
 {
     return mFilename;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 size_t
 BucketBase<BucketT, IndexT>::getSize() const
 {
     return mSize;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 bool
 BucketBase<BucketT, IndexT>::isEmpty() const
 {
@@ -109,14 +110,14 @@ BucketBase<BucketT, IndexT>::isEmpty() const
     return false;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 void
 BucketBase<BucketT, IndexT>::freeIndex()
 {
     mIndex.reset();
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 std::string
 BucketBase<BucketT, IndexT>::randomFileName(std::string const& tmpDir,
                                             std::string ext)
@@ -134,14 +135,14 @@ BucketBase<BucketT, IndexT>::randomFileName(std::string const& tmpDir,
     }
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 std::string
 BucketBase<BucketT, IndexT>::randomBucketName(std::string const& tmpDir)
 {
     return randomFileName(tmpDir, ".xdr");
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 std::string
 BucketBase<BucketT, IndexT>::randomBucketIndexName(std::string const& tmpDir)
 {
@@ -181,7 +182,7 @@ BucketBase<BucketT, IndexT>::randomBucketIndexName(std::string const& tmpDir)
 // and shadowing protocol simultaneously, the moment the first new-protocol
 // bucket enters the youngest level. At least one new bucket is in every merge's
 // shadows from then on in, so they all upgrade (and preserve lifecycle events).
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 static void
 calculateMergeProtocolVersion(
     MergeCounters& mc, uint32_t maxProtocolVersion,
@@ -236,7 +237,7 @@ calculateMergeProtocolVersion(
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
-template <class BucketT, class IndexT, typename InputSource,
+template <IsBucketType BucketT, class IndexT, typename InputSource,
           typename... ShadowParams>
 static bool
 mergeCasesWithDefaultAcceptance(
@@ -245,8 +246,6 @@ mergeCasesWithDefaultAcceptance(
     std::function<void(typename BucketT::EntryT const&)> putFunc,
     uint32_t protocolVersion, ShadowParams&&... shadowParams)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     // Either of:
     //
     //   - Out of new entries.
@@ -283,7 +282,7 @@ mergeCasesWithDefaultAcceptance(
     return false;
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 template <typename InputSource, typename PutFuncT, typename... ShadowParams>
 void
 BucketBase<BucketT, IndexT>::mergeInternal(
@@ -336,7 +335,7 @@ BucketBase<BucketT, IndexT>::mergeInternal(
     }
 }
 
-template <class BucketT, class IndexT>
+template <IsBucketType BucketT, class IndexT>
 std::shared_ptr<BucketT>
 BucketBase<BucketT, IndexT>::merge(
     BucketManager& bucketManager, uint32_t maxProtocolVersion,
@@ -346,8 +345,6 @@ BucketBase<BucketT, IndexT>::merge(
     bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
     bool doFsync)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     ZoneScoped;
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,

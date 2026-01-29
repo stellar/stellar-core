@@ -19,7 +19,7 @@ class FileTransferInfo;
 class DownloadBucketsWork : public BatchWork
 {
     // Wrapper around state associated with each BucketList
-    template <typename BucketT> struct BucketState
+    template <IsBucketType BucketT> struct BucketState
     {
         // Must hold mutex when accessing buckets
         std::map<std::string, std::shared_ptr<BucketT>>& buckets;
@@ -51,14 +51,14 @@ class DownloadBucketsWork : public BatchWork
     TmpDir const& mDownloadDir;
     std::shared_ptr<HistoryArchive> mArchive;
 
-    template <typename BucketT>
+    template <IsBucketType BucketT>
     static void onSuccessCb(Application& app, FileTransferInfo const& ft,
                             std::string const& hash, int currId,
                             BucketState<BucketT>& state);
 
     // Helper function returns pair of verifyBucketWork and a callback to adopt
     // the verified BucketList.
-    template <typename BucketT>
+    template <IsBucketType BucketT>
     std::pair<std::shared_ptr<BasicWork>, std::function<bool(Application&)>>
     prepareWorkForBucketType(std::string const& hash,
                              FileTransferInfo const& ft,

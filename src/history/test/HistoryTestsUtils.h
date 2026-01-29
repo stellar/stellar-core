@@ -48,7 +48,7 @@ enum class TestBucketState
 
 class HistoryConfigurator;
 class TestBucketGenerator;
-template <typename BucketT> class BucketOutputIteratorForTesting;
+template <IsBucketType BucketT> class BucketOutputIteratorForTesting;
 struct CatchupPerformedWork;
 
 class HistoryConfigurator : NonCopyable
@@ -100,11 +100,9 @@ class RealGenesisTmpDirHistoryConfigurator : public TmpDirHistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 class BucketOutputIteratorForTesting : public BucketOutputIterator<BucketT>
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     size_t const NUM_ITEMS_PER_BUCKET = 5;
 
   public:
@@ -125,7 +123,7 @@ class TestBucketGenerator
     TestBucketGenerator(Application& app,
                         std::shared_ptr<HistoryArchive> archive);
 
-    template <typename BucketT>
+    template <IsBucketType BucketT>
     std::string generateBucket(
         TestBucketState desiredState = TestBucketState::CONTENTS_AND_HASH_OK);
 };

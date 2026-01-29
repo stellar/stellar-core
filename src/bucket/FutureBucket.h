@@ -34,9 +34,8 @@ class HotArchiveBucket;
  * the bottom of closeLedger; and the HistoryManager, when storing and
  * retrieving HistoryArchiveStates.
  */
-template <class BucketT> class FutureBucket
+template <IsBucketType BucketT> class FutureBucket
 {
-    BUCKET_TYPE_ASSERT(BucketT);
 
     // There are two lifecycles of a FutureBucket:
     //
