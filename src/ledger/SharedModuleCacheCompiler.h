@@ -19,7 +19,6 @@
 
 namespace stellar
 {
-class Application;
 
 // This class encapsulates a multithreaded strategy for loading contracts
 // out of the database (on one thread) and compiling them (on N-1 others).
@@ -57,7 +56,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
 
   public:
     SharedModuleCacheCompiler(SearchableSnapshotConstPtr snap,
-                              size_t numThreads,
+                              MetricsRegistry& metrics, size_t numThreads,
                               std::vector<uint32_t> const& ledgerVersions);
     ~SharedModuleCacheCompiler();
     void start();

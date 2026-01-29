@@ -776,10 +776,10 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     // in-memory Soroban state
     auto liveSnapshotCopy =
         BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-            ledgerState->getBucketSnapshot());
+            ledgerState->getBucketSnapshot(), mApp.getMetrics());
     auto hotArchiveSnapshotCopy =
         BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
-            ledgerState->getHotArchiveSnapshot());
+            ledgerState->getHotArchiveSnapshot(), mApp.getMetrics());
     releaseAssertOrThrow(liveSnapshotCopy->getLedgerSeq() == ledgerSeq);
     releaseAssertOrThrow(hotArchiveSnapshotCopy->getLedgerSeq() == ledgerSeq);
 
@@ -1067,7 +1067,7 @@ LedgerManagerImpl::ApplyState::startCompilingAllContracts(
         }
     }
     mCompiler = std::make_unique<SharedModuleCacheCompiler>(
-        snap, mNumCompilationThreads, versions);
+        snap, mAppConnector.getMetrics(), mNumCompilationThreads, versions);
     mCompiler->start();
 }
 
@@ -1805,7 +1805,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // BucketSnapshotManager.
         auto latestSnapshot =
             BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-                appliedLedgerState->getBucketSnapshot());
+                appliedLedgerState->getBucketSnapshot(), mApp.getMetrics());
         mApp.getBucketManager().startBackgroundEvictionScan(
             latestSnapshot, appliedLedgerState->getSorobanConfig());
     }
@@ -2085,14 +2085,9 @@ LedgerManagerImpl::advanceBucketListSnapshotAndMakeLedgerState(
     lcl.hash = ledgerHash;
 
     auto& bm = mApp.getBucketManager();
-    auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
-        bm.getLiveBucketList(), header);
-    auto hotArchiveSnapshot =
-        std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-            bm.getHotArchiveBucketList(), header);
     // Updating BL snapshot is thread-safe
     bm.getBucketSnapshotManager().updateCurrentSnapshot(
-        std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+        bm.getLiveBucketList(), bm.getHotArchiveBucketList(), header);
 
     return std::make_shared<CompleteConstLedgerState const>(
         bm.getBucketSnapshotManager().copySearchableLiveBucketListSnapshot(),

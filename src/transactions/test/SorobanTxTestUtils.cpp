@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SorobanTxTestUtils.h"
+#include "bucket/BucketManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/Catch2.h"

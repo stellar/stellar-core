@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 
+#include "bucket/BucketManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerCloseMetaFrame.h"

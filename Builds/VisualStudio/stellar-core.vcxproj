@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugCurrV|x64">
@@ -460,11 +460,10 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\BucketIndexUtils.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketListBase.cpp" />
-    <ClCompile Include="..\..\src\bucket\BucketListSnapshotBase.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketManager.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp" />
-    <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketUtils.cpp" />
     <ClCompile Include="..\..\src\bucket\DiskIndex.cpp" />
@@ -477,7 +476,6 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\LiveBucketIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\LiveBucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
-    <ClCompile Include="..\..\src\bucket\SearchableBucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp" />
@@ -757,9 +755,9 @@ exit /b 0
     <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp" />
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
-    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp" />
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
+    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp" />
     <ClCompile Include="..\..\src\util\RandHasher.cpp" />
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
     <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
@@ -939,11 +937,10 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\BucketIndexUtils.h" />
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
     <ClInclude Include="..\..\src\bucket\BucketListBase.h" />
-    <ClInclude Include="..\..\src\bucket\BucketListSnapshotBase.h" />
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h" />
     <ClInclude Include="..\..\src\bucket\BucketManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketMergeMap.h" />
     <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h" />
-    <ClInclude Include="..\..\src\bucket\BucketSnapshot.h" />
     <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketUtils.h" />
     <ClInclude Include="..\..\src\bucket\DiskIndex.h" />
@@ -957,7 +954,6 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\LiveBucketIndex.h" />
     <ClInclude Include="..\..\src\bucket\LiveBucketList.h" />
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
-    <ClInclude Include="..\..\src\bucket\SearchableBucketList.h" />
     <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBufferedLedgersWork.h" />
