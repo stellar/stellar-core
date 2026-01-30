@@ -5847,10 +5847,39 @@ unbalancedOrgs()
     return {sks, validators};
 }
 
-// Generate a tier1-like topology. This topology has 7 HIGH quality orgs, 6 of
-// which have 3 validators and 1 has 5 validators.
+// Generate a tier 1-like topology. This topology has 7 HIGH quality orgs, each
+// with 3 validators.
 static Topology
-teir1Like()
+tier1Like()
+{
+    std::vector<SecretKey> sks;
+    std::vector<ValidatorEntry> validators;
+    int constexpr numOrgs = 7;
+    int constexpr validatorsPerOrg = 3;
+
+    for (int i = 0; i < numOrgs; ++i)
+    {
+        std::string const org = fmt::format("org-{}", i);
+        for (int j = 0; j < validatorsPerOrg; ++j)
+        {
+            SecretKey const& key =
+                sks.emplace_back(SecretKey::pseudoRandomForTesting());
+            ValidatorEntry& entry = validators.emplace_back();
+            entry.mName = fmt::format("validator-{}-{}", i, j);
+            entry.mHomeDomain = org;
+            entry.mQuality = ValidatorQuality::VALIDATOR_HIGH_QUALITY;
+            entry.mKey = key.getPublicKey();
+            entry.mHasHistory = false;
+        }
+    }
+
+    return {sks, validators};
+}
+
+// Generate a slightly unbalanced topology. This topology has 7 HIGH quality
+// orgs, 6 of which have 3 validators and 1 has 5 validators.
+static Topology
+slightlyUnbalancedOrgs()
 {
     std::vector<SecretKey> sks;
     std::vector<ValidatorEntry> validators;
@@ -6088,7 +6117,12 @@ TEST_CASE("getNodeWeight", "[herder]")
 
     SECTION("Tier1-like topology")
     {
-        testWeights(teir1Like().second);
+        testWeights(tier1Like().second);
+    }
+
+    SECTION("Tier1-like topology with a single unbalanced org")
+    {
+        testWeights(slightlyUnbalancedOrgs().second);
     }
 
     SECTION("Random topology")
@@ -6265,7 +6299,13 @@ TEST_CASE("Fair nomination win rates", "[herder]")
 
     SECTION("Tier 1-like topology")
     {
-        auto [sks, validators] = teir1Like();
+        auto [sks, validators] = tier1Like();
+        testWinProbabilities(sks, validators, 10000);
+    }
+
+    SECTION("Tier 1-like topology with a single unbalanced org")
+    {
+        auto [sks, validators] = slightlyUnbalancedOrgs();
         testWinProbabilities(sks, validators, 10000);
     }
 
@@ -6537,19 +6577,19 @@ TEST_CASE("Asymmetric quorum timeouts", "[herder]")
 
     SECTION("Tier 1-like topology with replaced org")
     {
-        auto t = teir1Like();
+        auto t = tier1Like();
         testAsymmetricTimeouts(t, replaceOneOrg(t), numLedgers);
     }
 
     SECTION("Tier 1-like topology with 1 added org")
     {
-        auto t = teir1Like();
+        auto t = tier1Like();
         testAsymmetricTimeouts(t, addOrgs(1, t), numLedgers);
     }
 
     SECTION("Tier 1-like topology with 3 added orgs")
     {
-        auto t = teir1Like();
+        auto t = tier1Like();
         testAsymmetricTimeouts(t, addOrgs(3, t), numLedgers);
     }
 }
@@ -6714,7 +6754,7 @@ TEST_CASE("Unresponsive quorum timeouts", "[herder]")
     // Number of slots to run for
     int constexpr numLedgers = 20000;
 
-    auto t = teir1Like();
+    auto t = tier1Like();
     for (int i = 1; i <= 5; ++i)
     {
         CLOG_INFO(Herder, "Simulating nomination with {} unresponsive nodes",
