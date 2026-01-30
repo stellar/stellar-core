@@ -54,20 +54,14 @@ class LiveBucket;
 class LiveBucketIndex;
 class HotArchiveBucketIndex;
 
-template <IsBucketType BucketT, class IndexT>
-class BucketBase : public NonMovableOrCopyable
+template <IsBucketType BucketT> class BucketBase : public NonMovableOrCopyable
 {
+  public:
     // Because of the CRTP design with derived Bucket classes, this base class
-    // does not have direct access to BucketT::IndexT, so we take two templates
-    // and make this assert.
-    static_assert(
-        std::is_same_v<
-            IndexT,
-            std::conditional_t<
-                std::is_same_v<BucketT, LiveBucket>, LiveBucketIndex,
-                std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
-                                   HotArchiveBucketIndex, void>>>,
-        "IndexT must match BucketT::IndexT");
+    // does not have direct access to BucketT::IndexT, so we hardcode the
+    // index types
+    using IndexT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                      LiveBucketIndex, HotArchiveBucketIndex>;
 
   protected:
     std::filesystem::path const mFilename;
