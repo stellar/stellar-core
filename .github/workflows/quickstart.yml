@@ -40,7 +40,7 @@ jobs:
               "horizon_skip_protocol_version_check": true
             },
             "deps": [
-              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests" } }
+              { "name": "core", "repo": "${{ github.event.pull_request.head.repo.full_name }}", "ref": "${{ github.event.pull_request.head.sha }}", "options": { "configure_flags": "--disable-tests --enable-next-protocol-version-unsafe-for-production" } }
             ]
           }
         ]
