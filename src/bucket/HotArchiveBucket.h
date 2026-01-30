@@ -23,9 +23,8 @@ typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
  * Hot Archive Buckets are used by the HotBucketList to store recently evicted
  * entries. They contain entries of type HotArchiveBucketEntry.
  */
-class HotArchiveBucket
-    : public BucketBase<HotArchiveBucket, HotArchiveBucketIndex>,
-      public std::enable_shared_from_this<HotArchiveBucket>
+class HotArchiveBucket : public BucketBase<HotArchiveBucket>,
+                         public std::enable_shared_from_this<HotArchiveBucket>
 {
   public:
     // Entry type that this bucket stores

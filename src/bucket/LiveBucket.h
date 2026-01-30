@@ -29,7 +29,7 @@ typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
  * Live Buckets are used by the LiveBucketList to store the current canonical
  * state of the ledger. They contain entries of type BucketEntry.
  */
-class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
+class LiveBucket : public BucketBase<LiveBucket>,
                    public std::enable_shared_from_this<LiveBucket>
 {
     // Stores all BucketEntries (except METAENTRY) in the same order that they
