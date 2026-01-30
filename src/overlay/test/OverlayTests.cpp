@@ -2401,6 +2401,7 @@ TEST_CASE("disconnected topology recovery", "[overlay][simulation]")
                     cfg.KNOWN_PEERS = peers;
                 }
                 cfg.RUN_STANDALONE = false;
+                cfg.MAX_SLOTS_TO_REMEMBER = 2;
                 return cfg;
             });
         auto nodeIDs = simulation->getNodeIDs();

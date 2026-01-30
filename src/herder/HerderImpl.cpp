@@ -823,9 +823,13 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
     // Allow message with a drift larger than MAXIMUM_LEDGER_CLOSETIME_DRIFT if
-    // it is a checkpoint message
-    else if (!checkCloseTime(envelope, trackingConsensusLedgerIndex() <=
-                                           LedgerManager::GENESIS_LEDGER_SEQ) &&
+    // it is a checkpoint message. When validator joining from genesis is needed
+    // to unstick the network, ignore close time that is too old in order to
+    // advance consensus (this usually applies to test networks).
+    else if (!checkCloseTime(envelope,
+                             trackingConsensusLedgerIndex() <=
+                                     LedgerManager::GENESIS_LEDGER_SEQ &&
+                                 index != nextConsensusLedgerIndex()) &&
              index != checkpoint)
     {
         // if we've never been in sync, we can be more aggressive in how we
