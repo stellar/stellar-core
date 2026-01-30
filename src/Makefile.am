@@ -72,10 +72,10 @@ main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
 endif
 
-stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
+# tcmalloc must be linked early to properly override malloc/free
+stellar_core_LDADD = $(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
-	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS) \
-	$(libtcmalloc_LIBS)
+	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
 
 TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg \
