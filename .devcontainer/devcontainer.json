@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/vscode-remote/devcontainer.json or the definition README at
-// https://github.com/microsoft/vscode-dev-containers/tree/master/containers/ubuntu-18.04-git
+// https://github.com/devcontainers/images/blob/main/README.md
 {
-	"name": "Ubuntu 20.04 & Git",
+	"name": "Ubuntu 24.04 & Git",
 	"dockerFile": "Dockerfile",
 	"build": {
 		"args": {
@@ -12,20 +12,15 @@
 	// The optional 'runArgs' property can be used to specify additional runtime arguments.
 	"runArgs": [
 		// Uncomment the line if you will use a ptrace-based debugger like C++, Go, and Rust.
-	    "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined",
-
+		"--cap-add=SYS_PTRACE",
+		"--security-opt",
+		"seccomp=unconfined",
 		// Uncomment the next line to use a non-root user. On Linux, this will prevent
 		// new files getting created as root, but you may need to update the USER_UID
 		// and USER_GID in .devcontainer/Dockerfile to match your user if not 1000.
-		"-u", "vscode"
+		"-u",
+		"vscode"
 	],
-
-	// Use 'settings' to set *default* container specific settings.json values on container create. 
-	// You can edit these settings after create using File > Preferences > Settings > Remote.
-	"settings": { 
-		"terminal.integrated.shell.linux": "/bin/bash"
-	},
-
 	// Use 'features.docker-from-docker' to setup docker inside the container
 	// for building the Docker images inside GitHub Codespaces.
 	"features": {
@@ -34,13 +29,23 @@
 			"moby": true
 		}
 	},
-
 	// Uncomment the next line if you want to publish any ports.
 	// "appPort": [],
-
 	// Uncomment the next line to run commands after the container is created.
 	// "postCreateCommand": "uname -a",
-
-	// Add the IDs of extensions you want installed when the container is created in the array below.
-	"extensions": []
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.shell.linux": "/bin/bash",
+				"clangd.path": "/usr/bin/clangd-20"
+			},
+			"extensions": [
+				"llvm-vs-code-extensions.vscode-clangd",
+				"llvm-vs-code-extensions.lldb-dap",
+				"matepek.vscode-catch2-test-adapter",
+				"rust-lang.rust-analyzer",
+				"graydon.lsp-lm-tool"
+			]
+		}
+	}
 }

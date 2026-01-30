@@ -31,9 +31,9 @@ RUN if [ ! -z "${APT_MIRROR}" ]; then \
     sed -i \
         -e "s|http://archive.ubuntu.com/ubuntu/|${APT_MIRROR}|" \
         -e "s|http://security.ubuntu.com/ubuntu/|${APT_MIRROR}|" \
-        /etc/apt/sources.list \
+        /etc/apt/sources.list.d/ubuntu.sources \
     ; fi \
-    ; grep "^[^#;]" /etc/apt/sources.list
+    ; grep "^[^#;]" /etc/apt/sources.list.d/ubuntu.sources
 
 # install base container packages and prep for VSCode
 RUN apt-get update \
@@ -41,40 +41,39 @@ RUN apt-get update \
     && apt-get -y install iproute2 procps lsb-release \
     #
     # Create a non-root user to use if preferred - see https://aka.ms/vscode-remote/containers/non-root-user.
-    && groupadd --gid $USER_GID $USERNAME \
-    && useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    # If group/user with the specified GID/UID already exists, rename them to $USERNAME.
+    && if getent group $USER_GID > /dev/null 2>&1; then \
+           groupmod -n $USERNAME $(getent group $USER_GID | cut -d: -f1); \
+       else \
+           groupadd --gid $USER_GID $USERNAME; \
+       fi \
+    && if id -u $USER_UID > /dev/null 2>&1; then \
+           existing_user=$(getent passwd $USER_UID | cut -d: -f1); \
+           usermod -l $USERNAME -d /home/$USERNAME -m -s /bin/bash $existing_user; \
+       else \
+           useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME; \
+       fi \
     # [Optional] Add sudo support for the non-root user
     && apt-get install -y sudo \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME\
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Add test tool chain
-# NOTE: newer version of the compilers are not
-#    provided by stock distributions
-#    and are provided by the /test toolchain
-# RUN apt-get -y install software-properties-common \
-#     && add-apt-repository ppa:ubuntu-toolchain-r/test \
-#    && apt-get update
+# Install build and dev requirements
+RUN apt-get update && \
+    apt-get -y install \
+    git build-essential pkg-config autoconf automake libtool bison flex sed perl \
+    libpq-dev parallel libunwind-dev libgoogle-perftools-dev curl \
+    libstdc++-14-dev clang-format-20 clangd-20 ccache bear \
+    cpp-14 gcc-14 g++-14 \
+    clang-20 llvm-20 \
+    postgresql
 
-# Install common compilation tools
-RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex sed perl libpq-dev parallel curl
-
-# Update compiler tools
-RUN apt-get -y install libstdc++-14-dev clang-format-20 ccache
-
-# gcc
-RUN apt-get -y install cpp-14 gcc-14 g++-14
-# clang
-RUN apt-get -y install clang-20 llvm-20
-# rust
+    # rust
 ENV PATH "/root/.cargo/bin:$PATH"
 
 # clang by default
 ENV CC=clang-20
 ENV CXX=clang++-20
-
-# Install postgresql to enable tests under make check
-RUN apt-get -y install postgresql
 
 # Set up locale
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
