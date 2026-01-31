@@ -29,7 +29,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     - sub command `augment` - augment an existing graph with information from Radar (radar.withobsrvr.com). Currently, only Public Network graphs are supported.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-gmlo GRAPHMLOUTPUT` - output graphml file
-    - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with Radar data) and flatten it into an undirected graph in JSON.
+    - sub command `flatten` - Take a graphml file containing a bidirectional graph (possibly augmented with Radar data) and flatten it into an undirected graph in JSON.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-json JSONOUTPUT` - output json file
 
