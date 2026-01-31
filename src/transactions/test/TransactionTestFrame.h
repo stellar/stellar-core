@@ -148,7 +148,7 @@ class TransactionTestFrame : public TransactionFrameBase
                      MutableTransactionResultBase& resPayload,
                      SorobanNetworkConfig const& sorobanConfig) const override;
 
-    ParallelTxReturnVal parallelApply(
+    std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,
