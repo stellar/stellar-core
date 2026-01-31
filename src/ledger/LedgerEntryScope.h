@@ -260,7 +260,7 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntry
     LedgerEntryScopeID<S> const mScopeID;
 
     // Must construct with a scope.
-    ScopedLedgerEntry<S>() = delete;
+    ScopedLedgerEntry() = delete;
 
     ScopedLedgerEntry(ScopedLedgerEntry<S> const& other);
     ScopedLedgerEntry(ScopedLedgerEntry<S>&& other);
