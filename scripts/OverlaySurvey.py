@@ -260,7 +260,7 @@ def analyze(args):
 
 def get_tier1_stats(augmented_directed_graph):
     '''
-    Helper function to help analyze transitive quorum. Must only be called on a graph augmented with StellarBeat info
+    Helper function to help analyze transitive quorum. Must only be called on a graph augmented with Radar info
     '''
     graph = augmented_directed_graph.to_undirected()
     tier1_nodes = [node for node, attr in graph.nodes(
@@ -275,7 +275,7 @@ def get_tier1_stats(augmented_directed_graph):
                 distances.append(dist)
         avg_for_one_node = sum(distances)/len(distances)
         logger.info("Average distance from %s to everyone else in Tier1: %.2f",
-                    nx.get_node_attributes(graph, 'sb_name')[node],
+                    nx.get_node_attributes(graph, 'radar_name')[node],
                     avg_for_one_node)
         all_node_average.append(avg_for_one_node)
 
@@ -292,9 +292,9 @@ def get_tier1_stats(augmented_directed_graph):
 
 def augment(args):
     graph = nx.read_graphml(args.graphmlInput)
-    data = get_request("https://api.stellarbeat.io/v1/nodes").json()
+    data = get_request("https://radar.withobsrvr.com/api/v1/nodes").json()
     transitive_quorum = get_request(
-        "https://api.stellarbeat.io/v1/").json()["transitiveQuorumSet"]
+        "https://radar.withobsrvr.com/api/v1/").json()["transitiveQuorumSet"]
 
     for obj in data:
         if graph.has_node(obj["publicKey"]):
@@ -315,7 +315,7 @@ def augment(args):
                         continue
                     if type(val) is dict:
                         val = json.dumps(val)
-                    prop_dict['sb_{}'.format(prop)] = val
+                    prop_dict['radar_{}'.format(prop)] = val
             graph.add_node(obj["publicKey"], **prop_dict)
 
     # Record Tier1 nodes
@@ -649,7 +649,7 @@ def main():
 
     parser_augment = subparsers.add_parser('augment',
                                            help="augment the master graph "
-                                                "with stellarbeat data")
+                                                "with Radar data")
     parser_augment.add_argument("-gmli",
                                 "--graphmlInput",
                                 help="input master graph")

@@ -10,7 +10,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
 - Description - A Python script that will walk the network using the Overlay survey mechanism to gather connection information. See [the admin guide](https://developers.stellar.org/docs/validators/admin-guide/monitoring#overlay-topology-survey) for more information on the overlay survey. The survey will use the peers of the initial node to seed the survey.
-- Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -c 20 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from StellarBeat.
+- Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -c 20 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from Radar.
 
     - `-gs GRAPHSTATS`, `--graphStats GRAPHSTATS` - output file for graph stats (Optional)
     - `-v`, `--verbose` - increase log verbosity (Optional)
@@ -26,10 +26,10 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
         - `-r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
     - sub command `analyze` - analyze an existing graph
         - `-gmla GRAPHMLANALYZE`, `--graphmlAnalyze GRAPHMLANALYZE` - input graphml file
-    - sub command `augment` - augment an existing graph with information from  stellarbeat.io. Currently, only Public Network graphs are supported.
+    - sub command `augment` - augment an existing graph with information from Radar (radar.withobsrvr.com). Currently, only Public Network graphs are supported.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-gmlo GRAPHMLOUTPUT` - output graphml file
-    - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
+    - sub command `flatten` - Take a graphml file containing a bidirectional graph (possibly augmented with Radar data) and flatten it into an undirected graph in JSON.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-json JSONOUTPUT` - output json file
 
