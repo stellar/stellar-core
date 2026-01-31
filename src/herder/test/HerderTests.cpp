@@ -7015,3 +7015,77 @@ TEST_CASE("nomination timeouts with partial upgrade arming",
     // Verify the upgrade did not go through
     REQUIRE(nodes[0]->getLedgerManager().getLastTxFee() == currentFee);
 }
+
+TEST_CASE("late joining node reaches consensus", "[herder]")
+{
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto simulation = std::make_shared<Simulation>(mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i);
+        // Set a very short drift time so close times become old quickly
+        cfg.MAXIMUM_LEDGER_CLOSETIME_DRIFT = 1;
+        return cfg;
+    });
+
+    // Use specific keys designed to make A's value win in combineCandidates.
+    // The selection is based on hash comparison when txSets are equal.
+    auto validatorAKey = SecretKey::fromSeed(sha256("AAA-first-validator"));
+    auto validatorBKey = SecretKey::fromSeed(sha256("b-second-validator"));
+    auto validatorCKey = SecretKey::fromSeed(sha256("z-late-validator"));
+
+    // Threshold 3 means all 3 nodes are needed for consensus
+    SCPQuorumSet qset;
+    qset.threshold = 3;
+    qset.validators.push_back(validatorAKey.getPublicKey());
+    qset.validators.push_back(validatorBKey.getPublicKey());
+    qset.validators.push_back(validatorCKey.getPublicKey());
+
+    // Start only nodes A and B initially
+    auto A = simulation->addNode(validatorAKey, qset);
+    auto B = simulation->addNode(validatorBKey, qset);
+
+    simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                     validatorBKey.getPublicKey());
+    simulation->startAllNodes();
+
+    // A and B are at genesis ledger, unable to reach consensus (need 3 nodes)
+    REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
+            LedgerManager::GENESIS_LEDGER_SEQ);
+    REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() ==
+            LedgerManager::GENESIS_LEDGER_SEQ);
+
+    auto waitTime = std::chrono::seconds(
+        Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS.count() + 5);
+    simulation->crankForAtLeast(waitTime, false);
+
+    // Nodes should still be at genesis (can't reach consensus with only 2 of 3)
+    REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() ==
+            LedgerManager::GENESIS_LEDGER_SEQ);
+
+    // After CONSENSUS_STUCK_TIMEOUT_SECONDS, nodes should go out of sync
+    REQUIRE(A->getHerder().getState() == Herder::HERDER_SYNCING_STATE);
+    REQUIRE(B->getHerder().getState() == Herder::HERDER_SYNCING_STATE);
+
+    // Now add node C (the late joiner)
+    auto C = simulation->addNode(validatorCKey, qset);
+    C->start();
+
+    // Add connections to C (use addConnection since nodes are already started)
+    simulation->addConnection(validatorAKey.getPublicKey(),
+                              validatorCKey.getPublicKey());
+    simulation->addConnection(validatorBKey.getPublicKey(),
+                              validatorCKey.getPublicKey());
+
+    // Now all 3 nodes should be able to reach consensus
+    // Give it enough time to close a few ledgers (increase timeout for safety)
+    auto targetLedger = LedgerManager::GENESIS_LEDGER_SEQ + 3;
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(targetLedger, 3); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // Verify all nodes reached consensus
+    REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
+    REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
+}
