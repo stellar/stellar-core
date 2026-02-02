@@ -2439,7 +2439,21 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
-    for (size_t i = 0; i < stage.numClusters(); ++i)
+    auto const numClusters = stage.numClusters();
+    if (numClusters == 0)
+    {
+        return threadStates;
+    }
+
+    threadStates.reserve(numClusters);
+    if (numClusters > 1)
+    {
+        threadFutures.reserve(numClusters - 1);
+    }
+
+    // Launch async tasks for clusters 1..N-1 (if any)
+    // Cluster 0 will be processed on the main thread to avoid idle waiting
+    for (size_t i = 1; i < numClusters; ++i)
     {
         auto const& cluster = stage.getCluster(i);
         auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
@@ -2450,6 +2464,17 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             std::cref(config), ledgerInfo, sorobanBasePrngSeed));
     }
 
+    // Process cluster 0 on the main thread while other clusters run in parallel
+    {
+        auto const& cluster = stage.getCluster(0);
+        auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
+            app, globalState, cluster, 0);
+        auto result = applyThread(app, std::move(threadStatePtr), cluster,
+                                  config, ledgerInfo, sorobanBasePrngSeed);
+        threadStates.emplace_back(std::move(result));
+    }
+
+    // Collect results from async tasks (clusters 1..N-1)
     for (auto& threadFuture : threadFutures)
     {
         releaseAssert(threadFuture.valid());
