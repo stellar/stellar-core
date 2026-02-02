@@ -668,9 +668,11 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             LedgerEntry modifiedEntry = *entryData.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
             auto ttlData = entryData.ttlData;
+            auto sizeBytes = entryData.sizeBytes;
             modifiedState.mContractDataEntries.erase(it);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(modifiedEntry, ttlData));
+                InternalContractDataMapEntry(modifiedEntry, ttlData,
+                                             sizeBytes));
         }
 
         auto result =
@@ -711,7 +713,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 createContractDataWithTTL(PERSISTENT, 1000);
             TTLData ttlData(extraTTL.data.ttl().liveUntilLedgerSeq, 1);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(extraEntry, ttlData));
+                InternalContractDataMapEntry(extraEntry, ttlData,
+                                             xdr::xdr_size(extraEntry)));
         }
 
         auto result =
@@ -742,7 +745,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         TTLData wrongTTL(42, 1);
         modifiedState.mContractDataEntries.erase(it);
         modifiedState.mContractDataEntries.emplace(
-            InternalContractDataMapEntry(entryCopy, wrongTTL));
+            InternalContractDataMapEntry(entryCopy, wrongTTL,
+                                         entryData.sizeBytes));
 
         auto result =
             invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
