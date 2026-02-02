@@ -2966,7 +2966,6 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // because it is still being modified by the eviction flow.
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
         auto evictedState =
             mApp.getBucketManager().resolveBackgroundEvictionScan(
                 lclSnapshot, ltx, ltx.getAllKeysWithoutSealing());
