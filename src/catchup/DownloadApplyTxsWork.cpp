@@ -146,12 +146,6 @@ DownloadApplyTxsWork::yieldMoreWork()
         bool pqFellBehind = false;
         auto predicate = [prev, pqFellBehind, waitForPublish = mWaitForPublish,
                           maybeWaitForMerges](Application& app) mutable {
-            if (!prev)
-            {
-                throw std::runtime_error("Download and apply txs: related Work "
-                                         "is destroyed unexpectedly");
-            }
-
             // First, ensure download work is finished
             if (prev->getState() != State::WORK_SUCCESS)
             {
