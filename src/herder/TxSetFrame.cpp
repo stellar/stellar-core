@@ -26,8 +26,11 @@
 
 #include <Tracy.hpp>
 #include <algorithm>
+#include <atomic>
+#include <future>
 #include <list>
 #include <numeric>
+#include <thread>
 #include <variant>
 
 namespace stellar
@@ -409,22 +412,162 @@ sortedForApplyParallel(TxStageFrameList const& stages, Hash const& txSetHash)
     return sortedStages;
 }
 
+// Create TxFrames from XDR envelopes in parallel.
+// Returns nullopt if any transaction has invalid fee.
+// Precomputes hashes for all transactions to avoid race conditions in sorting.
+std::optional<TxFrameList>
+createTxFramesParallel(Hash const& networkID,
+                       xdr::xvector<TransactionEnvelope> const& xdrTxs,
+                       size_t maxThreads)
+{
+    ZoneScoped;
+    auto const numTxs = xdrTxs.size();
+    if (numTxs == 0)
+    {
+        return TxFrameList{};
+    }
+
+    TxFrameList results(numTxs);
+    std::atomic<bool> validationFailed{false};
+
+    maxThreads = std::min(numTxs, maxThreads);
+    if (maxThreads == 0)
+    {
+        maxThreads = 1;
+    }
+
+    auto createTx = [&](size_t index) {
+        if (validationFailed.load(std::memory_order_relaxed))
+        {
+            return;
+        }
+        auto tx =
+            TransactionFrameBase::makeTransactionFromWire(networkID, xdrTxs[index]);
+        if (!tx->XDRProvidesValidFee())
+        {
+            validationFailed.store(true, std::memory_order_relaxed);
+            return;
+        }
+        // Precompute hashes to avoid race conditions in sorting checks
+        (void)tx->getContentsHash();
+        (void)tx->getFullHash();
+        results[index] = std::move(tx);
+    };
+
+    if (maxThreads > 1 && numTxs > 1)
+    {
+        // Parallel path: divide work evenly among threads
+        std::vector<std::future<void>> futures;
+        futures.reserve(maxThreads - 1);
+
+        // Calculate range for each thread
+        auto processRange = [&](size_t start, size_t end) {
+            for (size_t i = start; i < end; ++i)
+            {
+                if (validationFailed.load(std::memory_order_relaxed))
+                {
+                    return;
+                }
+                createTx(i);
+            }
+        };
+
+        size_t itemsPerThread = numTxs / maxThreads;
+        size_t remainder = numTxs % maxThreads;
+
+        // Spawn maxThreads - 1 workers with their assigned ranges
+        size_t start = 0;
+        for (size_t t = 0; t < maxThreads - 1; ++t)
+        {
+            size_t count = itemsPerThread + (t < remainder ? 1 : 0);
+            size_t end = start + count;
+            futures.emplace_back(
+                std::async(std::launch::async, processRange, start, end));
+            start = end;
+        }
+
+        // Main thread processes the last range
+        processRange(start, numTxs);
+
+        for (auto& future : futures)
+        {
+            releaseAssert(future.valid());
+            try
+            {
+                future.get();
+            }
+            catch (std::exception const& e)
+            {
+                printErrorAndAbort(
+                    "Exception on parallel TxFrame creation thread: ",
+                    e.what());
+            }
+            catch (...)
+            {
+                printErrorAndAbort(
+                    "Unknown exception on parallel TxFrame creation thread");
+            }
+        }
+    }
+    else
+    {
+        // Sequential path: process all on main thread
+        for (size_t i = 0; i < numTxs; ++i)
+        {
+            createTx(i);
+            if (validationFailed.load(std::memory_order_relaxed))
+            {
+                break;
+            }
+        }
+    }
+
+    if (validationFailed.load(std::memory_order_relaxed))
+    {
+        return std::nullopt;
+    }
+
+    return results;
+}
+
 bool
 addWireTxsToList(Hash const& networkID,
                  xdr::xvector<TransactionEnvelope> const& xdrTxs,
-                 TxFrameList& txList)
+                 TxFrameList& txList, size_t maxThreads)
 {
     auto prevSize = txList.size();
     txList.reserve(prevSize + xdrTxs.size());
-    for (auto const& env : xdrTxs)
+
+    if (xdrTxs.size() >= 2)
     {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
+        // Parallel path for multiple transactions
+        auto maybeTxs = createTxFramesParallel(networkID, xdrTxs, maxThreads);
+        if (!maybeTxs)
         {
             return false;
         }
-        txList.push_back(tx);
+        txList.insert(txList.end(),
+                      std::make_move_iterator(maybeTxs->begin()),
+                      std::make_move_iterator(maybeTxs->end()));
     }
+    else
+    {
+        // Sequential path for single transaction
+        for (auto const& env : xdrTxs)
+        {
+            auto tx =
+                TransactionFrameBase::makeTransactionFromWire(networkID, env);
+            if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
+            {
+                return false;
+            }
+            // Precompute hashes for consistency with parallel path
+            (void)tx->getContentsHash();
+            (void)tx->getFullHash();
+            txList.push_back(tx);
+        }
+    }
+
     if (!std::is_sorted(txList.begin() + prevSize, txList.end(),
                         &TxSetUtils::hashTxSorter))
     {
@@ -1098,6 +1241,9 @@ TxSetXDRFrame::prepareForApply(Application& app,
     }
 #endif
     ZoneScoped;
+
+    size_t maxThreads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()) - 1);
+
     std::vector<TxSetPhaseFrame> phaseFrames;
     if (isGeneralizedTxSet())
     {
@@ -1114,7 +1260,7 @@ TxSetXDRFrame::prepareForApply(Application& app,
         {
             auto maybePhase = TxSetPhaseFrame::makeFromWire(
                 static_cast<TxSetPhase>(phaseId), app.getNetworkID(),
-                xdrPhases[phaseId]);
+                xdrPhases[phaseId], maxThreads);
             if (!maybePhase)
             {
                 return nullptr;
@@ -1126,7 +1272,7 @@ TxSetXDRFrame::prepareForApply(Application& app,
     {
         auto const& xdrTxSet = std::get<TransactionSet>(mXDRTxSet);
         auto maybePhase = TxSetPhaseFrame::makeFromWireLegacy(
-            lclHeader, app.getNetworkID(), xdrTxSet.txs);
+            lclHeader, app.getNetworkID(), xdrTxSet.txs, maxThreads);
         if (!maybePhase)
         {
             return nullptr;
@@ -1425,7 +1571,8 @@ TxSetPhaseFrame::Iterator::operator!=(Iterator const& other) const
 
 std::optional<TxSetPhaseFrame>
 TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
-                              TransactionPhase const& xdrPhase)
+                              TransactionPhase const& xdrPhase,
+                              size_t maxThreads)
 {
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
     auto& inclusionFeeMap = *inclusionFeeMapPtr;
@@ -1456,7 +1603,7 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 size_t prevSize = txList.size();
                 if (!addWireTxsToList(networkID,
                                       component.txsMaybeDiscountedFee().txs,
-                                      txList))
+                                      txList, maxThreads))
                 {
                     CLOG_DEBUG(Herder,
                                "Got bad generalized txSet: transactions "
@@ -1490,30 +1637,189 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 return std::nullopt;
             }
         }
-        TxStageFrameList stages;
-        stages.reserve(xdrStages.size());
-        for (auto const& xdrStage : xdrStages)
+
+        // Collect all XDR envelopes with their positions for parallel creation
+        struct TxPosition
         {
-            auto& stage = stages.emplace_back();
-            stage.reserve(xdrStage.size());
-            for (auto const& xdrCluster : xdrStage)
+            size_t stageIdx;
+            size_t clusterIdx;
+            size_t txIdx;
+            TransactionEnvelope const* env;
+        };
+        std::vector<TxPosition> allTxs;
+
+        // Count total transactions and collect positions
+        size_t totalTxs = 0;
+        for (size_t s = 0; s < xdrStages.size(); ++s)
+        {
+            for (size_t c = 0; c < xdrStages[s].size(); ++c)
             {
-                auto& cluster = stage.emplace_back();
-                cluster.reserve(xdrCluster.size());
-                for (auto const& env : xdrCluster)
+                totalTxs += xdrStages[s][c].size();
+            }
+        }
+        allTxs.reserve(totalTxs);
+
+        for (size_t s = 0; s < xdrStages.size(); ++s)
+        {
+            for (size_t c = 0; c < xdrStages[s].size(); ++c)
                 {
-                    auto tx = TransactionFrameBase::makeTransactionFromWire(
-                        networkID, env);
-                    if (!tx->XDRProvidesValidFee() ||
-                        tx->getInclusionFee() <= 0)
+                for (size_t t = 0; t < xdrStages[s][c].size(); ++t)
+                {
+                    allTxs.push_back({s, c, t, &xdrStages[s][c][t]});
+                }
+            }
+        }
+
+        // Create TxFrames in parallel
+        std::vector<TransactionFrameBasePtr> txFrames(totalTxs);
+        std::atomic<bool> validationFailed{false};
+
+        if (totalTxs >= 2)
+        {
+            size_t effectiveThreads = std::min(totalTxs, maxThreads);
+            if (effectiveThreads == 0)
+            {
+                effectiveThreads = 1;
+            }
+
+            auto createTx = [&](size_t index) {
+                if (validationFailed.load(std::memory_order_relaxed))
+                {
+                    return;
+                }
+                auto tx = TransactionFrameBase::makeTransactionFromWire(
+                    networkID, *allTxs[index].env);
+                if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
+                {
+                    validationFailed.store(true, std::memory_order_relaxed);
+                    return;
+                }
+                // Precompute hashes to avoid race conditions in sorting
+                (void)tx->getContentsHash();
+                (void)tx->getFullHash();
+                txFrames[index] = std::move(tx);
+            };
+
+            if (effectiveThreads > 1)
+            {
+                // Parallel path: divide work evenly among threads
+                std::vector<std::future<void>> futures;
+                futures.reserve(effectiveThreads - 1);
+
+                auto processRange = [&](size_t start, size_t end) {
+                    for (size_t i = start; i < end; ++i)
                     {
-                        CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                           "transaction has invalid XDR");
+                        if (validationFailed.load(std::memory_order_relaxed))
+                        {
+                            return;
+                        }
+                        createTx(i);
+                    }
+                };
+
+                size_t itemsPerThread = totalTxs / effectiveThreads;
+                size_t remainder = totalTxs % effectiveThreads;
+
+                // Spawn effectiveThreads - 1 workers with their assigned ranges
+                size_t start = 0;
+                for (size_t t = 0; t < effectiveThreads - 1; ++t)
+                {
+                    size_t count = itemsPerThread + (t < remainder ? 1 : 0);
+                    size_t end = start + count;
+                    futures.emplace_back(
+                        std::async(std::launch::async, processRange, start, end));
+                    start = end;
+                }
+
+                // Main thread processes the last range
+                processRange(start, totalTxs);
+
+                for (auto& future : futures)
+                {
+                    releaseAssert(future.valid());
+                    try
+                    {
+                        future.get();
+                    }
+                    catch (std::exception const& e)
+                    {
+                        printErrorAndAbort(
+                            "Exception on parallel TxFrame creation "
+                            "thread: ",
+                            e.what());
+                    }
+                    catch (...)
+                    {
+                        printErrorAndAbort(
+                            "Unknown exception on parallel TxFrame creation "
+                            "thread");
+                    }
+                }
+            }
+            else
+            {
+                // Sequential path: process all on main thread
+                for (size_t i = 0; i < totalTxs; ++i)
+                {
+                    createTx(i);
+                    if (validationFailed.load(std::memory_order_relaxed))
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        else if (totalTxs == 1)
+        {
+            auto tx = TransactionFrameBase::makeTransactionFromWire(
+                networkID, *allTxs[0].env);
+            if (!tx->XDRProvidesValidFee())
+            {
+                validationFailed.store(true, std::memory_order_relaxed);
+            }
+            else
+            {
+                (void)tx->getContentsHash();
+                (void)tx->getFullHash();
+                txFrames[0] = std::move(tx);
+            }
+        }
+
+        if (validationFailed.load(std::memory_order_relaxed))
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad generalized txSet: transaction has invalid XDR");
                         return std::nullopt;
                     }
-                    cluster.push_back(tx);
+
+        // Reconstruct the nested structure
+        TxStageFrameList stages;
+        stages.reserve(xdrStages.size());
+        for (size_t s = 0; s < xdrStages.size(); ++s)
+        {
+            stages.emplace_back();
+            stages.back().reserve(xdrStages[s].size());
+            for (size_t c = 0; c < xdrStages[s].size(); ++c)
+            {
+                stages.back().emplace_back();
+                stages.back().back().reserve(xdrStages[s][c].size());
+            }
+        }
+
+        // Place TxFrames in their positions and update inclusion fee map
+        for (size_t i = 0; i < allTxs.size(); ++i)
+        {
+            auto const& pos = allTxs[i];
+            auto& tx = txFrames[i];
+            stages[pos.stageIdx][pos.clusterIdx].push_back(tx);
                     inclusionFeeMap[tx] = baseFee;
                 }
+
+        // Verify sorting (fast since hashes are precomputed)
+        for (auto const& stage : stages)
+        {
+            for (auto const& cluster : stage)
+            {
                 if (!std::is_sorted(cluster.begin(), cluster.end(),
                                     &TxSetUtils::hashTxSorter))
                 {
@@ -1559,10 +1865,10 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
 std::optional<TxSetPhaseFrame>
 TxSetPhaseFrame::makeFromWireLegacy(
     LedgerHeader const& lclHeader, Hash const& networkID,
-    xdr::xvector<TransactionEnvelope> const& xdrTxs)
+    xdr::xvector<TransactionEnvelope> const& xdrTxs, size_t maxThreads)
 {
     TxFrameList txList;
-    if (!addWireTxsToList(networkID, xdrTxs, txList))
+    if (!addWireTxsToList(networkID, xdrTxs, txList, maxThreads))
     {
         CLOG_DEBUG(
             Herder,
@@ -1791,7 +2097,7 @@ TxSetPhaseFrame::checkValidWithResult(
 
     auto invalid = TxSetUtils::getInvalidTxListWithErrors(
         *this, app, accountFeeMap, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset);
+                       upperBoundCloseTimeOffset);
     if (invalid.first.empty())
     {
         releaseAssert(invalid.second == TxSetValidationResult::VALID);
@@ -2086,8 +2392,8 @@ ApplicableTxSetFrame::checkValidWithResult(
 {
     // For public-facing methods, always do full validation
     return checkValidInternalWithResult(app, lowerBoundCloseTimeOffset,
-                                        upperBoundCloseTimeOffset,
-                                        /* txsAreValidated */ false);
+                              upperBoundCloseTimeOffset,
+                              /* txsAreValidated */ false);
 }
 
 // need to make sure every account that is submitting a tx has enough to pay
