@@ -1669,8 +1669,8 @@ TransactionFrame::commonValid(
     SequenceNumber current, bool applying, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
-    MutableTransactionResultBase& txResult,
-    DiagnosticEventManager& diagnosticEvents) const
+                              MutableTransactionResultBase& txResult,
+                              DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
     ValidationType res = ValidationType::kInvalid;
@@ -1898,6 +1898,28 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
+    SorobanNetworkConfig const* sorobanConfig = nullptr;
+    if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
+    {
+        sorobanConfig =
+            &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+    }
+    checkValidWithOptionallyChargedFee(app, ls, current, chargeFee,
+                                       lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset, txResult,
+                                       diagnosticEvents, sorobanConfig);
+}
+
+void
+TransactionFrame::checkValidWithOptionallyChargedFee(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, MutableTransactionResultBase& txResult,
+    DiagnosticEventManager& diagnosticEvents,
+    SorobanNetworkConfig const* sorobanConfig) const
+{
     ZoneScoped;
     mCachedAccountPreProtocol8.reset();
 
@@ -1915,7 +1937,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
             &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
         if (isSoroban())
         {
-            sorobanResourceFee = computePreApplySorobanResourceFee(
+        sorobanResourceFee = computePreApplySorobanResourceFee(
                 ledgerVersion, *sorobanConfig, app.getConfig());
         }
     }
