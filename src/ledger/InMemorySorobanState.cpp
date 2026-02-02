@@ -8,6 +8,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
+#include <Tracy.hpp>
 #include <cstdint>
 #include <medida/counter.h>
 
@@ -57,9 +58,10 @@ InMemorySorobanState::updateContractDataTTL(
 {
     // Since entries are immutable, we must erase and re-insert
     auto ledgerEntryPtr = dataIt->get().ledgerEntry;
+    auto sizeBytes = dataIt->get().sizeBytes;
     mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(
-        InternalContractDataMapEntry(std::move(ledgerEntryPtr), newTtlData));
+    mContractDataEntries.emplace(InternalContractDataMapEntry(
+        std::move(ledgerEntryPtr), newTtlData, sizeBytes));
 }
 
 void
@@ -99,7 +101,7 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     releaseAssertOrThrow(dataIt != mContractDataEntries.end());
     releaseAssertOrThrow(dataIt->get().ledgerEntry != nullptr);
 
-    uint32_t oldSize = xdr::xdr_size(*dataIt->get().ledgerEntry);
+    uint32_t oldSize = dataIt->get().sizeBytes;
     uint32_t newSize = xdr::xdr_size(ledgerEntry);
     updateStateSizeOnEntryUpdate(oldSize, newSize, /*isContractCode=*/false);
 
@@ -107,7 +109,7 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     auto preservedTTL = dataIt->get().ttlData;
     mContractDataEntries.erase(dataIt);
     mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, preservedTTL));
+        InternalContractDataMapEntry(ledgerEntry, preservedTTL, newSize));
 }
 
 void
@@ -135,10 +137,10 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
     }
     // else: TTL hasn't arrived yet, initialize to 0 (will be updated later)
 
-    updateStateSizeOnEntryUpdate(0, xdr::xdr_size(ledgerEntry),
-                                 /*isContractCode=*/false);
+    uint32_t sizeBytes = xdr::xdr_size(ledgerEntry);
+    updateStateSizeOnEntryUpdate(0, sizeBytes, /*isContractCode=*/false);
     mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, ttlData));
+        InternalContractDataMapEntry(ledgerEntry, ttlData, sizeBytes));
 }
 
 bool
@@ -196,7 +198,7 @@ InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
         mContractDataEntries.find(InternalContractDataMapEntry(ledgerKey));
     releaseAssertOrThrow(it != mContractDataEntries.end());
     releaseAssertOrThrow(it->get().ledgerEntry != nullptr);
-    updateStateSizeOnEntryUpdate(xdr::xdr_size(*it->get().ledgerEntry), 0,
+    updateStateSizeOnEntryUpdate(it->get().sizeBytes, 0,
                                  /*isContractCode=*/false);
     mContractDataEntries.erase(it);
 }
@@ -540,6 +542,7 @@ InMemorySorobanState::updateState(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     SorobanMetrics& metrics)
 {
+    ZoneScoped;
     // After initialization, we must apply every ledger in order to the
     // in-memory state with no gaps.
     releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);
