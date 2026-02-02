@@ -177,6 +177,15 @@ class TransactionFrameBase
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
                DiagnosticEventManager& diagnosticEvents) const = 0;
+    // Overload that accepts a pre-fetched SorobanNetworkConfig for use in
+    // parallel validation (where getLedgerManager() cannot be called from
+    // worker threads due to threadIsMain() assertions).
+    virtual MutableTxResultPtr
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents,
+               SorobanNetworkConfig const* sorobanConfig) const = 0;
     virtual bool
     checkSorobanResources(SorobanNetworkConfig const& cfg,
                           uint32_t ledgerVersion,

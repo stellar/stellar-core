@@ -391,15 +391,20 @@ class TxSetPhaseFrame
 
     // Creates a new phase from `TransactionPhase` XDR coming from a
     // `GeneralizedTransactionSet`.
+    // maxThreads specifies the maximum number of threads to use for parallel
+    // TxFrame creation (typically from soroban config ledgerMaxDependentTxClusters).
     static std::optional<TxSetPhaseFrame>
     makeFromWire(TxSetPhase phase, Hash const& networkID,
-                 TransactionPhase const& xdrPhase);
+                 TransactionPhase const& xdrPhase, size_t maxThreads);
 
     // Creates a new phase from all the transactions in the legacy
     // `TransactionSet` XDR.
+    // maxThreads specifies the maximum number of threads to use for parallel
+    // TxFrame creation.
     static std::optional<TxSetPhaseFrame>
     makeFromWireLegacy(LedgerHeader const& lclHeader, Hash const& networkID,
-                       xdr::xvector<TransactionEnvelope> const& xdrTxs);
+                       xdr::xvector<TransactionEnvelope> const& xdrTxs,
+                       size_t maxThreads);
 
     // Creates a valid empty phase with given `isParallel` flag.
     static TxSetPhaseFrame makeEmpty(TxSetPhase phase, bool isParallel);

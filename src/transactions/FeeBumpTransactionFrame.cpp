@@ -328,6 +328,45 @@ FeeBumpTransactionFrame::checkValid(
     return txResult;
 }
 
+MutableTxResultPtr
+FeeBumpTransactionFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    SorobanNetworkConfig const* sorobanConfig) const
+{
+    if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
+    {
+        return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
+    }
+
+    int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
+    auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
+    auto txResult = FeeBumpMutableTransactionResult::createSuccess(
+        *mInnerTx, feeCharged, 0);
+
+    SignatureChecker signatureChecker{
+        ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
+        mEnvelope.feeBump().signatures};
+    if (commonValid(signatureChecker, ls, false, *txResult) !=
+        ValidationType::kFullyValid)
+    {
+        return txResult;
+    }
+
+    if (!signatureChecker.checkAllSignaturesUsed())
+    {
+        txResult->setError(txBAD_AUTH_EXTRA);
+        return txResult;
+    }
+
+    mInnerTx->checkValidWithOptionallyChargedFee(
+        app, ls, current, false, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, *txResult, diagnosticEvents, sorobanConfig);
+
+    return txResult;
+}
+
 bool
 FeeBumpTransactionFrame::checkSorobanResources(
     SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
