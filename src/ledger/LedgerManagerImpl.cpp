@@ -74,6 +74,7 @@
 
 #include "LedgerManagerImpl.h"
 #include <chrono>
+#include <future>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -241,6 +242,14 @@ LedgerManagerImpl::ApplyState::getInMemorySorobanState() const
     releaseAssert(mPhase == Phase::APPLYING ||
                   mPhase == Phase::SETTING_UP_STATE ||
                   mPhase == Phase::READY_TO_APPLY);
+    return mInMemorySorobanState;
+}
+
+InMemorySorobanState&
+LedgerManagerImpl::ApplyState::getInMemorySorobanStateForUpdate()
+{
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
+                  mPhase == Phase::COMMITTING);
     return mInMemorySorobanState;
 }
 
@@ -2958,6 +2967,12 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
+
+    // Future for async hot archive batch operation.
+    // addHotArchiveBatch modifies mHotArchiveBucketList which is independent
+    // from mLiveBucketList (modified by addLiveBatch).
+    std::future<void> hotArchiveBatchFuture;
+
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -3005,9 +3020,20 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             }
             else
             {
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries,
-                    restoredHotArchiveKeys);
+                // Launch addHotArchiveBatch asynchronously. It modifies
+                // mHotArchiveBucketList which is independent from
+                // mLiveBucketList, so it can run in parallel with addLiveBatch.
+                auto& bucketManager = mApp.getBucketManager();
+                auto archivedEntries = evictedState.archivedEntries;
+                hotArchiveBatchFuture = std::async(
+                    std::launch::async,
+                    [&bucketManager, this, lh, archivedEntries,
+                     restoredHotArchiveKeys]() {
+                        ZoneScopedN("addHotArchiveBatch (async)");
+                        bucketManager.addHotArchiveBatch(
+                            mApp, lh, archivedEntries, restoredHotArchiveKeys);
+                    });
+
                 // Validate evicted entries against Protocol 23 corruption
                 // data if configured
                 if (mApp.getProtocol23CorruptionDataVerifier())
@@ -3047,12 +3073,43 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     }
     // NB: getAllEntries seals the ltx.
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // Launch async task to update in-memory Soroban state. This is independent
+    // from both addHotArchiveBatch and addLiveBatch:
+    // - addHotArchiveBatch modifies mHotArchiveBucketList
+    // - addLiveBatch modifies mLiveBucketList
+    // - updateState modifies mInMemorySorobanState
+    // All three can run in parallel.
+    std::future<void> inMemoryStateUpdateFuture;
+    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
+        auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
+
+        inMemoryStateUpdateFuture = std::async(
+            std::launch::async,
+            [&inMemoryState, &initEntries, &liveEntries, &deadEntries, &lh,
+             &finalSorobanConfig, &sorobanMetrics]() {
+                ZoneScopedN("updateInMemorySorobanState (async)");
+                inMemoryState.updateState(initEntries, liveEntries, deadEntries,
+                                          lh, finalSorobanConfig,
+                                          sorobanMetrics);
+            });
+    }
+
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
-    mApplyState.updateInMemorySorobanState(initEntries, liveEntries,
-                                           deadEntries, lh, finalSorobanConfig);
+                                             // Wait for all async operations to complete before returning.
+    if (hotArchiveBatchFuture.valid())
+    {
+        hotArchiveBatchFuture.get();
+    }
+    if (inMemoryStateUpdateFuture.valid())
+    {
+        inMemoryStateUpdateFuture.get();
+    }
     return finalSorobanConfig;
 }
 

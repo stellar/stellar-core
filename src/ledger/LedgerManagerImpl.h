@@ -228,6 +228,10 @@ class LedgerManagerImpl : public LedgerManager
             std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
+        // Returns mutable reference to in-memory state for direct updates.
+        // Only safe during COMMITTING phase when no readers are active.
+        InMemorySorobanState& getInMemorySorobanStateForUpdate();
+
         // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;
