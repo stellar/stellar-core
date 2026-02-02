@@ -11,6 +11,7 @@
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
+#include <arpa/inet.h>
 #include <json/json.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
@@ -818,7 +819,42 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     {
         xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
-        mOpFrame.innerResult(mRes).success() = xdrSha256(success);
+
+        // Streaming SHA256 calculation of xdrSha256(success)
+        // This avoids round-trip serialization of the potentially large `InvokeHostFunctionSuccessPreImage`
+        // struct, which is significant for large return values or many contract events.
+        //
+        // The structure being hashed is `InvokeHostFunctionSuccessPreImage`, defined as:
+        // struct InvokeHostFunctionSuccessPreImage {
+        //     SCVal returnValue;
+        //     ContractEvent events<>;
+        // };
+        //
+        // XDR encoding of this struct is:
+        // 1. returnValue (SCVal)
+        // 2. events (array of ContractEvent)
+        //    - length (uint32)
+        //    - [ContractEvent, ContractEvent, ...]
+
+        SHA256 hasher;
+        
+        // 1. Add returnValue (SCVal)
+        // out.result_value.data is already the XDR encoded bytes of returnValue
+        hasher.add(out.result_value.data);
+
+        // 2. Add events length (uint32)
+        uint32_t eventsSize = static_cast<uint32_t>(out.contract_events.size());
+        uint32_t eventsSizeNet = htonl(eventsSize);
+        hasher.add(ByteSlice(&eventsSizeNet, sizeof(eventsSizeNet)));
+
+        // 3. Add each event
+        for (auto const& buf : out.contract_events)
+        {
+            // buf.data is already the XDR encoded bytes of the ContractEvent
+            hasher.add(buf.data);
+        }
+
+        mOpFrame.innerResult(mRes).success() = hasher.finish();
 
         // success.events is moved in setEvents, so don't use it after this
         // call.
