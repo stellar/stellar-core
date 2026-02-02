@@ -500,8 +500,8 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     }();
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(snap, ltx,
-                                            /*ledgerCloseMeta*/ nullptr,
-                                            /*initialLedgerVers*/ 0);
+        /*ledgerCloseMeta*/ nullptr,
+        /*initialLedgerVers*/ 0);
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
@@ -624,7 +624,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
                   populateSecs.count());
 
         maybeRunSnapshotInvariantFromLedgerState(copyApplyLedgerStateSnapshot(),
-                                                 /* runInParallel */ false);
+            /* runInParallel */ false);
     }
     mApplyState.markEndOfSetupPhase();
 
@@ -2592,7 +2592,7 @@ LedgerManagerImpl::processResultAndMeta(
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
         {
-            mLastLedgerTxMeta.emplace_back(metaXDR);
+        mLastLedgerTxMeta.emplace_back(metaXDR);
         }
 #endif
 
@@ -2604,8 +2604,8 @@ LedgerManagerImpl::processResultAndMeta(
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
         {
-            mLastLedgerTxMeta.emplace_back(
-                txMetaBuilder.finalize(result.isSuccess()));
+        mLastLedgerTxMeta.emplace_back(
+            txMetaBuilder.finalize(result.isSuccess()));
         }
 #endif
     }
@@ -2655,7 +2655,7 @@ LedgerManagerImpl::applyTransactions(
     // mLastLedgerTxMeta, unless explicitly disabled for benchmarking.
     if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
     {
-        enableTxMeta = true;
+    enableTxMeta = true;
     }
 #endif
     std::optional<SorobanNetworkConfig> sorobanConfig;
