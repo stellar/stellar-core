@@ -352,6 +352,7 @@ GlobalParallelApplyLedgerState::
 
                 mGlobalEntryMap.emplace(lk,
                                         GlobalParallelApplyEntry{entry, false});
+                mOriginalLedgerTxnKeys.emplace(lk);
             }
         };
 
@@ -393,7 +394,6 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     LedgerTxn ltxInner(ltx);
     for (auto const& [key, entry] : mGlobalEntryMap)
     {
-        // Only update if dirty bit is set
         if (!entry.mIsDirty)
         {
             continue;
@@ -401,26 +401,43 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 
         std::optional<LedgerEntry> const& updatedLe =
             entry.mLedgerEntry.readInScope(*this);
-        if (updatedLe)
+
+        bool originallyExisted =
+            mOriginalLedgerTxnKeys.find(key) != mOriginalLedgerTxnKeys.end();
+        if (!originallyExisted)
         {
-            auto ltxe = ltxInner.load(key);
-            if (ltxe)
+            if (InMemorySorobanState::isInMemoryType(key))
             {
-                ltxe.current() = *updatedLe;
+                originallyExisted = mInMemorySorobanState.get(key) != nullptr;
             }
             else
             {
-                ltxInner.create(*updatedLe);
+                originallyExisted = mLiveSnapshot->load(key) != nullptr;
+            }
+        }
+
+        if (updatedLe)
+        {
+            if (originallyExisted)
+            {
+                ltxInner.updateWithoutLoading(*updatedLe);
+            }
+            else
+            {
+                ltxInner.createWithoutLoading(*updatedLe);
             }
         }
         else
         {
+            if (originallyExisted)
+            {
             auto ltxe = ltxInner.load(key);
             if (ltxe)
             {
                 ltxInner.erase(key);
             }
         }
+    }
     }
 
     // While the final state of a restored key that will be written to the
@@ -564,6 +581,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
@@ -1013,14 +1031,14 @@ TxParallelApplyLedgerState::takeResult(bool success)
     {
         CLOG_TRACE(Tx,
                    "parallel apply thread {} succeeded with {} dirty entries",
-                   std::this_thread::get_id(), mTxEntryMap.size());
+               std::this_thread::get_id(), mTxEntryMap.size());
         return ParallelTxSuccessVal{std::move(mTxEntryMap),
-                                    std::move(mTxRestoredEntries), mScopeID};
+                               std::move(mTxRestoredEntries), mScopeID};
     }
     else
     {
-        CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
-                   std::this_thread::get_id(), mTxEntryMap.size());
+    CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
+               std::this_thread::get_id(), mTxEntryMap.size());
         return std::nullopt;
     }
 }

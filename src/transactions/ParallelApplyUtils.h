@@ -220,6 +220,10 @@ class GlobalParallelApplyLedgerState
     //    after -- as well as written back to the ltx at the phase's end.
     ParallelApplyEntryMap<staticScope> mGlobalEntryMap;
 
+    // Keys that existed in the LedgerTxn before parallel apply started.
+    // Used to determine whether to use update vs create when committing.
+    std::unordered_set<LedgerKey> mOriginalLedgerTxnKeys;
+
     void preParallelApplyAndCollectModifiedClassicEntries(
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages);
