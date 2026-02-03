@@ -1756,8 +1756,9 @@ TxSetPhaseFrame::checkValid(Application& app,
         return true;
     }
 
-    return txsAreValid(app, lowerBoundCloseTimeOffset,
-                       upperBoundCloseTimeOffset);
+    auto invalid = TxSetUtils::getInvalidTxList(
+        *this, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+    return invalid.empty();
 }
 
 bool
@@ -1937,42 +1938,6 @@ TxSetPhaseFrame::checkValidSoroban(
                                      clusterReadOnlyKeys.end());
             stageReadWriteKeys.insert(clusterReadWriteKeys.begin(),
                                       clusterReadWriteKeys.end());
-        }
-    }
-    return true;
-}
-
-// This assumes that the overall phase structure validation has already been
-// done, specifically that there are no transactions that belong to the same
-// source account.
-bool
-TxSetPhaseFrame::txsAreValid(Application& app,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset) const
-{
-    ZoneScoped;
-    // This is done so minSeqLedgerGap is validated against the next
-    // ledgerSeq, which is what will be used at apply time
-
-    // Grab read-only latest ledger state; This is only used to validate tx sets
-    // for LCL+1
-    LedgerSnapshot ls(app);
-    ls.getLedgerHeader().currentToModify().ledgerSeq =
-        app.getLedgerManager().getLastClosedLedgerNum() + 1;
-    auto diagnostics = DiagnosticEventManager::createDisabled();
-    for (auto const& tx : *this)
-    {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset, diagnostics);
-        if (!txResult->isSuccess())
-        {
-
-            CLOG_DEBUG(
-                Herder, "Got bad txSet: tx invalid tx: {} result: {}",
-                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
-                txResult->getResultCode());
-            return false;
         }
     }
     return true;

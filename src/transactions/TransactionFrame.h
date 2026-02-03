@@ -208,6 +208,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanTxForFlooding(
         UnorderedSet<LedgerKey> const& keysToFilter) const override;
     bool validateSorobanMemo() const override;
+    bool validateHostFn() const override;
 
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;

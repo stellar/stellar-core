@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
@@ -161,8 +162,9 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
     return queues;
 }
 
+template <typename T>
 TxFrameList
-TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
+TxSetUtils::getInvalidTxList(T const& txs, Application& app,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset)
 {
@@ -174,7 +176,9 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
     TxFrameList invalidTxs;
+    std::unordered_set<Hash> seenInvalidTxs;
     auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
@@ -184,11 +188,64 @@ TxSetUtils::getInvalidTxList(TxFrameList const& txs, Application& app,
         if (!txResult->isSuccess())
         {
             invalidTxs.emplace_back(tx);
+            seenInvalidTxs.emplace(tx->getFullHash());
+        }
+        else
+        {
+            int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
+            if (INT64_MAX - accFee < tx->getFullFee())
+            {
+                accFee = INT64_MAX;
+            }
+            else
+            {
+                accFee += tx->getFullFee();
+            }
+        }
+    }
+
+    auto header = ls.getLedgerHeader().current();
+    for (auto const& tx : txs)
+    {
+        // Already added invalid tx
+        if (seenInvalidTxs.find(tx->getFullHash()) != seenInvalidTxs.end())
+        {
+            continue;
+        }
+
+        auto feeSourceID = tx->getFeeSourceID();
+        auto feeSource = ls.getAccount(feeSourceID);
+        // feeSource should exist since we've already run checkValid, log
+        // internal bug
+        if (!feeSource)
+        {
+            CLOG_ERROR(Herder,
+                       "Account not found when checking TxSet validity");
+            CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+            continue;
+        }
+        auto it = accountFeeMap.find(feeSourceID);
+        auto totFee = it->second;
+        if (getAvailableBalance(header, feeSource.current()) < totFee)
+        {
+            invalidTxs.emplace_back(tx);
+            releaseAssert(seenInvalidTxs.insert(tx->getFullHash()).second);
+            CLOG_DEBUG(
+                Herder, "Got bad txSet: account can't pay fee tx: {}",
+                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"));
         }
     }
 
     return invalidTxs;
 }
+
+// Explicit template instantiations
+template TxFrameList TxSetUtils::getInvalidTxList<TxFrameList>(
+    TxFrameList const& txs, Application& app,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
+template TxFrameList TxSetUtils::getInvalidTxList<TxSetPhaseFrame>(
+    TxSetPhaseFrame const& txs, Application& app,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 
 TxFrameList
 TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,

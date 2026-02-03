@@ -502,6 +502,12 @@ TransactionQueue::canAdd(
                          txSOROBAN_INVALID, diagnosticEvents.finalize());
     }
 
+    if (!tx->validateHostFn())
+    {
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
+                         txSOROBAN_INVALID, diagnosticEvents.finalize());
+    }
+
     return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_PENDING,
                      tx->createValidationSuccessResult());
 }

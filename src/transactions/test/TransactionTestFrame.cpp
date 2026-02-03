@@ -193,6 +193,12 @@ TransactionTestFrame::validateSorobanMemo() const
     return mTransactionFrame->validateSorobanMemo();
 }
 
+bool
+TransactionTestFrame::validateHostFn() const
+{
+    return mTransactionFrame->validateHostFn();
+}
+
 int64_t
 TransactionTestFrame::getFullFee() const
 {
