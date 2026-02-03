@@ -285,8 +285,9 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
         {
             auto& cAcceptor = mNodes[acceptor].mApp->getConfig();
 
-            auto peer = iApp->getOverlayManager().getConnectedPeer(
-                PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
+            auto peer =
+                iApp->getOverlayManager().getConnectedPeer(PeerBareAddress{
+                    asio::ip::address_v4::loopback(), cAcceptor.PEER_PORT});
             if (peer)
             {
                 peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE);
@@ -352,7 +353,8 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     {
         throw runtime_error("PEER_PORT cannot be set to 0");
     }
-    auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
+    auto address = PeerBareAddress{asio::ip::address_v4::loopback(),
+                                   to->getConfig().PEER_PORT};
     from->getOverlayManager().connectTo(address);
 }
 

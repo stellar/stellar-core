@@ -795,7 +795,7 @@ TEST_CASE("peers during auth", "[overlay][connections]")
     auto app2 = createTestApplication(clock, cfg2);
     // Put a peer into Acceptor's DB to trigger sending of peers during auth
     app2->getOverlayManager().getPeerManager().ensureExists(
-        PeerBareAddress{"1.1.1.1", 11625});
+        PeerBareAddress{asio::ip::address::from_string("1.1.1.1"), 11625});
 
     LoopbackPeerConnection conn(*app1, *app2);
     testutil::crankSome(clock);
@@ -1968,7 +1968,8 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
     for (auto i = 0; i < 3; i++)
     {
         configs.push_back(getTestConfig(i + 1));
-        addresses.emplace_back("127.0.0.1", configs[i].PEER_PORT);
+        addresses.emplace_back(asio::ip::address::from_string("127.0.0.1"),
+                               configs[i].PEER_PORT);
     }
 
     configs[0].KNOWN_PEERS.emplace_back(
@@ -2242,7 +2243,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 PeerBareAddress
 localhost(unsigned short port)
 {
-    return PeerBareAddress{"127.0.0.1", port};
+    return PeerBareAddress{asio::ip::address_v4::loopback(), port};
 }
 
 TEST_CASE("database is purged at overlay start", "[overlay]")
@@ -3020,10 +3021,10 @@ TEST_CASE("Queue purging after write completion", "[overlay][flowcontrol]")
     s->crankForAtLeast(std::chrono::seconds(1), false);
 
     auto p0 = n0->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+        localhost(n1->getConfig().PEER_PORT));
 
     auto p1 = n1->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+        localhost(n0->getConfig().PEER_PORT));
 
     REQUIRE(p0);
     REQUIRE(p1);
@@ -3120,7 +3121,7 @@ TEST_CASE("background signature verification with missing account",
 
     // Get the connected TCPPeer
     auto receiverPeer = senderNode->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", receiverNode->getConfig().PEER_PORT});
+        localhost(receiverNode->getConfig().PEER_PORT));
 
     REQUIRE(receiverPeer);
     REQUIRE(receiverPeer->isAuthenticatedForTesting());

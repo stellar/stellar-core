@@ -206,8 +206,10 @@ class OverlayManagerImpl : public OverlayManager
     int availableOutboundAuthenticatedSlots() const;
     int nonPreferredAuthenticatedCount() const;
 
-    virtual bool isPossiblyPreferred(std::string const& ip) const override;
-    virtual bool haveSpaceForConnection(std::string const& ip) const override;
+    virtual bool
+    isPossiblyPreferred(asio::ip::address const& ip) const override;
+    virtual bool
+    haveSpaceForConnection(asio::ip::address const& ip) const override;
 
     void updateSizeCounters();
 

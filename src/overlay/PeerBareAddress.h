@@ -15,33 +15,14 @@ class Application;
 class PeerBareAddress
 {
   public:
-    enum class Type
-    {
-        EMPTY,
-        IPv4
-    };
-
-    PeerBareAddress();
-    explicit PeerBareAddress(std::string ip, unsigned short port);
+    explicit PeerBareAddress(asio::ip::address ip, unsigned short port);
     explicit PeerBareAddress(PeerAddress const& pa);
 
     static PeerBareAddress
     resolve(std::string const& ipPort, Application& app,
             unsigned short defaultPort = DEFAULT_PEER_PORT);
 
-    bool
-    isEmpty() const
-    {
-        return mType == Type::EMPTY;
-    }
-
-    Type
-    getType() const
-    {
-        return mType;
-    }
-
-    std::string const&
+    asio::ip::address const&
     getIP() const
     {
         return mIP;
@@ -63,8 +44,7 @@ class PeerBareAddress
     friend bool operator<(PeerBareAddress const& x, PeerBareAddress const& y);
 
   private:
-    Type mType;
-    std::string mIP;
+    asio::ip::address mIP;
     unsigned short mPort;
     std::string mStringValue;
 };

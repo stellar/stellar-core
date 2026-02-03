@@ -24,16 +24,17 @@ using namespace std;
 // LoopbackPeer
 ///////////////////////////////////////////////////////////////////////
 
-LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
+LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
+    : Peer(app, role, PeerBareAddress{asio::ip::address_v4::loopback(), 0})
 {
     mFlowControl =
         std::make_shared<FlowControl>(mAppConnector, useBackgroundThread());
 }
 
-std::string
+asio::ip::address
 LoopbackPeer::getIP() const
 {
-    return "127.0.0.1";
+    return asio::ip::address_v4::loopback();
 }
 
 std::pair<std::shared_ptr<LoopbackPeer>, std::shared_ptr<LoopbackPeer>>

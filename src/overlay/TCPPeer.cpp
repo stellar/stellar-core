@@ -33,8 +33,8 @@ using namespace std;
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket,
-                 std::string address)
-    : Peer(app, role)
+                 asio::ip::address address)
+    : Peer(app, role, PeerBareAddress{address, 0})
     , mThreadVars(useBackgroundThread())
     , mSocket(socket)
     , mIPAddress(std::move(address))
@@ -52,7 +52,6 @@ TCPPeer::pointer
 TCPPeer::initiate(Application& app, PeerBareAddress const& address)
 {
     releaseAssert(threadIsMain());
-    releaseAssert(address.getType() == PeerBareAddress::Type::IPv4);
 
     CLOG_DEBUG(Overlay, "TCPPeer:initiate to {}", address.toString());
     auto& ioContext = app.getConfig().BACKGROUND_OVERLAY_PROCESSING
@@ -60,10 +59,9 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
                           : app.getClock().getIOContext();
     auto socket = make_shared<SocketType>(ioContext, BUFSZ);
     auto result =
-        make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket, address.toString());
+        make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket, address.getIP());
     result->initialize(address);
-    asio::ip::tcp::endpoint endpoint(
-        asio::ip::address::from_string(address.getIP()), address.getPort());
+    asio::ip::tcp::endpoint endpoint(address.getIP(), address.getPort());
     // Use weak_ptr here in case the peer is dropped before main thread saves
     // strong reference in pending/authenticated peer lists
     socket->next_layer().async_connect(
@@ -119,7 +117,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     // threads) Therefore, it is safe to call functions like `remote_endpoint`
     // and `set_option` (the socket object isn't passed to background yet)
     auto extractIP = [](shared_ptr<SocketType> socket) {
-        std::string result;
+        std::optional<asio::ip::address> result{std::nullopt};
         asio::error_code ec;
         auto ep = socket->next_layer().remote_endpoint(ec);
         if (ec)
@@ -131,13 +129,13 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
         }
         else
         {
-            result = ep.address().to_string();
+            result = ep.address();
         }
         return result;
     };
 
     auto ip = extractIP(socket);
-    if (ip.empty())
+    if (!ip)
     {
         return nullptr;
     }
@@ -145,7 +143,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     // First check if there's enough space to accept peer
     // If not, do not even create a peer instance as to not trigger any
     // additional reads and memory allocations
-    if (!app.getOverlayManager().haveSpaceForConnection(ip))
+    if (!app.getOverlayManager().haveSpaceForConnection(*ip))
     {
         return nullptr;
     }
@@ -162,8 +160,8 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     if (!ec && !lingerEc)
     {
         CLOG_DEBUG(Overlay, "TCPPeer:accept");
-        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket, ip);
-        result->initialize(PeerBareAddress{ip, 0});
+        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket, *ip);
+        result->initialize(PeerBareAddress{*ip, 0});
 
         // Use weak_ptr here in case the peer is dropped before main thread
         // saves strong reference in pending/authenticated peer lists
@@ -334,8 +332,9 @@ TCPPeer::messageSender()
             break;
     }
 
-    CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", mIPAddress,
-               expected_length, mThreadVars.getWriteBuffers().size(),
+    CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}",
+               mIPAddress.to_string(), expected_length,
+               mThreadVars.getWriteBuffers().size(),
                mThreadVars.getWriteQueue().size());
     mOverlayMetrics.mAsyncWrite.Mark();
     mPeerMetrics.mAsyncWrite++;
@@ -429,7 +428,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mOverlayMetrics.mErrorWrite.Mark();
             CLOG_ERROR(Overlay, "Error during sending message to {}",
-                       mIPAddress);
+                       mIPAddress.to_string());
         }
         drop("error during write", Peer::DropDirection::WE_DROPPED_REMOTE);
     }
@@ -528,8 +527,8 @@ TCPPeer::scheduleRead()
         self->startRead();
     };
 
-    std::string taskName =
-        fmt::format(FMT_STRING("TCPPeer::startRead for {}"), mIPAddress);
+    std::string taskName = fmt::format(FMT_STRING("TCPPeer::startRead for {}"),
+                                       mIPAddress.to_string());
 
     if (useBackgroundThread())
     {
@@ -560,7 +559,7 @@ TCPPeer::startRead()
     mThreadVars.getIncomingHeader().clear();
 
     CLOG_DEBUG(Overlay, "TCPPeer::startRead {} from {}", mSocket->in_avail(),
-               mIPAddress);
+               mIPAddress.to_string());
 
     mThreadVars.getIncomingHeader().resize(HDRSZ);
 
@@ -694,7 +693,7 @@ TCPPeer::getIncomingMsgLength()
     {
         mOverlayMetrics.mErrorRead.Mark();
         CLOG_ERROR(Overlay, "{} TCP: message size unacceptable: {}{}",
-                   mIPAddress, length,
+                   mIPAddress.to_string(), length,
                    (isAuthenticated(guard) ? "" : " while not authenticated"));
         drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE);
         length = 0;
@@ -799,12 +798,13 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG_ERROR(Overlay, "{} - recvMessage got a corrupt xdr: {}",
-                   mIPAddress, e.what());
+                   mIPAddress.to_string(), e.what());
         errorMsg = "received corrupt XDR";
     }
     catch (CryptoError const& e)
     {
-        CLOG_ERROR(Overlay, "{} - Crypto error: {}", mIPAddress, e.what());
+        CLOG_ERROR(Overlay, "{} - Crypto error: {}", mIPAddress.to_string(),
+                   e.what());
         errorMsg = "crypto error";
     }
 

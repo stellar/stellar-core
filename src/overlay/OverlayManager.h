@@ -140,8 +140,8 @@ class OverlayManager
     virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
 
     virtual bool isPreferred(Peer* peer) const = 0;
-    virtual bool isPossiblyPreferred(std::string const& ip) const = 0;
-    virtual bool haveSpaceForConnection(std::string const& ip) const = 0;
+    virtual bool isPossiblyPreferred(asio::ip::address const& ip) const = 0;
+    virtual bool haveSpaceForConnection(asio::ip::address const& ip) const = 0;
 
     // Return the current in-memory set of inbound pending peers.
     virtual std::vector<Peer::pointer> const&
