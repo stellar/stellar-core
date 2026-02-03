@@ -1,4 +1,4 @@
-soroban-env-host v25.0.1 (src/rust/soroban/p26/soroban-env-host)
+soroban-env-host v26.0.0-rc.1 (src/rust/soroban/p26/soroban-env-host)
 ├── ark-bls12-381 v0.5.0
 │   ├── ark-ec v0.5.0
 │   │   ├── ahash v0.8.11
@@ -236,17 +236,17 @@ soroban-env-host v25.0.1 (src/rust/soroban/p26/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v25.0.1 (proc-macro) (src/rust/soroban/p26/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v26.0.0-rc.1 (proc-macro) (src/rust/soroban/p26/soroban-builtin-sdk-macros)
 │   ├── itertools v0.13.0
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v25.0.1 (src/rust/soroban/p26/soroban-env-common)
+├── soroban-env-common v26.0.0-rc.1 (src/rust/soroban/p26/soroban-env-common)
 │   ├── ethnum v1.5.0
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v25.0.1 (proc-macro) (src/rust/soroban/p26/soroban-env-macros)
+│   ├── soroban-env-macros v26.0.0-rc.1 (proc-macro) (src/rust/soroban/p26/soroban-env-macros)
 │   │   ├── itertools v0.13.0 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)
@@ -259,7 +259,7 @@ soroban-env-host v25.0.1 (src/rust/soroban/p26/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v25.0.0
+│   │   ├── stellar-xdr v25.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=c458ac6bb943c271332cb8cf274b492433cb763f#c458ac6b)
 │   │   │   ├── cfg_eval v0.1.2 (proc-macro)
 │   │   │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   │   │   ├── quote v1.0.33 (*)
@@ -290,7 +290,7 @@ soroban-env-host v25.0.1 (src/rust/soroban/p26/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v25.0.0
+│   ├── stellar-xdr v25.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=c458ac6bb943c271332cb8cf274b492433cb763f#c458ac6b)
 │   │   ├── base64 v0.22.1
 │   │   ├── cfg_eval v0.1.2 (proc-macro) (*)
 │   │   ├── escape-bytes v0.1.1
