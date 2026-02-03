@@ -4,14 +4,14 @@ import os
 import subprocess
 import tempfile
 import time
+from datetime import datetime
 
 # Instance type to use. Matches SDF validator instance type.
 INSTANCE_TYPE = 'c5d.2xlarge'
 
 # Key pair name and file for SSH access
-# TODO: Fill these in with the proper values
-KEY_NAME = 'max-sac-test-key'
-KEY_FILE = 'max-sac-test-key.pem'
+KEY_NAME = f'max-sac-test-key-{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}'
+KEY_FILE = f'{KEY_NAME}.pem'
 
 # Directory containing helper files for this script
 APPLY_LOAD_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "apply_load")
@@ -48,6 +48,8 @@ def create_key_pair(region):
     """ Create an EC2 key pair and save the private key to KEY_FILE. """
     print("Creating EC2 key pair...")
     cmd = ["aws", "ec2", "create-key-pair", "--key-name", KEY_NAME,
+           "--tag-specifications",
+           "ResourceType=key-pair,Tags=[{Key=test,Value=max-sac-tps},{Key=ManagedBy,Value=ApplyLoadScript}]",
            "--query", "KeyMaterial", "--output", "text", "--region", region]
     private_key = run_capture_output(cmd).decode().strip()
     with open(KEY_FILE, "w") as key_file:
@@ -64,7 +66,10 @@ def start_ec2_instance(ami, region, security_group):
     cmd = ["aws", "ec2", "run-instances", "--image-id", ami,
            "--instance-type", INSTANCE_TYPE,
            "--security-groups", security_group,
-           "--key-name", KEY_NAME, "--query", "Instances[0].InstanceId",
+           "--key-name", KEY_NAME,
+           "--tag-specifications",
+           "ResourceType=instance,Tags=[{Key=test,Value=max-sac-tps},{Key=ManagedBy,Value=ApplyLoadScript}]",
+           "--query", "Instances[0].InstanceId",
            "--output", "text", "--region", region]
     instance_id = run_capture_output(cmd).decode().strip()
     print("Started EC2 instance with ID:", instance_id)
