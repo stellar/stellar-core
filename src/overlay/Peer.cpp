@@ -1982,14 +1982,7 @@ Peer::recvPeers(StellarMessage const& msg)
                        peer.port);
             continue;
         }
-        if (peer.ip.type() == IPv6)
-        {
-            CLOG_DEBUG(Overlay,
-                       "ignoring received IPv6 address (not yet supported)");
-            continue;
-        }
 
-        releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
         if (address.isPrivate())

@@ -30,7 +30,17 @@ PeerDoor::start()
 
     if (!mApp.getConfig().RUN_STANDALONE)
     {
-        tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
+        asio::ip::address listenAddr;
+        if (!mApp.getConfig().PEER_LISTEN_IP.empty())
+        {
+            listenAddr =
+                asio::ip::make_address(mApp.getConfig().PEER_LISTEN_IP);
+        }
+        else
+        {
+            listenAddr = asio::ip::address_v4::any();
+        }
+        tcp::endpoint endpoint(listenAddr, mApp.getConfig().PEER_PORT);
         CLOG_INFO(Overlay, "Binding to endpoint {}:{}",
                   endpoint.address().to_string(), endpoint.port());
         mAcceptor.open(endpoint.protocol());

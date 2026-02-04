@@ -679,3 +679,65 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
         }
     }
 }
+
+TEST_CASE("mixed IPv4 and IPv6 nodes", "[simulation][overlay][ipv6]")
+{
+    // This test verifies that stellar-core can handle a network where some
+    // nodes listen on IPv4 and others on IPv6. It creates a 4-node network
+    // with 2 IPv4 nodes and 2 IPv6 nodes, all forming a quorum.
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto confGen = [](int i) {
+        auto cfg = getTestConfig(i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        // Even nodes listen on IPv4, odd nodes on IPv6
+        if (i % 2 == 0)
+        {
+            cfg.PEER_LISTEN_IP = "127.0.0.1";
+        }
+        else
+        {
+            cfg.PEER_LISTEN_IP = "::1";
+        }
+        return cfg;
+    };
+
+    Simulation::pointer simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID, confGen);
+
+    std::vector<SecretKey> keys;
+    for (int i = 0; i < 4; i++)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
+    }
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 3; // 3 of 4 for consensus
+    for (auto& k : keys)
+    {
+        qSet.validators.push_back(k.getPublicKey());
+    }
+
+    for (auto& k : keys)
+    {
+        simulation->addNode(k, qSet);
+    }
+
+    // Fully connect all nodes (IPv4 <-> IPv6 connections included)
+    simulation->fullyConnectAllPending();
+
+    simulation->startAllNodes();
+
+    // Verify that all nodes reach consensus
+    int nLedgers = 10;
+    simulation->crankUntil(
+        [&simulation, nLedgers]() {
+            return simulation->haveAllExternalized(nLedgers + 1, 5);
+        },
+        20 * nLedgers * simulation->getExpectedLedgerCloseTime(), true);
+
+    REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 5));
+
+    LOG_INFO(DEFAULT_LOG, "Mixed IPv4/IPv6 test completed successfully");
+}
