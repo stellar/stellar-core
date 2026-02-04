@@ -708,8 +708,7 @@ TEST_CASE("mixed IPv4 and IPv6 nodes", "[simulation][overlay][ipv6]")
     std::vector<SecretKey> keys;
     for (int i = 0; i < 4; i++)
     {
-        keys.push_back(
-            SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
+        keys.push_back(SecretKey::pseudoRandomForTesting());
     }
 
     SCPQuorumSet qSet;

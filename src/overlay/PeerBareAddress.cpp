@@ -175,7 +175,7 @@ isIPv4Private(asio::ip::address_v4 const& addr)
 }
 
 template <uint8_t bits, uint8_t index, uint8_t currentByte, uint8_t... octets>
-inline bool
+constexpr inline bool
 ipv6InSubnetHelper(std::array<unsigned char, 16> const& bytes)
 {
     if constexpr (bits == 0)
@@ -213,7 +213,7 @@ ipv6InSubnetHelper(std::array<unsigned char, 16> const& bytes)
 }
 
 template <uint16_t a, uint16_t b, uint8_t bits>
-constexpr bool
+bool
 ipv6InSubnet(std::array<unsigned char, 16> const& bytes)
 {
     return ipv6InSubnetHelper<bits, 0, (a >> 8), a & 0xFF, (b >> 8), b & 0xFF>(

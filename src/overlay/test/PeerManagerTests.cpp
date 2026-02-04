@@ -26,90 +26,103 @@ localhost(unsigned short port)
 
 TEST_CASE("toXdr", "[overlay][PeerManager]")
 {
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, getTestConfig());
-    auto& pm = app->getOverlayManager().getPeerManager();
-    auto address = PeerBareAddress::resolve("1.25.50.200:256", *app);
+    auto run = [](asio::ip::address ip) {
+        VirtualClock clock;
+        Application::pointer app =
+            createTestApplication(clock, getTestConfig());
+        auto& pm = app->getOverlayManager().getPeerManager();
+        auto address = PeerBareAddress(ip, 256);
 
-    SECTION("toXdr")
+        SECTION("toXdr")
+        {
+            REQUIRE(address.getIP().to_string() == ip.to_string());
+            REQUIRE(address.getPort() == 256);
+
+            auto xdr = toXdr(address);
+            REQUIRE(xdr.port == 256);
+            if (ip.is_v4())
+            {
+                REQUIRE(xdr.ip.type() == IPv4);
+                REQUIRE(xdr.ip.ipv4() == ip.to_v4().to_bytes());
+            }
+            else
+            {
+                REQUIRE(xdr.ip.type() == IPv6);
+                REQUIRE(xdr.ip.ipv6() == ip.to_v6().to_bytes());
+            }
+            REQUIRE(xdr.numFailures == 0);
+        }
+
+        SECTION("database roundtrip")
+        {
+            auto test = [&](PeerType peerType) {
+                auto loadedPR = pm.load(address);
+                REQUIRE(!loadedPR.second);
+
+                auto storedPr = loadedPR.first;
+                storedPr.mType = static_cast<int>(peerType);
+                pm.store(address, storedPr, false);
+
+                auto actualPR = pm.load(address);
+                REQUIRE(actualPR.second);
+                REQUIRE(actualPR.first == storedPr);
+            };
+
+            SECTION("inbound")
+            {
+                test(PeerType::INBOUND);
+            }
+
+            SECTION("outbound")
+            {
+                test(PeerType::OUTBOUND);
+            }
+
+            SECTION("preferred")
+            {
+                test(PeerType::PREFERRED);
+            }
+        }
+    };
+
+    SECTION("IPv4")
     {
-        REQUIRE(address.getIP().to_string() == "1.25.50.200");
-        REQUIRE(address.getPort() == 256);
-
-        auto xdr = toXdr(address);
-        REQUIRE(xdr.port == 256);
-        REQUIRE(xdr.ip.ipv4()[0] == 1);
-        REQUIRE(xdr.ip.ipv4()[1] == 25);
-        REQUIRE(xdr.ip.ipv4()[2] == 50);
-        REQUIRE(xdr.ip.ipv4()[3] == 200);
-        REQUIRE(xdr.numFailures == 0);
+        run(asio::ip::address::from_string("1.25.50.200"));
     }
-
-    SECTION("database roundtrip")
+    SECTION("IPv6")
     {
-        auto test = [&](PeerType peerType) {
-            auto loadedPR = pm.load(address);
-            REQUIRE(!loadedPR.second);
-
-            auto storedPr = loadedPR.first;
-            storedPr.mType = static_cast<int>(peerType);
-            pm.store(address, storedPr, false);
-
-            auto actualPR = pm.load(address);
-            REQUIRE(actualPR.second);
-            REQUIRE(actualPR.first == storedPr);
-        };
-
-        SECTION("inbound")
-        {
-            test(PeerType::INBOUND);
-        }
-
-        SECTION("outbound")
-        {
-            test(PeerType::OUTBOUND);
-        }
-
-        SECTION("preferred")
-        {
-            test(PeerType::PREFERRED);
-        }
+        run(asio::ip::address::from_string("2001:0db8::"));
     }
 }
 
 TEST_CASE("private addresses", "[overlay][PeerManager]")
 {
-    auto makeIp = [](uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
-        return static_cast<uint32_t>(a) << 24 | static_cast<uint32_t>(b) << 16 |
-               static_cast<uint32_t>(c) << 8 | static_cast<uint32_t>(d);
-    };
-    auto checkRange4 = [](uint32_t ip, uint8_t bits, bool checkPrev = true,
+    auto checkRange4 = [](char const* cidr, bool checkPrev = true,
                           bool checkNext = true) {
-        uint32_t mask = static_cast<uint32_t>(-1) << (32 - bits);
-        auto start = ip & mask;
-
+        auto network = asio::ip::make_network_v4(cidr);
         if (checkPrev)
         {
-            auto addr4 = asio::ip::make_address_v4(start - 1);
+            auto addr4 =
+                asio::ip::make_address_v4(network.network().to_uint() - 1);
             auto addr6 = asio::ip::make_address_v6(asio::ip::v4_mapped, addr4);
             CHECK(!PeerBareAddress(addr4, 15).isPrivate());
             CHECK(!PeerBareAddress(addr6, 15).isPrivate());
         }
 
-        auto addr4 = asio::ip::make_address_v4(start);
+        auto addr4 = network.network();
         auto addr6 = asio::ip::make_address_v6(asio::ip::v4_mapped, addr4);
         CHECK(PeerBareAddress(addr4, 15).isPrivate());
         CHECK(PeerBareAddress(addr6, 15).isPrivate());
 
-        auto end = start | ~mask;
-        addr4 = asio::ip::make_address_v4(end);
+        addr4 = network.broadcast();
         addr6 = asio::ip::make_address_v6(asio::ip::v4_mapped, addr4);
         CHECK(PeerBareAddress(addr4, 15).isPrivate());
         CHECK(PeerBareAddress(addr6, 15).isPrivate());
 
         if (checkNext)
         {
-            addr4 = asio::ip::make_address_v4(end + 1);
+            addr4 =
+                asio::ip::make_address_v4(network.broadcast().to_uint() + 1);
             addr6 = asio::ip::make_address_v6(asio::ip::v4_mapped, addr4);
             CHECK(!PeerBareAddress(addr4, 15).isPrivate());
             CHECK(!PeerBareAddress(addr6, 15).isPrivate());
@@ -125,14 +138,9 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
             auto prevBytes = start.to_bytes();
             for (int i = 15; i >= 0; --i)
             {
-                if (prevBytes[i] != 0)
+                if (prevBytes[i]-- != 0)
                 {
-                    --prevBytes[i];
                     break;
-                }
-                else
-                {
-                    prevBytes[i] = 255;
                 }
             }
             auto prev = asio::ip::address_v6(prevBytes);
@@ -146,14 +154,10 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
             {
                 bits -= 8;
             }
-            else if (bits > 0)
+            else
             {
                 endBytes[i] |= 0xFF >> bits;
                 bits = 0;
-            }
-            else
-            {
-                endBytes[i] = 0XFF;
             }
         }
         CHECK(PeerBareAddress(asio::ip::address_v6(endBytes), 15).isPrivate());
@@ -162,14 +166,9 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
         {
             for (int i = 15; i >= 0; --i)
             {
-                if (endBytes[i] != 255)
+                if (++endBytes[i] != 0)
                 {
-                    ++endBytes[i];
                     break;
-                }
-                else
-                {
-                    endBytes[i] = 0;
                 }
             }
             CHECK(!PeerBareAddress(asio::ip::address_v6(endBytes), 15)
@@ -191,51 +190,51 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
 
     SECTION("0.0.0.0/8")
     {
-        checkRange4(makeIp(0, 0, 0, 0), 8, false);
+        checkRange4("0.0.0.0/8", false);
     }
     SECTION("10.0.0.0/8")
     {
-        checkRange4(makeIp(10, 0, 0, 0), 8);
+        checkRange4("10.0.0.0/8");
     }
     SECTION("100.64.0.0/10")
     {
-        checkRange4(makeIp(100, 64, 0, 0), 10);
+        checkRange4("100.64.0.0/10");
     }
     SECTION("169.254.0.0/16")
     {
-        checkRange4(makeIp(169, 254, 0, 0), 16);
+        checkRange4("169.254.0.0/16");
     }
     SECTION("172.16.0.0/12")
     {
-        checkRange4(makeIp(172, 16, 0, 0), 12);
+        checkRange4("172.16.0.0/12");
     }
     SECTION("192.0.0.0/24")
     {
-        checkRange4(makeIp(192, 0, 0, 0), 24);
+        checkRange4("192.0.0.0/24");
     }
     SECTION("192.0.2.0/24")
     {
-        checkRange4(makeIp(192, 0, 2, 0), 24);
+        checkRange4("192.0.2.0/24");
     }
     SECTION("192.168.0.0/16")
     {
-        checkRange4(makeIp(192, 168, 0, 0), 16);
+        checkRange4("192.168.0.0/16");
     }
     SECTION("198.18.0.0/15")
     {
-        checkRange4(makeIp(198, 18, 0, 0), 15);
+        checkRange4("198.18.0.0/15");
     }
     SECTION("198.51.100.0/24")
     {
-        checkRange4(makeIp(198, 51, 100, 0), 24);
+        checkRange4("198.51.100.0/24");
     }
     SECTION("203.0.113.0/24")
     {
-        checkRange4(makeIp(203, 0, 113, 0), 24);
+        checkRange4("203.0.113.0/24");
     }
     SECTION("240.0.0.0/4")
     {
-        checkRange4(makeIp(240, 0, 0, 0), 4, true, false);
+        checkRange4("240.0.0.0/4", true, false);
     }
 
     SECTION("::/128")
