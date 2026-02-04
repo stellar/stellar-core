@@ -63,7 +63,7 @@ class ApplyLoad
 
     // The target time to close a ledger when running in MAX_SAC_TPS mode must
     // be a multiple of TARGET_CLOSE_TIME_STEP_MS.
-    static uint32_t const TARGET_CLOSE_TIME_STEP_MS = 50;
+    static uint32_t constexpr TARGET_CLOSE_TIME_STEP_MS = 50;
 
   private:
     void setup();

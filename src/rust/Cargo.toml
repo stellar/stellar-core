@@ -110,10 +110,10 @@ tracy-client = { version = "=0.17.0", features = [
 # unify them, perturbing the contents of the lockfile.
 
 [dependencies.soroban-env-host-p26]
-version = "=25.0.1"
+version = "=26.0.0-rc.1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "e527f43cde68e0d17cd6d7d8e162d1944ba5a251"
+rev = "9453428eba804e67120efede4900c39ca75dab4e"
 optional = true
 
 [dependencies.soroban-env-host-p25]
@@ -155,14 +155,14 @@ optional = true
 # supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
-version = "=23.0.2"
+version = "=26.0.0-rc.1"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "30249f0549141dbe7fdce84b6401a4235dbad64f"
+rev = "9453428eba804e67120efede4900c39ca75dab4e"
 
 [dependencies.soroban-synth-wasm]
-version = "=23.0.0"
+version = "=26.0.0-rc.1"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
+rev = "9453428eba804e67120efede4900c39ca75dab4e"
 
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
@@ -188,8 +188,15 @@ tracy = ["dep:tracy-client"]
 # staging work across intra-protocol releases.
 next = []
 
-# the testutils feature turns on stuff that should only be available in a core
+# The testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on
-# a secondary host. If necessary it can also turn on "testutils" features in
-# any of the hosts.
+# a secondary host, AND the fuzz target entry points in soroban-env-host.
+# This allows fuzz smoke tests to run in normal test builds without requiring
+# the full fuzz instrumentation infrastructure.
 testutils = []
+
+# The fuzz feature is kept for backward compatibility with ENABLE_FUZZ builds.
+# It now just enables testutils, since the fuzz targets are available under
+# testutils. Any future fuzz-instrumentation-specific code can be gated by
+# this feature if needed.
+fuzz = ["testutils"]

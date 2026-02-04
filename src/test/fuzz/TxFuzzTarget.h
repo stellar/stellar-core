@@ -4,47 +4,57 @@
 
 #pragma once
 
+/**
+ * TxFuzzTarget - Transaction application fuzz target
+ *
+ * This fuzz target exercises transaction application by:
+ * 1. Decoding fuzz input bytes into a compact XDR representation of operations
+ * 2. Creating a transaction with those operations
+ * 3. Attempting to apply the transaction to a pre-configured ledger state
+ *
+ * The compact XDR format (xdr_fuzzer_unpacker) provides stable byte expansion
+ * where small input changes cause small semantic changes in the generated
+ * operations. This is critical for effective fuzzing.
+ */
+
 #include "ledger/LedgerTxn.h"
-#include "test/Fuzzer.h"
+#include "test/fuzz/FuzzTargetRegistry.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
 
+#include <memory>
+
 namespace stellar
 {
 
-class XDRInputFileStream;
-class Simulation;
 class Application;
-struct StellarMessage;
-struct Operation;
 
 namespace FuzzUtils
 {
+// Forward declarations of types defined in FuzzUtils.h
 size_t static constexpr NUM_STORED_LEDGER_KEYS = 0x100U;
 using StoredLedgerKeys = std::array<LedgerKey, NUM_STORED_LEDGER_KEYS>;
-StoredLedgerKeys::difference_type static constexpr NUM_UNVALIDATED_LEDGER_KEYS =
-    0x40;
-size_t static constexpr NUM_VALIDATED_LEDGER_KEYS =
-    NUM_STORED_LEDGER_KEYS - NUM_UNVALIDATED_LEDGER_KEYS;
-
 size_t static constexpr NUM_STORED_POOL_IDS = 0x7U;
 using StoredPoolIDs = std::array<PoolID, NUM_STORED_POOL_IDS>;
 }
 
-class TransactionFuzzer : public Fuzzer
+class TxFuzzTarget : public FuzzTarget
 {
   public:
-    TransactionFuzzer()
-    {
-    }
-    void inject(std::string const& filename) override;
+    TxFuzzTarget() = default;
+
+    std::string name() const override;
+    std::string description() const override;
     void initialize() override;
+    FuzzResultCode run(uint8_t const* data, size_t size) override;
     void shutdown() override;
-    void genFuzz(std::string const& filename) override;
-    int xdrSizeLimit() override;
+    size_t maxInputSize() const override;
+    void generateSeedCorpus(std::string const& outputDir,
+                            size_t count) override;
 
   private:
+    // Initialization helpers
     void storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx);
     void storeSetupPoolIDs(AbstractLedgerTxn& ltx,
                            std::vector<LedgerEntry> const& entries);
@@ -56,6 +66,7 @@ class TransactionFuzzer : public Fuzzer
     void reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
     void adjustTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
     void reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter);
+
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;
@@ -63,24 +74,4 @@ class TransactionFuzzer : public Fuzzer
     FuzzUtils::StoredPoolIDs mStoredPoolIDs;
 };
 
-class OverlayFuzzer : public Fuzzer
-{
-    int const ACCEPTOR_INDEX = 0;
-    int const INITIATOR_INDEX = 1;
-
-  public:
-    OverlayFuzzer()
-    {
-    }
-    void inject(std::string const& filename) override;
-    void initialize() override;
-    void shutdown() override;
-    void genFuzz(std::string const& filename) override;
-    int xdrSizeLimit() override;
-
-  private:
-    std::shared_ptr<Simulation> mSimulation;
-    FuzzUtils::StoredLedgerKeys mStoredLedgerKeys;
-    FuzzUtils::StoredPoolIDs mStoredPoolIDs;
-};
-}
+} // namespace stellar

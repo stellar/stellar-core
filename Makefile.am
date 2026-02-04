@@ -21,10 +21,7 @@ format: always
 	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
 endif # USE_CLANG_FORMAT
 
-if USE_AFL_FUZZ
-fuzz-testcases fuzz fuzz-clean: all
-	cd src && $(MAKE) $(AM_MAKEFLAGS) $@
-endif # USE_AFL_FUZZ
+
 
 if USE_TRACY_GUI
 TRACY_GUI_DIR=$(top_srcdir)/lib/tracy/profiler
