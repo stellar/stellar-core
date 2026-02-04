@@ -3966,6 +3966,9 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             Config::TestDbMode dbMode = Config::TESTDB_BUCKET_DB_PERSISTENT;
             auto cfg = getTestConfig(i, dbMode);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::milliseconds(delayCloseMs);
+            cfg.RUN_STANDALONE = false;
             return cfg;
         });
 
@@ -3997,6 +4000,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             Herder::State::HERDER_BOOTING_STATE);
 
     simulation->startAllNodes();
+    simulation->stopOverlayTick();
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             cfg.mStateArchivalSettings.liveSorobanStateSizeWindowSamplePeriod =
@@ -4111,7 +4115,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
                 Herder::ENVELOPE_STATUS_READY);
         REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
                 Herder::ENVELOPE_STATUS_READY);
-        simulation->crankForAtLeast(std::chrono::seconds(10), false);
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
     };
 
     auto testOutOfOrder = [&](bool partial) {
@@ -4297,6 +4301,7 @@ herderExternalizesValuesWithProtocol(uint32_t version,
         configC.MAX_SLOTS_TO_REMEMBER += 5;
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
         newC->start();
+        simulation->stopOverlayTick();
         HerderImpl& newHerderC = static_cast<HerderImpl&>(newC->getHerder());
 
         checkHerder(*newC, newHerderC,
@@ -4391,6 +4396,45 @@ herderExternalizesValuesWithProtocol(uint32_t version,
             REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
         }
     }
+    SECTION("tracking timer resets during slow apply")
+    {
+        // C is tracking an old ledger (A & B are at destinationLedger)
+        REQUIRE(herderC.getState() ==
+                Herder::State::HERDER_TRACKING_NETWORK_STATE);
+        REQUIRE(currentCLedger() == currentLedger);
+
+        // Before triggering apply, override LCL setting function in LM, which
+        // would set isApplying to false
+        LedgerManagerImpl& lmCImpl =
+            static_cast<LedgerManagerImpl&>(getC()->getLedgerManager());
+        lmCImpl.mAdvanceLedgerStateAndPublishOverride = [&] { return true; };
+
+        // Receive first ledger - this will start applying with delay
+        receiveLedger(currentLedger + 1, herderC);
+
+        // In parallel mode, we should be applying the ledger now
+        REQUIRE(lmC.isApplying());
+
+        checkHerder(*(getC()), herderC,
+                    Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                    currentLedger + 1);
+        REQUIRE(lmC.isSynced());
+
+        // Now crank until the node goes out of sync:
+        // currentLedger+ 1 is still "applying"
+        // out of sync timer fires
+        simulation->crankForAtLeast(Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS +
+                                        std::chrono::seconds(5),
+                                    false);
+        REQUIRE(lmC.isApplying());
+
+        // Verify applying a long ledger is unaffected by out-of-sync timer
+        REQUIRE(currentCLedger() == currentLedger);
+        checkHerder(*(getC()), herderC,
+                    Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                    currentLedger + 1);
+        REQUIRE(lmC.getState() == LedgerManager::LM_SYNCED_STATE);
+    }
 }
 } // namespace
 
@@ -4403,8 +4447,19 @@ TEST_CASE("herder externalizes values", "[herder]")
     }
     SECTION("curr protocol")
     {
-        herderExternalizesValuesWithProtocol(
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+        SECTION("normal")
+        {
+            herderExternalizesValuesWithProtocol(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+        }
+        SECTION("slow apply")
+        {
+            // Artificially slow down ledger close to trigger interesting
+            // buffering scenarios in Herder
+            herderExternalizesValuesWithProtocol(
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                /* delayCloseMs */ 100);
+        }
     }
 }
 
