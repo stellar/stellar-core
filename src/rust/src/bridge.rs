@@ -251,6 +251,10 @@ pub(crate) mod rust_bridge {
         // Check to see if the XDR files used by different rust dependencies match.
         fn check_xdr_version_identities() -> Result<()>;
 
+        // Get the total memory available on the host machine, in kibibytes.
+        // Returns 0 if the value cannot be obtained for any reason.
+        fn get_host_total_memory() -> u64;
+
         // Computes the resource fee given the transaction resource consumption
         // and network configuration.
         fn compute_transaction_resource_fee(
