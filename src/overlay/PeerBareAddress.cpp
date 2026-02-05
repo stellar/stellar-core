@@ -138,7 +138,8 @@ PeerBareAddress::isPrivate() const
     unsigned long val = addr.to_ulong();
     if (((val >> 24) == 10)        // 10.x.y.z
         || ((val >> 20) == 2753)   // 172.[16-31].x.y
-        || ((val >> 16) == 49320)) // 192.168.x.y
+        || ((val >> 16) == 49320)  // 192.168.x.y
+        || ((val >> 16) == 43518)) // 169.254.x.y (link-local)
     {
         return true;
     }
@@ -148,7 +149,14 @@ PeerBareAddress::isPrivate() const
 bool
 PeerBareAddress::isLocalhost() const
 {
-    return mIP == "127.0.0.1";
+    asio::error_code ec;
+    asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
+    if (ec)
+    {
+        return false;
+    }
+    unsigned long val = addr.to_ulong();
+    return (val >> 24) == 127; // 127.x.y.z
 }
 
 bool
