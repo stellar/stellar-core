@@ -2844,11 +2844,11 @@ TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
         REQUIRE(memParams[static_cast<size_t>(ContractCostType::Bls12381G1Msm)]
                     .linearTerm == 266603);
 
-        // Sanity check: sizes should remain the same (no new cost types added)
+        // Sanity check: sizes should include the new Bn254G1Msm cost type
         REQUIRE(cpuParams.size() ==
-                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
         REQUIRE(memParams.size() ==
-                static_cast<uint32>(ContractCostType::Bn254FrInv) + 1);
+                static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
     }
 }
 #endif

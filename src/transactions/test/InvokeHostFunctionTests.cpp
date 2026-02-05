@@ -2070,7 +2070,11 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
             cfg.mRentFee1KBSorobanStateSizeLow;
     });
 
-    int64_t const expectedRentFee = 8'395'575'720LL;
+    int64_t const expectedRentFee =
+        protocolVersionIsBefore(getLclProtocolVersion(test.getApp()),
+                                ProtocolVersion::V_26)
+            ? 8'395'575'720LL
+            : 8'395'575'721LL;
     int64_t const uploadEventsSize = 40;
 
     auto runTest = [&](int64_t feeBumperBalance, int64_t inclusionFee,

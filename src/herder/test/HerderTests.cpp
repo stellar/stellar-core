@@ -1765,7 +1765,11 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
 
-    uint32_t const rentFee = 20'368;
+    uint32_t const rentFee =
+        protocolVersionIsBefore(getLclProtocolVersion(*app),
+                                ProtocolVersion::V_26)
+            ? 20'368
+            : 20'369;
     resourceFee += rentFee;
     resources.footprint.readWrite.pop_back();
     auto addSorobanTx = [&](uint32_t inclusionFee) {
@@ -1793,9 +1797,15 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
         };
         auto balancesBefore = getBalances();
 
-        closeLedgerOn(*app,
-                      app->getLedgerManager().getLastClosedLedgerNum() + 1,
-                      getTestDate(13, 4, 2022), txSet.first);
+        auto res = closeLedgerOn(
+            *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+            getTestDate(13, 4, 2022), txSet.first);
+
+        REQUIRE(res.results.size() == txSet.second->sizeTxTotal());
+        for (size_t i = 0; i < res.results.size(); ++i)
+        {
+            checkTx(i, res, txSUCCESS);
+        }
 
         auto balancesAfter = getBalances();
         std::vector<int64_t> feeCharged;

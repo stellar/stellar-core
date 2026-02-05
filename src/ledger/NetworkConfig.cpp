@@ -643,10 +643,13 @@ updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
     auto& params =
         txle.current().data.configSetting().contractCostParamsCpuInsns();
 
+    // Resize to fit the new cost type added in v26
+    params.resize(static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
     // While we loop over the full ContractCostType enum, we only set the
-    // entries that have been updated in v26
+    // entries that have been updated or newly created in v26
     for (auto val : vals)
     {
         switch (val)
@@ -677,6 +680,11 @@ updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
         // Updating existing BN254 cost type
         case Bn254G2CheckPointInSubgroup:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1706052, 0);
+            break;
+        // Adding new BN254 cost type
+        case Bn254G1Msm:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 1185193, 41568084);
             break;
         default:
             break;
@@ -1137,8 +1145,13 @@ updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
     auto& params =
         txle.current().data.configSetting().contractCostParamsMemBytes();
 
+    // Resize to fit the new cost type added in v26
+    params.resize(static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
+
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
 
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have been updated or newly created in v26
     for (auto val : vals)
     {
         switch (val)
@@ -1163,6 +1176,11 @@ updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
             break;
         case Bls12381HashToG2:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3960, 0};
+            break;
+        // Adding new BN254 cost type
+        case Bn254G1Msm:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 73061, 229779};
             break;
         default:
             break;
@@ -2617,10 +2635,21 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         {
             return static_cast<uint32_t>(ContractCostType::Bls12381FrInv) + 1;
         }
+        else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_26))
+        {
+            return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
+        }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        else
+        {
+            return static_cast<uint32_t>(ContractCostType::Bn254G1Msm) + 1;
+        }
+#else
         else
         {
             return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
         }
+#endif
     };
 
     if (params.size() != getNumCostTypes(ledgerVersion))
