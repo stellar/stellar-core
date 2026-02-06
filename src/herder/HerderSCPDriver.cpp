@@ -1297,12 +1297,13 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 }
 
 void
-HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep)
+HerderSCPDriver::purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
+                                        std::optional<uint64_t> maxSlotIndex,
+                                        uint64 slotToKeep)
 {
-    // Clean up timings map
-    auto it = mSCPExecutionTimes.begin();
-    while (it != mSCPExecutionTimes.end() && it->first < maxSlotIndex)
-    {
+    // Erase `it` and advance it, unless `it` is `slotToKeep`, in which case
+    // just advance it.
+    auto const maybePurge = [&](auto& it) {
         if (it->first == slotToKeep)
         {
             ++it;
@@ -1311,9 +1312,29 @@ HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep)
         {
             it = mSCPExecutionTimes.erase(it);
         }
+    };
+
+    // Clean up timings map — below
+    if (minSlotIndex)
+    {
+        auto it = mSCPExecutionTimes.begin();
+        while (it != mSCPExecutionTimes.end() && it->first < *minSlotIndex)
+        {
+            maybePurge(it);
+        }
     }
 
-    getSCP().purgeSlots(maxSlotIndex, slotToKeep);
+    // Clean up timings map — above
+    if (maxSlotIndex)
+    {
+        auto it = mSCPExecutionTimes.upper_bound(*maxSlotIndex);
+        while (it != mSCPExecutionTimes.end())
+        {
+            maybePurge(it);
+        }
+    }
+
+    getSCP().purgeSlotsOutsideRange(minSlotIndex, maxSlotIndex, slotToKeep);
 }
 
 void

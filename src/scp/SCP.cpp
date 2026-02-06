@@ -70,11 +70,11 @@ SCP::getLocalNodeID()
 }
 
 void
-SCP::purgeSlots(uint64 maxSlotIndex, uint64 slotToKeep)
+SCP::purgeSlotsOutsideRange(std::optional<uint64> minSlotIndex,
+                            std::optional<uint64> maxSlotIndex,
+                            uint64 slotToKeep)
 {
-    auto it = mKnownSlots.begin();
-    while (it != mKnownSlots.end() && it->first < maxSlotIndex)
-    {
+    auto const maybeEraseSlot = [&](auto& it) {
         if (it->first == slotToKeep)
         {
             it++;
@@ -82,6 +82,24 @@ SCP::purgeSlots(uint64 maxSlotIndex, uint64 slotToKeep)
         else
         {
             it = mKnownSlots.erase(it);
+        }
+    };
+
+    if (minSlotIndex)
+    {
+        auto it = mKnownSlots.begin();
+        while (it != mKnownSlots.end() && it->first < *minSlotIndex)
+        {
+            maybeEraseSlot(it);
+        }
+    }
+
+    if (maxSlotIndex)
+    {
+        auto it = mKnownSlots.upper_bound(*maxSlotIndex);
+        while (it != mKnownSlots.end())
+        {
+            maybeEraseSlot(it);
         }
     }
 }

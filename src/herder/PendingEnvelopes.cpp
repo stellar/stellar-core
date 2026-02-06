@@ -674,34 +674,60 @@ PendingEnvelopes::readySlots()
 }
 
 void
-PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
+PendingEnvelopes::eraseOutsideRange(std::optional<uint64> minSlot,
+                                    std::optional<uint64> maxSlot,
+                                    uint64 slotToKeep)
 {
-    stopAllBelow(slotIndex, slotToKeep);
+    stopAllOutsideRange(minSlot, maxSlot, slotToKeep);
 
-    // report only for the highest slot that we're purging
-    reportCostOutliersForSlot(slotIndex - 1, true);
-
-    for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
-    {
-        if (iter->first < slotIndex)
+    // Erases the envelope pointed to by `iter` if it is not for `slotToKeep`.
+    // Always advances the iterator.
+    auto const maybeEraseEnvelope = [&](auto& iter) {
+        if (iter->first == slotToKeep)
         {
-            if (iter->first == slotToKeep)
-            {
-                ++iter;
-            }
-            else
-            {
-                iter = mEnvelopes.erase(iter);
-            }
+            ++iter;
         }
         else
-            break;
+        {
+            iter = mEnvelopes.erase(iter);
+        }
+    };
+
+    if (minSlot)
+    {
+        if (*minSlot > 0)
+        {
+            // report only for the highest non-future slot that we're purging
+            reportCostOutliersForSlot(*minSlot - 1, true);
+        }
+
+        for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
+        {
+            if (iter->first < *minSlot)
+            {
+                maybeEraseEnvelope(iter);
+            }
+            else
+                break;
+        }
+    }
+
+    if (maxSlot)
+    {
+        auto iter = mEnvelopes.upper_bound(*maxSlot);
+        while (iter != mEnvelopes.end())
+        {
+            maybeEraseEnvelope(iter);
+        }
     }
 
     // 0 is special mark for data that we do not know the slot index
     // it is used for state loaded from database
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex && i.first != slotToKeep;
+        if (i.first == 0 || i.first == slotToKeep)
+            return false;
+        return (minSlot && i.first < *minSlot) ||
+               (maxSlot && i.first > *maxSlot);
     });
 
     cleanKnownData();
@@ -709,26 +735,45 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
 }
 
 void
-PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
+PendingEnvelopes::stopAllOutsideRange(std::optional<uint64> minSlot,
+                                      std::optional<uint64> maxSlot,
+                                      uint64 slotToKeep)
 {
     // Before we purge a slot, check if any envelopes are still in
     // "fetching" mode and attempt to record cost
-    for (auto it = mEnvelopes.begin();
-         it != mEnvelopes.end() && it->first < slotIndex; it++)
-    {
+    auto const maybeRecordCost = [&](auto const& it) {
         if (it->first == slotToKeep)
         {
-            continue;
+            return;
         }
 
-        auto& envs = it->second;
+        auto const& envs = it->second;
         for (auto const& env : envs.mFetchingEnvelopes)
         {
             recordReceivedCost(env.first);
         }
+    };
+
+    if (minSlot)
+    {
+        for (auto it = mEnvelopes.begin();
+             it != mEnvelopes.end() && it->first < *minSlot; it++)
+        {
+            maybeRecordCost(it);
+        }
     }
-    mTxSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
-    mQuorumSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
+
+    if (maxSlot)
+    {
+        for (auto it = mEnvelopes.upper_bound(*maxSlot); it != mEnvelopes.end();
+             it++)
+        {
+            maybeRecordCost(it);
+        }
+    }
+
+    mTxSetFetcher.stopFetchingOutsideRange(minSlot, maxSlot, slotToKeep);
+    mQuorumSetFetcher.stopFetchingOutsideRange(minSlot, maxSlot, slotToKeep);
 }
 
 void
