@@ -9,6 +9,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.pull_request.head.repo.private == false
     uses: stellar/quickstart/.github/workflows/build.yml@main
     with:
       images: |
