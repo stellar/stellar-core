@@ -121,9 +121,12 @@ class PendingEnvelopes
 
     UnorderedMap<NodeID, size_t> getCostPerValidator(uint64 slotIndex) const;
 
-    // stops all pending downloads for slots strictly below `slotIndex`
-    // counts partially downloaded data towards the cost for that slot
-    void stopAllBelow(uint64 slotIndex, uint64 slotToKeep);
+    // stops all pending downloads for slots outside the range
+    // [minSlot, maxSlot]. Either bound may be nullopt to skip
+    // that direction. Counts partially downloaded data towards
+    // the cost for those slots.
+    void stopAllOutsideRange(std::optional<uint64> minSlot,
+                             std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
@@ -188,9 +191,11 @@ class PendingEnvelopes
 
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 
-    // erases data for all slots strictly below `slotIndex` except
-    // slotToKeep.
-    void eraseBelow(uint64 slotIndex, uint64 slotToKeep);
+    // erases data for all slots outside the range [minSlot, maxSlot].
+    // Either bound may be nullopt to skip that direction.
+    // The slotToKeep slot is never erased.
+    void eraseOutsideRange(std::optional<uint64> minSlot,
+                           std::optional<uint64> maxSlot, uint64 slotToKeep);
 
     void forceRebuildQuorum();
 

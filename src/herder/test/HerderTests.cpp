@@ -7807,3 +7807,113 @@ TEST_CASE("late joining node reaches consensus", "[herder]")
     REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
 }
+
+TEST_CASE("far-future slots cleanup", "[herder]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    Simulation simulation(mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i);
+        // Ensure we can test catch-up without history
+        cfg.MAX_SLOTS_TO_REMEMBER = 100;
+        return cfg;
+    });
+
+    // 3 validators with threshold 2 (majority)
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+
+    // Add all 4 nodes. v0 is a non-validator watcher.
+    // Use config index 4 to avoid collisions with the simulation's internal
+    // config counter (which allocates indices 0-2 for v1, v2, v3).
+    simulation.addNode(v0SecretKey, qSet);
+    simulation.addNode(v1SecretKey, qSet);
+    simulation.addNode(v2SecretKey, qSet);
+    simulation.addNode(v3SecretKey, qSet);
+
+    // Connect all nodes and start
+    simulation.addPendingConnection(v0NodeID, v1NodeID);
+    simulation.addPendingConnection(v1NodeID, v2NodeID);
+    simulation.addPendingConnection(v2NodeID, v3NodeID);
+    simulation.startAllNodes();
+
+    // Close a few ledgers so all nodes are in sync and tracking
+    auto const INITIAL_LEDGERS = 3u;
+    simulation.crankUntil(
+        [&]() {
+            return simulation.haveAllExternalized(
+                LedgerManager::GENESIS_LEDGER_SEQ + INITIAL_LEDGERS, 1);
+        },
+        10 * INITIAL_LEDGERS * simulation.getExpectedLedgerCloseTime(), false);
+
+    auto app0 = simulation.getNode(v0NodeID);
+    auto& herder0 = static_cast<HerderImpl&>(app0->getHerder());
+    REQUIRE(herder0.isTracking());
+
+    // Disconnect v0 from the network
+    simulation.dropConnection(v0NodeID, v1NodeID);
+
+    // Run the simulation until v0 is no longer tracking.
+    simulation.crankUntil([&]() { return !herder0.isTracking(); },
+                          50 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Inject far-future envelopes into the non-tracking v0.
+    auto localQSet = herder0.getSCP().getLocalQuorumSet();
+    auto qsetHash = sha256(xdr::xdr_to_opaque(localQSet));
+    auto const ct = app0->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.scpValue.closeTime +
+                    1;
+    auto injectEnvelope = [&](SecretKey const& sk, uint64_t slotIndex) {
+        SCPEnvelope envelope;
+        envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        auto txSet = TxSetXDRFrame::makeEmpty(
+            app0->getLedgerManager().getLastClosedLedgerHeader());
+        StellarValue sv = herder0.makeStellarValue(
+            txSet->getContentsHash(), ct, xdr::xvector<UpgradeType, 6>{},
+            v1SecretKey);
+        ext.commit.counter = 1;
+        ext.commit.value = xdr::xdr_to_opaque(sv);
+        ext.commitQuorumSetHash = qsetHash;
+        ext.nH = 1;
+        envelope.statement.nodeID = sk.getPublicKey();
+        herder0.signEnvelope(sk, envelope);
+        return herder0.recvSCPEnvelope(envelope, localQSet, txSet);
+    };
+
+    auto const NUM_FUTURE = 50;
+    auto const FAR_FUTURE_BASE = 1'000'000;
+    auto slotsBefore = herder0.getSCP().getKnownSlotsCount();
+
+    for (uint32_t i = 0; i < NUM_FUTURE; ++i)
+    {
+        auto res = injectEnvelope(v1SecretKey, FAR_FUTURE_BASE + i);
+        REQUIRE(res == Herder::ENVELOPE_STATUS_READY);
+    }
+
+    // V0 should have NUM_FUTURE more slots now.
+    auto slotsAfterInject = herder0.getSCP().getKnownSlotsCount();
+    REQUIRE(slotsAfterInject >= slotsBefore + NUM_FUTURE);
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() >= FAR_FUTURE_BASE);
+
+    // Reconnect v0 to the validators so it can catch up
+    simulation.addConnection(v0NodeID, v1NodeID);
+
+    // Crank until v0 starts tracking the network again
+    simulation.crankUntil([&]() { return herder0.isTracking(); },
+                          60 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Check that far-future slots have been removed
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
+}

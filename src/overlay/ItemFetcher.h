@@ -9,6 +9,7 @@
 #include "util/Timer.h"
 #include <functional>
 #include <map>
+#include <optional>
 
 namespace medida
 {
@@ -69,11 +70,14 @@ class ItemFetcher : private NonMovableOrCopyable
     std::vector<SCPEnvelope> fetchingFor(Hash const& itemHash) const;
 
     /**
-     * Called periodically to remove old envelopes from list (with ledger id
-     * below some @p slotIndex). Can also remove @see Tracker instances when
-     * non needed anymore.
+     * Called periodically to remove envelopes from list that fall outside
+     * the range [minSlot, maxSlot]. Either bound may be nullopt to skip
+     * that direction. Can also remove @see Tracker instances when not
+     * needed anymore.
      */
-    void stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep);
+    void stopFetchingOutsideRange(std::optional<uint64> minSlot,
+                                  std::optional<uint64> maxSlot,
+                                  uint64 slotToKeep);
 
     /**
      * Called when given @p peer informs that it does not have data identified
@@ -93,7 +97,9 @@ class ItemFetcher : private NonMovableOrCopyable
 #endif
 
   protected:
-    void stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep);
+    void stopFetchingOutsideRangeInternal(std::optional<uint64> minSlot,
+                                          std::optional<uint64> maxSlot,
+                                          uint64 slotToKeep);
 
     Application& mApp;
     std::map<Hash, std::shared_ptr<Tracker>> mTrackers;

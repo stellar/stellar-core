@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <optional>
+
 /**
  * @class Tracker
  *
@@ -102,13 +104,16 @@ class Tracker
     std::chrono::milliseconds getDuration();
 
     /**
-     * Called periodically to remove old envelopes from list (with ledger id
-     * below some @p slotIndex). Envolope not removed if ledger id ==
-     * slotToKeep.
+     * Called periodically to remove envelopes from list that fall outside
+     * the range [minSlot, maxSlot]. If minSlot is nullopt, no lower bound
+     * is applied. If maxSlot is nullopt, no upper bound is applied.
+     * Envelopes with ledger id == slotToKeep are never removed.
      *
      * Returns true if at least one envelope remained in list.
      */
-    bool clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep);
+    bool clearEnvelopesOutsideRange(std::optional<uint64> minSlot,
+                                    std::optional<uint64> maxSlot,
+                                    uint64 slotToKeep);
 
     /**
      * Add @p env to list of envelopes that will be resend to Herder when data
