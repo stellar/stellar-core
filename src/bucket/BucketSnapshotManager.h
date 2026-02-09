@@ -47,6 +47,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>
         mCurrHotArchiveSnapshot GUARDED_BY(mSnapshotMutex){};
 
+    // LedgerHeader corresponding to the current snapshots. Stored separately
+    // because BucketListSnapshotData no longer contains the header.
+    LedgerHeader mCurrHeader GUARDED_BY(mSnapshotMutex){};
+
     // ledgerSeq that the snapshot is based on -> snapshot
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>

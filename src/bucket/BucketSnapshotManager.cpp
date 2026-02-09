@@ -19,10 +19,11 @@ BucketSnapshotManager::BucketSnapshotManager(
     uint32_t numHistoricalLedgers)
     : mAppConnector(app)
     , mCurrLiveSnapshot(
-          std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL, header))
+          std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL))
     , mCurrHotArchiveSnapshot(
           std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(
-              hotArchiveBL, header))
+              hotArchiveBL))
+    , mCurrHeader(header)
     , mNumHistoricalSnapshots(numHistoricalLedgers)
 {
     releaseAssert(threadIsMain());
@@ -53,9 +54,9 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
 {
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(mAppConnector.getMetrics(),
-                                             mCurrLiveSnapshot,
-                                             mLiveHistoricalSnapshots));
+        new SearchableLiveBucketListSnapshot(
+            mAppConnector.getMetrics(), mCurrLiveSnapshot,
+            mLiveHistoricalSnapshots, mCurrHeader));
 }
 
 SearchableSnapshotConstPtr
@@ -67,7 +68,7 @@ BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(
             metrics, snapshot->getSnapshotData(),
-            snapshot->getHistoricalSnapshots()));
+            snapshot->getHistoricalSnapshots(), snapshot->getLedgerHeader()));
 }
 
 SearchableHotArchiveSnapshotConstPtr
@@ -80,7 +81,7 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(
             metrics, snapshot->getSnapshotData(),
-            snapshot->getHistoricalSnapshots()));
+            snapshot->getHistoricalSnapshots(), snapshot->getLedgerHeader()));
 }
 
 SearchableHotArchiveSnapshotConstPtr
@@ -92,18 +93,7 @@ BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
     return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
         new SearchableHotArchiveBucketListSnapshot(
             mAppConnector.getMetrics(), mCurrHotArchiveSnapshot,
-            mHotArchiveHistoricalSnapshots));
-}
-
-namespace
-{
-template <typename SnapshotT, typename DataT>
-bool
-needsUpdate(std::shared_ptr<SnapshotT const> const& snapshot,
-            std::shared_ptr<DataT const> const& currData)
-{
-    return !snapshot || snapshot->getLedgerSeq() < currData->getLedgerSeq();
-}
+            mHotArchiveHistoricalSnapshots, mCurrHeader));
 }
 
 void
@@ -114,7 +104,7 @@ BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     SharedLockShared guard(mSnapshotMutex);
-    if (needsUpdate(snapshot, mCurrLiveSnapshot))
+    if (!snapshot || snapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
     {
         snapshot = copySearchableLiveBucketListSnapshot(guard);
     }
@@ -128,7 +118,7 @@ BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
     // modified. Rather, a thread is checking it's copy against the canonical
     // snapshot, so use a shared lock.
     SharedLockShared guard(mSnapshotMutex);
-    if (needsUpdate(snapshot, mCurrHotArchiveSnapshot))
+    if (!snapshot || snapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
     {
         snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
@@ -144,12 +134,13 @@ BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     // snapshot, so use a shared lock. For consistency we hold the lock while
     // updating both snapshots.
     SharedLockShared guard(mSnapshotMutex);
-    if (needsUpdate(liveSnapshot, mCurrLiveSnapshot))
+    if (!liveSnapshot || liveSnapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
     {
         liveSnapshot = copySearchableLiveBucketListSnapshot(guard);
     }
 
-    if (needsUpdate(hotArchiveSnapshot, mCurrHotArchiveSnapshot))
+    if (!hotArchiveSnapshot ||
+        hotArchiveSnapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
     {
         hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot(guard);
     }
@@ -170,13 +161,11 @@ BucketSnapshotManager::updateCurrentSnapshot(
 {
     auto updateSnapshot = [numHistoricalSnapshots = mNumHistoricalSnapshots](
                               auto& currentSnapshot, auto& historicalSnapshots,
-                              auto newSnapshot) {
+                              auto newSnapshot, uint32_t currLedgerSeq) {
         releaseAssert(newSnapshot);
-        releaseAssert(!currentSnapshot || newSnapshot->getLedgerSeq() >=
-                                              currentSnapshot->getLedgerSeq());
 
         // First update historical snapshots
-        if (numHistoricalSnapshots != 0)
+        if (numHistoricalSnapshots != 0 && currentSnapshot)
         {
             // If historical snapshots are full, delete the oldest one
             if (historicalSnapshots.size() == numHistoricalSnapshots)
@@ -184,7 +173,7 @@ BucketSnapshotManager::updateCurrentSnapshot(
                 historicalSnapshots.erase(historicalSnapshots.begin());
             }
 
-            historicalSnapshots.emplace(currentSnapshot->getLedgerSeq(),
+            historicalSnapshots.emplace(currLedgerSeq,
                                         std::move(currentSnapshot));
         }
 
@@ -192,16 +181,18 @@ BucketSnapshotManager::updateCurrentSnapshot(
     };
 
     auto newLiveSnapshot =
-        std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL, header);
+        std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL);
     auto newHotArchiveSnapshot =
-        std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(hotArchiveBL,
-                                                                   header);
+        std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(
+            hotArchiveBL);
 
     // Updating canonical snapshots requires exclusive write access
     SharedLockExclusive guard(mSnapshotMutex);
+    releaseAssert(header.ledgerSeq >= mCurrHeader.ledgerSeq);
     updateSnapshot(mCurrLiveSnapshot, mLiveHistoricalSnapshots,
-                   std::move(newLiveSnapshot));
+                   std::move(newLiveSnapshot), mCurrHeader.ledgerSeq);
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
-                   std::move(newHotArchiveSnapshot));
+                   std::move(newHotArchiveSnapshot), mCurrHeader.ledgerSeq);
+    mCurrHeader = header;
 }
 }
