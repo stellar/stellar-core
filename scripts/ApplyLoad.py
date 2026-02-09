@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import subprocess
 import tempfile
 import time
 from datetime import datetime
-import json
 
 # Instance type to use. Matches SDF validator instance type.
 INSTANCE_TYPE = 'c5d.2xlarge'
@@ -136,33 +136,43 @@ def run_ssm_command(instance_id, region, command):
     print("ERROR: Command timed out")
     return False
 
-def copy_files_to_instance(instance_id, region):
+def copy_file_via_s3(instance_id, region, local_file, remote_path, s3_bucket):
+    """ Copy a file to an EC2 instance via S3 and SSM """
+    # Upload file to S3
+    s3_key = f"tmp/{os.path.basename(local_file)}"
+    print(f"Uploading {local_file} to s3://{s3_bucket}/{s3_key}...")
+    run(f"aws s3 cp {local_file} s3://{s3_bucket}/{s3_key} --region {region}")
+
+    # Download from S3 on the instance
+    print(f"Downloading file to instance at {remote_path}...")
+    download_cmd = f"aws s3 cp s3://{s3_bucket}/{s3_key} {remote_path}"
+    run_ssm_command(instance_id, region, download_cmd)
+
+    # Clean up S3 file
+    run(f"aws s3 rm s3://{s3_bucket}/{s3_key} --region {region}")
+
+def copy_files_to_instance(instance_id, region, s3_bucket):
     """ Copy files to the instance using SSM and S3 """
-    # Create a temporary S3 bucket or use existing one
-    # For simplicity, we'll embed the script content in SSM commands
-    print("Copying files to instance via SSM...")
+    print("Copying files to instance via S3...")
 
-    # Read this script
-    with open(__file__, 'r') as f:
-        script_content = f.read()
+    # Copy this script
+    copy_file_via_s3(instance_id, region, __file__,
+                     f"{USER_DIR}/ApplyLoad.py", s3_bucket)
 
-    # Write script to instance
-    escaped_content = script_content.replace("'", "'\\''")
-    run_ssm_command(instance_id, region,
-                    f"cat > {USER_DIR}/ApplyLoad.py << 'EOF'\n{script_content}\nEOF")
+    # Copy config template
+    copy_file_via_s3(instance_id, region, MAX_SAC_TEMPLATE,
+                     f"{USER_DIR}/apply_load/max-sac-template.cfg", s3_bucket)
 
-    # Copy apply_load directory files
-    # This is simplified - in production, use S3 or create a tarball
-    run_ssm_command(instance_id, region,
-                    f"mkdir -p {USER_DIR}/apply_load")
+    # Create directory structure
+    run_ssm_command(instance_id, region, f"mkdir -p {USER_DIR}/apply_load")
 
-def install_script_on_instance(instance_id, region):
+def install_script_on_instance(instance_id, region, s3_bucket):
     """ Install this script on the given EC2 instance via SSM. """
     # Wait for SSM agent to be ready
     wait_for_ssm_agent(instance_id, region)
 
     # Copy files
-    copy_files_to_instance(instance_id, region)
+    copy_files_to_instance(instance_id, region, s3_bucket)
 
     return instance_id
 
@@ -181,13 +191,13 @@ def local_aws_init():
     # Allow regular ubuntu use to run docker commands
     run("sudo usermod -aG docker ubuntu")
 
-def aws_init(ami, region, security_group, iam_instance_profile):
+def aws_init(ami, region, security_group, iam_instance_profile, s3_bucket):
     """ Create and initialize an AWS instance for running apply-load. """
     # Start instance
     instance_id = start_ec2_instance(ami, region, security_group, iam_instance_profile)
 
     # Install this script on the instance
-    install_script_on_instance(instance_id, region)
+    install_script_on_instance(instance_id, region, s3_bucket)
 
     # Remotely invoke local-aws-init on the instance
     run_ssm_command(instance_id, region,
@@ -232,6 +242,8 @@ if __name__ == "__main__":
                          help="AWS security group to use.")
     aws_init_parser.add_argument("--iam-instance-profile", type=str,
                          help="IAM instance profile to use.")
+    aws_init_parser.add_argument("--s3-bucket", type=str,
+                         help="S3 bucket to use for file transfer.")
 
     subparsers.add_parser(
         "local-aws-init",
@@ -253,7 +265,7 @@ if __name__ == "__main__":
 
     if args.mode == "aws-init":
         aws_init(args.ubuntu_ami, args.region, args.security_group,
-                 args.iam_instance_profile)
+                 args.iam_instance_profile, args.s3_bucket)
     elif args.mode == "local-aws-init":
         local_aws_init()
     elif args.mode == "max-sac":
