@@ -40,7 +40,7 @@ BucketListSnapshotData<BucketT>::Level::Level(
 
 template <class BucketT>
 BucketListSnapshotData<BucketT>::BucketListSnapshotData(
-    BucketListBase<BucketT> const& bl, LedgerHeader const& header)
+    BucketListBase<BucketT> const& bl)
     : levels([&bl]() {
         std::vector<Level> v;
         v.reserve(BucketListBase<BucketT>::kNumLevels);
@@ -50,15 +50,7 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
         }
         return v;
     }())
-    , header(header)
 {
-}
-
-template <class BucketT>
-uint32_t
-BucketListSnapshotData<BucketT>::getLedgerSeq() const
-{
-    return header.ledgerSeq;
 }
 
 //
@@ -70,9 +62,11 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
     std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        historicalSnapshots)
+        historicalSnapshots,
+    LedgerHeader const& header)
     : mData(std::move(data))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
+    , mHeader(header)
     , mMetrics(metrics)
     , mBulkLoadMeter(
           metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
@@ -336,7 +330,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
-    if (!ledgerSeq || *ledgerSeq == mData->getLedgerSeq())
+    if (!ledgerSeq || *ledgerSeq == mHeader.ledgerSeq)
     {
         loopAllBuckets(loadKeysLoop, *mData);
     }
@@ -388,8 +382,7 @@ template <class BucketT>
 uint32_t
 SearchableBucketListSnapshot<BucketT>::getLedgerSeq() const
 {
-    releaseAssert(mData);
-    return mData->getLedgerSeq();
+    return mHeader.ledgerSeq;
 }
 
 template <class BucketT>
@@ -397,7 +390,7 @@ LedgerHeader const&
 SearchableBucketListSnapshot<BucketT>::getLedgerHeader() const
 {
     releaseAssert(mData);
-    return mData->header;
+    return mHeader;
 }
 
 template <class BucketT>
@@ -424,9 +417,10 @@ SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
-        historicalSnapshots)
-    : SearchableBucketListSnapshot<LiveBucket>(metrics, std::move(data),
-                                               std::move(historicalSnapshots))
+        historicalSnapshots,
+    LedgerHeader const& header)
+    : SearchableBucketListSnapshot<LiveBucket>(
+          metrics, std::move(data), std::move(historicalSnapshots), header)
 {
 }
 
@@ -855,9 +849,10 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
-        historicalSnapshots)
+        historicalSnapshots,
+    LedgerHeader const& header)
     : SearchableBucketListSnapshot<HotArchiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots))
+          metrics, std::move(data), std::move(historicalSnapshots), header)
 {
 }
 
