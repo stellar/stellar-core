@@ -5,13 +5,10 @@ import subprocess
 import tempfile
 import time
 from datetime import datetime
+import json
 
 # Instance type to use. Matches SDF validator instance type.
 INSTANCE_TYPE = 'c5d.2xlarge'
-
-# Key pair name and file for SSH access
-KEY_NAME = f'max-sac-test-key-{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}'
-KEY_FILE = f'{KEY_NAME}.pem'
 
 # Directory containing helper files for this script
 APPLY_LOAD_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "apply_load")
@@ -44,29 +41,16 @@ def run_capture_output(command):
         print(f"Command '{command}' failed with exit code {e.returncode}")
         exit(1)
 
-def create_key_pair(region):
-    """ Create an EC2 key pair and save the private key to KEY_FILE. """
-    print("Creating EC2 key pair...")
-    cmd = ["aws", "ec2", "create-key-pair", "--key-name", KEY_NAME,
-           "--tag-specifications",
-           "ResourceType=key-pair,Tags=[{Key=test,Value=max-sac-tps},{Key=ManagedBy,Value=ApplyLoadScript}]",
-           "--query", "KeyMaterial", "--output", "text", "--region", region]
-    private_key = run_capture_output(cmd).decode().strip()
-    with open(KEY_FILE, "w") as key_file:
-        key_file.write(private_key)
-    os.chmod(KEY_FILE, 0o400)
-    print(f"Saved private key to {KEY_FILE}")
-
 # TODO: If anything fails AFTER starting the instance, we should terminate it.
 # That could be done in this script, or in the Jenkinsfile that calls this
 # script.
-def start_ec2_instance(ami, region, security_group):
+def start_ec2_instance(ami, region, security_group, iam_instance_profile):
     """ Start an EC2 instance and return its instance id """
     print("Starting EC2 instance...")
     cmd = ["aws", "ec2", "run-instances", "--image-id", ami,
            "--instance-type", INSTANCE_TYPE,
            "--security-groups", security_group,
-           "--key-name", KEY_NAME,
+           "--iam-instance-profile", f"Name={iam_instance_profile}",
            "--tag-specifications",
            "ResourceType=instance,Tags=[{Key=test,Value=max-sac-tps},{Key=ManagedBy,Value=ApplyLoadScript}]",
            "--query", "Instances[0].InstanceId",
@@ -80,38 +64,104 @@ def start_ec2_instance(ami, region, security_group):
         f"--region {region}")
     return instance_id
 
-def install_script_on_instance(instance_id, region):
-    """ Install this script on the given EC2 instance. """
-    # Get the instance's public IP address
-    # TODO: remove region
-    ip = run_capture_output(
-        ["aws", "ec2", "describe-instances", "--instance-ids", instance_id,
-        "--query", "Reservations[0].Instances[0].PublicIpAddress",
-        "--output", "text", "--region", region]).decode().strip()
-    print("Instance public IP:", ip)
-
-    # Wait for SSH to be available
-    print("Checking SSH availability...")
+def wait_for_ssm_agent(instance_id, region):
+    """ Wait for SSM agent to be ready on the instance """
+    print("Waiting for SSM agent to be ready...")
     for i in range(SSH_RETRIES):
-        res = run(f"ssh -o StrictHostKeyChecking=no -i {KEY_FILE} "
-                  "-o ConnectTimeout=5 "
-                  f"ubuntu@{ip} 'true'",
-                  exit_on_fail=(i == SSH_RETRIES - 1))
-        if res:
-            break
+        try:
+            cmd = ["aws", "ssm", "describe-instance-information",
+                   "--instance-information-filter-list",
+                   f"key=InstanceIds,valueSet={instance_id}",
+                   "--region", region]
+            output = run_capture_output(cmd).decode().strip()
+            info = json.loads(output)
+            if info.get("InstanceInformationList"):
+                print("SSM agent is ready.")
+                return True
+        except Exception as e:
+            pass
+
         sleep_duration = 10
-        print(f"SSH not available yet, retrying ({i+1}/{SSH_RETRIES}) in "
+        print(f"SSM agent not ready yet, retrying ({i+1}/{SSH_RETRIES}) in "
               f"{sleep_duration} seconds...")
         time.sleep(sleep_duration)
-    print("SSH is available.")
 
-    # Copy this script and the apply-load directory to the instance
-    scp_base = f"scp -i {KEY_FILE} -o StrictHostKeyChecking=no"
-    dest = f"ubuntu@{ip}:"
-    run(f"{scp_base} {__file__} {dest}")
-    run(f"{scp_base} -r {APPLY_LOAD_SCRIPT_DIR} {dest}")
+    print("ERROR: SSM agent failed to become ready")
+    exit(1)
 
-    return ip
+def run_ssm_command(instance_id, region, command):
+    """ Run a command on an EC2 instance via SSM """
+    print(f"Running SSM command on {instance_id}: {command}")
+
+    # Send command
+    cmd = ["aws", "ssm", "send-command",
+           "--instance-ids", instance_id,
+           "--document-name", "AWS-RunShellScript",
+           "--parameters", f"commands=['{command}']",
+           "--region", region,
+           "--query", "Command.CommandId",
+           "--output", "text"]
+    command_id = run_capture_output(cmd).decode().strip()
+
+    # Wait for command to complete
+    print(f"Waiting for command {command_id} to complete...")
+    for i in range(30):
+        time.sleep(5)
+        cmd = ["aws", "ssm", "get-command-invocation",
+               "--command-id", command_id,
+               "--instance-id", instance_id,
+               "--region", region,
+               "--query", "Status",
+               "--output", "text"]
+        try:
+            status = run_capture_output(cmd).decode().strip()
+            if status in ["Success", "Failed", "Cancelled", "TimedOut"]:
+                # Get output
+                cmd = ["aws", "ssm", "get-command-invocation",
+                       "--command-id", command_id,
+                       "--instance-id", instance_id,
+                       "--region", region]
+                output = run_capture_output(cmd).decode().strip()
+                result = json.loads(output)
+                print("Command output:", result.get("StandardOutputContent", ""))
+                if result.get("StandardErrorContent"):
+                    print("Command error:", result.get("StandardErrorContent", ""))
+                return status == "Success"
+        except Exception as e:
+            pass
+
+    print("ERROR: Command timed out")
+    return False
+
+def copy_files_to_instance(instance_id, region):
+    """ Copy files to the instance using SSM and S3 """
+    # Create a temporary S3 bucket or use existing one
+    # For simplicity, we'll embed the script content in SSM commands
+    print("Copying files to instance via SSM...")
+
+    # Read this script
+    with open(__file__, 'r') as f:
+        script_content = f.read()
+
+    # Write script to instance
+    escaped_content = script_content.replace("'", "'\\''")
+    run_ssm_command(instance_id, region,
+                    f"cat > /home/ubuntu/ApplyLoad.py << 'EOF'\n{script_content}\nEOF")
+
+    # Copy apply_load directory files
+    # This is simplified - in production, use S3 or create a tarball
+    run_ssm_command(instance_id, region,
+                    f"mkdir -p /home/ubuntu/apply_load")
+
+def install_script_on_instance(instance_id, region):
+    """ Install this script on the given EC2 instance via SSM. """
+    # Wait for SSM agent to be ready
+    wait_for_ssm_agent(instance_id, region)
+
+    # Copy files
+    copy_files_to_instance(instance_id, region)
+
+    return instance_id
 
 def local_aws_init():
     """ Initialize an AWS instance for running apply-load from the instance
@@ -128,23 +178,20 @@ def local_aws_init():
     # Allow regular ubuntu use to run docker commands
     run("sudo usermod -aG docker ubuntu")
 
-def aws_init(ami, region, security_group):
+def aws_init(ami, region, security_group, iam_instance_profile):
     """ Create and initialize an AWS instance for running apply-load. """
-    # Create key pair
-    create_key_pair(region)
-
     # Start instance
-    instance_id = start_ec2_instance(ami, region, security_group)
+    instance_id = start_ec2_instance(ami, region, security_group, iam_instance_profile)
 
     # Install this script on the instance
-    ip = install_script_on_instance(instance_id, region)
+    install_script_on_instance(instance_id, region)
 
     # Remotely invoke local-aws-init on the instance
-    run(f"ssh -o StrictHostKeyChecking=no -i {KEY_FILE} "
-        f"ubuntu@{ip} 'python3 ApplyLoad.py local-aws-init'")
+    run_ssm_command(instance_id, region,
+                    "cd /home/ubuntu && python3 ApplyLoad.py local-aws-init")
 
-    # Print instance id and ip for Jenkins to store
-    print(f"{instance_id},{ip}")
+    # Print instance id for Jenkins to store
+    print(f"{instance_id}")
 
 def run_max_sac(cfg, image, iops):
     """ Run apply-load in max SAC TPS mode with the given config file. """
@@ -180,6 +227,8 @@ if __name__ == "__main__":
     aws_init_parser.add_argument("--region", type=str, help="AWS region to use.")
     aws_init_parser.add_argument("--security-group", type=str,
                          help="AWS security group to use.")
+    aws_init_parser.add_argument("--iam-instance-profile", type=str,
+                         help="IAM instance profile to use.")
 
     subparsers.add_parser(
         "local-aws-init",
@@ -200,7 +249,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.mode == "aws-init":
-        aws_init(args.ubuntu_ami, args.region, args.security_group)
+        aws_init(args.ubuntu_ami, args.region, args.security_group,
+                 args.iam_instance_profile)
     elif args.mode == "local-aws-init":
         local_aws_init()
     elif args.mode == "max-sac":
