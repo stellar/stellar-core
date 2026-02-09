@@ -17,7 +17,7 @@ APPLY_LOAD_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "apply_load")
 MAX_SAC_TEMPLATE = os.path.join(APPLY_LOAD_SCRIPT_DIR, "max-sac-template.cfg")
 
 # User directory on the instance
-USER_DIR = "/home/ssm-user"
+USER_DIR = "/home/ubuntu"
 
 # Path to the ephemeral NVMe drive on AWS instance
 NVME_DRIVE = "/dev/nvme1n1"
@@ -159,6 +159,9 @@ def copy_files_to_instance(instance_id, region, s3_bucket):
     copy_file_via_s3(instance_id, region, __file__,
                      f"{USER_DIR}/ApplyLoad.py", s3_bucket)
 
+    run_ssm_command(instance_id, region,
+                    f"chmod +x {USER_DIR}/ApplyLoad.py")
+
     # Copy config template
     copy_file_via_s3(instance_id, region, MAX_SAC_TEMPLATE,
                      f"{USER_DIR}/apply_load/max-sac-template.cfg", s3_bucket)
@@ -171,24 +174,38 @@ def install_script_on_instance(instance_id, region, s3_bucket):
     # Wait for SSM agent to be ready
     wait_for_ssm_agent(instance_id, region)
 
+    # Install the awscli on the instance
+    install_awscli(instance_id, region)
+
     # Copy files
     copy_files_to_instance(instance_id, region, s3_bucket)
 
     return instance_id
 
+def install_awscli(instance_id, region):
+    """Install AWS CLI on Ubuntu Linux machine."""
+    print("Installing AWS CLI...")
+    
+    install_cmd = """
+    apt-get update && apt-get install -y unzip curl && \
+    curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o awscliv2.zip && \
+    unzip -q awscliv2.zip && ./aws/install && \
+    rm -rf aws awscliv2.zip
+    """
+    
+    run_ssm_command(instance_id, region, install_cmd)
+    print("AWS CLI installation complete.")
+
 def local_aws_init():
     """ Initialize an AWS instance for running apply-load from the instance
     itself. """
     # Mount ephemeral nvme drive such that docker uses it for storage
-    run(f"sudo mkfs.ext4 {NVME_DRIVE}")
-    run("sudo mkdir -p /var/lib/docker")
-    run(f"sudo mount {NVME_DRIVE} /var/lib/docker")
+    run(f"sudo mkfs.ext4 {NVME_DRIVE} && sudo mkdir -p /var/lib/docker && sudo mount {NVME_DRIVE} /var/lib/docker")
 
     # Install docker
-    run("sudo apt-get update")
-    run("sudo apt-get install -y docker.io")
+    run("sudo apt-get update && sudo apt-get install -y docker.io")
 
-    # Allow regular ubuntu use to run docker commands
+    # Allow regular ubuntu user to run docker commands
     run("sudo usermod -aG docker ubuntu")
 
 def aws_init(ami, region, security_group, iam_instance_profile, s3_bucket):
