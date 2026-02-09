@@ -16,6 +16,9 @@ APPLY_LOAD_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), "apply_load")
 # Path to the max SAC template configuration file
 MAX_SAC_TEMPLATE = os.path.join(APPLY_LOAD_SCRIPT_DIR, "max-sac-template.cfg")
 
+# User directory on the instance
+USER_DIR = "/home/ssm-user"
+
 # Path to the ephemeral NVMe drive on AWS instance
 NVME_DRIVE = "/dev/nvme1n1"
 
@@ -146,12 +149,12 @@ def copy_files_to_instance(instance_id, region):
     # Write script to instance
     escaped_content = script_content.replace("'", "'\\''")
     run_ssm_command(instance_id, region,
-                    f"cat > /home/ubuntu/ApplyLoad.py << 'EOF'\n{script_content}\nEOF")
+                    f"cat > {USER_DIR}/ApplyLoad.py << 'EOF'\n{script_content}\nEOF")
 
     # Copy apply_load directory files
     # This is simplified - in production, use S3 or create a tarball
     run_ssm_command(instance_id, region,
-                    f"mkdir -p /home/ubuntu/apply_load")
+                    f"mkdir -p {USER_DIR}/apply_load")
 
 def install_script_on_instance(instance_id, region):
     """ Install this script on the given EC2 instance via SSM. """
@@ -188,7 +191,7 @@ def aws_init(ami, region, security_group, iam_instance_profile):
 
     # Remotely invoke local-aws-init on the instance
     run_ssm_command(instance_id, region,
-                    "cd /home/ubuntu && python3 ApplyLoad.py local-aws-init")
+                    f"cd {USER_DIR} && python3 ApplyLoad.py local-aws-init")
 
     # Print instance id for Jenkins to store
     print(f"{instance_id}")
