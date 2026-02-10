@@ -477,7 +477,213 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                                                    invalidTxs);
             compareTxs(invalidTxs, {fb2, fb3});
         }
+        SECTION("two fee bumps, same fee source, second insufficient")
+        {
+            LedgerSnapshot ls(*app);
+            auto balanceOfFbAccount = getAvailableBalance(
+                ls.getLedgerHeader().current(),
+                ls.getAccount(account2.getPublicKey()).current());
+
+            // Enforce balance invariance
+            int64_t fee1 = 200;
+            int64_t fee2 = balanceOfFbAccount - fee1 + 1;
+
+            REQUIRE(balanceOfFbAccount < fee1 + fee2);
+            REQUIRE(fee1 < balanceOfFbAccount);
+            REQUIRE(fee2 < balanceOfFbAccount);
+
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, fee1);
+            auto tx2 = transaction(*app, account3, 1, 1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, fee2);
+            // Individual txs are valid
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+
+            TxFrameList invalidTxs;
+            SECTION("build block")
+            {
+                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+                                                       invalidTxs);
+                // Both are marked invalid because their combined fees exceed
+                // account2's balance
+                compareTxs(invalidTxs, {fb1, fb2});
+            }
+            SECTION("invalid block is rejected")
+            {
+                PerPhaseTransactionList invalidPerPhase;
+                invalidPerPhase.resize(2);
+                auto txSet = makeTxSetFromTransactions(
+                    {{fb1, fb2}, {}}, *app, 0, 0, invalidPerPhase,
+                    /* skipValidation */ true);
+                REQUIRE(invalidPerPhase[0].empty());
+                REQUIRE(!txSet.second->checkValid(*app, 0, 0));
+            }
+        }
+        SECTION("two Soroban fee bumps, same fee source, second insufficient")
+        {
+            // Increase Soroban limits to allow multiple transactions
+            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+                auto mx = std::numeric_limits<uint32_t>::max();
+                cfg.mLedgerMaxTxCount = mx;
+                cfg.mLedgerMaxInstructions = mx;
+                cfg.mLedgerMaxDiskReadBytes = mx;
+                cfg.mLedgerMaxWriteBytes = mx;
+                cfg.mLedgerMaxDiskReadEntries = mx;
+                cfg.mLedgerMaxWriteLedgerEntries = mx;
+            });
+
+            // Create accounts with enough balance for Soroban transactions
+            auto sorobanAccount1 = root->create("s1", minBalance2);
+            auto sorobanAccount2 = root->create("s2", minBalance2);
+            auto feeSourceAccount = root->create("fs", minBalance2);
+
+            SorobanResources resources;
+            resources.instructions = 1'000'000;
+            resources.diskReadBytes = 1000;
+            resources.writeBytes = 1000;
+
+            auto sorobanTx1 =
+                createUploadWasmTx(*app, sorobanAccount1, 100,
+                                   DEFAULT_TEST_RESOURCE_FEE, resources);
+            auto sorobanTx2 =
+                createUploadWasmTx(*app, sorobanAccount2, 100,
+                                   DEFAULT_TEST_RESOURCE_FEE, resources);
+
+            LedgerSnapshot ls(*app);
+            auto balanceOfFbAccount = getAvailableBalance(
+                ls.getLedgerHeader().current(),
+                ls.getAccount(feeSourceAccount.getPublicKey()).current());
+
+            // Set fees so that each is valid individually but combined they
+            // exceed the fee source's balance
+            int64_t fee1 = 200 + DEFAULT_TEST_RESOURCE_FEE;
+            auto fb1 = feeBump(*app, feeSourceAccount, sorobanTx1, fee1,
+                               /* useInclusionAsFullFee */ true);
+
+            int64_t fee2 = balanceOfFbAccount - fb1->getFullFee() + 1;
+            auto fb2 = feeBump(*app, feeSourceAccount, sorobanTx2, fee2,
+                               /* useInclusionAsFullFee */ true);
+
+            REQUIRE(balanceOfFbAccount < fb1->getFullFee() + fb2->getFullFee());
+            REQUIRE(fb1->getFullFee() < balanceOfFbAccount);
+            REQUIRE(fb2->getFullFee() < balanceOfFbAccount);
+
+            // Individual txs are valid
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+
+            PerPhaseTransactionList invalidPerPhase;
+            invalidPerPhase.resize(2);
+            SECTION("build block")
+            {
+                auto txSet = makeTxSetFromTransactions({{}, {fb1, fb2}}, *app,
+                                                       0, 0, invalidPerPhase);
+                // Both are marked invalid because their combined fees exceed
+                // feeSourceAccount's balance
+                compareTxs(invalidPerPhase[1], {fb1, fb2});
+            }
+            SECTION("invalid block is rejected")
+            {
+                auto txSet = makeTxSetFromTransactions(
+                    {{}, {fb1, fb2}}, *app, 0, 0, invalidPerPhase,
+                    /* skipValidation */ true);
+                REQUIRE(invalidPerPhase[1].empty());
+                REQUIRE(!txSet.second->checkValid(*app, 0, 0));
+            }
+        }
     }
+}
+
+TEST_CASE("getInvalidTxList returns no duplicates")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+    auto root = app->getRoot();
+
+    // Create accounts for tx sources and fee source
+    auto account1 = root->create("a1", minBalance2);
+    auto account2 = root->create("a2", minBalance2);
+    auto account3 = root->create("a3", minBalance2);
+    auto account4 = root->create("a4", minBalance2);
+
+    LedgerSnapshot ls(*app);
+    auto balanceOfFeeSource =
+        getAvailableBalance(ls.getLedgerHeader().current(),
+                            ls.getAccount(account2.getPublicKey()).current());
+
+    // Create three fee bumps from account2 (fee source):
+    // - fb1: fails checkValid (bad sequence number)
+    // - fb2: passes checkValid
+    // - fb3: passes checkValid
+    // Combined fees of fb2 + fb3 exceed balance, so both should be invalid
+    // fb1 is invalid due to checkValid failure
+    // This tests that fb1 doesn't appear twice (once from checkValid fail,
+    // once from fee check)
+    int64_t fee1 = 200;
+    int64_t fee2 = balanceOfFeeSource / 2 + 100;
+    int64_t fee3 = balanceOfFeeSource / 2 + 100;
+
+    // fb1: Bad seqNum to ensure it fails checkValid
+    auto tx1 = transactionFromOperations(
+        *app, account1, 555, {payment(account1.getPublicKey(), 1)}, 100);
+    auto fb1 = feeBump(*app, account2, tx1, fee1);
+
+    // fb2 and fb3: Valid transactions
+    auto tx2 = transactionFromOperations(
+        *app, account3, account3.getLastSequenceNumber() + 1,
+        {payment(account3.getPublicKey(), 1)}, 100);
+    auto fb2 = feeBump(*app, account2, tx2, fee2);
+
+    auto tx3 = transactionFromOperations(
+        *app, account4, account4.getLastSequenceNumber() + 1,
+        {payment(account4.getPublicKey(), 1)}, 100);
+    auto fb3 = feeBump(*app, account2, tx3, fee3);
+
+    // Verify fb1 fails checkValid
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+    REQUIRE(!fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+                 ->isSuccess());
+    // Verify fb2 and fb3 pass checkValid individually
+    REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+                ->isSuccess());
+    REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+                ->isSuccess());
+
+    // Verify combined fees of fb2 + fb3 exceed balance
+    REQUIRE(fb2->getFullFee() + fb3->getFullFee() > balanceOfFeeSource);
+    // But each individual fee is payable
+    REQUIRE(fb2->getFullFee() < balanceOfFeeSource);
+    REQUIRE(fb3->getFullFee() < balanceOfFeeSource);
+
+    TxFrameList txs = {fb1, fb2, fb3};
+    auto invalidTxs = TxSetUtils::getInvalidTxList(txs, *app, 0, 0);
+
+    // Check for no duplicates by comparing size with unique count
+    std::unordered_set<Hash> uniqueHashes;
+    for (auto const& tx : invalidTxs)
+    {
+        uniqueHashes.insert(tx->getFullHash());
+    }
+    REQUIRE(invalidTxs.size() == uniqueHashes.size());
+
+    // All 3 txs should be invalid:
+    // - fb1: fails checkValid
+    // - fb2, fb3: can't pay combined fees
+    REQUIRE(invalidTxs.size() == 3);
 }
 
 TEST_CASE("txset", "[herder][txset]")

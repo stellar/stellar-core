@@ -474,6 +474,12 @@ FeeBumpTransactionFrame::validateSorobanMemo() const
     return mInnerTx->validateSorobanMemo();
 }
 
+bool
+FeeBumpTransactionFrame::validateHostFn() const
+{
+    return mInnerTx->validateHostFn();
+}
+
 int64_t
 FeeBumpTransactionFrame::getFullFee() const
 {

@@ -45,7 +45,8 @@ class TxSetUtils
     // returnEarlyOnFirstInvalidTx is true, return immediately if an invalid
     // transaction is found (instead of finding all of them), this is useful for
     // checking if a TxSet is valid.
-    static TxFrameList getInvalidTxList(TxFrameList const& txs,
+    template <typename TxContainer>
+    static TxFrameList getInvalidTxList(TxContainer const& txs,
                                         Application& app,
                                         uint64_t lowerBoundCloseTimeOffset,
                                         uint64_t upperBoundCloseTimeOffset);

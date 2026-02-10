@@ -359,10 +359,6 @@ class TxSetPhaseFrame
     bool checkValidClassic(LedgerHeader const& lclHeader) const;
     bool checkValidSoroban(LedgerHeader const& lclHeader,
                            SorobanNetworkConfig const& sorobanConfig) const;
-
-    bool txsAreValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset) const;
-
     TxSetPhase mPhase;
 
     TxStageFrameList mStages;

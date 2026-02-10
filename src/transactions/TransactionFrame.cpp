@@ -311,6 +311,61 @@ TransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
+TransactionFrame::validateHostFn() const
+{
+    if (!isSoroban())
+    {
+        return true;
+    }
+
+    auto const& ops = getRawOperations();
+    if (ops.size() != 1)
+    {
+        return true;
+    }
+
+    auto const& op = ops.at(0);
+
+    if (op.body.type() != INVOKE_HOST_FUNCTION)
+    {
+        return true;
+    }
+    auto const& hostFn = op.body.invokeHostFunctionOp().hostFunction;
+
+    auto validateCreateContract =
+        [](ContractIDPreimage const& preimage,
+           ContractExecutable const& executable) -> bool {
+        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
+            executable.type() != CONTRACT_EXECUTABLE_STELLAR_ASSET)
+        {
+            return false;
+        }
+        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS &&
+            executable.type() != CONTRACT_EXECUTABLE_WASM)
+        {
+            return false;
+        }
+        return true;
+    };
+
+    if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
+    {
+        return validateCreateContract(
+            hostFn.createContract().contractIDPreimage,
+            hostFn.createContract().executable);
+    }
+
+    if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2)
+    {
+        return validateCreateContract(
+            hostFn.createContractV2().contractIDPreimage,
+            hostFn.createContractV2().executable);
+    }
+
+    return true;
+}
+
+bool
 TransactionFrame::validateSorobanMemo() const
 {
     if (!isSoroban())
