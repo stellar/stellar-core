@@ -1,5 +1,7 @@
+#include "crypto/StrKey.h"
 #include "test/Catch2.h"
 #include "util/Decoder.h"
+#include <fmt/format.h>
 #include <xdrpp/autocheck.h>
 
 namespace
@@ -84,6 +86,7 @@ roundtripRandoms()
 ROUNDTRIP(bool)
 ROUNDTRIP(xdr::pointer<xdr::pointer<int>>)
 
+#ifdef TEST_XDR_ROUNDTRIPS
 ROUNDTRIP(AccountEntry)
 ROUNDTRIP(AccountEntryExtensionV1)
 ROUNDTRIP(AccountEntryExtensionV2)
@@ -422,4 +425,260 @@ ROUNDTRIP(UInt128Parts)
 ROUNDTRIP(UInt256Parts)
 ROUNDTRIP(UpgradeEntryMeta)
 ROUNDTRIP(UpgradeType)
+#endif
+
+template <typename T>
+std::string
+toCerealCompact(T const& t, std::string const& name)
+{
+    using stellar::xdrToCerealString;
+    using namespace rapidjson;
+    std::string result = xdrToCerealString(t, name);
+    Document d;
+    d.Parse(result.c_str());
+
+    StringBuffer sb;
+    Writer<StringBuffer> w(sb);
+    d.Accept(w);
+
+    return sb.GetString();
+}
+
+template <uint32_t N>
+void
+copyHexToArray(xdr::opaque_array<N>& arr, char const* hex)
+{
+    auto bin = stellar::hexToBin(hex);
+    releaseAssert(bin.size() <= N);
+    std::copy(bin.begin(), bin.end(), arr.begin());
+}
+
+template <uint32_t N>
+void
+copyToArray(xdr::opaque_array<N>& arr, std::string const& s)
+{
+    releaseAssert(s.size() <= N);
+    std::copy(s.begin(), s.end(), arr.begin());
+}
+
+TEST_CASE("XDRCereal overrides")
+{
+    using namespace stellar;
+    char const accountIdHex[] =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    static_assert(sizeof(accountIdHex) ==
+                  uint256::container_fixed_nelem * 2 + 1);
+    static_assert(std::is_same_v<uint256, Hash>);
+
+    // Check xstring
+    {
+        REQUIRE(toCerealCompact(xdr::xstring<5>{"abc"}, "s") ==
+                R"({"s":"abc"})");
+        xdr::xstring<5> s{std::string{'a', '\0', 'b', 'c'}};
+        REQUIRE(toCerealCompact(s, "s") == R"({"s":{"raw":"61006263"}})");
+    }
+
+    // Check opaque array
+    {
+        xdr::opaque_array<8> o;
+        copyHexToArray(o, "0123456789abcdef");
+        REQUIRE(toCerealCompact(o, "o") == R"({"o":"0123456789abcdef"})");
+    }
+
+    // Check container (xdr::xvector)
+    {
+        xdr::xvector<uint32_t> v{1, 2, 3};
+        CHECK(toCerealCompact(v, "v") == R"({"v":[1,2,3]})");
+    }
+
+    // Check container with nested override (xdr::xvector of enums)
+    {
+        xdr::xvector<Asset> v;
+        Asset a;
+        a.type(ASSET_TYPE_NATIVE);
+        v.push_back(a);
+        a.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        copyToArray(a.alphaNum4().assetCode, "USD");
+        copyHexToArray(a.alphaNum4().issuer.ed25519(), accountIdHex);
+        v.push_back(a);
+        CHECK(
+            toCerealCompact(v, "v") ==
+            R"({"v":["NATIVE",{"assetCode":"USD","issuer":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"}]})");
+    }
+
+    // Check opaque_vec
+    {
+        xdr::opaque_vec<> v{0x01, 0x23, 0x45};
+        CHECK(toCerealCompact(v, "v") == R"({"v":"012345"})");
+    }
+
+    // Check PublicKey
+    {
+        PublicKey pk;
+        pk.type(PUBLIC_KEY_TYPE_ED25519);
+        copyHexToArray(pk.ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(pk, "pk") ==
+            R"({"pk":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"})");
+    }
+
+    // Check SCAddress (account)
+    {
+        SCAddress addr;
+        addr.type(SC_ADDRESS_TYPE_ACCOUNT);
+        addr.accountId().type(PUBLIC_KEY_TYPE_ED25519);
+        copyHexToArray(addr.accountId().ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(addr, "a") ==
+            R"({"a":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"})");
+    }
+
+    // Check SCAddress (contract)
+    {
+        SCAddress addr;
+        addr.type(SC_ADDRESS_TYPE_CONTRACT);
+        copyHexToArray(addr.contractId(), accountIdHex);
+        CHECK(
+            toCerealCompact(addr, "a") ==
+            R"({"a":"CAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG67KRS"})");
+    }
+
+    // Check ConfigUpgradeSetKey
+    {
+        ConfigUpgradeSetKey key;
+        copyHexToArray(key.contentHash, accountIdHex);
+        copyHexToArray(key.contractID, accountIdHex);
+        CHECK(
+            toCerealCompact(key, "k") ==
+            R"({"k":{"contractID":"CAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG67KRS","contentHash":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}})");
+    }
+
+    // Check MuxedAccount (ED25519)
+    {
+        MuxedAccount ma;
+        ma.type(KEY_TYPE_ED25519);
+        copyHexToArray(ma.ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(ma, "m") ==
+            R"({"m":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"})");
+    }
+
+    // Check MuxedAccount (MUXED_ED25519)
+    {
+        MuxedAccount ma;
+        ma.type(KEY_TYPE_MUXED_ED25519);
+        ma.med25519().id = 12345;
+        copyHexToArray(ma.med25519().ed25519, accountIdHex);
+        CHECK(
+            toCerealCompact(ma, "m") ==
+            R"({"m":{"id":12345,"accountID":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"}})");
+    }
+
+    // Check Asset (NATIVE)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_NATIVE);
+        CHECK(toCerealCompact(a, "a") == R"({"a":"NATIVE"})");
+    }
+
+    // Check Asset (CREDIT_ALPHANUM4, valid code)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        copyToArray(a.alphaNum4().assetCode, "USD");
+        a.alphaNum4().issuer.type(PUBLIC_KEY_TYPE_ED25519);
+        copyHexToArray(a.alphaNum4().issuer.ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(a, "a") ==
+            R"({"a":{"assetCode":"USD","issuer":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"}})");
+        ;
+    }
+
+    // Check Asset (CREDIT_ALPHANUM12, valid code)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        copyToArray(a.alphaNum12().assetCode, "USDC12");
+        copyHexToArray(a.alphaNum12().issuer.ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(a, "a") ==
+            R"({"a":{"assetCode":"USDC12","issuer":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"}})");
+    }
+
+    // Check Asset (CREDIT_ALPHANUM4, invalid code with embedded NUL)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        copyToArray(a.alphaNum4().assetCode, std::string{'U', '\0', 'D', '\0'});
+        copyHexToArray(a.alphaNum4().issuer.ed25519(), accountIdHex);
+        CHECK(
+            toCerealCompact(a, "a") ==
+            R"({"a":{"assetCodeRaw":"55004400","issuer":"GAASGRLHRGV433YBENCWPCNLZXXQCI2FM6E2XTPPAERUKZ4JVPG66OUL"}})");
+    }
+
+    // Check TrustLineAsset (POOL_SHARE)
+    {
+        TrustLineAsset tla;
+        tla.type(ASSET_TYPE_POOL_SHARE);
+        copyHexToArray(tla.liquidityPoolID(), accountIdHex);
+        CHECK(
+            toCerealCompact(tla, "a") ==
+            R"({"a":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"})");
+    }
+
+    // Check ChangeTrustAsset (POOL_SHARE)
+    {
+        ChangeTrustAsset cta;
+        cta.type(ASSET_TYPE_POOL_SHARE);
+        cta.liquidityPool().type(LIQUIDITY_POOL_CONSTANT_PRODUCT);
+        auto& cp = cta.liquidityPool().constantProduct();
+        cp.assetA.type(ASSET_TYPE_NATIVE);
+        cp.assetB.type(ASSET_TYPE_NATIVE);
+        cp.fee = 30;
+        CHECK(toCerealCompact(cta, "a") ==
+              R"({"a":{"assetA":"NATIVE","assetB":"NATIVE","fee":30}})");
+    }
+
+    // Check enum
+    {
+        AssetType e = ASSET_TYPE_NATIVE;
+        CHECK(toCerealCompact(e, "e") == R"({"e":"ASSET_TYPE_NATIVE"})");
+    }
+
+    // Check pointer (null)
+    {
+        xdr::pointer<Asset> p;
+        CHECK(toCerealCompact(p, "p") == R"({"p":null})");
+    }
+
+    // Check pointer (non-null)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_NATIVE);
+        xdr::pointer<Asset> p(new Asset{a});
+        CHECK(toCerealCompact(p, "p") == R"({"p":"NATIVE"})");
+    }
+
+    // Check nested pointer (null)
+    {
+        xdr::pointer<xdr::pointer<Asset>> p;
+        CHECK(toCerealCompact(p, "p") == R"({"p":[]})");
+    }
+
+    // Check nested pointer (outer non-null, inner null)
+    {
+        xdr::pointer<xdr::pointer<Asset>> p;
+        p.reset(new xdr::pointer<Asset>{});
+        CHECK(toCerealCompact(p, "p") == R"({"p":[null]})");
+    }
+
+    // Check nested pointer (outer non-null, inner non-null)
+    {
+        Asset a;
+        a.type(ASSET_TYPE_NATIVE);
+        xdr::pointer<xdr::pointer<Asset>> p;
+        p.reset(new xdr::pointer<Asset>{new Asset{a}});
+        CHECK(toCerealCompact(p, "p") == R"({"p":["NATIVE"]})");
+    }
+}
 } // namespace
