@@ -7,6 +7,7 @@
 #include "lib/http/server.hpp"
 #include "main/QueryServer.h"
 #include "util/ProtocolVersion.h"
+#include <atomic>
 #include <map>
 #include <memory>
 #include <string>
@@ -28,6 +29,7 @@ class CommandHandler
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
     std::unique_ptr<QueryServer> mQueryServer;
+    std::atomic<bool> mIsReady{false};
 
     void addRoute(std::string const& name, HandlerRoute route);
 
@@ -44,6 +46,11 @@ class CommandHandler
     CommandHandler(Application& app);
 
     void shutdown();
+
+    // Called when ledger state is loaded. Once set, all HTTP
+    // endpoints become available. Before this, safeRouter returns a generic
+    // "core is booting" response for every request.
+    void setReady();
 
     std::string manualCmd(std::string const& cmd);
 
@@ -75,9 +82,6 @@ class CommandHandler
     void stopSurveyCollecting(std::string const& params, std::string& retStr);
     void surveyTopologyTimeSliced(std::string const& params,
                                   std::string& retStr);
-
-    // Checks if stellar-core is booted and throws an exception if not.
-    void checkBooted() const;
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);

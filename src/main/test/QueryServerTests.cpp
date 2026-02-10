@@ -42,11 +42,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
     // Query Server is disabled by default in cfg. Instead of enabling it, we're
     // going to manage a version here manually so we can directly call functions
     // and avoid sending network requests.
-    auto qServer = std::make_unique<QueryServer>(
-        "127.0.0.1", 0,
-        1, // maxClient
-        2, // threadPoolSize
-        app->getBucketManager().getBucketSnapshotManager(), true);
+    auto qServer = std::make_unique<QueryServer>("127.0.0.1", 0,
+                                                 1, // maxClient
+                                                 2, // threadPoolSize
+                                                 app->getAppConnector(), true);
 
     std::unordered_map<LedgerKey, LedgerEntry> liveEntryMap;
 

@@ -549,6 +549,34 @@ TEST_CASE("manualclose", "[commandhandler]")
     }
 }
 
+TEST_CASE("endpoints reject requests before setReady", "[commandhandler]")
+{
+    // Use persistent DB so the second app instance can open the same database
+    // without calling newDB.
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+
+    // First app: create the genesis ledger so a valid DB exists on disk.
+    {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+    }
+
+    // Second app: open the existing DB but don't start, so
+    // loadLastKnownLedger and setReady have not been called.
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg, false, false);
+    auto& ch = app->getCommandHandler();
+
+    // Minimal valid param for /tx endpoint
+    TransactionEnvelope env(ENVELOPE_TYPE_TX);
+    auto blob = decoder::encode_b64(xdr::xdr_to_opaque(env));
+
+    // Make sure we gracefully handle endpoints being called before setReady is
+    // called.
+    auto result = ch.manualCmd("tx?blob=" + blob);
+    REQUIRE(result.find("Core is booting") != std::string::npos);
+}
+
 TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
 {
     VirtualClock clock;

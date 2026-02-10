@@ -7,8 +7,8 @@
 #include "lib/httpthreaded/server.hpp"
 
 #include "bucket/BucketSnapshotManager.h"
+#include <atomic>
 #include <functional>
-#include <memory>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -16,7 +16,7 @@
 namespace stellar
 {
 class SearchableLiveBucketListSnapshot;
-class BucketSnapshotManager;
+class AppConnector;
 
 class QueryServer
 {
@@ -32,7 +32,9 @@ class QueryServer
     std::unordered_map<std::thread::id, SearchableHotArchiveSnapshotConstPtr>
         mHotArchiveBucketListSnapshots;
 
-    BucketSnapshotManager& mBucketSnapshotManager;
+    AppConnector& mAppConnector;
+
+    std::atomic<bool> mIsReady{false};
 
     bool safeRouter(HandlerRoute route, std::string const& params,
                     std::string const& body, std::string& retStr);
@@ -55,8 +57,7 @@ class QueryServer
 
   public:
     QueryServer(std::string const& address, unsigned short port, int maxClient,
-                size_t threadPoolSize,
-                BucketSnapshotManager& bucketSnapshotManager
+                size_t threadPoolSize, AppConnector& appConnector
 #ifdef BUILD_TESTS
                 ,
                 bool useMainThreadForTesting = false
@@ -64,5 +65,8 @@ class QueryServer
     );
 
     void shutdown();
+
+    // Called by CommandHandler::setReady() to unblock query endpoints.
+    void setReady();
 };
 }

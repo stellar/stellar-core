@@ -807,6 +807,9 @@ ApplicationImpl::start()
 
     mLedgerManager->loadLastKnownLedger();
 
+    // LCL is now loaded; unblock HTTP endpoints that were gated during boot.
+    mCommandHandler->setReady();
+
     // Check if we're already on protocol V_24 or later and enable Rust Dalek
     auto const& lcl = mLedgerManager->getLastClosedLedgerHeader();
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,

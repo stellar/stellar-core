@@ -194,6 +194,24 @@ AppConnector::maybeCopySearchableBucketListSnapshot(
         .maybeCopySearchableBucketListSnapshot(snapshot);
 }
 
+void
+AppConnector::maybeCopyLiveAndHotArchiveSnapshots(
+    SearchableSnapshotConstPtr& liveSnapshot,
+    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
+{
+    mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .maybeCopyLiveAndHotArchiveSnapshots(liveSnapshot, hotArchiveSnapshot);
+}
+
+std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+AppConnector::copySearchableBucketListSnapshots()
+{
+    return mApp.getBucketManager()
+        .getBucketSnapshotManager()
+        .copySearchableBucketListSnapshots();
+}
+
 SearchableSnapshotConstPtr&
 AppConnector::getOverlayThreadSnapshot()
 {

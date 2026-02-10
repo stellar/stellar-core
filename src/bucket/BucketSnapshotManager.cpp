@@ -155,6 +155,14 @@ BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
     }
 }
 
+std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+BucketSnapshotManager::copySearchableBucketListSnapshots() const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    return {copySearchableLiveBucketListSnapshot(guard),
+            copySearchableHotArchiveBucketListSnapshot(guard)};
+}
+
 void
 BucketSnapshotManager::updateCurrentSnapshot(
     LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
