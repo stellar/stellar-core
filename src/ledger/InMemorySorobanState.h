@@ -10,8 +10,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "bucket/BucketSnapshotManager.h"
-#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -19,6 +17,7 @@
 
 namespace stellar
 {
+class LedgerStateSnapshot;
 
 class InvariantManagerImpl;
 class SorobanMetrics;
@@ -440,8 +439,7 @@ class InMemorySorobanState
     // is reading state when these functions are called.
 
     // Initialize the map from a bucket list snapshot
-    void initializeStateFromSnapshot(SearchableSnapshotConstPtr snap,
-                                     uint32_t ledgerVersion);
+    void initializeStateFromSnapshot(LedgerStateSnapshot const& snap);
 
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.

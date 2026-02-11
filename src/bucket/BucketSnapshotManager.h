@@ -7,18 +7,16 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "util/NonCopyable.h"
 #include "util/ThreadAnnotations.h"
 
 #include <map>
 #include <memory>
-#include <shared_mutex>
 
 namespace medida
 {
-class Meter;
 class MetricsRegistry;
-class Timer;
 }
 
 namespace stellar
@@ -61,6 +59,11 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     uint32_t const mNumHistoricalSnapshots;
 
+    // The current complete ledger state, set by LedgerManager after each
+    // ledger close. Used by copyLedgerStateSnapshot() to construct
+    // LedgerStateSnapshot instances.
+    CompleteConstLedgerStatePtr mCompleteState GUARDED_BY(mSnapshotMutex){};
+
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
@@ -77,58 +80,28 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           LedgerHeader const& header,
                           uint32_t numHistoricalLedgers);
 
-    // Copy the most recent snapshot for the live bucket list
-    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot() const
+    // Store the complete ledger state for use by copyLedgerStateSnapshot().
+    // Called by LedgerManager after each ledger close.
+    void setCompleteState(CompleteConstLedgerStatePtr state)
         LOCKS_EXCLUDED(mSnapshotMutex);
 
-    // Create a deep copy from an existing searchable snapshot
-    static SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot(
-        SearchableSnapshotConstPtr const& snapshot, MetricsRegistry& metrics);
+    // Access raw snapshot data and historical snapshots. Used by
+    // CompleteConstLedgerState construction.
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
+    getLiveHistoricalSnapshots() const LOCKS_EXCLUDED(mSnapshotMutex);
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
+    getHotArchiveHistoricalSnapshots() const LOCKS_EXCLUDED(mSnapshotMutex);
 
-    // Create a deep copy from an existing hot archive snapshot
-    static SearchableHotArchiveSnapshotConstPtr
-    copySearchableHotArchiveBucketListSnapshot(
-        SearchableHotArchiveSnapshotConstPtr const& snapshot,
-        MetricsRegistry& metrics);
-
-    // Copy the most recent snapshot for the hot archive bucket list
-    SearchableHotArchiveSnapshotConstPtr
-    copySearchableHotArchiveBucketListSnapshot() const
+    // Create a LedgerStateSnapshot containing both live and hot archive
+    // snapshots plus the current header. Thread-safe.
+    LedgerStateSnapshot copyLedgerStateSnapshot() const
         LOCKS_EXCLUDED(mSnapshotMutex);
 
-    // Copy the most recent snapshot for the live bucket list, while holding the
-    // lock
-    SearchableSnapshotConstPtr
-    copySearchableLiveBucketListSnapshot(SharedLockShared const& guard) const
-        REQUIRES_SHARED(mSnapshotMutex);
-
-    // Copy the most recent snapshot for the hot archive bucket list, while
-    // holding the lock
-    SearchableHotArchiveSnapshotConstPtr
-    copySearchableHotArchiveBucketListSnapshot(
-        SharedLockShared const& guard) const REQUIRES_SHARED(mSnapshotMutex);
-
-    // `maybeCopy` interface refreshes `snapshot` if a newer snapshot is
-    // available. It's a no-op otherwise. This is useful to avoid unnecessary
-    // copying.
-    void
-    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot)
+    // Refresh `snapshot` if its ledger seq differs from the current snapshot.
+    // No-op otherwise.
+    void maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot) const
         LOCKS_EXCLUDED(mSnapshotMutex);
-    void maybeCopySearchableHotArchiveBucketListSnapshot(
-        SearchableHotArchiveSnapshotConstPtr& snapshot)
-        LOCKS_EXCLUDED(mSnapshotMutex);
-
-    // This function is the same as snapshot refreshers above, but guarantees
-    // that both snapshots are consistent with the same lcl. This is required
-    // when querying both snapshot types as part of the same query.
-    void maybeCopyLiveAndHotArchiveSnapshots(
-        SearchableSnapshotConstPtr& liveSnapshot,
-        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
-        LOCKS_EXCLUDED(mSnapshotMutex);
-
-    // Copy both live and hot archive snapshots atomically under a single lock.
-    // This guarantees both snapshots are from the same ledger.
-    std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
-    copySearchableBucketListSnapshots() const LOCKS_EXCLUDED(mSnapshotMutex);
 };
 }

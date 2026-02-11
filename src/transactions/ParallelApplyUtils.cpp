@@ -302,11 +302,11 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mSnapshot(app.copyLedgerStateSnapshot())
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
+
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          getSnapshotLedgerSeq() + 1);
 
@@ -462,11 +462,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 uint32_t
 GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 GlobalParallelApplyEntryMap const&
@@ -616,11 +612,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    // TODO: find a way to clone these from parent rather than asking the
-    // snapshot manager again. That might have changed! NB taking a shared
-    // pointer copy is not safe, the snapshot objects are not threadsafe.
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mSnapshot(global.mSnapshot)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -737,7 +729,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mLiveSnapshot->load(key);
+        res = mSnapshot.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -861,11 +853,7 @@ ThreadParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
 uint32_t
 ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 SorobanNetworkConfig const&
@@ -874,10 +862,10 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-SearchableHotArchiveSnapshotConstPtr const&
-ThreadParallelApplyLedgerState::getHotArchiveSnapshot() const
+LedgerStateSnapshot const&
+ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mHotArchiveSnapshot;
+    return mSnapshot;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&

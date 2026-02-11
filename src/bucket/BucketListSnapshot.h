@@ -13,7 +13,6 @@
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include "xdr/Stellar-ledger.h"
 
 #include <functional>
 #include <list>
@@ -43,6 +42,8 @@ struct StateArchivalSettings;
 class EvictionStatistics;
 template <class BucketT> class BucketListBase;
 template <class BucketT> class BucketLevel;
+class CompleteConstLedgerState;
+class LedgerStateSnapshot;
 
 // BucketListSnapshotData holds the immutable bucket references that can be
 // safely shared across threads. It contains only bucket pointers and no
@@ -84,10 +85,10 @@ template <class BucketT> class SearchableBucketListSnapshot
     std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
         mHistoricalSnapshots;
 
-    // Ledger header associated with this snapshot. Stored separately from
-    // BucketListSnapshotData so that the snapshot data only contains bucket
-    // references.
-    LedgerHeader const mHeader;
+    // Ledger sequence number for this snapshot, used internally to route
+    // queries between current and historical data. Not exposed publicly;
+    // callers should get ledger metadata from CompleteConstLedgerState.
+    uint32_t const mLedgerSeq;
 
     // Per-snapshot mutable stream cache
     mutable UnorderedMap<BucketT const*, std::unique_ptr<XDRInputFileStream>>
@@ -153,7 +154,7 @@ template <class BucketT> class SearchableBucketListSnapshot
         std::map<uint32_t,
                  std::shared_ptr<BucketListSnapshotData<BucketT> const>>
             historicalSnapshots,
-        LedgerHeader const& header);
+        uint32_t ledgerSeq);
 
   public:
     virtual ~SearchableBucketListSnapshot() = default;
@@ -171,9 +172,6 @@ template <class BucketT> class SearchableBucketListSnapshot
     std::optional<std::vector<typename BucketT::LoadT>>
     loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        uint32_t ledgerSeq) const;
-
-    uint32_t getLedgerSeq() const;
-    LedgerHeader const& getLedgerHeader() const;
 
     // Access to underlying data (for copying/refreshing)
     std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
@@ -194,7 +192,7 @@ class SearchableLiveBucketListSnapshot
         std::map<uint32_t,
                  std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
             historicalSnapshots,
-        LedgerHeader const& header);
+        uint32_t ledgerSeq);
 
     Loop scanForEvictionInBucket(
         std::shared_ptr<LiveBucket const> const& bucket, EvictionIterator& iter,
@@ -226,6 +224,8 @@ class SearchableLiveBucketListSnapshot
         std::function<Loop(BucketEntry const&)> callback) const;
 
     friend class BucketSnapshotManager;
+    friend class CompleteConstLedgerState;
+    friend class LedgerStateSnapshot;
 };
 
 // Hot archive bucket list snapshot
@@ -238,7 +238,7 @@ class SearchableHotArchiveBucketListSnapshot
         std::map<uint32_t, std::shared_ptr<
                                BucketListSnapshotData<HotArchiveBucket> const>>
             historicalSnapshots,
-        LedgerHeader const& header);
+        uint32_t ledgerSeq);
 
   public:
     std::vector<HotArchiveBucketEntry>
@@ -250,6 +250,7 @@ class SearchableHotArchiveBucketListSnapshot
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 
     friend class BucketSnapshotManager;
+    friend class LedgerStateSnapshot;
 };
 
 extern template struct BucketListSnapshotData<LiveBucket>;

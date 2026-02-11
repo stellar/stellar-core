@@ -5,6 +5,7 @@
 #pragma once
 
 #include "bucket/BucketUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "rust/RustBridge.h"
@@ -72,25 +73,12 @@ class AppConnector
 
     bool isStopping() const;
 
-    SearchableHotArchiveSnapshotConstPtr
-    copySearchableHotArchiveBucketListSnapshot();
-
-    SearchableSnapshotConstPtr copySearchableLiveBucketListSnapshot();
-
-    // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
-    void
-    maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
-
-    void maybeCopyLiveAndHotArchiveSnapshots(
-        SearchableSnapshotConstPtr& liveSnapshot,
-        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot);
-
-    std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
-    copySearchableBucketListSnapshots();
+    LedgerStateSnapshot copyLedgerStateSnapshot();
+    void maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot);
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.
-    SearchableSnapshotConstPtr& getOverlayThreadSnapshot();
+    LedgerStateSnapshot& getOverlayThreadSnapshot();
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
     // unless a path to a CSV file containing the corruption data was provided

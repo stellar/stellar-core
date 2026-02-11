@@ -18,6 +18,7 @@
 #include "historywork/VerifyBucketWork.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
@@ -1160,29 +1161,28 @@ BucketManager::maybeSetIndex(
 }
 
 void
-BucketManager::startBackgroundEvictionScan(
-    SearchableSnapshotConstPtr lclSnapshot, SorobanNetworkConfig const& cfg)
+BucketManager::startBackgroundEvictionScan(LedgerStateSnapshot lclSnapshot,
+                                           SorobanNetworkConfig const& cfg)
 {
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
     // Start the eviction scan for then _next_ ledger
-    auto ledgerSeq = lclSnapshot->getLedgerSeq() + 1;
-    auto ledgerVers = lclSnapshot->getLedgerHeader().ledgerVersion;
+    auto ledgerSeq = lclSnapshot.getLedgerSeq() + 1;
+    auto ledgerVers = lclSnapshot.getLedgerHeader().ledgerVersion;
 
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t =
         std::packaged_task<std::unique_ptr<EvictionResultCandidates>()>;
-    // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
-    // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
-        [lclSnapshot, iter = cfg.evictionIterator(), ledgerSeq, ledgerVers, sas,
-         &metrics = mBucketListEvictionMetrics, stats = mEvictionStatistics] {
+        [snap = std::move(lclSnapshot), iter = cfg.evictionIterator(),
+         ledgerSeq, ledgerVers, sas, &metrics = mBucketListEvictionMetrics,
+         stats = mEvictionStatistics]() mutable {
             auto timer = metrics.backgroundTime.TimeScope();
-            return lclSnapshot->scanForEviction(ledgerSeq, metrics, iter, stats,
-                                                sas, ledgerVers);
+            return snap.scanForEviction(ledgerSeq, metrics, iter, stats, sas,
+                                        ledgerVers);
         });
 
     mEvictionFuture = task->get_future();
@@ -1193,7 +1193,7 @@ BucketManager::startBackgroundEvictionScan(
 
 EvictedStateVectors
 BucketManager::resolveBackgroundEvictionScan(
-    SearchableSnapshotConstPtr lclSnapshot, AbstractLedgerTxn& ltx,
+    LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
     LedgerKeySet const& modifiedKeys)
 {
     ZoneScoped;
@@ -1203,7 +1203,7 @@ BucketManager::resolveBackgroundEvictionScan(
     auto ledgerSeq = ls.getLedgerHeader().current().ledgerSeq;
     auto ledgerVers = ls.getLedgerHeader().current().ledgerVersion;
     auto networkConfig = SorobanNetworkConfig::loadFromLedger(ls);
-    releaseAssert(ledgerSeq == lclSnapshot->getLedgerSeq() + 1);
+    releaseAssert(ledgerSeq == lclSnapshot.getLedgerSeq() + 1);
 
     if (!mEvictionFuture.valid())
     {
@@ -1212,7 +1212,9 @@ BucketManager::resolveBackgroundEvictionScan(
         // candidates; this function later validates them by re-checking the
         // Soroban config and reloading the latest TTLs. Any entry restored in
         // the same ledger will be rejected by eviction validation logic.
-        startBackgroundEvictionScan(lclSnapshot, networkConfig);
+        startBackgroundEvictionScan(
+            LedgerStateSnapshot(lclSnapshot),
+            networkConfig);
     }
 
     auto evictionCandidates = mEvictionFuture.get();
@@ -1222,7 +1224,9 @@ BucketManager::resolveBackgroundEvictionScan(
     if (!evictionCandidates->isValid(ledgerSeq, ledgerVers,
                                      networkConfig.stateArchivalSettings()))
     {
-        startBackgroundEvictionScan(lclSnapshot, networkConfig);
+        startBackgroundEvictionScan(
+            LedgerStateSnapshot(lclSnapshot),
+            networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 
