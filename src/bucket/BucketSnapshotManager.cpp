@@ -6,9 +6,9 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucketList.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/AppConnector.h"
 #include "util/GlobalChecks.h"
-#include "util/MetricsRegistry.h"
 
 namespace stellar
 {
@@ -29,129 +29,33 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(threadIsMain());
     releaseAssert(mCurrLiveSnapshot);
     releaseAssert(mCurrHotArchiveSnapshot);
+
+    // Initialize mCompleteState so that copyLedgerStateSnapshot() is valid
+    // even before the first ledger close calls setCompleteState().
+    // TODO: make less sketchy
+    LedgerHeaderHistoryEntry lcl;
+    lcl.header = header;
+    HistoryArchiveState has;
+    has.currentLedger = header.ledgerSeq;
+    mCompleteState = std::shared_ptr<CompleteConstLedgerState const>(
+        new CompleteConstLedgerState(
+            mCurrLiveSnapshot, mLiveHistoricalSnapshots,
+            mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots, lcl, has));
 }
 
-SearchableSnapshotConstPtr
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const
+std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
+BucketSnapshotManager::getLiveHistoricalSnapshots() const
 {
     SharedLockShared guard(mSnapshotMutex);
-    // Can't use std::make_shared due to private constructor
-    return copySearchableLiveBucketListSnapshot(guard);
+    return mLiveHistoricalSnapshots;
 }
 
-SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const
+std::map<uint32_t,
+         std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
+BucketSnapshotManager::getHotArchiveHistoricalSnapshots() const
 {
     SharedLockShared guard(mSnapshotMutex);
-    releaseAssert(mCurrHotArchiveSnapshot);
-    // Can't use std::make_shared due to private constructor
-    return copySearchableHotArchiveBucketListSnapshot(guard);
-}
-
-SearchableSnapshotConstPtr
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-    SharedLockShared const& guard) const
-{
-    // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(
-            mAppConnector.getMetrics(), mCurrLiveSnapshot,
-            mLiveHistoricalSnapshots, mCurrHeader));
-}
-
-SearchableSnapshotConstPtr
-BucketSnapshotManager::copySearchableLiveBucketListSnapshot(
-    SearchableSnapshotConstPtr const& snapshot, MetricsRegistry& metrics)
-{
-    // Can't use std::make_shared due to private constructor
-    releaseAssert(snapshot);
-    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
-        new SearchableLiveBucketListSnapshot(
-            metrics, snapshot->getSnapshotData(),
-            snapshot->getHistoricalSnapshots(), snapshot->getLedgerHeader()));
-}
-
-SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
-    SearchableHotArchiveSnapshotConstPtr const& snapshot,
-    MetricsRegistry& metrics)
-{
-    releaseAssert(snapshot);
-    // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
-        new SearchableHotArchiveBucketListSnapshot(
-            metrics, snapshot->getSnapshotData(),
-            snapshot->getHistoricalSnapshots(), snapshot->getLedgerHeader()));
-}
-
-SearchableHotArchiveSnapshotConstPtr
-BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot(
-    SharedLockShared const& guard) const
-{
-    releaseAssert(mCurrHotArchiveSnapshot);
-    // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
-        new SearchableHotArchiveBucketListSnapshot(
-            mAppConnector.getMetrics(), mCurrHotArchiveSnapshot,
-            mHotArchiveHistoricalSnapshots, mCurrHeader));
-}
-
-void
-BucketSnapshotManager::maybeCopySearchableBucketListSnapshot(
-    SearchableSnapshotConstPtr& snapshot)
-{
-    // The canonical snapshot held by the BucketSnapshotManager is not being
-    // modified. Rather, a thread is checking it's copy against the canonical
-    // snapshot, so use a shared lock.
-    SharedLockShared guard(mSnapshotMutex);
-    if (!snapshot || snapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
-    {
-        snapshot = copySearchableLiveBucketListSnapshot(guard);
-    }
-}
-
-void
-BucketSnapshotManager::maybeCopySearchableHotArchiveBucketListSnapshot(
-    SearchableHotArchiveSnapshotConstPtr& snapshot)
-{
-    // The canonical snapshot held by the BucketSnapshotManager is not being
-    // modified. Rather, a thread is checking it's copy against the canonical
-    // snapshot, so use a shared lock.
-    SharedLockShared guard(mSnapshotMutex);
-    if (!snapshot || snapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
-    {
-        snapshot = copySearchableHotArchiveBucketListSnapshot(guard);
-    }
-}
-
-void
-BucketSnapshotManager::maybeCopyLiveAndHotArchiveSnapshots(
-    SearchableSnapshotConstPtr& liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
-{
-    // The canonical snapshot held by the BucketSnapshotManager is not being
-    // modified. Rather, a thread is checking it's copy against the canonical
-    // snapshot, so use a shared lock. For consistency we hold the lock while
-    // updating both snapshots.
-    SharedLockShared guard(mSnapshotMutex);
-    if (!liveSnapshot || liveSnapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
-    {
-        liveSnapshot = copySearchableLiveBucketListSnapshot(guard);
-    }
-
-    if (!hotArchiveSnapshot ||
-        hotArchiveSnapshot->getLedgerSeq() < mCurrHeader.ledgerSeq)
-    {
-        hotArchiveSnapshot = copySearchableHotArchiveBucketListSnapshot(guard);
-    }
-}
-
-std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
-BucketSnapshotManager::copySearchableBucketListSnapshots() const
-{
-    SharedLockShared guard(mSnapshotMutex);
-    return {copySearchableLiveBucketListSnapshot(guard),
-            copySearchableHotArchiveBucketListSnapshot(guard)};
+    return mHotArchiveHistoricalSnapshots;
 }
 
 void
@@ -194,5 +98,49 @@ BucketSnapshotManager::updateCurrentSnapshot(
     updateSnapshot(mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots,
                    std::move(newHotArchiveSnapshot), mCurrHeader.ledgerSeq);
     mCurrHeader = header;
+
+    // Rebuild mCompleteState from the updated raw data so that
+    // copyLedgerStateSnapshot() always returns fresh state. This uses the
+    // private constructor that skips Soroban config loading; the normal
+    // ledger-close path will follow up with setCompleteState() which
+    // provides the full state including Soroban config.
+    // TODO: make less sketchy
+    LedgerHeaderHistoryEntry lcl;
+    lcl.header = header;
+    HistoryArchiveState has;
+    has.currentLedger = header.ledgerSeq;
+    mCompleteState = std::shared_ptr<CompleteConstLedgerState const>(
+        new CompleteConstLedgerState(
+            mCurrLiveSnapshot, mLiveHistoricalSnapshots,
+            mCurrHotArchiveSnapshot, mHotArchiveHistoricalSnapshots, lcl, has));
+}
+
+void
+BucketSnapshotManager::setCompleteState(CompleteConstLedgerStatePtr state)
+{
+    SharedLockExclusive guard(mSnapshotMutex);
+    mCompleteState = std::move(state);
+}
+
+LedgerStateSnapshot
+BucketSnapshotManager::copyLedgerStateSnapshot() const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    releaseAssert(mCompleteState);
+    return LedgerStateSnapshot(mCompleteState, mAppConnector.getMetrics());
+}
+
+void
+BucketSnapshotManager::maybeUpdateLedgerStateSnapshot(
+    LedgerStateSnapshot& snapshot) const
+{
+    SharedLockShared guard(mSnapshotMutex);
+    releaseAssert(mCompleteState);
+    if (snapshot.getLedgerSeq() !=
+        mCompleteState->getLastClosedLedgerHeader().header.ledgerSeq)
+    {
+        snapshot =
+            LedgerStateSnapshot(mCompleteState, mAppConnector.getMetrics());
+    }
 }
 }

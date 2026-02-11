@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "bucket/BucketSnapshotManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "rust/RustBridge.h"
 #include "util/NonCopyable.h"
 #include "xdrpp/types.h"
@@ -25,7 +25,7 @@ namespace stellar
 class SharedModuleCacheCompiler : NonMovableOrCopyable
 {
     ::rust::Box<stellar::rust_bridge::SorobanModuleCache> mModuleCache;
-    stellar::SearchableSnapshotConstPtr mSnap;
+    LedgerStateSnapshot mSnap;
     std::deque<xdr::xvector<uint8_t>> mWasms;
 
     size_t const mNumThreads;
@@ -55,8 +55,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
     bool popAndCompileWasm(size_t thread, std::unique_lock<std::mutex>& lock);
 
   public:
-    SharedModuleCacheCompiler(SearchableSnapshotConstPtr snap,
-                              MetricsRegistry& metrics, size_t numThreads,
+    SharedModuleCacheCompiler(LedgerStateSnapshot snap, size_t numThreads,
                               std::vector<uint32_t> const& ledgerVersions);
     ~SharedModuleCacheCompiler();
     void start();

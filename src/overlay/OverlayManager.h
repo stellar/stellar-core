@@ -5,6 +5,7 @@
 #pragma once
 
 #include "crypto/BLAKE2.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "overlay/Peer.h"
 
 /**
@@ -214,6 +215,6 @@ class OverlayManager
 
     // Get a snapshot of ledger state for use by the overlay thread only. Caller
     // is responsible for updating the snapshot as needed.
-    virtual SearchableSnapshotConstPtr& getOverlayThreadSnapshot() = 0;
+    virtual LedgerStateSnapshot& getOverlayThreadSnapshot() = 0;
 };
 }

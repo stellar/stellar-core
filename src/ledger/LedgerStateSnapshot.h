@@ -5,11 +5,11 @@
 #pragma once
 
 #include "bucket/BucketListSnapshot.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
+#include <functional>
 #include <variant>
 
 namespace stellar
@@ -19,6 +19,12 @@ class Application;
 class TransactionFrame;
 class LedgerSnapshot;
 class CompleteConstLedgerState;
+class EvictionStatistics;
+struct EvictionMetrics;
+struct EvictionResultCandidates;
+struct InflationWinner;
+struct StateArchivalSettings;
+template <class BucketT> class BucketListBase;
 
 // NB: we can't use unique_ptr here, because this object gets passed to a
 // lambda, and std::function requires its callable to be copyable (C++23 fixes
@@ -112,17 +118,90 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
         std::function<void(LedgerSnapshot const&)> f) const override;
 };
 
+// A copyable value type that provides searchable access to a
+// CompleteConstLedgerState. Each instance maintains its own file stream cache
+// for bucket I/O. Multiple LedgerStateSnapshot instances can safely wrap the
+// same CompleteConstLedgerState.
+class LedgerStateSnapshot
+{
+    std::shared_ptr<CompleteConstLedgerState const> mState;
+    std::shared_ptr<SearchableLiveBucketListSnapshot const> mLiveSnapshot;
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>
+        mHotArchiveSnapshot;
+    std::reference_wrapper<MetricsRegistry> mMetrics;
+
+  public:
+    // Construct from CompleteConstLedgerState
+    explicit LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
+                                 MetricsRegistry& metrics);
+
+    // Default copy/move
+    // TODO: This is currently NOT thread sade, since we just do pointer copies
+    // for the state snapshots. Next commit will turn the snapshots into value
+    // types with correct copy semantics.
+    LedgerStateSnapshot(LedgerStateSnapshot const&) = default;
+    LedgerStateSnapshot& operator=(LedgerStateSnapshot const&) = default;
+    LedgerStateSnapshot(LedgerStateSnapshot&&) = default;
+    LedgerStateSnapshot& operator=(LedgerStateSnapshot&&) = default;
+
+    CompleteConstLedgerState const& getState() const;
+    LedgerHeader const& getLedgerHeader() const;
+    uint32_t getLedgerSeq() const;
+
+    // === Live BucketList methods ===
+    std::shared_ptr<LedgerEntry const> loadLiveEntry(LedgerKey const& k) const;
+    std::vector<LedgerEntry>
+    loadLiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                 std::string const& label) const;
+    std::optional<std::vector<LedgerEntry>>
+    loadLiveKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                           uint32_t ledgerSeq) const;
+    std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset) const;
+    std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
+                                                      int64_t minBalance) const;
+    std::unique_ptr<EvictionResultCandidates> scanForEviction(
+        uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator iter,
+        std::shared_ptr<EvictionStatistics> stats,
+        StateArchivalSettings const& sas, uint32_t ledgerVers) const;
+    void scanLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<Loop(BucketEntry const&)> callback) const;
+
+    // === Hot Archive BucketList methods ===
+    std::shared_ptr<HotArchiveBucketEntry const>
+    loadArchiveEntry(LedgerKey const& k) const;
+    std::vector<HotArchiveBucketEntry>
+    loadArchiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
+    std::optional<std::vector<HotArchiveBucketEntry>> loadArchiveKeysFromLedger(
+        std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+        uint32_t ledgerSeq) const;
+    void scanAllArchiveEntries(
+        std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
+
+  private:
+    friend class CompleteConstLedgerState;
+
+    // TODO: Remove
+    friend class BucketSnapshotState;
+    friend class LedgerSnapshot;
+    friend class LedgerManagerImpl;
+};
+
 // A concrete implementation of read-only BucketList snapshot wrapper
 class BucketSnapshotState : public AbstractLedgerStateSnapshot
 {
-    SearchableSnapshotConstPtr const mSnapshot;
-    // Store a copy of the header from mSnapshot. This is needed for
-    // validation flow where for certain validation scenarios the header needs
-    // to be modified
+    LedgerStateSnapshot mSnapshot;
+    // Store a copy of the header. This is needed for validation flow where
+    // for certain validation scenarios the header needs to be modified.
     LedgerHeaderWrapper mLedgerHeader;
 
+    // TODO: Remove
+    friend class LedgerSnapshot;
+
   public:
-    BucketSnapshotState(SearchableSnapshotConstPtr snapshot);
+    explicit BucketSnapshotState(LedgerStateSnapshot const& snap);
     ~BucketSnapshotState() override;
 
     LedgerHeaderWrapper getLedgerHeader() const override;
@@ -152,7 +231,7 @@ class LedgerSnapshot : public NonMovableOrCopyable
   public:
     LedgerSnapshot(AbstractLedgerTxn& ltx);
     LedgerSnapshot(Application& app);
-    explicit LedgerSnapshot(SearchableSnapshotConstPtr snapshot);
+    explicit LedgerSnapshot(LedgerStateSnapshot const& snap);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
@@ -195,23 +274,71 @@ class LedgerSnapshot : public NonMovableOrCopyable
 class CompleteConstLedgerState : public NonMovableOrCopyable
 {
   private:
-    SearchableSnapshotConstPtr const mBucketSnapshot;
-    SearchableHotArchiveSnapshotConstPtr const mHotArchiveSnapshot;
+    // Raw immutable bucket data for the live and hot archive bucket lists
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> const
+        mLiveBucketData;
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>> const
+        mLiveHistoricalSnapshots;
+    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> const
+        mHotArchiveBucketData;
+    std::map<
+        uint32_t,
+        std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>> const
+        mHotArchiveHistoricalSnapshots;
+
     std::optional<SorobanNetworkConfig const> const mSorobanConfig;
     LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
     HistoryArchiveState const mLastClosedHistoryArchiveState;
 
     void checkInvariant() const;
 
-  public:
+    // Private constructor: creates a state without Soroban config, used as a
+    // temporary during the main constructor's config loading to break the
+    // circular dependency.
     CompleteConstLedgerState(
-        SearchableSnapshotConstPtr searchableSnapshot,
-        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+        std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveBucketData,
+        std::map<uint32_t,
+                 std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
+            liveHistorical,
+        std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>
+            hotArchiveBucketData,
+        std::map<uint32_t, std::shared_ptr<
+                               BucketListSnapshotData<HotArchiveBucket> const>>
+            hotArchiveHistorical,
         LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
         HistoryArchiveState const& lastClosedHistoryArchiveState);
 
-    SearchableSnapshotConstPtr getBucketSnapshot() const;
-    SearchableHotArchiveSnapshotConstPtr getHotArchiveSnapshot() const;
+    // LedgerStateSnapshot constructs searchable snapshots from our raw data
+    // TODO: Remove
+    friend class LedgerStateSnapshot;
+    // BucketSnapshotManager uses the private constructor to rebuild
+    // mCompleteState in updateCurrentSnapshot without loading Soroban config.
+    friend class BucketSnapshotManager;
+
+  public:
+    // Construct from raw bucket lists. Creates BucketListSnapshotData
+    // internally. Historical snapshots and metrics are needed for
+    // SorobanNetworkConfig loading.
+    CompleteConstLedgerState(
+        BucketListBase<LiveBucket> const& liveBL,
+        BucketListBase<HotArchiveBucket> const& hotArchiveBL,
+        std::map<uint32_t,
+                 std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
+            liveHistorical,
+        std::map<uint32_t, std::shared_ptr<
+                               BucketListSnapshotData<HotArchiveBucket> const>>
+            hotArchiveHistorical,
+        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+        HistoryArchiveState const& lastClosedHistoryArchiveState,
+        MetricsRegistry& metrics);
+
+    // Initial empty state constructor (ledger 0, no bucket data)
+    // TODO: Make less sketchy
+    CompleteConstLedgerState(
+        LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
+        HistoryArchiveState const& lastClosedHistoryArchiveState);
+
     SorobanNetworkConfig const& getSorobanConfig() const;
     bool hasSorobanConfig() const;
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const;

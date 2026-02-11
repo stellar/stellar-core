@@ -7,6 +7,7 @@
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
 #include "main/ApplicationImpl.h"
 #include "rust/RustBridge.h"
@@ -229,8 +230,8 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Get bucketlist snapshot of LCL
-    virtual SearchableSnapshotConstPtr getLastClosedSnapshot() const = 0;
+    // Get a LedgerStateSnapshot of the last closed ledger
+    virtual LedgerStateSnapshot getLastClosedSnapshot() const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
@@ -278,8 +279,6 @@ class LedgerManager
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
     virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
-    virtual CompleteConstLedgerStatePtr
-    getLastClosedLedgerStateForTesting() = 0;
     virtual void
     rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache>
