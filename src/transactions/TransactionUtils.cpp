@@ -15,6 +15,7 @@
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
 #include "util/ProtocolVersion.h"
+#include "util/numeric.h"
 #include "util/types.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -1958,7 +1959,8 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     {
         effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
     }
-    return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
+    return saturatingMultiply(effectiveBaseFee,
+                              std::max<int64_t>(1, tx.getNumOperations()));
 }
 
 bool
