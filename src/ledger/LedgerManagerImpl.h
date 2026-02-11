@@ -184,7 +184,7 @@ class LedgerManagerImpl : public LedgerManager
         // provided snapshot, for ledger protocols starting at minLedgerVersion
         // and running through to Config::CURRENT_LEDGER_PROTOCOL_VERSION (to
         // enable upgrades).
-        void startCompilingAllContracts(SearchableSnapshotConstPtr snap,
+        void startCompilingAllContracts(LedgerStateSnapshot snap,
                                         uint32_t minLedgerVersion);
 
         // Checks if ApplyState can currently be modified. For functions that
@@ -236,13 +236,13 @@ class LedgerManagerImpl : public LedgerManager
 
         // Equivalent to calling `startCompilingAllContracts` followed by
         // `finishPendingCompilation`.
-        void compileAllContractsInLedger(SearchableSnapshotConstPtr snap,
+        void compileAllContractsInLedger(LedgerStateSnapshot const& snap,
                                          uint32_t minLedgerVersion);
 
         // Estimates the size of the arena underlying the module cache's shared
         // wasmi engine, from metrics, and rebuilds if it has likely built up a
         // lot of dead space inside of it.
-        void maybeRebuildModuleCache(SearchableSnapshotConstPtr snap,
+        void maybeRebuildModuleCache(LedgerStateSnapshot const& snap,
                                      uint32_t minLedgerVersion);
 
         // Evicts a single contract from the module cache, if it is present.
@@ -258,8 +258,7 @@ class LedgerManagerImpl : public LedgerManager
 
         // Populates all live Soroban state into the cache from the provided
         // snapshot.
-        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap,
-                                          uint32_t ledgerVersion);
+        void populateInMemorySorobanState(LedgerStateSnapshot const& snap);
 
         void handleUpgradeAffectingSorobanInMemoryStateSize(
             AbstractLedgerTxn& upgradeLtx);
@@ -382,9 +381,7 @@ class LedgerManagerImpl : public LedgerManager
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
     CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
-        SearchableSnapshotConstPtr lclSnapshot,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-        AbstractLedgerTxn& ltx,
+        LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
 
@@ -452,9 +449,7 @@ class LedgerManagerImpl : public LedgerManager
     // NB: LedgerHeader is a copy here to prevent footguns in case ltx
     // invalidates any header references
     virtual void finalizeLedgerTxnChanges(
-        SearchableSnapshotConstPtr lclSnapshot,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-        AbstractLedgerTxn& ltx,
+        LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
@@ -514,7 +509,6 @@ class LedgerManagerImpl : public LedgerManager
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
     std::function<void()> mAdvanceLedgerStateAndPublishOverride;
     InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
-    CompleteConstLedgerStatePtr getLastClosedLedgerStateForTesting() override;
     ::rust::Box<rust_bridge::SorobanModuleCache>
     getModuleCacheForTesting() override;
     void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
@@ -560,7 +554,7 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    SearchableSnapshotConstPtr getLastClosedSnapshot() const override;
+    LedgerStateSnapshot getLastClosedSnapshot() const override;
     virtual bool
     isApplying() const override
     {

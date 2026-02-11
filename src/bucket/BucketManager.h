@@ -6,6 +6,7 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "history/HistoryArchive.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/ThreadAnnotations.h"
@@ -341,7 +342,7 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+    void startBackgroundEvictionScan(LedgerStateSnapshot lclSnapshot,
                                      SorobanNetworkConfig const& networkConfig);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
@@ -350,7 +351,7 @@ class BucketManager : NonMovableOrCopyable
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
     EvictedStateVectors
-    resolveBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+    resolveBackgroundEvictionScan(LedgerStateSnapshot const& lclSnapshot,
                                   AbstractLedgerTxn& ltx,
                                   LedgerKeySet const& modifiedKeys);
 

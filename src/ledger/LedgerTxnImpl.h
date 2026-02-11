@@ -6,6 +6,7 @@
 
 #include "bucket/BucketSnapshotManager.h"
 #include "database/Database.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "util/RandomEvictionCache.h"
 #include "util/UnorderedSet.h"
@@ -620,7 +621,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable SearchableSnapshotConstPtr mSearchableBucketListSnapshot;
+    mutable std::optional<LedgerStateSnapshot> mLedgerStateSnapshot;
 
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
@@ -689,8 +690,7 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    SearchableLiveBucketListSnapshot const&
-    getSearchableLiveBucketListSnapshot() const;
+    LedgerStateSnapshot const& getLedgerStateSnapshot() const;
 
   public:
     // Constructor has the strong exception safety guarantee

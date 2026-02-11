@@ -63,10 +63,10 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
     std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
         historicalSnapshots,
-    LedgerHeader const& header)
+    uint32_t ledgerSeq)
     : mData(std::move(data))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
-    , mHeader(header)
+    , mLedgerSeq(ledgerSeq)
     , mMetrics(metrics)
     , mBulkLoadMeter(
           metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
@@ -330,7 +330,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
-    if (!ledgerSeq || *ledgerSeq == mHeader.ledgerSeq)
+    if (!ledgerSeq || *ledgerSeq == mLedgerSeq)
     {
         loopAllBuckets(loadKeysLoop, *mData);
     }
@@ -379,21 +379,6 @@ SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
 }
 
 template <class BucketT>
-uint32_t
-SearchableBucketListSnapshot<BucketT>::getLedgerSeq() const
-{
-    return mHeader.ledgerSeq;
-}
-
-template <class BucketT>
-LedgerHeader const&
-SearchableBucketListSnapshot<BucketT>::getLedgerHeader() const
-{
-    releaseAssert(mData);
-    return mHeader;
-}
-
-template <class BucketT>
 std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
 SearchableBucketListSnapshot<BucketT>::getSnapshotData() const
 {
@@ -418,9 +403,9 @@ SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
         historicalSnapshots,
-    LedgerHeader const& header)
+    uint32_t ledgerSeq)
     : SearchableBucketListSnapshot<LiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), header)
+          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
 {
 }
 
@@ -850,9 +835,9 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
         historicalSnapshots,
-    LedgerHeader const& header)
+    uint32_t ledgerSeq)
     : SearchableBucketListSnapshot<HotArchiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), header)
+          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
 {
 }
 

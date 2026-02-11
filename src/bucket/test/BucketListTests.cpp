@@ -13,12 +13,14 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
@@ -1213,15 +1215,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
         auto checkArchivedBucketList = [&] {
             if (!tempOnly)
             {
-                auto archiveSnapshot =
-                    bm.getBucketSnapshotManager()
-                        .copySearchableHotArchiveBucketListSnapshot();
+                auto archiveSnap =
+                    bm.getBucketSnapshotManager().copyLedgerStateSnapshot();
 
                 // Check that persisted entries have been inserted into
                 // HotArchive
                 for (auto const& k : persistentEntries)
                 {
-                    auto archivedEntry = archiveSnapshot->load(k);
+                    auto archivedEntry = archiveSnap.loadArchiveEntry(k);
                     REQUIRE(archivedEntry);
 
                     auto seen = false;
@@ -1237,14 +1238,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
 
                     // Make sure TTL keys are not archived
                     auto ttl = getTTLKey(k);
-                    auto archivedTTL = archiveSnapshot->load(ttl);
+                    auto archivedTTL = archiveSnap.loadArchiveEntry(ttl);
                     REQUIRE(!archivedTTL);
                 }
 
                 // Temp entries should not be archived
                 for (auto const& k : tempEntries)
                 {
-                    auto archivedEntry = archiveSnapshot->load(k);
+                    auto archivedEntry = archiveSnap.loadArchiveEntry(k);
                     REQUIRE(!archivedEntry);
                 }
             }
@@ -1727,11 +1728,10 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
-        auto searchableBL = bm.getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto blSnap = bm.getBucketSnapshotManager().copyLedgerStateSnapshot();
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));
+        auto loadedEntry = blSnap.loadLiveEntry(LedgerEntryKey(entry));
         REQUIRE((loadedEntry && *loadedEntry == entry));
     }
 }

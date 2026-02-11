@@ -15,6 +15,7 @@
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "lib/util/finally.h"
 #include "main/Application.h"
@@ -174,8 +175,7 @@ InvariantManagerImpl::checkOnOperationApply(
 
 void
 InvariantManagerImpl::checkOnLedgerCommit(
-    SearchableSnapshotConstPtr lclLiveState,
-    SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+    LedgerStateSnapshot const& lclSnapshot,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -184,9 +184,8 @@ InvariantManagerImpl::checkOnLedgerCommit(
     for (auto invariant : mEnabled)
     {
         auto result = invariant->checkOnLedgerCommit(
-            lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
-            tempAndTTLEvictedFromLive, restoredFromArchive,
-            restoredFromLiveState);
+            lclSnapshot, persitentEvictedFromLive, tempAndTTLEvictedFromLive,
+            restoredFromArchive, restoredFromLiveState);
         if (result.empty())
         {
             continue;
@@ -195,8 +194,7 @@ InvariantManagerImpl::checkOnLedgerCommit(
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
             invariant->getName(), result);
-        onInvariantFailure(invariant, message,
-                           lclLiveState->getLedgerSeq() + 1);
+        onInvariantFailure(invariant, message, lclSnapshot.getLedgerSeq());
     }
 }
 
@@ -333,8 +331,7 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 // required state, then call this function in a background thread.
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
-    SearchableSnapshotConstPtr liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    LedgerStateSnapshot const& snapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -346,12 +343,11 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     {
         for (auto const& invariant : mEnabled)
         {
-            auto result = invariant->checkSnapshot(
-                liveSnapshot, hotArchiveSnapshot, inMemorySnapshot, isStopping);
+            auto result = invariant->checkSnapshot(snapshot, inMemorySnapshot,
+                                                   isStopping);
             if (!result.empty())
             {
-                auto ledgerSeq = liveSnapshot->getLedgerSeq();
-                onInvariantFailure(invariant, result, ledgerSeq);
+                onInvariantFailure(invariant, result, snapshot.getLedgerSeq());
             }
         }
     }

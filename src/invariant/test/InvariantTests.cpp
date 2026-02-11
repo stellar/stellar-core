@@ -371,35 +371,29 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
         }
 
         // Make sure the entries have not been evicted
-        auto liveBL = app->getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableLiveBucketListSnapshot();
-        auto hotArchive = app->getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-        REQUIRE(liveBL->load(LedgerEntryKey(tempEntry)));
-        REQUIRE(liveBL->load(LedgerEntryKey(persistentEntry)));
-        REQUIRE(liveBL->load(getTTLKey(tempEntry)));
-        REQUIRE(liveBL->load(getTTLKey(persistentEntry)));
-        REQUIRE(!hotArchive->load(LedgerEntryKey(tempEntry)));
-        REQUIRE(!hotArchive->load(LedgerEntryKey(persistentEntry)));
+        auto snap = app->getBucketManager()
+                        .getBucketSnapshotManager()
+                        .copyLedgerStateSnapshot();
+        REQUIRE(snap.loadLiveEntry(LedgerEntryKey(tempEntry)));
+        REQUIRE(snap.loadLiveEntry(LedgerEntryKey(persistentEntry)));
+        REQUIRE(snap.loadLiveEntry(getTTLKey(tempEntry)));
+        REQUIRE(snap.loadLiveEntry(getTTLKey(persistentEntry)));
+        REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(tempEntry)));
+        REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
 
         SECTION("Entries properly evicted")
         {
             closeLedger(*app);
 
-            liveBL = app->getBucketManager()
-                         .getBucketSnapshotManager()
-                         .copySearchableLiveBucketListSnapshot();
-            hotArchive = app->getBucketManager()
-                             .getBucketSnapshotManager()
-                             .copySearchableHotArchiveBucketListSnapshot();
-            REQUIRE(!liveBL->load(LedgerEntryKey(tempEntry)));
-            REQUIRE(!liveBL->load(LedgerEntryKey(persistentEntry)));
-            REQUIRE(!liveBL->load(getTTLKey(tempEntry)));
-            REQUIRE(!liveBL->load(getTTLKey(persistentEntry)));
-            REQUIRE(!hotArchive->load(LedgerEntryKey(tempEntry)));
-            REQUIRE(hotArchive->load(LedgerEntryKey(persistentEntry)));
+            snap = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copyLedgerStateSnapshot();
+            REQUIRE(!snap.loadLiveEntry(LedgerEntryKey(tempEntry)));
+            REQUIRE(!snap.loadLiveEntry(LedgerEntryKey(persistentEntry)));
+            REQUIRE(!snap.loadLiveEntry(getTTLKey(tempEntry)));
+            REQUIRE(!snap.loadLiveEntry(getTTLKey(persistentEntry)));
+            REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(tempEntry)));
+            REQUIRE(snap.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
         }
 
         SECTION("invariant check")
@@ -410,20 +404,21 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             auto ledgerVersion =
                 lm.getLastClosedLedgerHeader().header.ledgerVersion;
 
-            auto snapshot = app->getBucketManager()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+            app->getBucketManager()
+                .getBucketSnapshotManager()
+                .maybeUpdateLedgerStateSnapshot(snap);
+
             // Manually trigger eviction so we can test the invariant directly
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().ledgerSeq++;
             auto evictedState =
-                app->getBucketManager().resolveBackgroundEvictionScan(snapshot,
-                                                                      ltx, {});
+                app->getBucketManager().resolveBackgroundEvictionScan(snap, ltx,
+                                                                      {});
 
-            auto hotArchiveSnap =
-                app->getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copySearchableHotArchiveBucketListSnapshot();
+            app->getBucketManager()
+                .getBucketSnapshotManager()
+                .maybeUpdateLedgerStateSnapshot(snap);
+
             // Persistent entry
             REQUIRE(evictedState.archivedEntries.size() == 1);
             // Temp entry, temp TTL, persistent TTL
@@ -446,7 +441,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -464,7 +459,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -479,7 +474,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -499,7 +494,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -514,7 +509,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -534,7 +529,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -553,8 +548,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 {
                     REQUIRE_THROWS_AS(
                         app->getInvariantManager().checkOnLedgerCommit(
-                            snapshot, hotArchiveSnap,
-                            evictedState.archivedEntries,
+                            snap, evictedState.archivedEntries,
                             evictedState.deletedKeys, emptyMap, emptyMap),
                         InvariantDoesNotHold);
                 }
@@ -562,8 +556,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 {
                     REQUIRE_NOTHROW(
                         app->getInvariantManager().checkOnLedgerCommit(
-                            snapshot, hotArchiveSnap,
-                            evictedState.archivedEntries,
+                            snap, evictedState.archivedEntries,
                             evictedState.deletedKeys, emptyMap, emptyMap));
                 }
             }
@@ -574,7 +567,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 evictedState.deletedKeys.push_back(getTTLKey(liveTempEntry));
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                        snap, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -584,7 +577,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 // Valid eviction should always pass
                 UnorderedMap<LedgerKey, LedgerEntry> emptyMap;
                 REQUIRE_NOTHROW(app->getInvariantManager().checkOnLedgerCommit(
-                    snapshot, hotArchiveSnap, evictedState.archivedEntries,
+                    snap, evictedState.archivedEntries,
                     evictedState.deletedKeys, emptyMap, emptyMap));
             }
         }
@@ -613,16 +606,10 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         {}, {});
     closeLedger(*app);
 
-    auto getLiveSnapshot = [&]() {
+    auto makeSnap = [&]() {
         return app->getBucketManager()
             .getBucketSnapshotManager()
-            .copySearchableLiveBucketListSnapshot();
-    };
-
-    auto getHotArchiveSnapshot = [&]() {
-        return app->getBucketManager()
-            .getBucketSnapshotManager()
-            .copySearchableHotArchiveBucketListSnapshot();
+            .copyLedgerStateSnapshot();
     };
 
     auto noopIsStopping = []() { return false; };
@@ -632,8 +619,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
     SECTION("Valid state passes invariant")
     {
         auto result = invariant.checkSnapshot(
-            getLiveSnapshot(), getHotArchiveSnapshot(),
-            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+            makeSnap(), lm.getInMemorySorobanStateForTesting(), noopIsStopping);
         REQUIRE(result.empty());
     }
 
@@ -653,8 +639,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         auto result =
-            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
-                                    modifiedState, noopIsStopping);
+            invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
         REQUIRE(!result.empty());
     };
 
@@ -701,8 +686,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         auto result =
-            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
-                                    modifiedState, noopIsStopping);
+            invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
         REQUIRE(!result.empty());
     };
 
@@ -743,8 +727,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         }
 
         auto result =
-            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
-                                    modifiedState, noopIsStopping);
+            invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
         REQUIRE(!result.empty());
     };
 
@@ -774,8 +757,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             InternalContractDataMapEntry(entryCopy, wrongTTL));
 
         auto result =
-            invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),
-                                    modifiedState, noopIsStopping);
+            invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
         REQUIRE(!result.empty());
     }
 
@@ -790,8 +772,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             *app, lm.getLastClosedLedgerHeader().header, {phantomTTL}, {}, {});
 
         auto result = invariant.checkSnapshot(
-            getLiveSnapshot(), getHotArchiveSnapshot(),
-            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+            makeSnap(), lm.getInMemorySorobanStateForTesting(), noopIsStopping);
         REQUIRE(!result.empty());
     }
 
@@ -803,8 +784,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             *app, lm.getLastClosedLedgerHeader().header, {dataEntry1}, {});
 
         auto result = invariant.checkSnapshot(
-            getLiveSnapshot(), getHotArchiveSnapshot(),
-            lm.getInMemorySorobanStateForTesting(), noopIsStopping);
+            makeSnap(), lm.getInMemorySorobanStateForTesting(), noopIsStopping);
         REQUIRE(!result.empty());
     }
 }

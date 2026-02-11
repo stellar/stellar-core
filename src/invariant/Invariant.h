@@ -74,8 +74,7 @@ class Invariant
 
     virtual std::string
     checkOnLedgerCommit(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        LedgerStateSnapshot const& lclSnapshot,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -85,8 +84,7 @@ class Invariant
     }
 
     virtual std::string
-    checkSnapshot(SearchableSnapshotConstPtr liveSnapshot,
-                  SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    checkSnapshot(LedgerStateSnapshot const& snapshot,
                   InMemorySorobanState const& inMemorySnapshot,
                   std::function<bool()> isStopping)
     {

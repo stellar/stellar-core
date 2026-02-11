@@ -49,8 +49,7 @@ addHotArchiveBatchWithP23HotArchiveFix(
     auto updatedArchivedEntries = archivedEntries;
     updatedArchivedEntries.reserve(updatedArchivedEntries.size() +
                                    P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT);
-    auto const& hotArchiveSnapshot =
-        app.getAppConnector().copySearchableHotArchiveBucketListSnapshot();
+    auto snap = app.getAppConnector().copyLedgerStateSnapshot();
     for (size_t i = 0; i < P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT; ++i)
     {
         LedgerEntry corruptedEntry =
@@ -68,7 +67,7 @@ addHotArchiveBatchWithP23HotArchiveFix(
         // Hot Archive that match our expectations for the corrupted entries.
 
         // Ensure that the entry exists in Hot Archive.
-        auto hotArchiveEntry = hotArchiveSnapshot->load(corruptedEntryKey);
+        auto hotArchiveEntry = snap.loadArchiveEntry(corruptedEntryKey);
         if (!hotArchiveEntry)
         {
             CLOG_WARNING(
@@ -351,9 +350,9 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     // This database can load the actual, correct version of a
     // given ledger key. This tells us the value that should
     // have been evicted.
-    auto liveDatabase = app.getBucketManager()
-                            .getBucketSnapshotManager()
-                            .copySearchableLiveBucketListSnapshot();
+    auto snap = app.getBucketManager()
+                    .getBucketSnapshotManager()
+                    .copyLedgerStateSnapshot();
 
     // This is the set of all keys incorrectly evicted for this
     // ledger
@@ -368,7 +367,7 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     {
         // Load the correct value from the live database.
         auto evictedLedgerKey = LedgerEntryKey(evictedEntry);
-        auto databaseEntry = liveDatabase->load(evictedLedgerKey);
+        auto databaseEntry = snap.loadLiveEntry(evictedLedgerKey);
         releaseAssert(databaseEntry != nullptr);
 
         // If there was a corruption

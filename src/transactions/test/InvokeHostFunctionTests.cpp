@@ -19,6 +19,7 @@
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -4648,15 +4649,15 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         auto lk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
+        auto snap = test.getApp()
+                        .getBucketManager()
+                        .getBucketSnapshotManager()
+                        .copyLedgerStateSnapshot();
 
         if (evict)
         {
-            REQUIRE(hotArchive->load(lk));
-            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            REQUIRE(snap.loadArchiveEntry(lk));
+            REQUIRE(!snap.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(lk));
@@ -4665,8 +4666,8 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         }
         else
         {
-            REQUIRE(!hotArchive->load(lk));
-            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            REQUIRE(!snap.loadArchiveEntry(lk));
+            REQUIRE(!snap.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(ltx.load(lk));
@@ -4729,14 +4730,13 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
                 client.get("key", ContractDataDurability::PERSISTENT, 123);
 
-                test.getApp()
-                    .getBucketManager()
-                    .getBucketSnapshotManager()
-                    .maybeCopySearchableHotArchiveBucketListSnapshot(
-                        hotArchive);
+                auto restoredSnap = test.getApp()
+                                        .getBucketManager()
+                                        .getBucketSnapshotManager()
+                                        .copyLedgerStateSnapshot();
 
                 // Restored entries are deleted from Hot Archive
-                REQUIRE(!hotArchive->load(lk));
+                REQUIRE(!restoredSnap.loadArchiveEntry(lk));
             };
 
             SECTION("restore op")
@@ -7385,11 +7385,11 @@ TEST_CASE("multiple version of same key in a single eviction scan",
             closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
         }
 
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-        REQUIRE(hotArchive->load(lk));
+        auto evictSnap = test.getApp()
+                             .getBucketManager()
+                             .getBucketSnapshotManager()
+                             .copyLedgerStateSnapshot();
+        REQUIRE(evictSnap.loadArchiveEntry(lk));
     };
 
     evictEntry();
@@ -7400,11 +7400,11 @@ TEST_CASE("multiple version of same key in a single eviction scan",
     // levels of the BucketList.
     test.invokeRestoreOp({lk}, 20166);
 
-    auto bl = test.getApp()
-                  .getBucketManager()
-                  .getBucketSnapshotManager()
-                  .copySearchableLiveBucketListSnapshot();
-    auto loadRes = bl->load(lk);
+    auto restoreSnap = test.getApp()
+                           .getBucketManager()
+                           .getBucketSnapshotManager()
+                           .copyLedgerStateSnapshot();
+    auto loadRes = restoreSnap.loadLiveEntry(lk);
     REQUIRE(loadRes);
 
     // Evict the entry again. If we "double evict" we'll throw during ledger
@@ -7468,13 +7468,10 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
 
         // Check the eviction results.
         // Entry should be archived and not in the live BucketList
-        auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        REQUIRE(!liveBL->load(lk));
+        auto evictionSnap = snapshotManager.copyLedgerStateSnapshot();
+        REQUIRE(!evictionSnap.loadLiveEntry(lk));
 
-        auto hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-
-        auto hotLoad = hotArchive->load(lk);
+        auto hotLoad = evictionSnap.loadArchiveEntry(lk);
         REQUIRE(hotLoad);
         REQUIRE(hotLoad->type() == HOT_ARCHIVE_ARCHIVED);
 
@@ -7495,14 +7492,12 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         // Restore entry and make sure the correct value is restored
         test.invokeRestoreOp({lk}, 20166);
 
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-        auto hotLoadAfterRestore = hotArchive->load(lk);
+        auto restoreSnap = snapshotManager.copyLedgerStateSnapshot();
+        auto hotLoadAfterRestore = restoreSnap.loadArchiveEntry(lk);
         REQUIRE(!hotLoadAfterRestore);
 
         // Check that restored value matches what was archived
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        auto liveLoadAfterRestore = liveBL->load(lk);
+        auto liveLoadAfterRestore = restoreSnap.loadLiveEntry(lk);
         REQUIRE(liveLoadAfterRestore);
 
         if (protocolVersionIsBefore(test.getLedgerVersion(),
@@ -7579,30 +7574,23 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
         REQUIRE(initialIterator == test.getNetworkCfg().evictionIterator());
     }
 
-    auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-    auto hotArchive =
-        snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-
+    auto snap = snapshotManager.copyLedgerStateSnapshot();
     auto assertTemp = [&](bool isLive) {
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-        auto tempLiveLoad = liveBL->load(temporaryKey);
+        snap = snapshotManager.copyLedgerStateSnapshot();
+        auto tempLiveLoad = snap.loadLiveEntry(temporaryKey);
         REQUIRE(static_cast<bool>(tempLiveLoad) == isLive);
 
         // Temp entries are never archived
-        REQUIRE(!hotArchive->load(temporaryKey));
+        REQUIRE(!snap.loadArchiveEntry(temporaryKey));
     };
 
     auto assertPersistent = [&](bool isLive) {
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+        snap = snapshotManager.copyLedgerStateSnapshot();
 
-        auto persistentLiveLoad = liveBL->load(persistentKey);
+        auto persistentLiveLoad = snap.loadLiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(persistentLiveLoad) == isLive);
 
-        auto hotArchiveLoad = hotArchive->load(persistentKey);
+        auto hotArchiveLoad = snap.loadArchiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(hotArchiveLoad) != isLive);
     };
 
@@ -7626,10 +7614,9 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     initialIterator = iteratorAfterUpgrade;
 
     // Check that exactly one entry has been evicted
-    liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-    hotArchive = snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+    snap = snapshotManager.copyLedgerStateSnapshot();
 
-    auto persistentLiveLoad = liveBL->load(persistentKey);
+    auto persistentLiveLoad = snap.loadLiveEntry(persistentKey);
     if (persistentLiveLoad)
     {
         // If perstent entry is live, assert that the temp entry is evicted.
@@ -10023,17 +10010,13 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT,
                         std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-    auto hotArchiveSnapshot = test.getApp()
-                                  .getBucketManager()
-                                  .getBucketSnapshotManager()
-                                  .copySearchableHotArchiveBucketListSnapshot();
-    auto liveSnapshot = test.getApp()
+    auto archivedSnap = test.getApp()
                             .getBucketManager()
                             .getBucketSnapshotManager()
-                            .copySearchableLiveBucketListSnapshot();
+                            .copyLedgerStateSnapshot();
 
-    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 2);
-    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 0);
+    REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}).size() == 2);
+    REQUIRE(archivedSnap.loadLiveKeys({lk1, lk2}, "load").size() == 0);
 
     // Now, invoke contract2, but also autorestore state from contract1.
     auto keysToRestore = client2.getContract().getKeys();
@@ -10058,17 +10041,13 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         /*addContractKeys=*/false);
     REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
 
-    liveSnapshot = test.getApp()
-                       .getBucketManager()
-                       .getBucketSnapshotManager()
-                       .copySearchableLiveBucketListSnapshot();
-    hotArchiveSnapshot = test.getApp()
-                             .getBucketManager()
-                             .getBucketSnapshotManager()
-                             .copySearchableHotArchiveBucketListSnapshot();
+    auto restoredSnap = test.getApp()
+                            .getBucketManager()
+                            .getBucketSnapshotManager()
+                            .copyLedgerStateSnapshot();
 
-    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 2);
-    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 0);
+    REQUIRE(restoredSnap.loadLiveKeys({lk1, lk2}, "load").size() == 2);
+    REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}).size() == 0);
 
     // Verify that the correct values were restored
     REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT, 111) ==

@@ -288,7 +288,7 @@ class RestoreFootprintParallelApplyHelper
     : virtual public RestoreFootprintApplyHelper,
       virtual public ParallelLedgerAccessHelper
 {
-    SearchableHotArchiveSnapshotConstPtr mHotArchive;
+    LedgerStateSnapshot mSnapshot;
 
   public:
     RestoreFootprintParallelApplyHelper(
@@ -299,14 +299,14 @@ class RestoreFootprintParallelApplyHelper
         : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
                                       opFrame, threadState.getSorobanConfig())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
-        , mHotArchive(app.copySearchableHotArchiveBucketListSnapshot())
+        , mSnapshot(app.copyLedgerStateSnapshot())
     {
     }
 
     std::optional<LedgerEntry>
     getHotArchiveEntry(LedgerKey const& key) override
     {
-        auto ptr = mHotArchive->load(key);
+        auto ptr = mSnapshot.loadArchiveEntry(key);
         if (ptr)
         {
             return ptr->archivedEntry();
