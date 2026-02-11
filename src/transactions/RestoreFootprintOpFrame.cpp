@@ -299,7 +299,7 @@ class RestoreFootprintParallelApplyHelper
         : RestoreFootprintApplyHelper(app, res, refundableFeeTracker, opMeta,
                                       opFrame, threadState.getSorobanConfig())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
-        , mSnapshot(app.copyLedgerStateSnapshot())
+        , mSnapshot(threadState.getSnapshot())
     {
     }
 
