@@ -32,6 +32,10 @@ impl From<SolveStatus> for QuorumCheckerStatus {
     }
 }
 
+pub(crate) fn set_rust_global_memory_limit_to_unlimited() {
+    ResourceLimiter::new(0, usize::MAX);
+}
+
 fn update_resource_usage(
     resource_limiter: &ResourceLimiter,
     resource_usage: &mut QuorumCheckerResource,
