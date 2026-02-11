@@ -13,6 +13,10 @@
 namespace stellar
 {
 
+// Information about invalid transactions in a tx set and the aggregate
+// validation result for that set.
+using TxFrameListWithErrors = std::pair<TxFrameList, TxSetValidationResult>;
+
 class AccountTransactionQueue
 {
   public:
@@ -41,15 +45,13 @@ class TxSetUtils
     static std::vector<std::shared_ptr<AccountTransactionQueue>>
     buildAccountTxQueues(TxFrameList const& txs);
 
-    // Returns transactions from a TxSet that are invalid. If
-    // returnEarlyOnFirstInvalidTx is true, return immediately if an invalid
-    // transaction is found (instead of finding all of them), this is useful for
-    // checking if a TxSet is valid.
+    // Returns transactions from a TxSet that are invalid along with the
+    // aggregate validation result for the set.
     template <typename TxContainer>
-    static TxFrameList getInvalidTxList(TxContainer const& txs,
-                                        Application& app,
-                                        uint64_t lowerBoundCloseTimeOffset,
-                                        uint64_t upperBoundCloseTimeOffset);
+    static TxFrameListWithErrors
+    getInvalidTxListWithErrors(TxContainer const& txs, Application& app,
+                               uint64_t lowerBoundCloseTimeOffset,
+                               uint64_t upperBoundCloseTimeOffset);
 
     static TxFrameList trimInvalid(TxFrameList const& txs, Application& app,
                                    uint64_t lowerBoundCloseTimeOffset,

@@ -718,7 +718,7 @@ computeBaseFeeForLegacyTxSet(LedgerHeader const& lclHeader,
     return baseFee;
 }
 
-bool
+TxSetValidationResult
 checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
 {
     for (auto const& [tx, fee] : feeMap)
@@ -734,7 +734,7 @@ checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
                        "Got bad txSet: {} has too low component "
                        "base fee {}",
                        hexAbbrev(lclHeader.previousLedgerHash), *fee);
-            return false;
+            return TxSetValidationResult::COMPONENT_BASE_FEE_TOO_LOW;
         }
         if (tx->getInclusionFee() < getMinInclusionFee(*tx, lclHeader, fee))
         {
@@ -744,10 +744,10 @@ checkFeeMap(InclusionFeeMap const& feeMap, LedgerHeader const& lclHeader)
                        hexAbbrev(lclHeader.previousLedgerHash),
                        tx->getInclusionFee(),
                        getMinInclusionFee(*tx, lclHeader, fee));
-            return false;
+            return TxSetValidationResult::TX_FEE_BID_TOO_LOW;
         }
     }
-    return true;
+    return TxSetValidationResult::VALID;
 }
 
 } // namespace
@@ -1714,12 +1714,24 @@ TxSetPhaseFrame::checkValid(Application& app,
                             uint64_t upperBoundCloseTimeOffset,
                             bool txsAreValidated) const
 {
+    return checkValidWithResult(app, lowerBoundCloseTimeOffset,
+                                upperBoundCloseTimeOffset, txsAreValidated) ==
+           TxSetValidationResult::VALID;
+}
+
+TxSetValidationResult
+TxSetPhaseFrame::checkValidWithResult(Application& app,
+                                      uint64_t lowerBoundCloseTimeOffset,
+                                      uint64_t upperBoundCloseTimeOffset,
+                                      bool txsAreValidated) const
+{
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Verify the fee map for the phase. This check is independent of the phase
     // type or contents.
-    if (!checkFeeMap(getInclusionFeeMap(), lcl.header))
+    auto feeMapResult = checkFeeMap(getInclusionFeeMap(), lcl.header);
+    if (feeMapResult != TxSetValidationResult::VALID)
     {
-        return false;
+        return feeMapResult;
     }
 
     bool isSoroban = mPhase == TxSetPhase::SOROBAN;
@@ -1734,51 +1746,55 @@ TxSetPhaseFrame::checkValid(Application& app,
                        "Got bad generalized txSet with invalid "
                        "phase {} transactions",
                        static_cast<size_t>(mPhase));
-            return false;
+            return TxSetValidationResult::INVALID_PHASE_TX_TYPE;
         }
     }
 
     // Then check the phase-specific properties. This may rely on transactions
     // belonging to the valid phase.
-    bool checkPhaseSpecific =
+    auto checkPhaseSpecific =
         isSoroban
             ? checkValidSoroban(
                   lcl.header,
                   app.getLedgerManager().getLastClosedSorobanNetworkConfig())
             : checkValidClassic(lcl.header);
-    if (!checkPhaseSpecific)
+    if (checkPhaseSpecific != TxSetValidationResult::VALID)
     {
-        return false;
+        return checkPhaseSpecific;
     }
 
     if (txsAreValidated)
     {
-        return true;
+        return TxSetValidationResult::VALID;
     }
 
-    auto invalid = TxSetUtils::getInvalidTxList(
+    auto invalid = TxSetUtils::getInvalidTxListWithErrors(
         *this, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
-    return invalid.empty();
+    if (invalid.first.empty())
+    {
+        releaseAssert(invalid.second == TxSetValidationResult::VALID);
+    }
+    return invalid.second;
 }
 
-bool
+TxSetValidationResult
 TxSetPhaseFrame::checkValidClassic(LedgerHeader const& lclHeader) const
 {
     if (isParallel())
     {
         CLOG_DEBUG(Herder, "Got bad txSet: classic phase can't be parallel");
-        return false;
+        return TxSetValidationResult::CLASSIC_PHASE_PARALLEL_NOT_ALLOWED;
     }
     if (this->size(lclHeader) > lclHeader.maxTxSetSize)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
                    this->size(lclHeader), lclHeader.maxTxSetSize);
-        return false;
+        return TxSetValidationResult::TOO_MANY_CLASSIC_TXS;
     }
-    return true;
+    return TxSetValidationResult::VALID;
 }
 
-bool
+TxSetValidationResult
 TxSetPhaseFrame::checkValidSoroban(
     LedgerHeader const& lclHeader,
     SorobanNetworkConfig const& sorobanConfig) const
@@ -1792,14 +1808,14 @@ TxSetPhaseFrame::checkValidSoroban(
                    "does not match the current protocol; '{}' was "
                    "expected",
                    needParallelSorobanPhase);
-        return false;
+        return TxSetValidationResult::SOROBAN_PARALLEL_SUPPORT_MISMATCH;
     }
     // Ensure the total resources are not over ledger limit.
     auto totalResources = getTotalResources(lclHeader.ledgerVersion);
     if (!totalResources)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: total Soroban resources overflow");
-        return false;
+        return TxSetValidationResult::SOROBAN_RESOURCES_OVERFLOW;
     }
 
     auto maxResources = sorobanConfig.maxLedgerResources();
@@ -1820,12 +1836,12 @@ TxSetPhaseFrame::checkValidSoroban(
                    "Got bad txSet: needed resources exceed ledger "
                    "limits {} > {}",
                    totalResources->toString(), maxResources.toString());
-        return false;
+        return TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT;
     }
 
     if (!isParallel())
     {
-        return true;
+        return TxSetValidationResult::VALID;
     }
     auto const& stages = getParallelStages();
 
@@ -1840,7 +1856,7 @@ TxSetPhaseFrame::checkValidSoroban(
                        "stage {} > {}",
                        stage.size(),
                        sorobanConfig.ledgerMaxDependentTxClusters());
-            return false;
+            return TxSetValidationResult::TOO_MANY_SOROBAN_CLUSTERS;
         }
     }
 
@@ -1867,7 +1883,8 @@ TxSetPhaseFrame::checkValidSoroban(
                 {
                     CLOG_DEBUG(Herder, "Got bad txSet: Soroban sequential "
                                        "instructions overflow");
-                    return false;
+                    return TxSetValidationResult::
+                        SOROBAN_SEQUENTIAL_INSTRUCTIONS_OVERFLOW;
                 }
                 clusterInstructions += tx->sorobanResources().instructions;
             }
@@ -1881,7 +1898,7 @@ TxSetPhaseFrame::checkValidSoroban(
         {
             CLOG_DEBUG(Herder,
                        "Got bad txSet: Soroban total instructions overflow");
-            return false;
+            return TxSetValidationResult::SOROBAN_INSTRUCTIONS_OVERFLOW;
         }
         totalInstructions += stageInstructions;
     }
@@ -1891,7 +1908,7 @@ TxSetPhaseFrame::checkValidSoroban(
             Herder,
             "Got bad txSet: Soroban total instructions exceed limit: {} > {}",
             totalInstructions, sorobanConfig.ledgerMaxInstructions());
-        return false;
+        return TxSetValidationResult::SOROBAN_INSTRUCTIONS_EXCEED_LIMIT;
     }
 
     // Verify that there are no read-write conflicts between clusters within
@@ -1916,7 +1933,7 @@ TxSetPhaseFrame::checkValidSoroban(
                             Herder,
                             "Got bad generalized txSet: cluster footprint "
                             "conflicts with another cluster within stage");
-                        return false;
+                        return TxSetValidationResult::TX_ORDERING_INVALID;
                     }
                     clusterReadOnlyKeys.push_back(key);
                 }
@@ -1929,7 +1946,7 @@ TxSetPhaseFrame::checkValidSoroban(
                             Herder,
                             "Got bad generalized txSet: cluster footprint "
                             "conflicts with another cluster within stage");
-                        return false;
+                        return TxSetValidationResult::TX_ORDERING_INVALID;
                     }
                     clusterReadWriteKeys.push_back(key);
                 }
@@ -1940,7 +1957,7 @@ TxSetPhaseFrame::checkValidSoroban(
                                       clusterReadWriteKeys.end());
         }
     }
-    return true;
+    return TxSetValidationResult::VALID;
 }
 
 std::optional<Resource>
@@ -2035,10 +2052,20 @@ ApplicableTxSetFrame::checkValid(Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
+    return checkValidWithResult(app, lowerBoundCloseTimeOffset,
+                                upperBoundCloseTimeOffset) ==
+           TxSetValidationResult::VALID;
+}
+
+TxSetValidationResult
+ApplicableTxSetFrame::checkValidWithResult(
+    Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset) const
+{
     // For public-facing methods, always do full validation
-    return checkValidInternal(app, lowerBoundCloseTimeOffset,
-                              upperBoundCloseTimeOffset,
-                              /* txsAreValidated */ false);
+    return checkValidInternalWithResult(app, lowerBoundCloseTimeOffset,
+                                        upperBoundCloseTimeOffset,
+                                        /* txsAreValidated */ false);
 }
 
 // need to make sure every account that is submitting a tx has enough to pay
@@ -2050,6 +2077,16 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
                                          uint64_t upperBoundCloseTimeOffset,
                                          bool txsAreValidated) const
 {
+    return checkValidInternalWithResult(
+               app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+               txsAreValidated) == TxSetValidationResult::VALID;
+}
+
+TxSetValidationResult
+ApplicableTxSetFrame::checkValidInternalWithResult(
+    Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, bool txsAreValidated) const
+{
     ZoneScoped;
     releaseAssert(threadIsMain());
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
@@ -2059,7 +2096,7 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {}, expected {}",
                    hexAbbrev(mPreviousLedgerHash), hexAbbrev(lcl.hash));
-        return false;
+        return TxSetValidationResult::PREVIOUS_LEDGER_HASH_MISMATCH;
     }
 
     bool needGeneralizedTxSet = protocolVersionStartsFrom(
@@ -2070,7 +2107,7 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
                    "Got bad txSet {}: need generalized '{}', expected '{}'",
                    hexAbbrev(mPreviousLedgerHash), needGeneralizedTxSet,
                    isGeneralizedTxSet());
-        return false;
+        return TxSetValidationResult::GENERALIZED_TXSET_MISMATCH;
     }
 
     if (isGeneralizedTxSet())
@@ -2100,7 +2137,8 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
                     CLOG_DEBUG(
                         Herder,
                         "Got bad txSet: multiple txs per source account");
-                    return false;
+                    return TxSetValidationResult::
+                        MULTIPLE_TXS_PER_SOURCE_ACCOUNT;
                 }
             }
         }
@@ -2108,14 +2146,16 @@ ApplicableTxSetFrame::checkValidInternal(Application& app,
 
     for (auto const& phase : mPhases)
     {
-        if (!phase.checkValid(app, lowerBoundCloseTimeOffset,
-                              upperBoundCloseTimeOffset, txsAreValidated))
+        auto result = phase.checkValidWithResult(app, lowerBoundCloseTimeOffset,
+                                                 upperBoundCloseTimeOffset,
+                                                 txsAreValidated);
+        if (result != TxSetValidationResult::VALID)
         {
-            return false;
+            return result;
         }
     }
 
-    return true;
+    return TxSetValidationResult::VALID;
 }
 
 size_t
@@ -2328,6 +2368,72 @@ bool
 ApplicableTxSetFrame::isGeneralizedTxSet() const
 {
     return mIsGeneralized;
+}
+
+std::string
+toString(TxSetValidationResult result)
+{
+    switch (result)
+    {
+    case TxSetValidationResult::VALID:
+        return "VALID";
+    case TxSetValidationResult::INCORRECT_COMPONENT_ORDER:
+        return "INCORRECT_COMPONENT_ORDER";
+    case TxSetValidationResult::DUPLICATE_COMPONENT_BASE_FEES:
+        return "DUPLICATE_COMPONENT_BASE_FEES";
+    case TxSetValidationResult::EMPTY_COMPONENT:
+        return "EMPTY_COMPONENT";
+    case TxSetValidationResult::EMPTY_STAGE:
+        return "EMPTY_STAGE";
+    case TxSetValidationResult::EMPTY_CLUSTER:
+        return "EMPTY_CLUSTER";
+    case TxSetValidationResult::UNSUPPORTED_VERSION:
+        return "UNSUPPORTED_VERSION";
+    case TxSetValidationResult::UNSUPPORTED_PHASE_VERSION:
+        return "UNSUPPORTED_PHASE_VERSION";
+    case TxSetValidationResult::NON_SOROBAN_PARALLEL_PHASE:
+        return "NON_SOROBAN_PARALLEL_PHASE";
+    case TxSetValidationResult::WRONG_PHASE_COUNT:
+        return "WRONG_PHASE_COUNT";
+    case TxSetValidationResult::PREVIOUS_LEDGER_HASH_MISMATCH:
+        return "PREVIOUS_LEDGER_HASH_MISMATCH";
+    case TxSetValidationResult::GENERALIZED_TXSET_MISMATCH:
+        return "GENERALIZED_TXSET_MISMATCH";
+    case TxSetValidationResult::CLASSIC_PHASE_PARALLEL_NOT_ALLOWED:
+        return "CLASSIC_PHASE_PARALLEL_NOT_ALLOWED";
+    case TxSetValidationResult::TOO_MANY_CLASSIC_TXS:
+        return "TOO_MANY_CLASSIC_TXS";
+    case TxSetValidationResult::SOROBAN_PARALLEL_SUPPORT_MISMATCH:
+        return "SOROBAN_PARALLEL_SUPPORT_MISMATCH";
+    case TxSetValidationResult::SOROBAN_RESOURCES_OVERFLOW:
+        return "SOROBAN_RESOURCES_OVERFLOW";
+    case TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT:
+        return "SOROBAN_RESOURCES_EXCEED_LIMIT";
+    case TxSetValidationResult::TOO_MANY_SOROBAN_CLUSTERS:
+        return "TOO_MANY_SOROBAN_CLUSTERS";
+    case TxSetValidationResult::SOROBAN_INSTRUCTIONS_OVERFLOW:
+        return "SOROBAN_INSTRUCTIONS_OVERFLOW";
+    case TxSetValidationResult::SOROBAN_INSTRUCTIONS_EXCEED_LIMIT:
+        return "SOROBAN_INSTRUCTIONS_EXCEED_LIMIT";
+    case TxSetValidationResult::SOROBAN_SEQUENTIAL_INSTRUCTIONS_OVERFLOW:
+        return "SOROBAN_SEQUENTIAL_INSTRUCTIONS_OVERFLOW";
+    case TxSetValidationResult::MULTIPLE_TXS_PER_SOURCE_ACCOUNT:
+        return "MULTIPLE_TXS_PER_SOURCE_ACCOUNT";
+    case TxSetValidationResult::INVALID_PHASE_TX_TYPE:
+        return "INVALID_PHASE_TX_TYPE";
+    case TxSetValidationResult::TX_ORDERING_INVALID:
+        return "TX_ORDERING_INVALID";
+    case TxSetValidationResult::COMPONENT_BASE_FEE_TOO_LOW:
+        return "COMPONENT_BASE_FEE_TOO_LOW";
+    case TxSetValidationResult::TX_FEE_BID_TOO_LOW:
+        return "TX_FEE_BID_TOO_LOW";
+    case TxSetValidationResult::TX_VALIDATION_FAILED:
+        return "TX_VALIDATION_FAILED";
+    case TxSetValidationResult::ACCOUNT_CANT_PAY_FEE:
+        return "ACCOUNT_CANT_PAY_FEE";
+    default:
+        return "UNKNOWN";
+    }
 }
 
 } // namespace stellar
