@@ -6,6 +6,7 @@
 
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerEntryScope.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
@@ -70,9 +71,9 @@ class ParallelLedgerInfo
 class ThreadParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
-    // Copies of snapshots from the global state.
-    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
-    SearchableSnapshotConstPtr mLiveSnapshot;
+    // Copy of the ledger state snapshot from the global state, with fresh
+    // file caches for thread safety.
+    LedgerStateSnapshot mSnapshot;
 
     // Reference to the live in-memory Soroban state. For Soroban entries
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
@@ -173,7 +174,7 @@ class ThreadParallelApplyLedgerState
 
     SorobanNetworkConfig const& getSorobanConfig() const;
 
-    SearchableHotArchiveSnapshotConstPtr const& getHotArchiveSnapshot() const;
+    LedgerStateSnapshot const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
 };
@@ -181,20 +182,11 @@ class ThreadParallelApplyLedgerState
 class GlobalParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::GlobalParApply>
 {
-    // Contains the hot archive state from the start of the ledger close. If a
-    // key is in here, it is "evicted". An invariant is that if a key is in here
-    // it is _not_ in the live snapshot.
-    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
-
-    // Contains the live soroban state from the start of the ledger close. If a
-    // key is in here, it is either "archived" or "live", depending on its TTL.
-    // Classic entries are always live, soroban entries always have an
-    // associated TTL entry and if the TTL is in the past the entry is
-    // "archived", otherwise "live". An invariant is that if a key is in here it
-    // is _not_ in the hot archive snapshot.
-    // Note that only classic entries should be queried from mLiveSnapshot. For
-    // Soroban entries query mInMemorySorobanState instead.
-    SearchableSnapshotConstPtr mLiveSnapshot;
+    // Contains the full ledger state snapshot from the start of the ledger
+    // close, providing access to both the live bucket list and the hot archive
+    // bucket list. Note that this does not reflect changes from the classic
+    // apply phase, but is a snapshot of the start of the ledger.
+    LedgerStateSnapshot mSnapshot;
 
     // Contains an exact one-to-one in-memory mapping of the live snapshot for
     // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,

@@ -11,6 +11,8 @@
 #include <limits>
 
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -1121,11 +1123,10 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
                                                std::optional<LedgerEntry>>>>
         finalEntries;
     LedgerSnapshot ls(test.getApp());
-    auto hotArchive = test.getApp()
-                          .getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
-    releaseAssert(hotArchive);
+    auto archiveSnap = test.getApp()
+                           .getBucketManager()
+                           .getBucketSnapshotManager()
+                           .copyLedgerStateSnapshot();
     for (auto const& k : allKeys)
     {
         std::optional<LedgerEntry> liveEntry;
@@ -1145,7 +1146,7 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         }
         else if (isSorobanEntry(k))
         {
-            if (auto e = hotArchive->load(k))
+            if (auto e = archiveSnap.loadArchiveEntry(k))
             {
                 archivedEntry = e->archivedEntry();
             }

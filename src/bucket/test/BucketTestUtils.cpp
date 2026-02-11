@@ -5,6 +5,7 @@
 #include "BucketTestUtils.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
@@ -175,9 +176,7 @@ template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
-    SearchableSnapshotConstPtr lclSnapshot,
-    SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-    AbstractLedgerTxn& ltx,
+    LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
 {
@@ -326,8 +325,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     else
     {
         LedgerManagerImpl::finalizeLedgerTxnChanges(
-            lclSnapshot, lclHotArchiveSnapshot, ltx, ledgerCloseMeta, lh,
-            initialLedgerVers);
+            lclSnapshot, ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
 

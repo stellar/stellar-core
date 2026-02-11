@@ -8,6 +8,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Application.h"
@@ -35,15 +36,14 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // 7. The cached total entry sizes match the sum of actual entry sizes
 std::string
 BucketListStateConsistency::checkSnapshot(
-    SearchableSnapshotConstPtr liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    LedgerStateSnapshot const& snapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
     LogSlowExecution logSlow("BucketListStateConsistency::checkSnapshot",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::minutes(2));
-    auto const& header = liveSnapshot->getLedgerHeader();
+    auto const& header = snapshot.getLedgerHeader();
 
     if (protocolVersionIsBefore(header.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -66,13 +66,14 @@ BucketListStateConsistency::checkSnapshot(
     std::string errorMsg;
 
     // Property 7: Track total entry sizes for validation
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(liveSnapshot);
+    LedgerSnapshot lsForConfig(snapshot);
+    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(lsForConfig);
     uint64_t expectedSorobanSize = 0;
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
-                           &inMemorySnapshot, &hotArchiveSnapshot,
-                           checkHotArchive, &isStopping, &expectedSorobanSize,
-                           &header, &sorobanConfig](BucketEntry const& be) {
+                           &inMemorySnapshot, &snapshot, checkHotArchive,
+                           &isStopping, &expectedSorobanSize, &header,
+                           &sorobanConfig](BucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
@@ -116,7 +117,7 @@ BucketListStateConsistency::checkSnapshot(
             }
 
             // Check property 5: live entry should not exist in hot archive
-            if (checkHotArchive && hotArchiveSnapshot->load(lk))
+            if (checkHotArchive && snapshot.loadArchiveEntry(lk))
             {
                 errorMsg = fmt::format(
                     FMT_STRING("BucketListStateConsistency invariant failed: "
@@ -158,7 +159,7 @@ BucketListStateConsistency::checkSnapshot(
     };
 
     // First check contract data entries.
-    liveSnapshot->scanForEntriesOfType(CONTRACT_DATA, checkLiveEntry);
+    snapshot.scanLiveEntriesOfType(CONTRACT_DATA, checkLiveEntry);
 
     // Note: All BucketList scans will exit early if isStopping() is true or if
     // there is an error, so we need to call shouldAbortInvariantScan after each
@@ -175,7 +176,7 @@ BucketListStateConsistency::checkSnapshot(
     // keys since we will need them when checking TTL entries.
     seenDeadKeys.clear();
 
-    liveSnapshot->scanForEntriesOfType(CONTRACT_CODE, checkLiveEntry);
+    snapshot.scanLiveEntriesOfType(CONTRACT_CODE, checkLiveEntry);
     if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
@@ -304,7 +305,7 @@ BucketListStateConsistency::checkSnapshot(
     };
 
     seenDeadKeys.clear();
-    liveSnapshot->scanForEntriesOfType(TTL, checkTTLEntry);
+    snapshot.scanLiveEntriesOfType(TTL, checkTTLEntry);
     if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
@@ -376,7 +377,7 @@ BucketListStateConsistency::checkSnapshot(
             return Loop::INCOMPLETE;
         };
 
-        hotArchiveSnapshot->scanAllEntries(checkHotArchiveEntry);
+        snapshot.scanAllArchiveEntries(checkHotArchiveEntry);
         if (shouldAbortInvariantScan(errorMsg, isStopping))
         {
             return errorMsg;

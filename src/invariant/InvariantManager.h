@@ -16,6 +16,7 @@ class Application;
 class Bucket;
 class Invariant;
 class LedgerManager;
+class LedgerStateSnapshot;
 struct EvictedStateVectors;
 struct LedgerTxnDelta;
 struct Operation;
@@ -54,8 +55,7 @@ class InvariantManager
                                        AppConnector& app) = 0;
 
     virtual void checkOnLedgerCommit(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        LedgerStateSnapshot const& lclSnapshot,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -66,11 +66,10 @@ class InvariantManager
     // The invariant will periodically run on a background thread against the
     // given ledger state snapshot. These invariants will only run if
     // INVARIANT_EXTRA_CHECKS is enabled.
-    virtual void runStateSnapshotInvariant(
-        SearchableSnapshotConstPtr liveSnapshot,
-        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
-        InMemorySorobanState const& inMemorySnapshot,
-        std::function<bool()> isStopping) = 0;
+    virtual void
+    runStateSnapshotInvariant(LedgerStateSnapshot const& snapshot,
+                              InMemorySorobanState const& inMemorySnapshot,
+                              std::function<bool()> isStopping) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 

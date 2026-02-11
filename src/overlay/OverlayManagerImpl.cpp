@@ -4,6 +4,7 @@
 
 #include "overlay/OverlayManagerImpl.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
@@ -1432,7 +1433,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
-SearchableSnapshotConstPtr&
+LedgerStateSnapshot&
 OverlayManagerImpl::getOverlayThreadSnapshot()
 {
     releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
@@ -1441,9 +1442,9 @@ OverlayManagerImpl::getOverlayThreadSnapshot()
         // Create a new snapshot
         mOverlayThreadSnapshot = mApp.getBucketManager()
                                      .getBucketSnapshotManager()
-                                     .copySearchableLiveBucketListSnapshot();
+                                     .copyLedgerStateSnapshot();
     }
-    return mOverlayThreadSnapshot;
+    return *mOverlayThreadSnapshot;
 }
 
 }

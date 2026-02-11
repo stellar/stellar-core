@@ -73,9 +73,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
 
   protected:
     void finalizeLedgerTxnChanges(
-        SearchableSnapshotConstPtr lclSnapshot,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-        AbstractLedgerTxn& ltx,
+        LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers) override;
 

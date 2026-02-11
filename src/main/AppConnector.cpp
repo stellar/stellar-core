@@ -1,5 +1,6 @@
 #include "main/AppConnector.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
@@ -169,50 +170,23 @@ AppConnector::threadIsType(Application::ThreadType type) const
     return mApp.threadIsType(type);
 }
 
-SearchableHotArchiveSnapshotConstPtr
-AppConnector::copySearchableHotArchiveBucketListSnapshot()
+LedgerStateSnapshot
+AppConnector::copyLedgerStateSnapshot()
 {
     return mApp.getBucketManager()
         .getBucketSnapshotManager()
-        .copySearchableHotArchiveBucketListSnapshot();
-}
-
-SearchableSnapshotConstPtr
-AppConnector::copySearchableLiveBucketListSnapshot()
-{
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copySearchableLiveBucketListSnapshot();
+        .copyLedgerStateSnapshot();
 }
 
 void
-AppConnector::maybeCopySearchableBucketListSnapshot(
-    SearchableSnapshotConstPtr& snapshot)
+AppConnector::maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot)
 {
     mApp.getBucketManager()
         .getBucketSnapshotManager()
-        .maybeCopySearchableBucketListSnapshot(snapshot);
+        .maybeUpdateLedgerStateSnapshot(snapshot);
 }
 
-void
-AppConnector::maybeCopyLiveAndHotArchiveSnapshots(
-    SearchableSnapshotConstPtr& liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
-{
-    mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .maybeCopyLiveAndHotArchiveSnapshots(liveSnapshot, hotArchiveSnapshot);
-}
-
-std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
-AppConnector::copySearchableBucketListSnapshots()
-{
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copySearchableBucketListSnapshots();
-}
-
-SearchableSnapshotConstPtr&
+LedgerStateSnapshot&
 AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();
