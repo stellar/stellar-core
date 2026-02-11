@@ -364,6 +364,13 @@ pub(crate) mod rust_bridge {
             resource_limit: &QuorumCheckerResource,
             resource_usage: &mut QuorumCheckerResource,
         ) -> Result<QuorumCheckerStatus>;
+
+        // The QI checker actually manages the memory limit using a global
+        // allocator, which winds up controlling _all_ memory allocation by
+        // rust code in the process. So we want to ensure that limit is unlimited
+        // when the process starts up -- the QI check call will limit it later,
+        // if and only if it's running as a QI-checking subprocess.
+        fn set_rust_global_memory_limit_to_unlimited();
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
