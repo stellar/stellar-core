@@ -125,24 +125,14 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
 class LedgerStateSnapshot
 {
     std::shared_ptr<CompleteConstLedgerState const> mState;
-    std::shared_ptr<SearchableLiveBucketListSnapshot const> mLiveSnapshot;
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>
-        mHotArchiveSnapshot;
+    SearchableLiveBucketListSnapshot mLiveSnapshot;
+    SearchableHotArchiveBucketListSnapshot mHotArchiveSnapshot;
     std::reference_wrapper<MetricsRegistry> mMetrics;
 
   public:
     // Construct from CompleteConstLedgerState
     explicit LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
                                  MetricsRegistry& metrics);
-
-    // Default copy/move
-    // TODO: This is currently NOT thread sade, since we just do pointer copies
-    // for the state snapshots. Next commit will turn the snapshots into value
-    // types with correct copy semantics.
-    LedgerStateSnapshot(LedgerStateSnapshot const&) = default;
-    LedgerStateSnapshot& operator=(LedgerStateSnapshot const&) = default;
-    LedgerStateSnapshot(LedgerStateSnapshot&&) = default;
-    LedgerStateSnapshot& operator=(LedgerStateSnapshot&&) = default;
 
     CompleteConstLedgerState const& getState() const;
     LedgerHeader const& getLedgerHeader() const;

@@ -771,16 +771,14 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
     auto ledgerSeq = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
     inMemorySnapshotForInvariant->assertLastClosedLedger(ledgerSeq);
 
-    // TODO: Instead of creating a pointer from fresh state, just make a copy
-    // from the other LedgerStateSnapshot, when it is safe to do so next commit
-    auto snapPtr =
-        std::make_shared<LedgerStateSnapshot>(ledgerState, mApp.getMetrics());
-
     // Note: No race condition acquiring app by reference, as all worker
     // threads are joined before application destruction.
-    auto cb = [snapPtr, &app = mApp, inMemorySnapshotForInvariant]() {
+    // Make sure we make a new snapshot copy since invariant will run on another
+    // thread.
+    auto cb = [snap = LedgerStateSnapshot(ledgerState, mApp.getMetrics()),
+               &app = mApp, inMemorySnapshotForInvariant]() {
         app.getInvariantManager().runStateSnapshotInvariant(
-            *snapPtr, *inMemorySnapshotForInvariant,
+            std::move(snap), *inMemorySnapshotForInvariant,
             [&app]() { return app.isStopping(); });
     };
 
@@ -1789,7 +1787,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         // Construct a LedgerStateSnapshot from `appliedLedgerState`, which
         // holds the latest committed state, to avoid relying on
         // BucketSnapshotManager.
-        // TODO: Replease this with a copy once safe to do so
         LedgerStateSnapshot snap(appliedLedgerState, mApp.getMetrics());
         mApp.getBucketManager().startBackgroundEvictionScan(
             std::move(snap), appliedLedgerState->getSorobanConfig());

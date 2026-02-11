@@ -401,16 +401,12 @@ CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
 LedgerStateSnapshot::LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
                                          MetricsRegistry& metrics)
     : mState(state)
-    , mLiveSnapshot(std::shared_ptr<SearchableLiveBucketListSnapshot>(
-          new SearchableLiveBucketListSnapshot(
-              metrics, state->mLiveBucketData, state->mLiveHistoricalSnapshots,
-              state->mLastClosedLedgerHeader.header.ledgerSeq)))
-    , mHotArchiveSnapshot(
-          std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
-              new SearchableHotArchiveBucketListSnapshot(
-                  metrics, state->mHotArchiveBucketData,
-                  state->mHotArchiveHistoricalSnapshots,
-                  state->mLastClosedLedgerHeader.header.ledgerSeq)))
+    , mLiveSnapshot(metrics, state->mLiveBucketData,
+                    state->mLiveHistoricalSnapshots,
+                    state->mLastClosedLedgerHeader.header.ledgerSeq)
+    , mHotArchiveSnapshot(metrics, state->mHotArchiveBucketData,
+                          state->mHotArchiveHistoricalSnapshots,
+                          state->mLastClosedLedgerHeader.header.ledgerSeq)
     , mMetrics(metrics)
 {
 }
@@ -439,7 +435,7 @@ LedgerStateSnapshot::getLedgerSeq() const
 std::shared_ptr<LedgerEntry const>
 LedgerStateSnapshot::loadLiveEntry(LedgerKey const& k) const
 {
-    return mLiveSnapshot->load(k);
+    return mLiveSnapshot.load(k);
 }
 
 std::vector<LedgerEntry>
@@ -447,7 +443,7 @@ LedgerStateSnapshot::loadLiveKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {
-    return mLiveSnapshot->loadKeys(inKeys, label);
+    return mLiveSnapshot.loadKeys(inKeys, label);
 }
 
 std::optional<std::vector<LedgerEntry>>
@@ -455,22 +451,22 @@ LedgerStateSnapshot::loadLiveKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     uint32_t ledgerSeq) const
 {
-    return mLiveSnapshot->loadKeysFromLedger(inKeys, ledgerSeq);
+    return mLiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
 }
 
 std::vector<LedgerEntry>
 LedgerStateSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset) const
 {
-    return mLiveSnapshot->loadPoolShareTrustLinesByAccountAndAsset(accountID,
-                                                                   asset);
+    return mLiveSnapshot.loadPoolShareTrustLinesByAccountAndAsset(accountID,
+                                                                  asset);
 }
 
 std::vector<InflationWinner>
 LedgerStateSnapshot::loadInflationWinners(size_t maxWinners,
                                           int64_t minBalance) const
 {
-    return mLiveSnapshot->loadInflationWinners(maxWinners, minBalance);
+    return mLiveSnapshot.loadInflationWinners(maxWinners, minBalance);
 }
 
 std::unique_ptr<EvictionResultCandidates>
@@ -481,8 +477,8 @@ LedgerStateSnapshot::scanForEviction(uint32_t ledgerSeq,
                                      StateArchivalSettings const& sas,
                                      uint32_t ledgerVers) const
 {
-    return mLiveSnapshot->scanForEviction(ledgerSeq, metrics, std::move(iter),
-                                          std::move(stats), sas, ledgerVers);
+    return mLiveSnapshot.scanForEviction(ledgerSeq, metrics, std::move(iter),
+                                         std::move(stats), sas, ledgerVers);
 }
 
 void
@@ -490,7 +486,7 @@ LedgerStateSnapshot::scanLiveEntriesOfType(
     LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
-    mLiveSnapshot->scanForEntriesOfType(type, std::move(callback));
+    mLiveSnapshot.scanForEntriesOfType(type, std::move(callback));
 }
 
 // === Hot Archive BucketList wrapper methods ===
@@ -498,14 +494,14 @@ LedgerStateSnapshot::scanLiveEntriesOfType(
 std::shared_ptr<HotArchiveBucketEntry const>
 LedgerStateSnapshot::loadArchiveEntry(LedgerKey const& k) const
 {
-    return mHotArchiveSnapshot->load(k);
+    return mHotArchiveSnapshot.load(k);
 }
 
 std::vector<HotArchiveBucketEntry>
 LedgerStateSnapshot::loadArchiveKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
-    return mHotArchiveSnapshot->loadKeys(inKeys);
+    return mHotArchiveSnapshot.loadKeys(inKeys);
 }
 
 std::optional<std::vector<HotArchiveBucketEntry>>
@@ -513,13 +509,13 @@ LedgerStateSnapshot::loadArchiveKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     uint32_t ledgerSeq) const
 {
-    return mHotArchiveSnapshot->loadKeysFromLedger(inKeys, ledgerSeq);
+    return mHotArchiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
 }
 
 void
 LedgerStateSnapshot::scanAllArchiveEntries(
     std::function<Loop(HotArchiveBucketEntry const&)> callback) const
 {
-    mHotArchiveSnapshot->scanAllEntries(std::move(callback));
+    mHotArchiveSnapshot.scanAllEntries(std::move(callback));
 }
 }

@@ -17,7 +17,6 @@
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -34,8 +33,9 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
-#include "util/UnorderedMap.h"
 #include "util/types.h"
+#include "work/WorkScheduler.h"
+#include "work/WorkSequence.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
 #include <fmt/chrono.h>
@@ -50,7 +50,6 @@
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
-#include "work/WorkScheduler.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
 

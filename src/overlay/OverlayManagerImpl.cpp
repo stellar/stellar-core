@@ -10,7 +10,6 @@
 #include "crypto/ShortHash.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "lib/util/finally.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"

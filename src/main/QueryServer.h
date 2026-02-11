@@ -10,8 +10,6 @@
 #include "ledger/LedgerStateSnapshot.h"
 #include <atomic>
 #include <functional>
-#include <memory>
-#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
