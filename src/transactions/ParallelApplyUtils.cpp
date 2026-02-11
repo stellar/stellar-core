@@ -306,9 +306,8 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
-
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         getSnapshotLedgerSeq() + 1);
+                         mSnapshot.getLedgerSeq() + 1);
 
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to

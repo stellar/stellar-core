@@ -81,6 +81,39 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     }
 }
 
+template <class BucketT>
+SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
+    SearchableBucketListSnapshot const& other)
+    : mData(other.mData)
+    , mHistoricalSnapshots(other.mHistoricalSnapshots)
+    , mLedgerSeq(other.mLedgerSeq)
+    // mStreams intentionally left empty — each copy gets its own stream cache
+    , mMetrics(other.mMetrics)
+    , mPointTimers(other.mPointTimers)
+    , mBulkTimers(other.mBulkTimers)
+    , mBulkLoadMeter(other.mBulkLoadMeter)
+{
+}
+
+template <class BucketT>
+SearchableBucketListSnapshot<BucketT>&
+SearchableBucketListSnapshot<BucketT>::operator=(
+    SearchableBucketListSnapshot const& other)
+{
+    if (this != &other)
+    {
+        mData = other.mData;
+        mHistoricalSnapshots = other.mHistoricalSnapshots;
+        mLedgerSeq = other.mLedgerSeq;
+        mStreams.clear();
+        mMetrics = other.mMetrics;
+        mPointTimers = other.mPointTimers;
+        mBulkTimers = other.mBulkTimers;
+        mBulkLoadMeter = other.mBulkLoadMeter;
+    }
+    return *this;
+}
+
 // File streams are fairly expensive to create, so they are lazily created and
 // stored in mStreams.
 template <class BucketT>
@@ -286,7 +319,7 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 
     auto timerIter = mPointTimers.find(k.type());
     releaseAssert(timerIter != mPointTimers.end());
-    auto timer = timerIter->second.TimeScope();
+    auto timer = timerIter->second.get().TimeScope();
 
     std::shared_ptr<typename BucketT::LoadT const> result{};
 
@@ -364,18 +397,18 @@ SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
 {
     if (numEntries != 0)
     {
-        mBulkLoadMeter.Mark(numEntries);
+        mBulkLoadMeter.get().Mark(numEntries);
     }
 
     auto iter = mBulkTimers.find(label);
     if (iter == mBulkTimers.end())
     {
         auto& metric =
-            mMetrics.NewTimer({BucketT::METRIC_STRING, "bulk", label});
+            mMetrics.get().NewTimer({BucketT::METRIC_STRING, "bulk", label});
         iter = mBulkTimers.emplace(label, metric).first;
     }
 
-    return iter->second;
+    return iter->second.get();
 }
 
 template <class BucketT>

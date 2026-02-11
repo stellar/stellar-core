@@ -88,22 +88,24 @@ template <class BucketT> class SearchableBucketListSnapshot
     // Ledger sequence number for this snapshot, used internally to route
     // queries between current and historical data. Not exposed publicly;
     // callers should get ledger metadata from CompleteConstLedgerState.
-    uint32_t const mLedgerSeq;
+    uint32_t mLedgerSeq;
 
     // Per-snapshot mutable stream cache
     mutable UnorderedMap<BucketT const*, std::unique_ptr<XDRInputFileStream>>
         mStreams;
 
-    MetricsRegistry& mMetrics;
+    std::reference_wrapper<MetricsRegistry> mMetrics;
 
     // Tracks load times for each LedgerEntryType. We use
     // SimpleTimer since medida Timer overhead is too expensive for point loads.
-    UnorderedMap<LedgerEntryType, SimpleTimer&> mPointTimers;
+    UnorderedMap<LedgerEntryType, std::reference_wrapper<SimpleTimer>>
+        mPointTimers;
 
     // Bulk load timers take significantly longer, so the timer overhead is
     // comparatively negligible.
-    mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers;
-    medida::Meter& mBulkLoadMeter;
+    mutable UnorderedMap<std::string, std::reference_wrapper<medida::Timer>>
+        mBulkTimers;
+    std::reference_wrapper<medida::Meter> mBulkLoadMeter;
 
     // Returns (lazily-constructed) file stream for bucket file. Note
     // this might be in some random position left over from a previous read --
@@ -157,6 +159,13 @@ template <class BucketT> class SearchableBucketListSnapshot
         uint32_t ledgerSeq);
 
   public:
+    // Copy: copies all state except mStreams, which is reset to empty.
+    // Each copy gets its own file stream cache, making copies safe to use
+    // from different threads.
+    SearchableBucketListSnapshot(SearchableBucketListSnapshot const& other);
+    SearchableBucketListSnapshot&
+    operator=(SearchableBucketListSnapshot const& other);
+
     virtual ~SearchableBucketListSnapshot() = default;
 
     // Point load, returns nullptr if not found
@@ -201,6 +210,9 @@ class SearchableLiveBucketListSnapshot
         UnorderedSet<LedgerKey>& keysInEvictableEntries) const;
 
   public:
+    SearchableLiveBucketListSnapshot(
+        SearchableLiveBucketListSnapshot const&) = default;
+
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
              std::string const& label) const;
@@ -241,6 +253,9 @@ class SearchableHotArchiveBucketListSnapshot
         uint32_t ledgerSeq);
 
   public:
+    SearchableHotArchiveBucketListSnapshot(
+        SearchableHotArchiveBucketListSnapshot const&) = default;
+
     std::vector<HotArchiveBucketEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
