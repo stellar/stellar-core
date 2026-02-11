@@ -362,32 +362,11 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
             opLtx.getHeader().ledgerVersion, ProtocolVersion::V_23));
     }
 
-    // getRestoredHotArchiveKeys and getRestoredLiveBucketListKeys return all
-    // entries that have been restored this ledger, not just by this op.
-    // However, processOpLedgerEntryChanges expects just the map of restores for
-    // this op. This function only gets called for <p23, so we only have to
-    // worry about the restore op. We look at the TTLs that have been modified
-    // by this op (i.e. restored TTLs) and use that to create an op-specific
-    // subset of the restored key maps.
-    UnorderedMap<LedgerKey, LedgerEntry> opRestoredLiveBucketListKeys{};
-    auto allRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
-    auto opModifiedKeys = opLtx.getAllKeysWithoutSealing();
-    if (mOp.getOperation().body.type() == OperationType::RESTORE_FOOTPRINT)
-    {
-        for (auto const& [key, entry] : allRestoredLiveBucketListKeys)
-        {
-            if (isSorobanEntry(key))
-            {
-                auto ttlKey = getTTLKey(key);
-                if (opModifiedKeys.find(ttlKey) != opModifiedKeys.end())
-                {
-                    opRestoredLiveBucketListKeys[key] = entry;
-                    opRestoredLiveBucketListKeys[ttlKey] =
-                        allRestoredLiveBucketListKeys.at(ttlKey);
-                }
-            }
-        }
-    }
+    // We should only have restored live BucketList keys for the restore
+    // operation pre-v23
+    auto opRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
+    releaseAssertOrThrow(opRestoredLiveBucketListKeys.empty() ||
+                         opType == OperationType::RESTORE_FOOTPRINT);
 
     // Note: Hot Archive restore map is always empty since this is never called
     // in p23.
