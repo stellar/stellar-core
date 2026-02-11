@@ -962,7 +962,8 @@ BucketManager::forgetUnreferencedBuckets(HistoryArchiveState const& has)
                            "BucketManager::forgetUnreferencedBuckets deleting "
                            "index for {}",
                            j->second->getFilename());
-                j->second->freeIndex();
+                using BucketT = typename decltype(j->second)::element_type;
+                BucketT::freeIndex(j->second);
             }
 
             // Only drop buckets if the bucketlist has forgotten them _and_
