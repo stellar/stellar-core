@@ -274,11 +274,27 @@ testTxSet(uint32 protocolVersion)
     {
         genTx();
     }
+
+    // Helper to build an unvalidated block and check validation result
+    auto validateReceivedBlock =
+        [&](std::vector<TransactionFrameBasePtr> const& blockTxs,
+            TxSetValidationResult expectedResult) {
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{std::make_pair(std::nullopt, blockTxs)}, {}},
+                             *app, ledgerHash)
+                             .second;
+            REQUIRE(txSet);
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) == expectedResult);
+        };
+
     SECTION("valid set")
     {
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
         REQUIRE(txSet->sizeTxTotal() == nbAccounts);
-        REQUIRE(txSet->checkValid(*app, 0, 0));
+        REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                TxSetValidationResult::VALID);
     }
 
     SECTION("too many txs")
@@ -289,33 +305,72 @@ testTxSet(uint32 protocolVersion)
         }
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
         REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app, 0, 0));
+        REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                TxSetValidationResult::VALID);
     }
     SECTION("invalid tx")
     {
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        LedgerSnapshot ls(*app);
+
         SECTION("no user")
         {
             auto newUser = TestAccount{*app, getAccount("doesnotexist")};
-            txs.push_back(newUser.tx({payment(*root, 1)}));
-            TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == nbAccounts);
-            REQUIRE(txSet->checkValid(*app, 0, 0));
+            auto badTx = newUser.tx({payment(*root, 1)});
+            txs.push_back(badTx);
+
+            // Individual tx check: account doesn't exist
+            REQUIRE(badTx
+                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                     diagnostics)
+                        ->getResultCode() == txNO_ACCOUNT);
+
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet =
+                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                REQUIRE(removed.size() == 1);
+                REQUIRE(removed.back() == badTx);
+                REQUIRE(txSet->sizeTxTotal() == nbAccounts);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::VALID);
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
         SECTION("sequence gap")
         {
             auto txPtr = std::const_pointer_cast<TransactionFrameBase>(txs[0]);
             setSeqNum(std::static_pointer_cast<TransactionTestFrame>(txPtr),
                       txs[0]->getSeqNum() + 5);
+            auto badTx = txs[0];
 
-            TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
-            REQUIRE(txSet->checkValid(*app, 0, 0));
+            // Individual tx check: bad sequence number
+            REQUIRE(badTx
+                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                     diagnostics)
+                        ->getResultCode() == txBAD_SEQ);
+
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet =
+                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                REQUIRE(removed.size() == 1);
+                REQUIRE(removed.back() == badTx);
+                REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::VALID);
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
         SECTION("insufficient balance")
         {
@@ -323,13 +378,32 @@ testTxSet(uint32 protocolVersion)
                 root->create("insufficient", accountBalance - 1));
             txs.back() = accounts.back().tx(
                 {payment(accounts.back().getPublicKey(), 10000)});
+            auto badTx = txs.back();
 
-            TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
-            REQUIRE(txSet->checkValid(*app, 0, 0));
+            // Individual tx check: insufficient balance
+            // Need fresh snapshot after account creation
+            LedgerSnapshot lsNew(*app);
+            REQUIRE(badTx
+                        ->checkValid(app->getAppConnector(), lsNew, 0, 0, 0,
+                                     diagnostics)
+                        ->getResultCode() == txINSUFFICIENT_BALANCE);
+
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet =
+                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                REQUIRE(removed.size() == 1);
+                REQUIRE(removed.back() == badTx);
+                REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::VALID);
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
         SECTION("bad signature")
         {
@@ -337,12 +411,31 @@ testTxSet(uint32 protocolVersion)
                 std::static_pointer_cast<TransactionTestFrame const>(txs[0]);
             setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
-            TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
-            REQUIRE(txSet->checkValid(*app, 0, 0));
+            auto badTx = txs[0];
+
+            // Individual tx check: bad auth (signature invalidated by maxTime
+            // change)
+            REQUIRE(badTx
+                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                     diagnostics)
+                        ->getResultCode() == txBAD_AUTH);
+
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet =
+                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+                REQUIRE(removed.size() == 1);
+                REQUIRE(removed.back() == badTx);
+                REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::VALID);
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
     }
 }
@@ -371,6 +464,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     auto account1 = root->create("a1", minBalance2);
     auto account2 = root->create("a2", minBalance2);
     auto account3 = root->create("a3", minBalance2);
+    auto account4 = root->create("a4", minBalance0);
+    auto account5 = root->create("a5", minBalance0);
 
     auto compareTxs = [](TxFrameList const& actual,
                          TxFrameList const& expected) {
@@ -381,103 +476,173 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         REQUIRE(actualNormalized == expectedNormalized);
     };
 
+    // Helper to build an unvalidated block and check validation result
+    auto validateReceivedBlock =
+        [&](std::vector<TransactionFrameBasePtr> const& blockTxs,
+            TxSetValidationResult expectedResult) {
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                             {{std::make_pair(std::nullopt, blockTxs)}, {}},
+                             *app, ledgerHash)
+                             .second;
+            REQUIRE(txSet);
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) == expectedResult);
+        };
+
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+    LedgerSnapshot ls(*app);
+
     SECTION("invalid transaction")
     {
         SECTION("one fee bump")
         {
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb1});
+
+            // Individual tx check: fee bump exceeds fee source balance
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->getResultCode() == txINSUFFICIENT_BALANCE);
+
+            SECTION("build block")
+            {
+                TxFrameList invalidTxs;
+                auto txSet =
+                    makeTxSetFromTransactions({fb1}, *app, 0, 0, invalidTxs);
+                compareTxs(invalidTxs, {fb1});
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    {fb1}, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
 
         SECTION("two fee bumps with same sources, first has high fee")
         {
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto tx2 = transaction(*app, account3, 1, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, 200);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb1, fb2});
-        }
 
-        // Compare against
-        // "two fee bumps with same sources, second insufficient"
-        SECTION("two fee bumps with same sources, second has high fee")
+            // Individual tx checks: first exceeds balance, second is valid
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->getResultCode() == txINSUFFICIENT_BALANCE);
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+
+            SECTION("build block")
+            {
+                TxFrameList invalidTxs;
+                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+                                                       invalidTxs);
+                // fb1 is rejected
+                compareTxs(invalidTxs, {fb1});
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    {fb1, fb2}, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("two fee bumps with same fee source, second has high fee")
         {
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto tx2 = transaction(*app, account3, 1, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb2});
-        }
 
-        // Compare against
-        // "two fee bumps with same sources, second insufficient"
-        SECTION("two fee bumps with same sources, second insufficient, "
-                "second invalid by malformed operation")
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->getResultCode() == txINSUFFICIENT_BALANCE);
+
+            SECTION("build block")
+            {
+                TxFrameList invalidTxs;
+                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+                                                       invalidTxs);
+                compareTxs(invalidTxs, {fb2});
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    {fb1, fb2}, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION(
+            "two fee bumps with same fee source, second malformed operation")
         {
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, -1, 100);
-            auto fb2 =
-                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb2});
-        }
-
-        SECTION("two fee bumps with same fee source but different source, "
-                "second has high fee")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account2, 1, 1, 100);
-            auto fb2 = feeBump(*app, account2, tx2, minBalance2);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb2});
-        }
-
-        SECTION("two fee bumps with same fee source but different source, "
-                "second insufficient, second invalid by malformed operation")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account2, 1, -1, 100);
-            auto fb2 =
-                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
-            TxFrameList invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb2});
-        }
-
-        SECTION("three fee bumps with same fee source, third insufficient, "
-                "second invalid by malformed operation")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, -1, 100);
+            auto tx2 = transaction(*app, account3, 1, -1, 100);
             auto fb2 = feeBump(*app, account2, tx2, 200);
-            auto tx3 = transaction(*app, account1, 3, 1, 100);
+
+            // Individual tx checks
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->getResultCode() == txFEE_BUMP_INNER_FAILED);
+
+            SECTION("build block")
+            {
+                TxFrameList invalidTxs;
+                auto txSet = makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0,
+                                                       invalidTxs);
+                compareTxs(invalidTxs, {fb2});
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    {fb1, fb2}, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("three fee bumps with same fee source, second malformed "
+                "operation, third insufficient")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            auto tx2 = transaction(*app, account3, 1, -1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, 200);
+            auto tx3 = transaction(*app, account4, 1, 1, 100);
             auto fb3 =
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
-            TxFrameList invalidTxs;
-            auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0, 0,
-                                                   invalidTxs);
-            compareTxs(invalidTxs, {fb2, fb3});
+
+            // Individual tx checks
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->getResultCode() == txFEE_BUMP_INNER_FAILED);
+            // Individually, fb2 is valid, but with fb1 it would exceed balance
+            REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                    diagnostics)
+                        ->isSuccess());
+
+            SECTION("build block")
+            {
+                TxFrameList invalidTxs;
+                auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0,
+                                                       0, invalidTxs);
+                compareTxs(invalidTxs, {fb1, fb2, fb3});
+            }
+            SECTION("validate block")
+            {
+                validateReceivedBlock(
+                    {fb1, fb2, fb3},
+                    TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
-        SECTION("two fee bumps, same fee source, second insufficient")
+        SECTION("two fee bumps, same fee source, valid individually, combined "
+                "exceed balance")
         {
             LedgerSnapshot ls(*app);
             auto balanceOfFbAccount = getAvailableBalance(
@@ -514,18 +679,14 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 // account2's balance
                 compareTxs(invalidTxs, {fb1, fb2});
             }
-            SECTION("invalid block is rejected")
+            SECTION("validate block")
             {
-                PerPhaseTransactionList invalidPerPhase;
-                invalidPerPhase.resize(2);
-                auto txSet = makeTxSetFromTransactions(
-                    {{fb1, fb2}, {}}, *app, 0, 0, invalidPerPhase,
-                    /* skipValidation */ true);
-                REQUIRE(invalidPerPhase[0].empty());
-                REQUIRE(!txSet.second->checkValid(*app, 0, 0));
+                validateReceivedBlock(
+                    {fb1, fb2}, TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
             }
         }
-        SECTION("two Soroban fee bumps, same fee source, second insufficient")
+        SECTION("two Soroban fee bumps, same fee source, valid individually, "
+                "combined exceed balance")
         {
             // Increase Soroban limits to allow multiple transactions
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
@@ -593,19 +754,26 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 // feeSourceAccount's balance
                 compareTxs(invalidPerPhase[1], {fb1, fb2});
             }
-            SECTION("invalid block is rejected")
+            SECTION("validate block")
             {
-                auto txSet = makeTxSetFromTransactions(
-                    {{}, {fb1, fb2}}, *app, 0, 0, invalidPerPhase,
-                    /* skipValidation */ true);
-                REQUIRE(invalidPerPhase[1].empty());
-                REQUIRE(!txSet.second->checkValid(*app, 0, 0));
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{fb1, fb2})}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
             }
         }
     }
 }
 
-TEST_CASE("getInvalidTxList returns no duplicates")
+TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
@@ -653,10 +821,10 @@ TEST_CASE("getInvalidTxList returns no duplicates")
         {payment(account4.getPublicKey(), 1)}, 100);
     auto fb3 = feeBump(*app, account2, tx3, fee3);
 
-    // Verify fb1 fails checkValid
+    // Verify fb1 fails checkValid - inner tx has bad sequence number
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    REQUIRE(!fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
-                 ->isSuccess());
+    REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+                ->getResultCode() == txFEE_BUMP_INNER_FAILED);
     // Verify fb2 and fb3 pass checkValid individually
     REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
                 ->isSuccess());
@@ -670,7 +838,8 @@ TEST_CASE("getInvalidTxList returns no duplicates")
     REQUIRE(fb3->getFullFee() < balanceOfFeeSource);
 
     TxFrameList txs = {fb1, fb2, fb3};
-    auto invalidTxs = TxSetUtils::getInvalidTxList(txs, *app, 0, 0);
+    auto invalidTxs =
+        TxSetUtils::getInvalidTxListWithErrors(txs, *app, 0, 0).first;
 
     // Check for no duplicates by comparing size with unique count
     std::unordered_set<Hash> uniqueHashes;
@@ -751,6 +920,19 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             REQUIRE(removed.back() == txInvalid);
             REQUIRE(txSet->sizeTxTotal() == 0);
 
+            // Validate block with invalid tx fails
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto invalidTxSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(100, TxFrameList{txInvalid})}, {}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+
             auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
                                                      minSeqAgeCond(minGap));
 
@@ -780,6 +962,22 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
                     (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
 
             REQUIRE(txSet->checkValid(*app, 0, 0));
+
+            // Validate block with second invalid tx fails
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto invalidTx = minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid;
+                auto validTx = minSeqNumTxIsFeeBump ? fb1 : tx1;
+                auto invalidTxSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(100, TxFrameList{validTx, invalidTx})},
+                         {}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         };
         SECTION("before v3 ext is set")
         {
@@ -814,34 +1012,68 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
         {
             auto txInvalid = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(lclNum + 2, 0));
-            TxFrameList removed;
-            auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app, 0, 0,
-                                                   removed);
-            REQUIRE(removed.back() == txInvalid);
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
+                                                       0, 0, removed);
+                REQUIRE(removed.back() == txInvalid);
+            }
+            SECTION("validate block")
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto invalidTxSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(100, TxFrameList{tx1, txInvalid})},
+                         {}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
 
             // the highest minLedger can be is lcl + 1 because
             // validation is done against the next ledger
             auto tx2 = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(lclNum + 1, 0));
-            removed.clear();
-            txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
+            TxFrameList removed;
+            auto txSet =
+                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
             REQUIRE(removed.empty());
         }
         SECTION("maxLedger")
         {
             auto txInvalid = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(0, lclNum));
-            TxFrameList removed;
-            auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app, 0, 0,
-                                                   removed);
-            REQUIRE(removed.back() == txInvalid);
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
+                                                       0, 0, removed);
+                REQUIRE(removed.back() == txInvalid);
+            }
+            SECTION("validate block")
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto invalidTxSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(100, TxFrameList{tx1, txInvalid})},
+                         {}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
 
             // the lower maxLedger can be is lcl + 2, as the current
             // ledger is lcl + 1 and maxLedger bound is exclusive.
             auto tx2 = transactionWithV2Precondition(
                 *app, a2, 1, 100, ledgerBoundsCond(0, lclNum + 2));
-            removed.clear();
-            txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
+            TxFrameList removed;
+            auto txSet =
+                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
             REQUIRE(removed.empty());
         }
     }
@@ -867,10 +1099,26 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             }
             SECTION("fail")
             {
-                TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                REQUIRE(removed.back() == tx);
+                SECTION("build block")
+                {
+                    TxFrameList removed;
+                    auto txSet =
+                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    REQUIRE(removed.back() == tx);
+                }
+                SECTION("validate block")
+                {
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
+                    auto invalidTxSet =
+                        testtxset::makeNonValidatedGeneralizedTxSet(
+                            {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
+                            ledgerHash)
+                            .second;
+                    REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                            TxSetValidationResult::TX_VALIDATION_FAILED);
+                }
             }
         }
         SECTION("two extra signers")
@@ -893,10 +1141,26 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             }
             SECTION("fail")
             {
-                TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                REQUIRE(removed.back() == tx);
+                SECTION("build block")
+                {
+                    TxFrameList removed;
+                    auto txSet =
+                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    REQUIRE(removed.back() == tx);
+                }
+                SECTION("validate block")
+                {
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
+                    auto invalidTxSet =
+                        testtxset::makeNonValidatedGeneralizedTxSet(
+                            {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
+                            ledgerHash)
+                            .second;
+                    REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                            TxSetValidationResult::TX_VALIDATION_FAILED);
+                }
             }
         }
         SECTION("duplicate extra signers")
@@ -905,11 +1169,26 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             auto txDupeSigner =
                 transactionWithV2Precondition(*app, a1, 1, 100, cond);
             txDupeSigner->addSignature(root->getSecretKey());
-            TxFrameList removed;
-            auto txSet =
-                makeTxSetFromTransactions({txDupeSigner}, *app, 0, 0, removed);
-            REQUIRE(removed.back() == txDupeSigner);
-            REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            SECTION("build block")
+            {
+                TxFrameList removed;
+                auto txSet = makeTxSetFromTransactions({txDupeSigner}, *app, 0,
+                                                       0, removed);
+                REQUIRE(removed.back() == txDupeSigner);
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("validate block")
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto invalidTxSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(100, TxFrameList{txDupeSigner})}, {}},
+                        *app, ledgerHash)
+                        .second;
+                REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
         }
         SECTION("signer overlap with default account signer")
         {
@@ -937,10 +1216,26 @@ TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
             }
             SECTION("signature missing")
             {
-                TxFrameList removed;
-                auto txSet =
-                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                REQUIRE(removed.back() == tx);
+                SECTION("build block")
+                {
+                    TxFrameList removed;
+                    auto txSet =
+                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                    REQUIRE(removed.back() == tx);
+                }
+                SECTION("validate block")
+                {
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
+                    auto invalidTxSet =
+                        testtxset::makeNonValidatedGeneralizedTxSet(
+                            {{std::make_pair(100, TxFrameList{tx})}, {}}, *app,
+                            ledgerHash)
+                            .second;
+                    REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                            TxSetValidationResult::TX_VALIDATION_FAILED);
+                }
             }
         }
         SECTION("signer overlap with added account signer - both "
@@ -1442,33 +1737,99 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 
         SECTION("invalid soroban is rejected")
         {
-            TransactionTestFramePtr invalidSoroban;
             SECTION("invalid fee")
             {
                 // Fee too small
-                invalidSoroban = createUploadWasmTx(
+                auto invalidSoroban = createUploadWasmTx(
                     *app, acc2, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
-            }
-            SECTION("invalid resource")
-            {
-                // Too many instructions
-                resources.instructions = UINT32_MAX;
-                invalidSoroban = createUploadWasmTx(
-                    *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
-            }
-            PerPhaseTransactionList invalidPhases;
-            invalidPhases.resize(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
-            auto txSet = makeTxSetFromTransactions(
-                             PerPhaseTransactionList{{tx}, {invalidSoroban}},
-                             *app, 0, 0, invalidPhases)
-                             .second;
 
-            // Soroban tx is rejected
-            REQUIRE(txSet->sizeTxTotal() == 1);
-            REQUIRE(invalidPhases[0].empty());
-            REQUIRE(invalidPhases[1].size() == 1);
-            REQUIRE(invalidPhases[1][0]->getFullHash() ==
-                    invalidSoroban->getFullHash());
+                SECTION("build block")
+                {
+                    PerPhaseTransactionList invalidPhases;
+                    invalidPhases.resize(
+                        static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+                    auto txSet =
+                        makeTxSetFromTransactions(
+                            PerPhaseTransactionList{{tx}, {invalidSoroban}},
+                            *app, 0, 0, invalidPhases)
+                            .second;
+
+                    // Soroban tx is rejected
+                    REQUIRE(txSet->sizeTxTotal() == 1);
+                    REQUIRE(invalidPhases[0].empty());
+                    REQUIRE(invalidPhases[1].size() == 1);
+                    REQUIRE(invalidPhases[1][0]->getFullHash() ==
+                            invalidSoroban->getFullHash());
+                }
+                SECTION("validate block")
+                {
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
+                    auto invalidTxSet =
+                        testtxset::makeNonValidatedGeneralizedTxSet(
+                            {{std::make_pair(std::nullopt, TxFrameList{tx})},
+                             {std::make_pair(baseFee,
+                                             TxFrameList{invalidSoroban})}},
+                            *app, ledgerHash)
+                            .second;
+                    REQUIRE(invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                            TxSetValidationResult::TX_FEE_BID_TOO_LOW);
+                }
+            }
+            SECTION("invalid resource, multiple transactions, resources exceed "
+                    "ledger limit")
+            {
+                // Create two txs that are individually valid but combined
+                // exceed ledger resource limits
+                // Each tx uses 60% of ledger max, so combined > 100%
+                auto insns = static_cast<uint32_t>(
+                    conf.ledgerMaxInstructions() * 6 / 10);
+                resources.instructions = insns;
+                auto soroban1 = createUploadWasmTx(
+                    *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
+                // Pick soroban2 by fee
+                auto soroban2 =
+                    createUploadWasmTx(*app, acc3, baseFee + 1,
+                                       DEFAULT_TEST_RESOURCE_FEE, resources);
+
+                SECTION("build block")
+                {
+                    // When building, one tx should be trimmed due to limit
+                    PerPhaseTransactionList invalidPhases;
+                    invalidPhases.resize(
+                        static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+                    auto txSet =
+                        makeTxSetFromTransactions(
+                            PerPhaseTransactionList{{tx}, {soroban1, soroban2}},
+                            *app, 0, 0, invalidPhases)
+                            .second;
+                    // Both txs are valid individually, but only one fits
+                    REQUIRE(txSet->sizeTxTotal() == 2);
+                    REQUIRE(invalidPhases[0].empty());
+                    REQUIRE(invalidPhases[1].size() == 1);
+                    REQUIRE(invalidPhases[1][0]->getFullHash() ==
+                            soroban1->getFullHash());
+                }
+                SECTION("validate block")
+                {
+                    // When validating a received block with both txs, it
+                    // should fail due to exceeding resource limits
+                    auto ledgerHash = app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .hash;
+                    auto invalidTxSet =
+                        testtxset::makeNonValidatedGeneralizedTxSet(
+                            {{std::make_pair(std::nullopt, TxFrameList{tx})},
+                             {std::make_pair(std::nullopt,
+                                             TxFrameList{soroban1, soroban2})}},
+                            *app, ledgerHash)
+                            .second;
+                    REQUIRE(
+                        invalidTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
+                }
+            }
         }
         SECTION("classic and soroban fit")
         {
@@ -1613,7 +1974,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                              {{}, {std::make_pair(500, txs)}}, *app, ledgerHash)
                              .second;
 
-            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
         }
     }
 }
