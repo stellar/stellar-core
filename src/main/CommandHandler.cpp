@@ -79,7 +79,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             mQueryServer = std::make_unique<QueryServer>(
                 ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
-                mApp.getBucketManager().getBucketSnapshotManager());
+                mApp.getAppConnector());
         }
     }
 
@@ -154,6 +154,16 @@ CommandHandler::shutdown()
 }
 
 void
+CommandHandler::setReady()
+{
+    mIsReady = true;
+    if (mQueryServer)
+    {
+        mQueryServer->setReady();
+    }
+}
+
+void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
 
@@ -165,6 +175,11 @@ void
 CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
                            std::string const& params, std::string& retStr)
 {
+    if (!mIsReady)
+    {
+        retStr = R"({"error": "Core is booting, try again later"})";
+        return;
+    }
     try
     {
         ZoneNamedN(httpZone, "HTTP command handler", true);
@@ -1106,17 +1121,6 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::checkBooted() const
-{
-    if (mApp.getState() == Application::APP_CREATED_STATE ||
-        mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
-    {
-        throw std::runtime_error(
-            "Application is not fully booted, try again later");
-    }
-}
-
-void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
@@ -1138,7 +1142,6 @@ CommandHandler::startSurveyCollecting(std::string const& params,
                                       std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -1161,7 +1164,6 @@ void
 CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     if (surveyManager.broadcastStopSurveyCollecting())
@@ -1180,7 +1182,6 @@ CommandHandler::surveyTopologyTimeSliced(std::string const& params,
                                          std::string& retStr)
 {
     ZoneScoped;
-    checkBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);

@@ -81,6 +81,13 @@ class AppConnector
     void
     maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
 
+    void maybeCopyLiveAndHotArchiveSnapshots(
+        SearchableSnapshotConstPtr& liveSnapshot,
+        SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot);
+
+    std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
+    copySearchableBucketListSnapshots();
+
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.
     SearchableSnapshotConstPtr& getOverlayThreadSnapshot();

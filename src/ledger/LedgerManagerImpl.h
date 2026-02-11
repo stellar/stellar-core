@@ -20,6 +20,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
+#include <atomic>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -415,7 +416,7 @@ class LedgerManagerImpl : public LedgerManager
                                     ApplicableTxSetFrame const& txSet,
                                     Config const& config);
 
-    State mState;
+    std::atomic<State> mState;
 
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
