@@ -282,6 +282,14 @@ InMemoryLedgerTxn::restoreFromLiveBucketList(LedgerEntry const& entry,
         "called restoreFromLiveBucketList on InMemoryLedgerTxn");
 }
 
+void
+InMemoryLedgerTxn::markRestoredFromLiveBucketList(
+    LedgerEntry const& ledgerEntry, LedgerEntry const& ttlEntry)
+{
+    throw std::runtime_error(
+        "called markRestoredFromLiveBucketList on InMemoryLedgerTxn");
+}
+
 LedgerTxnEntry
 InMemoryLedgerTxn::load(InternalLedgerKey const& key)
 {

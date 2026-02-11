@@ -360,8 +360,17 @@ class LedgerTxn::Impl
 
     // markRestoredFromHotArchive has the basic exception safety guarantee. If
     // it throws an exception, then
+    // - the restored entries map may contain only a partial record (e.g. the
+    //   data entry without its corresponding TTL entry).
     void markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
                                     LedgerEntry const& ttlEntry);
+
+    // markRestoredFromLiveBucketList has the basic exception safety guarantee.
+    // If it throws an exception, then
+    // - the restored entries map may contain only a partial record (e.g. the
+    //   data entry without its corresponding TTL entry).
+    void markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
+                                        LedgerEntry const& ttlEntry);
 
     // restoreFromLiveBucketList has the basic exception safety guarantee. If it
     // throws an exception, then
