@@ -40,6 +40,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
+#include "util/numeric.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/depth_checker.h"
@@ -430,19 +431,20 @@ TransactionFrame::getFee(LedgerHeader const& header,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
-        int64_t adjustedFee =
-            *baseFee * std::max<int64_t>(1, getNumOperations());
+        int64_t adjustedFee = saturatingMultiply(
+            *baseFee, std::max<int64_t>(1, getNumOperations()));
         int64_t maybeResourceFee =
             isSoroban() ? declaredSorobanResourceFee() : 0;
 
         if (applying)
         {
-            return maybeResourceFee +
-                   std::min<int64_t>(getInclusionFee(), adjustedFee);
+            return saturatingAdd(
+                maybeResourceFee,
+                std::min<int64_t>(getInclusionFee(), adjustedFee));
         }
         else
         {
-            return maybeResourceFee + adjustedFee;
+            return saturatingAdd(maybeResourceFee, adjustedFee);
         }
     }
     else
