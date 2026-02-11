@@ -359,8 +359,7 @@ struct RestoredEntries
                                   LedgerEntry const& entry,
                                   LedgerKey const& ttlKey,
                                   LedgerEntry const& ttlEntry);
-    void addRestoresFrom(RestoredEntries const& other,
-                         bool allowDuplicates = false);
+    void addRestoresFrom(RestoredEntries const& other);
 };
 
 class AbstractLedgerTxn;
