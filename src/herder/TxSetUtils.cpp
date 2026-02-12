@@ -163,10 +163,10 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
 }
 
 template <typename T>
-TxFrameList
-TxSetUtils::getInvalidTxList(T const& txs, Application& app,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors(T const& txs, Application& app,
+                                       uint64_t lowerBoundCloseTimeOffset,
+                                       uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -177,7 +177,11 @@ TxSetUtils::getInvalidTxList(T const& txs, Application& app,
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     UnorderedMap<AccountID, int64_t> accountFeeMap;
-    TxFrameList invalidTxs;
+    TxFrameListWithErrors invalidTxsWithError;
+    auto& invalidTxs = invalidTxsWithError.first;
+    auto& errorCode = invalidTxsWithError.second;
+    errorCode = TxSetValidationResult::VALID;
+
     std::unordered_set<Hash> seenInvalidTxs;
     auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
@@ -189,6 +193,7 @@ TxSetUtils::getInvalidTxList(T const& txs, Application& app,
         {
             invalidTxs.emplace_back(tx);
             seenInvalidTxs.emplace(tx->getFullHash());
+            errorCode = TxSetValidationResult::TX_VALIDATION_FAILED;
         }
         else
         {
@@ -228,7 +233,12 @@ TxSetUtils::getInvalidTxList(T const& txs, Application& app,
         auto totFee = it->second;
         if (getAvailableBalance(header, feeSource.current()) < totFee)
         {
-            invalidTxs.emplace_back(tx);
+            invalidTxs.push_back(tx);
+            // Only override the error code if it wasn't already set
+            if (errorCode == TxSetValidationResult::VALID)
+            {
+                errorCode = TxSetValidationResult::ACCOUNT_CANT_PAY_FEE;
+            }
             releaseAssert(seenInvalidTxs.insert(tx->getFullHash()).second);
             CLOG_DEBUG(
                 Herder, "Got bad txSet: account can't pay fee tx: {}",
@@ -236,14 +246,16 @@ TxSetUtils::getInvalidTxList(T const& txs, Application& app,
         }
     }
 
-    return invalidTxs;
+    return invalidTxsWithError;
 }
 
-// Explicit template instantiations
-template TxFrameList TxSetUtils::getInvalidTxList<TxFrameList>(
+// Explicit template instantiations for getInvalidTxListWithErrors
+template TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors<TxFrameList>(
     TxFrameList const& txs, Application& app,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
-template TxFrameList TxSetUtils::getInvalidTxList<TxSetPhaseFrame>(
+template TxFrameListWithErrors
+TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
     TxSetPhaseFrame const& txs, Application& app,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 
@@ -253,8 +265,9 @@ TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
                         uint64_t upperBoundCloseTimeOffset,
                         TxFrameList& invalidTxs)
 {
-    invalidTxs = getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
-                                  upperBoundCloseTimeOffset);
+    invalidTxs = getInvalidTxListWithErrors(txs, app, lowerBoundCloseTimeOffset,
+                                            upperBoundCloseTimeOffset)
+                     .first;
     return removeTxs(txs, invalidTxs);
 }
 
