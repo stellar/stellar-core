@@ -110,6 +110,8 @@ class XDRInputFileStream
     static inline uint32_t
     getXDRSize(char* buf)
     {
+        // Read 4 bytes of size, big-endian, with last-fragment flag bit cleared
+        // (high bit of high byte).
         uint32_t sz = 0;
         sz |= static_cast<uint8_t>(buf[0] & '\x7f');
         sz <<= 8;
