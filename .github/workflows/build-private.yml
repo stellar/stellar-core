@@ -10,14 +10,6 @@ concurrency:
 
 jobs:
 
-  complete:
-    if: always() && github.event.repository.visibility == 'private'
-    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
-    runs-on: ubuntu-24.04
-    steps:
-    - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-      run: exit 1
-
   fmt:
     if: github.event.repository.visibility == 'private'
     runs-on: ubuntu-24.04
