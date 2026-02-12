@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
@@ -494,9 +495,18 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
                 "('ledgerupgrades', 'testvalue')",
                 db.getSession());
 
+        LedgerHeader header = LedgerManager::genesisLedger();
+        // Change one value from the genesis ledger to ensure that we did
+        // actually migrate correctly
+        header.ledgerSeq = 12345;
+        LedgerHeaderUtils::storeInDatabase(db, header, db.getSession());
+        std::string hash;
+        std::string headerEncoded =
+            LedgerHeaderUtils::encodeHeader(header, hash);
+
         // Insert test data that should stay in main DB
-        execSQL("INSERT INTO storestate (statename, state) VALUES "
-                "('lastclosedledger', 'maintestvalue')",
+        execSQL("INSERT INTO storestate (statename, state) VALUES " +
+                    fmt::format("('lastclosedledger', '{}')", hash),
                 db.getSession());
 
         // Verify data exists in main before migration
@@ -515,13 +525,13 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
             std::string result;
             auto prep = db.getPreparedStatement(
                 "SELECT state FROM storestate WHERE statename = "
-                "'lastclosedledger'",
+                "'lastclosedledgerheader'",
                 db.getSession());
             auto& st = prep.statement();
             st.exchange(soci::into(result));
             st.define_and_bind();
             st.execute(true);
-            REQUIRE(result == "maintestvalue");
+            REQUIRE(result == headerEncoded);
         }
 
         // Verify storestate table still exists in main DB
@@ -574,5 +584,87 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
             st.execute(true);
             REQUIRE(state == "testvalue");
         }
+    }
+}
+
+TEST_CASE("ledgerheaders migration works correctly", "[db]")
+{
+    Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT
+#ifdef USE_POSTGRES
+                                       ,
+                                       Config::TESTDB_POSTGRESQL
+#endif
+    );
+    Config cfg = getTestConfig(0, mode);
+    INFO("Testing mode: " << (mode == Config::TESTDB_POSTGRESQL
+                                  ? "PostgreSQL"
+                                  : "Persistent"));
+
+    VirtualClock clock;
+    // Set startApp to false to trigger migration manually
+    Application::pointer app = createTestApplication(
+        clock, cfg, /* newDB */ true, /* startApp */ false);
+
+    std::optional<std::string> expectedLCLHeader;
+    auto checkMigration = [&app](std::optional<std::string> expectedLCL) {
+        REQUIRE(app->getDatabase().getMainDBSchemaVersion() == SCHEMA_VERSION);
+        REQUIRE_THROWS(app->getDatabase().getRawSession()
+                       << "SELECT COUNT(1) FROM ledgerheaders");
+
+        {
+            // Check that lastclosedledger has been removed
+            auto& sess = app->getDatabase().getRawSession();
+            int i;
+            sess << "SELECT COUNT(1) FROM storestate WHERE statename = "
+                    "'lastclosedledger'",
+                soci::into(i);
+            REQUIRE(sess.got_data());
+            REQUIRE(i == 0);
+        }
+
+        std::string lclHeader = app->getPersistentState().getState(
+            PersistentState::kLastClosedLedgerHeader,
+            app->getDatabase().getSession());
+
+        if (expectedLCL)
+        {
+            REQUIRE(lclHeader == expectedLCL);
+        }
+        else
+        {
+            LedgerHeader lh = LedgerHeaderUtils::decodeFromData(lclHeader);
+            REQUIRE(
+                app->getLedgerManager().getLastClosedLedgerHeader().header ==
+                lh);
+        }
+    };
+
+    SECTION("Just running newdb")
+    {
+        checkMigration(std::nullopt);
+    }
+
+    SECTION("Migrate from old schema with LCL header")
+    {
+        auto& db = app->getDatabase();
+        db.initialize();
+
+        auto& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        LedgerHeader header = lcl.header;
+        header.ledgerSeq++;
+        header.previousLedgerHash = lcl.hash;
+        LedgerHeaderUtils::storeInDatabase(db, header, db.getSession());
+
+        std::string hash;
+        std::string headerEncoded =
+            LedgerHeaderUtils::encodeHeader(header, hash);
+        db.getRawSession()
+            << "INSERT INTO storestate (statename, state) VALUES "
+               "('lastclosedledger', :h)",
+            soci::use(hash);
+
+        db.upgradeToCurrentSchema();
+
+        checkMigration(headerEncoded);
     }
 }

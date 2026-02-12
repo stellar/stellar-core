@@ -42,7 +42,6 @@
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
-#include "main/Maintainer.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -263,7 +262,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
-    mMaintainer = std::make_unique<Maintainer>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
@@ -763,7 +761,6 @@ ApplicationImpl::startServices()
 
     // restores Herder's state before starting overlay
     mHerder->start();
-    mMaintainer->start();
     if (mConfig.MODE_AUTO_STARTS_OVERLAY)
     {
         mOverlayManager->start();
@@ -1392,12 +1389,6 @@ HistoryManager&
 ApplicationImpl::getHistoryManager()
 {
     return *mHistoryManager;
-}
-
-Maintainer&
-ApplicationImpl::getMaintainer()
-{
-    return *mMaintainer;
 }
 
 ProcessManager&

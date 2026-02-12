@@ -61,8 +61,6 @@
 namespace stellar
 {
 
-static uint32_t const MAINTENANCE_LEDGER_COUNT = 1000000;
-
 void
 writeWithTextFlow(std::ostream& os, std::string const& text)
 {
@@ -825,17 +823,6 @@ runCatchup(CommandLineArgs const& args)
             config.RUN_STANDALONE = true;
             config.MANUAL_CLOSE = true;
             config.DISABLE_BUCKET_GC = disableBucketGC;
-
-            if (config.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
-                config.AUTOMATIC_MAINTENANCE_COUNT > 0)
-            {
-                // If the user did not _disable_ maintenance, turn the dial up
-                // to be much more aggressive about running maintenance during a
-                // bulk catchup, otherwise the DB is likely to overflow with
-                // unwanted history.
-                config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{30};
-                config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
-            }
 
             maybeSetMetadataOutputStream(config, stream);
 
@@ -1620,20 +1607,6 @@ run(CommandLineArgs const& args)
                     if (cfg.RUN_STANDALONE)
                     {
                         clockMode = VirtualClock::VIRTUAL_TIME;
-                        if (cfg.AUTOMATIC_MAINTENANCE_COUNT != 0 ||
-                            cfg.AUTOMATIC_MAINTENANCE_PERIOD.count() != 0)
-                        {
-                            LOG_WARNING(DEFAULT_LOG,
-                                        "Using MANUAL_CLOSE and RUN_STANDALONE "
-                                        "together induces virtual time, which "
-                                        "requires automatic maintenance to be "
-                                        "disabled. AUTOMATIC_MAINTENANCE_COUNT "
-                                        "and AUTOMATIC_MAINTENANCE_PERIOD are "
-                                        "being overridden to 0.");
-                            cfg.AUTOMATIC_MAINTENANCE_COUNT = 0;
-                            cfg.AUTOMATIC_MAINTENANCE_PERIOD =
-                                std::chrono::seconds{0};
-                        }
                     }
                 }
 

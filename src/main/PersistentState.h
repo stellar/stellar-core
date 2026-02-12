@@ -24,7 +24,7 @@ class PersistentState
     enum Entry
     {
         // LCL-related entries
-        kLastClosedLedger = 0,
+        kLastClosedLedgerHeader = 0,
         kHistoryArchiveState,
         kDatabaseSchema,
         kNetworkPassphrase,

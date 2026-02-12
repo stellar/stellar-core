@@ -15,7 +15,6 @@
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "main/Maintainer.h"
 #include "main/QueryServer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
@@ -90,10 +89,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
-    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
-    {
-        addRoute("maintenance", &CommandHandler::maintenance);
-    }
 
     if (!mApp.getConfig().RUN_STANDALONE)
     {
@@ -1083,26 +1078,6 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     }
 
     retStr = Json::FastWriter().write(root);
-}
-
-void
-CommandHandler::maintenance(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    std::map<std::string, std::string> map;
-    http::server::server::parseParams(params, map);
-    if (map["queue"] == "true")
-    {
-        uint32_t count =
-            parseOptionalParamOrDefault<uint32_t>(map, "count", 50000);
-
-        mApp.getMaintainer().performMaintenance(count);
-        retStr = "Done";
-    }
-    else
-    {
-        retStr = "No work performed";
-    }
 }
 
 void

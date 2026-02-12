@@ -9,18 +9,27 @@
 
 namespace stellar
 {
+class Database;
 
 namespace LedgerHeaderUtils
 {
 
 uint32_t getFlags(LedgerHeader const& lh);
 
+// Return base64-encoded header data and optionally the hex-encoded hash of the
+// header in the hash out parameter. Throws if the header fails basic sanity
+// checks (e.g., fee pool > 0).
+std::string encodeHeader(LedgerHeader const& header);
+
+#ifdef BUILD_TESTS
+std::string encodeHeader(LedgerHeader const& header, std::string& hash);
 void storeInDatabase(Database& db, LedgerHeader const& header,
                      SessionWrapper& sess);
+#endif
 
-std::shared_ptr<LedgerHeader> loadByHash(Database& db, Hash const& hash);
+LedgerHeader decodeFromData(std::string const& data);
 
-void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count);
+std::string getHeaderDataForHash(Database& db, Hash const& hash);
 
 void maybeDropAndCreateNew(Database& db);
 }

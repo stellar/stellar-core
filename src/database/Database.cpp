@@ -324,6 +324,40 @@ dropMiscTablesFromMain(Application& app)
 }
 
 void
+migrateLedgerHeadersToStoreState(Database& db)
+{
+    // Migrate LCL header from ledgerheaders table to storestate
+    std::string lclHash;
+
+    db.getRawSession() << "SELECT state FROM storestate WHERE statename = "
+                          "'lastclosedledger'",
+        soci::into(lclHash);
+    // When we're doing this migration for a new db, storestate will be empty.
+    // So, only try to set lastclosedledgerheader when the data is found
+    if (db.getRawSession().got_data())
+    {
+
+        if (lclHash.empty())
+        {
+            throw std::runtime_error(
+                "No reference in DB to any last closed ledger");
+        }
+
+        std::string headerData =
+            LedgerHeaderUtils::getHeaderDataForHash(db, hexToBin256(lclHash));
+
+        db.getRawSession() << "INSERT INTO storestate (statename, state) "
+                              "VALUES ('lastclosedledgerheader', :v)",
+            soci::use(headerData);
+
+        db.getRawSession()
+            << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
+    }
+
+    db.getRawSession() << "DROP TABLE ledgerheaders";
+}
+
+void
 Database::applySchemaUpgrade(unsigned long vers)
 {
     soci::transaction tx(mSession.session());
@@ -342,6 +376,9 @@ Database::applySchemaUpgrade(unsigned long vers)
             // If misc database is used, drop the migrated tables from main DB
             dropMiscTablesFromMain(mApp);
         }
+        break;
+    case 27:
+        migrateLedgerHeadersToStoreState(*this);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");

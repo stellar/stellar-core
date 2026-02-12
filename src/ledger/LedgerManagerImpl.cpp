@@ -42,6 +42,7 @@
 #include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
+#include "util/Decoder.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/JitterInjection.h"
@@ -507,33 +508,23 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     ZoneScoped;
     mApplyState.assertSetupPhase();
 
-    // Step 1. Load LCL state from the DB and extract latest ledger hash
-    string lastLedger = mApp.getPersistentState().getState(
-        PersistentState::kLastClosedLedger, mApp.getDatabase().getSession());
-
-    if (lastLedger.empty())
-    {
-        throw std::runtime_error(
-            "No reference in DB to any last closed ledger");
-    }
-
-    CLOG_INFO(Ledger, "Last closed ledger (LCL) hash is {}", lastLedger);
-    Hash lastLedgerHash = hexToBin256(lastLedger);
-
+    // Step 1. Load LCL state from the DB
     HistoryArchiveState has;
     has.fromString(mApp.getPersistentState().getState(
         PersistentState::kHistoryArchiveState,
         mApp.getDatabase().getSession()));
 
-    // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
-    // earlier, or verify we're at genesis if in no-history mode
+    // Step 2. Restore LedgerHeader from storestate
     std::optional<LedgerHeader> latestLedgerHeader;
-    auto currentLedger =
-        LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
-    if (!currentLedger)
+    std::string headerEncoded = mApp.getPersistentState().getState(
+        PersistentState::kLastClosedLedgerHeader,
+        mApp.getDatabase().getSession());
+    if (headerEncoded.empty())
     {
-        throw std::runtime_error("Could not load ledger from database");
+        throw std::runtime_error("Could not load ledger header from database");
     }
+    auto currentLedger = std::make_shared<LedgerHeader>(
+        LedgerHeaderUtils::decodeFromData(headerEncoded));
 
     if (currentLedger->ledgerSeq != has.currentLedger)
     {
@@ -2794,8 +2785,6 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
     Hash hash = xdrSha256(header);
     releaseAssert(!isZero(hash));
     auto& sess = mApp.getLedgerTxnRoot().getSession();
-    mApp.getPersistentState().setMainState(PersistentState::kLastClosedLedger,
-                                           binToHex(hash), sess);
 
     if (mApp.getConfig().ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING.count() >
         0)
@@ -2825,7 +2814,11 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 
     mApp.getPersistentState().setMainState(
         PersistentState::kHistoryArchiveState, has.toString(), sess);
-    LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
+
+    std::string headerEncoded = LedgerHeaderUtils::encodeHeader(header);
+    mApp.getPersistentState().setMainState(
+        PersistentState::kLastClosedLedgerHeader, headerEncoded, sess);
+
     if (appendToCheckpoint)
     {
         mApp.getHistoryManager().appendLedgerHeader(header);

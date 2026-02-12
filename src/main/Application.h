@@ -25,7 +25,6 @@ class BucketManager;
 class LedgerApplyManager;
 class HistoryArchiveManager;
 class HistoryManager;
-class Maintainer;
 class ProcessManager;
 class Herder;
 class HerderPersistence;
@@ -223,7 +222,6 @@ class Application
     virtual LedgerApplyManager& getLedgerApplyManager() = 0;
     virtual HistoryArchiveManager& getHistoryArchiveManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
-    virtual Maintainer& getMaintainer() = 0;
     virtual ProcessManager& getProcessManager() = 0;
     virtual Herder& getHerder() = 0;
     virtual HerderPersistence& getHerderPersistence() = 0;
