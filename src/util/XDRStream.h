@@ -98,11 +98,17 @@ class XDRInputFileStream
         mIn.seekg(pos);
     }
 
+    // Reads the fragment header defined by the Record Marking Standard in
+    // RFC 5531 Section 11 (https://www.rfc-editor.org/rfc/rfc5531#section-11).
+    // Each fragment header is a 4-byte big-endian unsigned integer where:
+    //  - Bit 31 (high bit) is the last-fragment flag (1 = last fragment).
+    //  - Bits 0-30 contain the byte length of the fragment data that follows.
+    // This function clears the high bit and returns the length.
     static inline uint32_t
     getXDRSize(char* buf)
     {
-        // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
-        // (high bit of high byte).
+        // Read 4 bytes of size, big-endian, with the last-fragment flag bit
+        // cleared (high bit of high byte).
         uint32_t sz = 0;
         sz |= static_cast<uint8_t>(buf[0] & '\x7f');
         sz <<= 8;
@@ -457,6 +463,12 @@ class XDROutputFileStream : public OutputFileStream
         fs::flushFileChanges(getHandle());
     }
 
+    // Writes a single XDR object as a record using the Record Marking
+    // Standard defined in RFC 5531 Section 11
+    // (https://www.rfc-editor.org/rfc/rfc5531#section-11). Each record is
+    // written as a single fragment: a 4-byte big-endian fragment header
+    // followed by the XDR-encoded object. The header has the last-fragment
+    // flag (bit 31) set and the length in bits 0-30.
     template <typename T>
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
@@ -470,8 +482,8 @@ class XDROutputFileStream : public OutputFileStream
             mBuf.resize(sz + 4);
         }
 
-        // Write 4 bytes of size, big-endian, with XDR 'continuation' bit set on
-        // high bit of high byte.
+        // Write 4 bytes of size, big-endian, with the last-fragment flag set
+        // on high bit of high byte.
         mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
         mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
         mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
