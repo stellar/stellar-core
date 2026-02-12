@@ -28,6 +28,13 @@ namespace stellar
 /**
  * Helper for loading a sequence of XDR objects from a file one at a time,
  * rather than all at once.
+ *
+ * Each object in the file is framed using the Record Marking Standard defined
+ * in RFC 5531 Section 11 (https://www.rfc-editor.org/rfc/rfc5531#section-11).
+ * Every object is preceded by a 4-byte big-endian fragment header where bit 31
+ * (high bit) is the last-fragment flag and bits 0-30 encode the byte length of
+ * the fragment data that follows. In Stellar's usage each record is a single
+ * fragment with the last-fragment bit always set.
  */
 class XDRInputFileStream
 {
@@ -98,17 +105,11 @@ class XDRInputFileStream
         mIn.seekg(pos);
     }
 
-    // Reads the fragment header defined by the Record Marking Standard in
-    // RFC 5531 Section 11 (https://www.rfc-editor.org/rfc/rfc5531#section-11).
-    // Each fragment header is a 4-byte big-endian unsigned integer where:
-    //  - Bit 31 (high bit) is the last-fragment flag (1 = last fragment).
-    //  - Bits 0-30 contain the byte length of the fragment data that follows.
-    // This function clears the high bit and returns the length.
+    // Reads the fragment header, clears the last-fragment flag bit, and
+    // returns the length. See the class comment for the header format.
     static inline uint32_t
     getXDRSize(char* buf)
     {
-        // Read 4 bytes of size, big-endian, with the last-fragment flag bit
-        // cleared (high bit of high byte).
         uint32_t sz = 0;
         sz |= static_cast<uint8_t>(buf[0] & '\x7f');
         sz <<= 8;
@@ -445,6 +446,16 @@ class OutputFileStream
     }
 };
 
+/**
+ * Helper for writing a sequence of XDR objects to a file one at a time.
+ *
+ * Each object is framed using the Record Marking Standard defined in RFC 5531
+ * Section 11 (https://www.rfc-editor.org/rfc/rfc5531#section-11). Every object
+ * is preceded by a 4-byte big-endian fragment header where bit 31 (high bit) is
+ * the last-fragment flag and bits 0-30 encode the byte length of the fragment
+ * data that follows. Each record is written as a single fragment with the
+ * last-fragment bit set.
+ */
 class XDROutputFileStream : public OutputFileStream
 {
   public:
@@ -463,12 +474,8 @@ class XDROutputFileStream : public OutputFileStream
         fs::flushFileChanges(getHandle());
     }
 
-    // Writes a single XDR object as a record using the Record Marking
-    // Standard defined in RFC 5531 Section 11
-    // (https://www.rfc-editor.org/rfc/rfc5531#section-11). Each record is
-    // written as a single fragment: a 4-byte big-endian fragment header
-    // followed by the XDR-encoded object. The header has the last-fragment
-    // flag (bit 31) set and the length in bits 0-30.
+    // Writes a single XDR object as a one-fragment record. See the class
+    // comment for the header format.
     template <typename T>
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
