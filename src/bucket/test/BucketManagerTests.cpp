@@ -22,7 +22,6 @@
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "main/Maintainer.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -807,9 +806,6 @@ TEST_CASE_VERSIONS(
         while (hm.getPublishSuccessCount() < 5)
         {
             clock.crank(false);
-
-            // Trim history after publishing whenever possible.
-            app->getMaintainer().performMaintenance(50000);
         }
     });
 }

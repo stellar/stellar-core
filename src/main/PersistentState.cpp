@@ -19,7 +19,7 @@ namespace stellar
 using namespace std;
 
 std::string PersistentState::mainMapping[kLastEntryMain] = {
-    "lastclosedledger", "historyarchivestate", "databaseschema",
+    "lastclosedledgerheader", "historyarchivestate", "databaseschema",
     "networkpassphrase", "rebuildledger"};
 
 std::string PersistentState::miscMapping[kLastEntry] = {

@@ -24,7 +24,6 @@
 #include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
-#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"

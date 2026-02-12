@@ -65,7 +65,6 @@ class ApplicationImpl : public Application
     virtual LedgerApplyManager& getLedgerApplyManager() override;
     virtual HistoryArchiveManager& getHistoryArchiveManager() override;
     virtual HistoryManager& getHistoryManager() override;
-    virtual Maintainer& getMaintainer() override;
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
     virtual HerderPersistence& getHerderPersistence() override;
@@ -187,7 +186,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<InvariantManager> mInvariantManager;
-    std::unique_ptr<Maintainer> mMaintainer;
     std::shared_ptr<ProcessManager> mProcessManager;
     std::shared_ptr<WorkScheduler> mWorkScheduler;
     std::unique_ptr<PersistentState> mPersistentState;

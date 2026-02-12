@@ -279,11 +279,6 @@ Most commands return their results in JSON format.
 * **logrotate**
   Rotate log files.
 
-* **maintenance**
-  `maintenance?[queue=true]`<br>
-  Performs maintenance tasks on the instance.
-   * `queue` performs deletion of queue data. See `setcursor` for more information.
-
 * **metrics**
   `metrics?[enable=PARTITION_1,PARTITION_2,...,PARTITION_N]`<br>
   Returns a snapshot of the metrics registry (for monitoring and debugging

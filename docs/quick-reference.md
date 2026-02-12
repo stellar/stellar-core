@@ -59,18 +59,6 @@ You have some control over which peers you're connected to:
  * the `connect` command asks the instance to connect to a specific peer.
  * the `droppeer` command asks the instance to drop the connection with a specific peer.
 
-### Maintenance
-
-Core keeps historical data needed for publish (such as SCP history)
-
-Sometimes you need to clean up more than this (for example, if you have a large maintenance debt).
-In this case running the command `maintenance?count=100000000` (integer is a large number, bigger than your max backlog) will perform the full maintenance.
-
-Note that this may hang the instance for minutes (hours even).
-
-After performing such maintenance, you may issue a postgres `VACUUM FULL;` that will reclaim all
-disk space (note that this requires a lot of free disk space).
-
 ### Testing
 
 The `manualclose` command allows to close a ledger, this is used when the instance is

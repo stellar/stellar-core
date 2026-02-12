@@ -206,13 +206,6 @@ class Config : public std::enable_shared_from_this<Config>
     bool CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING;
 #endif // BUILD_TESTS
 
-    // Interval between automatic maintenance executions
-    std::chrono::seconds AUTOMATIC_MAINTENANCE_PERIOD;
-
-    // Number of unneeded rows in each table that will be removed during one
-    // maintenance run
-    uint32_t AUTOMATIC_MAINTENANCE_COUNT;
-
     // Interval between automatic invocations of self-check.
     std::chrono::seconds AUTOMATIC_SELF_CHECK_PERIOD;
 

@@ -316,8 +316,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.DATABASE = SecretValue{dbname.str()};
 
         thisConfig.REPORT_METRICS = gTestMetrics;
-        // disable maintenance
-        thisConfig.AUTOMATIC_MAINTENANCE_COUNT = 0;
         // disable self-check
         thisConfig.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(0);
         // only spin up a small number of worker threads

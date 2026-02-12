@@ -62,7 +62,6 @@ class CommandHandler
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
     void logRotate(std::string const& params, std::string& retStr);
-    void maintenance(std::string const& params, std::string& retStr);
     void manualClose(std::string const& params, std::string& retStr);
     void metrics(std::string const& params, std::string& retStr);
     void clearMetrics(std::string const& params, std::string& retStr);
