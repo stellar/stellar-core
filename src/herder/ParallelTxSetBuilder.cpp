@@ -533,11 +533,11 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
                     it = clusterIdToStageCluster
                              .emplace(clusterId, resStage.size())
                              .first;
-                    resStage.emplace_back();
-                }
-                totalInclusionFee += txFrames[txId]->getInclusionFee();
+                resStage.emplace_back();
+            }
+            totalInclusionFee += txFrames[txId]->getInclusionFee();
                 resStage[it->second].push_back(txFrames[txId]);
-            });
+        });
         // Algorithm ensures that clusters are populated from first to last and
         // no empty clusters are generated.
         for (auto const& cluster : resStage)
@@ -592,62 +592,127 @@ buildSurgePricedParallelSorobanPhase(
     // Before trying to include any transactions, find all the pairs of the
     // conflicting transactions and mark the conflicts in the builderTxs.
     //
-    // In order to find the conflicts, we build the maps from the footprint
-    // keys to transactions, then mark the conflicts between the transactions
-    // that share RW key, or between the transactions that share RO and RW key.
+    // We use a sort-based approach: collect all footprint entries into a flat
+    // vector tagged with (key hash, tx id, RO/RW), sort by hash,
+    // then scan for groups sharing the same key hash. This is significantly
+    // faster in practice than using hash map lookups.
     //
-    // The approach here is optimized towards the low number of conflicts,
-    // specifically when there are no conflicts at all, the complexity is just
-    // O(total_footprint_entry_count). The worst case is roughly
-    // O(max_tx_footprint_size * transaction_count ^ 2), which is equivalent
-    // to the complexity of the straightforward approach of iterating over all
-    // the transaction pairs.
+    // With 64-bit hashes and typical
+    // footprint sizes, collisions are exceedingly rare .
     //
     // This also has the further optimization potential: we could populate the
     // key maps and even the conflicting transactions eagerly in tx queue, thus
     // amortizing the costs across the whole ledger duration.
-    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRoKey;
-    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRwKey;
+    struct FpEntry
+    {
+        size_t keyHash;
+        uint32_t txId;
+        bool isRW;
+    };
+
+    // Count total footprint entries for a single allocation.
+    size_t totalFpEntries = 0;
+    for (auto const& txFrame : txFrames)
+    {
+        auto const& fp = txFrame->sorobanResources().footprint;
+        totalFpEntries += fp.readOnly.size() + fp.readWrite.size();
+    }
+
+    std::vector<FpEntry> fpEntries;
+    fpEntries.reserve(totalFpEntries);
+    std::hash<LedgerKey> keyHasher;
     for (size_t i = 0; i < txFrames.size(); ++i)
     {
-        auto const& txFrame = txFrames[i];
-        auto const& footprint = txFrame->sorobanResources().footprint;
+        auto const& footprint = txFrames[i]->sorobanResources().footprint;
         for (auto const& key : footprint.readOnly)
         {
-            txsWithRoKey[key].push_back(i);
+            fpEntries.push_back(
+                {keyHasher(key), static_cast<uint32_t>(i), false});
         }
         for (auto const& key : footprint.readWrite)
         {
-            txsWithRwKey[key].push_back(i);
+            fpEntries.push_back(
+                {keyHasher(key), static_cast<uint32_t>(i), true});
+        }
     }
+
+    // Sort by hash for cache-friendly grouping.
+    std::sort(fpEntries.begin(), fpEntries.end(),
+              [](FpEntry const& a, FpEntry const& b) {
+                  return a.keyHash < b.keyHash;
+              });
+
+    // Scan sorted entries for groups sharing the same hash, then mark
+    // conflicts between transactions that share RW keys (RW-RW and RO-RW).
+    // Conservatively treat hash collisions as potential conflicts - collisions
+    // should generally be rare and allocating collisions to the same thread
+    // is guaranteed to be safe (while disambiguating the conflicts would be
+    // expensive and complex). Collision probability is really low (K^2/2^64).
+    for (size_t groupStart = 0; groupStart < fpEntries.size();)
+    {
+        size_t groupEnd = groupStart + 1;
+        while (groupEnd < fpEntries.size() &&
+               fpEntries[groupEnd].keyHash == fpEntries[groupStart].keyHash)
+        {
+            ++groupEnd;
         }
 
-    for (auto const& [key, rwTxIds] : txsWithRwKey)
+        // Skip singleton groups — no possible conflicts.
+        if (groupEnd - groupStart < 2)
         {
-            // RW-RW conflicts
-        for (size_t i = 0; i < rwTxIds.size(); ++i)
+            groupStart = groupEnd;
+            continue;
+        }
+
+        // Collect all entries matching.
+        std::vector<size_t> roTxs;
+        std::vector<size_t> rwTxs;
+        for (size_t i = groupStart; i < groupEnd; ++i)
+        {
+            if (fpEntries[i].isRW)
             {
-            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
-                {
-                builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
-                builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
-                }
+                rwTxs.push_back(fpEntries[i].txId);
             }
-            // RO-RW conflicts
-        auto roIt = txsWithRoKey.find(key);
-        if (roIt != txsWithRoKey.end())
-        {
-            auto const& roTxIds = roIt->second;
-            for (size_t i = 0; i < roTxIds.size(); ++i)
+            else
             {
-                for (size_t j = 0; j < rwTxIds.size(); ++j)
-                {
-                    builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
-                    builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
-                }
-                }
+                roTxs.push_back(fpEntries[i].txId);
             }
         }
+        // RW-RW conflicts
+        for (size_t i = 0; i < rwTxs.size(); ++i)
+        {
+            for (size_t j = i + 1; j < rwTxs.size(); ++j)
+            {
+                // In a rare case of hash collision within a transaction, we
+                // might have the same transaction appear several times in the
+                // same group.
+                if (rwTxs[i] == rwTxs[j])
+                {
+                    continue;
+                }
+                builderTxs[rwTxs[i]].mConflictTxs.set(rwTxs[j]);
+                builderTxs[rwTxs[j]].mConflictTxs.set(rwTxs[i]);
+            }
+        }
+        // RO-RW conflicts
+        for (size_t i = 0; i < roTxs.size(); ++i)
+        {
+            for (size_t j = 0; j < rwTxs.size(); ++j)
+            {
+                // In a rare case of hash collision within a transaction, we
+                // might have the same transaction appear several times in the
+                // same group.
+                if (roTxs[i] == rwTxs[j])
+                {
+                    continue;
+                }
+                builderTxs[roTxs[i]].mConflictTxs.set(rwTxs[j]);
+                builderTxs[rwTxs[j]].mConflictTxs.set(roTxs[i]);
+            }
+        }
+
+        groupStart = groupEnd;
+    }
 
     // Process the transactions in the surge pricing (decreasing fee) order.
     // This also automatically ensures that the resource limits are respected
