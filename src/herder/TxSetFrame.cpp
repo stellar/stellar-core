@@ -1439,6 +1439,13 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 if (component.txsMaybeDiscountedFee().baseFee)
                 {
                     baseFee = *component.txsMaybeDiscountedFee().baseFee;
+                    if (*baseFee < 0)
+                    {
+                        CLOG_DEBUG(Herder,
+                                   "Got bad generalized txSet: component "
+                                   "has negative base fee");
+                        return std::nullopt;
+                    }
                 }
                 size_t prevSize = txList.size();
                 if (!addWireTxsToList(networkID,
@@ -1470,6 +1477,12 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
         if (xdrPhase.parallelTxsComponent().baseFee)
         {
             baseFee = *xdrPhase.parallelTxsComponent().baseFee;
+            if (*baseFee < 0)
+            {
+                CLOG_DEBUG(Herder, "Got bad generalized txSet: component "
+                                   "has negative base fee");
+                return std::nullopt;
+            }
         }
         TxStageFrameList stages;
         stages.reserve(xdrStages.size());

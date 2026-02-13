@@ -22,6 +22,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include "util/numeric.h"
 #include "util/numeric128.h"
 #include "xdrpp/depth_checker.h"
 #include "xdrpp/marshal.h"
@@ -532,14 +533,16 @@ FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
     {
         flatFee = mInnerTx->declaredSorobanResourceFee();
     }
-    int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
+    int64_t adjustedFee =
+        saturatingMultiply(*baseFee, std::max<int64_t>(1, getNumOperations()));
     if (applying)
     {
-        return flatFee + std::min<int64_t>(getInclusionFee(), adjustedFee);
+        return saturatingAdd(flatFee,
+                             std::min<int64_t>(getInclusionFee(), adjustedFee));
     }
     else
     {
-        return flatFee + adjustedFee;
+        return saturatingAdd(flatFee, adjustedFee);
     }
 }
 
