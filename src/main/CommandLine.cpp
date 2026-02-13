@@ -1960,6 +1960,9 @@ runApplyLoad(CommandLineArgs const& args)
 
                 // Apply Load may exceed TX_SET byte size limits, so ignore them
                 config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+
+                // Always use background apply for max-sac-tps benchmarks
+                config.PARALLEL_LEDGER_APPLY = true;
             }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
