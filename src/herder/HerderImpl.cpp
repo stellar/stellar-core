@@ -257,11 +257,27 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
 
     // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
-    auto minSlotToRemember = getMinLedgerSeqToRemember();
-    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
+    std::optional<uint32> minSlotToRemember;
+    auto minSeq = getMinLedgerSeqToRemember();
+    if (minSeq > LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        eraseBelow(minSlotToRemember);
+        minSlotToRemember = minSeq;
     }
+
+    // Evict slots that are too far in the future (only meaningful when
+    // tracking, as that's when we have a reliable "current" slot index)
+    std::optional<uint32> maxSlotToRemember;
+    if (isTracking())
+    {
+        maxSlotToRemember =
+            nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
+    }
+
+    if (minSlotToRemember || maxSlotToRemember)
+    {
+        eraseOutsideRange(minSlotToRemember, maxSlotToRemember);
+    }
+
     mPendingEnvelopes.forceRebuildQuorum();
 
     // Process new ready messages for the next slot
@@ -530,7 +546,10 @@ HerderImpl::outOfSyncRecovery()
     if (purgeSlot)
     {
         CLOG_INFO(Herder, "Purging slots older than {}", purgeSlot);
-        eraseBelow(purgeSlot);
+        // Only erase old slots. Because we're not tracking, we don't have a
+        // reliable "current" slot index to use for determining which future
+        // slots to keep.
+        eraseOutsideRange(purgeSlot, std::nullopt);
     }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
@@ -1289,13 +1308,19 @@ HerderImpl::setupTriggerNextLedger()
 }
 
 void
-HerderImpl::eraseBelow(uint32 ledgerSeq)
+HerderImpl::eraseOutsideRange(std::optional<uint32> minSlot,
+                              std::optional<uint32> maxSlot)
 {
     auto lastCheckpointSeq = getMostRecentCheckpointSeq();
-    getHerderSCPDriver().purgeSlots(ledgerSeq, lastCheckpointSeq);
-    mPendingEnvelopes.eraseBelow(ledgerSeq, lastCheckpointSeq);
-    auto lastIndex = trackingConsensusLedgerIndex();
-    mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
+    getHerderSCPDriver().purgeSlotsOutsideRange(minSlot, maxSlot,
+                                                lastCheckpointSeq);
+    mPendingEnvelopes.eraseOutsideRange(minSlot, maxSlot, lastCheckpointSeq);
+
+    if (minSlot)
+    {
+        auto lastIndex = trackingConsensusLedgerIndex();
+        mApp.getOverlayManager().clearLedgersBelow(*minSlot, lastIndex);
+    }
 }
 
 bool

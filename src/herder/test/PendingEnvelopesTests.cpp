@@ -270,16 +270,16 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         SECTION("with slotIndex difference less or equal than "
                 "MAX_SLOTS_TO_REMEMBER")
         {
-            pendingEnvelopes.eraseBelow(
+            pendingEnvelopes.eraseOutsideRange(
                 saneEnvelope2.statement.slotIndex -
                     app->getConfig().MAX_SLOTS_TO_REMEMBER,
-                lastCheckpointSeq);
+                std::nullopt, lastCheckpointSeq);
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope2) ==
                     Herder::ENVELOPE_STATUS_READY);
-            pendingEnvelopes.eraseBelow(
+            pendingEnvelopes.eraseOutsideRange(
                 saneEnvelope3.statement.slotIndex -
                     app->getConfig().MAX_SLOTS_TO_REMEMBER,
-                lastCheckpointSeq);
+                std::nullopt, lastCheckpointSeq);
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
                     Herder::ENVELOPE_STATUS_READY);
         }
@@ -288,7 +288,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         {
             auto const minSlot = saneEnvelope3.statement.slotIndex -
                                  app->getConfig().MAX_SLOTS_TO_REMEMBER;
-            pendingEnvelopes.eraseBelow(minSlot, lastCheckpointSeq);
+            pendingEnvelopes.eraseOutsideRange(minSlot, std::nullopt,
+                                               lastCheckpointSeq);
             auto saneQSetP = pendingEnvelopes.getQSet(saneQSetHash);
 
             // 3 as we have "p", "txSet" and SCP
@@ -297,7 +298,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(saneQSetP.use_count() == 4);
 
             // clears SCP
-            herder.getSCP().purgeSlots(minSlot, lastCheckpointSeq);
+            herder.getSCP().purgeSlotsOutsideRange(minSlot, std::nullopt,
+                                                   lastCheckpointSeq);
             REQUIRE(txSet.use_count() == 2);
             REQUIRE(saneQSetP.use_count() == 3);
 
@@ -327,6 +329,63 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
                 REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
             }
+        }
+
+        SECTION("eraseOutsideRange with upper bound only")
+        {
+            // Receive saneEnvelope2 and saneEnvelope3 via PendingEnvelopes.
+            // Since qset and txset are already cached from processing
+            // saneEnvelope, both go to READY.
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope2) ==
+                    Herder::ENVELOPE_STATUS_READY);
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
+                    Herder::ENVELOPE_STATUS_READY);
+
+            // Erase everything above saneEnvelope2's slot.
+            auto const maxSlot = saneEnvelope2.statement.slotIndex;
+            pendingEnvelopes.eraseOutsideRange(std::nullopt, maxSlot,
+                                               lastCheckpointSeq);
+            herder.getSCP().purgeSlotsOutsideRange(std::nullopt, maxSlot,
+                                                   lastCheckpointSeq);
+
+            // saneEnvelope is still PROCESSED
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                    Herder::ENVELOPE_STATUS_PROCESSED);
+
+            // saneEnvelope2 is still PROCESSED
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope2) ==
+                    Herder::ENVELOPE_STATUS_PROCESSED);
+
+            // saneEnvelope3 was erased.
+            // Re-receiving it goes to READY (txset/qset still resolvable
+            // via refs held by in-range slots).
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
+                    Herder::ENVELOPE_STATUS_READY);
+        }
+
+        SECTION("eraseOutsideRange with both bounds")
+        {
+            // Erase everything outside [envelope2.slot, envelope2.slot],
+            // This erases:
+            //   - saneEnvelope
+            //   - txset cache entry
+            // and purges SCP slot 2.
+            auto const boundSlot = saneEnvelope2.statement.slotIndex;
+            pendingEnvelopes.eraseOutsideRange(boundSlot, boundSlot,
+                                               lastCheckpointSeq);
+
+            auto saneQSetP = pendingEnvelopes.getQSet(saneQSetHash);
+
+            // txSet refs: "p", "txSet", SCP (saneEnvelope's slot still in SCP)
+            REQUIRE(txSet.use_count() == 3);
+            // qSet refs: "saneQSetP", SCP, cache, quorum tracker
+            REQUIRE(saneQSetP.use_count() == 4);
+
+            // Purge SCP: saneEnvelope's slot removed
+            herder.getSCP().purgeSlotsOutsideRange(boundSlot, boundSlot,
+                                                   lastCheckpointSeq);
+            REQUIRE(txSet.use_count() == 2);
+            REQUIRE(saneQSetP.use_count() == 3);
         }
     }
 

@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 #include "lib/json/json-forwards.h"
@@ -89,9 +90,12 @@ class SCP
     // Get a list of nodes from id's quorum set that are missing in consensus
     std::set<NodeID> getMissingNodes(NodeID const& id, uint64 index = 0);
 
-    // Purges all data relative to all the slots whose slotIndex is smaller
-    // than the specified `maxSlotIndex` except for slotToKeep slot.
-    void purgeSlots(uint64 maxSlotIndex, uint64 slotToKeep);
+    // Purges all data relative to slots that fall outside the range
+    // [minSlotIndex, maxSlotIndex]. Either bound may be nullopt to skip
+    // that direction. The slotToKeep slot is never purged.
+    void purgeSlotsOutsideRange(std::optional<uint64> minSlotIndex,
+                                std::optional<uint64> maxSlotIndex,
+                                uint64 slotToKeep);
 
     // Returns whether the local node is a validator.
     bool isValidator();

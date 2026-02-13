@@ -130,8 +130,11 @@ class HerderSCPDriver : public SCPDriver
 
     ValueWrapperPtr wrapValue(Value const& sv) override;
 
-    // clean up older slots
-    void purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep);
+    // clean up slots outside the valid range [minSlotIndex, maxSlotIndex]
+    // Either bound may be nullopt to skip that direction.
+    void purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
+                                std::optional<uint64_t> maxSlotIndex,
+                                uint64 slotToKeep);
 
     double getExternalizeLag(NodeID const& id) const;
 
