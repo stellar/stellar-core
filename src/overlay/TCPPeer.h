@@ -82,9 +82,6 @@ class TCPPeer : public Peer
 
     ThreadRestrictedVars mThreadVars;
 
-    // Drop can be initiated from any thread only once, keep track of that with
-    // an atomic
-    std::atomic<bool> mDropStarted{false};
     std::shared_ptr<SocketType> mSocket;
     std::string const mIPAddress;
 

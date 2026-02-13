@@ -190,6 +190,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
     OverlayMetrics& mOverlayMetrics;
     // No need for GUARDED_BY, PeerMetrics is thread-safe
     PeerMetrics mPeerMetrics;
+
+    // Drop can be initiated from any thread only once, keep track of that with
+    // an atomic
+    std::atomic<bool> mDropStarted{false};
+
 #ifdef BUILD_TESTS
     std::string mDropReason GUARDED_BY(mStateMutex);
 #endif
@@ -343,7 +348,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuthenticatedMessage(
         std::shared_ptr<StellarMessage const> msg,
         std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
-    void beginMessageProcessing(StellarMessage const& msg);
+    bool beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
 
   public:
@@ -530,6 +535,7 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
 {
     std::weak_ptr<Peer> const mWeakPeer;
     StellarMessage const mMsg;
+    bool mCapacityLocked{false};
     std::optional<Hash> mMaybeHash;
     // xdrBlake2 -> txFrame (with pre-populated hashes)
     std::unordered_map<Hash, TransactionFrameBasePtr> mTxsMap;

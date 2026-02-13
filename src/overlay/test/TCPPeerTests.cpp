@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/Herder.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -246,5 +247,67 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
             "send");
         crankAndValidateDrop("received corrupt XDR", true);
     }
+}
+
+TEST_CASE("TCPPeer drop at capacity", "[overlay][flowcontrol]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto txMsgPtr = makeStellarMessage(1);
+    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(*txMsgPtr));
+
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [txSize](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
+                std::chrono::milliseconds(300);
+            if (i == 2)
+            {
+                cfg.PEER_FLOOD_READING_CAPACITY = 1;
+                cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+            }
+            return cfg;
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet n0_qset;
+    n0_qset.threshold = 1;
+    n0_qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, n0_qset);
+    auto n1 = s->addNode(v11SecretKey, n0_qset);
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
+    s->startAllNodes();
+    n0->getHerder().setMaxClassicTxSize(txSize);
+    n1->getHerder().setMaxClassicTxSize(txSize);
+    s->stopOverlayTick();
+    s->crankForAtLeast(std::chrono::seconds(5), false);
+
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    p0->sendAuthenticatedMessageForTesting(txMsgPtr);
+    p0->sendAuthenticatedMessageForTesting(txMsgPtr);
+
+    s->crankUntil(
+        [&]() {
+            return !p0->isConnectedForTesting() && !p1->isConnectedForTesting();
+        },
+        std::chrono::seconds(10), false);
+
+    REQUIRE(!p0->isConnectedForTesting());
+    REQUIRE(!p1->isConnectedForTesting());
+    REQUIRE(p1->getDropReason() ==
+            "unexpected flood message, peer at capacity");
+
+    s->stopAllNodes();
 }
 }
