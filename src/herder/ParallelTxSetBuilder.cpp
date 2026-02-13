@@ -130,6 +130,9 @@ class Stage
         {
             mClusters = std::move(newClusters.value());
             mInstructions += tx.mInstructions;
+            // Update the global conflict mask so future lookups can
+            // fast-path when a tx has no conflicts with any cluster.
+            mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
             return true;
         }
 
@@ -181,6 +184,9 @@ class Stage
         mBinPacking = std::move(newPacking.value());
         mInstructions += tx.mInstructions;
         mBinInstructions = newBinInstructions;
+        // Update the global conflict mask so future lookups can
+        // fast-path when a tx has no conflicts with any cluster.
+        mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
         return true;
     }
 
@@ -206,6 +212,12 @@ class Stage
     getConflictingClusters(BuilderTx const& tx) const
     {
         std::unordered_set<Cluster const*> conflictingClusters;
+        // Fast path: if the tx's id is not in any cluster's conflict set,
+        // there are no conflicting clusters.
+        if (!mAllConflictTxs.get(tx.mId))
+        {
+            return conflictingClusters;
+        }
         for (auto const& cluster : mClusters)
         {
             if (cluster->mConflictTxs.get(tx.mId))
@@ -374,6 +386,10 @@ class Stage
     uint64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
     bool mTriedCompactingBinPacking = false;
+    // Union of all clusters' mConflictTxs. Used as a fast-path check in
+    // getConflictingClusters to avoid scanning all clusters when the
+    // transaction has no conflicts with any existing cluster.
+    BitSet mAllConflictTxs;
 };
 
 struct ParallelPhaseBuildResult
