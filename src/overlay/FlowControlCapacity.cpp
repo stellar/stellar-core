@@ -139,10 +139,34 @@ FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 }
 
 bool
+FlowControlCapacity::canLockLocalCapacity(StellarMessage const& msg) const
+{
+    ZoneScoped;
+    auto msgResources = getMsgResourceCount(msg);
+    if (OverlayManager::isFloodMessage(msg))
+    {
+        if (mCapacity.mFloodCapacity < msgResources)
+        {
+            return false;
+        }
+    }
+    if (mCapacity.mTotalCapacity)
+    {
+        if (*mCapacity.mTotalCapacity < msgResources)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void
 FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     checkCapacityInvariants();
+    releaseAssert(canLockLocalCapacity(msg));
+
     auto msgResources = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
     {
@@ -152,12 +176,6 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
 
     if (OverlayManager::isFloodMessage(msg))
     {
-        // No capacity to process flood message
-        if (mCapacity.mFloodCapacity < msgResources)
-        {
-            return false;
-        }
-
         mCapacity.mFloodCapacity -= msgResources;
         if (mCapacity.mFloodCapacity == 0)
         {
@@ -165,8 +183,6 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
                        mConfig.toShortString(mNodeID));
         }
     }
-
-    return true;
 }
 
 uint64_t

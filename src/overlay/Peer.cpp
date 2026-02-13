@@ -166,7 +166,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     {
         throw std::runtime_error("Invalid peer");
     }
-    self->beginMessageProcessing(mMsg);
+    mCapacityLocked = self->beginMessageProcessing(mMsg);
     if (mMsg.type() == SCP_MESSAGE || mMsg.type() == TRANSACTION)
     {
         mMaybeHash = xdrBlake2(msg);
@@ -222,6 +222,10 @@ CapacityTrackedMessage::maybeGetHash() const
 
 CapacityTrackedMessage::~CapacityTrackedMessage()
 {
+    if (!mCapacityLocked)
+    {
+        return;
+    }
     auto self = mWeakPeer.lock();
     try
     {
@@ -269,7 +273,7 @@ Peer::sendHello()
     sendMessage(msgPtr);
 }
 
-void
+bool
 Peer::beginMessageProcessing(StellarMessage const& msg)
 {
     releaseAssert(mFlowControl);
@@ -279,6 +283,7 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
         drop("unexpected flood message, peer at capacity",
              Peer::DropDirection::WE_DROPPED_REMOTE);
     }
+    return success;
 }
 
 void
@@ -1003,7 +1008,8 @@ Peer::getLifeTime() const
 bool
 Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
-    return mState == CLOSING || mAppConnector.overlayShuttingDown();
+    return mState == CLOSING || mAppConnector.overlayShuttingDown() ||
+           mDropStarted;
 }
 
 bool
