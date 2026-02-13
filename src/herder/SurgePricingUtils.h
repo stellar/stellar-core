@@ -21,6 +21,36 @@ int feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
 int64_t computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
                          uint32_t refNbOps);
 
+// Transaction comparator for transaction prioritization and surge pricing
+// based on transaction inclusion fees.
+// operator() is suitable for sorting the transactions while shuffling
+// transactions with the same fee rate in random order.
+// compareFeeOnly can be used to just determine whether one transaction has a
+// strictly higher fee rate than the other.
+class TxFeeComparator
+{
+  public:
+    TxFeeComparator(bool isGreater, size_t seed);
+
+    bool operator()(TransactionFrameBasePtr const& tx1,
+                    TransactionFrameBasePtr const& tx2) const;
+
+    bool compareFeeOnly(TransactionFrameBase const& tx1,
+                        TransactionFrameBase const& tx2) const;
+    bool compareFeeOnly(int64_t tx1Bid, uint32_t tx1Ops, int64_t tx2Bid,
+                        uint32_t tx2Ops) const;
+    bool isGreater() const;
+
+  private:
+    bool txLessThan(TransactionFrameBasePtr const& tx1,
+                    TransactionFrameBasePtr const& tx2) const;
+
+    bool const mIsGreater;
+#ifndef BUILD_TESTS
+    size_t mSeed;
+#endif
+};
+
 // Configuration for multi-lane transaction limiting and surge pricing.
 //
 // This configuration defines how many 'lanes' are there to compare and limit
@@ -225,31 +255,7 @@ class SurgePricingPriorityQueue
             std::nullopt);
 
   private:
-    class TxComparator
-    {
-      public:
-        TxComparator(bool isGreater, size_t seed);
-
-        bool operator()(TransactionFrameBasePtr const& tx1,
-                        TransactionFrameBasePtr const& tx2) const;
-
-        bool compareFeeOnly(TransactionFrameBase const& tx1,
-                            TransactionFrameBase const& tx2) const;
-        bool compareFeeOnly(int64_t tx1Bid, uint32_t tx1Ops, int64_t tx2Bid,
-                            uint32_t tx2Ops) const;
-        bool isGreater() const;
-
-      private:
-        bool txLessThan(TransactionFrameBasePtr const& tx1,
-                        TransactionFrameBasePtr const& tx2) const;
-
-        bool const mIsGreater;
-#ifndef BUILD_TESTS
-        size_t mSeed;
-#endif
-    };
-
-    using TxSortedSet = std::set<TransactionFrameBasePtr, TxComparator>;
+    using TxSortedSet = std::set<TransactionFrameBasePtr, TxFeeComparator>;
     using LaneIter = std::pair<size_t, TxSortedSet::iterator>;
 
     // Iterator for walking the queue from top to bottom, possibly restricted
@@ -285,7 +291,7 @@ class SurgePricingPriorityQueue
 
     Iterator getTop() const;
 
-    TxComparator const mComparator;
+    TxFeeComparator const mComparator;
     std::shared_ptr<SurgePricingLaneConfig> mLaneConfig;
     std::vector<Resource> const& mLaneLimits;
 

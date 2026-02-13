@@ -464,12 +464,12 @@ struct ParallelPhaseBuildResult
 
 ParallelPhaseBuildResult
 buildSurgePricedParallelSorobanPhaseWithStageCount(
-    SurgePricingPriorityQueue queue,
+    std::vector<size_t> const& sortedTxOrder,
+    std::vector<Resource> const& txResources, Resource const& laneLimit,
     std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*> const&
         builderTxForTx,
     TxFrameList const& txFrames, uint32_t stageCount,
-    SorobanNetworkConfig const& sorobanCfg,
-    std::shared_ptr<SurgePricingLaneConfig> laneConfig, uint32_t ledgerVersion)
+    SorobanNetworkConfig const& sorobanCfg)
 {
     ZoneScoped;
     ParallelPartitionConfig partitionCfg(stageCount, sorobanCfg);
@@ -477,13 +477,32 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     std::vector<Stage> stages(partitionCfg.mStageCount,
                               Stage(partitionCfg, txFrames.size()));
 
-    // Visit the transactions in the surge pricing queue and try to add them to
-    // at least one of the stages.
-    auto visitor = [&stages,
-                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
-        bool added = false;
-        auto builderTxIt = builderTxForTx.find(tx);
+    // Iterate transactions in decreasing fee order and try greedily pack them
+    // into one of the stages until the limits are reached. Transactions that
+    // don't fit into any of the stages are skipped and surge pricing will be
+    // triggered for the transaction set.
+    Resource laneLeft = laneLimit;
+    bool hadTxNotFittingLane = false;
+
+    for (size_t txIdx : sortedTxOrder)
+    {
+        auto const& txRes = txResources[txIdx];
+
+        // Check if the transaction fits within the remaining lane resource
+        // limits. This mirrors the anyGreater check in popTopTxs that skips
+        // transactions exceeding resource limits.
+        if (anyGreater(txRes, laneLeft))
+        {
+            hadTxNotFittingLane = true;
+            continue;
+        }
+
+        // Try to add the transaction to one of the stages.
+        auto const& txFrame = txFrames[txIdx];
+        auto builderTxIt = builderTxForTx.find(txFrame);
         releaseAssert(builderTxIt != builderTxForTx.end());
+
+        bool added = false;
         for (auto& stage : stages)
         {
             if (stage.tryAdd(*builderTxIt->second))
@@ -492,26 +511,23 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
                 break;
             }
         }
+
         if (added)
         {
-            return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
+            // Transaction included in the stage, update the remaining lane
+            // resources.
+            laneLeft -= txRes;
+        }
+        else
+        {
+            // Transaction didn't fit into any of the stages, mark that lane
+            // limits were exceeded to trigger surge pricing.
+            hadTxNotFittingLane = true;
+        }
     }
-        // If a transaction didn't fit into any of the stages, we consider it
-        // to have been excluded due to resource limits and thus notify the
-        // surge pricing queue that surge pricing should be triggered (
-        // REJECTED imitates the behavior for exceeding the resource limit
-        // within the queue itself).
-        return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
-    };
 
     ParallelPhaseBuildResult result;
-    std::vector<Resource> laneLeftUntilLimitUnused;
-    queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
-                    result.mHadTxNotFittingLane, ledgerVersion);
-    // There is only a single fee lane for Soroban, so there is only a single
-    // flag that indicates whether there was a transaction that didn't fit into
-    // lane (and thus all transactions are surge priced at once).
-    releaseAssert(result.mHadTxNotFittingLane.size() == 1);
+    result.mHadTxNotFittingLane = {hadTxNotFittingLane};
 
     // At this point the stages have been filled with transactions and we just
     // need to place the full transactions into the respective stages/clusters.
@@ -533,11 +549,11 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
                     it = clusterIdToStageCluster
                              .emplace(clusterId, resStage.size())
                              .first;
-                resStage.emplace_back();
-            }
-            totalInclusionFee += txFrames[txId]->getInclusionFee();
+                    resStage.emplace_back();
+                }
+                totalInclusionFee += txFrames[txId]->getInclusionFee();
                 resStage[it->second].push_back(txFrames[txId]);
-        });
+            });
         // Algorithm ensures that clusters are populated from first to last and
         // no empty clusters are generated.
         for (auto const& cluster : resStage)
@@ -670,19 +686,19 @@ buildSurgePricedParallelSorobanPhase(
         for (size_t i = groupStart; i < groupEnd; ++i)
         {
             if (fpEntries[i].isRW)
-            {
+                {
                 rwTxs.push_back(fpEntries[i].txId);
-            }
-            else
-            {
+                }
+                else
+                {
                 roTxs.push_back(fpEntries[i].txId);
             }
-        }
-        // RW-RW conflicts
+            }
+            // RW-RW conflicts
         for (size_t i = 0; i < rwTxs.size(); ++i)
-        {
-            for (size_t j = i + 1; j < rwTxs.size(); ++j)
             {
+            for (size_t j = i + 1; j < rwTxs.size(); ++j)
+                {
                 // In a rare case of hash collision within a transaction, we
                 // might have the same transaction appear several times in the
                 // same group.
@@ -692,13 +708,13 @@ buildSurgePricedParallelSorobanPhase(
                 }
                 builderTxs[rwTxs[i]].mConflictTxs.set(rwTxs[j]);
                 builderTxs[rwTxs[j]].mConflictTxs.set(rwTxs[i]);
+                }
             }
-        }
-        // RO-RW conflicts
+            // RO-RW conflicts
         for (size_t i = 0; i < roTxs.size(); ++i)
-        {
-            for (size_t j = 0; j < rwTxs.size(); ++j)
             {
+            for (size_t j = 0; j < rwTxs.size(); ++j)
+                {
                 // In a rare case of hash collision within a transaction, we
                 // might have the same transaction appear several times in the
                 // same group.
@@ -714,18 +730,34 @@ buildSurgePricedParallelSorobanPhase(
         groupStart = groupEnd;
     }
 
-    // Process the transactions in the surge pricing (decreasing fee) order.
-    // This also automatically ensures that the resource limits are respected
-    // for all the dimensions besides instructions.
-    SurgePricingPriorityQueue queue(
-        /* isHighestPriority */ true, laneConfig,
+    // Sort transactions in decreasing inclusion fee order.
+    TxFeeComparator txComparator(
+        /* isGreater */ true,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    std::vector<size_t> sortedTxOrder(txFrames.size());
+    std::iota(sortedTxOrder.begin(), sortedTxOrder.end(), 0);
+    std::sort(sortedTxOrder.begin(), sortedTxOrder.end(),
+              [&txFrames, &txComparator](size_t a, size_t b) {
+                  return txComparator(txFrames[a], txFrames[b]);
+        });
+
+    // Precompute per-transaction resources to avoid repeated virtual calls
+    // and heap allocations across threads.
+    std::vector<Resource> txResources;
+    txResources.reserve(txFrames.size());
     for (auto const& tx : txFrames)
     {
-        queue.add(tx, ledgerVersion);
+        txResources.push_back(
+            tx->getResources(/* useByteLimitInClassic */ false, ledgerVersion));
     }
 
-    // Create a worker thread for each stage count.
+    // Get the lane limit. Soroban uses a single generic lane.
+    auto const& laneLimits = laneConfig->getLaneLimits();
+    releaseAssert(laneLimits.size() == 1);
+    auto const& laneLimit = laneLimits[0];
+
+    // Create a worker thread for each stage count. The sorted order and
+    // precomputed resources are shared across all threads (read-only).
     std::vector<std::thread> threads;
     uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
                                  cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
@@ -735,13 +767,13 @@ buildSurgePricedParallelSorobanPhase(
          stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
     {
         size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
-        threads.emplace_back([queue, &builderTxForTx, &txFrames, stageCount,
-                              &sorobanCfg, laneConfig, resultIndex, &results,
-                              ledgerVersion]() {
+        threads.emplace_back([&sortedTxOrder, &txResources, &laneLimit,
+                              &builderTxForTx, &txFrames, stageCount,
+                              &sorobanCfg, resultIndex, &results]() {
             results.at(resultIndex) =
                 buildSurgePricedParallelSorobanPhaseWithStageCount(
-                    std::move(queue), builderTxForTx, txFrames, stageCount,
-                    sorobanCfg, laneConfig, ledgerVersion);
+                    sortedTxOrder, txResources, laneLimit, builderTxForTx,
+                    txFrames, stageCount, sorobanCfg);
         });
     }
     for (auto& thread : threads)
