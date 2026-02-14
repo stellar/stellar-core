@@ -36,7 +36,7 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // 7. The cached total entry sizes match the sum of actual entry sizes
 std::string
 BucketListStateConsistency::checkSnapshot(
-    LedgerStateSnapshot const& snapshot,
+    ApplyLedgerStateSnapshot const& snapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {

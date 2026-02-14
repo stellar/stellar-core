@@ -6,7 +6,6 @@
 
 #include "lib/httpthreaded/server.hpp"
 
-#include "bucket/BucketSnapshotManager.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include <atomic>
 #include <functional>

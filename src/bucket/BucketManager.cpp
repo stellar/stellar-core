@@ -6,7 +6,6 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
@@ -103,9 +102,6 @@ BucketManager::initialize()
 
     mLiveBucketList = std::make_unique<LiveBucketList>();
     mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
-    mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-        mAppConnector, *mLiveBucketList, *mHotArchiveBucketList, LedgerHeader(),
-        mConfig.QUERY_SNAPSHOT_LEDGERS);
 
     // Create persistent publish directories
     // Note: HISTORY_FILE_TYPE_BUCKET is already tracked by BucketList in
@@ -136,7 +132,6 @@ BucketManager::BucketManager(AppConnector& appConnector)
     : mAppConnector(appConnector)
     , mLiveBucketList(nullptr)
     , mHotArchiveBucketList(nullptr)
-    , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
@@ -316,13 +311,6 @@ HotArchiveBucketList&
 BucketManager::getHotArchiveBucketList()
 {
     return *mHotArchiveBucketList;
-}
-
-BucketSnapshotManager&
-BucketManager::getBucketSnapshotManager() const
-{
-    releaseAssert(mSnapshotManager);
-    return *mSnapshotManager;
 }
 
 medida::Timer&
@@ -1160,10 +1148,9 @@ BucketManager::maybeSetIndex(
 }
 
 void
-BucketManager::startBackgroundEvictionScan(LedgerStateSnapshot lclSnapshot,
+BucketManager::startBackgroundEvictionScan(ApplyLedgerStateSnapshot lclSnapshot,
                                            SorobanNetworkConfig const& cfg)
 {
-    releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
@@ -1192,7 +1179,7 @@ BucketManager::startBackgroundEvictionScan(LedgerStateSnapshot lclSnapshot,
 
 EvictedStateVectors
 BucketManager::resolveBackgroundEvictionScan(
-    LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
+    ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
     LedgerKeySet const& modifiedKeys)
 {
     ZoneScoped;
@@ -1211,9 +1198,7 @@ BucketManager::resolveBackgroundEvictionScan(
         // candidates; this function later validates them by re-checking the
         // Soroban config and reloading the latest TTLs. Any entry restored in
         // the same ledger will be rejected by eviction validation logic.
-        startBackgroundEvictionScan(
-            LedgerStateSnapshot(lclSnapshot),
-            networkConfig);
+        startBackgroundEvictionScan(lclSnapshot, networkConfig);
     }
 
     auto evictionCandidates = mEvictionFuture.get();
@@ -1223,9 +1208,7 @@ BucketManager::resolveBackgroundEvictionScan(
     if (!evictionCandidates->isValid(ledgerSeq, ledgerVers,
                                      networkConfig.stateArchivalSettings()))
     {
-        startBackgroundEvictionScan(
-            LedgerStateSnapshot(lclSnapshot),
-            networkConfig);
+        startBackgroundEvictionScan(lclSnapshot, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 

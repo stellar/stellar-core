@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <numeric>
 #include <sstream>
@@ -11,7 +10,6 @@
 
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
@@ -20,17 +18,17 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "main/Application.h"
 #include "main/CommandLine.h"
-#include "medida/metrics_registry.h"
 #include "simulation/TxGenerator.h"
 #include "test/TxTests.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/MetricsRegistry.h"
+#include "util/types.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
 #include "util/XDRCereal.h"
-#include "util/types.h"
 #include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 

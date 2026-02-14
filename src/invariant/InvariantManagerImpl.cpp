@@ -4,7 +4,6 @@
 
 #include "invariant/InvariantManagerImpl.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
@@ -27,9 +26,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
-#include <condition_variable>
 #include <fmt/format.h>
-#include <mutex>
 
 #include <memory>
 #include <numeric>
@@ -175,7 +172,7 @@ InvariantManagerImpl::checkOnOperationApply(
 
 void
 InvariantManagerImpl::checkOnLedgerCommit(
-    LedgerStateSnapshot const& lclSnapshot,
+    ApplyLedgerStateSnapshot const& lclSnapshot,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -194,7 +191,8 @@ InvariantManagerImpl::checkOnLedgerCommit(
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
             invariant->getName(), result);
-        onInvariantFailure(invariant, message, lclSnapshot.getLedgerSeq());
+        onInvariantFailure(invariant, message,
+                           lclSnapshot.getLedgerSeq() + 1);
     }
 }
 
@@ -331,7 +329,7 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 // required state, then call this function in a background thread.
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
-    LedgerStateSnapshot const& snapshot,
+    ApplyLedgerStateSnapshot const& snapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {

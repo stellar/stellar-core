@@ -6,13 +6,12 @@
 // concerning key-value lookup based on the BucketList.
 
 #include "bucket/BucketIndexUtils.h"
-#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -216,8 +215,7 @@ class BucketIndexTest
         } while (ledger < mApp->getConfig().QUERY_SNAPSHOT_LEDGERS + 2);
         ++ledger;
 
-        auto snap =
-            getBM().getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
         auto lk = LedgerEntryKey(canonicalEntry);
 
         auto currentLoadedEntry = snap.loadLiveEntry(lk);
@@ -413,8 +411,7 @@ class BucketIndexTest
     virtual void
     run(std::optional<double> expectedHitRate = std::nullopt)
     {
-        auto snap =
-            getBM().getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
 
         auto& hitMeter = getBM().getCacheHitMeter();
         auto& missMeter = getBM().getCacheMissMeter();
@@ -543,8 +540,7 @@ class BucketIndexTest
     virtual void
     runPerf(size_t n)
     {
-        auto snap =
-            getBM().getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -583,8 +579,7 @@ class BucketIndexTest
     void
     testInvalidKeys()
     {
-        auto snap =
-            getBM().getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
@@ -753,8 +748,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run(std::optional<double> expectedHitRate = std::nullopt) override
     {
-        auto snap =
-            getBM().getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
         auto loadResult = snap.loadPoolShareTrustLinesByAccountAndAsset(
             mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
@@ -1112,9 +1106,8 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
             auto const& inMemorySorobanState =
                 lm.getInMemorySorobanStateForTesting();
 
-            auto snapshot = test.getBM()
-                                .getBucketSnapshotManager()
-                                .copyLedgerStateSnapshot();
+            auto snapshot =
+                test.getApp().getLedgerManager().copyLedgerStateSnapshot();
 
             // First, test that the cache is maintained correctly via `addBatch`
             REQUIRE(codeEntries.size() ==
@@ -1322,9 +1315,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         auto ledger = 1;
 
         // Use snapshot across ledger to test update behavior
-        auto snap = app->getBucketManager()
-                        .getBucketSnapshotManager()
-                        .copyLedgerStateSnapshot();
+        auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
         auto checkLoad =
             [&](LedgerKey const& k,
@@ -1397,9 +1388,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries);
-        snap = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copyLedgerStateSnapshot();
+        snap = app->getLedgerManager().copyLedgerStateSnapshot();
         checkResult();
 
         // Add a few batches so that entries are no longer in the top bucket
@@ -1407,9 +1396,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         {
             header.ledgerSeq += 1;
             addHotArchiveBatchAndUpdateSnapshot(*app, header, {}, {});
-            snap = app->getBucketManager()
-                       .getBucketSnapshotManager()
-                       .copyLedgerStateSnapshot();
+            snap = app->getLedgerManager().copyLedgerStateSnapshot();
         }
 
         // Shadow entries via liveEntry
@@ -1419,9 +1406,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {},
                                             {liveShadow1, liveShadow2});
-        snap = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copyLedgerStateSnapshot();
+        snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
         // Point load
         for (auto const& k : {liveShadow1, liveShadow2})
@@ -1440,9 +1425,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {archivedShadow}, {});
-        snap = app->getBucketManager()
-                   .getBucketSnapshotManager()
-                   .copyLedgerStateSnapshot();
+        snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
         // Point load
         auto entryPtr = snap.loadArchiveEntry(LedgerEntryKey(archivedShadow));
@@ -1620,9 +1603,7 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                               .getCurr();
             verifyIndexBounds(bucket);
 
-            auto snap = app->getBucketManager()
-                            .getBucketSnapshotManager()
-                            .copyLedgerStateSnapshot();
+            auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
             auto verifyScanForType =
                 [&](LedgerEntryType type,
