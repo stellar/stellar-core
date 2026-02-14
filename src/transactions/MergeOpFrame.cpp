@@ -285,4 +285,12 @@ MergeOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
     }
     return true;
 }
+
+bool
+MergeOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return sorobanConfig.isKeyFrozen(
+        accountKey(toAccountID(mOperation.body.destination())));
+}
 }

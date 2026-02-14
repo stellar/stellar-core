@@ -5,6 +5,7 @@
 #include "transactions/LiquidityPoolWithdrawOpFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
@@ -29,9 +30,50 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
+LiquidityPoolWithdrawOpFrame::accessesFrozenKeyAtApplyTime(
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    LiquidityPoolEntry const& pool) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
+    {
+        return false;
+    }
+    auto const& constantProduct = pool.body.constantProduct();
+    // Check asset A trustline (if non-native, otherwise account freezing
+    // would apply)
+    if (constantProduct.params.assetA.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig->isKeyFrozen(
+            trustlineKey(getSourceID(), constantProduct.params.assetA)))
+    {
+        return true;
+    }
+    // Check asset B trustline (if non-native, otherwise account freezing
+    // would apply)
+    if (constantProduct.params.assetB.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig->isKeyFrozen(
+            trustlineKey(getSourceID(), constantProduct.params.assetB)))
+    {
+        return true;
+    }
+#endif
+    return false;
+}
+
+bool
 LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                       OperationResult& res,
                                       OperationMetaBuilder& opMeta) const
+{
+    throw std::runtime_error("LiquidityPoolWithdrawOp may only be applied with "
+                             "doApply overload accepting sorobanConfig");
+}
+
+bool
+LiquidityPoolWithdrawOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 
@@ -56,9 +98,19 @@ LiquidityPoolWithdrawOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
 
     // use a lambda so we don't hold a reference to the internals of
     // LiquidityPoolEntry
-    auto constantProduct = [&]() -> auto& {
+    auto constantProduct = [&poolEntry]() -> auto& {
         return poolEntry.current().data.liquidityPool().body.constantProduct();
     };
+
+    // CAP-77: Check if any of the relevant trustlines are frozen.
+    if (accessesFrozenKeyAtApplyTime(sorobanConfig,
+                                     poolEntry.current().data.liquidityPool()))
+    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_TRUSTLINE_FROZEN);
+#endif
+        return false;
+    }
 
     auto amountA = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
@@ -173,4 +225,12 @@ LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
     return true;
 }
 
+bool
+LiquidityPoolWithdrawOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Checks for the frozen keys are done at apply time in
+    // accessesFrozenKeyAtApplyTime, we can't check anything at validation time.
+    return false;
+}
 }

@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
@@ -216,6 +217,16 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                 OperationResult& res,
                                 OperationMetaBuilder& opMeta) const
 {
+    throw std::runtime_error("ManageOfferOp may only be applied with doApply "
+                             "overload accepting sorobanConfig");
+}
+
+bool
+ManageOfferOpFrameBase::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltxOuter,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     ZoneNamedN(applyZone, "ManageOfferOp apply", true);
     std::string pairStr = assetToString(mSheep);
     pairStr += ":";
@@ -335,9 +346,9 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
         }
 
         int64_t maxOffersToCross = INT64_MAX;
+        auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
         if (protocolVersionStartsFrom(
-                ltx.loadHeader().current().ledgerVersion,
-                FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS))
+                ledgerVersion, FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS))
         {
             maxOffersToCross = getMaxOffersToCross();
         }
@@ -348,7 +359,8 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
         ConvertResult r = convertWithOffersAndPools(
             ltx, mSheep, maxSheepSend, sheepSent, mWheat, maxWheatReceive,
             wheatReceived, RoundingType::NORMAL,
-            [this, passive, &maxWheatPrice](LedgerTxnEntry const& entry) {
+            [this, passive, &maxWheatPrice,
+             sorobanConfig](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
                 releaseAssertOrThrow(o.offerID != mOfferID);
                 if ((passive && (o.price >= maxWheatPrice)) ||
@@ -360,6 +372,12 @@ ManageOfferOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                 {
                     // we are crossing our own offer
                     return OfferFilterResult::eStopCrossSelf;
+                }
+                // CAP-77: Skip offers with frozen seller account or
+                // trustlines
+                if (sorobanConfig && offerAccessesFrozenKey(o, *sorobanConfig))
+                {
+                    return OfferFilterResult::eSkipFrozen;
                 }
                 return OfferFilterResult::eKeep;
             },
@@ -643,5 +661,23 @@ ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
 
     addIssuerAndTrustline(mSheep);
     addIssuerAndTrustline(mWheat);
+}
+
+bool
+ManageOfferOpFrameBase::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    if (mSheep.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig.isKeyFrozen(trustlineKey(getSourceID(), mSheep)))
+    {
+        return true;
+    }
+    if (mWheat.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig.isKeyFrozen(trustlineKey(getSourceID(), mWheat)))
+    {
+        return true;
+    }
+
+    return false;
 }
 }

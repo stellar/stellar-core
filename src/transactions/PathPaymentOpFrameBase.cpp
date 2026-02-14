@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
@@ -25,6 +26,26 @@ AccountID
 PathPaymentOpFrameBase::getDestID() const
 {
     return toAccountID(getDestMuxedAccount());
+}
+
+bool
+PathPaymentOpFrameBase::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    auto const& srcAsset = getSourceAsset();
+    if (srcAsset.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig.isKeyFrozen(trustlineKey(getSourceID(), srcAsset)))
+    {
+        return true;
+    }
+
+    auto const& destAsset = getDestAsset();
+    auto destID = getDestID();
+    if (destAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        return sorobanConfig.isKeyFrozen(trustlineKey(destID, destAsset));
+    }
+    return sorobanConfig.isKeyFrozen(accountKey(destID));
 }
 
 void
@@ -71,6 +92,8 @@ PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset,
 
 bool
 PathPaymentOpFrameBase::convert(
+    AppConnector& app,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     AbstractLedgerTxn& ltx, int64_t maxOffersToCross, Asset const& sendAsset,
     int64_t maxSend, int64_t& amountSend, Asset const& recvAsset,
     int64_t maxRecv, int64_t& amountRecv, RoundingType round,
@@ -83,12 +106,17 @@ PathPaymentOpFrameBase::convert(
     ConvertResult r = convertWithOffersAndPools(
         ltx, sendAsset, maxSend, amountSend, recvAsset, maxRecv, amountRecv,
         round,
-        [this](LedgerTxnEntry const& o) {
+        [this, sorobanConfig](LedgerTxnEntry const& o) {
             auto const& offer = o.current().data.offer();
             if (offer.sellerID == getSourceID())
             {
                 // we are crossing our own offer
                 return OfferFilterResult::eStopCrossSelf;
+            }
+            // CAP-77: Skip offers with frozen seller account or trustlines
+            if (sorobanConfig && offerAccessesFrozenKey(offer, *sorobanConfig))
+            {
+                return OfferFilterResult::eSkipFrozen;
             }
             return OfferFilterResult::eKeep;
         },

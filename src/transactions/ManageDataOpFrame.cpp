@@ -127,4 +127,11 @@ ManageDataOpFrame::insertLedgerKeysToPrefetch(
 {
     keys.emplace(dataKey(getSourceID(), mManageData.dataName));
 }
+
+bool
+ManageDataOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

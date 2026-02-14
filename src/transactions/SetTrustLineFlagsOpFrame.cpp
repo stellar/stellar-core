@@ -219,4 +219,12 @@ SetTrustLineFlagsOpFrame::isRevocationToMaintainLiabilitiesValid(
     return true;
 }
 
+bool
+SetTrustLineFlagsOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return sorobanConfig.isKeyFrozen(
+        trustlineKey(mSetTrustLineFlags.trustor, mSetTrustLineFlags.asset));
+}
+
 }

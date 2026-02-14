@@ -319,4 +319,13 @@ CreateClaimableBalanceOpFrame::getBalanceID() const
 
     return xdrSha256(hashPreimage);
 }
+
+bool
+CreateClaimableBalanceOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return mCreateClaimableBalance.asset.type() != ASSET_TYPE_NATIVE &&
+           sorobanConfig.isKeyFrozen(
+               trustlineKey(getSourceID(), mCreateClaimableBalance.asset));
+}
 }

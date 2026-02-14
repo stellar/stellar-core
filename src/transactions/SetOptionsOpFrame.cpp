@@ -326,4 +326,11 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion,
 
     return true;
 }
+
+bool
+SetOptionsOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

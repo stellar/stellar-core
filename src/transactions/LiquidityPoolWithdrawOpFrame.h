@@ -24,6 +24,10 @@ class LiquidityPoolWithdrawOpFrame : public OperationFrame
                             LedgerTxnHeader const& header, Asset const& asset,
                             int64_t minAmount, int64_t amount) const;
 
+    bool accessesFrozenKeyAtApplyTime(
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        LiquidityPoolEntry const& pool) const;
+
   public:
     LiquidityPoolWithdrawOpFrame(Operation const& op,
                                  TransactionFrame const& parentTx);
@@ -33,10 +37,17 @@ class LiquidityPoolWithdrawOpFrame : public OperationFrame
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     static LiquidityPoolWithdrawResultCode
     getInnerCode(OperationResult const& res)

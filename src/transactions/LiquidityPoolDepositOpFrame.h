@@ -35,6 +35,10 @@ class LiquidityPoolDepositOpFrame : public OperationFrame
                                  LiquidityPoolConstantProduct const& cp,
                                  OperationResult& res) const;
 
+    bool accessesFrozenKeyAtApplyTime(
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        LiquidityPoolConstantProductParameters const& cpp) const;
+
     LiquidityPoolDepositOp const& mLiquidityPoolDeposit;
 
   public:
@@ -46,10 +50,17 @@ class LiquidityPoolDepositOpFrame : public OperationFrame
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     static LiquidityPoolDepositResultCode
     getInnerCode(OperationResult const& res)

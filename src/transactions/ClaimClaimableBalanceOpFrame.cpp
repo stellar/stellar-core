@@ -7,20 +7,50 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
+#include <algorithm>
+#include <optional>
 
 namespace stellar
 {
-
 ClaimClaimableBalanceOpFrame::ClaimClaimableBalanceOpFrame(
     Operation const& op, TransactionFrame const& parentTx)
     : OperationFrame(op, parentTx)
     , mClaimClaimableBalance(mOperation.body.claimClaimableBalanceOp())
 {
+}
+
+bool
+ClaimClaimableBalanceOpFrame::accessesFrozenKeyAtApplyTime(
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    Asset const& asset, OperationResult& res) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
+    {
+        return false;
+    }
+    LedgerKey keyToCheck;
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        keyToCheck = accountKey(getSourceID());
+    }
+    else
+    {
+        keyToCheck = trustlineKey(getSourceID(), asset);
+    }
+    if (sorobanConfig->isKeyFrozen(keyToCheck))
+    {
+        innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_TRUSTLINE_FROZEN);
+        return true;
+    }
+#endif
+    return false;
 }
 
 ThresholdLevel
@@ -74,11 +104,21 @@ ClaimClaimableBalanceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                       OperationResult& res,
                                       OperationMetaBuilder& opMeta) const
 {
+    throw std::runtime_error("ClaimClaimableBalanceOp may only be applied with "
+                             "doApply overload accepting sorobanConfig");
+}
+
+bool
+ClaimClaimableBalanceOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
 
     auto claimableBalanceLtxEntry =
         stellar::loadClaimableBalance(ltx, mClaimClaimableBalance.balanceID);
-    if (!claimableBalanceLtxEntry)
+    if (!static_cast<bool>(claimableBalanceLtxEntry))
     {
         innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
         return false;
@@ -103,7 +143,14 @@ ClaimClaimableBalanceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     }
 
     auto const& asset = claimableBalance.asset;
+    // CAP-77: Check if the relevant key is frozen before claiming.
+    if (accessesFrozenKeyAtApplyTime(sorobanConfig, asset, res))
+    {
+        return false;
+    }
+
     auto amount = claimableBalance.amount;
+
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         auto sourceAccount = loadSourceAccount(ltx, header);
@@ -160,5 +207,14 @@ ClaimClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(claimableBalanceKey(mClaimClaimableBalance.balanceID));
+}
+
+bool
+ClaimClaimableBalanceOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Checks for the frozen keys are done at apply time in
+    // accessesFrozenKeyAtApplyTime, we can't check anything at validation time.
+    return false;
 }
 }

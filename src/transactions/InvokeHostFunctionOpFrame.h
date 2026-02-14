@@ -75,6 +75,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     virtual bool isSoroban() const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     friend class InvokeHostFunctionApplyHelper;
     friend class InvokeHostFunctionPreV23ApplyHelper;
     friend class InvokeHostFunctionParallelApplyHelper;

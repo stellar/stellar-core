@@ -589,12 +589,13 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
 
 TEST_CASE("ledgerheaders migration works correctly", "[db]")
 {
-    Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT
 #ifdef USE_POSTGRES
-                                       ,
-                                       Config::TESTDB_POSTGRESQL
+    Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT,
+                                       Config::TESTDB_POSTGRESQL);
+#else
+    Config::TestDbMode mode = GENERATE(Config::TESTDB_BUCKET_DB_PERSISTENT);
 #endif
-    );
+
 #ifdef USE_POSTGRES
     INFO("Testing mode: " << (mode == Config::TESTDB_POSTGRESQL
                                   ? "PostgreSQL"

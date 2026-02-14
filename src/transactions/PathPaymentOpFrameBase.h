@@ -14,7 +14,9 @@ class AbstractLedgerTxn;
 class PathPaymentOpFrameBase : public OperationFrame
 {
   protected:
-    bool convert(AbstractLedgerTxn& ltx, int64_t maxOffersToCross,
+    bool convert(AppConnector& app,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 AbstractLedgerTxn& ltx, int64_t maxOffersToCross,
                  Asset const& sendAsset, int64_t maxSend, int64_t& amountSend,
                  Asset const& recvAsset, int64_t maxRecv, int64_t& amountRecv,
                  RoundingType round, std::vector<ClaimAtom>& offerTrail,
@@ -40,6 +42,9 @@ class PathPaymentOpFrameBase : public OperationFrame
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
     bool isDexOperation() const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     virtual bool checkTransfer(int64_t maxSend, int64_t amountSend,
                                int64_t maxRecv, int64_t amountRecv) const = 0;
