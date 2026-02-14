@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -24,10 +25,12 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
 
@@ -42,6 +45,44 @@ namespace stellar
 {
 namespace txtest
 {
+
+static std::vector<LedgerCloseMeta> gAccumulatedLcm;
+
+std::vector<LedgerCloseMeta> const&
+getAccumulatedLcm()
+{
+    return gAccumulatedLcm;
+}
+
+void
+clearAccumulatedLcm()
+{
+    gAccumulatedLcm.clear();
+}
+
+void
+appendToAccumulatedLcm(LedgerCloseMeta const& lcm)
+{
+    gAccumulatedLcm.emplace_back(lcm);
+}
+
+void
+captureLastClosedLedgerLcm(Application& app)
+{
+    // TODO: In-memory mode uses applyCheck which closes an empty ledger
+    // then applies the tx directly, so txs never appear in LCM. Fix this
+    // by restructuring applyCheck to use closeLedger(app, {tx}) when
+    // capturing LCM.
+    if (isLcmCaptureEnabled() && !app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        auto const& closeMeta =
+            app.getLedgerManager().getLastClosedLedgerCloseMeta();
+        if (closeMeta.has_value())
+        {
+            appendToAccumulatedLcm(closeMeta->getXDR());
+        }
+    }
+}
 
 ExpectedOpResult::ExpectedOpResult(OperationResultCode code)
 {
@@ -546,6 +587,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     // Ensure that parallelSorobanOrder is only used with strictOrder
     releaseAssert((parallelSorobanOrder.empty() || strictOrder));
 
+    // Ensure we're not trying to close a ledger that's already closed
+    releaseAssert(ledgerSeq > app.getLedgerManager().getLastClosedLedgerNum());
+
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.scpValue.closeTime;
@@ -600,6 +644,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     releaseAssert(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
     auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    captureLastClosedLedgerLcm(app);
     return lm.mLatestTxResultSet;
 }
 
@@ -624,6 +669,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     auto z1 = lm.mLatestTxResultSet;
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
+
+    captureLastClosedLedgerLcm(app);
 
     return z1;
 }
@@ -1938,6 +1985,9 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
                                      lastCloseTime, upgrades);
+
+    captureLastClosedLedgerLcm(app);
+
     if (upgradesIgnored)
     {
         auto const& newHeader = lm.getLastClosedLedgerHeader().header;

@@ -108,27 +108,20 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
                      a1.op(endSponsoringFutureReserves())},
                     {a1});
 
-                ClaimableBalanceID balanceID;
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txSUCCESS);
+
+                // the create is the second op in the tx
+                auto balanceID = account.getBalanceID(1);
+
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-
-                    // the create is the second op in the tx
-                    balanceID = account.getBalanceID(1);
-
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                                      &account.getPublicKey());
 
                     // a1 has one subentry - a trustline
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 0, 0, 0);
                     checkSponsorship(ltx, account, 0, nullptr, 0, 2, 1, 0);
-                    ltx.commit();
                 }
 
                 gateway.clawbackClaimableBalance(balanceID);

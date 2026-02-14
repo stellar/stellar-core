@@ -23,13 +23,6 @@ getOperationResultCode(TransactionTestFramePtr& tx, size_t i)
     return opRes.code();
 }
 
-static EndSponsoringFutureReservesResultCode
-getEndSponsoringFutureReservesResultCode(TransactionTestFramePtr tx, size_t i)
-{
-    auto const& opRes = tx->getResult().result.results()[i];
-    return opRes.tr().endSponsoringFutureReservesResult().code();
-}
-
 TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
 {
     VirtualClock clock;
@@ -63,16 +56,10 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
                 app->getNetworkID(), *root,
                 {root->op(endSponsoringFutureReserves())}, {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
-
-            REQUIRE(tx->getResult().result.code() == txFAILED);
-            REQUIRE(getEndSponsoringFutureReservesResultCode(tx, 0) ==
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txFAILED);
+            auto const& opRes = r.results[0].result.result.results()[0];
+            REQUIRE(opRes.tr().endSponsoringFutureReservesResult().code() ==
                     END_SPONSORING_FUTURE_RESERVES_NOT_SPONSORED);
         });
     }

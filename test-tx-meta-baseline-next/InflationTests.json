@@ -47,8 +47,7 @@
 		"okLol2/zzkI=",
 		"B5S2fRH2ri8=",
 		"ElojLaOm1x8=",
-		"15i9Ac2qDrA=",
-		"I4s+Pkequ8c="
+		"15i9Ac2qDrA="
 	],
 	"inflation|protocol version 10|inflation scenarios|all to one destination" : 
 	[
@@ -63,8 +62,7 @@
 		"VTMnSq4QfAo=",
 		"Y0RBsIJxSE8=",
 		"8xhlGIhx6f0=",
-		"mBql+0cJxK4=",
-		"fCo+/8egePU="
+		"mBql+0cJxK4="
 	],
 	"inflation|protocol version 10|inflation scenarios|no one over min" : 
 	[
@@ -80,7 +78,6 @@
 		"0OQKWDOLqnw=",
 		"gTd5waf6+pY=",
 		"whqO/nU1IEQ=",
-		"CMs2zJVJdIw=",
 		"zes9HSGAPb4=",
 		"3CS1kePxH6Q=",
 		"cRAGh4ul+Xk=",
@@ -2280,8 +2277,7 @@
 		"SkAzeo4YgPs=",
 		"Jval1YuxC6w=",
 		"VwHDrLXwm2c=",
-		"IS91VZZhfUQ=",
-		"7ijobQ0fB+Y="
+		"IS91VZZhfUQ="
 	],
 	"inflation|protocol version 10|inflation scenarios|no winner" : 
 	[
@@ -2296,8 +2292,7 @@
 		"GKCPV2dubW8=",
 		"0OQKWDOLqnw=",
 		"gTd5waf6+pY=",
-		"whqO/nU1IEQ=",
-		"CMs2zJVJdIw="
+		"whqO/nU1IEQ="
 	],
 	"inflation|protocol version 10|inflation scenarios|some winner does not exist" : 
 	[
@@ -2312,8 +2307,7 @@
 		"YdBenUbFiEc=",
 		"AzhHkyOSuPM=",
 		"tjrvBlONHHc=",
-		"KBqgRxqJvGM=",
-		"KFHhqn/7IGw="
+		"KBqgRxqJvGM="
 	],
 	"inflation|protocol version 10|inflation scenarios|two guys over threshold" : 
 	[
@@ -2436,41 +2430,12 @@
 		"HjFEn03j0O4=",
 		"vSfv6dmnldw=",
 		"b9sqKjeGb58=",
-		"BaWwvPGbVs8=",
-		"arnsoVdb5+s="
+		"BaWwvPGbVs8="
 	],
-	"inflation|protocol version 10|inflation with liabilities|available balance greater than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"6EPKgfSY9sE=",
-		"bSP0fZ3GGHs=",
-		"7JSijM9osnU="
-	],
-	"inflation|protocol version 10|inflation with liabilities|large available balance less than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"B/4xkrwFZEA=",
-		"kgm9Iohtweg=",
-		"Zf1mhZEHVdU="
-	],
-	"inflation|protocol version 10|inflation with liabilities|no available balance" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"LIrttP4HQjY=",
-		"z3ftJsvTIBo=",
-		"jwLsLdvf5FY="
-	],
-	"inflation|protocol version 10|inflation with liabilities|small available balance less than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"UXKxM34HcWE=",
-		"61+zX+N8RQg=",
-		"xu7ZC272ZdM="
-	],
+	"inflation|protocol version 10|inflation with liabilities|available balance greater than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "6EPKgfSY9sE=", "bSP0fZ3GGHs=" ],
+	"inflation|protocol version 10|inflation with liabilities|large available balance less than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "B/4xkrwFZEA=", "kgm9Iohtweg=" ],
+	"inflation|protocol version 10|inflation with liabilities|no available balance" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "LIrttP4HQjY=", "z3ftJsvTIBo=" ],
+	"inflation|protocol version 10|inflation with liabilities|small available balance less than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "UXKxM34HcWE=", "61+zX+N8RQg=" ],
 	"inflation|protocol version 10|not time" : 
 	[
 		"7lvxYNMEkXM=",
@@ -2493,8 +2458,7 @@
 		"okLol2/zzkI=",
 		"B5S2fRH2ri8=",
 		"ElojLaOm1x8=",
-		"15i9Ac2qDrA=",
-		"I4s+Pkequ8c="
+		"15i9Ac2qDrA="
 	],
 	"inflation|protocol version 11|inflation scenarios|all to one destination" : 
 	[
@@ -2509,8 +2473,7 @@
 		"VTMnSq4QfAo=",
 		"Y0RBsIJxSE8=",
 		"8xhlGIhx6f0=",
-		"mBql+0cJxK4=",
-		"fCo+/8egePU="
+		"mBql+0cJxK4="
 	],
 	"inflation|protocol version 11|inflation scenarios|no one over min" : 
 	[
@@ -2526,7 +2489,6 @@
 		"0OQKWDOLqnw=",
 		"gTd5waf6+pY=",
 		"whqO/nU1IEQ=",
-		"CMs2zJVJdIw=",
 		"zes9HSGAPb4=",
 		"3CS1kePxH6Q=",
 		"cRAGh4ul+Xk=",
@@ -4726,8 +4688,7 @@
 		"SkAzeo4YgPs=",
 		"Jval1YuxC6w=",
 		"VwHDrLXwm2c=",
-		"IS91VZZhfUQ=",
-		"7ijobQ0fB+Y="
+		"IS91VZZhfUQ="
 	],
 	"inflation|protocol version 11|inflation scenarios|no winner" : 
 	[
@@ -4742,8 +4703,7 @@
 		"GKCPV2dubW8=",
 		"0OQKWDOLqnw=",
 		"gTd5waf6+pY=",
-		"whqO/nU1IEQ=",
-		"CMs2zJVJdIw="
+		"whqO/nU1IEQ="
 	],
 	"inflation|protocol version 11|inflation scenarios|some winner does not exist" : 
 	[
@@ -4758,8 +4718,7 @@
 		"YdBenUbFiEc=",
 		"AzhHkyOSuPM=",
 		"tjrvBlONHHc=",
-		"KBqgRxqJvGM=",
-		"KFHhqn/7IGw="
+		"KBqgRxqJvGM="
 	],
 	"inflation|protocol version 11|inflation scenarios|two guys over threshold" : 
 	[
@@ -4882,41 +4841,12 @@
 		"HjFEn03j0O4=",
 		"vSfv6dmnldw=",
 		"b9sqKjeGb58=",
-		"BaWwvPGbVs8=",
-		"arnsoVdb5+s="
+		"BaWwvPGbVs8="
 	],
-	"inflation|protocol version 11|inflation with liabilities|available balance greater than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"6EPKgfSY9sE=",
-		"bSP0fZ3GGHs=",
-		"7JSijM9osnU="
-	],
-	"inflation|protocol version 11|inflation with liabilities|large available balance less than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"B/4xkrwFZEA=",
-		"kgm9Iohtweg=",
-		"Zf1mhZEHVdU="
-	],
-	"inflation|protocol version 11|inflation with liabilities|no available balance" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"LIrttP4HQjY=",
-		"z3ftJsvTIBo=",
-		"jwLsLdvf5FY="
-	],
-	"inflation|protocol version 11|inflation with liabilities|small available balance less than payout" : 
-	[
-		"oBhuxnqQM50=",
-		"vdeMArhjmbU=",
-		"UXKxM34HcWE=",
-		"61+zX+N8RQg=",
-		"xu7ZC272ZdM="
-	],
+	"inflation|protocol version 11|inflation with liabilities|available balance greater than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "6EPKgfSY9sE=", "bSP0fZ3GGHs=" ],
+	"inflation|protocol version 11|inflation with liabilities|large available balance less than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "B/4xkrwFZEA=", "kgm9Iohtweg=" ],
+	"inflation|protocol version 11|inflation with liabilities|no available balance" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "LIrttP4HQjY=", "z3ftJsvTIBo=" ],
+	"inflation|protocol version 11|inflation with liabilities|small available balance less than payout" : [ "oBhuxnqQM50=", "vdeMArhjmbU=", "UXKxM34HcWE=", "61+zX+N8RQg=" ],
 	"inflation|protocol version 11|not time" : 
 	[
 		"7lvxYNMEkXM=",
@@ -4947,8 +4877,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 1|inflation scenarios|all to one destination" : 
 	[
@@ -4963,8 +4892,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 1|inflation scenarios|no one over min" : 
 	[
@@ -4980,7 +4908,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -7180,8 +7107,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 1|inflation scenarios|no winner" : 
 	[
@@ -7196,8 +7122,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 1|inflation scenarios|some winner does not exist" : 
 	[
@@ -7212,8 +7137,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 1|inflation scenarios|two guys over threshold" : 
 	[
@@ -7336,41 +7260,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 1|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 1|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 1|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 1|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 1|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 1|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 1|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 1|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 1|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -7401,8 +7296,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 2|inflation scenarios|all to one destination" : 
 	[
@@ -7417,8 +7311,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 2|inflation scenarios|no one over min" : 
 	[
@@ -7434,7 +7327,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -9634,8 +9526,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 2|inflation scenarios|no winner" : 
 	[
@@ -9650,8 +9541,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 2|inflation scenarios|some winner does not exist" : 
 	[
@@ -9666,8 +9556,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 2|inflation scenarios|two guys over threshold" : 
 	[
@@ -9790,41 +9679,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 2|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 2|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 2|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 2|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 2|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 2|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 2|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 2|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 2|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -9847,8 +9707,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 3|inflation scenarios|all to one destination" : 
 	[
@@ -9863,8 +9722,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 3|inflation scenarios|no one over min" : 
 	[
@@ -9880,7 +9738,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -12080,8 +11937,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 3|inflation scenarios|no winner" : 
 	[
@@ -12096,8 +11952,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 3|inflation scenarios|some winner does not exist" : 
 	[
@@ -12112,8 +11967,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 3|inflation scenarios|two guys over threshold" : 
 	[
@@ -12236,41 +12090,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 3|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 3|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 3|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 3|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 3|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 3|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 3|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 3|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 3|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -12293,8 +12118,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 4|inflation scenarios|all to one destination" : 
 	[
@@ -12309,8 +12133,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 4|inflation scenarios|no one over min" : 
 	[
@@ -12326,7 +12149,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -14526,8 +14348,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 4|inflation scenarios|no winner" : 
 	[
@@ -14542,8 +14363,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 4|inflation scenarios|some winner does not exist" : 
 	[
@@ -14558,8 +14378,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 4|inflation scenarios|two guys over threshold" : 
 	[
@@ -14682,41 +14501,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 4|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 4|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 4|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 4|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 4|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 4|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 4|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 4|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 4|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -14739,8 +14529,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 5|inflation scenarios|all to one destination" : 
 	[
@@ -14755,8 +14544,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 5|inflation scenarios|no one over min" : 
 	[
@@ -14772,7 +14560,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -16972,8 +16759,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 5|inflation scenarios|no winner" : 
 	[
@@ -16988,8 +16774,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 5|inflation scenarios|some winner does not exist" : 
 	[
@@ -17004,8 +16789,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 5|inflation scenarios|two guys over threshold" : 
 	[
@@ -17128,41 +16912,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 5|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 5|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 5|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 5|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 5|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 5|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 5|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 5|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 5|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -17185,8 +16940,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 6|inflation scenarios|all to one destination" : 
 	[
@@ -17201,8 +16955,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 6|inflation scenarios|no one over min" : 
 	[
@@ -17218,7 +16971,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -19418,8 +19170,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 6|inflation scenarios|no winner" : 
 	[
@@ -19434,8 +19185,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 6|inflation scenarios|some winner does not exist" : 
 	[
@@ -19450,8 +19200,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 6|inflation scenarios|two guys over threshold" : 
 	[
@@ -19574,41 +19323,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 6|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 6|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 6|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 6|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 6|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 6|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 6|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 6|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 6|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -19631,8 +19351,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 7|inflation scenarios|all to one destination" : 
 	[
@@ -19647,8 +19366,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 7|inflation scenarios|no one over min" : 
 	[
@@ -19664,7 +19382,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -21864,8 +21581,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 7|inflation scenarios|no winner" : 
 	[
@@ -21880,8 +21596,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 7|inflation scenarios|some winner does not exist" : 
 	[
@@ -21896,8 +21611,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 7|inflation scenarios|two guys over threshold" : 
 	[
@@ -22020,41 +21734,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 7|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 7|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 7|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 7|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 7|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 7|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 7|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 7|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 7|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -22077,8 +21762,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 8|inflation scenarios|all to one destination" : 
 	[
@@ -22093,8 +21777,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 8|inflation scenarios|no one over min" : 
 	[
@@ -22110,7 +21793,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -24310,8 +23992,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 8|inflation scenarios|no winner" : 
 	[
@@ -24326,8 +24007,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 8|inflation scenarios|some winner does not exist" : 
 	[
@@ -24342,8 +24022,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 8|inflation scenarios|two guys over threshold" : 
 	[
@@ -24466,41 +24145,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 8|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 8|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 8|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 8|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 8|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 8|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 8|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 8|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 8|not time" : 
 	[
 		"/lfj8xIFS8I=",
@@ -24523,8 +24173,7 @@
 		"2KkMZYy1spw=",
 		"9PRgsY243ek=",
 		"v9yi6oZg+o4=",
-		"dTnFWmoj0JE=",
-		"R+8JPdY37XM="
+		"dTnFWmoj0JE="
 	],
 	"inflation|protocol version 9|inflation scenarios|all to one destination" : 
 	[
@@ -24539,8 +24188,7 @@
 		"oAwUCLcew+4=",
 		"ouksoU44tfA=",
 		"bbg7znc1z1k=",
-		"ArrQdMToKBo=",
-		"R/TZ+mInPqM="
+		"ArrQdMToKBo="
 	],
 	"inflation|protocol version 9|inflation scenarios|no one over min" : 
 	[
@@ -24556,7 +24204,6 @@
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
 		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ=",
 		"XbgVVPWkboM=",
 		"vSD3qr+6dTc=",
 		"fvMa24V+YyI=",
@@ -26756,8 +26403,7 @@
 		"TJW+OScTryA=",
 		"kH3mZzySvxE=",
 		"B52AWsh0lcw=",
-		"sHrX5XVI5wk=",
-		"PoaWeZKiPuQ="
+		"sHrX5XVI5wk="
 	],
 	"inflation|protocol version 9|inflation scenarios|no winner" : 
 	[
@@ -26772,8 +26418,7 @@
 		"OiOzIG+86Mg=",
 		"dPiW+eLVCQA=",
 		"Wo62/zEQips=",
-		"Q34ZeSZxjaw=",
-		"PoaWeZKiPuQ="
+		"Q34ZeSZxjaw="
 	],
 	"inflation|protocol version 9|inflation scenarios|some winner does not exist" : 
 	[
@@ -26788,8 +26433,7 @@
 		"4v9gNiZyZDg=",
 		"vjnUTrdJKGs=",
 		"DitZ3HCLoIU=",
-		"juis8BsYl4w=",
-		"8TVbCvjew9Y="
+		"juis8BsYl4w="
 	],
 	"inflation|protocol version 9|inflation scenarios|two guys over threshold" : 
 	[
@@ -26912,41 +26556,12 @@
 		"wX42yPMjGQQ=",
 		"+JRjqrbRcE4=",
 		"PePg3RdJcZs=",
-		"QHmDTILjqKM=",
-		"QYV97WiJHgY="
+		"QHmDTILjqKM="
 	],
-	"inflation|protocol version 9|inflation with liabilities|available balance greater than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"bTaQUI44Ol4=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 9|inflation with liabilities|large available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"byAaLJNpjxg=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 9|inflation with liabilities|no available balance" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"dM+J2mdEPlk=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
-	"inflation|protocol version 9|inflation with liabilities|small available balance less than payout" : 
-	[
-		"k3eeF49CnWQ=",
-		"g2eKBtbrQbc=",
-		"B1LKeNeD3Pw=",
-		"RSok2NYBiJA=",
-		"pmS0XRqNdbw="
-	],
+	"inflation|protocol version 9|inflation with liabilities|available balance greater than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "bTaQUI44Ol4=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 9|inflation with liabilities|large available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "byAaLJNpjxg=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 9|inflation with liabilities|no available balance" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "dM+J2mdEPlk=", "RSok2NYBiJA=" ],
+	"inflation|protocol version 9|inflation with liabilities|small available balance less than payout" : [ "k3eeF49CnWQ=", "g2eKBtbrQbc=", "B1LKeNeD3Pw=", "RSok2NYBiJA=" ],
 	"inflation|protocol version 9|not time" : 
 	[
 		"/lfj8xIFS8I=",
