@@ -38,7 +38,7 @@ ArchivedStateConsistency::getName() const
 
 std::string
 ArchivedStateConsistency::checkOnLedgerCommit(
-    LedgerStateSnapshot const& lclSnapshot,
+    ApplyLedgerStateSnapshot const& lclSnapshot,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,

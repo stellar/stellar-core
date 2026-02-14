@@ -20,7 +20,6 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include <numeric>
-#include <random>
 #include <xdrpp/autocheck.h>
 
 using namespace stellar;
@@ -338,7 +337,7 @@ TEST_CASE(
 
     // Verify the snapshot invariant passes
     {
-        auto snap = app.getLedgerManager().getLastClosedSnapshot();
+        auto snap = app.getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -357,7 +356,7 @@ TEST_CASE(
 
         closeLedger(test.getApp());
 
-        auto snap = app.getLedgerManager().getLastClosedSnapshot();
+        auto snap = app.getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -425,7 +424,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
-        auto snap = app->getLedgerManager().getLastClosedSnapshot();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -458,7 +457,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         BucketTestUtils::closeLedger(*app);
 
-        auto snap = app->getLedgerManager().getLastClosedSnapshot();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -518,7 +517,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
-        auto snap = app->getLedgerManager().getLastClosedSnapshot();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -574,7 +573,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         BucketTestUtils::closeLedger(*app);
 
         {
-            auto snap = app->getLedgerManager().getLastClosedSnapshot();
+            auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
             auto& inMemoryState =
                 app->getLedgerManager().getInMemorySorobanStateForTesting();
 
@@ -594,7 +593,7 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         BucketTestUtils::closeLedger(*app);
 
         {
-            auto snap = app->getLedgerManager().getLastClosedSnapshot();
+            auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
             auto& inMemoryState =
                 app->getLedgerManager().getInMemorySorobanStateForTesting();
 
