@@ -32,6 +32,9 @@ class ManageDataOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static ManageDataResultCode
     getInnerCode(OperationResult const& res)
     {

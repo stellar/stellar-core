@@ -399,6 +399,10 @@ throwIf(ClaimClaimableBalanceResult const& result)
         throw ex_CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED{};
     case CLAIM_CLAIMABLE_BALANCE_NO_TRUST:
         throw ex_CLAIM_CLAIMABLE_BALANCE_NO_TRUST{};
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CLAIM_CLAIMABLE_BALANCE_TRUSTLINE_FROZEN:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_TRUSTLINE_FROZEN{};
+#endif
     case CLAIM_CLAIMABLE_BALANCE_SUCCESS:
         break;
     default:
@@ -483,6 +487,10 @@ throwIf(LiquidityPoolDepositResult const& result)
         throw ex_LIQUIDITY_POOL_DEPOSIT_BAD_PRICE{};
     case LIQUIDITY_POOL_DEPOSIT_POOL_FULL:
         throw ex_LIQUIDITY_POOL_DEPOSIT_POOL_FULL{};
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case LIQUIDITY_POOL_DEPOSIT_TRUSTLINE_FROZEN:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_TRUSTLINE_FROZEN{};
+#endif
     case LIQUIDITY_POOL_DEPOSIT_SUCCESS:
         break;
     default:
@@ -505,6 +513,10 @@ throwIf(LiquidityPoolWithdrawResult const& result)
         throw ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL{};
     case LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM:
         throw ex_LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM{};
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case LIQUIDITY_POOL_WITHDRAW_TRUSTLINE_FROZEN:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_TRUSTLINE_FROZEN{};
+#endif
     case LIQUIDITY_POOL_WITHDRAW_SUCCESS:
         break;
     default:
@@ -581,6 +593,10 @@ throwIf(TransactionResult const& result)
         throw ex_txINSUFFICIENT_BALANCE{};
     case txBAD_AUTH:
         throw ex_txBAD_AUTH{};
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case txFROZEN_KEY_ACCESSED:
+        throw ex_txFROZEN_KEY_ACCESSED{};
+#endif
     default:
         throw ex_UNKNOWN{};
     }

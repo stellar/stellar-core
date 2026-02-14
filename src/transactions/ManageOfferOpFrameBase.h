@@ -46,11 +46,18 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltxOuter,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
 
     bool isDexOperation() const override;
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     virtual bool isAmountValid() const = 0;
     virtual bool isDeleteOffer() const = 0;

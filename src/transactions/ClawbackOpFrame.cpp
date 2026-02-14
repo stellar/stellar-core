@@ -106,4 +106,12 @@ ClawbackOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
             trustlineKey(toAccountID(mClawback.from), mClawback.asset));
     }
 }
+
+bool
+ClawbackOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return sorobanConfig.isKeyFrozen(
+        trustlineKey(toAccountID(mClawback.from), mClawback.asset));
+}
 }

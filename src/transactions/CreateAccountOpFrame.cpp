@@ -198,4 +198,11 @@ CreateAccountOpFrame::insertLedgerKeysToPrefetch(
 {
     keys.emplace(accountKey(mCreateAccount.destination));
 }
+
+bool
+CreateAccountOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return sorobanConfig.isKeyFrozen(accountKey(mCreateAccount.destination));
+}
 }

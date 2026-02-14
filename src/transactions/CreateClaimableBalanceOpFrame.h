@@ -39,6 +39,9 @@ class CreateClaimableBalanceOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static CreateClaimableBalanceResultCode
     getInnerCode(OperationResult const& res)
     {

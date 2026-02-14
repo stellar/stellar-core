@@ -32,6 +32,9 @@ class BumpSequenceOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static BumpSequenceResultCode
     getInnerCode(OperationResult const& res)
     {

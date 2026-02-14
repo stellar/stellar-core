@@ -8,8 +8,10 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
+#include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/numeric.h"
+#include "util/types.h"
 #include <Tracy.hpp>
 
 #ifdef BUILD_TESTS
@@ -1485,6 +1487,95 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MaximumSorobanNetworkConfig::
                     BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS:
+        // The frozen keys entry itself is always valid (it's just a list of
+        // encoded keys). But it cannot be directly upgraded — only the delta
+        // mechanism is allowed.
+        valid = protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_26);
+        break;
+    case ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA:
+    {
+        valid = protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_26);
+        if (valid)
+        {
+            auto const& delta = cfg.frozenLedgerKeysDelta();
+            auto validateEncodedKeys =
+                [](xdr::xvector<EncodedLedgerKey> const& encodedKeys,
+                   char const* keySetName) -> bool {
+                for (auto const& encodedKey : encodedKeys)
+                {
+                    try
+                    {
+                        LedgerKey lk;
+                        xdr::xdr_from_opaque(encodedKey, lk);
+                        // Only ACCOUNT, TRUSTLINE, CONTRACT_DATA,
+                        // CONTRACT_CODE are valid
+                        switch (lk.type())
+                        {
+                        case ACCOUNT:
+                        case CONTRACT_DATA:
+                        case CONTRACT_CODE:
+                            break;
+                        case TRUSTLINE:
+                            // Trustline keys for liquidity pool shares and
+                            // issuer trustlines are not allowed to be frozen.
+                            if (lk.trustLine().asset.type() ==
+                                    ASSET_TYPE_POOL_SHARE ||
+                                isIssuer(lk.trustLine().accountID,
+                                         lk.trustLine().asset))
+                            {
+                                return false;
+                            }
+                            break;
+                        default:
+                            return false;
+                        }
+                    }
+                    catch (xdr::xdr_runtime_error const& e)
+                    {
+                        CLOG_WARNING(
+                            Herder,
+                            "Got bad upgrade: failed to decode {} in "
+                            "CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA: {}",
+                            keySetName, e.what());
+                        return false;
+                    }
+                    catch (std::exception const& e)
+                    {
+                        CLOG_WARNING(
+                            Herder,
+                            "Got bad upgrade: exception validating {} in "
+                            "CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA: {}",
+                            keySetName, e.what());
+                        return false;
+                    }
+                    catch (...)
+                    {
+                        CLOG_WARNING(Herder,
+                                     "Got bad upgrade: unknown exception "
+                                     "validating {} in "
+                                     "CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA",
+                                     keySetName);
+                        return false;
+                    }
+                }
+                return true;
+            };
+            valid = validateEncodedKeys(delta.keysToFreeze, "keysToFreeze") &&
+                    validateEncodedKeys(delta.keysToUnfreeze, "keysToUnfreeze");
+        }
+        break;
+    }
+    case ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS:
+        // The bypass tx hashes entry itself is always valid. Similar to frozen
+        // keys, it cannot be directly upgraded — only via delta.
+        valid = protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_26);
+        break;
+    case ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS_DELTA:
+        valid = protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_26);
+        break;
+#endif
     default:
         break;
     }
@@ -1507,7 +1598,12 @@ SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     // never be changed via upgrade
     return cfg ==
                ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW ||
-           cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+           cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+           || cfg == ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS ||
+           cfg == ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS
+#endif
+        ;
 }
 
 void
@@ -1659,6 +1755,7 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_26))
     {
         SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
+        SorobanNetworkConfig::createLedgerEntriesForV26(ltx, app);
     }
 }
 
@@ -1688,6 +1785,11 @@ SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
         config.loadParallelComputeConfig(ls);
         config.loadLedgerCostExtConfig(ls);
         config.loadSCPTimingConfig(ls);
+    }
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_26))
+    {
+        config.loadFrozenLedgerKeys(ls);
+        config.loadFreezeBypassTxs(ls);
     }
     // NB: this should follow loading/updating state size window
     // size and state archival settings
@@ -2424,6 +2526,96 @@ SorobanNetworkConfig::maxLedgerResources() const
     return Resource(limits);
 }
 
+bool
+SorobanNetworkConfig::hasFrozenKeys() const
+{
+    return !mFrozenLedgerKeys.empty();
+}
+
+bool
+SorobanNetworkConfig::isKeyFrozen(LedgerKey const& key) const
+{
+    return mFrozenLedgerKeys.find(key) != mFrozenLedgerKeys.end();
+}
+
+bool
+SorobanNetworkConfig::isFreezeBypassTx(Hash const& txHash) const
+{
+    return mFreezeBypassTxs.find(txHash) != mFreezeBypassTxs.end();
+}
+
+void
+SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
+{
+    ZoneScoped;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mFrozenLedgerKeys.clear();
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID = CONFIG_SETTING_FROZEN_LEDGER_KEYS;
+    auto le = ls.load(key);
+    releaseAssertOrThrow(le);
+
+    auto const& frozenKeys =
+        le.current().data.configSetting().frozenLedgerKeys().keys;
+    for (auto const& encodedKey : frozenKeys)
+    {
+        LedgerKey lk;
+        xdr::xdr_from_opaque(encodedKey, lk);
+        mFrozenLedgerKeys.insert(lk);
+    }
+#endif
+}
+
+void
+SorobanNetworkConfig::loadFreezeBypassTxs(LedgerSnapshot const& ls)
+{
+    ZoneScoped;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mFreezeBypassTxs.clear();
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID = CONFIG_SETTING_FREEZE_BYPASS_TXS;
+    auto le = ls.load(key);
+    releaseAssertOrThrow(le);
+
+    auto const& txHashes =
+        le.current().data.configSetting().freezeBypassTxs().txHashes;
+    for (auto const& txHash : txHashes)
+    {
+        mFreezeBypassTxs.insert(txHash);
+    }
+#endif
+}
+
+void
+SorobanNetworkConfig::createLedgerEntriesForV26(AbstractLedgerTxn& ltx,
+                                                Application& app)
+{
+    ZoneScoped;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConfigSettingEntry frozenKeysEntry;
+    frozenKeysEntry.configSettingID(CONFIG_SETTING_FROZEN_LEDGER_KEYS);
+    // Start with an empty frozen keys set
+    frozenKeysEntry.frozenLedgerKeys().keys.clear();
+
+    ConfigSettingEntry bypassTxsEntry;
+    bypassTxsEntry.configSettingID(CONFIG_SETTING_FREEZE_BYPASS_TXS);
+    // Start with an empty bypass tx hash set
+    bypassTxsEntry.freezeBypassTxs().txHashes.clear();
+
+    LedgerEntry e;
+    e.data.type(CONFIG_SETTING);
+    e.data.configSetting() = frozenKeysEntry;
+    LedgerTxn inner(ltx);
+    inner.create(e);
+
+    e.data.configSetting() = bypassTxsEntry;
+    inner.create(e);
+    inner.commit();
+#endif
+}
+
 #ifdef BUILD_TESTS
 void
 SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
@@ -2611,7 +2803,21 @@ SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
            mBallotTimeoutInitialMilliseconds ==
                other.ballotTimeoutInitialMilliseconds() &&
            mBallotTimeoutIncrementMilliseconds ==
-               other.ballotTimeoutIncrementMilliseconds();
+               other.ballotTimeoutIncrementMilliseconds() &&
+           mFrozenLedgerKeys == other.frozenLedgerKeys() &&
+           mFreezeBypassTxs == other.freezeBypassTxs();
+}
+
+UnorderedSet<LedgerKey> const&
+SorobanNetworkConfig::frozenLedgerKeys() const
+{
+    return mFrozenLedgerKeys;
+}
+
+UnorderedSet<Hash> const&
+SorobanNetworkConfig::freezeBypassTxs() const
+{
+    return mFreezeBypassTxs;
 }
 #endif
 

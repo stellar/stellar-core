@@ -163,7 +163,7 @@ OperationFrame::apply(
         }
         else
         {
-            applyRes = doApply(app, ltx, res, opMeta);
+            applyRes = doApply(app, ltx, sorobanConfig, res, opMeta);
         }
 
         CLOG_TRACE(Tx, "{}", xdrToCerealString(res, "OperationResult"));
@@ -375,6 +375,18 @@ OperationFrame::doApplyForSoroban(
     std::optional<RefundableFeeTracker>& refundableFeeTracker,
     OperationMetaBuilder& opMeta) const
 {
+    // This implementation is just a stub for classic operations, it's not
+    // supposed to be called by them.
+    throw std::runtime_error(
+        "doApplyForSoroban should be overridden for Soroban operations");
+}
+
+bool
+OperationFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     return doApply(app, ltx, res, opMeta);
 }
 
@@ -410,6 +422,21 @@ OperationFrame::getSorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
     return mParentTx.sorobanResources();
+}
+
+bool
+OperationFrame::accessesFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    if (mOperation.sourceAccount)
+    {
+        auto opSrcKey = accountKey(toAccountID(*mOperation.sourceAccount));
+        if (sorobanConfig.isKeyFrozen(opSrcKey))
+        {
+            return true;
+        }
+    }
+    return doesAccessFrozenKey(sorobanConfig);
 }
 
 Memo const&

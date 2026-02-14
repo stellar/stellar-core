@@ -1582,6 +1582,7 @@ TEST_CASE_VERSIONS(
     Config cfg(getTestConfig(0));
     cfg.MANUAL_CLOSE = false;
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
+    cfg.PARALLEL_LEDGER_APPLY = false;
     TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
     VirtualClock clock;

@@ -454,4 +454,26 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion,
     }
     return true;
 }
+
+bool
+RevokeSponsorshipOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    if (mRevokeSponsorshipOp.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
+    {
+        if (sorobanConfig.isKeyFrozen(mRevokeSponsorshipOp.ledgerKey()))
+        {
+            return true;
+        }
+    }
+    else if (mRevokeSponsorshipOp.type() == REVOKE_SPONSORSHIP_SIGNER)
+    {
+        if (sorobanConfig.isKeyFrozen(
+                accountKey(mRevokeSponsorshipOp.signer().accountID)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
 }

@@ -29,6 +29,16 @@ PathPaymentStrictReceiveOpFrame::doApply(AppConnector& app,
                                          OperationResult& res,
                                          OperationMetaBuilder& opMeta) const
 {
+    throw std::runtime_error("PathPaymentStrictReceiveOp may only be applied "
+                             "with doApply overload accepting sorobanConfig");
+}
+
+bool
+PathPaymentStrictReceiveOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
     for (auto const& asset : mPathPayment.path)
@@ -105,10 +115,10 @@ PathPaymentStrictReceiveOpFrame::doApply(AppConnector& app,
         int64_t amountSend = 0;
         int64_t amountRecv = 0;
         std::vector<ClaimAtom> offerTrail;
-        if (!convert(ltx, maxOffersToCross, sendAsset, INT64_MAX, amountSend,
-                     recvAsset, maxAmountRecv, amountRecv,
-                     RoundingType::PATH_PAYMENT_STRICT_RECEIVE, offerTrail,
-                     res))
+        if (!convert(app, sorobanConfig, ltx, maxOffersToCross, sendAsset,
+                     INT64_MAX, amountSend, recvAsset, maxAmountRecv,
+                     amountRecv, RoundingType::PATH_PAYMENT_STRICT_RECEIVE,
+                     offerTrail, res))
         {
             return false;
         }

@@ -54,6 +54,10 @@ class OperationFrame
                       Hash const& sorobanBasePrngSeed, OperationResult& res,
                       std::optional<RefundableFeeTracker>& refundableFeeTracker,
                       OperationMetaBuilder& opMeta) const;
+    virtual bool
+    doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+            std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+            OperationResult& res, OperationMetaBuilder& opMeta) const;
     virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          OperationResult& res,
                          OperationMetaBuilder& opMeta) const = 0;
@@ -76,6 +80,9 @@ class OperationFrame
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header) const;
+
+    virtual bool
+    doesAccessFrozenKey(SorobanNetworkConfig const& sorobanConfig) const = 0;
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -130,6 +137,8 @@ class OperationFrame
     virtual bool isSoroban() const;
 
     SorobanResources const& getSorobanResources() const;
+
+    bool accessesFrozenKey(SorobanNetworkConfig const& sorobanConfig) const;
 
     Memo const& getTxMemo() const;
     SorobanTransactionData::_ext_t const& getResourcesExt() const;

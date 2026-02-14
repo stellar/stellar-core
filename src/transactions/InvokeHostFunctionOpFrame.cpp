@@ -1330,4 +1330,13 @@ InvokeHostFunctionOpFrame::isSoroban() const
 {
     return true;
 }
+
+bool
+InvokeHostFunctionOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Soroban footprint checks happen at transaction level, so we can safely
+    // say that the operation itself doesn't access frozen keys.
+    return false;
+}
 }

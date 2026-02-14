@@ -145,4 +145,11 @@ InflationOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::LOW;
 }
+
+bool
+InflationOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

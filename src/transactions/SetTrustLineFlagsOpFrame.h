@@ -55,6 +55,9 @@ class SetTrustLineFlagsOpFrame : public TrustFlagsOpFrameBase
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static SetTrustLineFlagsResultCode
     getInnerCode(OperationResult const& res)
     {

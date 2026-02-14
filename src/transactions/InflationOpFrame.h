@@ -30,6 +30,9 @@ class InflationOpFrame : public OperationFrame
                       OperationResult& res) const override;
     bool isOpSupported(LedgerHeader const& header) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static InflationResultCode
     getInnerCode(OperationResult const& res)
     {

@@ -26,6 +26,10 @@ class PathPaymentStrictReceiveOpFrame : public PathPaymentOpFrameBase
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

@@ -35,6 +35,16 @@ PathPaymentStrictSendOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                       OperationResult& res,
                                       OperationMetaBuilder& opMeta) const
 {
+    throw std::runtime_error("PathPaymentStrictSendOp may only be applied with "
+                             "doApply overload accepting sorobanConfig");
+}
+
+bool
+PathPaymentStrictSendOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
     for (auto const& asset : mPathPayment.path)
@@ -95,9 +105,10 @@ PathPaymentStrictSendOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         int64_t amountSend = 0;
         int64_t amountRecv = 0;
         std::vector<ClaimAtom> offerTrail;
-        if (!convert(ltx, maxOffersToCross, sendAsset, maxAmountSend,
-                     amountSend, recvAsset, INT64_MAX, amountRecv,
-                     RoundingType::PATH_PAYMENT_STRICT_SEND, offerTrail, res))
+        if (!convert(app, sorobanConfig, ltx, maxOffersToCross, sendAsset,
+                     maxAmountSend, amountSend, recvAsset, INT64_MAX,
+                     amountRecv, RoundingType::PATH_PAYMENT_STRICT_SEND,
+                     offerTrail, res))
         {
             return false;
         }
