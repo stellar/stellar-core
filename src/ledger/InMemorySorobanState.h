@@ -17,7 +17,7 @@
 
 namespace stellar
 {
-class LedgerStateSnapshot;
+class ApplyLedgerStateSnapshot;
 
 class InvariantManagerImpl;
 class SorobanMetrics;
@@ -439,7 +439,7 @@ class InMemorySorobanState
     // is reading state when these functions are called.
 
     // Initialize the map from a bucket list snapshot
-    void initializeStateFromSnapshot(LedgerStateSnapshot const& snap);
+    void initializeStateFromSnapshot(ApplyLedgerStateSnapshot const& snap);
 
     // Update the map with entries from a ledger close. ledgerSeq must be
     // exactly mLastClosedLedgerSeq + 1.

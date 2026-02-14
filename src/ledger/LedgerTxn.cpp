@@ -5,7 +5,6 @@
 #include "ledger/LedgerTxn.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
 #include "ledger/InMemorySorobanState.h"
@@ -3365,14 +3364,13 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-LedgerStateSnapshot const&
+ApplyLedgerStateSnapshot const&
 LedgerTxnRoot::Impl::getLedgerStateSnapshot() const
 {
     if (!mLedgerStateSnapshot)
     {
-        mLedgerStateSnapshot = mApp.getBucketManager()
-                                   .getBucketSnapshotManager()
-                                   .copyLedgerStateSnapshot();
+        mLedgerStateSnapshot =
+            mApp.getLedgerManager().copyApplyLedgerStateSnapshot();
     }
 
     return *mLedgerStateSnapshot;

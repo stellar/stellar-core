@@ -73,7 +73,7 @@ class ThreadParallelApplyLedgerState
 {
     // Copy of the ledger state snapshot from the global state, with fresh
     // file caches for thread safety.
-    LedgerStateSnapshot mSnapshot;
+    ApplyLedgerStateSnapshot mSnapshot;
 
     // Reference to the live in-memory Soroban state. For Soroban entries
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
@@ -174,7 +174,7 @@ class ThreadParallelApplyLedgerState
 
     SorobanNetworkConfig const& getSorobanConfig() const;
 
-    LedgerStateSnapshot const& getSnapshot() const;
+    ApplyLedgerStateSnapshot const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
 };
@@ -186,7 +186,7 @@ class GlobalParallelApplyLedgerState
     // close, providing access to both the live bucket list and the hot archive
     // bucket list. Note that this does not reflect changes from the classic
     // apply phase, but is a snapshot of the start of the ledger.
-    LedgerStateSnapshot mSnapshot;
+    ApplyLedgerStateSnapshot mSnapshot;
 
     // Contains an exact one-to-one in-memory mapping of the live snapshot for
     // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,
@@ -242,7 +242,9 @@ class GlobalParallelApplyLedgerState
                             std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
-    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
+    GlobalParallelApplyLedgerState(AppConnector& app,
+                                   ApplyLedgerStateSnapshot snapshot,
+                                   AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
                                    InMemorySorobanState const& inMemoryState,
                                    SorobanNetworkConfig const& sorobanConfig);
