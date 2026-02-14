@@ -92,7 +92,9 @@ struct Cluster
 class Stage
 {
   public:
-    Stage(ParallelPartitionConfig cfg) : mConfig(cfg)
+    Stage(ParallelPartitionConfig cfg, size_t txCount)
+        : mConfig(cfg)
+        , mTxToCluster(txCount, nullptr)
     {
         mBinPacking.resize(mConfig.mClustersPerStage);
         mBinInstructions.resize(mConfig.mClustersPerStage);
@@ -133,6 +135,7 @@ class Stage
             // Update the global conflict mask so future lookups can
             // fast-path when a tx has no conflicts with any cluster.
             mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
+            updateTxToCluster(*mClusters.back());
             return true;
         }
 
@@ -171,6 +174,9 @@ class Stage
         }
         // Try to recompute the bin-packing from scratch with a more efficient
         // heuristic.
+        // Save a reference to the new merged cluster before binPacking sorts
+        // the vector (after sort, .back() may no longer be the new cluster).
+        auto newCluster = newClusters->back();
         std::vector<uint64_t> newBinInstructions;
         auto newPacking = binPacking(*newClusters, newBinInstructions);
         // Even if the new cluster is below the limit, it may invalidate the
@@ -187,6 +193,7 @@ class Stage
         // Update the global conflict mask so future lookups can
         // fast-path when a tx has no conflicts with any cluster.
         mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
+        updateTxToCluster(*newCluster);
         return true;
     }
 
@@ -218,14 +225,32 @@ class Stage
         {
             return conflictingClusters;
         }
-        for (auto const& cluster : mClusters)
+        // O(K) lookup: iterate the conflict tx ids and find their
+        // clusters via the tx-to-cluster mapping, instead of scanning
+        // all clusters (which would be O(C)).
+        size_t conflictTxId = 0;
+        while (tx.mConflictTxs.nextSet(conflictTxId))
         {
-            if (cluster->mConflictTxs.get(tx.mId))
+            auto* cluster = mTxToCluster[conflictTxId];
+            if (cluster != nullptr)
             {
-                conflictingClusters.insert(cluster.get());
+                conflictingClusters.insert(cluster);
             }
+            ++conflictTxId;
         }
         return conflictingClusters;
+    }
+
+    void
+    updateTxToCluster(Cluster const& cluster)
+    {
+        auto* clusterPtr = &cluster;
+        size_t txId = 0;
+        while (cluster.mTxIds.nextSet(txId))
+        {
+            mTxToCluster[txId] = clusterPtr;
+            ++txId;
+        }
     }
 
     bool
@@ -390,6 +415,10 @@ class Stage
     // getConflictingClusters to avoid scanning all clusters when the
     // transaction has no conflicts with any existing cluster.
     BitSet mAllConflictTxs;
+    // Maps tx id -> cluster pointer for O(K) conflict lookup.
+    // Sized to the total number of transactions; nullptr means the tx
+    // has not been added to this stage.
+    std::vector<Cluster const*> mTxToCluster;
 };
 
 struct ParallelPhaseBuildResult
@@ -411,7 +440,8 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     ZoneScoped;
     ParallelPartitionConfig partitionCfg(stageCount, sorobanCfg);
 
-    std::vector<Stage> stages(partitionCfg.mStageCount, partitionCfg);
+    std::vector<Stage> stages(partitionCfg.mStageCount,
+                              Stage(partitionCfg, txFrames.size()));
 
     // Visit the transactions in the surge pricing queue and try to add them to
     // at least one of the stages.
