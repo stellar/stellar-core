@@ -115,27 +115,46 @@ class Stage
         // First, find all clusters that conflict with the new transaction.
         auto conflictingClusters = getConflictingClusters(tx);
 
-        // Then, try creating new clusters by merging the conflicting clusters
-        // together and adding the new transaction to the resulting cluster.
-        // Note, that the new cluster is guaranteed to be added at the end of
-        // `newClusters`.
-        auto newClusters = createNewClusters(tx, conflictingClusters);
-        // Fail fast if a new cluster will end up too large to fit into the
-        // stage and thus no new clusters could be created.
-        if (!newClusters)
+        // Check if the merged cluster would exceed the instruction limit.
+        uint64_t mergedInstructions = tx.mInstructions;
+        for (auto const* cluster : conflictingClusters)
+        {
+            mergedInstructions += cluster->mInstructions;
+        }
+        if (mergedInstructions > mConfig.mInstructionsPerCluster)
         {
             return false;
         }
+
+        // Create the merged cluster from the new transaction and all
+        // conflicting clusters.
+        auto newCluster = std::make_shared<Cluster>(tx);
+        for (auto const* cluster : conflictingClusters)
+        {
+            newCluster->merge(*cluster);
+        }
+
+        // Mutate mClusters in-place: remove conflicting clusters (saving
+        // them for potential rollback) and append the new merged cluster.
+        // This avoids the O(N) shared_ptr copy overhead of creating a
+        // new cluster vector on every tryAdd call.
+        std::vector<std::shared_ptr<Cluster const>> savedClusters;
+        if (!conflictingClusters.empty())
+        {
+            savedClusters.reserve(conflictingClusters.size());
+            removeConflictingClusters(conflictingClusters, savedClusters);
+        }
+        mClusters.push_back(newCluster);
+
         // If it's possible to pack the newly-created cluster into one of the
         // bins 'in-place' without rebuilding the bin-packing, we do so.
-        if (inPlaceBinPacking(*newClusters->back(), conflictingClusters))
+        if (inPlaceBinPacking(*newCluster, conflictingClusters))
         {
-            mClusters = std::move(newClusters.value());
             mInstructions += tx.mInstructions;
             // Update the global conflict mask so future lookups can
             // fast-path when a tx has no conflicts with any cluster.
             mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
-            updateTxToCluster(*mClusters.back());
+            updateTxToCluster(*newCluster);
             return true;
         }
 
@@ -168,25 +187,23 @@ class Stage
         {
             if (mTriedCompactingBinPacking)
             {
+                rollbackClusters(newCluster.get(), savedClusters);
                 return false;
             }
             mTriedCompactingBinPacking = true;
         }
         // Try to recompute the bin-packing from scratch with a more efficient
-        // heuristic.
-        // Save a reference to the new merged cluster before binPacking sorts
-        // the vector (after sort, .back() may no longer be the new cluster).
-        auto newCluster = newClusters->back();
+        // heuristic. binPacking() sorts mClusters in-place.
         std::vector<uint64_t> newBinInstructions;
-        auto newPacking = binPacking(*newClusters, newBinInstructions);
+        auto newPacking = binPacking(mClusters, newBinInstructions);
         // Even if the new cluster is below the limit, it may invalidate the
         // stage as a whole in case if we can no longer pack the clusters into
         // the required number of bins.
         if (!newPacking)
         {
+            rollbackClusters(newCluster.get(), savedClusters);
             return false;
         }
-        mClusters = std::move(newClusters.value());
         mBinPacking = std::move(newPacking.value());
         mInstructions += tx.mInstructions;
         mBinInstructions = newBinInstructions;
@@ -286,40 +303,55 @@ class Stage
         return false;
     }
 
-    std::optional<std::vector<std::shared_ptr<Cluster const>>>
-    createNewClusters(
-        BuilderTx const& tx,
-        std::unordered_set<Cluster const*> const& txConflicts) const
+    // Remove conflicting clusters from mClusters in-place, saving them
+    // in 'saved' for potential rollback. Uses a compaction scan: O(N)
+    // moves but no shared_ptr copies (which involve atomic refcounts).
+    void
+    removeConflictingClusters(
+        std::unordered_set<Cluster const*> const& toRemove,
+        std::vector<std::shared_ptr<Cluster const>>& saved)
     {
-        uint64_t newInstructions = tx.mInstructions;
-        for (auto const* cluster : txConflicts)
+        size_t writePos = 0;
+        for (size_t readPos = 0; readPos < mClusters.size(); ++readPos)
         {
-            newInstructions += cluster->mInstructions;
-        }
-
-        // Fast-fail condition to ensure that the new cluster doesn't exceed
-        // the instructions limit.
-        if (newInstructions > mConfig.mInstructionsPerCluster)
-        {
-            return std::nullopt;
-        }
-        auto newCluster = std::make_shared<Cluster>(tx);
-        for (auto const* cluster : txConflicts)
-        {
-            newCluster->merge(*cluster);
-        }
-
-        std::vector<std::shared_ptr<Cluster const>> newClusters;
-        newClusters.reserve(mClusters.size() + 1 - txConflicts.size());
-        for (auto const& cluster : mClusters)
-        {
-            if (txConflicts.find(cluster.get()) == txConflicts.end())
+            if (toRemove.find(mClusters[readPos].get()) != toRemove.end())
             {
-                newClusters.push_back(cluster);
+                saved.push_back(std::move(mClusters[readPos]));
+            }
+            else
+            {
+                if (writePos != readPos)
+                {
+                    mClusters[writePos] = std::move(mClusters[readPos]);
+                }
+                ++writePos;
             }
         }
-        newClusters.push_back(newCluster);
-        return std::make_optional(std::move(newClusters));
+        mClusters.resize(writePos);
+    }
+
+    // Rollback an in-place mutation: find and remove the merged cluster,
+    // then restore the saved conflicting clusters.
+    void
+    rollbackClusters(
+        Cluster const* mergedCluster,
+        std::vector<std::shared_ptr<Cluster const>>& savedClusters)
+    {
+        // Find and swap-pop the merged cluster.
+        for (size_t i = 0; i < mClusters.size(); ++i)
+        {
+            if (mClusters[i].get() == mergedCluster)
+            {
+                mClusters[i] = std::move(mClusters.back());
+                mClusters.pop_back();
+                break;
+            }
+        }
+        // Restore the saved conflicting clusters.
+        for (auto& saved : savedClusters)
+        {
+            mClusters.push_back(std::move(saved));
+        }
     }
 
     // Simple bin-packing first-fit-decreasing heuristic
