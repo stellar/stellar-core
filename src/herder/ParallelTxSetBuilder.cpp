@@ -8,6 +8,8 @@
 #include "transactions/TransactionFrameBase.h"
 #include "util/BitSet.h"
 
+#include <algorithm>
+#include <numeric>
 #include <unordered_set>
 
 namespace stellar
@@ -235,16 +237,16 @@ class Stage
     std::unordered_set<Cluster const*>
     getConflictingClusters(BuilderTx const& tx) const
     {
-        std::unordered_set<Cluster const*> conflictingClusters;
         // Fast path: if the tx's id is not in any cluster's conflict set,
         // there are no conflicting clusters.
         if (!mAllConflictTxs.get(tx.mId))
         {
-            return conflictingClusters;
+            return {};
         }
         // O(K) lookup: iterate the conflict tx ids and find their
         // clusters via the tx-to-cluster mapping, instead of scanning
         // all clusters (which would be O(C)).
+        std::unordered_set<Cluster const*> conflictingClusters;
         size_t conflictTxId = 0;
         while (tx.mConflictTxs.nextSet(conflictTxId))
         {
@@ -493,7 +495,7 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         if (added)
         {
             return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
-        }
+    }
         // If a transaction didn't fit into any of the stages, we consider it
         // to have been excluded due to resource limits and thus notify the
         // surge pricing queue that surge pricing should be triggered (
@@ -617,21 +619,21 @@ buildSurgePricedParallelSorobanPhase(
         for (auto const& key : footprint.readWrite)
         {
             txsWithRwKey[key].push_back(i);
-        }
     }
+        }
 
     for (auto const& [key, rwTxIds] : txsWithRwKey)
-    {
-        // RW-RW conflicts
-        for (size_t i = 0; i < rwTxIds.size(); ++i)
         {
-            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
+            // RW-RW conflicts
+        for (size_t i = 0; i < rwTxIds.size(); ++i)
             {
+            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
+                {
                 builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                 builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
+                }
             }
-        }
-        // RO-RW conflicts
+            // RO-RW conflicts
         auto roIt = txsWithRoKey.find(key);
         if (roIt != txsWithRoKey.end())
         {
@@ -643,9 +645,9 @@ buildSurgePricedParallelSorobanPhase(
                     builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
                     builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
                 }
+                }
             }
         }
-    }
 
     // Process the transactions in the surge pricing (decreasing fee) order.
     // This also automatically ensures that the resource limits are respected
@@ -668,8 +670,8 @@ buildSurgePricedParallelSorobanPhase(
          stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
     {
         size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
-        threads.emplace_back([queue, &builderTxForTx, txFrames, stageCount,
-                              sorobanCfg, laneConfig, resultIndex, &results,
+        threads.emplace_back([queue, &builderTxForTx, &txFrames, stageCount,
+                              &sorobanCfg, laneConfig, resultIndex, &results,
                               ledgerVersion]() {
             results.at(resultIndex) =
                 buildSurgePricedParallelSorobanPhaseWithStageCount(
