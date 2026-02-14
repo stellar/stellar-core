@@ -1320,7 +1320,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1419,6 +1418,21 @@
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp">
       <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListStateConsistency.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntryScope.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\SimpleTimer.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
+      <Filter>lib\tracy</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2517,6 +2531,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h">
       <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\BucketListStateConsistency.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\MetricsRegistry.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SimpleTimer.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
