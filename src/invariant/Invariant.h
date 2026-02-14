@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "xdr/Stellar-ledger.h"
@@ -74,7 +73,7 @@ class Invariant
 
     virtual std::string
     checkOnLedgerCommit(
-        LedgerStateSnapshot const& lclSnapshot,
+        ApplyLedgerStateSnapshot const& lclSnapshot,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -84,7 +83,7 @@ class Invariant
     }
 
     virtual std::string
-    checkSnapshot(LedgerStateSnapshot const& snapshot,
+    checkSnapshot(ApplyLedgerStateSnapshot const& snapshot,
                   InMemorySorobanState const& inMemorySnapshot,
                   std::function<bool()> isStopping)
     {

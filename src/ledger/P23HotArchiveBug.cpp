@@ -10,9 +10,9 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
-#include "ledger/LedgerTypeUtils.h"
 #include "main/AppConnector.h"
 #include "main/Application.h"
 #include <xdrpp/printer.h>
@@ -350,9 +350,7 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     // This database can load the actual, correct version of a
     // given ledger key. This tells us the value that should
     // have been evicted.
-    auto snap = app.getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copyLedgerStateSnapshot();
+    auto snap = app.getLedgerManager().copyLedgerStateSnapshot();
 
     // This is the set of all keys incorrectly evicted for this
     // ledger

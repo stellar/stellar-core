@@ -272,7 +272,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
-    LedgerStateSnapshot mStateSnapshot;
+    ApplyLedgerStateSnapshot mStateSnapshot;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
@@ -286,7 +286,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
-        LedgerStateSnapshot stateSnapshot,
+        ApplyLedgerStateSnapshot stateSnapshot,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
@@ -981,11 +981,10 @@ class InvokeHostFunctionPreV23ApplyHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
-        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame,
-                                        sorobanConfig,
-                                        app.copyLedgerStateSnapshot(),
-                                        moduleCache)
+        : InvokeHostFunctionApplyHelper(
+              app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
+              opFrame, sorobanConfig, app.copyApplyLedgerStateSnapshot(),
+              moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }

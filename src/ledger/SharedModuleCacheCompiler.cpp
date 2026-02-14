@@ -21,7 +21,7 @@ size_t const SharedModuleCacheCompiler::BUFFERED_WASM_CAPACITY =
 // The snapshot is passed by copy here to ensure the background loading thread
 // has its own instance since snapshots themselves aren't thread safe.
 SharedModuleCacheCompiler::SharedModuleCacheCompiler(
-    LedgerStateSnapshot snap, size_t numThreads,
+    ApplyLedgerStateSnapshot snap, size_t numThreads,
     std::vector<uint32_t> const& ledgerVersions)
     : mModuleCache(rust_bridge::new_module_cache())
     , mSnap(std::move(snap))

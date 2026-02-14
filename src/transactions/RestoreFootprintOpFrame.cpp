@@ -288,7 +288,7 @@ class RestoreFootprintParallelApplyHelper
     : virtual public RestoreFootprintApplyHelper,
       virtual public ParallelLedgerAccessHelper
 {
-    LedgerStateSnapshot mSnapshot;
+    ApplyLedgerStateSnapshot mSnapshot;
 
   public:
     RestoreFootprintParallelApplyHelper(

@@ -6,14 +6,9 @@
 // concerning the sizes of levels in it, shadowing, the propagation and
 // archival of entries as they move between levels, and so forth.
 
-// ASIO is somewhat particular about when it gets included -- it wants to be the
-// first to include <windows.h> -- so we try to include it before everything
-// else.
-#include "util/asio.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "bucket/LiveBucket.h"
@@ -26,7 +21,6 @@
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Math.h"
@@ -1216,7 +1210,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
             if (!tempOnly)
             {
                 auto archiveSnap =
-                    bm.getBucketSnapshotManager().copyLedgerStateSnapshot();
+                    app->getLedgerManager().copyLedgerStateSnapshot();
 
                 // Check that persisted entries have been inserted into
                 // HotArchive
@@ -1728,7 +1722,7 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
-        auto blSnap = bm.getBucketSnapshotManager().copyLedgerStateSnapshot();
+        auto blSnap = app->getLedgerManager().copyLedgerStateSnapshot();
 
         // Snapshot should automatically update with latest version
         auto loadedEntry = blSnap.loadLiveEntry(LedgerEntryKey(entry));

@@ -10,8 +10,6 @@
 
 #include <limits>
 
-#include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -1123,10 +1121,8 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
                                                std::optional<LedgerEntry>>>>
         finalEntries;
     LedgerSnapshot ls(test.getApp());
-    auto archiveSnap = test.getApp()
-                           .getBucketManager()
-                           .getBucketSnapshotManager()
-                           .copyLedgerStateSnapshot();
+    auto archiveSnap =
+        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
     for (auto const& k : allKeys)
     {
         std::optional<LedgerEntry> liveEntry;

@@ -445,7 +445,7 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 
 void
 InMemorySorobanState::initializeStateFromSnapshot(
-    LedgerStateSnapshot const& snap)
+    ApplyLedgerStateSnapshot const& snap)
 {
     releaseAssertOrThrow(mContractDataEntries.empty());
     releaseAssertOrThrow(mContractCodeEntries.empty());

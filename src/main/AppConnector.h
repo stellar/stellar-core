@@ -74,6 +74,7 @@ class AppConnector
     bool isStopping() const;
 
     LedgerStateSnapshot copyLedgerStateSnapshot();
+    ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot();
     void maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot);
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must

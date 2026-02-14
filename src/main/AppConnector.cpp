@@ -1,6 +1,5 @@
 #include "main/AppConnector.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
@@ -173,17 +172,19 @@ AppConnector::threadIsType(Application::ThreadType type) const
 LedgerStateSnapshot
 AppConnector::copyLedgerStateSnapshot()
 {
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copyLedgerStateSnapshot();
+    return mApp.getLedgerManager().copyLedgerStateSnapshot();
+}
+
+ApplyLedgerStateSnapshot
+AppConnector::copyApplyLedgerStateSnapshot()
+{
+    return mApp.getLedgerManager().copyApplyLedgerStateSnapshot();
 }
 
 void
 AppConnector::maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot)
 {
-    mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .maybeUpdateLedgerStateSnapshot(snapshot);
+    mApp.getLedgerManager().maybeUpdateLedgerStateSnapshot(snapshot);
 }
 
 LedgerStateSnapshot&

@@ -25,7 +25,7 @@ namespace stellar
 class SharedModuleCacheCompiler : NonMovableOrCopyable
 {
     ::rust::Box<stellar::rust_bridge::SorobanModuleCache> mModuleCache;
-    LedgerStateSnapshot mSnap;
+    ApplyLedgerStateSnapshot mSnap;
     std::deque<xdr::xvector<uint8_t>> mWasms;
 
     size_t const mNumThreads;
@@ -55,7 +55,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
     bool popAndCompileWasm(size_t thread, std::unique_lock<std::mutex>& lock);
 
   public:
-    SharedModuleCacheCompiler(LedgerStateSnapshot snap, size_t numThreads,
+    SharedModuleCacheCompiler(ApplyLedgerStateSnapshot snap, size_t numThreads,
                               std::vector<uint32_t> const& ledgerVersions);
     ~SharedModuleCacheCompiler();
     void start();

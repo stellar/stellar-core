@@ -230,8 +230,21 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Get a LedgerStateSnapshot of the last closed ledger
-    virtual LedgerStateSnapshot getLastClosedSnapshot() const = 0;
+    // Create a thread-safe copy of the current canonical ledger state
+    // snapshot. Can be called from any thread.
+    virtual LedgerStateSnapshot copyLedgerStateSnapshot() const = 0;
+
+    // Create a thread-safe copy of the current canonical ledger state
+    // snapshot, typed as an apply-time snapshot. Used by legacy (pre-V23)
+    // code paths that need an ApplyLedgerStateSnapshot but don't have
+    // access to ApplyState.
+    // TODO: Refactor such that this doesn' have to be a public function
+    virtual ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot() const = 0;
+
+    // Refresh `snapshot` if its ledger seq differs from the current canonical
+    // state. No-op otherwise. Can be called from any thread.
+    virtual void
+    maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot) const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
@@ -273,6 +286,7 @@ class LedgerManager
     virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
 
 #ifdef BUILD_TESTS
+    virtual void updateCanonicalStateForTesting(LedgerHeader const& header) = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual std::optional<LedgerCloseMetaFrame> const&

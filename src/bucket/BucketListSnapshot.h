@@ -33,7 +33,6 @@ class Timer;
 namespace stellar
 {
 
-class BucketSnapshotManager;
 struct EvictionMetrics;
 struct EvictionResultCandidates;
 struct EvictionResultEntry;
@@ -210,8 +209,8 @@ class SearchableLiveBucketListSnapshot
         UnorderedSet<LedgerKey>& keysInEvictableEntries) const;
 
   public:
-    SearchableLiveBucketListSnapshot(
-        SearchableLiveBucketListSnapshot const&) = default;
+    SearchableLiveBucketListSnapshot(SearchableLiveBucketListSnapshot const&) =
+        default;
 
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
@@ -235,7 +234,7 @@ class SearchableLiveBucketListSnapshot
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
-    friend class BucketSnapshotManager;
+    friend class BucketSnapshotState;
     friend class CompleteConstLedgerState;
     friend class LedgerStateSnapshot;
 };
@@ -264,7 +263,6 @@ class SearchableHotArchiveBucketListSnapshot
     void scanAllEntries(
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 
-    friend class BucketSnapshotManager;
     friend class LedgerStateSnapshot;
 };
 

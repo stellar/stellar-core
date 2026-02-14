@@ -9,7 +9,6 @@
 #include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
-#include <iterator>
 #include <numeric>
 #include <stdexcept>
 #include <xdrpp/printer.h>
@@ -45,8 +44,6 @@
 #include <autocheck/autocheck.hpp>
 #include <fmt/format.h>
 #include <limits>
-#include <type_traits>
-#include <variant>
 
 #include "ledger/LedgerManagerImpl.h"
 
@@ -4649,10 +4646,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         auto lk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto snap = test.getApp()
-                        .getBucketManager()
-                        .getBucketSnapshotManager()
-                        .copyLedgerStateSnapshot();
+        auto snap = test.getApp().getLedgerManager().copyLedgerStateSnapshot();
 
         if (evict)
         {
@@ -4730,10 +4724,8 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
                 client.get("key", ContractDataDurability::PERSISTENT, 123);
 
-                auto restoredSnap = test.getApp()
-                                        .getBucketManager()
-                                        .getBucketSnapshotManager()
-                                        .copyLedgerStateSnapshot();
+                auto restoredSnap =
+                    test.getApp().getLedgerManager().copyLedgerStateSnapshot();
 
                 // Restored entries are deleted from Hot Archive
                 REQUIRE(!restoredSnap.loadArchiveEntry(lk));
@@ -7385,10 +7377,8 @@ TEST_CASE("multiple version of same key in a single eviction scan",
             closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
         }
 
-        auto evictSnap = test.getApp()
-                             .getBucketManager()
-                             .getBucketSnapshotManager()
-                             .copyLedgerStateSnapshot();
+        auto evictSnap =
+            test.getApp().getLedgerManager().copyLedgerStateSnapshot();
         REQUIRE(evictSnap.loadArchiveEntry(lk));
     };
 
@@ -7400,10 +7390,8 @@ TEST_CASE("multiple version of same key in a single eviction scan",
     // levels of the BucketList.
     test.invokeRestoreOp({lk}, 20166);
 
-    auto restoreSnap = test.getApp()
-                           .getBucketManager()
-                           .getBucketSnapshotManager()
-                           .copyLedgerStateSnapshot();
+    auto restoreSnap =
+        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
     auto loadRes = restoreSnap.loadLiveEntry(lk);
     REQUIRE(loadRes);
 
@@ -7431,8 +7419,7 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         SorobanTest test(app, cfg, false);
 
         ContractStorageTestClient client(test);
-        auto& snapshotManager =
-            test.getApp().getBucketManager().getBucketSnapshotManager();
+        auto& snapshotManager = test.getApp().getLedgerManager();
 
         // WASM and instance should not expire
         test.invokeExtendOp(client.getContract().getKeys(), 10'000);
@@ -7527,8 +7514,7 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
 
     SorobanTest test(cfg, false);
     ContractStorageTestClient client(test);
-    auto& snapshotManager =
-        test.getApp().getBucketManager().getBucketSnapshotManager();
+    auto& snapshotManager = test.getApp().getLedgerManager();
 
     // WASM and instance should not expire
     test.invokeExtendOp(client.getContract().getKeys(), 10'000);
@@ -10010,10 +9996,8 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT,
                         std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-    auto archivedSnap = test.getApp()
-                            .getBucketManager()
-                            .getBucketSnapshotManager()
-                            .copyLedgerStateSnapshot();
+    auto archivedSnap =
+        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
 
     REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}).size() == 2);
     REQUIRE(archivedSnap.loadLiveKeys({lk1, lk2}, "load").size() == 0);
@@ -10041,10 +10025,8 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         /*addContractKeys=*/false);
     REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
 
-    auto restoredSnap = test.getApp()
-                            .getBucketManager()
-                            .getBucketSnapshotManager()
-                            .copyLedgerStateSnapshot();
+    auto restoredSnap =
+        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
 
     REQUIRE(restoredSnap.loadLiveKeys({lk1, lk2}, "load").size() == 2);
     REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}).size() == 0);

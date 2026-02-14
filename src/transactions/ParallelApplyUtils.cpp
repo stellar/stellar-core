@@ -3,13 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ParallelApplyUtils.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
-#include "transactions/MutableTransactionResult.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
@@ -297,15 +295,17 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 // them are complete.
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
-    AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
+    AppConnector& app, ApplyLedgerStateSnapshot snapshot,
+    AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mSnapshot(app.copyLedgerStateSnapshot())
+    , mSnapshot(std::move(snapshot))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
+    releaseAssertOrThrow(mSnapshot.getLedgerSeq() ==
+                         mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          mSnapshot.getLedgerSeq() + 1);
 
@@ -846,7 +846,7 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-LedgerStateSnapshot const&
+ApplyLedgerStateSnapshot const&
 ThreadParallelApplyLedgerState::getSnapshot() const
 {
     return mSnapshot;

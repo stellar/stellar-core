@@ -3,13 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerStateSnapshot.h"
 #include "main/Config.h"
-#include "scp/QuorumSetUtils.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
@@ -956,9 +954,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
 
-    auto snap = app->getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copyLedgerStateSnapshot();
+    auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
     for (auto idx : sampleIndices)
     {

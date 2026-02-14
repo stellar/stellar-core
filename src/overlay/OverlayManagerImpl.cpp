@@ -4,7 +4,6 @@
 
 #include "overlay/OverlayManagerImpl.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
@@ -1439,9 +1438,8 @@ OverlayManagerImpl::getOverlayThreadSnapshot()
     if (!mOverlayThreadSnapshot)
     {
         // Create a new snapshot
-        mOverlayThreadSnapshot = mApp.getBucketManager()
-                                     .getBucketSnapshotManager()
-                                     .copyLedgerStateSnapshot();
+        mOverlayThreadSnapshot =
+            mApp.getLedgerManager().copyLedgerStateSnapshot();
     }
     return *mOverlayThreadSnapshot;
 }

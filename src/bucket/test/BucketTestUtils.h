@@ -72,8 +72,8 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     std::vector<LedgerKey> mTestDeletedEntries;
 
   protected:
-    void finalizeLedgerTxnChanges(
-        LedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig> finalizeLedgerTxnChanges(
+        ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers) override;
 

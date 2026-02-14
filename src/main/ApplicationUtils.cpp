@@ -26,7 +26,6 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
-#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -37,7 +36,6 @@
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
-#include <locale>
 #include <map>
 #include <optional>
 #include <regex>
@@ -894,9 +892,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
                  filename);
     };
-    auto snap = app->getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copyLedgerStateSnapshot();
+    auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
     if (hash == "ALL")
     {
         snap.scanLiveEntriesOfType(

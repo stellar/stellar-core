@@ -223,7 +223,7 @@ processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
 
 // Scan live bucket list for entries that can hold the native asset
 static void
-scanLiveBuckets(LedgerStateSnapshot const& snapshot, Asset const& asset,
+scanLiveBuckets(ApplyLedgerStateSnapshot const& snapshot, Asset const& asset,
                 AssetContractInfo const& assetContractInfo, int64_t& sumBalance,
                 std::string& errorMsg, std::function<bool()> const& isStopping)
 {
@@ -270,7 +270,8 @@ scanLiveBuckets(LedgerStateSnapshot const& snapshot, Asset const& asset,
 }
 
 static void
-scanHotArchiveBuckets(LedgerStateSnapshot const& snapshot, Asset const& asset,
+scanHotArchiveBuckets(ApplyLedgerStateSnapshot const& snapshot,
+                      Asset const& asset,
                       AssetContractInfo const& assetContractInfo,
                       int64_t& sumBalance, std::string& errorMsg,
                       std::function<bool()> const& isStopping)
@@ -309,7 +310,7 @@ scanHotArchiveBuckets(LedgerStateSnapshot const& snapshot, Asset const& asset,
 
 std::string
 ConservationOfLumens::checkSnapshot(
-    LedgerStateSnapshot const& snapshot,
+    ApplyLedgerStateSnapshot const& snapshot,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {

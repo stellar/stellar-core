@@ -34,7 +34,7 @@ class ConservationOfLumens : public Invariant
         std::vector<ContractEvent> const& events, AppConnector& app) override;
 
     virtual std::string
-    checkSnapshot(LedgerStateSnapshot const& snapshot,
+    checkSnapshot(ApplyLedgerStateSnapshot const& snapshot,
                   InMemorySorobanState const& inMemorySnapshot,
                   std::function<bool()> isStopping) override;
 
