@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -24,10 +25,12 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
 
@@ -42,6 +45,26 @@ namespace stellar
 {
 namespace txtest
 {
+
+static std::vector<LedgerCloseMeta> gAccumulatedLcm;
+
+std::vector<LedgerCloseMeta> const&
+getAccumulatedLcm()
+{
+    return gAccumulatedLcm;
+}
+
+void
+clearAccumulatedLcm()
+{
+    gAccumulatedLcm.clear();
+}
+
+void
+appendToAccumulatedLcm(LedgerCloseMeta const& lcm)
+{
+    gAccumulatedLcm.emplace_back(lcm);
+}
 
 ExpectedOpResult::ExpectedOpResult(OperationResultCode code)
 {
@@ -549,6 +572,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     // Ensure that parallelSorobanOrder is only used with strictOrder
     releaseAssert((parallelSorobanOrder.empty() || strictOrder));
 
+    // Ensure we're not trying to close a ledger that's already closed
+    releaseAssert(ledgerSeq > app.getLedgerManager().getLastClosedLedgerNum());
+
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.scpValue.closeTime;
@@ -603,6 +629,14 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     releaseAssert(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
     auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    if (isLcmCaptureEnabled())
+    {
+        auto const& closeMeta = lm.getLastClosedLedgerCloseMeta();
+        if (closeMeta.has_value())
+        {
+            gAccumulatedLcm.emplace_back(closeMeta->getXDR());
+        }
+    }
     return lm.mLatestTxResultSet;
 }
 
@@ -627,6 +661,15 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     auto z1 = lm.mLatestTxResultSet;
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
+
+    if (isLcmCaptureEnabled())
+    {
+        auto const& closeMeta = lm.getLastClosedLedgerCloseMeta();
+        if (closeMeta.has_value())
+        {
+            gAccumulatedLcm.emplace_back(closeMeta->getXDR());
+        }
+    }
 
     return z1;
 }
