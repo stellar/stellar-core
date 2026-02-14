@@ -186,16 +186,8 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                  a1.op(endSponsoringFutureReserves())},
                 {key});
 
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaBuilder txm(
-                    true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getAppConnector());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                ltx.commit();
-            }
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txSUCCESS);
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());

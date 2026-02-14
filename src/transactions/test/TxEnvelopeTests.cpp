@@ -1484,10 +1484,12 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(a1, *app).size() == 4);
                             alternative.sign(tx);
 
-                            applyTx(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            auto txr = closeLedger(*app, {tx});
+                            checkTx(0, txr, txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(
-                                        getFirstResult(tx)) == PAYMENT_SUCCESS);
+                                        txr.results[0]
+                                            .result.result.results()[0]) ==
+                                    PAYMENT_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 3 : 4));
 
@@ -1876,14 +1878,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         TransactionTestFramePtr txFrame;
         auto setup = [&]() {
             txFrame = root->tx({createAccount(a1, paymentAmount)});
-            auto txSet = makeTxSetFromTransactions({txFrame}, *app, 0, 0).first;
 
-            // Close this ledger
-            auto lastCloseTime = app->getLedgerManager()
-                                     .getLastClosedLedgerHeader()
-                                     .header.scpValue.closeTime;
-            app->getHerder().externalizeValue(txSet, 3, lastCloseTime,
-                                              emptyUpgradeSteps);
+            closeLedger(*app, {txFrame});
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 3);
         };

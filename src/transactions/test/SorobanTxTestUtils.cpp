@@ -12,6 +12,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Logging.h"
 #include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 
@@ -2325,5 +2326,5 @@ AuthTestTreeNode::toAuthorizedInvocation() const
     return invocation;
 }
 
-} // namespace txtext
+} // namespace txtest
 } // namespace stellar
