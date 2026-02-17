@@ -3322,7 +3322,8 @@ TEST_CASE("parallel tx set building benchmark",
                   << " ms" << std::endl;
     };
     std::cout << "=== Parallel Tx Set Building Benchmark ===" << std::endl;
-    std::cout << "TX_COUNT=" << MEAN_INCLUDED_TX_COUNT * TX_COUNT_MEMPOOL_MULTIPLIER
+    std::cout << "TX_COUNT="
+              << MEAN_INCLUDED_TX_COUNT * TX_COUNT_MEMPOOL_MULTIPLIER
               << " CLUSTER_COUNT=" << CLUSTER_COUNT
               << " STAGES=" << MIN_STAGE_COUNT << "-" << MAX_STAGE_COUNT
               << std::endl;
