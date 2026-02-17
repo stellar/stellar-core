@@ -294,7 +294,14 @@ request_parser::initializeForBody(request const& req)
     {
         if (header.name == "Content-Length")
         {
-            body_content_length_ = stoi(header.value);
+            try
+            {
+                body_content_length_ = stoi(header.value);
+            }
+            catch (std::exception const&)
+            {
+                return bad;
+            }
             if (body_content_length_ == 0)
             {
                 return bad;
