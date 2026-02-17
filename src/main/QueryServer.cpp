@@ -87,8 +87,7 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
         auto workerPids = mServer.start();
         for (auto pid : workerPids)
         {
-            mSnapshots.emplace(pid,
-                               mAppConnector.copyLedgerStateSnapshot());
+            mSnapshots.emplace(pid, mAppConnector.copyLedgerStateSnapshot());
         }
     }
 }
