@@ -7,13 +7,11 @@
 #include <array>
 #include <string>
 
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
-#include "main/AppConnector.h"
 #include "main/Application.h"
 #include <xdrpp/printer.h>
 
@@ -36,7 +34,8 @@ using namespace internal;
 
 void
 addHotArchiveBatchWithP23HotArchiveFix(
-    AbstractLedgerTxn& ltx, Application& app, LedgerHeader header,
+    AbstractLedgerTxn& ltx, Application& app,
+    ApplyLedgerStateSnapshot const& snapshot, LedgerHeader header,
     std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries)
 {
@@ -49,7 +48,6 @@ addHotArchiveBatchWithP23HotArchiveFix(
     auto updatedArchivedEntries = archivedEntries;
     updatedArchivedEntries.reserve(updatedArchivedEntries.size() +
                                    P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT);
-    auto snap = app.getAppConnector().copyLedgerStateSnapshot();
     for (size_t i = 0; i < P23_CORRUPTED_HOT_ARCHIVE_ENTRIES_COUNT; ++i)
     {
         LedgerEntry corruptedEntry =
@@ -67,7 +65,7 @@ addHotArchiveBatchWithP23HotArchiveFix(
         // Hot Archive that match our expectations for the corrupted entries.
 
         // Ensure that the entry exists in Hot Archive.
-        auto hotArchiveEntry = snap.loadArchiveEntry(corruptedEntryKey);
+        auto hotArchiveEntry = snapshot.loadArchiveEntry(corruptedEntryKey);
         if (!hotArchiveEntry)
         {
             CLOG_WARNING(
@@ -336,8 +334,9 @@ Protocol23CorruptionDataVerifier::verifyRestorationOfCorruptedEntry(
 
 void
 Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
-    EvictedStateVectors const& evictedState, Application& app,
-    uint32_t ledgerSeq, uint32_t protocolVersion)
+    EvictedStateVectors const& evictedState,
+    ApplyLedgerStateSnapshot const& snapshot, uint32_t ledgerSeq,
+    uint32_t protocolVersion)
 {
     if (!protocolVersionEquals(protocolVersion, ProtocolVersion::V_23))
     {
@@ -346,11 +345,6 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     // Modify state using mutex just in case, even though in
     // p23 we haven't increased the number of threads.
     std::lock_guard<std::mutex> lock(mMutex);
-
-    // This database can load the actual, correct version of a
-    // given ledger key. This tells us the value that should
-    // have been evicted.
-    auto snap = app.getLedgerManager().copyLedgerStateSnapshot();
 
     // This is the set of all keys incorrectly evicted for this
     // ledger
@@ -365,7 +359,7 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     {
         // Load the correct value from the live database.
         auto evictedLedgerKey = LedgerEntryKey(evictedEntry);
-        auto databaseEntry = snap.loadLiveEntry(evictedLedgerKey);
+        auto databaseEntry = snapshot.loadLiveEntry(evictedLedgerKey);
         releaseAssert(databaseEntry != nullptr);
 
         // If there was a corruption
