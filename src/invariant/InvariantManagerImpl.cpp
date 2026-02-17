@@ -191,8 +191,7 @@ InvariantManagerImpl::checkOnLedgerCommit(
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
             invariant->getName(), result);
-        onInvariantFailure(invariant, message,
-                           lclSnapshot.getLedgerSeq() + 1);
+        onInvariantFailure(invariant, message, lclSnapshot.getLedgerSeq() + 1);
     }
 }
 
