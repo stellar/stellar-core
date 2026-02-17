@@ -618,9 +618,8 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
             latestLedgerHeader->ledgerVersion);
         mApplyState.populateInMemorySorobanState();
 
-        maybeRunSnapshotInvariantFromLedgerState(
-            copyApplyLedgerStateSnapshot(), maybeCopySorobanStateForInvariant(),
-            /* runInParallel */ false);
+        maybeRunSnapshotInvariantFromLedgerState(copyApplyLedgerStateSnapshot(),
+                                                 /* runInParallel */ false);
     }
     mApplyState.markEndOfSetupPhase();
 }
@@ -738,7 +737,10 @@ LedgerManagerImpl::getLastTxFee() const
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
-    releaseAssert(!mApp.threadIsType(Application::ThreadType::APPLY));
+    // Must be main thread: returns a reference into mLastClosedLedgerState,
+    // which is only replaced on the main thread (advanceLastClosedLedgerState).
+    // A cross-thread caller could hold a dangling reference after replacement.
+    releaseAssert(threadIsMain());
     SharedLockShared guard(mLedgerStateSnapshotMutex);
     releaseAssert(mLastClosedLedgerState);
     return mLastClosedLedgerState->getLastClosedLedgerHeader();
@@ -762,37 +764,23 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedgerState->getLastClosedLedgerHeader().header.ledgerSeq;
 }
 
-std::shared_ptr<InMemorySorobanState const>
-LedgerManagerImpl::maybeCopySorobanStateForInvariant()
-{
-    std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant =
-        nullptr;
-    if (mApp.getInvariantManager().shouldRunInvariantSnapshot())
-    {
-        // The in memory state copy is expensive, so we need to mark
-        // that start of the invariant scan here, not in the callback, to ensure
-        // we don't trigger a race condition that creates two copies.
-        mApp.getInvariantManager().markStartOfInvariantSnapshot();
-        inMemorySnapshotForInvariant =
-            std::make_shared<InMemorySorobanState const>(
-                mApplyState.getInMemorySorobanState());
-    }
-    return inMemorySnapshotForInvariant;
-}
-
 void
 LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
-    ApplyLedgerStateSnapshot const& ledgerState,
-    std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant,
-    bool runInParallel) const
+    ApplyLedgerStateSnapshot const& ledgerState, bool runInParallel)
 {
-    releaseAssert(threadIsMain());
-
-    if (!inMemorySnapshotForInvariant ||
-        !mApp.getConfig().INVARIANT_EXTRA_CHECKS || mApp.isStopping())
+    if (!mApp.getConfig().INVARIANT_EXTRA_CHECKS || mApp.isStopping() ||
+        !mApp.getInvariantManager().shouldRunInvariantSnapshot())
     {
         return;
     }
+
+    // The in memory state copy is expensive, so we need to mark the start of
+    // the invariant scan here, not in the callback, to ensure we don't trigger
+    // a race condition that creates two copies.
+    mApp.getInvariantManager().markStartOfInvariantSnapshot();
+    auto inMemorySnapshotForInvariant =
+        std::make_shared<InMemorySorobanState const>(
+            mApplyState.getInMemorySorobanState());
 
     // Verify consistency of all snapshot state.
     auto ledgerSeq = ledgerState.getLedgerSeq();
@@ -822,7 +810,10 @@ LedgerManagerImpl::maybeRunSnapshotInvariantFromLedgerState(
 SorobanNetworkConfig const&
 LedgerManagerImpl::getLastClosedSorobanNetworkConfig() const
 {
-    releaseAssert(!mApp.threadIsType(Application::ThreadType::APPLY));
+    // Must be main thread: returns a reference into mLastClosedLedgerState,
+    // which is only replaced on the main thread (advanceLastClosedLedgerState).
+    // A cross-thread caller could hold a dangling reference after replacement.
+    releaseAssert(threadIsMain());
     SharedLockShared guard(mLedgerStateSnapshotMutex);
     releaseAssert(mLastClosedLedgerState);
     releaseAssert(mLastClosedLedgerState->hasSorobanConfig());
@@ -1346,20 +1337,15 @@ getMetaIOContext(Application& app)
 } // namespace
 
 void
-LedgerManagerImpl::ledgerCloseComplete(
-    uint32_t lcl, bool calledViaExternalize, LedgerCloseData const& ledgerData,
-    bool upgradeApplied,
-    std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant)
+LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
+                                       LedgerCloseData const& ledgerData,
+                                       bool upgradeApplied)
 {
     // We just finished applying `lcl`, maybe change LM's state
     // Also notify Herder so it can trigger next ledger.
 
     releaseAssert(threadIsMain());
 
-    // Kick off the snapshot invariant, if enabled
-    ApplyLedgerStateSnapshot stateCopy = mApplyState.copyLedgerStateSnapshot();
-    maybeRunSnapshotInvariantFromLedgerState(stateCopy,
-                                             inMemorySnapshotForInvariant);
     uint32_t latestHeardFromNetwork =
         mApp.getLedgerApplyManager().getLargestLedgerSeqHeard();
     uint32_t latestQueuedToApply =
@@ -1401,8 +1387,7 @@ void
 LedgerManagerImpl::advanceLedgerStateAndPublish(
     uint32_t ledgerSeq, bool calledViaExternalize,
     LedgerCloseData const& ledgerData,
-    CompleteConstLedgerStatePtr newLedgerState, bool upgradeApplied,
-    std::shared_ptr<InMemorySorobanState const> inMemorySnapshotForInvariant)
+    CompleteConstLedgerStatePtr newLedgerState, bool upgradeApplied)
 {
 #ifdef BUILD_TESTS
     if (mAdvanceLedgerStateAndPublishOverride)
@@ -1440,7 +1425,7 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
     // Maybe set LedgerManager into synced state, maybe let
     // Herder trigger next ledger
     ledgerCloseComplete(ledgerSeq, calledViaExternalize, ledgerData,
-                        upgradeApplied, inMemorySnapshotForInvariant);
+                        upgradeApplied);
     CLOG_INFO(Ledger, "Ledger close complete: {}", ledgerSeq);
 }
 
@@ -1828,10 +1813,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     mApplyState.markEndOfCommitting();
     JITTER_INJECT_DELAY();
 
-    // Step 5: copy the in-memory Soroban state if we should run the snapshot
-    // invariant for this ledger. At this point, commit has completed and
-    // in-memory state is immutable.
-    auto inMemorySnapshotForInvariant = maybeCopySorobanStateForInvariant();
+    // Step 5: kick off the snapshot invariant, if the timer has fired.
+    // Both the apply-state snapshot and the in-memory Soroban state are
+    // captured here at the same point (after commit), so they are guaranteed
+    // to be from the same ledger.
+    maybeRunSnapshotInvariantFromLedgerState(
+        mApplyState.copyLedgerStateSnapshot());
 
     // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
     // NB: appliedLedgerState is invalidated after this call.
@@ -1839,18 +1826,16 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     {
         advanceLedgerStateAndPublish(ledgerSeq, calledViaExternalize,
                                      ledgerData, std::move(appliedLedgerState),
-                                     upgradeApplied,
-                                     inMemorySnapshotForInvariant);
+                                     upgradeApplied);
     }
     else
     {
         auto cb = [this, ledgerSeq, calledViaExternalize, ledgerData,
                    appliedLedgerState = std::move(appliedLedgerState),
-                   upgradeApplied, inMemorySnapshotForInvariant]() mutable {
+                   upgradeApplied]() mutable {
             advanceLedgerStateAndPublish(
                 ledgerSeq, calledViaExternalize, ledgerData,
-                std::move(appliedLedgerState), upgradeApplied,
-                inMemorySnapshotForInvariant);
+                std::move(appliedLedgerState), upgradeApplied);
         };
         mApp.postOnMainThread(std::move(cb), "advanceLedgerStateAndPublish");
     }
@@ -2176,12 +2161,12 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
 
+    SharedLockExclusive lock(mLedgerStateSnapshotMutex);
     auto state =
         buildLedgerState(header, has, mLastClosedLedgerState, std::nullopt);
 
     mApplyState.setLedgerStateForTesting(state);
 
-    SharedLockExclusive lock(mLedgerStateSnapshotMutex);
     mLastClosedLedgerState = state;
 }
 #endif
@@ -2967,7 +2952,7 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             if (isP24UpgradeLedger && gIsProductionNetwork)
             {
                 p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
-                    ltx, mApp, lh, evictedState.archivedEntries,
+                    ltx, mApp, lclSnapshot, lh, evictedState.archivedEntries,
                     restoredHotArchiveKeys);
             }
             else
@@ -2981,7 +2966,8 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                 {
                     mApp.getProtocol23CorruptionDataVerifier()
                         ->verifyArchivalOfCorruptedEntry(
-                            evictedState, mApp, lh.ledgerSeq, lh.ledgerVersion);
+                            evictedState, lclSnapshot, lh.ledgerSeq,
+                            lh.ledgerVersion);
                 }
             }
         }

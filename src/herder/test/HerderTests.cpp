@@ -5054,6 +5054,8 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl);
                 REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
                         lastHeader.ledgerSeq);
+                REQUIRE(lm.copyLedgerStateSnapshot().getLedgerHeader() ==
+                        lastHeader);
 
                 // Apply state got committed, but has not yet been propagated to
                 // read-only state
@@ -5105,6 +5107,8 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 auto readOnly = lm.getLastClosedLedgerHeader();
                 REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
+                REQUIRE(lm.copyLedgerStateSnapshot().getLedgerHeader() ==
+                        readOnly.header);
                 auto has = lm.getLastClosedLedgerHAS();
                 REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
 

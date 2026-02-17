@@ -231,14 +231,15 @@ class LedgerManager
     getLastClosedLedgerHeader() const = 0;
 
     // Create a thread-safe copy of the current canonical ledger state
-    // snapshot. Can be called from any thread.
+    // snapshot. Can be called from any thread (except for apply, which must use
+    // copyApplyLedgerStateSnapshot instead).
     virtual LedgerStateSnapshot copyLedgerStateSnapshot() const = 0;
 
     // Create a thread-safe copy of the current canonical ledger state
     // snapshot, typed as an apply-time snapshot. Used by legacy (pre-V23)
     // code paths that need an ApplyLedgerStateSnapshot but don't have
     // access to ApplyState.
-    // TODO: Refactor such that this doesn' have to be a public function
+    // TODO: Refactor such that this doesn't have to be a public function
     virtual ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot() const = 0;
 
     // Refresh `snapshot` if its ledger seq differs from the current canonical
@@ -346,9 +347,7 @@ class LedgerManager
     advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
                                  LedgerCloseData const& ledgerData,
                                  CompleteConstLedgerStatePtr newLedgerState,
-                                 bool upgradeApplied,
-                                 std::shared_ptr<InMemorySorobanState const>
-                                     inMemorySnapshotForInvariant) = 0;
+                                 bool upgradeApplied) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS

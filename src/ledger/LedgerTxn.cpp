@@ -2734,10 +2734,10 @@ LedgerTxnRoot::Impl::Impl(Application& app,
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
+    , mThreadInvariant()
 #ifdef BEST_OFFER_DEBUGGING
     , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
 #endif
-    , mThreadInvariant()
 {
 }
 
