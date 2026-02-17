@@ -10,6 +10,7 @@ TEST_CASE("backtraces work", "[backtrace]")
 {
     auto backtrace = stellar::rust_bridge::capture_cxx_backtrace();
     auto const backtraceStr = std::string(backtrace.c_str());
-    REQUIRE(backtraceStr.find("Catch::TestCase::invoke") != std::string::npos);
+    REQUIRE(!backtraceStr.empty());
+    REQUIRE(backtraceStr.find("C_A_T_C_H") != std::string::npos);
     stellar::printCurrentBacktrace();
 }
