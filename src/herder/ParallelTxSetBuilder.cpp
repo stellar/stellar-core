@@ -94,9 +94,14 @@ struct Cluster
 class Stage
 {
   public:
+    Stage(const Stage&) = delete;
+    Stage& operator=(const Stage&) = delete;
+
+    Stage(Stage&&) = default;
+    Stage& operator=(Stage&&) = default;
+
     Stage(ParallelPartitionConfig cfg, size_t txCount)
-        : mConfig(cfg)
-        , mTxToCluster(txCount, nullptr)
+        : mConfig(cfg), mTxToCluster(txCount, nullptr)
     {
         mBinPacking.resize(mConfig.mClustersPerStage);
         mBinInstructions.resize(mConfig.mClustersPerStage);
@@ -130,7 +135,7 @@ class Stage
 
         // Create the merged cluster from the new transaction and all
         // conflicting clusters.
-        auto newCluster = std::make_shared<Cluster>(tx);
+        auto newCluster = std::make_unique<Cluster>(tx);
         for (auto const* cluster : conflictingClusters)
         {
             newCluster->merge(*cluster);
@@ -138,25 +143,24 @@ class Stage
 
         // Mutate mClusters in-place: remove conflicting clusters (saving
         // them for potential rollback) and append the new merged cluster.
-        // This avoids the O(N) shared_ptr copy overhead of creating a
-        // new cluster vector on every tryAdd call.
-        std::vector<std::shared_ptr<Cluster const>> savedClusters;
+        std::vector<std::unique_ptr<Cluster const>> savedClusters;
         if (!conflictingClusters.empty())
         {
             savedClusters.reserve(conflictingClusters.size());
             removeConflictingClusters(conflictingClusters, savedClusters);
         }
-        mClusters.push_back(newCluster);
+        mClusters.push_back(std::move(newCluster));
 
         // If it's possible to pack the newly-created cluster into one of the
         // bins 'in-place' without rebuilding the bin-packing, we do so.
-        if (inPlaceBinPacking(*newCluster, conflictingClusters))
+        auto* addedCluster = mClusters.back().get();
+        if (inPlaceBinPacking(*addedCluster, conflictingClusters))
         {
             mInstructions += tx.mInstructions;
             // Update the global conflict mask so future lookups can
             // fast-path when a tx has no conflicts with any cluster.
             mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
-            updateTxToCluster(*newCluster);
+            updateTxToCluster(*addedCluster);
             return true;
         }
 
@@ -189,7 +193,7 @@ class Stage
         {
             if (mTriedCompactingBinPacking)
             {
-                rollbackClusters(newCluster.get(), savedClusters);
+                rollbackClusters(addedCluster, savedClusters);
                 return false;
             }
             mTriedCompactingBinPacking = true;
@@ -203,7 +207,7 @@ class Stage
         // the required number of bins.
         if (!newPacking)
         {
-            rollbackClusters(newCluster.get(), savedClusters);
+            rollbackClusters(addedCluster, savedClusters);
             return false;
         }
         mBinPacking = std::move(newPacking.value());
@@ -212,7 +216,7 @@ class Stage
         // Update the global conflict mask so future lookups can
         // fast-path when a tx has no conflicts with any cluster.
         mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
-        updateTxToCluster(*newCluster);
+        updateTxToCluster(*addedCluster);
         return true;
     }
 
@@ -250,7 +254,7 @@ class Stage
         size_t conflictTxId = 0;
         while (tx.mConflictTxs.nextSet(conflictTxId))
         {
-            auto* cluster = mTxToCluster[conflictTxId];
+            auto const* cluster = mTxToCluster[conflictTxId];
             if (cluster != nullptr)
             {
                 conflictingClusters.insert(cluster);
@@ -306,12 +310,11 @@ class Stage
     }
 
     // Remove conflicting clusters from mClusters in-place, saving them
-    // in 'saved' for potential rollback. Uses a compaction scan: O(N)
-    // moves but no shared_ptr copies (which involve atomic refcounts).
+    // in 'saved' for potential rollback.
     void
     removeConflictingClusters(
         std::unordered_set<Cluster const*> const& toRemove,
-        std::vector<std::shared_ptr<Cluster const>>& saved)
+        std::vector<std::unique_ptr<Cluster const>>& saved)
     {
         size_t writePos = 0;
         for (size_t readPos = 0; readPos < mClusters.size(); ++readPos)
@@ -335,9 +338,8 @@ class Stage
     // Rollback an in-place mutation: find and remove the merged cluster,
     // then restore the saved conflicting clusters.
     void
-    rollbackClusters(
-        Cluster const* mergedCluster,
-        std::vector<std::shared_ptr<Cluster const>>& savedClusters)
+    rollbackClusters(Cluster const* mergedCluster,
+                     std::vector<std::unique_ptr<Cluster const>>& savedClusters)
     {
         // Find and swap-pop the merged cluster.
         for (size_t i = 0; i < mClusters.size(); ++i)
@@ -361,7 +363,7 @@ class Stage
     // This has around 11/9 maximum approximation ratio, which probably has
     // the best complexity/performance tradeoff out of all the heuristics.
     std::optional<std::vector<BitSet>>
-    binPacking(std::vector<std::shared_ptr<Cluster const>>& clusters,
+    binPacking(std::vector<std::unique_ptr<Cluster const>>& clusters,
                std::vector<uint64_t>& binInsns) const
     {
         // We could consider dropping the sort here in order to save some time
@@ -415,7 +417,7 @@ class Stage
     // Looked at another way: two clusters that _aren't_ merged by the end of
     // the process of forming clusters _are_ data-independent and _could_
     // potentially run in parallel.
-    std::vector<std::shared_ptr<Cluster const>> mClusters;
+    std::vector<std::unique_ptr<Cluster const>> mClusters;
     // The clusters formed by data dependency merging may, however,
     // significantly outnumber the maximum _allowed_ amount of parallelism in
     // the stage -- a number called `ledgerMaxDependentTxClusters` in CAP-0063
@@ -466,16 +468,18 @@ ParallelPhaseBuildResult
 buildSurgePricedParallelSorobanPhaseWithStageCount(
     std::vector<size_t> const& sortedTxOrder,
     std::vector<Resource> const& txResources, Resource const& laneLimit,
-    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*> const&
-        builderTxForTx,
-    TxFrameList const& txFrames, uint32_t stageCount,
-    SorobanNetworkConfig const& sorobanCfg)
+    std::vector<BuilderTx> const& builderTxs, TxFrameList const& txFrames,
+    uint32_t stageCount, SorobanNetworkConfig const& sorobanCfg)
 {
     ZoneScoped;
     ParallelPartitionConfig partitionCfg(stageCount, sorobanCfg);
 
-    std::vector<Stage> stages(partitionCfg.mStageCount,
-                              Stage(partitionCfg, txFrames.size()));
+    std::vector<Stage> stages;
+    stages.reserve(partitionCfg.mStageCount);
+    for (uint32_t i = 0; i < partitionCfg.mStageCount; ++i)
+    {
+        stages.emplace_back(partitionCfg, txFrames.size());
+    }
 
     // Iterate transactions in decreasing fee order and try greedily pack them
     // into one of the stages until the limits are reached. Transactions that
@@ -498,14 +502,10 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         }
 
         // Try to add the transaction to one of the stages.
-        auto const& txFrame = txFrames[txIdx];
-        auto builderTxIt = builderTxForTx.find(txFrame);
-        releaseAssert(builderTxIt != builderTxForTx.end());
-
         bool added = false;
         for (auto& stage : stages)
         {
-            if (stage.tryAdd(*builderTxIt->second))
+            if (stage.tryAdd(builderTxs[txIdx]))
             {
                 added = true;
                 break;
@@ -538,22 +538,20 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         auto& resStage = result.mStages.emplace_back();
         resStage.reserve(partitionCfg.mClustersPerStage);
 
-        std::unordered_map<size_t, size_t> clusterIdToStageCluster;
+        std::vector<size_t> binToStageCluster(
+            partitionCfg.mClustersPerStage, std::numeric_limits<size_t>::max());
 
-        stage.visitAllTransactions(
-            [&resStage, &txFrames, &clusterIdToStageCluster,
-             &totalInclusionFee](size_t clusterId, size_t txId) {
-                auto it = clusterIdToStageCluster.find(clusterId);
-                if (it == clusterIdToStageCluster.end())
-                {
-                    it = clusterIdToStageCluster
-                             .emplace(clusterId, resStage.size())
-                             .first;
-                    resStage.emplace_back();
-                }
-                totalInclusionFee += txFrames[txId]->getInclusionFee();
-                resStage[it->second].push_back(txFrames[txId]);
-            });
+        stage.visitAllTransactions([&resStage, &txFrames, &binToStageCluster,
+                                    &totalInclusionFee](size_t binId,
+                                                        size_t txId) {
+            if (binToStageCluster[binId] == std::numeric_limits<size_t>::max())
+            {
+                binToStageCluster[binId] = resStage.size();
+                resStage.emplace_back();
+            }
+            totalInclusionFee += txFrames[txId]->getInclusionFee();
+            resStage[binToStageCluster[binId]].push_back(txFrames[txId]);
+        });
         // Algorithm ensures that clusters are populated from first to last and
         // no empty clusters are generated.
         for (auto const& cluster : resStage)
@@ -576,33 +574,14 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     return result;
 }
 
-} // namespace
-
-TxStageFrameList
-buildSurgePricedParallelSorobanPhase(
-    TxFrameList const& txFrames, Config const& cfg,
-    SorobanNetworkConfig const& sorobanCfg,
-    std::shared_ptr<SurgePricingLaneConfig> laneConfig,
-    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+std::vector<BuilderTx>
+prepareBuilderTxs(TxFrameList const& txFrames)
 {
-    ZoneScoped;
-    // We prefer the transaction sets that are well utilized, but we also want
-    // to lower the stage count when possible. Thus we will nominate a tx set
-    // that has the lowest amount of stages while still being within
-    // MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT from the maximum total
-    // inclusion fee (a proxy for the transaction set utilization).
-    double const MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT = 0.999;
-
-    // Simplify the transactions to the minimum necessary amount of data.
-    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*>
-        builderTxForTx;
-    std::vector<std::unique_ptr<BuilderTx>> builderTxs;
+    std::vector<BuilderTx> builderTxs;
     builderTxs.reserve(txFrames.size());
     for (size_t i = 0; i < txFrames.size(); ++i)
     {
-        auto const& txFrame = txFrames[i];
-        builderTxs.emplace_back(std::make_unique<BuilderTx>(i, *txFrame));
-        builderTxForTx.emplace(txFrame, builderTxs.back().get());
+        builderTxs.emplace_back(i, *txFrames[i]);
     }
 
     // Before trying to include any transactions, find all the pairs of the
@@ -612,9 +591,6 @@ buildSurgePricedParallelSorobanPhase(
     // vector tagged with (key hash, tx id, RO/RW), sort by hash,
     // then scan for groups sharing the same key hash. This is significantly
     // faster in practice than using hash map lookups.
-    //
-    // With 64-bit hashes and typical
-    // footprint sizes, collisions are exceedingly rare .
     //
     // This also has the further optimization potential: we could populate the
     // key maps and even the conflicting transactions eagerly in tx queue, thus
@@ -680,25 +656,25 @@ buildSurgePricedParallelSorobanPhase(
             continue;
         }
 
-        // Collect all entries matching.
+        // Collect all entries with the matching key hash.
         std::vector<size_t> roTxs;
         std::vector<size_t> rwTxs;
         for (size_t i = groupStart; i < groupEnd; ++i)
         {
             if (fpEntries[i].isRW)
-                {
+            {
                 rwTxs.push_back(fpEntries[i].txId);
-                }
-                else
-                {
+            }
+            else
+            {
                 roTxs.push_back(fpEntries[i].txId);
             }
-            }
-            // RW-RW conflicts
+        }
+        // RW-RW conflicts
         for (size_t i = 0; i < rwTxs.size(); ++i)
-            {
+        {
             for (size_t j = i + 1; j < rwTxs.size(); ++j)
-                {
+            {
                 // In a rare case of hash collision within a transaction, we
                 // might have the same transaction appear several times in the
                 // same group.
@@ -708,13 +684,13 @@ buildSurgePricedParallelSorobanPhase(
                 }
                 builderTxs[rwTxs[i]].mConflictTxs.set(rwTxs[j]);
                 builderTxs[rwTxs[j]].mConflictTxs.set(rwTxs[i]);
-                }
             }
-            // RO-RW conflicts
+        }
+        // RO-RW conflicts
         for (size_t i = 0; i < roTxs.size(); ++i)
-            {
+        {
             for (size_t j = 0; j < rwTxs.size(); ++j)
-                {
+            {
                 // In a rare case of hash collision within a transaction, we
                 // might have the same transaction appear several times in the
                 // same group.
@@ -729,6 +705,28 @@ buildSurgePricedParallelSorobanPhase(
 
         groupStart = groupEnd;
     }
+    return builderTxs;
+}
+
+} // namespace
+
+TxStageFrameList
+buildSurgePricedParallelSorobanPhase(
+    TxFrameList const& txFrames, Config const& cfg,
+    SorobanNetworkConfig const& sorobanCfg,
+    std::shared_ptr<SurgePricingLaneConfig> laneConfig,
+    std::vector<bool>& hadTxNotFittingLane, uint32_t ledgerVersion)
+{
+    ZoneScoped;
+    // We prefer the transaction sets that are well utilized, but we also want
+    // to lower the stage count when possible. Thus we will nominate a tx set
+    // that has the lowest amount of stages while still being within
+    // MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT from the maximum total
+    // inclusion fee (a proxy for the transaction set utilization).
+    double const MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT = 0.999;
+
+    // Simplify the transactions to the minimum necessary amount of data.
+    auto builderTxs = prepareBuilderTxs(txFrames);
 
     // Sort transactions in decreasing inclusion fee order.
     TxFeeComparator txComparator(
@@ -739,7 +737,7 @@ buildSurgePricedParallelSorobanPhase(
     std::sort(sortedTxOrder.begin(), sortedTxOrder.end(),
               [&txFrames, &txComparator](size_t a, size_t b) {
                   return txComparator(txFrames[a], txFrames[b]);
-        });
+              });
 
     // Precompute per-transaction resources to avoid repeated virtual calls
     // and heap allocations across threads.
@@ -768,12 +766,12 @@ buildSurgePricedParallelSorobanPhase(
     {
         size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
         threads.emplace_back([&sortedTxOrder, &txResources, &laneLimit,
-                              &builderTxForTx, &txFrames, stageCount,
-                              &sorobanCfg, resultIndex, &results]() {
+                              &builderTxs, &txFrames, stageCount, &sorobanCfg,
+                              resultIndex, &results]() {
             results.at(resultIndex) =
                 buildSurgePricedParallelSorobanPhaseWithStageCount(
-                    sortedTxOrder, txResources, laneLimit, builderTxForTx,
-                    txFrames, stageCount, sorobanCfg);
+                    sortedTxOrder, txResources, laneLimit, builderTxs, txFrames,
+                    stageCount, sorobanCfg);
         });
     }
     for (auto& thread : threads)
