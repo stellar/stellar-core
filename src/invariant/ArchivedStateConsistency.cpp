@@ -428,6 +428,12 @@ ArchivedStateConsistency::checkRestoreInvariants(
                            "in live state: {}"),
                 xdrToCerealString(key, "key"));
         }
+        // For non-TTL entries, `entry` (the restored value) should be
+        // identical to `liveEntry->second` (the value on the live BucketList)
+        // since data/code entries are not modified during a restore. TTL
+        // entries are excluded from this check because restoration updates the
+        // TTL's liveUntilLedgerSeq, so the restored value will differ from the
+        // on-disk value.
         else if (key.type() != TTL && liveEntry->second != entry)
         {
             return fmt::format(
@@ -440,11 +446,15 @@ ArchivedStateConsistency::checkRestoreInvariants(
 
         if (key.type() == TTL)
         {
+            // `entry` is the TTL after restoration (with updated
+            // liveUntilLedgerSeq). `liveEntry->second` is the original
+            // on-disk TTL before restoration. We check that the restored
+            // TTL is now live and the original was expired.
             if (!isLive(entry, ledgerSeq))
             {
                 return fmt::format(
                     FMT_STRING("ArchivedStateConsistency invariant failed: "
-                               "Restored entries updated state is still "
+                               "Restored entry's updated TTL is still "
                                "expired: TTL Entry: {}"),
                     xdrToCerealString(entry, "ttl_entry"));
             }

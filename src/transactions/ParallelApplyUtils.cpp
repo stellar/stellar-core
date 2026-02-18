@@ -442,6 +442,9 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
         }
     }
+    // Live BucketList restores are only tracked in LedgerTxn for the
+    // ArchivedStateConsistency invariant, but we unconditionally track it for
+    // now.
     for (auto const& kvp : mGlobalRestoredEntries.liveBucketList)
     {
         if (kvp.first.type() != TTL)
