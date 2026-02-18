@@ -363,13 +363,15 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
     }
 
     // We should only have restored live BucketList keys for the restore
-    // operation pre-v23
+    // operation pre-v23. Starting from v23, we use
+    // setLedgerChangesFromSuccessfulOp for the parallel operations, which has
+    // RestoredEntries passed directly to it through ParallelTxReturnVal.
     auto opRestoredLiveBucketListKeys = opLtx.getRestoredLiveBucketListKeys();
     releaseAssertOrThrow(opRestoredLiveBucketListKeys.empty() ||
                          opType == OperationType::RESTORE_FOOTPRINT);
 
-    // Note: Hot Archive restore map is always empty since this is never called
-    // in p23.
+    // Hot Archive restores are not possible pre-v23, so this should be empty.
+    releaseAssertOrThrow(opLtx.getRestoredHotArchiveKeys().empty());
     std::visit(
         [&opLtx, &opRestoredLiveBucketListKeys, ledgerSeq, this](auto&& meta) {
             meta.get().changes = processOpLedgerEntryChanges(
