@@ -248,6 +248,13 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     {
         // Generate just enough meta to not triggers garbage collection
         closeLedgers(cfg.METADATA_DEBUG_LEDGERS);
+
+        // Drain any remaining background apply before stopping, so the
+        // debug tx set file and LCL are consistent when we read them.
+        while (lm.isApplying())
+        {
+            clock.crank(true);
+        }
         app->gracefulStop();
 
         // Verify presence of the latest debug tx set

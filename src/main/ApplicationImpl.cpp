@@ -987,6 +987,15 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
 
         if (mConfig.RUN_STANDALONE)
         {
+            // With background apply, triggerNextLedger posts work to the
+            // apply thread. Crank until the ledger is fully applied and
+            // LCL has advanced.
+            while (getLedgerManager().getLastClosedLedgerNum() <
+                   targetLedgerSeq)
+            {
+                getClock().crank(true);
+            }
+
             auto const newLedgerSeq =
                 getLedgerManager().getLastClosedLedgerNum();
             if (newLedgerSeq != targetLedgerSeq)
