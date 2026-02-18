@@ -1975,6 +1975,12 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
+
+    // With background apply, crank until all queued ledgers are applied
+    while (lm.getLastClosedLedgerNum() < nextLedger + 5)
+    {
+        app->getClock().crank(true);
+    }
     REQUIRE(lm.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!lam.isCatchupInitialized());
