@@ -1930,7 +1930,6 @@ runApplyLoad(CommandLineArgs const& args)
         {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
         [&] {
             auto config = configOption.getConfig();
-            config.RUN_STANDALONE = true;
             config.MANUAL_CLOSE = true;
             config.USE_CONFIG_FOR_GENESIS = true;
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
@@ -1960,6 +1959,27 @@ runApplyLoad(CommandLineArgs const& args)
 
                 // Apply Load may exceed TX_SET byte size limits, so ignore them
                 config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+
+                // Enable background apply for max-sac-tps mode.
+                // This requires disabling standalone mode, since
+                // parallelLedgerClose() is incompatible with it.
+                // We also disable overlay auto-start to prevent the
+                // node from trying to connect to peers.
+                // parallelLedgerClose() also requires a file-based
+                // database (not in-memory sqlite), so we set one if
+                // the user hasn't configured one.
+                config.RUN_STANDALONE = false;
+                config.PARALLEL_LEDGER_APPLY = true;
+                config.MODE_AUTO_STARTS_OVERLAY = false;
+                if (config.DATABASE.value == "sqlite3://:memory:")
+                {
+                    config.DATABASE =
+                        SecretValue{"sqlite3://stellar-core-apply-load.db"};
+                }
+            }
+            else
+            {
+                config.RUN_STANDALONE = true;
             }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
