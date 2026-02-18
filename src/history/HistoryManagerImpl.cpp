@@ -29,7 +29,6 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
-#include "transactions/TransactionSQL.h"
 #include "util/BufferedAsioCerealOutputArchive.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
