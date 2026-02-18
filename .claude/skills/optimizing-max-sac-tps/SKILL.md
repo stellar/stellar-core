@@ -333,8 +333,8 @@ and `CommandLine.cpp`) DO NOT CHANGE THESE PARAMETERS!!:
 | Close time | 1000ms | `APPLY_LOAD_TARGET_CLOSE_TIME_MS` |
 | BucketList | In-memory | `BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0` |
 | Parallel apply | true | `PARALLEL_LEDGER_APPLY` |
-| Time writes | true | `APPLY_LOAD_TIME_WRITES` |
-| Ledgers per iteration | 20 | `APPLY_LOAD_NUM_LEDGERS` |
+| Time writes | true | `APPLY_LOAD_TIME_WRITES` (must be true for realistic measurement) |
+| Samples per point | 10 | `APPLY_LOAD_NUM_LEDGERS` (max samples, early exit if confident) |
 
 # Tracy Profile Baseline (as of initial analysis)
 

@@ -241,7 +241,7 @@ noisyBinarySearch(std::function<double(uint32_t)> const& f, double targetA,
                   std::function<void(uint32_t, bool)> const& iterationResult)
 {
     releaseAssert(xMin <= xMax);
-    size_t const minSamples = 30;
+    size_t const minSamples = 10;
     releaseAssert(maxSamplesPerPoint >= minSamples);
 
     // Binary search bounds

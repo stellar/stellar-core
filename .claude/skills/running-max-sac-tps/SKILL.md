@@ -81,13 +81,13 @@ These are set in `docs/apply-load-max-sac-tps.cfg`:
 
 | Parameter | Default | Description |
 |---|---|---|
-| `APPLY_LOAD_MAX_SAC_TPS_MIN_TPS` | 1000 | Lower bound for binary search |
-| `APPLY_LOAD_MAX_SAC_TPS_MAX_TPS` | 15000 | Upper bound for binary search |
+| `APPLY_LOAD_MAX_SAC_TPS_MIN_TPS` | 7000 | Lower bound for binary search |
+| `APPLY_LOAD_MAX_SAC_TPS_MAX_TPS` | 12000 | Upper bound for binary search (raise as TPS improves) |
 | `APPLY_LOAD_TARGET_CLOSE_TIME_MS` | 1000 | Target ledger close time |
 | `APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS` | 4 | Parallel execution threads |
 | `APPLY_LOAD_BATCH_SAC_COUNT` | 1 | SAC invocations per TX |
-| `APPLY_LOAD_NUM_LEDGERS` | 20 | Ledgers per binary search iteration |
-| `APPLY_LOAD_TIME_WRITES` | true | Include DB writes in timing |
+| `APPLY_LOAD_NUM_LEDGERS` | 10 | Max samples per binary search point (min 10 for t-statistic, early exit if confident) |
+| `APPLY_LOAD_TIME_WRITES` | true | Include DB writes in timing (must be true for realistic measurement) |
 
 ## Automatically Set by CommandLine.cpp
 
