@@ -28,6 +28,33 @@ repository, making it suitable for agentic workflows without requiring a GUI.
 Self time is just the time in the zone itself, excluding children. Self time
 is often more useful for identifying the actual code causing slowness.
 
+# Benchmark-Specific Analysis
+
+**Important**: When analyzing traces from benchmarks (e.g., `apply-load --mode
+max-sac-tps`), the trace captures the **entire process**, including TX set
+building, surge pricing, and other work that is NOT part of what the benchmark
+actually measures. The benchmark only times specific zones (e.g., `applyLedger`
+or `ledger.transaction.total-apply`).
+
+**csvexport `-f` is a substring filter, not a hierarchical filter.** It matches
+zone names containing the string, but does NOT limit results to children of that
+zone. To understand what matters for a benchmark:
+
+1. Identify the benchmark's measurement zone (e.g., `applyLedger` for max-sac-tps)
+2. Look at that zone's **total time** to understand the benchmark envelope
+3. Look at **self-time** of all zones, but only consider zones that are logically
+4. Zones like `tryAdd`, `buildSurgePricedParallelSorobanPhase`, and
+   `popTopTxs` are TX set construction — they dominate total trace time but are
+   irrelevant to the apply-time benchmark measurement
+
+For max-sac-tps specifically, the relevant top-level zone is `applyLedger`
+(`ledger/LedgerManagerImpl.cpp`). Its key children include:
+- `applyTransactions` / `applySorobanStages` / `applySorobanStageClustersInParallel`
+- `parallelApply` (transaction/operation application)
+- `InvokeHostFunctionOpFrame` (Soroban execution)
+- `finalizeLedgerTxnChanges` / `commitChangesToLedgerTxn` (post-apply writes)
+- Bucket operations (`getBucketEntry`, `InMemoryIndex scan`, etc.)
+
 # Prerequisites
 
 ## Tool Locations
@@ -276,6 +303,7 @@ If you have a baseline trace, use DiffTracyCSV.py to detect regressions.
 # NEVER
 
 - NEVER use unwrap mode (`-u`) without limiting output (can be millions of rows)
+- NEVER report TX set building zones (tryAdd, buildSurgePricedParallelSorobanPhase, popTopTxs, applySurgePricing) as performance-relevant when analyzing apply-load benchmark traces — these are outside the measured benchmark window
 - NEVER assume total time means the zone itself is slow (check self time)
 - NEVER compare traces from different scenarios without noting the context
 - NEVER delete or overwrite original tracy files

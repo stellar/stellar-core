@@ -1976,6 +1976,12 @@ runApplyLoad(CommandLineArgs const& args)
                     config.DATABASE =
                         SecretValue{"sqlite3://stellar-core-apply-load.db"};
                 }
+
+                // Use in-memory BucketList for max-sac-tps mode.
+                // Setting page size exponent to 0 causes all bucket
+                // entries to be individually indexed in memory,
+                // eliminating disk I/O for BucketList lookups.
+                config.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
             }
             else
             {
