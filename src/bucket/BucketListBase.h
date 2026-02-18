@@ -353,13 +353,11 @@ struct InflationWinner;
 
 namespace testutil
 {
-template <class BucketT> class BucketListDepthModifier;
+template <IsBucketType BucketT> class BucketListDepthModifier;
 }
 
-template <class BucketT> class BucketLevel
+template <IsBucketType BucketT> class BucketLevel
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     uint32_t mLevel;
     // Variant to hold either a FutureBucket (for async merges) or a
     // shared_ptr<BucketT> (for in-memory merges)
@@ -417,7 +415,8 @@ class BucketListDepth
 
     operator uint32_t() const;
 
-    template <class BucketT> friend class testutil::BucketListDepthModifier;
+    template <IsBucketType BucketT>
+    friend class testutil::BucketListDepthModifier;
 };
 
 // While every BucketList shares the same high level structure wrt to spill
@@ -426,10 +425,8 @@ class BucketListDepth
 // entry level. This abstract base class defines the shared structure of all
 // BucketLists. It must be extended for each specific BucketList type, where the
 // template parameter BucketT refers to the underlying Bucket type.
-template <class BucketT> class BucketListBase
+template <IsBucketType BucketT> class BucketListBase
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
   protected:
     std::vector<BucketLevel<BucketT>> mLevels;
 

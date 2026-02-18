@@ -15,6 +15,7 @@
 #include <cereal/types/memory.hpp>
 #include <cereal/types/vector.hpp>
 
+#include <concepts>
 #include <filesystem>
 #include <memory>
 
@@ -67,9 +68,8 @@ using RangeIndex = std::vector<std::pair<RangeEntry, std::streamoff>>;
 // random eviction cache for partial caching, and a range based index + binary
 // fuse filter for disk lookups. Creating this index is expensive, so we persist
 // it to disk. We do not persist the random eviction cache.
-template <class BucketT> class DiskIndex : public NonMovableOrCopyable
+template <IsBucketType BucketT> class DiskIndex : public NonMovableOrCopyable
 {
-    BUCKET_TYPE_ASSERT(BucketT);
 
     // Fields from here are persisted on disk. Cereal doesn't like templates so
     // we define an inner struct to hold all serializable fields.
@@ -180,14 +180,13 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
         ar(version, pageSize);
     }
 
-    // This messy template makes is such that this function is only defined
+    // This concept template makes is such that this function is only defined
     // when BucketT == LiveBucket
-    template <int..., typename T = BucketT,
-              std::enable_if_t<std::is_same_v<T, LiveBucket>, bool> = true>
+    template <typename T = BucketT>
+        requires std::same_as<T, BucketT> && std::same_as<T, LiveBucket>
     AssetPoolIDMap const&
     getAssetPoolIDMap() const
     {
-        static_assert(std::is_same_v<T, LiveBucket>);
         releaseAssert(mData.assetToPoolID);
         return *mData.assetToPoolID;
     }

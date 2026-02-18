@@ -41,7 +41,7 @@ formatString(std::string const& templateString, Tokens const&... tokens)
 {
     try
     {
-        return fmt::format(templateString, tokens...);
+        return fmt::format(fmt::runtime(templateString), tokens...);
     }
     catch (fmt::format_error const& ex)
     {

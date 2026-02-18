@@ -19,8 +19,8 @@ class AbstractLedgerTxn;
 class Application;
 class EvictionStatistics;
 class LiveBucket;
-template <typename T> class BucketOutputIterator;
-template <typename T> class BucketInputIterator;
+template <IsBucketType T> class BucketOutputIterator;
+template <IsBucketType T> class BucketInputIterator;
 
 typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
 typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
@@ -29,7 +29,7 @@ typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
  * Live Buckets are used by the LiveBucketList to store the current canonical
  * state of the ledger. They contain entries of type BucketEntry.
  */
-class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
+class LiveBucket : public BucketBase<LiveBucket>,
                    public std::enable_shared_from_this<LiveBucket>
 {
     // Stores all BucketEntries (except METAENTRY) in the same order that they

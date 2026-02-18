@@ -4,8 +4,10 @@
 
 #pragma once
 
+#include <concepts>
 #include <exception>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <variant>
 
 #include "crypto/Hex.h"
@@ -25,6 +27,13 @@ namespace internal
 {
 using namespace xdr;
 using namespace stellar;
+
+// We need to use concepts to get subsumption
+template <typename T>
+concept IsXdrClass = xdr_traits<T>::is_class;
+
+template <typename T>
+concept IsXdrUnion = IsXdrClass<T> && xdr_traits<T>::is_union;
 
 struct XDRFieldResolver
 {
@@ -50,8 +59,8 @@ struct XDRFieldResolver
     }
 
     template <typename T>
-    typename std::enable_if_t<xdr_traits<T>::is_numeric &&
-                              !xdr_traits<T>::is_enum>
+        requires xdr_traits<T>::is_numeric
+    void
     operator()(T const& t, char const* fieldName)
     {
         if (checkLeafField(fieldName))
@@ -62,7 +71,8 @@ struct XDRFieldResolver
 
     // Retrieve enums as their XDR string representation.
     template <typename T>
-    typename std::enable_if_t<xdr_traits<T>::is_enum>
+        requires xdr_traits<T>::is_enum
+    void
     operator()(T const& t, char const* fieldName)
     {
         if (checkLeafField(fieldName))
@@ -72,9 +82,8 @@ struct XDRFieldResolver
     }
 
     // Retrieve public keys in standard string representation.
-    template <typename T>
-    typename std::enable_if_t<std::is_same_v<PublicKey, T>>
-    operator()(T const& k, char const* fieldName)
+    void
+    operator()(PublicKey const& k, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -83,9 +92,8 @@ struct XDRFieldResolver
     }
 
     // Retrieve SCAddresses in standard string representation.
-    template <typename T>
-    typename std::enable_if_t<std::is_same_v<SCAddress, T>>
-    operator()(T const& k, char const* fieldName)
+    void
+    operator()(SCAddress const& k, char const* fieldName)
     {
         if (checkLeafField(fieldName))
         {
@@ -106,9 +114,9 @@ struct XDRFieldResolver
         }
     }
 
-    template <typename T>
-    typename std::enable_if_t<std::is_same_v<Asset, T> ||
-                              std::is_same_v<TrustLineAsset, T>>
+    template <IsXdrUnion T>
+        requires std::same_as<T, Asset> || std::same_as<T, TrustLineAsset>
+    void
     operator()(T const& asset, char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))
@@ -213,7 +221,8 @@ struct XDRFieldResolver
     }
 
     template <typename T>
-    typename std::enable_if_t<xdr_traits<T>::is_container>
+        requires xdr_traits<T>::is_container
+    void
     operator()(T const& t, char const* fieldName)
     {
         if (matchFieldToPath(fieldName))
@@ -224,11 +233,8 @@ struct XDRFieldResolver
         }
     }
 
-    template <typename T>
-    typename std::enable_if_t<
-        xdr_traits<T>::is_union && !std::is_same_v<PublicKey, T> &&
-        !std::is_same_v<Asset, T> && !std::is_same_v<TrustLineAsset, T> &&
-        !xdr_traits<T>::is_container && !std::is_same_v<SCAddress, T>>
+    template <IsXdrUnion T>
+    void
     operator()(T const& t, char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))
@@ -252,12 +258,8 @@ struct XDRFieldResolver
         }
     }
 
-    template <typename T>
-    typename std::enable_if_t<
-        xdr_traits<T>::is_class && !std::is_same_v<PublicKey, T> &&
-        !std::is_same_v<Asset, T> && !std::is_same_v<TrustLineAsset, T> &&
-        !xdr_traits<T>::is_union && !xdr_traits<T>::is_container &&
-        !std::is_same_v<SCAddress, T>>
+    template <IsXdrClass T>
+    void
     operator()(T const& t, char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))
@@ -333,8 +335,8 @@ struct XDRFieldResolver
         (*this)(asset.liquidityPoolID(), "liquidityPoolID");
     }
 
-    template <typename T>
-    typename std::enable_if_t<xdr_traits<T>::is_union>
+    template <IsXdrUnion T>
+    void
     validateUnion(T const& t, char const* fieldName)
     {
         // The field could have been already matched if it was XDR discriminant.
@@ -357,9 +359,9 @@ struct XDRFieldResolver
         }
     }
 
-    template <typename T>
-    typename std::enable_if_t<std::is_same_v<Asset, T> ||
-                              std::is_same_v<TrustLineAsset, T>>
+    template <IsXdrUnion T>
+        requires std::same_as<T, Asset> || std::same_as<T, TrustLineAsset>
+    void
     validateAsset(T const& asset, char const* fieldName)
     {
         // The field could have been already matched if it was a native asset.

@@ -142,14 +142,14 @@ computeMultiplier(LedgerEntry const& le)
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BucketListDepthModifier<BucketT>::BucketListDepthModifier(uint32_t newDepth)
     : mPrevDepth(BucketListBase<BucketT>::kNumLevels)
 {
     BucketListBase<BucketT>::kNumLevels = newDepth;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BucketListDepthModifier<BucketT>::~BucketListDepthModifier()
 {
     BucketListBase<BucketT>::kNumLevels = mPrevDepth;

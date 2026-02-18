@@ -21,6 +21,7 @@
 #include "simulation/ApplyLoad.h"
 #endif
 
+#include <concepts>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <functional>
@@ -433,8 +434,8 @@ readArray(ConfigItem const& item)
     return result;
 }
 
-template <typename T>
-std::enable_if_t<std::is_signed_v<T>, T>
+template <std::signed_integral T>
+T
 castInt(int64_t v, std::string const& name, T min, T max)
 {
     if (v < min || v > max)
@@ -444,8 +445,8 @@ castInt(int64_t v, std::string const& name, T min, T max)
     return static_cast<T>(v);
 }
 
-template <typename T>
-std::enable_if_t<std::is_unsigned_v<T>, T>
+template <std::unsigned_integral T>
+T
 castInt(int64_t v, std::string const& name, T min, T max)
 {
     if (v < 0)

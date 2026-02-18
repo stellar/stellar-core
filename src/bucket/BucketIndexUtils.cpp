@@ -27,13 +27,11 @@ getPageSizeFromConfig(Config const& cfg)
     return 1UL << cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<typename BucketT::IndexT const>
 createIndex(BucketManager& bm, std::filesystem::path const& filename,
             Hash const& hash, asio::io_context& ctx, SHA256* hasher)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     ZoneScoped;
     releaseAssertOrThrow(!filename.empty());
 
@@ -50,7 +48,7 @@ createIndex(BucketManager& bm, std::filesystem::path const& filename,
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<typename BucketT::IndexT const>
 loadIndex(BucketManager const& bm, std::filesystem::path const& filename,
           std::size_t fileSize)

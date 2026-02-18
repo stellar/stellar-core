@@ -16,6 +16,7 @@
 #include "xdrpp/marshal.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
+#include <concepts>
 
 namespace stellar
 {
@@ -35,8 +36,8 @@ class GeneralizedTxSetUnpacker
     }
 
     template <typename T>
-    typename std::enable_if<
-        std::is_same<uint32_t, typename xdr_traits<T>::uint_type>::value>::type
+        requires std::same_as<uint32_t, typename xdr_traits<T>::uint_type>
+    void
     operator()(T& t)
     {
         uint32_t v;
@@ -45,8 +46,8 @@ class GeneralizedTxSetUnpacker
     }
 
     template <typename T>
-    typename std::enable_if<
-        std::is_same<uint64_t, typename xdr_traits<T>::uint_type>::value>::type
+        requires std::same_as<uint64_t, typename xdr_traits<T>::uint_type>
+    void
     operator()(T& t)
     {
         uint64_t v;
@@ -55,7 +56,8 @@ class GeneralizedTxSetUnpacker
     }
 
     template <typename T>
-    typename std::enable_if<xdr_traits<T>::is_bytes>::type
+        requires xdr_traits<T>::is_bytes
+    void
     operator()(T& t)
     {
         if (xdr_traits<T>::variable_nelem)
@@ -68,17 +70,15 @@ class GeneralizedTxSetUnpacker
     }
 
     template <typename T>
-    typename std::enable_if<!std::is_same<TransactionEnvelope, T>::value &&
-                            (xdr_traits<T>::is_class ||
-                             xdr_traits<T>::is_container)>::type
+        requires xdr_traits<T>::is_class || xdr_traits<T>::is_container
+    void
     operator()(T& t)
     {
         xdr_traits<T>::load(*this, t);
     }
 
-    template <typename T>
-    typename std::enable_if<std::is_same<TransactionEnvelope, T>::value>::type
-    operator()(T& tx)
+    void
+    operator()(TransactionEnvelope& tx)
     {
         Hash hash;
         getBytes(hash.data(), hash.size());

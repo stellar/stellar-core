@@ -56,7 +56,7 @@ upper_bound_pred(LedgerKey const& key, RangeIndex::value_type const& indexEntry)
 }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::pair<IndexReturnT, typename DiskIndex<BucketT>::IterT>
 DiskIndex<BucketT>::scan(IterT start, LedgerKey const& k) const
 {
@@ -85,7 +85,7 @@ DiskIndex<BucketT>::scan(IterT start, LedgerKey const& k) const
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::optional<std::pair<std::streamoff, std::streamoff>>
 DiskIndex<BucketT>::getOffsetBounds(LedgerKey const& lowerBound,
                                     LedgerKey const& upperBound) const
@@ -116,7 +116,7 @@ DiskIndex<BucketT>::getOffsetBounds(LedgerKey const& lowerBound,
     return std::make_pair(startOff, endOff);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::optional<std::pair<std::streamoff, std::streamoff>>
 DiskIndex<BucketT>::getRangeForType(LedgerEntryType type) const
 {
@@ -129,7 +129,7 @@ DiskIndex<BucketT>::getRangeForType(LedgerEntryType type) const
     return std::nullopt;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               std::filesystem::path const& filename,
                               std::streamoff pageSize, Hash const& hash,
@@ -299,7 +299,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 template <class Archive>
 DiskIndex<BucketT>::DiskIndex(Archive& ar, BucketManager const& bm,
                               std::streamoff pageSize)
@@ -320,7 +320,7 @@ DiskIndex<BucketT>::DiskIndex(Archive& ar, BucketManager const& bm,
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
                                asio::io_context& ctx) const
@@ -371,7 +371,7 @@ DiskIndex<BucketT>::saveToDisk(BucketManager& bm, Hash const& hash,
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 DiskIndex<BucketT>::markBloomMiss() const
 {
@@ -379,7 +379,7 @@ DiskIndex<BucketT>::markBloomMiss() const
 }
 
 #ifdef BUILD_TESTS
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 DiskIndex<BucketT>::operator==(DiskIndex<BucketT> const& in) const
 {

@@ -68,10 +68,10 @@ struct HistoryArchiveState;
  */
 class BucketManager : NonMovableOrCopyable
 {
-    template <class BucketT>
+    template <IsBucketType BucketT>
     using BucketMapT = std::map<Hash, std::shared_ptr<BucketT>>;
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     using FutureMapT =
         UnorderedMap<MergeKey, std::shared_future<std::shared_ptr<BucketT>>>;
 
@@ -158,7 +158,7 @@ class BucketManager : NonMovableOrCopyable
 
     void updateSharedBucketSize();
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucketInternal(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::shared_ptr<typename BucketT::IndexT const> index,
@@ -166,36 +166,36 @@ class BucketManager : NonMovableOrCopyable
         std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
         REQUIRES(mBucketMutex);
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT>
     getBucketByHashInternal(uint256 const& hash, BucketMapT<BucketT>& bucketMap)
         REQUIRES(mBucketMutex);
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT>
     getBucketIfExistsInternal(uint256 const& hash,
                               BucketMapT<BucketT> const& bucketMap) const
         REQUIRES(mBucketMutex);
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_future<std::shared_ptr<BucketT>>
     getMergeFutureInternal(MergeKey const& key, FutureMapT<BucketT>& futureMap)
         REQUIRES(mBucketMutex);
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     void
     putMergeFutureInternal(MergeKey const& key,
                            std::shared_future<std::shared_ptr<BucketT>> future,
                            FutureMapT<BucketT>& futureMap)
         REQUIRES(mBucketMutex);
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     void noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
                                       FutureMapT<BucketT>& futureMap)
         REQUIRES(mBucketMutex);
 
     void reportLiveBucketIndexCacheMetrics();
 
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::map<LedgerKey, LedgerEntry> loadCompleteBucketListStateHelper(
         std::vector<HistoryStateBucket<BucketT>> const& buckets,
         std::function<void(std::shared_ptr<BucketT>, std::string const&,
@@ -239,15 +239,16 @@ class BucketManager : NonMovableOrCopyable
 
     medida::Timer& getMergeTimer();
 
-    template <class BucketT> medida::Meter& getBloomMissMeter() const;
-    template <class BucketT> medida::Meter& getBloomLookupMeter() const;
+    template <IsBucketType BucketT> medida::Meter& getBloomMissMeter() const;
+    template <IsBucketType BucketT> medida::Meter& getBloomLookupMeter() const;
     medida::Meter& getCacheHitMeter() const;
     medida::Meter& getCacheMissMeter() const;
 
     // Reading and writing the merge counters is done in bulk, and takes a lock
     // briefly; this can be done from any thread.
-    template <class BucketT> MergeCounters readMergeCounters();
-    template <class BucketT> void incrMergeCounters(MergeCounters const& delta);
+    template <IsBucketType BucketT> MergeCounters readMergeCounters();
+    template <IsBucketType BucketT>
+    void incrMergeCounters(MergeCounters const& delta);
 
     // Get a reference to a persistent bucket (in the BucketManager's bucket
     // directory), from the BucketManager's shared bucket-set.
@@ -260,7 +261,7 @@ class BucketManager : NonMovableOrCopyable
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT> adoptFileAsBucket(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::shared_ptr<typename BucketT::IndexT const> index,
@@ -272,16 +273,16 @@ class BucketManager : NonMovableOrCopyable
     // doesn't correspond to a file on disk; the method forgets about the
     // `FutureBucket` associated with the in-progress merge, allowing the merge
     // inputs to be GC'ed.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     void noteEmptyMergeOutput(MergeKey const& mergeKey);
 
     // Returns a bucket by hash if it exists and is currently managed by the
     // bucket list.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT> getBucketIfExists(uint256 const& hash);
 
     // Return a bucket by hash if we have it, else return nullptr.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_ptr<BucketT> getBucketByHash(uint256 const& hash);
 
     // Get a reference to a merge-future that's either running (or finished
@@ -289,7 +290,7 @@ class BucketManager : NonMovableOrCopyable
     // merges and/or a set of records mapping merge inputs to outputs and the
     // set of outputs held in the BucketManager. Returns an invalid future if no
     // such future can be found or synthesized.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     std::shared_future<std::shared_ptr<BucketT>>
     getMergeFuture(MergeKey const& key);
 
@@ -298,7 +299,7 @@ class BucketManager : NonMovableOrCopyable
     // There is no corresponding entry-removal API: the std::shared_future will
     // be removed from the map when the merge completes and the output file is
     // adopted.
-    template <class BucketT>
+    template <IsBucketType BucketT>
     void putMergeFuture(MergeKey const& key,
                         std::shared_future<std::shared_ptr<BucketT>> future);
 
@@ -334,7 +335,7 @@ class BucketManager : NonMovableOrCopyable
     // for each bucket. However, during startup there are race conditions where
     // a bucket may be indexed twice. If there is an index race, set index with
     // this function, otherwise use BucketBase::setIndex().
-    template <class BucketT>
+    template <IsBucketType BucketT>
     void maybeSetIndex(std::shared_ptr<BucketT> b,
                        std::shared_ptr<typename BucketT::IndexT const> index);
 

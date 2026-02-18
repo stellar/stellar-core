@@ -331,20 +331,18 @@ BucketManager::getMergeTimer()
     return mBucketSnapMerge;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 medida::Meter&
 BucketManager::getBloomMissMeter() const
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     return mAppConnector.getMetrics().NewMeter(
         {BucketT::METRIC_STRING, "bloom", "misses"}, "bloom");
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 medida::Meter&
 BucketManager::getBloomLookupMeter() const
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     return mAppConnector.getMetrics().NewMeter(
         {BucketT::METRIC_STRING, "bloom", "lookups"}, "bloom");
 }
@@ -484,7 +482,7 @@ BucketManager::adoptFileAsBucket(
         mHotArchiveBucketFutures, std::move(inMemoryState));
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
@@ -492,7 +490,6 @@ BucketManager::adoptFileAsBucketInternal(
     BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
     std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
 
     if (mergeKey)
@@ -588,13 +585,11 @@ BucketManager::noteEmptyMergeOutput<HotArchiveBucket>(MergeKey const& mergeKey)
     noteEmptyMergeOutputInternal(mergeKey, mHotArchiveBucketFutures);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 BucketManager::noteEmptyMergeOutputInternal(MergeKey const& mergeKey,
                                             FutureMapT<BucketT>& futureMap)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
     // map does not grow without bound and more importantly so that we drop the
     // refcount on the input buckets so they get GC'ed from the bucket dir.
@@ -624,12 +619,11 @@ BucketManager::getBucketIfExists(uint256 const& hash)
     return getBucketIfExistsInternal(hash, mSharedHotArchiveBuckets);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketManager::getBucketIfExistsInternal(
     uint256 const& hash, BucketMapT<BucketT> const& bucketMap) const
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     auto i = bucketMap.find(hash);
     if (i != bucketMap.end())
@@ -659,12 +653,11 @@ BucketManager::getBucketByHash(uint256 const& hash)
     return getBucketByHashInternal(hash, mSharedHotArchiveBuckets);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketManager::getBucketByHashInternal(uint256 const& hash,
                                        BucketMapT<BucketT>& bucketMap)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     if (isZero(hash))
     {
@@ -710,12 +703,11 @@ BucketManager::getMergeFuture(MergeKey const& key)
     return getMergeFutureInternal(key, mHotArchiveBucketFutures);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_future<std::shared_ptr<BucketT>>
 BucketManager::getMergeFutureInternal(MergeKey const& key,
                                       FutureMapT<BucketT>& futureMap)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     MergeCounters mc;
     auto i = futureMap.find(key);
@@ -775,13 +767,12 @@ BucketManager::putMergeFuture(
     putMergeFutureInternal(key, future, mHotArchiveBucketFutures);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 BucketManager::putMergeFutureInternal(
     MergeKey const& key, std::shared_future<std::shared_ptr<BucketT>> future,
     FutureMapT<BucketT>& futureMap)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     CLOG_TRACE(
         Bucket,
@@ -1145,7 +1136,7 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     calculateSkipValues(currentHeader);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 BucketManager::maybeSetIndex(
     std::shared_ptr<BucketT> b,
@@ -1524,7 +1515,7 @@ loadEntriesFromHotArchiveBucket(std::shared_ptr<HotArchiveBucket> b,
               b->getSize(), name, ms, formatSize(bytesPerSec));
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::map<LedgerKey, LedgerEntry>
 BucketManager::loadCompleteBucketListStateHelper(
     std::vector<HistoryStateBucket<BucketT>> const& buckets,
@@ -1602,7 +1593,7 @@ BucketManager::mergeBuckets(asio::io_context& ctx,
     return out.getBucket(*this);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 static bool
 visitBucketEntries(bool visitShadowedEntries, std::shared_ptr<BucketT const> b,
                    std::string const& name, std::optional<uint32_t> minLedger,

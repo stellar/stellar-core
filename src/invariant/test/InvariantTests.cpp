@@ -691,13 +691,13 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         else
         {
             auto it = modifiedState.mContractDataEntries.begin();
-            auto const& entryData = it->get();
+            auto const& entryData = *it;
             LedgerEntry modifiedEntry = *entryData.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
             auto ttlData = entryData.ttlData;
             modifiedState.mContractDataEntries.erase(it);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(modifiedEntry, ttlData));
+                std::make_shared<LedgerEntry const>(modifiedEntry), ttlData);
         }
 
         auto result =
@@ -739,7 +739,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 createContractDataWithTTL(PERSISTENT, 1000);
             TTLData ttlData(extraTTL.data.ttl().liveUntilLedgerSeq, 1);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(extraEntry, ttlData));
+                std::make_shared<LedgerEntry const>(extraEntry), ttlData);
         }
 
         auto result =
@@ -765,13 +765,13 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         // Corrupt TTL of an entry in the cache
         auto it = modifiedState.mContractDataEntries.begin();
-        auto const& entryData = it->get();
+        auto const& entryData = *it;
         LedgerEntry entryCopy = *entryData.ledgerEntry;
 
         TTLData wrongTTL(42, 1);
         modifiedState.mContractDataEntries.erase(it);
         modifiedState.mContractDataEntries.emplace(
-            InternalContractDataMapEntry(entryCopy, wrongTTL));
+            std::make_shared<LedgerEntry const>(entryCopy), wrongTTL);
 
         auto result =
             invariant.checkSnapshot(getLiveSnapshot(), getHotArchiveSnapshot(),

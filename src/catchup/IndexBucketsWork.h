@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "bucket/BucketUtils.h"
 #include "work/BasicWork.h"
 #include "work/Work.h"
 #include <memory>
@@ -15,7 +16,7 @@ class Bucket;
 class LiveBucketIndex;
 class BucketManager;
 
-template <class BucketT> class IndexBucketsWork : public Work
+template <IsBucketType BucketT> class IndexBucketsWork : public Work
 {
     class IndexWork : public BasicWork
     {
