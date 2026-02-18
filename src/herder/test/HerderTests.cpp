@@ -5282,6 +5282,11 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
                                 xdr::xvector<UpgradeType, 6>{}, sk);
     herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                   xdr::xdr_to_opaque(sv));
+    // With background apply, crank until the ledger is fully applied
+    while (lm.getLastClosedLedgerNum() < ledgerSeq)
+    {
+        app.getClock().crank(true);
+    }
 }
 
 TEST_CASE("do not flood invalid transactions", "[herder]")

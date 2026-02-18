@@ -315,6 +315,11 @@ TEST_CASE(
 {
     auto cfg = getTestConfig();
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
+    // This test directly modifies LedgerTxnRoot header (totalCoins), which
+    // creates a hash mismatch between the DB header and what SCP externalized.
+    // This is incompatible with background apply where the cross-check runs on
+    // a thread that doesn't have access to the cached LCL header.
+    cfg.PARALLEL_LEDGER_APPLY = false;
 
     SorobanTest test(cfg);
 
@@ -378,6 +383,9 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
     auto cfg = getTestConfig();
     cfg.INVARIANT_CHECKS = {}; // Disable automatic invariant checks because we
                                // will invoke it manually
+    // This test directly modifies LedgerTxnRoot header (totalCoins), which is
+    // incompatible with background apply (see comment in the test above).
+    cfg.PARALLEL_LEDGER_APPLY = false;
 
     VirtualClock clock;
     auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(

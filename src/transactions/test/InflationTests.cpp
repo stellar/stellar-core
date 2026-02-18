@@ -292,6 +292,10 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
         return;
     }
 
+    // This test directly modifies LedgerTxnRoot header (ledgerVersion), which
+    // creates a hash mismatch incompatible with background apply.
+    cfg.PARALLEL_LEDGER_APPLY = false;
+
     // The math in this test assumes that every tx will be charged the fee it
     // specifies, but this isn't true for v11, so start from V0 and update the
     // version in the header

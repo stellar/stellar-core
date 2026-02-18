@@ -388,12 +388,26 @@ VirtualClock::crank(bool block)
 
         // Subtract out any timer cancellations from the above two steps.
         progressCount -= nRealTimerCancelEvents;
+
         if (mMode == VIRTUAL_TIME && progressCount == 0 &&
             mBackgroundWorkCount.load() == 0)
         {
-            // If we did nothing and we're in virtual mode, we're idle and can
-            // skip time forward, dispatching all timers at the next time-step.
-            progressCount += advanceToNext();
+            // Check if there are pending actions from background threads
+            // before deciding to advance virtual time. Without this check,
+            // we might spuriously jump time forward while background apply
+            // results are waiting in the pending queue.
+            bool hasPendingActions = false;
+            {
+                std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+                hasPendingActions = !mPendingActionQueue.empty();
+            }
+            if (!hasPendingActions)
+            {
+                // If we did nothing and we're in virtual mode, we're idle
+                // and can skip time forward, dispatching all timers at the
+                // next time-step.
+                progressCount += advanceToNext();
+            }
         }
     }
 

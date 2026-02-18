@@ -1966,19 +1966,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
-            if (RUN_STANDALONE)
-            {
-                LOG_WARNING(DEFAULT_LOG, "RUN_STANDALONE is enabled, disabling "
-                                         "PARALLEL_LEDGER_APPLY");
-                PARALLEL_LEDGER_APPLY = false;
-            }
-            else
-            {
-                std::string msg =
-                    "Invalid configuration: PARALLEL_LEDGER_APPLY "
-                    "does not support in-memory database modes.";
-                throw std::runtime_error(msg);
-            }
+            LOG_WARNING(DEFAULT_LOG,
+                        "PARALLEL_LEDGER_APPLY is not supported with "
+                        "in-memory SQLite, disabling.");
+            PARALLEL_LEDGER_APPLY = false;
         }
 
         if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
@@ -2547,9 +2538,7 @@ Config::allBucketsInMemory() const
 bool
 Config::parallelLedgerClose() const
 {
-    // Standalone mode expects synchronous ledger application
-    return PARALLEL_LEDGER_APPLY && !RUN_STANDALONE &&
-           DATABASE.value != "sqlite3://:memory:";
+    return PARALLEL_LEDGER_APPLY && DATABASE.value != "sqlite3://:memory:";
 }
 
 void

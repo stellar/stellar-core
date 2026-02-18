@@ -1519,6 +1519,17 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         CLOG_ERROR(Ledger, "{}", xdrToCerealString(prevHeader, "Full LCL"));
         CLOG_ERROR(Ledger, "{}", POSSIBLY_CORRUPTED_LOCAL_DATA);
 
+#ifdef BUILD_TESTS
+        if (!threadIsMain())
+        {
+            throw std::runtime_error(
+                "txset mismatch on background apply thread. This usually means "
+                "a test directly modified the LedgerTxnRoot header (e.g. "
+                "totalCoins). Set cfg.PARALLEL_LEDGER_APPLY = false for such "
+                "tests.");
+        }
+#endif
+
         throw std::runtime_error("txset mismatch");
     }
 
