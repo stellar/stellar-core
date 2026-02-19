@@ -391,7 +391,6 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx) const
 {
     ZoneScoped;
-    LedgerTxn ltxInner(ltx);
     for (auto const& [key, entry] : mGlobalEntryMap)
     {
         // Only update if dirty bit is set
@@ -404,22 +403,57 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             entry.mLedgerEntry.readInScope(*this);
         if (updatedLe)
         {
-            auto ltxe = ltxInner.load(key);
-            if (ltxe)
+            // Determine whether to use createWithoutLoading (INIT) or
+            // updateWithoutLoading (LIVE) without querying the root LedgerTxn.
+            // This avoids the expensive getNewestVersion root lookup that
+            // dominated the cost of the old load()-based approach.
+            auto [foundBelowRoot, belowRootEntry] =
+                ltx.getNewestVersionBelowRoot(key);
+            bool entryExisted;
+            if (foundBelowRoot)
             {
-                ltxe.current() = *updatedLe;
+                // Entry is in ltx.mEntry (e.g., classic entry from
+                // preParallelApply). If it has a value, it existed; if nullptr,
+                // it was deleted in ltx.
+                entryExisted = (belowRootEntry != nullptr);
             }
             else
             {
-                ltxInner.create(*updatedLe);
+                // Entry is not in ltx.mEntry. Check original state.
+                if (InMemorySorobanState::isInMemoryType(key))
+                {
+                    // For Soroban entries (CONTRACT_DATA, CONTRACT_CODE, TTL),
+                    // check the in-memory state for existence.
+                    entryExisted =
+                        (mInMemorySorobanState.get(key) != nullptr);
+                }
+                else
+                {
+                    // For classic entries not found in ltx.mEntry, they must
+                    // have existed in the original ledger state (they were
+                    // loaded into mGlobalEntryMap from the snapshot).
+                    entryExisted = true;
+                }
+            }
+
+            InternalLedgerEntry ile(*updatedLe);
+            if (entryExisted)
+            {
+                ltx.updateWithoutLoading(ile);
+            }
+            else
+            {
+                ltx.createWithoutLoading(ile);
             }
         }
         else
         {
-            auto ltxe = ltxInner.load(key);
+            // Delete case: use load() + erase() to maintain EXACT consistency.
+            // Deletes are rare in SAC transfers, so the cost is negligible.
+            auto ltxe = ltx.load(key);
             if (ltxe)
             {
-                ltxInner.erase(key);
+                ltx.erase(key);
             }
         }
     }
@@ -436,10 +470,9 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             auto it =
                 mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
             releaseAssertOrThrow(it != mGlobalRestoredEntries.hotArchive.end());
-            ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
+            ltx.markRestoredFromHotArchive(kvp.second, it->second);
         }
     }
-    ltxInner.commit();
 }
 
 uint32_t
