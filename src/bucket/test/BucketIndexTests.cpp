@@ -1055,7 +1055,7 @@ TEST_CASE("in-memory index construction", "[bucket][bucketindex]")
 
         // Free the automatically created index so we can test creating it
         // manually
-        b->freeIndex();
+        b->freeIndexForTesting();
 
         auto indexFromFile = createIndex<LiveBucket>(
             app->getBucketManager(), b->getFilename(), b->getHash(),

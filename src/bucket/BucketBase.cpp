@@ -45,15 +45,15 @@ template <class BucketT, class IndexT>
 bool
 BucketBase<BucketT, IndexT>::isIndexed() const
 {
-    return static_cast<bool>(mIndex);
+    return static_cast<bool>(std::atomic_load(&mIndex));
 }
 
 template <class BucketT, class IndexT>
 void
 BucketBase<BucketT, IndexT>::setIndex(std::shared_ptr<IndexT const> index)
 {
-    releaseAssertOrThrow(!mIndex);
-    mIndex = std::move(index);
+    releaseAssertOrThrow(!isIndexed());
+    std::atomic_store(&mIndex, std::move(index));
 }
 
 template <class BucketT, class IndexT>
@@ -113,7 +113,7 @@ template <class BucketT, class IndexT>
 void
 BucketBase<BucketT, IndexT>::freeIndex()
 {
-    mIndex.reset();
+    std::atomic_store(&mIndex, std::shared_ptr<IndexT const>{});
 }
 
 template <class BucketT, class IndexT>

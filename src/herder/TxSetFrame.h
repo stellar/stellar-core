@@ -46,6 +46,58 @@ enum class TxSetPhase
     PHASE_COUNT
 };
 
+// Result codes for TxSet validation.
+// These provide specific reasons for validation failures, enabling precise
+// testing and diagnostics.
+enum class TxSetValidationResult
+{
+    VALID,
+
+    // Structural errors (XDR/phase structure)
+    INCORRECT_COMPONENT_ORDER,
+    DUPLICATE_COMPONENT_BASE_FEES,
+    EMPTY_COMPONENT,
+    EMPTY_STAGE,
+    EMPTY_CLUSTER,
+    UNSUPPORTED_VERSION,
+    UNSUPPORTED_PHASE_VERSION,
+    NON_SOROBAN_PARALLEL_PHASE,
+    WRONG_PHASE_COUNT,
+
+    // Hash/protocol mismatch
+    PREVIOUS_LEDGER_HASH_MISMATCH,
+    GENERALIZED_TXSET_MISMATCH,
+
+    // Classic phase errors
+    CLASSIC_PHASE_PARALLEL_NOT_ALLOWED,
+    TOO_MANY_CLASSIC_TXS,
+
+    // Soroban phase errors
+    SOROBAN_PARALLEL_SUPPORT_MISMATCH,
+    SOROBAN_RESOURCES_OVERFLOW,
+    SOROBAN_RESOURCES_EXCEED_LIMIT,
+    TOO_MANY_SOROBAN_CLUSTERS,
+    SOROBAN_INSTRUCTIONS_OVERFLOW,
+    SOROBAN_INSTRUCTIONS_EXCEED_LIMIT,
+    SOROBAN_SEQUENTIAL_INSTRUCTIONS_OVERFLOW,
+
+    // Transaction-level errors
+    MULTIPLE_TXS_PER_SOURCE_ACCOUNT,
+    INVALID_PHASE_TX_TYPE,
+    TX_ORDERING_INVALID,
+
+    // Fee errors
+    COMPONENT_BASE_FEE_TOO_LOW,
+    TX_FEE_BID_TOO_LOW,
+
+    // Individual transaction validation failures
+    TX_VALIDATION_FAILED,
+    ACCOUNT_CANT_PAY_FEE,
+};
+
+// Returns a string representation of the validation result for logging.
+std::string toString(TxSetValidationResult result);
+
 using TxFrameList = std::vector<TransactionFrameBasePtr>;
 using PerPhaseTransactionList = std::vector<TxFrameList>;
 
@@ -356,9 +408,15 @@ class TxSetPhaseFrame
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset,
                     bool txsAreValidated = false) const;
-    bool checkValidClassic(LedgerHeader const& lclHeader) const;
-    bool checkValidSoroban(LedgerHeader const& lclHeader,
-                           SorobanNetworkConfig const& sorobanConfig) const;
+    TxSetValidationResult
+    checkValidWithResult(Application& app, uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset,
+                         bool txsAreValidated = false) const;
+    TxSetValidationResult
+    checkValidClassic(LedgerHeader const& lclHeader) const;
+    TxSetValidationResult
+    checkValidSoroban(LedgerHeader const& lclHeader,
+                      SorobanNetworkConfig const& sorobanConfig) const;
     TxSetPhase mPhase;
 
     TxStageFrameList mStages;
@@ -408,6 +466,10 @@ class ApplicableTxSetFrame
     // then validation will never pass.
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) const;
+    // Same as checkValid, but returns a specific error code instead of bool.
+    TxSetValidationResult
+    checkValidWithResult(Application& app, uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset) const;
 
     // Returns the size of this whole transaction set, or the specified phase
     // in operations or transactions (for older protocol versions).
@@ -466,6 +528,9 @@ class ApplicableTxSetFrame
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset,
                             bool txsAreValidated) const;
+    TxSetValidationResult checkValidInternalWithResult(
+        Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, bool txsAreValidated) const;
 
   private:
     friend class TxSetXDRFrame;

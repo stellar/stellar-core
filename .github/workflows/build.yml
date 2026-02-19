@@ -25,6 +25,7 @@ jobs:
       run: exit 1
 
   static-checks:
+    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
     steps:
@@ -98,6 +99,7 @@ jobs:
           echo "${{ github.sha }}" > "build-static-checks/.last-tested-commit-sha"
 
   build-linux:
+    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
     strategy:
@@ -193,6 +195,7 @@ jobs:
           echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
 
   build-mac:
+    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
     steps:

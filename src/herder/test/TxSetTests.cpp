@@ -1065,7 +1065,7 @@ TEST_CASE("applicable txset validation - Soroban phase version is correct",
           "[txset][soroban]")
 {
     auto runTest = [](uint32_t protocolVersion,
-                      bool useParallelSorobanPhase) -> bool {
+                      bool useParallelSorobanPhase) -> TxSetValidationResult {
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -1078,38 +1078,42 @@ TEST_CASE("applicable txset validation - Soroban phase version is correct",
                 useParallelSorobanPhase)
                 .second;
         REQUIRE(txSet);
-        return txSet->checkValid(*app, 0, 0);
+        return txSet->checkValidWithResult(*app, 0, 0);
     };
     SECTION("sequential phase")
     {
         SECTION("valid before parallel tx set protocol version")
         {
-            REQUIRE(runTest(
-                static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) -
-                    1,
-                false));
+            REQUIRE(runTest(static_cast<uint32_t>(
+                                PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) -
+                                1,
+                            false) == TxSetValidationResult::VALID);
         }
     }
     SECTION("sequential phase invalid at parallel tx set protocol version")
     {
-        REQUIRE(!runTest(
-            static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
-            false));
+        // Sequential phase is invalid at parallel protocol version
+        REQUIRE(runTest(static_cast<uint32_t>(
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+                        false) ==
+                TxSetValidationResult::SOROBAN_PARALLEL_SUPPORT_MISMATCH);
     }
     SECTION("parallel phase")
     {
         SECTION("valid before parallel tx set protocol version")
         {
-            REQUIRE(!runTest(
-                static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) -
-                    1,
-                true));
+            // Parallel phase is invalid before parallel protocol version
+            REQUIRE(runTest(static_cast<uint32_t>(
+                                PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) -
+                                1,
+                            true) ==
+                    TxSetValidationResult::SOROBAN_PARALLEL_SUPPORT_MISMATCH);
         }
         SECTION("invalid at parallel tx set protocol version")
         {
-            REQUIRE(runTest(
-                static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
-                true));
+            REQUIRE(runTest(static_cast<uint32_t>(
+                                PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+                            true) == TxSetValidationResult::VALID);
         }
     }
 }
@@ -1173,38 +1177,45 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                                  phases, *app, ledgerHash)
                                  .second;
                 REQUIRE(txSet);
-                return txSet->checkValid(*app, 0, 0);
+                return txSet->checkValidWithResult(*app, 0, 0);
             };
         SECTION("empty phases")
         {
-            REQUIRE(validateTxSet({{}, {}}));
+            REQUIRE(validateTxSet({{}, {}}) == TxSetValidationResult::VALID);
         }
         SECTION("non-empty correct phases")
         {
             REQUIRE(validateTxSet(
-                {{createTx(false), createTx(false), createTx(false)},
-                 {createTx(true), createTx(true)}}));
+                        {{createTx(false), createTx(false), createTx(false)},
+                         {createTx(true), createTx(true)}}) ==
+                    TxSetValidationResult::VALID);
         }
         SECTION("classic tx in Soroban phase")
         {
-            REQUIRE(!validateTxSet({{}, {createTx(false)}}));
-            REQUIRE(!validateTxSet(
-                {{createTx(false), createTx(false), createTx(false)},
-                 {createTx(true), createTx(false), createTx(true)}}));
+            REQUIRE(validateTxSet({{}, {createTx(false)}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
+            REQUIRE(validateTxSet(
+                        {{createTx(false), createTx(false), createTx(false)},
+                         {createTx(true), createTx(false), createTx(true)}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
         }
         SECTION("Soroban tx in classic phase")
         {
-            REQUIRE(!validateTxSet({{createTx(true)}, {}}));
-            REQUIRE(!validateTxSet(
-                {{createTx(false), createTx(true), createTx(false)},
-                 {createTx(true), createTx(true), createTx(true)}}));
+            REQUIRE(validateTxSet({{createTx(true)}, {}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
+            REQUIRE(validateTxSet(
+                        {{createTx(false), createTx(true), createTx(false)},
+                         {createTx(true), createTx(true), createTx(true)}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
         }
         SECTION("both phases mixed")
         {
-            REQUIRE(!validateTxSet({{createTx(true)}, {createTx(false)}}));
-            REQUIRE(!validateTxSet(
-                {{createTx(false), createTx(true), createTx(false)},
-                 {createTx(true), createTx(true), createTx(false)}}));
+            REQUIRE(validateTxSet({{createTx(true)}, {createTx(false)}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
+            REQUIRE(validateTxSet(
+                        {{createTx(false), createTx(true), createTx(false)},
+                         {createTx(true), createTx(true), createTx(false)}}) ==
+                    TxSetValidationResult::INVALID_PHASE_TX_TYPE);
         }
     };
     SECTION("previous protocol")
@@ -1408,11 +1419,11 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                                 {}, 1234, txsPerStage, *app, ledgerHash)
                                 .second;
                 }
-                return txSet->checkValid(*app, 0, 0);
+                return txSet->checkValidWithResult(*app, 0, 0);
             };
             SECTION("sufficient resources")
             {
-                REQUIRE(buildAndValidate());
+                REQUIRE(buildAndValidate() == TxSetValidationResult::VALID);
             }
             SECTION("instruction limit exceeded")
             {
@@ -1420,7 +1431,9 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxInstructions -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(
+                    buildAndValidate() ==
+                    TxSetValidationResult::SOROBAN_INSTRUCTIONS_EXCEED_LIMIT);
             }
             SECTION("read bytes limit exceeded")
             {
@@ -1428,7 +1441,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxDiskReadBytes -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(buildAndValidate() ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             SECTION("write bytes limit exceeded")
             {
@@ -1436,7 +1450,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxWriteBytes -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(buildAndValidate() ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             SECTION("read entries limit exceeded")
             {
@@ -1446,7 +1461,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     });
                 bool useClassic = protocolVersionStartsFrom(
                     protocolVersion, ProtocolVersion::V_23);
-                REQUIRE(!buildAndValidate(useClassic));
+                REQUIRE(buildAndValidate(useClassic) ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             SECTION("write entries limit exceeded")
             {
@@ -1454,7 +1470,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxWriteLedgerEntries -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(buildAndValidate() ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             SECTION("tx size limit exceeded")
             {
@@ -1462,7 +1479,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxTransactionsSizeBytes -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(buildAndValidate() ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             SECTION("tx count limit exceeded")
             {
@@ -1470,7 +1488,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     *app, [&](SorobanNetworkConfig& sorobanCfg) {
                         sorobanCfg.mLedgerMaxTxCount -= 1;
                     });
-                REQUIRE(!buildAndValidate());
+                REQUIRE(buildAndValidate() ==
+                        TxSetValidationResult::SOROBAN_RESOURCES_EXCEED_LIMIT);
             }
             if (protocolVersionStartsFrom(
                     protocolVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
@@ -1481,7 +1500,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         *app, [&](SorobanNetworkConfig& sorobanCfg) {
                             sorobanCfg.mLedgerMaxDependentTxClusters -= 1;
                         });
-                    REQUIRE(!buildAndValidate());
+                    REQUIRE(buildAndValidate() ==
+                            TxSetValidationResult::TOO_MANY_SOROBAN_CLUSTERS);
                 }
             }
         }
@@ -1498,7 +1518,7 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
                                      {}, 1234, txsPerStage, *app, ledgerHash)
                                      .second;
-                    return txSet->checkValid(*app, 0, 0);
+                    return txSet->checkValidWithResult(*app, 0, 0);
                 };
 
                 // Relax the per-ledger limits to ensure we're not running
@@ -1542,7 +1562,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     }};
                 SECTION("no dependencies between clusters")
                 {
-                    REQUIRE(buildAndValidate(nonConflictingTxsPerStage));
+                    REQUIRE(buildAndValidate(nonConflictingTxsPerStage) ==
+                            TxSetValidationResult::VALID);
                 }
                 SECTION("RO-RW conflict")
                 {
@@ -1550,7 +1571,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         {createTx({1}, {})},
                         {createTx({}, {1})},
                     }};
-                    REQUIRE(!buildAndValidate(txsPerStage));
+                    REQUIRE(buildAndValidate(txsPerStage) ==
+                            TxSetValidationResult::TX_ORDERING_INVALID);
                 }
                 SECTION("RW-RW conflict")
                 {
@@ -1558,7 +1580,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         {createTx({}, {1})},
                         {createTx({}, {1})},
                     }};
-                    REQUIRE(!buildAndValidate(txsPerStage));
+                    REQUIRE(buildAndValidate(txsPerStage) ==
+                            TxSetValidationResult::TX_ORDERING_INVALID);
                 }
                 SECTION("one stage with a conflict")
                 {
@@ -1567,13 +1590,15 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                         {createTx({1}, {})},
                         {createTx({}, {1})},
                     });
-                    REQUIRE(!buildAndValidate(txsPerStage));
+                    REQUIRE(buildAndValidate(txsPerStage) ==
+                            TxSetValidationResult::TX_ORDERING_INVALID);
                 }
                 SECTION("one cluster conflict among multiple clusters")
                 {
                     auto txsPerStage = nonConflictingTxsPerStage;
                     txsPerStage[0][2].push_back(createTx({}, {5}));
-                    REQUIRE(!buildAndValidate(txsPerStage));
+                    REQUIRE(buildAndValidate(txsPerStage) ==
+                            TxSetValidationResult::TX_ORDERING_INVALID);
                 }
                 SECTION("multiple conflicting clusters")
                 {
@@ -1581,7 +1606,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
                     txsPerStage[0][2].push_back(createTx({9, 10}, {12, 13, 4}));
                     txsPerStage[1].emplace_back().push_back(
                         createTx({9, 10}, {12, 13, 8}));
-                    REQUIRE(!buildAndValidate(txsPerStage));
+                    REQUIRE(buildAndValidate(txsPerStage) ==
+                            TxSetValidationResult::TX_ORDERING_INVALID);
                 }
             }
         }
@@ -1606,6 +1632,7 @@ TEST_CASE("generalized tx set with multiple txs per source account",
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     Application::pointer app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
     auto root = app->getRoot();
     int accountId = 1;
 
@@ -1619,7 +1646,6 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         if (unique)
         {
-            // Create a new unique accounts to ensure there are no collisions
             auto source =
                 root->create("unique " + std::to_string(accountId),
                              app->getLedgerManager().getLastMinBalance(2));
@@ -1635,39 +1661,86 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         }
     };
 
-    SECTION("invalid")
-    {
-        auto tx1 = createTx(1, 1000, false);
-        auto tx2 = createTx(3, 1500, false);
+    // Helper to validate block received from network (unvalidated)
+    auto validateReceivedBlock =
+        [&](std::vector<testtxset::PhaseComponents> const& phases)
+        -> TxSetValidationResult {
         auto ledgerHash =
             app->getLedgerManager().getLastClosedLedgerHeader().hash;
-        auto txSet =
-            testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(
-                     500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
-                 {}},
-                *app, ledgerHash)
-                .second;
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(phases, *app,
+                                                                 ledgerHash)
+                         .second;
+        REQUIRE(txSet);
+        return txSet->checkValidWithResult(*app, 0, 0);
+    };
 
-        REQUIRE(!txSet->checkValid(*app, 0, 0));
-    }
-    SECTION("valid")
+    SECTION("multiple txs from same source in classic phase")
     {
-        auto tx1 = createTx(1, 1000, true);
-        auto tx2 = createTx(3, 1500, true);
-        auto ledgerHash =
-            app->getLedgerManager().getLastClosedLedgerHeader().hash;
-        auto txSet =
-            testtxset::makeNonValidatedGeneralizedTxSet(
-                {{std::make_pair(
-                     500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
-                 {}},
-                *app, ledgerHash)
-                .second;
+        auto tx1 = createTx(1, 1000, /* unique */ false);
+        auto tx2 = createTx(3, 1500, /* unique */ false);
 
-        REQUIRE(txSet->checkValid(*app, 0, 0));
+        // tx1 is valid on its own
+        {
+            LedgerSnapshot ls(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+        }
+
+        SECTION("build block")
+        {
+            // When building, only one tx per source should be included
+            TxFrameList invalidTxs;
+            auto [_, txSet] =
+                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, invalidTxs);
+            // Second tx should be rejected due to duplicate source
+            REQUIRE(invalidTxs.size() == 1);
+        }
+        SECTION("validate block")
+        {
+            // When validating received block with multiple txs from same source
+            REQUIRE(
+                validateReceivedBlock(
+                    {{std::make_pair(
+                         500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+                     {}}) ==
+                TxSetValidationResult::MULTIPLE_TXS_PER_SOURCE_ACCOUNT);
+        }
     }
-    SECTION("invalid, classic and soroban")
+
+    SECTION("unique sources - valid")
+    {
+        auto tx1 = createTx(1, 1000, /* unique */ true);
+        auto tx2 = createTx(3, 1500, /* unique */ true);
+
+        // Both txs individually are valid
+        {
+            LedgerSnapshot ls(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+            REQUIRE(tx2->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+        }
+
+        SECTION("build block")
+        {
+            TxFrameList invalidTxs;
+            auto [_, txSet] =
+                makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, invalidTxs);
+            REQUIRE(invalidTxs.empty());
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::VALID);
+        }
+        SECTION("validate block")
+        {
+            REQUIRE(
+                validateReceivedBlock(
+                    {{std::make_pair(
+                         500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
+                     {}}) == TxSetValidationResult::VALID);
+        }
+    }
+
+    SECTION("multiple txs from same source - classic and soroban phases")
     {
         SorobanResources resources;
         resources.instructions = 800'000;
@@ -1677,23 +1750,19 @@ TEST_CASE("generalized tx set with multiple txs per source account",
         int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
         auto sorobanTx = createUploadWasmTx(*app, *root, inclusionFee,
                                             resourceFee, resources);
-        // Make sure fees got computed correctly
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
 
-        auto tx1 = createTx(1, 1000, false);
-        auto tx2 = createTx(3, 1500, false);
-        auto ledgerHash =
-            app->getLedgerManager().getLastClosedLedgerHeader().hash;
-        auto txSet =
-            testtxset::makeNonValidatedGeneralizedTxSet(
+        auto tx1 = createTx(1, 1000, /* unique */ false);
+        auto tx2 = createTx(3, 1500, /* unique */ false);
+
+        // Classic phase has duplicate source accounts
+        REQUIRE(
+            validateReceivedBlock(
                 {{std::make_pair(
                      500, std::vector<TransactionFrameBasePtr>{tx1, tx2})},
                  {std::make_pair(
-                     500, std::vector<TransactionFrameBasePtr>{sorobanTx})}},
-                *app, ledgerHash)
-                .second;
-
-        REQUIRE(!txSet->checkValid(*app, 0, 0));
+                     500, std::vector<TransactionFrameBasePtr>{sorobanTx})}}) ==
+            TxSetValidationResult::MULTIPLE_TXS_PER_SOURCE_ACCOUNT);
     }
 }
 
@@ -1812,7 +1881,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                 *app, ledgerHash)
                 .second;
 
-        REQUIRE(txSet->checkValid(*app, 0, 0));
+        REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                TxSetValidationResult::VALID);
         for (auto i = 0; i < static_cast<size_t>(TxSetPhase::PHASE_COUNT); ++i)
         {
             std::vector<std::optional<int64_t>> fees;
@@ -1850,7 +1920,9 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                     *app, ledgerHash)
                     .second;
 
-            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            // Fee 999 < base fee 500 * 2 ops = 1000 required
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_FEE_BID_TOO_LOW);
         }
         SECTION("soroban")
         {
@@ -1865,12 +1937,17 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                     *app, ledgerHash)
                     .second;
 
-            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            // Fee 499 < base fee 500 required
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_FEE_BID_TOO_LOW);
         }
     }
 
     SECTION("tx with too low non-discounted fee")
     {
+        // because when there's no discount (std::nullopt), the fee check
+        // happens at individual tx validation level, not at the txset fee map
+        // level, resulting in TX_VALIDATION_FAILED
         SECTION("classic")
         {
             auto tx = createTx(2, 199);
@@ -1884,7 +1961,9 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                     *app, ledgerHash)
                     .second;
 
-            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            // Fee 199 < 100 * 2 ops = 200 required (base fee = 100)
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_VALIDATION_FAILED);
         }
         SECTION("soroban")
         {
@@ -1899,7 +1978,9 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                              *app, ledgerHash)
                              .second;
 
-            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            // Fee 99 < base fee 100 required
+            REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_VALIDATION_FAILED);
         }
     }
 }

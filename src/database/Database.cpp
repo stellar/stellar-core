@@ -29,7 +29,6 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerManager.h"
-#include "transactions/TransactionSQL.h"
 
 #include "medida/counter.h"
 #include "medida/timer.h"

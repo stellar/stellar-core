@@ -78,7 +78,12 @@ class BucketBase : public NonMovableOrCopyable
 
     std::shared_ptr<IndexT const> mIndex{};
 
-    // Returns index, throws if index not yet initialized
+    // Unconditionally resets mIndex. Must only be called via the static
+    // freeIndex(shared_ptr) which asserts the use_count invariant.
+    void freeIndex();
+
+    // Returns index, throws if index not yet initialized. Note: Does not use
+    // atomic load (see comments on index functions below).
     IndexT const& getIndex() const;
 
     static std::string randomFileName(std::string const& tmpDir,
@@ -104,8 +109,30 @@ class BucketBase : public NonMovableOrCopyable
 
     bool isEmpty() const;
 
-    // Delete index and close file stream
-    void freeIndex();
+    // The following index functions (freeIndex, isIndexed, setIndex,
+    // maybeGetIndexForMerge) should only be used in the bucket creation/garbage
+    // collection path when no BucketList readers hold a pointer to this bucket.
+    // These accesses must be guarded by std::atomic_load, since bucket
+    // creation/GC can occur concurrently (Index worker thread, background
+    // merge, main thread GC).
+    //
+    // Note that getIndex is not protected. This is intentional, since the
+    // BucketList should allow lockless concurrent reads. This is safe because:
+    //    - If the index is not already set (race with setIndex), we are already
+    //      in a critically bad state, getIndex should throw.
+    //    - If the index is set (race with freeIndex), we assert that only 1
+    //      reference exists, such that there can be no concurrent race.
+
+    // Frees the index on a bucket that has no external references
+    // (use_count == 1, i.e. only the BucketManager's map holds it).
+    // This guarantees no concurrent reader can race on mIndex.
+    static void
+    freeIndex(std::shared_ptr<BucketT> const& bucket)
+    {
+        releaseAssert(bucket);
+        releaseAssert(bucket.use_count() == 1);
+        bucket->freeIndex();
+    }
 
     // Returns true if bucket is indexed, false otherwise
     bool isIndexed() const;
@@ -121,7 +148,7 @@ class BucketBase : public NonMovableOrCopyable
     maybeGetIndexForMerge(std::shared_ptr<BucketT> const& bucket)
     {
         releaseAssert(bucket);
-        return bucket->mIndex;
+        return std::atomic_load(&bucket->mIndex);
     }
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
@@ -165,6 +192,12 @@ class BucketBase : public NonMovableOrCopyable
     getIndexForTesting() const
     {
         return getIndex();
+    }
+
+    void
+    freeIndexForTesting()
+    {
+        freeIndex();
     }
 
 #endif // BUILD_TESTS

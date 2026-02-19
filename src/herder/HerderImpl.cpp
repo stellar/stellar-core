@@ -2504,9 +2504,11 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
 
         auto txs = queue.getTransactions(lhhe.header);
 
-        auto invalidTxs = TxSetUtils::getInvalidTxList(
-            txs, mApp, 0,
-            getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
+        auto invalidTxs = TxSetUtils::getInvalidTxListWithErrors(
+                              txs, mApp, 0,
+                              getUpperBoundCloseTimeOffset(
+                                  mApp, lhhe.header.scpValue.closeTime))
+                              .first;
         queue.ban(invalidTxs);
 
         queue.rebroadcast();
