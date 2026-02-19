@@ -5,7 +5,6 @@
 #pragma once
 
 #include "herder/QuorumTracker.h"
-#include "overlay/Peer.h"
 #include "xdr/Stellar-SCP.h"
 #include <cstdint>
 #include <memory>

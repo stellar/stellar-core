@@ -229,7 +229,7 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
 LedgerManagerImpl::ApplyState::ApplyState(Application& app)
     : mMetrics(app.getMetrics())
     , mAppConnector(app.getAppConnector())
-    , mModuleCache(::rust_bridge::new_module_cache())
+    , mModuleCache(rust_bridge::new_module_cache())
     , mModuleCacheProtocols(getModuleCacheProtocols())
     , mNumCompilationThreads(app.getConfig().COMPILATION_THREADS)
 {
@@ -3196,4 +3196,5 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
             }
         }
     }
+}
 }

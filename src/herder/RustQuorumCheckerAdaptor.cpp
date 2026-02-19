@@ -17,6 +17,8 @@
 
 namespace
 {
+using namespace stellar;
+
 // local helper functions to convert various types to and from json. their
 // conventions need to be consistent (e.g. nodes are represented as full strkey)
 Json::Value

@@ -27,9 +27,12 @@
 #include "main/PersistentState.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
-#include "overlay/OverlayManager.h"
+#include "overlay/RustOverlayManager.h"
+#include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/MutableTransactionResult.h"
+#include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
@@ -49,6 +52,7 @@
 #include <algorithm>
 #include <ctime>
 #include <fmt/format.h>
+#include <unistd.h>
 
 using namespace std;
 namespace stellar
@@ -84,10 +88,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : mTransactionQueue(app, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
-                        TRANSACTION_QUEUE_BAN_LEDGERS,
-                        app.getConfig().TRANSACTION_QUEUE_SIZE_MULTIPLIER)
-    , mPendingEnvelopes(app, *this)
+    : mPendingEnvelopes(app, *this)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
@@ -107,6 +108,9 @@ HerderImpl::HerderImpl(Application& app)
 
     mPendingEnvelopes.addSCPQuorumSet(ln->getQuorumSetHash(),
                                       ln->getQuorumSet());
+
+    // Note: Rust overlay is now managed by RustOverlayManager
+    // SCP broadcasts go through getOverlayManager().broadcastMessage()
 }
 
 HerderImpl::~HerderImpl()
@@ -297,12 +301,6 @@ HerderImpl::shutdown()
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
-    mTransactionQueue.shutdown();
-    if (mSorobanTransactionQueue)
-    {
-        mSorobanTransactionQueue->shutdown();
-    }
-
     mTxSetGarbageCollectTimer.cancel();
     mCheckForDeadNodesTimer.cancel();
 }
@@ -331,6 +329,25 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     TxSetXDRFrameConstPtr externalizedSet =
         mPendingEnvelopes.getTxSet(value.txSetHash);
 
+    // Notify overlay to clear TXs from mempool (for RustOverlayManager)
+    // Extract TX hashes from the externalized set so Rust can remove them
+    std::vector<Hash> txHashes;
+    if (externalizedSet)
+    {
+        auto txFramesList =
+            externalizedSet->createTransactionFrames(mApp.getNetworkID());
+        for (auto const& txPhase : txFramesList)
+        {
+            for (auto const& txFrame : txPhase)
+            {
+                txHashes.push_back(txFrame->getFullHash());
+            }
+        }
+    }
+    mApp.getOverlayManager().notifyTxSetExternalized(value.txSetHash, txHashes);
+
+    // save the SCP messages in the database
+    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         ZoneNamedN(updateSCPHistoryZone, "update SCP history", true);
         if (slotIndex != 0)
@@ -572,14 +589,17 @@ HerderImpl::broadcast(SCPEnvelope const& e)
     ZoneScoped;
     if (!mApp.getConfig().MANUAL_CLOSE)
     {
-        auto m = std::make_shared<StellarMessage>();
-        m->type(SCP_MESSAGE);
-        m->envelope() = e;
-
         CLOG_DEBUG(Herder, "broadcast  s:{} i:{}", e.statement.pledges.type(),
                    e.statement.slotIndex);
 
         mSCPMetrics.mEnvelopeEmit.Mark();
+
+        // Route through overlay (RustOverlayManager handles IPC to Rust
+        // overlay, OverlayManagerImpl handles built-in overlay in standalone
+        // mode)
+        auto m = std::make_shared<StellarMessage>();
+        m->type(SCP_MESSAGE);
+        m->envelope() = e;
         mApp.getOverlayManager().broadcastMessage(m);
     }
 }
@@ -617,7 +637,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     broadcast(envelope);
 }
 
-TransactionQueue::AddResult
+TxSubmitStatus
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
                             bool force
 #ifdef BUILD_TESTS
@@ -627,66 +647,14 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
 )
 {
     ZoneScoped;
-    TransactionQueue::AddResult result(
-        TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
+    CLOG_TRACE(Herder, "recv transaction {} for {}",
+               hexAbbrev(tx->getFullHash()),
+               KeyUtils::toShortString(tx->getSourceID()));
 
-    // Allow txs of the same kind to reach the tx queue in case it can be
-    // replaced by fee
-    bool hasSoroban =
-        mSorobanTransactionQueue &&
-        mSorobanTransactionQueue->sourceAccountPending(tx->getSourceID()) &&
-        !tx->isSoroban();
-    bool hasClassic =
-        mTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
-        tx->isSoroban();
-    bool enforceSourceAccountLimit = true;
-#ifdef BUILD_TESTS
-    enforceSourceAccountLimit = !mApp.getRunInOverlayOnlyMode();
-#endif
-    if (enforceSourceAccountLimit && (hasSoroban || hasClassic))
-    {
-        CLOG_DEBUG(Herder,
-                   "recv transaction {} for {} rejected due to 1 tx per source "
-                   "account per ledger limit",
-                   hexAbbrev(tx->getFullHash()),
-                   KeyUtils::toShortString(tx->getSourceID()));
-        result.code =
-            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
-    }
-    else if (!tx->isSoroban())
-    {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, force
-#ifdef BUILD_TESTS
-                                          ,
-                                          isLoadgenTx
-#endif
-        );
-    }
-    else if (mSorobanTransactionQueue)
-    {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf, force
-#ifdef BUILD_TESTS
-                                                  ,
-                                                  isLoadgenTx
-#endif
-        );
-    }
-    else
-    {
-        // Received Soroban transaction before protocol 20; since this
-        // transaction isn't supported yet, return ERROR
-        result = TransactionQueue::AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
-            txNOT_SUPPORTED);
-    }
-
-    if (result.code == TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
-    {
-        CLOG_TRACE(Herder, "recv transaction {} for {}",
-                   hexAbbrev(tx->getFullHash()),
-                   KeyUtils::toShortString(tx->getSourceID()));
-    }
-    return result;
+    auto const& env = tx->getEnvelope();
+    mApp.getOverlayManager().broadcastTransaction(env, tx->getFullFee(),
+                                                  tx->getNumOperations());
+    return TxSubmitStatus::TX_STATUS_PENDING;
 }
 
 bool
@@ -976,83 +944,24 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
     }
 }
 
-bool
-HerderImpl::sourceAccountPending(AccountID const& accountID) const
-{
-    bool accPending = mTransactionQueue.sourceAccountPending(accountID);
-    if (mSorobanTransactionQueue)
-    {
-        accPending = accPending ||
-                     mSorobanTransactionQueue->sourceAccountPending(accountID);
-    }
-    return accPending;
-}
-
 #endif
 
-void
-HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
+std::vector<SCPEnvelope>
+HerderImpl::getSCPStateForPeer(uint32 ledgerSeq)
 {
     ZoneScoped;
-    bool log = true;
+    std::vector<SCPEnvelope> envelopes;
     auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
 
-    auto sendSlot = [weakPeer = std::weak_ptr<Peer>(peer)](SCPEnvelope const& e,
-                                                           bool log) {
-        // If in the process of shutting down, exit early
-        auto peerPtr = weakPeer.lock();
-        if (!peerPtr)
-        {
-            return false;
-        }
-
-        StellarMessage m;
-        m.type(SCP_MESSAGE);
-        m.envelope() = e;
-        auto mPtr = std::make_shared<StellarMessage const>(m);
-        peerPtr->sendMessage(mPtr, log);
-        return true;
-    };
-
-    bool delayCheckpoint = false;
-    auto checkpoint = getMostRecentCheckpointSeq();
-    auto consensusIndex = trackingConsensusLedgerIndex();
-    auto firstSequentialLedgerSeq =
-        consensusIndex > mApp.getConfig().MAX_SLOTS_TO_REMEMBER
-            ? consensusIndex - mApp.getConfig().MAX_SLOTS_TO_REMEMBER
-            : LedgerManager::GENESIS_LEDGER_SEQ;
-
-    // If there is a gap between the latest completed checkpoint and the next
-    // saved message, we should delay sending the checkpoint ledger. Send all
-    // other messages first, then send checkpoint messages after node that is
-    // catching up knows network state. We need to do this because checkpoint
-    // message are almost always outside MAXIMUM_LEDGER_CLOSETIME_DRIFT.
-    // Checkpoint ledgers are special cased to be allowed to be outside this
-    // range, but to determine if a message is a checkpoint message, the node
-    // needs the correct trackingConsensusLedgerIndex. We send the checkpoint
-    // message after a delay so that the receiving node has time to process the
-    // initially sent messages and establish trackingConsensusLedgerIndex
-    if (checkpoint < firstSequentialLedgerSeq)
-    {
-        delayCheckpoint = true;
-    }
-
-    // Send MAX_SLOTS_TO_SEND slots
+    // Collect up to MAX_SLOTS_TO_SEND slots worth of envelopes
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
-        // Skip checkpoint ledger if we should delay
-        if (seq == checkpoint && delayCheckpoint)
-        {
-            return true;
-        }
-
         bool slotHadData = false;
         getSCP().processCurrentState(
             seq,
             [&](SCPEnvelope const& e) {
+                envelopes.push_back(e);
                 slotHadData = true;
-                auto ret = sendSlot(e, log);
-                log = false;
-                return ret;
+                return true; // continue
             },
             false);
         if (slotHadData)
@@ -1062,21 +971,7 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         return maxSlots != 0;
     });
 
-    // Out of sync node needs to receive latest messages to determine network
-    // state before receiving checkpoint message. Delay sending checkpoint
-    // ledger to achieve this
-    if (delayCheckpoint)
-    {
-        peer->startExecutionDelayedTimer(
-            Herder::SEND_LATEST_CHECKPOINT_DELAY,
-            [checkpoint, this, sendSlot]() {
-                getSCP().processCurrentState(
-                    checkpoint,
-                    [&](SCPEnvelope const& e) { return sendSlot(e, true); },
-                    false);
-            },
-            &VirtualTimer::onFailureNoop);
-    }
+    return envelopes;
 }
 
 void
@@ -1172,18 +1067,6 @@ HerderImpl::getPendingEnvelopes()
     return mPendingEnvelopes;
 }
 
-ClassicTransactionQueue&
-HerderImpl::getTransactionQueue()
-{
-    return mTransactionQueue;
-}
-SorobanTransactionQueue&
-HerderImpl::getSorobanTransactionQueue()
-{
-    releaseAssert(mSorobanTransactionQueue);
-    return *mSorobanTransactionQueue;
-}
-
 Upgrades const&
 HerderImpl::getUpgrades() const
 {
@@ -1214,16 +1097,8 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
 {
     releaseAssert(threadIsMain());
 
-    maybeSetupSorobanQueue(
-        mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
-
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
-
-    // In order to update the transaction queue we need to get the
-    // applied transactions. If a protocol or network config setting upgrade
-    // occurred, we will need to rebuild the queue, as limits may have changed.
-    updateTransactionQueue(txSet, upgradeApplied);
 
     // If we're in sync and there are no buffered ledgers to apply, trigger next
     // ledger
@@ -1380,14 +1255,6 @@ HerderImpl::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
-void
-HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
-                           Peer::pointer peer)
-{
-    ZoneScoped;
-    mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
-}
-
 TxSetXDRFrameConstPtr
 HerderImpl::getTxSet(Hash const& hash)
 {
@@ -1493,16 +1360,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // Since we are not currently applying, it is safe to use read-only LCL, as
     // it's guaranteed to be up-to-date
     auto lcl = mLedgerManager.getLastClosedLedgerHeader();
-    PerPhaseTransactionList txPhases;
-    txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
-
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        releaseAssert(mSorobanTransactionQueue);
-        txPhases.emplace_back(
-            mSorobanTransactionQueue->getTransactions(lcl.header));
-    }
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
@@ -1558,36 +1415,80 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
+    TxSetXDRFrameConstPtr proposedSet;
+    ApplicableTxSetFrameConstPtr applicableProposedSet;
+    Hash txSetHash;
+
+    // Build TX set from Rust overlay's mempool (not local TransactionQueue)
+    // The Rust overlay maintains the mempool via TX flooding
+    PerPhaseTransactionList txPhases;
+
+    // Get TXs from Rust overlay
+    auto& overlayMgr = mApp.getOverlayManager();
+    auto txEnvelopes = overlayMgr.getTopTransactions(
+        mApp.getLedgerManager().getLastMaxTxSetSizeOps() * 2, 5000);
+
+    CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
+              txEnvelopes.size());
+
+    // Convert TransactionEnvelopes to TransactionFrameBasePtrs
+    TxFrameList classicTxs;
+    Hash const& networkID = mApp.getNetworkID();
+    for (auto const& env : txEnvelopes)
+    {
+        auto txFrame =
+            TransactionFrameBase::makeTransactionFromWire(networkID, env);
+        classicTxs.push_back(txFrame);
+    }
+    txPhases.emplace_back(std::move(classicTxs));
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        txPhases.emplace_back(); // empty Soroban phase
+    }
+
     PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
-    auto [proposedSet, applicableProposedSet] =
+    std::tie(proposedSet, applicableProposedSet) =
         makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset, invalidTxPhases);
+    CLOG_INFO(Herder, "Proposed TX set has {} transactions",
+              proposedSet->sizeTxTotal());
+
+    if (!applicableProposedSet)
+    {
+        releaseAssert(!mApp.getConfig().FORCE_SCP);
+        return;
+    }
+
+    txSetHash = proposedSet->getContentsHash();
+
+    CLOG_INFO(Herder, "Built TX set: hash={}",
+              binToHex(txSetHash).substr(0, 8));
 
     // New proposed tx set must be valid, so we explicitly populate tx set
     // validity cache so SCP can reuse the result.
     mHerderSCPDriver.cacheValidTxSet(*applicableProposedSet, lcl,
                                      upperBoundCloseTimeOffset);
 
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        releaseAssert(mSorobanTransactionQueue);
-        mSorobanTransactionQueue->ban(
-            invalidTxPhases[static_cast<size_t>(TxSetPhase::SOROBAN)]);
-    }
-
-    mTransactionQueue.ban(
-        invalidTxPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]);
-
-    auto txSetHash = proposedSet->getContentsHash();
-
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
     mPendingEnvelopes.addTxSet(txSetHash, lcl.header.ledgerSeq + 1,
                                proposedSet);
+
+    // Cache the TX set in Rust overlay so it can serve it to other peers.
+    // When a peer receives an SCP message referencing this TX set hash,
+    // they'll request it via TX set fetching, and Rust needs the XDR.
+    // Note: Rust overlay only supports GeneralizedTransactionSet (protocol >= 20)
+    if (proposedSet->isGeneralizedTxSet())
+    {
+        GeneralizedTransactionSet xdrTxSet;
+        proposedSet->toXDR(xdrTxSet);
+        auto xdrBytes = xdr::xdr_to_opaque(xdrTxSet);
+        mApp.getOverlayManager().cacheTxSet(txSetHash, xdrBytes);
+    }
 
     lcl = mLedgerManager.getLastClosedLedgerHeader();
     // use the slot index from ledger manager here as our vote is based off
@@ -2344,35 +2245,8 @@ HerderImpl::maybeHandleUpgrade()
         mMaxTxSize = std::max(getMaxClassicTxSize(), maybeNewMaxTxSize);
     }
 
-    // Maybe update capacity to reflect the upgrade
-    for (auto& peer : mApp.getOverlayManager().getAuthenticatedPeers())
-    {
-        peer.second->handleMaxTxSizeIncrease(diff);
-    }
-}
-
-void
-HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
-{
-    if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
-    {
-        if (!mSorobanTransactionQueue)
-        {
-            mSorobanTransactionQueue =
-                std::make_unique<SorobanTransactionQueue>(
-                    mApp, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
-                    TRANSACTION_QUEUE_BAN_LEDGERS,
-                    mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER,
-                    recomputeKeysToFilter(protocolVersion));
-            setFilteredAccounts(
-                mApp.getBannedAccountsPersistor().getBannedAccounts());
-        }
-    }
-    else if (mSorobanTransactionQueue)
-    {
-        throw std::runtime_error(
-            "Invalid state: Soroban queue initialized before v20");
-    }
+    // Note: With Rust overlay, no per-peer notifications needed here
+    // The overlay handles message sizes internally
 }
 
 void
@@ -2392,8 +2266,6 @@ HerderImpl::start()
                          saturatingAdd<uint32_t>(conf.txMaxSizeBytes(),
                                                  getFlowControlExtraBuffer()));
         }
-
-        maybeSetupSorobanQueue(version);
     }
 
     auto const& cfg = mApp.getConfig();
@@ -2455,6 +2327,8 @@ HerderImpl::start()
     }
 
     setFilteredAccounts(bap.getBannedAccounts());
+    // RustOverlayManager is started automatically in OverlayManager::start()
+    // which is called by ApplicationImpl::start() before Herder::start()
 }
 
 void
@@ -2574,63 +2448,6 @@ HerderImpl::recomputeKeysToFilter(uint32_t protocolVersion) const
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
-                                   bool queueRebuildNeeded)
-{
-    ZoneScoped;
-    if (externalizedTxSet == nullptr)
-    {
-        CLOG_DEBUG(Herder,
-                   "No tx set to update tx queue - expected during bootstrap");
-        return;
-    }
-    auto txsPerPhase =
-        externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
-
-    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
-    auto updateQueue = [&accountFeeMap, this, queueRebuildNeeded, &lhhe](
-                           auto& queue, auto const& applied, bool isSoroban) {
-        queue.removeApplied(applied);
-        queue.shift();
-
-        if (isSoroban && queueRebuildNeeded)
-        {
-            auto keys = recomputeKeysToFilter(lhhe.header.ledgerVersion);
-            mSorobanTransactionQueue->resetAndRebuild(keys);
-        }
-
-        auto txs = queue.getTransactions(lhhe.header);
-
-        auto invalidTxs = TxSetUtils::getInvalidTxListWithErrors(
-                              txs, mApp, accountFeeMap, 0,
-                              getUpperBoundCloseTimeOffset(
-                                  mApp, lhhe.header.scpValue.closeTime))
-                              .first;
-        queue.ban(invalidTxs);
-
-        queue.rebroadcast();
-    };
-    if (txsPerPhase.size() > static_cast<size_t>(TxSetPhase::CLASSIC))
-    {
-        updateQueue(mTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)],
-                    false);
-    }
-
-    // Even if we're in protocol 20, still check for number of phases, in
-    // case we're dealing with the upgrade ledger that contains old-style
-    // transaction set
-    if (mSorobanTransactionQueue != nullptr &&
-        txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
-    {
-        updateQueue(*mSorobanTransactionQueue,
-                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)],
-                    true);
-    }
-}
-
-void
 HerderImpl::herderOutOfSync()
 {
     ZoneScoped;
@@ -2664,18 +2481,11 @@ void
 HerderImpl::getMoreSCPState()
 {
     ZoneScoped;
-    size_t const NB_PEERS_TO_ASK = 2;
-
     auto low = getMinLedgerSeqToAskPeers();
+    CLOG_INFO(Herder, "Requesting SCP state from peers, ledger >= {}", low);
 
-    CLOG_INFO(Herder, "Asking peers for SCP messages more recent than {}", low);
-
-    // ask a few random peers their SCP messages
-    auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();
-    for (size_t i = 0; i < NB_PEERS_TO_ASK && i < r.size(); i++)
-    {
-        r[i]->sendGetScpState(low);
-    }
+    // Request SCP state via Rust overlay - it will ask random peers
+    mApp.getOverlayManager().getOverlayIPC().requestScpState(low);
 }
 
 bool
@@ -2738,41 +2548,5 @@ HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
                                         SCPStatement const& newSt)
 {
     return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
-}
-
-size_t
-HerderImpl::getMaxQueueSizeOps() const
-{
-    return mTransactionQueue.getMaxQueueSizeOps();
-}
-
-size_t
-HerderImpl::getMaxQueueSizeSorobanOps() const
-{
-    return mSorobanTransactionQueue
-               ? mSorobanTransactionQueue->getMaxQueueSizeOps()
-               : 0;
-}
-
-bool
-HerderImpl::isBannedTx(Hash const& hash) const
-{
-    auto banned = mTransactionQueue.isBanned(hash);
-    if (mSorobanTransactionQueue)
-    {
-        banned = banned || mSorobanTransactionQueue->isBanned(hash);
-    }
-    return banned;
-}
-
-TransactionFrameBaseConstPtr
-HerderImpl::getTx(Hash const& hash) const
-{
-    auto classic = mTransactionQueue.getTx(hash);
-    if (!classic && mSorobanTransactionQueue)
-    {
-        return mSorobanTransactionQueue->getTx(hash);
-    }
-    return classic;
 }
 }

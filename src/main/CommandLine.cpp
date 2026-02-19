@@ -30,7 +30,7 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "overlay/OverlayManager.h"
+#include "overlay/RustOverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
 #include "transactions/TransactionUtils.h"

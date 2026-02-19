@@ -51,8 +51,7 @@ class TemporaryFileDamager
 TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation =
-        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+    auto simulation = std::make_shared<Simulation>(networkID);
 
     SIMULATION_CREATE_NODE(Node1); // Validator
     SIMULATION_CREATE_NODE(Node2); // Captive core

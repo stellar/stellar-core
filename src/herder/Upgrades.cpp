@@ -82,6 +82,8 @@ save(JSONOutputArchive& ar, stellar::Upgrades::UpgradeParameters const& p)
 
 namespace
 {
+using namespace stellar;
+
 // Load an individual named value pair, optionally throwing if it is not found.
 template <typename V>
 void

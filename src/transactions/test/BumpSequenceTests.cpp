@@ -7,7 +7,6 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/test/LoopbackPeer.h"
 #include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
