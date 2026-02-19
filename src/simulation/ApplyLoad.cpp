@@ -35,7 +35,7 @@ namespace stellar
 {
 namespace
 {
-constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
+constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.95;
 
 SorobanUpgradeConfig
 getUpgradeConfig(Config const& cfg, bool validate = true)
@@ -1665,22 +1665,28 @@ ApplyLoad::findMaxSacTps()
     };
 
     size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
-    uint32_t const tolerance = 0;
+    uint32_t const tolerance = 2;
 
     auto [lo, hi] =
         noisyBinarySearch(benchmarkFunc, targetCloseTimeMs, minTxRateSteps,
                           maxTxRateSteps, NOISY_BINARY_SEARCH_CONFIDENCE,
                           tolerance, maxSamplesPerPoint, prepareIter);
-    releaseAssert(lo == hi);
+    // Use the lower bound of the interval as the conservative estimate.
     uint32_t bestTxRate = lo * txsPerStep;
     uint32_t bestTxsPerLedger =
         bestTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
     uint32_t bestTps = txsPerLedgerToTPS(
         bestTxsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
 
+    uint32_t hiTxRate = hi * txsPerStep;
+    uint32_t hiTps = txsPerLedgerToTPS(
+        hiTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT *
+        mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
+
     CLOG_WARNING(Perf, "================================================");
-    CLOG_WARNING(Perf, "Maximum sustainable SAC payments per second: {}",
-                 bestTps);
+    CLOG_WARNING(Perf,
+                 "Maximum sustainable SAC payments per second: {} [{}, {}]",
+                 bestTps, bestTps, hiTps);
     CLOG_WARNING(Perf, "With parallelism constraint of {} clusters",
                  mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
     CLOG_WARNING(Perf, "================================================");
@@ -1694,8 +1700,6 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
             ? mApp.getMetrics().NewTimer({"ledger", "ledger", "close"})
             : mApp.getMetrics().NewTimer(
                   {"ledger", "transaction", "total-apply"});
-
-    warmAccountCache();
 
     int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
 

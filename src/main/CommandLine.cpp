@@ -1935,10 +1935,10 @@ runApplyLoad(CommandLineArgs const& args)
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             config.LEDGER_PROTOCOL_VERSION =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            if (config.APPLY_LOAD_NUM_LEDGERS < 30)
+            if (config.APPLY_LOAD_NUM_LEDGERS < 10)
             {
                 throw std::runtime_error(
-                    "APPLY_LOAD_NUM_LEDGERS must be at least 30");
+                    "APPLY_LOAD_NUM_LEDGERS must be at least 10");
             }
             if (mode == ApplyLoadMode::MAX_SAC_TPS)
             {
