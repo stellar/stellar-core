@@ -82,7 +82,7 @@ bool
 TxFeeComparator::operator()(TransactionFrameBasePtr const& tx1,
                             TransactionFrameBasePtr const& tx2) const
 {
-    return txLessThan(tx1, tx2) ^ mIsGreater;
+    return txLessThan(tx1, tx2);
 }
 
 bool
@@ -115,7 +115,7 @@ TxFeeComparator::txLessThan(TransactionFrameBasePtr const& tx1,
 
     if (cmp3 != 0)
     {
-        return cmp3 < 0;
+        return mIsGreater ? cmp3 > 0 : cmp3 < 0;
     }
 #ifndef BUILD_TESTS
     // break tie with pointer arithmetic
@@ -127,7 +127,7 @@ TxFeeComparator::txLessThan(TransactionFrameBasePtr const& tx1,
     auto lx = tx1->getFullHash();
     auto rx = tx2->getFullHash();
 #endif
-    return lx < rx;
+    return mIsGreater ? rx < lx : lx < rx;
 }
 
 SurgePricingPriorityQueue::SurgePricingPriorityQueue(
