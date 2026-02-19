@@ -40,7 +40,6 @@
 #include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
-#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Fs.h"

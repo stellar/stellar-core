@@ -1700,12 +1700,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
             LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, out);
         REQUIRE(scp == 0);
 
-        CheckpointBuilder cb(*app1);
-        auto headers = LedgerHeaderUtils::copyToStream(
-            app1->getDatabase().getRawSession(),
-            LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, cb);
-        REQUIRE(headers == 0);
-
         // We should have either an empty publish queue or a
         // ledger sometime after the 5th checkpoint (ledger 5 * 8 - 1 = 39)
         auto minLedger =

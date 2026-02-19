@@ -1239,9 +1239,6 @@
     <ClCompile Include="..\..\src\transactions\TransactionMeta.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -2341,9 +2338,6 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionMeta.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionSQL.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h">

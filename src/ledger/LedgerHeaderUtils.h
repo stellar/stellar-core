@@ -9,31 +9,18 @@
 
 namespace stellar
 {
-class CheckpointBuilder;
 
 namespace LedgerHeaderUtils
 {
 
 uint32_t getFlags(LedgerHeader const& lh);
 
-bool isValid(LedgerHeader const& lh);
-
 void storeInDatabase(Database& db, LedgerHeader const& header,
                      SessionWrapper& sess);
 
-LedgerHeader decodeFromData(std::string const& data);
-
 std::shared_ptr<LedgerHeader> loadByHash(Database& db, Hash const& hash);
 
-std::shared_ptr<LedgerHeader> loadBySequence(Database& db, soci::session& sess,
-                                             uint32_t seq);
-
-uint32_t loadMaxLedgerSeq(Database& db);
-
 void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count);
-
-size_t copyToStream(soci::session& sess, uint32_t ledgerSeq,
-                    uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder);
 
 void maybeDropAndCreateNew(Database& db);
 }

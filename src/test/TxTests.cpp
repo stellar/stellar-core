@@ -23,7 +23,6 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
