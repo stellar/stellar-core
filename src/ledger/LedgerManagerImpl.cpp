@@ -2318,8 +2318,6 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
         threadFutures;
 
-    auto liveSnapshot = app.copySearchableLiveBucketListSnapshot();
-
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
     for (size_t i = 0; i < stage.numClusters(); ++i)
