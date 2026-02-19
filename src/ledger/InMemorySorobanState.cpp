@@ -7,6 +7,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
+#include <Tracy.hpp>
 #include <cstdint>
 #include <medida/counter.h>
 
@@ -536,6 +537,7 @@ InMemorySorobanState::updateState(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     SorobanMetrics& metrics)
 {
+    ZoneScoped;
     // After initialization, we must apply every ledger in order to the
     // in-memory state with no gaps.
     releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);

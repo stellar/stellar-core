@@ -226,6 +226,14 @@ class LedgerManagerImpl : public LedgerManager
             std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
+        // Variant for parallel commit workers — skips thread invariant
+        // but still asserts we are in a writable phase.
+        void updateInMemorySorobanStateFromCommitWorker(
+            std::vector<LedgerEntry> const& initEntries,
+            std::vector<LedgerEntry> const& liveEntries,
+            std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+            std::optional<SorobanNetworkConfig const> const& sorobanConfig);
+
         // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;

@@ -82,6 +82,7 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+#include <future>
 #include <thread>
 
 /*
@@ -308,6 +309,22 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
     assertWritablePhase();
+    mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
+                                      sorobanConfig,
+                                      getMetrics().mSorobanMetrics);
+}
+
+void
+LedgerManagerImpl::ApplyState::updateInMemorySorobanStateFromCommitWorker(
+    std::vector<LedgerEntry> const& initEntries,
+    std::vector<LedgerEntry> const& liveEntries,
+    std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig)
+{
+    // Phase check without thread invariant — called from a parallel commit
+    // worker thread while the primary thread runs addLiveBatch concurrently.
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
+                  mPhase == Phase::COMMITTING);
     mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
                                       sorobanConfig,
                                       getMetrics().mSorobanMetrics);
@@ -2926,10 +2943,19 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
+
+    // Launch updateInMemorySorobanState on a worker thread — it operates on
+    // an independent InMemorySorobanState and only reads the const entry
+    // vectors. Main thread runs addLiveBatch concurrently.
+    auto inMemoryFuture = std::async(std::launch::async, [&]() {
+        mApplyState.updateInMemorySorobanStateFromCommitWorker(
+            initEntries, liveEntries, deadEntries, lh, finalSorobanConfig);
+    });
+
+    // addLiveBatch runs on main thread concurrently with the in-memory update.
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
-    mApplyState.updateInMemorySorobanState(initEntries, liveEntries,
-                                           deadEntries, lh, finalSorobanConfig);
+    inMemoryFuture.get();
 }
 
 CompleteConstLedgerStatePtr
