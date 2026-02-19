@@ -588,6 +588,11 @@ AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AC_ARG_ENABLE(rust-overlay,
+    AS_HELP_STRING([--disable-rust-overlay],
+        [Disable building the Rust overlay (libp2p-based P2P networking)]))
+AM_CONDITIONAL(USE_RUST_OVERLAY, [test x$enable_rust_overlay != xno])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])
