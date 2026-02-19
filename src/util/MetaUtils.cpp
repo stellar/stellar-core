@@ -118,6 +118,13 @@ normalizeMeta(TransactionMeta& m)
         sortChanges(m.v4().txChangesAfter);
         normalizeOps(m.v4().operations);
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        sortChanges(m.v5().txChangesBefore);
+        sortChanges(m.v5().txChangesAfter);
+        normalizeOps(m.v5().operations);
+        break;
+#endif
     default:
         releaseAssert(false);
     }
