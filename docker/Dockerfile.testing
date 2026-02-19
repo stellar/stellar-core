@@ -38,6 +38,9 @@ RUN apt-get update && \
     apt-get -y install libunwind-20 postgresql curl sqlite3 iproute2 libc++abi1-20 libc++1-20
 
 COPY --from=buildstage /usr/local/bin/stellar-core /usr/local/bin/stellar-core
+COPY --from=buildstage /usr/local/bin/stellar-overlay /usr/local/bin/stellar-overlay
 EXPOSE 11625
 EXPOSE 11626
+# QUIC port for Rust overlay (peer_port + 1000, UDP)
+EXPOSE 12625/udp
 CMD stellar-core
