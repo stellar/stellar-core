@@ -607,9 +607,6 @@ buildSurgePricedParallelSorobanPhase(
     // then scan for groups sharing the same key hash. This is significantly
     // faster in practice than using hash map lookups.
     //
-    // With 64-bit hashes and typical
-    // footprint sizes, collisions are exceedingly rare .
-    //
     // This also has the further optimization potential: we could populate the
     // key maps and even the conflicting transactions eagerly in tx queue, thus
     // amortizing the costs across the whole ledger duration.
@@ -674,7 +671,7 @@ buildSurgePricedParallelSorobanPhase(
             continue;
         }
 
-        // Collect all entries matching.
+        // Collect all entries with the matching key hash.
         std::vector<size_t> roTxs;
         std::vector<size_t> rwTxs;
         for (size_t i = groupStart; i < groupEnd; ++i)
