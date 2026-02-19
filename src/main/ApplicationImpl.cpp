@@ -48,8 +48,7 @@
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/OverlayManagerImpl.h"
+#include "overlay/RustOverlayManager.h"
 #include "process/ProcessManager.h"
 #include "transactions/SignatureChecker.h"
 #include "util/GlobalChecks.h"
@@ -500,9 +499,8 @@ ApplicationImpl::getJsonInfo(bool verbose)
         }
     }
 
-    info["peers"]["pending_count"] = getOverlayManager().getPendingPeersCount();
-    info["peers"]["authenticated_count"] =
-        getOverlayManager().getAuthenticatedPeersCount();
+    // Note: peer count not available from Rust overlay (Kademlia manages peers)
+    info["peers"]["note"] = "Rust overlay uses Kademlia for peer discovery";
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
     auto& statusMessages = getStatusManager();
@@ -1307,12 +1305,6 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewCounter({"process", "action", "overloaded"})
         .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
 
-    // Update overlay inbound-connections and file-handle metrics.
-    if (mOverlayManager)
-    {
-        mMetrics->NewCounter({"overlay", "inbound", "live"})
-            .set_count(*mOverlayManager->getLiveInboundPeersCounter());
-    }
     mMetrics->NewCounter({"process", "file", "handles"})
         .set_count(fs::getOpenHandleCount());
 }
@@ -1410,7 +1402,7 @@ ApplicationImpl::getInvariantManager()
     return *mInvariantManager;
 }
 
-OverlayManager&
+RustOverlayManager&
 ApplicationImpl::getOverlayManager()
 {
     return *mOverlayManager;
@@ -1608,10 +1600,10 @@ ApplicationImpl::createInvariantManager()
     return InvariantManager::create(*this);
 }
 
-std::unique_ptr<OverlayManager>
+std::unique_ptr<RustOverlayManager>
 ApplicationImpl::createOverlayManager()
 {
-    return OverlayManager::create(*this);
+    return std::make_unique<RustOverlayManager>(*this);
 }
 
 std::unique_ptr<LedgerManager>

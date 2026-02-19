@@ -152,8 +152,6 @@ TxGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
                              uint32_t ledgerNum, uint64_t sourceAccountId)
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
-    releaseAssert(
-        !mApp.getHerder().sourceAccountPending(sourceAccount->getPublicKey()));
 
     auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
 

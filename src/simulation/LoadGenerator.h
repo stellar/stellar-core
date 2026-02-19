@@ -231,9 +231,8 @@ class LoadGenerator
     // re-submit. Any other code points to a loadgen misconfigurations, as
     // transactions must have valid (pre-generated) source accounts,
     // sufficient balances etc.
-    TransactionQueue::AddResultCode execute(TransactionFrameBasePtr txf,
-                                            LoadGenMode mode,
-                                            TransactionResultCode& code);
+    TxSubmitStatus execute(TransactionFrameBasePtr txf, LoadGenMode mode,
+                           TransactionResultCode& code);
 
     static uint32_t const STEP_MSECS;
     static uint32_t const TX_SUBMIT_MAX_TRIES;
@@ -331,8 +330,7 @@ class LoadGenerator
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
                              TxGenerator::TestAccountPtr sourceAccount,
-                             TransactionQueue::AddResultCode status,
-                             TransactionResultCode code);
+                             TxSubmitStatus status, TransactionResultCode code);
 
     void logProgress(std::chrono::nanoseconds submitTimer,
                      GeneratedLoadConfig const& cfg) const;

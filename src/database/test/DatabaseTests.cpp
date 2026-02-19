@@ -13,7 +13,6 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
-#include "overlay/OverlayManager.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"

@@ -6,7 +6,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include <overlay/OverlayManager.h>
 #include <xdrpp/marshal.h>
 
 using namespace std;

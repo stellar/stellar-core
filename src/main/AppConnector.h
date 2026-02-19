@@ -11,7 +11,7 @@
 
 namespace stellar
 {
-class OverlayManager;
+class RustOverlayManager;
 class LedgerManager;
 class Herder;
 class BanManager;
@@ -20,7 +20,6 @@ class SorobanNetworkConfig;
 class SorobanMetrics;
 class SearchableHotArchiveBucketListSnapshot;
 struct LedgerTxnDelta;
-class CapacityTrackedMessage;
 
 // Helper class to isolate access to Application; all function helpers must
 // either be called from main or be thread-safe
@@ -37,7 +36,7 @@ class AppConnector
     // Methods that can only be called from main thread
     Herder& getHerder();
     LedgerManager& getLedgerManager();
-    OverlayManager& getOverlayManager();
+    RustOverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;
     void checkOnOperationApply(Operation const& operation,
@@ -62,9 +61,6 @@ class AppConnector
     rust::Box<rust_bridge::SorobanModuleCache> getModuleCache();
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
-    // This method is always exclusively called from one thread
-    bool
-    checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
     SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
     bool threadIsType(Application::ThreadType type) const;
 
@@ -80,10 +76,6 @@ class AppConnector
     // Refreshes `snapshot` if a newer snapshot is available. No-op otherwise.
     void
     maybeCopySearchableBucketListSnapshot(SearchableSnapshotConstPtr& snapshot);
-
-    // Get a snapshot of ledger state for use by the overlay thread only. Must
-    // only be called from the overlay thread.
-    SearchableSnapshotConstPtr& getOverlayThreadSnapshot();
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
     // unless a path to a CSV file containing the corruption data was provided

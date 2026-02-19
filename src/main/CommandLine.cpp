@@ -30,7 +30,7 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "overlay/OverlayManager.h"
+#include "overlay/RustOverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
 #include "transactions/TransactionUtils.h"
@@ -47,9 +47,9 @@
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
-#include "test/Fuzzer.h"
+// #include "test/Fuzzer.h"
 #include "test/TestUtils.h"
-#include "test/fuzz.h"
+// #include "test/fuzz.h"
 #include "test/test.h"
 #endif
 
@@ -1807,87 +1807,87 @@ runRebuildLedgerFromBuckets(CommandLineArgs const& args)
     });
 }
 
-ParserWithValidation
-fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
-{
-    auto validateFuzzerMode = [&] {
-        if (iequals(fuzzerModeArg, "overlay"))
-        {
-            fuzzerMode = FuzzerMode::OVERLAY;
-            return "";
-        }
+// ParserWithValidation
+// fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+// {
+//     auto validateFuzzerMode = [&] {
+//         if (iequals(fuzzerModeArg, "overlay"))
+//         {
+//             fuzzerMode = FuzzerMode::OVERLAY;
+//             return "";
+//         }
 
-        if (iequals(fuzzerModeArg, "tx"))
-        {
-            fuzzerMode = FuzzerMode::TRANSACTION;
-            return "";
-        }
+//         if (iequals(fuzzerModeArg, "tx"))
+//         {
+//             fuzzerMode = FuzzerMode::TRANSACTION;
+//             return "";
+//         }
 
-        return "Unrecognized fuzz mode. Please select a valid mode.";
-    };
+//         return "Unrecognized fuzz mode. Please select a valid mode.";
+//     };
 
-    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
-                "set the fuzzer mode. Expected modes: overlay, "
-                "tx. Defaults to overlay."),
-            validateFuzzerMode};
-}
+//     return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
+//                 "set the fuzzer mode. Expected modes: overlay, "
+//                 "tx. Defaults to overlay."),
+//             validateFuzzerMode};
+// }
 
-int
-runFuzz(CommandLineArgs const& args)
-{
-    LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::vector<std::string> metrics;
-    std::string fileName;
-    std::string outputFile;
-    int processID = 0;
-    bool consoleLog = false;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
+// int
+// runFuzz(CommandLineArgs const& args)
+// {
+//     LogLevel logLevel{LogLevel::LVL_FATAL};
+//     std::vector<std::string> metrics;
+//     std::string fileName;
+//     std::string outputFile;
+//     int processID = 0;
+//     bool consoleLog = false;
+//     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
+//     std::string fuzzerModeArg = "overlay";
 
-    return runWithHelp(args,
-                       {logLevelParser(logLevel), metricsParser(metrics),
-                        consoleParser(consoleLog), fileNameParser(fileName),
-                        outputFileParser(outputFile),
-                        processIDParser(processID),
-                        fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
-                       [&] {
-                           Logging::setLogLevel(logLevel, nullptr);
-                           if (!outputFile.empty())
-                           {
-                               Logging::setLoggingToFile(outputFile);
-                           }
+//     return runWithHelp(args,
+//                        {logLevelParser(logLevel), metricsParser(metrics),
+//                         consoleParser(consoleLog), fileNameParser(fileName),
+//                         outputFileParser(outputFile),
+//                         processIDParser(processID),
+//                         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+//                        [&] {
+//                            Logging::setLogLevel(logLevel, nullptr);
+//                            if (!outputFile.empty())
+//                            {
+//                                Logging::setLoggingToFile(outputFile);
+//                            }
 
-                           fuzz(fileName, metrics, processID, fuzzerMode);
-                           return 0;
-                       });
-}
+//                            fuzz(fileName, metrics, processID, fuzzerMode);
+//                            return 0;
+//                        });
+// }
 
-int
-runGenFuzz(CommandLineArgs const& args)
-{
-    LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::string fileName;
-    std::string outputFile;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
-    int processID = 0;
+// int
+// runGenFuzz(CommandLineArgs const& args)
+// {
+//     LogLevel logLevel{LogLevel::LVL_FATAL};
+//     std::string fileName;
+//     std::string outputFile;
+//     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
+//     std::string fuzzerModeArg = "overlay";
+//     int processID = 0;
 
-    return runWithHelp(
-        args,
-        {logLevelParser(logLevel), fileNameParser(fileName),
-         outputFileParser(outputFile),
-         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
-        [&] {
-            Logging::setLogLevel(logLevel, nullptr);
-            if (!outputFile.empty())
-            {
-                Logging::setLoggingToFile(outputFile);
-            }
+//     return runWithHelp(
+//         args,
+//         {logLevelParser(logLevel), fileNameParser(fileName),
+//          outputFileParser(outputFile),
+//          fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+//         [&] {
+//             Logging::setLogLevel(logLevel, nullptr);
+//             if (!outputFile.empty())
+//             {
+//                 Logging::setLoggingToFile(outputFile);
+//             }
 
-            FuzzUtils::createFuzzer(processID, fuzzerMode)->genFuzz(fileName);
-            return 0;
-        });
-}
+//             FuzzUtils::createFuzzer(processID,
+//             fuzzerMode)->genFuzz(fileName); return 0;
+//         });
+// }
 
 ParserWithValidation
 applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
@@ -2169,8 +2169,8 @@ handleCommandLine(int argc, char* const* argv)
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",
           runRebuildLedgerFromBuckets},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
+         //  {"fuzz", "run a single fuzz input and exit", runFuzz},
+         //  {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
          {"apply-load", "run apply time load test", runApplyLoad},
          {"pregenerate-loadgen-txs",

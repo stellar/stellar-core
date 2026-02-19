@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "medida/timer_context.h"
+#include "overlay/RustOverlayManager.h"
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -70,12 +71,12 @@ class ApplicationImpl : public Application
     virtual Herder& getHerder() override;
     virtual HerderPersistence& getHerderPersistence() override;
     virtual InvariantManager& getInvariantManager() override;
-    virtual OverlayManager& getOverlayManager() override;
     virtual Database& getDatabase() const override;
     virtual PersistentState& getPersistentState() override;
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
+    virtual RustOverlayManager& getOverlayManager() override;
     virtual StatusManager& getStatusManager() override;
     virtual AppConnector& getAppConnector() override;
     std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
@@ -175,7 +176,7 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
-    std::unique_ptr<OverlayManager> mOverlayManager;
+    std::unique_ptr<RustOverlayManager> mOverlayManager;
 
   protected:
     std::unique_ptr<LedgerManager>
@@ -276,7 +277,7 @@ class ApplicationImpl : public Application
 
     virtual std::unique_ptr<Herder> createHerder();
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
-    virtual std::unique_ptr<OverlayManager> createOverlayManager();
+    virtual std::unique_ptr<RustOverlayManager> createOverlayManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();
     virtual std::unique_ptr<Database> createDatabase();
 

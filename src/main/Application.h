@@ -30,7 +30,7 @@ class ProcessManager;
 class Herder;
 class HerderPersistence;
 class InvariantManager;
-class OverlayManager;
+class RustOverlayManager;
 class Database;
 class PersistentState;
 class CommandHandler;
@@ -228,7 +228,7 @@ class Application
     virtual Herder& getHerder() = 0;
     virtual HerderPersistence& getHerderPersistence() = 0;
     virtual InvariantManager& getInvariantManager() = 0;
-    virtual OverlayManager& getOverlayManager() = 0;
+    virtual RustOverlayManager& getOverlayManager() = 0;
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;
     virtual CommandHandler& getCommandHandler() = 0;

@@ -13,8 +13,7 @@ class Topologies
 {
   public:
     static Simulation::pointer
-    pair(Simulation::Mode mode, Hash const& networkID,
-         Simulation::ConfigGen confGen = nullptr,
+    pair(Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
          Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // cyclic network - each node has a qset with a neighbor
@@ -24,52 +23,50 @@ class Topologies
 
     // nNodes with same qSet - mesh network
     static Simulation::pointer
-    core(int nNodes, double quorumThresoldFraction, Simulation::Mode mode,
-         Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
+    core(int nNodes, double quorumThresoldFraction, Hash const& networkID,
+         Simulation::ConfigGen confGen = nullptr,
          Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // nNodes with same qSet - one way connection in cycle
     static Simulation::pointer
-    cycle(int nNodes, double quorumThresoldFraction, Simulation::Mode mode,
-          Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
+    cycle(int nNodes, double quorumThresoldFraction, Hash const& networkID,
+          Simulation::ConfigGen confGen = nullptr,
           Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // nNodes with same qSet - two way connection = cycle + alt-path
     static Simulation::pointer
     branchedcycle(int nNodes, double quorumThresoldFraction,
-                  Simulation::Mode mode, Hash const& networkID,
+                  Hash const& networkID,
                   Simulation::ConfigGen confGen = nullptr,
                   Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // nNodes with same qSet - no connection created
     static Simulation::pointer
-    separate(int nNodes, double quorumThresoldFraction, Simulation::Mode mode,
-             Hash const& networkID, int numWatchers = 0,
-             Simulation::ConfigGen confGen = nullptr,
+    separate(int nNodes, double quorumThresoldFraction, Hash const& networkID,
+             int numWatchers = 0, Simulation::ConfigGen confGen = nullptr,
              Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // nNodes with automatic quorum generation where all nodes are high-quality
     // validators
     static Simulation::pointer
-    separateAllHighQuality(int nNodes, Simulation::Mode mode,
-                           Hash const& networkID,
+    separateAllHighQuality(int nNodes, Hash const& networkID,
                            Simulation::ConfigGen confGen);
 
     // multi-tier quorum (core4 + mid-tier nodes that depend on 2 nodes of
     // core4) mid-tier connected round-robin to core4
-    static Simulation::pointer hierarchicalQuorum(
-        int nBranches, Simulation::Mode mode, Hash const& networkID,
-        Simulation::ConfigGen confGen = nullptr, int connectionsToCore = 1,
-        Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
+    static Simulation::pointer
+    hierarchicalQuorum(int nBranches, Hash const& networkID,
+                       Simulation::ConfigGen confGen = nullptr,
+                       int connectionsToCore = 1,
+                       Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // 2-tier quorum with a variable size core (with 0.75 threshold)
     // and outer-nodes that listen to core & self
     // outer-nodes have connectionsToCore connections to core nodes
     // (round-robin)
     static Simulation::pointer hierarchicalQuorumSimplified(
-        int coreSize, int nbOuterNodes, Simulation::Mode mode,
-        Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
-        int connectionsToCore = 1,
+        int coreSize, int nbOuterNodes, Hash const& networkID,
+        Simulation::ConfigGen confGen = nullptr, int connectionsToCore = 1,
         Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // custom-A models a network with 7 nodes A, B, C, T, I, E, S where I is a
@@ -77,15 +74,15 @@ class Topologies
     // is valid for the resilience tests because the resilience tests do not
     // simulate Byzantine failures.
     static Simulation::pointer
-    customA(Simulation::Mode mode, Hash const& networkID,
-            Simulation::ConfigGen confGen = nullptr, int connections = 1,
+    customA(Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
+            int connections = 1,
             Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // Asymmetric modifies `core` topology by adding extra nodes to one of the
     // validators in core
     static Simulation::pointer
-    asymmetric(Simulation::Mode mode, Hash const& networkID,
-               Simulation::ConfigGen confGen = nullptr, int connections = 1,
+    asymmetric(Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
+               int connections = 1,
                Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 };
 }

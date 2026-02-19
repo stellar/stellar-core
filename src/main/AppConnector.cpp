@@ -6,9 +6,8 @@
 #include "ledger/P23HotArchiveBug.h"
 #include "main/Application.h"
 #include "overlay/BanManager.h"
-#include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/Peer.h"
+#include "overlay/RustOverlayManager.h"
 #include "util/Timer.h"
 
 namespace stellar
@@ -33,7 +32,7 @@ AppConnector::getLedgerManager()
     return mApp.getLedgerManager();
 }
 
-OverlayManager&
+RustOverlayManager&
 AppConnector::getOverlayManager()
 {
     releaseAssert(threadIsMain());
@@ -156,13 +155,6 @@ AppConnector::getOverlayMetrics()
 }
 
 bool
-AppConnector::checkScheduledAndCache(
-    std::shared_ptr<CapacityTrackedMessage> msgTracker)
-{
-    return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
-}
-
-bool
 AppConnector::threadIsType(Application::ThreadType type) const
 {
     return mApp.threadIsType(type);
@@ -191,12 +183,6 @@ AppConnector::maybeCopySearchableBucketListSnapshot(
     mApp.getBucketManager()
         .getBucketSnapshotManager()
         .maybeCopySearchableBucketListSnapshot(snapshot);
-}
-
-SearchableSnapshotConstPtr&
-AppConnector::getOverlayThreadSnapshot()
-{
-    return mApp.getOverlayManager().getOverlayThreadSnapshot();
 }
 
 std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&

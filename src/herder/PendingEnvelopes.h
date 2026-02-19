@@ -8,7 +8,6 @@
 #include "herder/Herder.h"
 #include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
-#include "overlay/ItemFetcher.h"
 #include "util/RandomEvictionCache.h"
 #include <autocheck/function.hpp>
 #include <chrono>
@@ -62,8 +61,9 @@ class PendingEnvelopes
     // weak references to all known qsets
     UnorderedMap<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
 
-    ItemFetcher mTxSetFetcher;
-    ItemFetcher mQuorumSetFetcher;
+    // hashes of txsets/qsets we're currently fetching
+    std::map<Hash, std::vector<SCPEnvelope>> mPendingTxSetFetches;
+    std::map<Hash, std::vector<SCPEnvelope>> mPendingQSetFetches;
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
@@ -182,9 +182,6 @@ class PendingEnvelopes
      * Return true if TxSet useful (was asked for).
      */
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset);
-
-    void peerDoesntHave(MessageType type, Hash const& itemID,
-                        Peer::pointer peer);
 
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 

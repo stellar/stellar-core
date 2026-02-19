@@ -27,8 +27,6 @@
 #include "ledger/LedgerTxn.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/PeerManager.h"
 #include "transactions/TransactionSQL.h"
 
 #include "medida/counter.h"
@@ -259,9 +257,23 @@ Database::populateMiscDatabase()
     releaseAssert(!loc.empty());
     getRawMiscSession() << "ATTACH DATABASE '" + loc + "' AS source_db";
 
-    // Step 2: Copy data from each table
+    // Step 2: Copy data from each table (skip overlay tables if they don't
+    // exist)
     for (auto const& tableName : kMiscTables)
     {
+        // Check if table exists in source database
+        int tableExists = 0;
+        getRawMiscSession() << "SELECT COUNT(*) FROM source_db.sqlite_master "
+                               "WHERE type='table' AND name=:name",
+            soci::use(tableName), soci::into(tableExists);
+
+        if (tableExists == 0)
+        {
+            // Table doesn't exist in source (e.g., peers/ban removed for Rust
+            // overlay)
+            continue;
+        }
+
         int sourceCount = 0;
         getRawMiscSession() << "SELECT COUNT(*) FROM source_db." + tableName,
             soci::into(sourceCount);
@@ -296,7 +308,7 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
     {
     case 1:
         // Create tables for the first time.
-        OverlayManager::maybeDropAndCreateNew(mMiscSession);
+        // Note: Overlay tables removed - Rust overlay uses Kademlia DHT
         PersistentState::createMisc(*this);
         HerderPersistence::maybeDropAndCreateNew(mMiscSession.session());
         BanManager::maybeDropAndCreateNew(mMiscSession);
@@ -586,9 +598,7 @@ Database::initialize()
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
 
-    // Note: once the network is on schema version 26+, session parameter in
-    // maybeDropAndCreateNew methods can be removed.
-    OverlayManager::maybeDropAndCreateNew(mSession);
+    // Note: Overlay tables removed - Rust overlay uses Kademlia DHT
     PersistentState::maybeDropAndCreateNew(*this);
     LedgerHeaderUtils::maybeDropAndCreateNew(*this);
     HerderPersistence::maybeDropAndCreateNew(mSession.session());

@@ -13,8 +13,6 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/SurveyManager.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
@@ -1158,13 +1156,6 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                             mSCPMetrics.mFirstToSelfExternalizeLag,
                             "first to self externalize lag",
                             std::chrono::nanoseconds::zero(), slotIndex);
-            mApp.getOverlayManager().getSurveyManager().modifyNodeData(
-                [&](CollectingNodeData& nd) {
-                    nd.mSCPFirstToSelfLatencyMsHistogram.Update(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                            now - *timing.mFirstExternalize)
-                            .count());
-                });
         }
         if (!timing.mSelfExternalize || forceUpdateSelf)
         {
@@ -1183,13 +1174,6 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                 fmt::format(FMT_STRING("self to {} externalize lag"),
                             toShortString(id)),
                 std::chrono::nanoseconds::zero(), slotIndex);
-            mApp.getOverlayManager().getSurveyManager().modifyNodeData(
-                [&](CollectingNodeData& nd) {
-                    nd.mSCPSelfToOtherLatencyMsHistogram.Update(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                            now - *timing.mFirstExternalize)
-                            .count());
-                });
         }
 
         // Record lag for other nodes

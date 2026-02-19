@@ -708,6 +708,10 @@ class Config : public std::enable_shared_from_this<Config>
     double FLOOD_OP_RATE_PER_LEDGER;
     int FLOOD_TX_PERIOD_MS;
     double FLOOD_SOROBAN_RATE_PER_LEDGER;
+
+    // Rust overlay process config
+    std::string OVERLAY_BINARY_PATH; // Path to stellar-overlay binary
+    std::string OVERLAY_SOCKET_PATH; // Path for overlay IPC socket
     int FLOOD_SOROBAN_TX_PERIOD_MS;
     int32_t FLOOD_ARB_TX_BASE_ALLOWANCE;
     double FLOOD_ARB_TX_DAMPING_FACTOR;

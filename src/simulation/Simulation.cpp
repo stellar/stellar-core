@@ -7,8 +7,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/PeerManager.h"
+#include "overlay/RustOverlayManager.h"
 #include "scp/LocalNode.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -23,6 +22,7 @@
 #include "main/ApplicationUtils.h"
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"
+#include "util/Logging.h"
 
 #include <thread>
 
@@ -31,41 +31,40 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
+Simulation::Simulation(Hash const& networkID, ConfigGen confGen,
                        QuorumSetAdjuster qSetAdjust)
-    : mVirtualClockMode(mode != OVER_TCP)
-    , mClock(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
-                               : VirtualClock::REAL_TIME)
-    , mMode(mode)
+    : mClock(VirtualClock::REAL_TIME)
     , mConfigCount(0)
     , mConfigGen(confGen)
     , mQuorumSetAdjuster(qSetAdjust)
 {
     auto cfg = newConfig();
-    auto& parallel = cfg.BACKGROUND_OVERLAY_PROCESSING;
-    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
     mIdleApp = Application::create(mClock, cfg);
-    mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
 }
 
 Simulation::~Simulation()
 {
-    // kills all connections
-    mLoopbackConnections.clear();
-
-    for (auto& node : mNodes)
-    {
-        node.second.mApp->gracefulStop();
-        crankUntil([node] { return node.second.mApp->getClock().isStopped(); },
-                   std::chrono::seconds(20), false);
-    }
+    // for (auto& node : mNodes)
+    // {
+    //     node.second.mApp->gracefulStop();
+    //     if (node.second.mApp->getState() == Application::APP_CREATED_STATE)
+    //     {
+    //         continue;
+    //     }
+    //     crankUntil([node] { return node.second.mApp->getClock().isStopped();
+    //     },
+    //                std::chrono::seconds(20), false);
+    // }
 
     // destroy all nodes first
     mNodes.clear();
 
     mIdleApp->gracefulStop();
-    crankUntil([this] { return mIdleApp->getClock().isStopped(); },
-               std::chrono::seconds(20), false);
+    // if (mIdleApp->getState() != Application::APP_CREATED_STATE)
+    // {
+    //     crankUntil([this] { return mIdleApp->getClock().isStopped(); },
+    //                std::chrono::seconds(20), false);
+    // }
 }
 
 void
@@ -97,8 +96,10 @@ Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
     cfg->adjust();
     cfg->NODE_SEED = nodeKey;
     cfg->MANUAL_CLOSE = false;
-    auto& parallel = cfg->BACKGROUND_OVERLAY_PROCESSING;
-    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
+    cfg->RUN_STANDALONE = false;
+
+    // Binary path for Rust overlay
+    cfg->OVERLAY_BINARY_PATH = "../target/release/stellar-overlay";
 
     if (SCPQuorumSet const* manualQSet = std::get_if<SCPQuorumSet>(&qSet))
     {
@@ -122,34 +123,13 @@ Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
         cfg->generateQuorumSetForTesting(validators);
     }
 
-    if (mMode == OVER_TCP)
-    {
-        cfg->RUN_STANDALONE = false;
-    }
+    auto clock = make_shared<VirtualClock>(VirtualClock::REAL_TIME);
 
-    auto clock =
-        make_shared<VirtualClock>(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
-                                                    : VirtualClock::REAL_TIME);
-    if (mVirtualClockMode)
-    {
-        clock->setCurrentVirtualTime(mClock.now());
-    }
-
-    Application::pointer app;
-    if (mMode == OVER_LOOPBACK)
-    {
-        app = createTestApplication<ApplicationLoopbackOverlay, Simulation&>(
-            *clock, *cfg, *this, newDB, false);
-    }
-    else
-    {
-        app = createTestApplication(*clock, *cfg, newDB, false);
-    }
+    Application::pointer app =
+        createTestApplication(*clock, *cfg, newDB, false);
 
     mNodes.emplace(nodeKey.getPublicKey(), Node{clock, app});
 
-    mPeerMap.emplace(app->getConfig().PEER_PORT,
-                     std::weak_ptr<Application>(app));
     return app;
 }
 
@@ -158,6 +138,7 @@ Simulation::getNode(NodeID nodeID)
 {
     return mNodes[nodeID].mApp;
 }
+
 vector<Application::pointer>
 Simulation::getNodes()
 {
@@ -166,6 +147,7 @@ Simulation::getNodes()
         result.push_back(p.second.mApp);
     return result;
 }
+
 vector<NodeID>
 Simulation::getNodeIDs()
 {
@@ -182,191 +164,10 @@ Simulation::removeNode(NodeID const& id)
     if (it != mNodes.end())
     {
         auto node = it->second;
-        mPeerMap.erase(node.mApp->getConfig().PEER_PORT);
         mNodes.erase(it);
         node.mApp->gracefulStop();
         while (node.mClock->crank(false) > 0)
             ;
-        if (mMode == OVER_LOOPBACK)
-        {
-            dropAllConnections(id);
-        }
-    }
-}
-
-Application::pointer
-Simulation::getAppFromPeerMap(unsigned short peerPort)
-{
-    releaseAssert(mMode == OVER_LOOPBACK);
-    auto it = mPeerMap.find(peerPort);
-    if (it == mPeerMap.end())
-    {
-        return nullptr;
-    }
-
-    auto app = it->second.lock();
-    if (app)
-    {
-        return app;
-    }
-
-    return nullptr;
-}
-
-void
-Simulation::dropAllConnections(NodeID const& id)
-{
-    if (mMode == OVER_LOOPBACK)
-    {
-        assert(mPendingConnections.empty());
-        mLoopbackConnections.erase(
-            std::remove_if(mLoopbackConnections.begin(),
-                           mLoopbackConnections.end(),
-                           [&](std::shared_ptr<LoopbackPeerConnection> c) {
-                               // use app's IDs here as connections may be
-                               // incomplete
-                               return c->getAcceptor()
-                                              ->getConfig()
-                                              .NODE_SEED.getPublicKey() == id ||
-                                      c->getInitiator()
-                                              ->getConfig()
-                                              .NODE_SEED.getPublicKey() == id;
-                           }),
-            mLoopbackConnections.end());
-    }
-    else
-    {
-        throw std::runtime_error("can only drop connections over loopback");
-    }
-}
-
-void
-Simulation::fullyConnectAllPending()
-{
-    auto nodes = getNodeIDs();
-    if (nodes.size() < 2)
-    {
-        return; // No connections needed for 0 or 1 nodes
-    }
-    for (size_t from = 0; from < nodes.size() - 1; from++)
-    {
-        for (size_t to = from + 1; to < nodes.size(); to++)
-        {
-            addPendingConnection(nodes.at(from), nodes.at(to));
-        }
-    }
-}
-
-void
-Simulation::addPendingConnection(NodeID const& initiator,
-                                 NodeID const& acceptor)
-{
-    mPendingConnections.push_back(std::make_pair(initiator, acceptor));
-}
-
-void
-Simulation::addConnection(NodeID initiator, NodeID acceptor)
-{
-    if (mMode == OVER_LOOPBACK)
-        addLoopbackConnection(initiator, acceptor);
-    else
-        addTCPConnection(initiator, acceptor);
-}
-
-void
-Simulation::dropConnection(NodeID initiator, NodeID acceptor)
-{
-    if (mMode == OVER_LOOPBACK)
-        dropLoopbackConnection(initiator, acceptor);
-    else
-    {
-        auto iApp = mNodes[initiator].mApp;
-        if (iApp)
-        {
-            auto& cAcceptor = mNodes[acceptor].mApp->getConfig();
-
-            auto peer = iApp->getOverlayManager().getConnectedPeer(
-                PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
-            if (peer)
-            {
-                peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE);
-            }
-        }
-    }
-}
-
-void
-Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
-{
-    if (mNodes[initiator].mApp && mNodes[acceptor].mApp)
-    {
-        auto conn = std::make_shared<LoopbackPeerConnection>(
-            *getNode(initiator), *getNode(acceptor));
-        mLoopbackConnections.push_back(conn);
-    }
-}
-
-std::shared_ptr<LoopbackPeerConnection>
-Simulation::getLoopbackConnection(NodeID const& initiator,
-                                  NodeID const& acceptor)
-{
-    auto it = std::find_if(
-        std::begin(mLoopbackConnections), std::end(mLoopbackConnections),
-        [&](std::shared_ptr<LoopbackPeerConnection> const& conn) {
-            return conn->getInitiator()->getConfig().NODE_SEED.getPublicKey() ==
-                       initiator &&
-                   conn->getAcceptor()->getConfig().NODE_SEED.getPublicKey() ==
-                       acceptor;
-        });
-
-    return it == std::end(mLoopbackConnections) ? nullptr : *it;
-}
-
-void
-Simulation::dropLoopbackConnection(NodeID initiator, NodeID acceptor)
-{
-    auto it = std::find_if(
-        std::begin(mLoopbackConnections), std::end(mLoopbackConnections),
-        [&](std::shared_ptr<LoopbackPeerConnection> const& conn) {
-            return conn->getInitiator()->getConfig().NODE_SEED.getPublicKey() ==
-                       initiator &&
-                   conn->getAcceptor()->getConfig().NODE_SEED.getPublicKey() ==
-                       acceptor;
-        });
-    if (it != std::end(mLoopbackConnections))
-    {
-        mLoopbackConnections.erase(it);
-    }
-}
-
-void
-Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
-{
-    if (mMode != OVER_TCP)
-    {
-        throw runtime_error("Cannot add a TCP connection");
-    }
-    auto from = getNode(initiator);
-    auto to = getNode(acceptor);
-    if (to->getConfig().PEER_PORT == 0)
-    {
-        throw runtime_error("PEER_PORT cannot be set to 0");
-    }
-    auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
-    from->getOverlayManager().connectTo(address);
-}
-
-void
-Simulation::stopOverlayTick()
-{
-    auto cancel = [](Application::pointer app) {
-        auto& ov = static_cast<OverlayManagerImpl&>(app->getOverlayManager());
-        ov.mTimer.cancel();
-    };
-    cancel(mIdleApp);
-    for (auto& n : mNodes)
-    {
-        cancel(n.second.mApp);
     }
 }
 
@@ -391,15 +192,10 @@ Simulation::startAllNodes()
         auto app = it.second.mApp;
         if (app->getState() == Application::APP_CREATED_STATE)
         {
+            CLOG_INFO(Herder, "Starting node {}", app->getConfig().PEER_PORT);
             app->start();
         }
     }
-
-    for (auto const& pair : mPendingConnections)
-    {
-        addConnection(pair.first, pair.second);
-    }
-    mPendingConnections.clear();
 }
 
 void
@@ -430,23 +226,9 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     bool doneWithQuantum = false;
     VirtualTimer quantumTimer(*app);
 
-    if (mVirtualClockMode)
-    {
-        // in virtual mode we give at most a timeslice
-        // of quantum for execution
-        auto tp = clock->now() + quantum;
-        if (tp > timeout)
-        {
-            tp = timeout;
-        }
-        quantumTimer.expires_at(tp);
-    }
-    else
-    {
-        // real time means we only need to trigger whatever
-        // we missed since the last time
-        quantumTimer.expires_at(clock->now());
-    }
+    // real time means we only need to trigger whatever
+    // we missed since the last time
+    quantumTimer.expires_at(clock->now());
     quantumTimer.async_wait([&](asio::error_code const& error) {
         doneWithQuantum = true;
         quantumClicks++;
@@ -457,12 +239,6 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     {
         count += clock->crank(false);
     }
-
-    // Update network survey phase
-    OverlayManager& om = app->getOverlayManager();
-    om.getSurveyManager().updateSurveyPhase(om.getInboundAuthenticatedPeers(),
-                                            om.getOutboundAuthenticatedPeers(),
-                                            app->getConfig());
 
     return count - quantumClicks;
 }
@@ -486,13 +262,6 @@ Simulation::crankAllNodes(int nbTicks)
     int i = 0;
     do
     {
-        // at this level, we want to advance the overall simulation
-        // in some meaningful way (and not just by a quantum) nbTicks time
-
-        // in virtual clock mode, this means advancing the clock until either
-        // work was performed
-        // or we've triggered the next scheduled event
-
         if (mClock.getIOContext().stopped())
         {
             return 0;
@@ -501,19 +270,11 @@ Simulation::crankAllNodes(int nbTicks)
         bool hasNext = (mClock.next() != mClock.next().max());
         int quantumClicks = 0;
 
-        if (mVirtualClockMode)
-        {
-            // in virtual mode we need to crank the main clock manually
-            mainQuantumTimer.expires_from_now(quantum);
-            mainQuantumTimer.async_wait([&]() { quantumClicks++; },
-                                        &VirtualTimer::onFailureNoop);
-        }
-
         // now, run the clock on all nodes until their clock is caught up
         bool appBehind;
         // in virtual mode next interesting event is either a quantum click
         // or a scheduled event
-        auto nextTime = mVirtualClockMode ? mClock.next() : mClock.now();
+        auto nextTime = mClock.now();
         do
         {
             // in real mode, this is equivalent to a simple loop
@@ -528,19 +289,6 @@ Simulation::crankAllNodes(int nbTicks)
 
                 hasNext = hasNext || (clock->next() != clock->next().max());
 
-                if (mVirtualClockMode)
-                {
-                    auto appNow = clock->now();
-                    if (appNow < nextTime)
-                    {
-                        appBehind = true;
-                    }
-                    else if (appNow >= nextTime)
-                    {
-                        // node caught up, don't give it any compute
-                        continue;
-                    }
-                }
                 if (debugFmt)
                 {
                     Logging::setFmt(fmt::format(
@@ -550,105 +298,13 @@ Simulation::crankAllNodes(int nbTicks)
             }
         } while (appBehind);
 
-        // let the main clock do its job
         count += mClock.crank(false);
 
         // don't count quantum slices
         count -= quantumClicks;
-
-        // a tick is that either we've done work or
-        // that we're in real clock mode
-        // or that no event is scheduled
-        if (count || !mVirtualClockMode || !hasNext)
-        {
-            i++;
-        }
+        i++;
     } while (i < nbTicks);
     return count;
-}
-
-bool
-Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
-                                bool validatorsOnly)
-{
-    uint32_t min = UINT32_MAX, max = 0;
-    for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
-    {
-        auto app = it->second.mApp;
-        if (validatorsOnly && !app->getConfig().NODE_IS_VALIDATOR)
-        {
-            continue;
-        }
-        auto n = app->getLedgerManager().getLastClosedLedgerNum();
-        if (n < min)
-            min = n;
-        if (n > max)
-            max = n;
-    }
-    if (max - min > maxSpread)
-    {
-        throw std::runtime_error(
-            fmt::format("Too wide spread between nodes: {0}-{1} > {2}", max,
-                        min, maxSpread));
-    }
-    return num <= min;
-}
-
-void
-Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
-{
-    bool stop = false;
-    auto stopIt = [&](asio::error_code const& error) {
-        if (!error)
-            stop = true;
-    };
-
-    VirtualTimer checkTimer(*mIdleApp);
-
-    checkTimer.expires_from_now(seconds);
-    checkTimer.async_wait(stopIt);
-
-    while (!stop && crankAllNodes() > 0)
-        ;
-
-    if (stop)
-        LOG_INFO(DEFAULT_LOG, "Simulation timed out");
-    else
-        LOG_INFO(DEFAULT_LOG, "Simulation complete");
-
-    if (finalCrank)
-    {
-        stopAllNodes();
-    }
-}
-
-void
-Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
-{
-    bool stop = false;
-    auto stopIt = [&](asio::error_code const& error) {
-        if (!error)
-            stop = true;
-    };
-
-    VirtualTimer checkTimer(*mIdleApp);
-
-    checkTimer.expires_from_now(seconds);
-    checkTimer.async_wait(stopIt);
-
-    while (!stop)
-    {
-        if (crankAllNodes() == 0)
-        {
-            // this only happens when real time is configured
-            std::this_thread::sleep_for(chrono::milliseconds(50));
-        }
-    }
-
-    if (finalCrank)
-    {
-        stopAllNodes();
-    }
 }
 
 void
@@ -740,38 +396,113 @@ Simulation::crankUntil(VirtualClock::system_time_point timePoint,
                finalCrank);
 }
 
+void
+Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
+{
+    crankUntil(mClock.now() + seconds, finalCrank);
+}
+
+void
+Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
+{
+    crankUntil(mClock.now() + seconds, finalCrank);
+}
+
+bool
+Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
+                                bool validatorsOnly)
+{
+    uint32_t min = UINT32_MAX, max = 0;
+    for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
+    {
+        auto app = it->second.mApp;
+        auto validating = app->getConfig().NODE_IS_VALIDATOR;
+        if (!validatorsOnly || validating)
+        {
+            auto n = app->getLedgerManager().getLastClosedLedgerNum();
+            if (n < min)
+                min = n;
+            if (n > max)
+                max = n;
+        }
+    }
+    if (min > num + maxSpread)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("%.0 overshoot in simulation: min {:d}, expected {:d}"),
+            min, num));
+    }
+    return (min >= num) && ((max - min) <= maxSpread);
+}
+
 Config
 Simulation::newConfig()
 {
-    Config cfg;
     if (mConfigGen)
     {
-        cfg = mConfigGen(mConfigCount++);
+        return mConfigGen(mConfigCount++);
     }
     else
     {
-        cfg = getTestConfig(mConfigCount++);
-        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        Config res = getTestConfig(mConfigCount++);
+        res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        return res;
     }
-
-    return cfg;
 }
 
-class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
+class ConsoleReporterWithSum : public medida::MetricProcessor
 {
     std::ostream& out_;
 
   public:
     ConsoleReporterWithSum(medida::MetricsRegistry& registry,
                            std::ostream& out = std::cerr)
-        : medida::reporting::ConsoleReporter(registry, out), out_(out)
+        : out_(out)
     {
     }
 
-    void
-    Process(medida::Timer& timer) override
+    virtual ~ConsoleReporterWithSum()
+    {
+    }
+
+    virtual void
+    Process(medida::Counter& counter)
+    {
+        out_ << "           count = " << counter.count() << endl;
+    }
+
+    virtual void
+    Process(medida::Meter& meter)
+    {
+        auto unit = " events/" + meter.event_type();
+        auto mean_rate = meter.mean_rate();
+        out_ << "           count = " << meter.count() << endl
+             << "       mean rate = " << mean_rate << unit << endl
+             << "   1-minute rate = " << meter.one_minute_rate() << unit << endl
+             << "   5-minute rate = " << meter.five_minute_rate() << unit
+             << endl
+             << "  15-minute rate = " << meter.fifteen_minute_rate() << unit
+             << endl;
+    }
+
+    virtual void
+    Process(medida::Histogram& histogram)
+    {
+        auto snapshot = histogram.GetSnapshot();
+        out_ << "             min = " << histogram.min() << endl
+             << "             max = " << histogram.max() << endl
+             << "            mean = " << histogram.mean() << endl
+             << "          stddev = " << histogram.std_dev() << endl
+             << "          median = " << snapshot.getMedian() << endl
+             << "             75% = " << snapshot.get75thPercentile() << endl
+             << "             95% = " << snapshot.get95thPercentile() << endl
+             << "             98% = " << snapshot.get98thPercentile() << endl
+             << "             99% = " << snapshot.get99thPercentile() << endl
+             << "           99.9% = " << snapshot.get999thPercentile() << endl;
+    }
+
+    virtual void
+    Process(medida::Timer& timer)
     {
         auto snapshot = timer.GetSnapshot();
         auto unit = "ms";
@@ -806,39 +537,4 @@ Simulation::metricsSummary(string domain)
     return out.str();
 }
 
-bool
-LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
-                                      bool forceoutbound)
-{
-    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
-    auto currentConnection = getConnectedPeer(address);
-    if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
-                                                    Peer::REMOTE_CALLED_US))
-    {
-        if (availableOutboundPendingSlots() <= 0)
-        {
-            CLOG_DEBUG(Overlay,
-                       "Peer rejected - all outbound pending connections "
-                       "taken: {}",
-                       address.toString());
-            return false;
-        }
-        getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
-        auto& app = static_cast<ApplicationLoopbackOverlay&>(mApp);
-        auto otherApp = app.getSim().getAppFromPeerMap(address.getPort());
-        if (!otherApp)
-        {
-            return false;
-        }
-        auto res = LoopbackPeer::initiate(mApp, *otherApp);
-        return res.first->isConnectedForTesting();
-    }
-    else
-    {
-        CLOG_ERROR(Overlay,
-                   "trying to connect to a node we're already connected to {}",
-                   address.toString());
-        return false;
-    }
-}
 }

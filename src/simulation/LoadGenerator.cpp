@@ -7,7 +7,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "main/Config.h"
-#include "overlay/OverlayManager.h"
+#include "overlay/RustOverlayManager.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "transactions/MutableTransactionResult.h"
@@ -221,16 +221,7 @@ LoadGenerator::cleanupAccounts()
         auto const& accounts = mTxGenerator.getAccounts();
         auto accIt = accounts.find(*it);
         releaseAssert(accIt != accounts.end());
-        if (!mApp.getHerder().sourceAccountPending(
-                accIt->second->getPublicKey()))
-        {
-            mAccountsAvailable.insert(*it);
-            it = mAccountsInUse.erase(it);
-        }
-        else
-        {
-            it++;
-        }
+        it++;
     }
 }
 
@@ -851,17 +842,16 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     auto [from, tx] = generateTx();
 
     TransactionResultCode code;
-    TransactionQueue::AddResultCode status;
+    TxSubmitStatus status;
     uint32_t numTries = 0;
 
     while ((status = execute(tx, cfg.mode, code)) !=
-           TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
+           TxSubmitStatus::TX_STATUS_PENDING)
     {
 
         if (cfg.mode != LoadGenMode::PAY_PREGENERATED && cfg.skipLowFeeTxs &&
-            (status ==
-                 TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
-             (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
+            (status == TxSubmitStatus::TX_STATUS_TRY_AGAIN_LATER ||
+             (status == TxSubmitStatus::TX_STATUS_ERROR &&
               code == txINSUFFICIENT_FEE)))
         {
             // Rollback the seq num of the test account as we regenerate the
@@ -878,7 +868,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
         // txs due to overload (in which case we should just fail loadgen,
         // instead of re-submitting)
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR ||
+            status != TxSubmitStatus::TX_STATUS_ERROR ||
             cfg.mode == LoadGenMode::PAY_PREGENERATED)
         {
             mFailed = true;
@@ -899,41 +889,15 @@ uint64_t
 LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 {
     uint64_t sourceAccountId;
-    do
-    {
-        releaseAssert(!mAccountsAvailable.empty());
+    releaseAssert(!mAccountsAvailable.empty());
 
-        auto sourceAccountIdx =
-            rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-        auto it = mAccountsAvailable.begin();
-        std::advance(it, sourceAccountIdx);
-        sourceAccountId = *it;
-        mAccountsAvailable.erase(it);
-        releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
-
-        // Although mAccountsAvailable shouldn't contain pending accounts, it is
-        // possible when the network is overloaded. Consider the following
-        // scenario:
-        // 1. This node generates a transaction `t` using account `a` and
-        //    broadcasts it on. In doing so, loadgen marks `a` as in use,
-        //    removing it from `mAccountsAvailable.
-        // 2. For whatever reason, `t` never makes it out of the queue and this
-        //    node bans it.
-        // 3. After some period of time, this node unbans `t` because bans only
-        //    last for so many ledgers.
-        // 4. Loadgen marks `a` available, moving it back into
-        //    `mAccountsAvailable`.
-        // 5. This node hears about `t` again on the network and (as it is no
-        //    longer banned) adds it back to the queue
-        // 6. getNextAvailableAccount draws `a` from `mAccountsAvailable`.
-        //    However, `a` is no longer available as `t` is in the transaction
-        //    queue!
-        //
-        // In this scenario, returning `a` results in an assertion failure
-        // later. To resolve this, we resample a new account by simply looping
-        // here.
-    } while (mApp.getHerder().sourceAccountPending(
-        mTxGenerator.findAccount(sourceAccountId, ledgerNum)->getPublicKey()));
+    auto sourceAccountIdx =
+        rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
+    auto it = mAccountsAvailable.begin();
+    std::advance(it, sourceAccountIdx);
+    sourceAccountId = *it;
+    mAccountsAvailable.erase(it);
+    releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
 
     return sourceAccountId;
 }
@@ -1081,26 +1045,13 @@ LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
 void
 LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
                                    TxGenerator::TestAccountPtr sourceAccount,
-                                   TransactionQueue::AddResultCode status,
+                                   TxSubmitStatus status,
                                    TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
-    if (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
-        code == txBAD_SEQ)
+    if (status == TxSubmitStatus::TX_STATUS_ERROR && code == txBAD_SEQ)
     {
-        auto txQueueSeqNum =
-            tx->isSoroban()
-                ? mApp.getHerder()
-                      .getSorobanTransactionQueue()
-                      .getInQueueSeqNum(sourceAccount->getPublicKey())
-                : mApp.getHerder().getTransactionQueue().getInQueueSeqNum(
-                      sourceAccount->getPublicKey());
-        if (txQueueSeqNum)
-        {
-            sourceAccount->setSequenceNumber(*txQueueSeqNum);
-            return;
-        }
         if (!mTxGenerator.loadAccount(sourceAccount))
         {
             CLOG_ERROR(LoadGen, "Unable to reload account {}",
@@ -1358,7 +1309,7 @@ LoadGenerator::TxMetrics::report()
                mNativePaymentBytes.one_minute_rate());
 }
 
-TransactionQueue::AddResultCode
+TxSubmitStatus
 LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
@@ -1420,24 +1371,12 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     bool isPregeneratedTx = (mode == LoadGenMode::PAY_PREGENERATED);
     auto addResult =
         mApp.getHerder().recvTransaction(txf, true, isPregeneratedTx);
-    if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
+    if (addResult != TxSubmitStatus::TX_STATUS_PENDING)
     {
-
-        auto resultStr = addResult.txResult
-                             ? xdrToCerealString(addResult.txResult->getXDR(),
-                                                 "TransactionResult")
-                             : "";
-        CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
-                  TX_STATUS_STRING[static_cast<int>(addResult.code)],
+        CLOG_INFO(LoadGen, "tx rejected: {}",
                   txf->isSoroban() ? "soroban"
                                    : xdrToCerealString(txf->getEnvelope(),
-                                                       "TransactionEnvelope"),
-                  resultStr);
-        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
-        {
-            releaseAssert(addResult.txResult);
-            code = addResult.txResult->getResultCode();
-        }
+                                                       "TransactionEnvelope"));
         txm.mTxnRejected.Mark();
     }
     else
@@ -1445,7 +1384,7 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
         mApp.getOverlayManager().broadcastMessage(msg, txf->getFullHash());
     }
 
-    return addResult.code;
+    return addResult;
 }
 
 void

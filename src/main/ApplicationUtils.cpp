@@ -25,7 +25,7 @@
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
-#include "overlay/OverlayManager.h"
+#include "overlay/RustOverlayManager.h"
 #include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
