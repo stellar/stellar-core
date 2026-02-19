@@ -8,6 +8,8 @@ MAINTAINER Siddharth Suresh <siddharth@stellar.org>
 
 EXPOSE 11625
 EXPOSE 11626
+# QUIC port for Rust overlay (peer_port + 1000, UDP)
+EXPOSE 12625/udp
 
 VOLUME /data
 VOLUME /postgresql-unix-sockets
