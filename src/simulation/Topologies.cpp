@@ -10,12 +10,11 @@ namespace stellar
 using namespace std;
 
 Simulation::pointer
-Topologies::pair(Simulation::Mode mode, Hash const& networkID,
-                 Simulation::ConfigGen confGen,
+Topologies::pair(Hash const& networkID, Simulation::ConfigGen confGen,
                  Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(mode, networkID, confGen, qSetAdjust);
+        make_shared<Simulation>(networkID, confGen, qSetAdjust);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
@@ -37,8 +36,8 @@ Simulation::pointer
 Topologies::cycle4(Hash const& networkID, Simulation::ConfigGen confGen,
                    Simulation::QuorumSetAdjuster qSetAdjust)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(
-        Simulation::OVER_LOOPBACK, networkID, confGen, qSetAdjust);
+    Simulation::pointer simulation =
+        make_shared<Simulation>(networkID, confGen, qSetAdjust);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -86,12 +85,12 @@ Topologies::cycle4(Hash const& networkID, Simulation::ConfigGen confGen,
 
 Simulation::pointer
 Topologies::separate(int nNodes, double quorumThresoldFraction,
-                     Simulation::Mode mode, Hash const& networkID,
-                     int numWatchers, Simulation::ConfigGen confGen,
+                     Hash const& networkID, int numWatchers,
+                     Simulation::ConfigGen confGen,
                      Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(mode, networkID, confGen, qSetAdjust);
+        make_shared<Simulation>(networkID, confGen, qSetAdjust);
 
     vector<SecretKey> keys;
     for (int i = 0; i < nNodes; i++)
@@ -124,12 +123,11 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::separateAllHighQuality(int nNodes, Simulation::Mode mode,
-                                   Hash const& networkID,
+Topologies::separateAllHighQuality(int nNodes, Hash const& networkID,
                                    Simulation::ConfigGen confGen)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(mode, networkID, confGen);
+        make_shared<Simulation>(networkID, confGen);
 
     vector<SecretKey> keys;
     vector<ValidatorEntry> validatorEntries;
@@ -155,73 +153,53 @@ Topologies::separateAllHighQuality(int nNodes, Simulation::Mode mode,
 
 Simulation::pointer
 Topologies::core(int nNodes, double quorumThresoldFraction,
-                 Simulation::Mode mode, Hash const& networkID,
-                 Simulation::ConfigGen confGen,
+                 Hash const& networkID, Simulation::ConfigGen confGen,
                  Simulation::QuorumSetAdjuster qSetAdjust)
 {
-    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
                                            networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
-
-    simulation->fullyConnectAllPending();
 
     return simulation;
 }
 
 Simulation::pointer
 Topologies::cycle(int nNodes, double quorumThresoldFraction,
-                  Simulation::Mode mode, Hash const& networkID,
-                  Simulation::ConfigGen confGen,
+                  Hash const& networkID, Simulation::ConfigGen confGen,
                   Simulation::QuorumSetAdjuster qSetAdjust)
 {
-    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
                                            networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
-
-    for (int from = 0; from < nNodes; from++)
-    {
-        int to = (from + 1) % nNodes;
-        simulation->addPendingConnection(nodes[from], nodes[to]);
-    }
 
     return simulation;
 }
 
 Simulation::pointer
 Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
-                          Simulation::Mode mode, Hash const& networkID,
-                          Simulation::ConfigGen confGen,
+                          Hash const& networkID, Simulation::ConfigGen confGen,
                           Simulation::QuorumSetAdjuster qSetAdjust)
 {
-    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
                                            networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
-
-    for (int from = 0; from < nNodes; from++)
-    {
-        int to = (from + 1) % nNodes;
-        simulation->addPendingConnection(nodes[from], nodes[to]);
-
-        int other = (from + (nNodes / 2)) % nNodes;
-        simulation->addPendingConnection(nodes[from], nodes[other]);
-    }
 
     return simulation;
 }
 
 Simulation::pointer
 Topologies::hierarchicalQuorum(
-    int nBranches, Simulation::Mode mode, Hash const& networkID,
-    Simulation::ConfigGen confGen, int connectionsToCore,
+    int nBranches, Hash const& networkID, Simulation::ConfigGen confGen,
+    int connectionsToCore,
     Simulation::QuorumSetAdjuster qSetAdjust) // Figure 3 from the paper
 {
-    auto sim = Topologies::core(4, 0.75, mode, networkID, confGen, qSetAdjust);
+    auto sim = Topologies::core(4, 0.75, networkID, confGen, qSetAdjust);
     vector<NodeID> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {
@@ -245,26 +223,6 @@ Topologies::hierarchicalQuorum(
                 "NODE_SEED_" + to_string(i) + "_middle_" + to_string(j))));
         }
 
-        int curCore = 0;
-        for (auto const& key : middletierKeys)
-        {
-            SCPQuorumSet qSetHere;
-            // self + any 2 from top tier
-            qSetHere.threshold = 2;
-            auto pk = key.getPublicKey();
-            qSetHere.validators.push_back(pk);
-            qSetHere.innerSets.push_back(qSetTopTier);
-            sim->addNode(key, qSetHere);
-
-            // connect to core nodes (round-robin)
-            curCore = (curCore + 1) % coreNodeIDs.size();
-            for (int j = 0; j < connectionsToCore; j++)
-            {
-                sim->addPendingConnection(
-                    pk, coreNodeIDs[(curCore + j) % coreNodeIDs.size()]);
-            }
-        }
-
         //// the leaf node
         // SCPQuorumSet leafQSet;
         // leafQSet.threshold = 3;
@@ -283,13 +241,12 @@ Topologies::hierarchicalQuorum(
 
 Simulation::pointer
 Topologies::hierarchicalQuorumSimplified(
-    int coreSize, int nbOuterNodes, Simulation::Mode mode,
-    Hash const& networkID, Simulation::ConfigGen confGen, int connectionsToCore,
+    int coreSize, int nbOuterNodes, Hash const& networkID,
+    Simulation::ConfigGen confGen, int connectionsToCore,
     Simulation::QuorumSetAdjuster qSetAdjust)
 {
     // outer nodes are independent validators that point to a [core network]
-    auto sim =
-        Topologies::core(coreSize, 0.75, mode, networkID, confGen, qSetAdjust);
+    auto sim = Topologies::core(coreSize, 0.75, networkID, confGen, qSetAdjust);
 
     // each additional node considers themselves as validator
     // with a quorum set that also includes the core
@@ -303,31 +260,16 @@ Topologies::hierarchicalQuorumSimplified(
         coreNodeIDs.emplace_back(coreNodeID);
     }
     qSetBuilder.validators.emplace_back();
-    for (int i = 0; i < nbOuterNodes; i++)
-    {
-        SecretKey sk =
-            SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));
-        auto const& pubKey = sk.getPublicKey();
-        qSetBuilder.validators.back() = pubKey;
-        sim->addNode(sk, qSetBuilder);
-
-        // connect it to the core nodes
-        for (int j = 0; j < connectionsToCore; j++)
-        {
-            sim->addPendingConnection(pubKey, coreNodeIDs[(i + j) % coreSize]);
-        }
-    }
 
     return sim;
 }
 
 Simulation::pointer
-Topologies::customA(Simulation::Mode mode, Hash const& networkID,
-                    Simulation::ConfigGen confGen, int connections,
-                    Simulation::QuorumSetAdjuster qSetAdjust)
+Topologies::customA(Hash const& networkID, Simulation::ConfigGen confGen,
+                    int connections, Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer s =
-        make_shared<Simulation>(mode, networkID, confGen, qSetAdjust);
+        make_shared<Simulation>(networkID, confGen, qSetAdjust);
 
     enum kIDs
     {
@@ -390,27 +332,17 @@ Topologies::customA(Simulation::Mode mode, Hash const& networkID,
         s->addNode(keys[S], q);
     }
 
-    // create connections between nodes
-    auto nodes = s->getNodeIDs();
-    for (int i = 0; i < static_cast<int>(nodes.size()); i++)
-    {
-        auto from = nodes[i];
-        for (int j = 1; j <= connections; j++)
-        {
-            s->addPendingConnection(from, nodes[(i + j) % nodes.size()]);
-        }
-    }
     return s;
 }
 
 Simulation::pointer
-Topologies::asymmetric(Simulation::Mode mode, Hash const& networkID,
-                       Simulation::ConfigGen confGen, int connections,
+Topologies::asymmetric(Hash const& networkID, Simulation::ConfigGen confGen,
+                       int connections,
                        Simulation::QuorumSetAdjuster qSetAdjust)
 {
 
     Simulation::pointer s =
-        Topologies::core(10, 0.7, mode, networkID, confGen, qSetAdjust);
+        Topologies::core(10, 0.7, networkID, confGen, qSetAdjust);
     auto node = s->getNodes()[0];
 
     enum kIDs
@@ -443,16 +375,6 @@ Topologies::asymmetric(Simulation::Mode mode, Hash const& networkID,
         s->addNode(keys[D], q);
     }
 
-    // create connections between nodes
-    for (int i = 0; i < static_cast<int>(keys.size()); i++)
-    {
-        auto from = keys[i].getPublicKey();
-        for (int j = 1; j <= connections; j++)
-        {
-            s->addPendingConnection(from,
-                                    keys[(i + j) % keys.size()].getPublicKey());
-        }
-    }
     return s;
 }
 }

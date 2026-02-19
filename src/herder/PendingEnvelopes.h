@@ -8,7 +8,6 @@
 #include "herder/Herder.h"
 #include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
-#include "overlay/ItemFetcher.h"
 #include "util/RandomEvictionCache.h"
 #include <autocheck/function.hpp>
 #include <chrono>
@@ -62,8 +61,12 @@ class PendingEnvelopes
     // weak references to all known qsets
     UnorderedMap<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
 
-    ItemFetcher mTxSetFetcher;
-    ItemFetcher mQuorumSetFetcher;
+    // hashes of txsets/qsets we're currently fetching
+    std::map<Hash, std::vector<SCPEnvelope>> mPendingTxSetFetches;
+    std::map<Hash, std::vector<SCPEnvelope>> mPendingQSetFetches;
+    // when each pending tx set fetch was started, used to report how long
+    // we've been waiting for a tx set (see getTxSetWaitingTime)
+    std::map<Hash, VirtualClock::time_point> mTxSetFetchStartTimes;
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetXDRFrameConstPtr>;
     // recent txsets
@@ -195,8 +198,6 @@ class PendingEnvelopes
     // Returns true if every tx set referenced by `env` is available locally
     bool areTxSetsFetched(SCPEnvelope const& env) const;
 
-    void peerDoesntHave(MessageType type, Hash const& itemID,
-                        Peer::pointer peer);
 
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 

@@ -8,9 +8,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/medida.h"
-#include "overlay/OverlayManagerImpl.h"
 #include "overlay/StellarXDR.h"
-#include "overlay/test/LoopbackPeer.h"
 #include "simulation/LoadGenerator.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -25,22 +23,23 @@
 
 namespace stellar
 {
+/**
+ * Simulation manages a cluster of stellar-core nodes for testing.
+ *
+ * All nodes use RustOverlayManager with real networking via QUIC.
+ * Peer discovery happens through Kademlia DHT - nodes find each other
+ * via KNOWN_PEERS configuration.
+ */
 class Simulation
 {
   public:
-    enum Mode
-    {
-        OVER_TCP,
-        OVER_LOOPBACK
-    };
-
     using pointer = std::shared_ptr<Simulation>;
     using ConfigGen = std::function<Config(int i)>;
     using QuorumSetAdjuster = std::function<SCPQuorumSet(SCPQuorumSet const&)>;
     using QuorumSetSpec =
         std::variant<SCPQuorumSet, std::vector<ValidatorEntry>>;
 
-    Simulation(Mode mode, Hash const& networkID, ConfigGen = nullptr,
+    Simulation(Hash const& networkID, ConfigGen = nullptr,
                QuorumSetAdjuster = nullptr);
     ~Simulation();
 
@@ -59,23 +58,14 @@ class Simulation
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
+    void
+    addPendingConnection(NodeID const& initiator, NodeID const& acceptor)
+    {
+    }
 
-    // Add a pending connection to an unstarted node. Typically called after
-    // `addNode`, but before `startAllNodes`. No-op if the simulation is already
-    // started.
-    void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
-
-    // Create pending connections between all pairs of nodes
-    void fullyConnectAllPending();
-
-    // Returns LoopbackPeerConnection given initiator, acceptor pair or nullptr
-    std::shared_ptr<LoopbackPeerConnection>
-    getLoopbackConnection(NodeID const& initiator, NodeID const& acceptor);
     void startAllNodes();
     void stopAllNodes();
     void removeNode(NodeID const& id);
-
-    Application::pointer getAppFromPeerMap(unsigned short peerPort);
 
     // returns true if all nodes have externalized
     // triggers and exception if a node externalized higher than num+maxSpread
@@ -92,13 +82,7 @@ class Simulation
     void crankUntil(VirtualClock::system_time_point timePoint, bool finalCrank);
     std::string metricsSummary(std::string domain = "");
 
-    // Add a real (not pending) connection to the simulation. Works even if the
-    // simulation has started.
-    void addConnection(NodeID initiator, NodeID acceptor);
-    void dropConnection(NodeID initiator, NodeID acceptor);
     Config newConfig(); // generates a new config
-    // prevent overlay from automatically re-connecting to peers
-    void stopOverlayTick();
 
     std::chrono::milliseconds getExpectedLedgerCloseTime() const;
 
@@ -115,14 +99,10 @@ class Simulation
     }
 
   private:
-    void addLoopbackConnection(NodeID initiator, NodeID acceptor);
-    void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
-    void addTCPConnection(NodeID initiator, NodeID acception);
-    void dropAllConnections(NodeID const& id);
+    // Configure KNOWN_PEERS on all nodes so they can discover each other
+    void configureKnownPeers();
 
-    bool mVirtualClockMode;
     VirtualClock mClock;
-    Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
 
@@ -138,8 +118,6 @@ class Simulation
         }
     };
     std::map<NodeID, Node> mNodes;
-    std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
-    std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 
     ConfigGen mConfigGen; // config generator
 
@@ -147,51 +125,6 @@ class Simulation
 
     std::chrono::milliseconds const quantum = std::chrono::milliseconds(100);
 
-    // Map PEER_PORT to Application
-    std::unordered_map<unsigned short, std::weak_ptr<Application>> mPeerMap;
-
     bool mSetupForSorobanUpgrade{false};
-};
-
-class LoopbackOverlayManager : public OverlayManagerImpl
-{
-  public:
-    LoopbackOverlayManager(Application& app) : OverlayManagerImpl(app)
-    {
-    }
-    virtual bool connectToImpl(PeerBareAddress const& address,
-                               bool forceoutbound) override;
-};
-
-class ApplicationLoopbackOverlay : public TestApplication
-{
-    Simulation& mSim;
-
-  public:
-    ApplicationLoopbackOverlay(VirtualClock& clock, Config const& cfg,
-                               Simulation& sim)
-        : TestApplication(clock, cfg), mSim(sim)
-    {
-    }
-
-    virtual LoopbackOverlayManager&
-    getOverlayManager() override
-    {
-        auto& overlay = ApplicationImpl::getOverlayManager();
-        return static_cast<LoopbackOverlayManager&>(overlay);
-    }
-
-    Simulation&
-    getSim()
-    {
-        return mSim;
-    }
-
-  private:
-    virtual std::unique_ptr<OverlayManager>
-    createOverlayManager() override
-    {
-        return std::make_unique<LoopbackOverlayManager>(*this);
-    }
 };
 }
