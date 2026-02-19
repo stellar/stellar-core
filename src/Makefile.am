@@ -405,6 +405,19 @@ endif # UNIFIED_RUST
 
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
+# Rust overlay binary - separate process for networking
+STELLAR_OVERLAY=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/stellar-overlay
+$(STELLAR_OVERLAY): $(top_srcdir)/overlay/Cargo.toml $(top_srcdir)/overlay/src/*.rs $(top_srcdir)/overlay/src/**/*.rs Makefile $(RUST_TOOLCHAIN_FILE)
+	cd $(abspath $(top_srcdir))/overlay && \
+	CARGO_NET_GIT_FETCH_WITH_CLI=true \
+	$(CARGO) build \
+		$(RUST_PROFILE_ARG) \
+		--locked \
+		--target-dir $(abspath $(RUST_TARGET_DIR))
+
+.PHONY: overlay
+overlay: $(STELLAR_OVERLAY)
+
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
 

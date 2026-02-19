@@ -418,6 +418,11 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AC_ARG_ENABLE(rust-overlay,
+    AS_HELP_STRING([--disable-rust-overlay],
+        [Disable building the Rust overlay (libp2p-based P2P networking)]))
+AM_CONDITIONAL(USE_RUST_OVERLAY, [test x$enable_rust_overlay != xno])
+
 AC_ARG_ENABLE(libunwind,
     AS_HELP_STRING([--disable-libunwind],
         [Disable backtraces using libunwind]))

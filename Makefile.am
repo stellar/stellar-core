@@ -68,6 +68,47 @@ tracy-csvexport: $(TRACY_CSVEXPORT_BUILD)/csvexport-release
 bin_PROGRAMS += tracy-csvexport
 endif # USE_TRACY_CSVEXPORT
 
+# Rust overlay build
+if USE_RUST_OVERLAY
+RUST_OVERLAY_DIR=$(top_srcdir)/overlay
+RUST_OVERLAY_TARGET=$(top_srcdir)/target
+
+# Determine build profile based on configure options
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+RUST_BUILD_PROFILE=debug
+RUST_PROFILE_FLAG=
+RUST_PROFILE_DIR=debug
+else
+RUST_BUILD_PROFILE=release
+RUST_PROFILE_FLAG=--release
+RUST_PROFILE_DIR=release
+endif
+
+RUST_OVERLAY_BINARY=$(RUST_OVERLAY_TARGET)/$(RUST_PROFILE_DIR)/stellar-overlay
+
+$(RUST_OVERLAY_BINARY): $(wildcard $(RUST_OVERLAY_DIR)/src/*.rs) $(wildcard $(RUST_OVERLAY_DIR)/src/**/*.rs) $(RUST_OVERLAY_DIR)/Cargo.toml
+	@echo "Building Rust overlay ($(RUST_BUILD_PROFILE))..."
+	cd $(RUST_OVERLAY_DIR) && $(CARGO) build $(RUST_PROFILE_FLAG)
+
+stellar-overlay: $(RUST_OVERLAY_BINARY)
+	cp -v $< $@
+
+bin_PROGRAMS += stellar-overlay
+
+# Clean Rust build artifacts
+clean-rust:
+	cd $(RUST_OVERLAY_DIR) && $(CARGO) clean
+
+clean-local: clean-rust
+
+# Run Rust tests
+check-rust:
+	cd $(RUST_OVERLAY_DIR) && $(CARGO) test
+
+check-local: check-rust
+
+endif # USE_RUST_OVERLAY
+
 EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
 	test/testnet/run-test.sh README.md make-mks
 
