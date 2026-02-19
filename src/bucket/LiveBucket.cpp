@@ -10,6 +10,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
+#include <future>
 #include <medida/counter.h>
 
 namespace stellar
@@ -587,29 +588,51 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
             mergedEntries.emplace_back(entry);
         };
 
-    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion, mc,
-                  shadowIterators, keepShadowedLifecycleEntries);
+    {
+        ZoneNamedN(zoneMerge, "mergeInMemory merge", true);
+        mergeInternal(bucketManager, inputSource, putFunc,
+                      maxProtocolVersion, mc, shadowIterators,
+                      keepShadowedLifecycleEntries);
+    }
 
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
+    // Start index construction on worker thread — reads mergedEntries (const),
+    // completely independent of the put loop's serialize/hash/write work.
+    auto indexFuture = std::async(std::launch::async, [&]() {
+        return std::make_shared<LiveBucketIndex>(bucketManager, mergedEntries,
+                                                 meta);
+    });
+
     // Write merge output to a bucket and save to disk
     LiveBucketOutputIterator out(bucketManager.getTmpDir(),
                                  /*keepTombstoneEntries=*/true, meta, mc, ctx,
                                  doFsync);
 
-    for (auto const& e : mergedEntries)
     {
-        out.put(e);
+        ZoneNamedN(zonePut, "mergeInMemory put loop", true);
+        for (auto const& e : mergedEntries)
+        {
+            out.put(e);
+        }
+    }
+
+    // Collect the pre-built index
+    std::shared_ptr<LiveBucketIndex const> preBuiltIndex;
+    {
+        ZoneNamedN(zoneWait, "mergeInMemory index future wait", true);
+        preBuiltIndex = indexFuture.get();
     }
 
     // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
     return out.getBucket(
         bucketManager, nullptr,
-        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)));
+        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)),
+        std::move(preBuiltIndex));
 }
 
 BucketEntryCounters const&
