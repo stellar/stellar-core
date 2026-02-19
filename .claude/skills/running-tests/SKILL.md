@@ -182,11 +182,14 @@ The full test suite should be run with all protocol versions:
 ALL_VERSIONS=1 NUM_PARTITIONS=$(nproc) make check
 ```
 
-### SQLite-Only Testing (No Postgres)
+### Standard Testing
 
-To test with SQLite only (faster, no Postgres dependency):
+Standard test configuration (PostgreSQL is always disabled):
 
 ```bash
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
 ./configure --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 NUM_PARTITIONS=$(nproc) make check
@@ -231,7 +234,10 @@ This requires reconfiguring and rebuilding.
 Catches memory errors: buffer overflows, use-after-free, memory leaks.
 
 ```bash
-./configure --enable-asan --enable-ccache --enable-sdfprefs
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --enable-asan --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 ./stellar-core test --ll fatal -r simple --disable-dots --abort
 ```
@@ -241,7 +247,10 @@ make clean && make -j $(nproc)
 Catches data races and threading issues.
 
 ```bash
-./configure --enable-threadsanitizer --enable-ccache --enable-sdfprefs
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --enable-threadsanitizer --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 ./stellar-core test --ll fatal -r simple --disable-dots --abort
 ```
@@ -251,7 +260,10 @@ make clean && make -j $(nproc)
 Catches undefined behavior like integer overflow, null pointer dereference.
 
 ```bash
-./configure --enable-undefinedcheck --enable-ccache --enable-sdfprefs
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --enable-undefinedcheck --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 ./stellar-core test --ll fatal -r simple --disable-dots --abort
 ```
@@ -264,7 +276,10 @@ sanitizers found something suspicious. Usually overkill.
 Run with C++ standard library debugging enabled. Slower but catches more issues.
 
 ```bash
-./configure --enable-extrachecks --enable-ccache --enable-sdfprefs
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --enable-extrachecks --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 ./stellar-core test --ll fatal -r simple --disable-dots --abort
 ```
@@ -275,7 +290,10 @@ Before running tests at Levels 4-6, also verify the build succeeds with
 `--disable-tests` (the production configuration):
 
 ```bash
-./configure --disable-tests --enable-ccache --enable-sdfprefs
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --disable-tests --disable-postgres --enable-ccache --enable-sdfprefs
 make clean && make -j $(nproc)
 ```
 

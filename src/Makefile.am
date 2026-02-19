@@ -15,7 +15,13 @@ noinst_HEADERS = $(SRC_H_FILES)
 # is done by setting the CXXSTDLIB flag, which Rust's C++-building machinery is
 # sensitive to. Rust passes-on, but does not look inside, CXXFLAGS itself to
 # realize that it needs this setting.
-CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
+#
+# When no explicit -stdlib= flag is given, we default to stdc++ since that is
+# the default C++ standard library on Linux for both gcc and clang. Without this
+# default, the Rust cc crate won't link any C++ stdlib, causing undefined
+# references to symbols like __cxa_thread_atexit and __gxx_personality_v0 when
+# building crates that include C++ code (e.g. tracy-client-sys).
+CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,stdc++))
 
 if USE_TRACY
 # NB: this unfortunately long list has to be provided here and kept in sync with

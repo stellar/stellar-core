@@ -16,7 +16,14 @@ other overhead are NOT included in the measurement.
 
 # Prerequisites
 
-- stellar-core built with `--enable-tracy --enable-tracy-capture`
+- stellar-core built with the standard configure command (see `configuring-the-build` skill) plus `--enable-tracy --enable-tracy-capture`:
+  ```bash
+  CC="clang-20" CXX="clang++-20" \
+  CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+  CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+  ./configure --enable-tracy --enable-tracy-capture --disable-postgres --enable-ccache --enable-sdfprefs
+  make -j $(nproc)
+  ```
 - The `tracy-capture` binary in the repo root
 - The example config: `docs/apply-load-max-sac-tps.cfg`
 - A directory for tracy output (e.g., `/mnt/xvdf/tracy/`)

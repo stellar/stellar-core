@@ -3,6 +3,31 @@ name: configuring-the-build
 description: modifying build configuration to enable/disable variants, switch compilers or flags, or otherwise prepare for a build
 ---
 
+# Standard Configure Command
+
+When configuring a build, ALWAYS use this as the base command:
+
+```bash
+CC="clang-20" CXX="clang++-20" \
+CXXFLAGS="-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++" \
+CFLAGS="-O3 -g1 -fno-omit-frame-pointer" \
+./configure --enable-ccache --enable-sdfprefs --disable-postgres
+```
+
+Add additional flags (e.g. `--enable-tracy`, `--enable-asan`) as needed, but
+always include these base settings. The key points are:
+
+  - `CC="clang-20" CXX="clang++-20"` — use clang 20, not the system default
+  - `-stdlib=libc++` — use libc++ (required: system libc++ headers need clang 18+)
+  - `--disable-postgres` — disables PostgreSQL, tests use SQLite and run faster
+  - `--enable-ccache` — enables compiler caching for faster rebuilds
+  - `--enable-sdfprefs` — enables SDF-preferred build settings (quiet output, etc.)
+
+**CRITICAL**: You must pass `CC`, `CXX`, `CXXFLAGS`, and `CFLAGS` on the
+`./configure` command line. Having them set in your shell environment is NOT
+sufficient — configure will ignore shell-exported values when `--enable-sdfprefs`
+is used.
+
 # Overview
 
 The build works like this:
@@ -27,7 +52,7 @@ You can see the existing configuration flags by looking at the head of `config.l
 ## Configuration variables
 
 To change compiler from clang to gcc, switch the value you pass for CC and CXX.
-For example run `CXX=g++ CC=gcc ./configure ...` to configure with gcc. We want
+For example run `CC=clang-20 CXX=clang++-20 ./configure ...` to configure with clang-20. We want
 builds to always work with gcc _and_ clang.
 
 To alter compile flags (say turn on or off optimization, or debuginfo) change
@@ -35,8 +60,10 @@ CXXFLAGS. For example run `CXXFLAGS='-O0 -g' ./configure ...` to build
 non-optimized and with debuginfo. Normally you should not have to change these.
 
 Sometimes you will need to change to a different implementation of the C++
-standard library. To do this, pass `-stdlib=libc++` or `-stdlib=libstdc++`
-in `CXXFLAGS` explicitly. But again, normally you don't need to do this.
+standard library. On this system, we use `-stdlib=libc++` with clang-20. This is
+passed in `CXXFLAGS` in the standard configure command above. If you need
+libstdc++ instead, pass `-stdlib=libstdc++`, but note that the system libc++
+requires clang 18+.
 
 ## Configuration flags
 
@@ -46,9 +73,10 @@ Here are some common configuration flags you might want to change:
     test-support infrastructure from core. We want this build variant to work
     since it is the one we ship, but it is uncommon when doing development.
 
-  - `--disable-postgres` turns off postgresql backend support in core, leaving
-    only sqlite. tests will run faster, and also this is a configuration we want
-    to work (we will remove postgres entirely someday).
+  - `--disable-postgres` — ALWAYS use this flag. Disables PostgreSQL backend
+    support, leaving only SQLite. Tests run significantly faster because `make
+    check` won't spin up temporary PostgreSQL clusters. We intend to remove
+    PostgreSQL support entirely someday.
  
 There are also some flags that turn on compile-time instrumentation for
 different sorts of testing. Turn these on if doing specific diagnostic tests,
