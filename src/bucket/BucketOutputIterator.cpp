@@ -168,7 +168,8 @@ template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
-    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState)
+    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState,
+    std::shared_ptr<typename BucketT::IndexT const> preBuiltIndex)
 {
     ZoneScoped;
     if (mBuf)
@@ -219,7 +220,11 @@ BucketOutputIterator<BucketT>::getBucket(
 
     if (!index)
     {
-        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        if (preBuiltIndex)
+        {
+            index = std::move(preBuiltIndex);
+        }
+        else if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             if (inMemoryState)
             {
