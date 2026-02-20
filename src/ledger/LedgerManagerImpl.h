@@ -375,10 +375,9 @@ class LedgerManagerImpl : public LedgerManager
                 Cluster const& cluster, Config const& config,
                 ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
 
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
-    applySorobanStageClustersInParallel(
+    void applySorobanStageClustersInParallel(
         AppConnector& app, ApplyStage const& stage,
-        GlobalParallelApplyLedgerState const& globalState,
+        GlobalParallelApplyLedgerState& globalState,
         Hash const& sorobanBasePrngSeed, Config const& config,
         ParallelLedgerInfo const& ledgerInfo);
 
