@@ -536,6 +536,12 @@ class Config : public std::enable_shared_from_this<Config>
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 
+    // Disable BUILD_TESTS-only meta tracking (mLastLedgerTxMeta,
+    // mLastLedgerCloseMeta, forced enableTxMeta) for performance testing.
+    // Makes the benchmark representative of validator nodes that do not
+    // stream meta.
+    bool DISABLE_META_TRACKING_FOR_TESTING;
+
     // Batch transactions for flooding purposes (experimental).
     // Has no effect on non-test builds.
     size_t EXPERIMENTAL_TX_BATCH_MAX_SIZE;
