@@ -1190,8 +1190,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
+
+#ifdef BUILD_TESTS
                 {"EXPERIMENTAL_TRIGGER_TIMER",
                  [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
+#endif
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =

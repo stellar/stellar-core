@@ -1262,8 +1262,7 @@ HerderImpl::setupTriggerNextLedger()
     auto lastLedgerStatingPoint = now - milliseconds;
 
 #ifdef BUILD_TESTS
-    if (mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER &&
-        mApp.getClock().getMode() == VirtualClock::REAL_TIME)
+    if (mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER)
     {
         auto consensusCloseTime = trackingConsensusCloseTime();
 
@@ -1277,12 +1276,12 @@ HerderImpl::setupTriggerNextLedger()
         }
         else
         {
-            // The externalized close time is a unix timestamp. We convert it to
-            // steady_clock time by:
-            // 1. Converting unix timestamp to system_clock::time_point (wall
-            // clock time)
-            // 2. Calculating how long ago that was from current system time
-            // 3. Subtracting that duration from current steady_clock time
+            // closeTime is a time_t (whole-second granularity), so
+            // from_time_t(closeTime) is the START of that second. The
+            // actual nomination happened at closeTime + some sub-second
+            // fraction lost to truncation. This causes the trigger to
+            // fire slightly early on the first round after alignment,
+            // but the cadence self-corrects on subsequent rounds.
             auto externalizedSystemTime =
                 VirtualClock::from_time_t(consensusCloseTime);
             auto currentSystemTime = mApp.getClock().system_now();
