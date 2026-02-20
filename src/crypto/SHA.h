@@ -6,8 +6,8 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/XDRHasher.h"
-#include "sodium/crypto_hash_sha256.h"
 #include "xdr/Stellar-types.h"
+#include <cstddef>
 #include <memory>
 
 namespace stellar
@@ -21,9 +21,12 @@ uint256 sha256(ByteSlice const& bin);
 Hash subSha256(ByteSlice const& seed, uint64_t counter);
 
 // SHA256 in incremental mode, for large inputs.
+// Uses aligned storage for OpenSSL's SHA256_CTX to avoid including
+// <openssl/sha.h> in this header (which would create a naming conflict
+// between OpenSSL's ::SHA256 function and stellar::SHA256 class).
 class SHA256
 {
-    crypto_hash_sha256_state mState;
+    alignas(4) std::byte mState[112]; // sizeof(SHA256_CTX) == 112
     bool mFinished{false};
 
   public:
