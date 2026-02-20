@@ -19,6 +19,11 @@ namespace stellar
 class InMemorySorobanState;
 class GlobalParallelApplyLedgerState;
 
+// Compute the set of read-write keys for a stage, used during per-thread
+// commit to determine whether TTL bumps can be merged.
+std::unordered_set<LedgerKey> getReadWriteKeysForStage(
+    ApplyStage const& stage);
+
 class ParallelLedgerInfo
 {
 
@@ -244,11 +249,6 @@ class GlobalParallelApplyLedgerState
                            ThreadParallelApplyEntry const& parEntry,
                            std::unordered_set<LedgerKey> const& readWriteSet);
 
-    void
-    commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState const& thread,
-                            std::unordered_set<LedgerKey> const& readWriteSet);
-
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
@@ -258,11 +258,10 @@ class GlobalParallelApplyLedgerState
     ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
 
-    void commitChangesFromThreads(
-        AppConnector& app,
-        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
-            threads,
-        ApplyStage const& stage);
+    void
+    commitChangesFromThread(AppConnector& app,
+                            ThreadParallelApplyLedgerState const& thread,
+                            std::unordered_set<LedgerKey> const& readWriteSet);
 
     void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
 

@@ -2322,20 +2322,22 @@ getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
             lh.scpValue.closeTime, app.getNetworkID()};
 }
 
-std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
+void
 LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
-    GlobalParallelApplyLedgerState const& globalState,
+    GlobalParallelApplyLedgerState& globalState,
     Hash const& sorobanBasePrngSeed, Config const& config,
     ParallelLedgerInfo const& ledgerInfo)
 {
     ZoneScoped;
 
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
     std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
         threadFutures;
 
-    DeactivateScopeGuard globalStateDeactivateGuard(globalState);
+    // Phase 1: Deactivate global scope for thread state construction.
+    // ThreadParallelApplyLedgerState constructor adopts entries from
+    // the global scope, which requires it to be inactive.
+    globalState.scopeDeactivate();
 
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
@@ -2348,25 +2350,58 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             std::cref(config), ledgerInfo, sorobanBasePrngSeed));
     }
 
-    for (auto& threadFuture : threadFutures)
+    // Phase 2: Reactivate global scope and pre-compute readWriteSet on the
+    // main thread while worker threads are executing. Worker threads operate
+    // on their own thread-local state and do not access the global scope
+    // during execution.
+    globalState.scopeActivate();
+    auto readWriteSet = getReadWriteKeysForStage(stage);
+
+    // Phase 3: Commit each thread's changes as soon as it finishes,
+    // regardless of thread index order. Poll all futures and commit
+    // whichever is ready first, overlapping commit work with
+    // still-running threads.
+    size_t numCommitted = 0;
+    auto const numThreads = threadFutures.size();
+    std::vector<bool> committed(numThreads, false);
+    while (numCommitted < numThreads)
     {
-        releaseAssert(threadFuture.valid());
-        try
+        bool foundReady = false;
+        for (size_t i = 0; i < numThreads; ++i)
         {
-            auto futureResult = threadFuture.get();
-            threadStates.emplace_back(std::move(futureResult));
+            if (committed[i])
+            {
+                continue;
+            }
+            if (threadFutures[i].wait_for(std::chrono::seconds(0)) ==
+                std::future_status::ready)
+            {
+                try
+                {
+                    auto futureResult = threadFutures[i].get();
+                    globalState.commitChangesFromThread(
+                        app, *futureResult, readWriteSet);
+                }
+                catch (std::exception const& e)
+                {
+                    printErrorAndAbort("Exception on apply thread: ",
+                                       e.what());
+                }
+                catch (...)
+                {
+                    printErrorAndAbort(
+                        "Unknown exception on apply thread");
+                }
+                committed[i] = true;
+                ++numCommitted;
+                foundReady = true;
+            }
         }
-        catch (std::exception const& e)
+        if (!foundReady)
         {
-            printErrorAndAbort("Exception on apply thread: ", e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort("Unknown exception on apply thread");
+            std::this_thread::yield();
         }
     }
-    threadFutures.clear();
-    return threadStates;
 }
 
 void
@@ -2422,12 +2457,10 @@ LedgerManagerImpl::applySorobanStage(
     auto const& config = app.getConfig();
     auto ledgerInfo = getParallelLedgerInfo(app, header);
 
-    auto threadStates = applySorobanStageClustersInParallel(
+    applySorobanStageClustersInParallel(
         app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo);
 
     checkAllTxBundleInvariants(app, stage, config, ledgerInfo, header);
-
-    globalParState.commitChangesFromThreads(app, threadStates, stage);
 }
 
 void
