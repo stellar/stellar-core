@@ -2510,7 +2510,11 @@ uint32_t
 TransactionFrame::getSize() const
 {
     ZoneScoped;
-    return static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
+    if (mCachedSize == 0)
+    {
+        mCachedSize = static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
+    }
+    return mCachedSize;
 }
 
 bool

@@ -71,6 +71,7 @@ class TransactionFrame : public TransactionFrameBase
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
+    mutable uint32_t mCachedSize{0}; // cached xdr_size(mEnvelope)
 
     std::vector<std::shared_ptr<OperationFrame const>> mOperations;
 
