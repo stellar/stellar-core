@@ -2153,47 +2153,62 @@ LedgerManagerImpl::processFeesSeqNums(
         {
             for (auto const& tx : phase)
             {
-                LedgerTxn ltxTx(ltx);
-                txResults.push_back(
-                    tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx)));
+                // Common per-tx fee processing logic, parameterized on the
+                // active LTX (either a child for meta tracking, or the
+                // parent directly when meta is disabled).
+                auto processOneTxFee = [&](AbstractLedgerTxn& activeLtx) {
+                    txResults.push_back(tx->processFeeSeqNum(
+                        activeLtx, txSet.getTxBaseFee(tx)));
 #ifdef BUILD_TESTS
-                if (expectedResultsIter)
-                {
-                    releaseAssert(*expectedResultsIter !=
-                                  expectedResults->results.end());
-                    releaseAssert((*expectedResultsIter)->transactionHash ==
-                                  tx->getContentsHash());
-                    txResults.back()->setReplayTransactionResult(
-                        (*expectedResultsIter)->result);
+                    if (expectedResultsIter)
+                    {
+                        releaseAssert(*expectedResultsIter !=
+                                      expectedResults->results.end());
+                        releaseAssert(
+                            (*expectedResultsIter)->transactionHash ==
+                            tx->getContentsHash());
+                        txResults.back()->setReplayTransactionResult(
+                            (*expectedResultsIter)->result);
 
-                    ++(*expectedResultsIter);
-                }
+                        ++(*expectedResultsIter);
+                    }
 #endif // BUILD_TESTS
 
-                if (protocolVersionStartsFrom(
-                        ltxTx.loadHeader().current().ledgerVersion,
-                        ProtocolVersion::V_19))
-                {
-                    auto res =
-                        accToMaxSeq.emplace(tx->getSourceID(), tx->getSeqNum());
-                    if (!res.second)
+                    if (protocolVersionStartsFrom(
+                            activeLtx.loadHeader().current().ledgerVersion,
+                            ProtocolVersion::V_19))
                     {
-                        res.first->second =
-                            std::max(res.first->second, tx->getSeqNum());
-                    }
+                        auto res = accToMaxSeq.emplace(tx->getSourceID(),
+                                                       tx->getSeqNum());
+                        if (!res.second)
+                        {
+                            res.first->second = std::max(
+                                res.first->second, tx->getSeqNum());
+                        }
 
-                    if (mergeOpInTx(tx->getRawOperations()))
-                    {
-                        mergeSeen = true;
+                        if (mergeOpInTx(tx->getRawOperations()))
+                        {
+                            mergeSeen = true;
+                        }
                     }
-                }
+                };
 
                 if (ledgerCloseMeta)
                 {
+                    // Use a child LTX so we can capture per-tx changes
+                    // for meta tracking via getChanges().
+                    LedgerTxn ltxTx(ltx);
+                    processOneTxFee(ltxTx);
                     ledgerCloseMeta->pushTxFeeProcessing(ltxTx.getChanges());
+                    ltxTx.commit();
+                }
+                else
+                {
+                    // No meta needed — operate directly on parent LTX to
+                    // avoid per-tx child LTX creation/destruction overhead.
+                    processOneTxFee(ltx);
                 }
                 ++index;
-                ltxTx.commit();
             }
         }
         if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
@@ -2791,7 +2806,9 @@ LedgerManagerImpl::processPostTxSetApply(
             {
                 for (auto const& txBundle : stage)
                 {
+                    if (ledgerCloseMeta)
                     {
+                        // Use child LTX for meta change tracking.
                         LedgerTxn ltxInner(ltx);
                         txBundle.getTx()->processPostTxSetApply(
                             mApp.getAppConnector(), ltxInner,
@@ -2800,12 +2817,19 @@ LedgerManagerImpl::processPostTxSetApply(
                                 .getMeta()
                                 .getTxEventManager());
 
-                        if (ledgerCloseMeta)
-                        {
-                            ledgerCloseMeta->setPostTxApplyFeeProcessing(
-                                ltxInner.getChanges(), txBundle.getTxNum());
-                        }
+                        ledgerCloseMeta->setPostTxApplyFeeProcessing(
+                            ltxInner.getChanges(), txBundle.getTxNum());
                         ltxInner.commit();
+                    }
+                    else
+                    {
+                        // No meta — operate directly on parent LTX.
+                        txBundle.getTx()->processPostTxSetApply(
+                            mApp.getAppConnector(), ltx,
+                            txBundle.getResPayload(),
+                            txBundle.getEffects()
+                                .getMeta()
+                                .getTxEventManager());
                     }
 
                     // setPostTxApplyFeeProcessing can update the feeCharged in
