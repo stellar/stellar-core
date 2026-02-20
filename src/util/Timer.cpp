@@ -435,7 +435,19 @@ VirtualClock::crank(bool block)
 
     if (mMode == VIRTUAL_TIME)
     {
-        progressCount += mBackgroundWorkCount.load();
+        auto bgCount = mBackgroundWorkCount.load();
+        if (bgCount > 0 && progressCount == 0)
+        {
+            // Background ledger apply is in progress but the main thread
+            // has no real work to do: virtual time cannot advance until
+            // background work finishes (see the advanceToNext guard above).
+            // Without this sleep, every caller that loops on
+            // crank(false) > 0 (crankNode, crankFor, crankUntil, dozens
+            // of test loops, ...) would spin at 100% CPU, starving the
+            // background thread and causing multi-hour hangs on CI.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        progressCount += bgCount;
     }
 
     return progressCount;

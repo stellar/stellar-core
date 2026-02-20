@@ -15,7 +15,6 @@
 #include "util/ProtocolVersion.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
-#include <limits>
 
 namespace stellar
 {

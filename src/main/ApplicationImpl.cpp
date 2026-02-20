@@ -1572,7 +1572,15 @@ ApplicationImpl::postOnLedgerCloseThread(std::function<void()>&& f,
     asio::post(*mLedgerCloseIOContext, [this, f = std::move(f), isSlow]() {
         JITTER_INJECT_DELAY();
         mPostOnLedgerCloseThreadDelay.Update(isSlow.checkElapsedTime());
-        f();
+        try
+        {
+            f();
+        }
+        catch (...)
+        {
+            getClock().finishedBackgroundWork();
+            throw;
+        }
         getClock().finishedBackgroundWork();
     });
 }

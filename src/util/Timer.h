@@ -150,6 +150,14 @@ class VirtualClock
         if (mMode == VIRTUAL_TIME)
         {
             mBackgroundWorkCount--;
+            // Wake the main thread if it's blocked in
+            // mIOContext.run_one() inside crank(true).  Without this
+            // notification the main thread has no way to learn that
+            // background work has finished, and crank(true) would
+            // block forever when the background work completes without
+            // posting an action (e.g. the isStopping early-return
+            // path in applyLedger).
+            asio::post(mIOContext, []() {});
         }
     }
 
