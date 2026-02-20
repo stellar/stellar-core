@@ -455,7 +455,18 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     size_t count = 0;
     while (!doneWithQuantum)
     {
+        auto prevNow = clock->now();
         count += clock->crank(false);
+        if (clock->now() == prevNow)
+        {
+            // Virtual time can't advance while background ledger apply
+            // is in progress (mBackgroundWorkCount > 0), but crank(false)
+            // still returns non-zero (the background work count), so this
+            // loop spins at 100% CPU.  Sleep briefly to yield the core to
+            // the background apply thread; it will post a callback that
+            // lets virtual time resume on the next crank.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
 
     // Update network survey phase
