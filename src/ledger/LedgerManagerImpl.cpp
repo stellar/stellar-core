@@ -2426,10 +2426,13 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
     AppConnector& app, ApplyStage const& stage, Config const& config,
     ParallelLedgerInfo const& ledgerInfo, LedgerHeader const& header)
 {
+    bool const hasInvariants = !config.INVARIANT_CHECKS.empty();
     for (auto const& txBundle : stage)
     {
-        // First check the invariants
-        if (txBundle.getResPayload().isSuccess())
+        // Only run invariant checks if any invariants are enabled.
+        // The delta is not built when invariants are disabled (see
+        // parallelApply), so we must not call getDelta() in that case.
+        if (hasInvariants && txBundle.getResPayload().isSuccess())
         {
             try
             {
@@ -2457,7 +2460,6 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
 
         // We don't call processPostApply for post v23 transactions at the
         // moment because processPostApply is currently a no-op for those
-        // transactions.
 
         txBundle.getEffects().getMeta().maybeSetRefundableFeeMeta(
             txBundle.getResPayload().getRefundableFeeTracker());
