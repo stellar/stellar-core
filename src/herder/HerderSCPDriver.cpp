@@ -1550,6 +1550,17 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
     }
     return std::nullopt;
 }
+
+std::optional<int64_t>
+HerderSCPDriver::getPrepareTimeouts(uint64_t slotIndex) const
+{
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        return it->second.mPrepareTimeoutCount;
+    }
+    return std::nullopt;
+}
 #endif
 
 }
