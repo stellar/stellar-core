@@ -2,50 +2,37 @@
   "iterations": [
     {
       "iteration": 1,
-      "startedAt": "2026-02-19T18:29:56.454Z",
-      "endedAt": "2026-02-19T19:27:14.084Z",
-      "durationMs": 3437521,
+      "startedAt": "2026-02-20T17:14:42.442Z",
+      "endedAt": "2026-02-20T18:18:21.047Z",
+      "durationMs": 3818496,
       "agent": "opencode",
       "model": "",
       "toolsUsed": {},
       "filesModified": [
-        "docs/fail/008-budget-charge-fast-path.md",
-        "docs/fail/003-parallel-sig-preverify.md",
-        "docs/fail/004-batch-ed25519-verify.md",
-        "docs/fail/005-pre-verified-signature-set.md",
-        "docs/fail/006-remove-tracy-spans.md",
-        "docs/fail/007-cached-ledgerinfo-xdr-size.md",
-        "docs/fail/"
+        "docs/success/011-indirect-bucket-sort.md",
+        "src/bucket/LiveBucket.cpp"
       ],
       "exitCode": 0,
       "completionDetected": false,
       "errors": [
-        "Current state: 9,408 TPS baseline after experiments 001-002. Experiments 003-007 all failed (signature pre-verify, batch verify, pre-verified set, tracy spans, cached ledgerinfo). Key insight from exp",
-        "Actually, the benchmark measures applyLedger time and tries to find the max TPS where applyLedger ≤ 1000ms. At 9,408 TPS, applyLedger is close to 1000ms. The 1,236ms I see in the trace might be at a h",
-        "-        .ok_or_else(|| HostError::from((ScErrorType::Budget, ScErrorCode::InternalError)))?;",
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
-        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
-        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s",
-        "test soroban-env-host/src/host/error.rs - host::error::err (line 448) ... ignored",
-        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        "Actually, wait. Let me revisit a simpler idea: **deferring `xdr_size` in both `addReads` and `recordStorageChanges`**. The previous failed experiment (005) tried caching `xdr_size` for the full *entry",
+        "The only failure is `check-sorobans` which is the Rust/Cargo test — failing because `cargo` is not found. The critical `selftest-nopg` (which runs the `[tx]` tests) passed. The `check-nondet` also pas",
+        "- ✅ **Tests passed**: `env NUM_PARTITIONS=20 TEST_SPEC=\"[tx]\" make check` — `selftest-nopg` PASSED (only `check-sorobans` failed due to missing `cargo`, which is expected/unrelated)",
+        "FAIL: test/check-sorobans",
+        "1 of 3 tests failed",
+        "error: RPC failed; HTTP 408 curl 22 The requested URL returned error: 408"
       ]
     }
   ],
-  "totalDurationMs": 3437521,
+  "totalDurationMs": 3818496,
   "struggleIndicators": {
     "repeatedErrors": {
-      "Current state: 9,408 TPS baseline after experiments 001-002. Experiments 003-007 all failed (signatu": 1,
-      "Actually, the benchmark measures applyLedger time and tries to find the max TPS where applyLedger ≤ ": 1,
-      "-        .ok_or_else(|| HostError::from((ScErrorType::Budget, ScErrorCode::InternalError)))?;": 1,
-      "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s": 1,
-      "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s": 1,
-      "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s": 1,
-      "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s": 1,
-      "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s": 1,
-      "test soroban-env-host/src/host/error.rs - host::error::err (line 448) ... ignored": 1,
-      "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s": 1
+      "Actually, wait. Let me revisit a simpler idea: **deferring `xdr_size` in both `addReads` and `record": 1,
+      "The only failure is `check-sorobans` which is the Rust/Cargo test — failing because `cargo` is not f": 1,
+      "- ✅ **Tests passed**: `env NUM_PARTITIONS=20 TEST_SPEC=\"[tx]\" make check` — `selftest-nopg` PASSED (": 1,
+      "FAIL: test/check-sorobans": 1,
+      "1 of 3 tests failed": 1,
+      "error: RPC failed; HTTP 408 curl 22 The requested URL returned error: 408": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

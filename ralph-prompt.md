@@ -79,6 +79,6 @@ tight (within ~5000 of expected TPS) to minimize benchmark runtime.
 
 ## Completion
 
-After documenting your experiment (success or failure), output:
+After documenting your experiment (success or failure), only if the TPS is at least 90,000, output:
 
-<promise>COMPLETE</promise>
+<promise>INCOMPLETE</promise>
