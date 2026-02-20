@@ -26,14 +26,45 @@ Then do exactly ONE experiment cycle:
 2. **If no baseline exists yet**, run the benchmark with Tracy capture to
    establish one. Document the baseline TPS and Tracy analysis.
 
-3. **Analyze** the most recent Tracy profile to find the top bottleneck.
-   Use subagents for parallel analysis (@explorer for code discovery, @oracle
-   for deep optimization reasoning).
+3. **Investigate using multiple agents in parallel.** Spin up agents to
+   work simultaneously on two phases:
 
-4. **Pick ONE optimization** to implement. Prefer high-impact, low-risk changes.
-   Start with the highest self-time zones under `applyLedger`.
+   **Phase A — Discovery (all agents run in parallel):**
+   - **Agent 1 — Tracy profile analysis**: Analyze the most recent Tracy
+     profile. Identify the top 5 self-time zones under `applyLedger`, wall-clock
+     breakdown, and lock contention hotspots.
+   - **Agent 2 — Code path exploration**: Explore the hot code paths identified
+     in previous experiments. Search for redundant allocations, unnecessary
+     copies, cache-unfriendly patterns, and missed parallelism opportunities.
+   - **Agent 3 — Prior experiment review**: Read all docs in `docs/success/`
+     and `docs/fail/`. Synthesize patterns: what categories of optimization
+     tend to succeed vs fail? What remains untried? Identify the most promising
+     unexplored direction.
+   - **Agent 4 — Data structure & algorithm audit**: Examine the data
+     structures and algorithms on the hot path (bucket operations, XDR
+     serialization, hashing, map lookups). Look for algorithmic improvements
+     or more cache-efficient alternatives.
 
-5. **Implement** the change. Keep it focused — one optimization only.
+   Wait for all discovery agents to return and collect their findings.
+
+   **Phase B — Solution exploration (agents run in parallel):**
+   Based on the discovery results, identify the top 3–4 most promising
+   optimization ideas. Spin up one agent per idea to explore feasibility:
+
+   - Each agent investigates ONE specific optimization candidate.
+   - Each agent should: read the relevant code, sketch the change (do NOT
+     apply it), estimate the expected impact, identify risks or blockers,
+     and rate confidence (high/medium/low).
+   - Agents should work independently — they are competing proposals.
+
+   Wait for all solution agents to return.
+
+4. **Pick ONE optimization** from the competing proposals. Prefer the one
+   with the highest confidence, largest expected impact, and lowest risk.
+   If multiple agents converged on the same bottleneck, that's a strong
+   signal. Break ties toward simpler changes.
+
+5. **Implement** the chosen change. Keep it focused — one optimization only.
 
 6. **Build**: `make -j$(nproc)`
 
