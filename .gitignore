@@ -123,3 +123,10 @@ min-testcases/
 /src/util/xdrquery/stack.hh
 
 __pycache__
+
+# Large binary / profiling artifacts
+*.tracy
+tracy.out
+tracy-capture
+rustup-init
+output
