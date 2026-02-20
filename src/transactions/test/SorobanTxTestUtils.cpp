@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SorobanTxTestUtils.h"
-#include "bucket/BucketManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/Catch2.h"
@@ -1443,12 +1443,8 @@ SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
         }
         return ExpirationStatus::LIVE;
     }
-    auto hotArchive = getApp()
-                          .getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
-    releaseAssert(hotArchive);
-    if (hotArchive->load(key) != nullptr)
+    auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
+    if (snap.loadArchiveEntry(key) != nullptr)
     {
         return ExpirationStatus::HOT_ARCHIVE;
     }

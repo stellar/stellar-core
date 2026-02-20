@@ -262,8 +262,6 @@ class SorobanNetworkConfig
   public:
     // Static factory function to create a SorobanNetworkConfig from ledger
     static SorobanNetworkConfig loadFromLedger(LedgerSnapshot const& ls);
-    static SorobanNetworkConfig
-    loadFromLedger(SearchableSnapshotConstPtr snapshot);
     static SorobanNetworkConfig loadFromLedger(AbstractLedgerTxn& ltx);
 
 #ifdef BUILD_TESTS
