@@ -2440,8 +2440,14 @@ TransactionFrame::parallelApply(
 
         if (res)
         {
-            threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
-                                                        effects);
+            // Only build the LedgerTxnDelta when invariant checks are
+            // enabled — the delta is consumed exclusively by
+            // checkOnOperationApply which is a no-op otherwise.
+            if (!config.INVARIANT_CHECKS.empty())
+            {
+                threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
+                                                            effects);
+            }
             opMeta.setLedgerChangesFromSuccessfulOp(threadState, *res,
                                                     ledgerInfo.getLedgerSeq());
         }
