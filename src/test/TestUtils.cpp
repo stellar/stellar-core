@@ -15,7 +15,7 @@
 #include "util/ProtocolVersion.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
-#include <limits>
+#include <thread>
 
 namespace stellar
 {
@@ -39,7 +39,18 @@ crankFor(VirtualClock& clock, VirtualClock::duration duration)
 {
     auto start = clock.now();
     while (clock.now() < (start + duration) && clock.crank(false) > 0)
-        ;
+    {
+        if (clock.now() == start)
+        {
+            // Virtual time can't advance while background ledger apply
+            // is in progress (mBackgroundWorkCount > 0), but crank(false)
+            // still returns non-zero (the background work count), so this
+            // loop spins at 100% CPU.  Sleep briefly to yield the core to
+            // the background apply thread; it will post a callback that
+            // lets virtual time resume on the next crank.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
 }
 
 void
@@ -56,7 +67,18 @@ crankUntil(Application& app, std::function<bool()> const& predicate,
     auto start = std::chrono::system_clock::now();
     while (!predicate())
     {
+        auto prevNow = app.getClock().now();
         app.getClock().crank(false);
+        if (app.getClock().now() == prevNow)
+        {
+            // Virtual time can't advance while background ledger apply
+            // is in progress (mBackgroundWorkCount > 0), but crank(false)
+            // still returns non-zero (the background work count), so this
+            // loop spins at 100% CPU.  Sleep briefly to yield the core to
+            // the background apply thread; it will post a callback that
+            // lets virtual time resume on the next crank.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         auto current = std::chrono::system_clock::now();
         auto diff = current - start;
         if (diff > timeout)

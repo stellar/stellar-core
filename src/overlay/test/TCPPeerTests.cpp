@@ -163,7 +163,10 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
                             v11SecretKey.getPublicKey());
     s->startAllNodes();
     s->stopOverlayTick();
-    s->crankForAtLeast(std::chrono::seconds(5), false);
+    // Use generous timeouts: ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING
+    // adds 300ms per postOnMainThread callback. With background ledger
+    // apply, there are additional callbacks that each incur this sleep.
+    s->crankForAtLeast(std::chrono::seconds(15), false);
     auto p0 = n0->getOverlayManager().getConnectedPeer(
         PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
 
@@ -193,7 +196,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
                 return !p0->isConnectedForTesting() &&
                        !p1->isConnectedForTesting();
             },
-            std::chrono::seconds(10), false);
+            std::chrono::seconds(30), false);
         REQUIRE(!p0->isConnectedForTesting());
         REQUIRE(!p1->isConnectedForTesting());
         REQUIRE(p1->getDropReason() == dropReason);

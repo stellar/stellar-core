@@ -692,6 +692,10 @@ TEST_CASE_VERSIONS(
     cfg.MAX_CONCURRENT_SUBPROCESSES = 1;
     cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+    // Test loop calls forgetUnreferencedBuckets and
+    // setNextLedgerEntryBatchForBucketTesting while ledgers close
+    // automatically, which races with background apply.
+    cfg.PARALLEL_LEDGER_APPLY = false;
     stellar::historytestutils::TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
 

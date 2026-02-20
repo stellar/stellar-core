@@ -3069,6 +3069,12 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
             app->getConfig().NODE_SEED);
         herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                       xdr::xdr_to_opaque(sv));
+
+        // With background apply, crank until the ledger is fully applied
+        while (lm.getLastClosedLedgerNum() < ledgerSeq)
+        {
+            clock.crank(true);
+        }
     }
 
     REQUIRE(tq.getTransactions({}).size() == 1);
