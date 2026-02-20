@@ -96,29 +96,6 @@ writeLedgerAggregationTable(
 }
 } // namespace
 
-std::string const MINIMAL_DB_NAME = "minimal.db";
-
-bool
-canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
-{
-    // Number of streaming ledgers ahead of LCL. Core will
-    // rebuild the existing state if the difference between the start
-    // ledger and LCL is within this window.
-    uint32_t const RESTORE_STATE_LEDGER_WINDOW = 10;
-    // Do not rebuild genesis state
-    bool isGenesis = lcl == LedgerManager::GENESIS_LEDGER_SEQ;
-    return !isGenesis && startAtLedger >= lcl &&
-           startAtLedger - lcl <= RESTORE_STATE_LEDGER_WINDOW;
-}
-
-static std::filesystem::path
-minimalDbPath(Config const& cfg)
-{
-    std::filesystem::path dpath(cfg.BUCKET_DIR_PATH);
-    dpath /= MINIMAL_DB_NAME;
-    return dpath;
-}
-
 Application::pointer
 setupApp(Config& cfg, VirtualClock& clock)
 {
@@ -136,8 +113,8 @@ setupApp(Config& cfg, VirtualClock& clock)
 int
 runApp(Application::pointer app)
 {
-    // Certain in-memory modes in core may start the app before reaching this
-    // point, but since start is idempotent, second call will just no-op
+    // start() is idempotent, so it's safe to call even if app was already
+    // started
     app->start();
 
     // Perform additional startup procedures (must be done after the app is
@@ -1203,13 +1180,6 @@ publish(Application::pointer app)
     LOG_INFO(DEFAULT_LOG, "*");
 
     return 0;
-}
-
-std::string
-minimalDBForInMemoryMode(Config const& cfg)
-{
-    return fmt::format(FMT_STRING("sqlite3://{}"),
-                       minimalDbPath(cfg).generic_string());
 }
 
 // Returns the major release version extracted from the git tag _if_ this is a

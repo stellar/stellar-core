@@ -61,8 +61,6 @@ int catchup(Application::pointer app, CatchupConfiguration cc,
 // reset before calling this function.
 bool applyBucketsForLCL(Application& app);
 int publish(Application::pointer app);
-std::string minimalDBForInMemoryMode(Config const& cfg);
-bool canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl);
 void setAuthenticatedLedgerHashPair(Application::pointer app,
                                     LedgerNumHashPair& authPair,
                                     uint32_t startLedger,

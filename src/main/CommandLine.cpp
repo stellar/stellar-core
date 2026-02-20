@@ -380,27 +380,6 @@ forceUntrustedCatchup(bool& force)
 }
 
 clara::Opt
-inMemoryParser(bool& inMemory)
-{
-    return clara::Opt{inMemory}["--in-memory"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
-}
-
-clara::Opt
-startAtLedgerParser(uint32_t& startAtLedger)
-{
-    return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
-}
-
-clara::Opt
-startAtHashParser(std::string& startAtHash)
-{
-    return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
-}
-
-clara::Opt
 filterQueryParser(std::optional<std::string>& filterQuery)
 {
     return clara::Opt{[&](std::string const& arg) { filterQuery = arg; },
@@ -783,7 +762,6 @@ runCatchup(CommandLineArgs const& args)
     std::string archive;
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
-    bool inMemory = false;
     bool forceUntrusted = false;
     std::string hash;
     std::string stream;
@@ -837,9 +815,8 @@ runCatchup(CommandLineArgs const& args)
          catchupArchiveParser,
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
-         validationParser(completeValidation), inMemoryParser(inMemory),
-         ledgerHashParser(hash), ledgerHashParser(hash),
-         forceUntrustedCatchup(forceUntrusted),
+         validationParser(completeValidation), ledgerHashParser(hash),
+         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -865,7 +842,7 @@ runCatchup(CommandLineArgs const& args)
             VirtualClock clock(VirtualClock::REAL_TIME);
             int result;
             {
-                auto app = Application::create(clock, config, inMemory);
+                auto app = Application::create(clock, config, false);
                 auto const& ham = app->getHistoryArchiveManager();
                 auto archivePtr = ham.getHistoryArchive(archive);
                 if (iequals(archive, "any"))
@@ -1227,22 +1204,11 @@ int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    [[maybe_unused]] bool minimalForInMemoryMode = false;
-
-    auto minimalDBParser = [](bool& minimalForInMemoryMode) {
-        return clara::Opt{
-            minimalForInMemoryMode}["--minimal-for-in-memory-mode"](
-            "(DEPRECATED) flag is ignored and will be removed soon.");
-    };
-
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        minimalDBParser(minimalForInMemoryMode)},
-                       [&] {
-                           auto cfg = configOption.getConfig();
-                           initializeDatabase(cfg);
-                           return 0;
-                       });
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto cfg = configOption.getConfig();
+        initializeDatabase(cfg);
+        return 0;
+    });
 }
 
 int
@@ -1614,17 +1580,12 @@ run(CommandLineArgs const& args)
     auto disableBucketGC = false;
     std::string stream;
     bool waitForConsensus = false;
-    [[maybe_unused]] bool inMemory = false;
-    [[maybe_unused]] uint32_t startAtLedger = 0;
-    [[maybe_unused]] std::string startAtHash;
-
     return runWithHelp(
         args,
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
-         metadataOutputStreamParser(stream), inMemoryParser(inMemory),
-         waitForConsensusParser(waitForConsensus),
-         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
+         metadataOutputStreamParser(stream),
+         waitForConsensusParser(waitForConsensus)},
         [&] {
             Config cfg;
             std::shared_ptr<VirtualClock> clock;
