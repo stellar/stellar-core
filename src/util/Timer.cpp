@@ -38,7 +38,7 @@ VirtualClock::now() const noexcept
     }
     else
     {
-        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
+        LOCK_GUARD(mVirtualNowMutex, lock);
         return mVirtualNow;
     }
 }
@@ -52,7 +52,7 @@ VirtualClock::system_now() const noexcept
     }
     else
     {
-        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
+        LOCK_GUARD(mVirtualNowMutex, lock);
         auto offset = mVirtualNow.time_since_epoch();
         return std::chrono::system_clock::time_point(
             std::chrono::duration_cast<
@@ -260,7 +260,7 @@ VirtualClock::shutdown()
 
         // Clear pending queue for the scheduler
         {
-            std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+            LOCK_GUARD(mPendingActionQueueMutex, guard);
             mPendingActionQueue =
                 std::queue<std::tuple<std::function<void()>, std::string,
                                       Scheduler::ActionType>>();
@@ -275,7 +275,7 @@ void
 VirtualClock::setCurrentVirtualTime(time_point t)
 {
     releaseAssert(mMode == VIRTUAL_TIME);
-    std::lock_guard<std::mutex> lock(mVirtualNowMutex);
+    LOCK_GUARD(mVirtualNowMutex, lock);
     // Maintain monotonicity in VIRTUAL_TIME mode.
     releaseAssert(t >= mVirtualNow);
     mVirtualNow = t;
@@ -400,7 +400,7 @@ VirtualClock::crank(bool block)
     // Transfer any pending actions to the scheduler, counting them as
     // "progress" also.
     {
-        std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+        LOCK_GUARD(mPendingActionQueueMutex, guard);
         while (!mPendingActionQueue.empty())
         {
             auto& f = mPendingActionQueue.front();
@@ -438,7 +438,7 @@ VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
 
     bool queueWasEmpty = false;
     {
-        std::lock_guard<std::mutex> lock(mPendingActionQueueMutex);
+        LOCK_GUARD(mPendingActionQueueMutex, lock);
         queueWasEmpty = mPendingActionQueue.empty();
         mPendingActionQueue.emplace(std::move(f), std::move(name), type);
     }
@@ -471,7 +471,7 @@ VirtualClock::getActionQueueSize() const
 {
     size_t pending = 0;
     {
-        std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+        LOCK_GUARD(mPendingActionQueueMutex, guard);
         pending = mPendingActionQueue.size();
     }
     return pending + mActionScheduler->size();
@@ -548,7 +548,7 @@ VirtualClock::advanceToNext()
     auto nextEvent = next();
     // jump forward in time, if needed
     {
-        std::lock_guard<std::mutex> lock(mVirtualNowMutex);
+        LOCK_GUARD(mVirtualNowMutex, lock);
         if (mVirtualNow < nextEvent)
         {
             mVirtualNow = nextEvent;
