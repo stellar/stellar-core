@@ -33,14 +33,31 @@
       "errors": [
         "Error: When using --print, --output-format=stream-json requires --verbose"
       ]
+    },
+    {
+      "iteration": 3,
+      "startedAt": "2026-02-20T21:02:11.554Z",
+      "endedAt": "2026-02-20T21:02:13.171Z",
+      "durationMs": 1511,
+      "agent": "claude-code",
+      "model": "",
+      "toolsUsed": {
+        "--print": 1
+      },
+      "filesModified": [],
+      "exitCode": 1,
+      "completionDetected": false,
+      "errors": [
+        "Error: When using --print, --output-format=stream-json requires --verbose"
+      ]
     }
   ],
-  "totalDurationMs": 2163,
+  "totalDurationMs": 3674,
   "struggleIndicators": {
     "repeatedErrors": {
-      "Error: When using --print, --output-format=stream-json requires --verbose": 2
+      "Error: When using --print, --output-format=stream-json requires --verbose": 3
     },
-    "noProgressIterations": 2,
-    "shortIterations": 2
+    "noProgressIterations": 3,
+    "shortIterations": 3
   }
 }
