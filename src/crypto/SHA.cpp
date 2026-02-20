@@ -8,21 +8,33 @@
 #include "crypto/Curve25519.h"
 #include "util/NonCopyable.h"
 #include <Tracy.hpp>
-#include <sodium.h>
+#include <openssl/sha.h>
+
+// Verify that the aligned storage in SHA.h matches the real SHA256_CTX.
+static_assert(sizeof(SHA256_CTX) == 112,
+              "SHA256_CTX size mismatch with aligned storage in SHA.h");
+static_assert(alignof(SHA256_CTX) <= 4,
+              "SHA256_CTX alignment exceeds aligned storage in SHA.h");
 
 namespace stellar
 {
 
-// Plain SHA256
+// Helper to access the OpenSSL SHA256_CTX stored in the aligned byte array.
+static inline SHA256_CTX*
+ctx(std::byte* s)
+{
+    return reinterpret_cast<SHA256_CTX*>(s);
+}
+
+// Plain SHA256 — use OpenSSL one-shot (auto-selects SHA-NI on supported CPUs).
 uint256
 sha256(ByteSlice const& bin)
 {
     ZoneScoped;
     uint256 out;
-    if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256");
-    }
+    // Use the fully-qualified OpenSSL ::SHA256 to avoid name conflict with
+    // stellar::SHA256 class.
+    ::SHA256(bin.data(), bin.size(), out.data());
     return out;
 }
 
@@ -43,10 +55,7 @@ SHA256::SHA256()
 void
 SHA256::reset()
 {
-    if (crypto_hash_sha256_init(&mState) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_init");
-    }
+    SHA256_Init(ctx(mState));
     mFinished = false;
 }
 
@@ -58,26 +67,20 @@ SHA256::add(ByteSlice const& bin)
     {
         throw std::runtime_error("adding bytes to finished SHA256");
     }
-    if (crypto_hash_sha256_update(&mState, bin.data(), bin.size()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_update");
-    }
+    SHA256_Update(ctx(mState), bin.data(), bin.size());
 }
 
 uint256
 SHA256::finish()
 {
     uint256 out;
-    static_assert(sizeof(out) == crypto_hash_sha256_BYTES,
-                  "unexpected crypto_hash_sha256_BYTES");
+    static_assert(sizeof(out) == SHA256_DIGEST_LENGTH,
+                  "unexpected SHA256_DIGEST_LENGTH");
     if (mFinished)
     {
         throw std::runtime_error("finishing already-finished SHA256");
     }
-    if (crypto_hash_sha256_final(&mState, out.data()) != 0)
-    {
-        throw CryptoError("error from crypto_hash_sha256_final");
-    }
+    SHA256_Final(out.data(), ctx(mState));
     mFinished = true;
     return out;
 }
