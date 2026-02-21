@@ -1420,6 +1420,12 @@
     <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntryScope.cpp" />
+    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp" />
+    <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
+    <ClCompile Include="..\..\src\invariant\BucketListStateConsistency.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2516,6 +2522,12 @@
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h" />
+    <ClInclude Include="..\..\src\util\MetricsRegistry.h" />
+    <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\invariant\BucketListStateConsistency.h">
       <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
