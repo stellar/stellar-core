@@ -449,6 +449,26 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AC_ARG_ENABLE(xdr-hello-world,
+    AS_HELP_STRING([--enable-xdr-hello-world],
+        [Enable XDR HelloWorld operation type]))
+AM_CONDITIONAL(XDR_HELLO_WORLD, [test x$enable_xdr_hello_world = xyes])
+
+AC_ARG_ENABLE(xdr-transaction-meta-v5,
+    AS_HELP_STRING([--enable-xdr-transaction-meta-v5],
+        [Enable XDR TransactionMetaV5]))
+AM_CONDITIONAL(XDR_TRANSACTION_META_V5, [test x$enable_xdr_transaction_meta_v5 = xyes])
+
+AC_ARG_ENABLE(xdr-ledger-entry-ext-v2,
+    AS_HELP_STRING([--enable-xdr-ledger-entry-ext-v2],
+        [Enable XDR LedgerEntry ext v2]))
+AM_CONDITIONAL(XDR_LEDGER_ENTRY_EXT_V2, [test x$enable_xdr_ledger_entry_ext_v2 = xyes])
+
+AC_ARG_ENABLE(xdr-sparse-map,
+    AS_HELP_STRING([--enable-xdr-sparse-map],
+        [Enable XDR sparse map SCVal type]))
+AM_CONDITIONAL(XDR_SPARSE_MAP, [test x$enable_xdr_sparse_map = xyes])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])
