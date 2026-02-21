@@ -91,6 +91,10 @@ compile_commands.json
 /scripts/*.graphml
 /scripts/*.json
 
+# tracy binaries
+/tracy-capture
+/tracy-gui
+
 # test output
 stellar-core-test-*
 test-partitions.*

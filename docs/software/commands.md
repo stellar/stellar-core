@@ -420,20 +420,6 @@ Most commands return their results in JSON format.
   `sorobaninfo?format=detailed` command to compare against the existing settings to see exactly
   what is changing.
 
-* **surveytopology**
-  `surveytopology?duration=DURATION&node=NODE_ID`<br>
-  **This command is deprecated and will be removed in a future release. Use the
-  new time sliced survey interface instead (`startsurveycollecting`,
-  `stopsurveycollecting`, `surveytopologytimesliced`, and `getsurveyresults`).**
-  Starts a survey that will request peer connectivity information from nodes
-  in the backlog. `DURATION` is the number of seconds this survey will run
-  for, and `NODE_ID` is the public key you will add to the backlog to survey.
-  Running this command while the survey is running will add the node to the
-  backlog and reset the timer to run for `DURATION` seconds.  See [Changing
-  default survey behavior](#changing-default-survey-behavior) for details about
-  the default survey behavior, as well as how to change that behavior or opt-out
-  entirely.
-
 * **stopsurvey**
   `stopsurvey`<br>
   Will stop the survey if one is running. Noop if no survey is running
