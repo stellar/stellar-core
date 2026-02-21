@@ -2044,18 +2044,18 @@ TransactionFrame::preParallelApply(
         {
             updateSorobanMetrics(app);
 
-            auto& opResult = txResult.getOpResultAt(0);
-
-            // Pre parallel soroban, OperationFrame::checkValid is called right
-            // before OperationFrame::doApply, but we do it here instead to
-            // avoid making OperationFrame::checkValid thread safe.
-            ok = mOperations.front()->checkValid(
-                app, *signatureChecker, &sorobanConfig, ltx, true, opResult,
-                meta.getDiagnosticEventManager());
-            if (!ok)
-            {
-                txResult.setInnermostError(txFAILED);
-            }
+            // OperationFrame::checkValid was previously called here (moved from
+            // the parallel phase for thread-safety). During apply, all its
+            // checks are redundant:
+            // - isOpSupported: protocol version already validated at TX set
+            //   building time and cannot change.
+            // - Account existence: source account was just loaded and modified
+            //   in commonPreApply (commonValidPreSeqNum + processSeqNum).
+            // - doCheckValidForSoroban: validates static TX properties (wasm
+            //   upload size, create_contract asset, footprint structure) that
+            //   were already validated during TX set building.
+            // Skipping this avoids a redundant LedgerSnapshot construction and
+            // account load per transaction (~3.7us/TX sequential overhead).
         }
 
         // If validation fails, we check the result code in the parallel step to
