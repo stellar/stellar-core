@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use log::{debug, error, trace, warn};
-use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
+use std::{cell::RefCell, fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (soroban_proto_any) is bound to _multiple locations_ in the
 // module tree of this crate:
@@ -409,15 +409,46 @@ fn invoke_host_function_or_maybe_panic(
 
     let protocol_version = ledger_info.protocol_version;
 
-    let budget = Budget::try_from_configs(
-        instruction_limit as u64,
-        ledger_info.memory_limit as u64,
-        // These are the only non-metered XDR conversions that we perform. They
-        // have a small constant cost that is independent of the user-provided
-        // data.
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
-    )?;
+    // Cache the Budget in thread-local storage to avoid re-deserializing
+    // cost params and re-building cost models for every transaction. The cost
+    // params are the same for all transactions within a ledger (they only
+    // change on protocol upgrades). We compare the raw cost param bytes to
+    // detect changes and invalidate the cache.
+    thread_local! {
+        static CACHED_BUDGET: RefCell<Option<(Vec<u8>, Vec<u8>, Budget)>> = RefCell::new(None);
+    }
+    let cpu_limit = instruction_limit as u64;
+    let mem_limit = ledger_info.memory_limit as u64;
+    let cpu_params_bytes = ledger_info.cpu_cost_params.data.as_slice();
+    let mem_params_bytes = ledger_info.mem_cost_params.data.as_slice();
+
+    let budget = CACHED_BUDGET.with(|cache| -> Result<Budget, Box<dyn Error>> {
+        let mut cache = cache.borrow_mut();
+        if let Some((ref cached_cpu, ref cached_mem, ref cached_budget)) = *cache {
+            if cached_cpu.as_slice() == cpu_params_bytes
+                && cached_mem.as_slice() == mem_params_bytes
+            {
+                cached_budget.reset_for_new_tx(cpu_limit, mem_limit);
+                return Ok(cached_budget.clone());
+            }
+        }
+        let budget = Budget::try_from_configs(
+            cpu_limit,
+            mem_limit,
+            non_metered_xdr_from_cxx_buf::<ContractCostParams>(
+                &ledger_info.cpu_cost_params,
+            )?,
+            non_metered_xdr_from_cxx_buf::<ContractCostParams>(
+                &ledger_info.mem_cost_params,
+            )?,
+        )?;
+        *cache = Some((
+            cpu_params_bytes.to_vec(),
+            mem_params_bytes.to_vec(),
+            budget.clone(),
+        ));
+        Ok(budget)
+    })?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
     let trace_hook: Option<super::soroban_env_host::TraceHook> =
