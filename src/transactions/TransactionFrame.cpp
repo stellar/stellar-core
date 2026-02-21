@@ -1014,11 +1014,13 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
         return 0;
     }
 
-    LedgerTxn ltx(ltxOuter);
-    auto header = ltx.loadHeader();
+    // No child LTX needed: addBalance validates all constraints before
+    // modifying the balance, and finalizeFeeRefund + feePool arithmetic
+    // cannot throw. So there's no partial modification to roll back.
+    auto header = ltxOuter.loadHeader();
     // The fee source could be from a Fee-bump, so it needs to be forwarded here
     // instead of using TransactionFrame's getFeeSource() method
-    auto feeSourceAccount = loadAccount(ltx, header, feeSource);
+    auto feeSourceAccount = loadAccount(ltxOuter, header, feeSource);
     if (!feeSourceAccount)
     {
         // Account was merged
@@ -1033,7 +1035,6 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
 
     txResult.finalizeFeeRefund(header.current().ledgerVersion);
     header.current().feePool -= feeRefund;
-    ltx.commit();
 
     return feeRefund;
 }
