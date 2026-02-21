@@ -65,8 +65,9 @@ getSentDemandCount(std::shared_ptr<Application> app)
 bool
 knowsAs(Application& knowingApp, Application& knownApp, PeerType peerType)
 {
-    auto data = knowingApp.getOverlayManager().getPeerManager().load(
-        PeerBareAddress{"127.0.0.1", knownApp.getConfig().PEER_PORT});
+    auto data =
+        knowingApp.getOverlayManager().getPeerManager().load(PeerBareAddress{
+            asio::ip::address_v4::loopback(), knownApp.getConfig().PEER_PORT});
     if (!data.second)
     {
         return false;
@@ -80,7 +81,7 @@ doesNotKnow(Application& knowingApp, Application& knownApp)
 {
     return !knowingApp.getOverlayManager()
                 .getPeerManager()
-                .load(PeerBareAddress{"127.0.0.1",
+                .load(PeerBareAddress{asio::ip::address_v4::loopback(),
                                       knownApp.getConfig().PEER_PORT})
                 .second;
 }

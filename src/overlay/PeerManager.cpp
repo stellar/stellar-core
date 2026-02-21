@@ -44,33 +44,27 @@ operator==(PeerRecord const& x, PeerRecord const& y)
     return x.mType == y.mType;
 }
 
-namespace
-{
-
-void
-ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
-{
-    std::stringstream ss(ip);
-    std::string item;
-    int n = 0;
-    while (getline(ss, item, '.') && n < 4)
-    {
-        ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
-        n++;
-    }
-    if (n != 4)
-        throw std::runtime_error("ipToXdr: failed on `" + ip + "`");
-}
-}
-
 PeerAddress
 toXdr(PeerBareAddress const& address)
 {
+    auto& ip = address.getIP();
+
     PeerAddress result;
 
     result.port = address.getPort();
-    result.ip.type(IPv4);
-    ipToXdr(address.getIP(), result.ip.ipv4());
+
+    if (ip.is_v4())
+    {
+        result.ip.type(IPv4);
+        auto bytes = ip.to_v4().to_bytes();
+        std::copy(bytes.begin(), bytes.end(), result.ip.ipv4().begin());
+    }
+    else
+    {
+        result.ip.type(IPv6);
+        auto bytes = ip.to_v6().to_bytes();
+        std::copy(bytes.begin(), bytes.end(), result.ip.ipv6().begin());
+    }
 
     result.numFailures = 0;
     return result;
@@ -189,7 +183,7 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
         std::string ip;
         if (address)
         {
-            ip = address->getIP();
+            ip = address->getIP().to_string();
             st.exchange(use(ip));
         }
         st.define_and_bind();
@@ -244,7 +238,7 @@ PeerManager::load(PeerBareAddress const& address)
         st.exchange(into(result.mNumFailures));
         st.exchange(into(result.mNextAttempt));
         st.exchange(into(result.mType));
-        std::string ip = address.getIP();
+        std::string ip = address.getIP().to_string();
         st.exchange(use(ip));
         int port = address.getPort();
         st.exchange(use(port));
@@ -302,7 +296,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
         st.exchange(use(peerRecord.mNextAttempt));
         st.exchange(use(peerRecord.mNumFailures));
         st.exchange(use(peerRecord.mType));
-        std::string ip = address.getIP();
+        std::string ip = address.getIP().to_string();
         st.exchange(use(ip));
         int port = address.getPort();
         st.exchange(use(port));
@@ -565,7 +559,18 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
         {
             if (!ip.empty() && lport > 0)
             {
-                result.emplace_back(ip, static_cast<unsigned short>(lport));
+                asio::error_code ec;
+                auto parsed = asio::ip::address::from_string(ip, ec);
+                if (ec)
+                {
+                    CLOG_WARNING(Overlay, "loadPeers: could not parse ip {}",
+                                 ip);
+                }
+                else
+                {
+                    result.emplace_back(parsed,
+                                        static_cast<unsigned short>(lport));
+                }
             }
             st.fetch();
         }
@@ -616,8 +621,18 @@ PeerManager::loadAllPeers()
         }
         while (st.got_data())
         {
-            PeerBareAddress pba{ip, static_cast<unsigned short>(port)};
-            result.emplace_back(std::make_pair(pba, record));
+            asio::error_code ec;
+            auto parsed = asio::ip::address::from_string(ip, ec);
+            if (ec)
+            {
+                CLOG_WARNING(Overlay, "loadAllPeers: could not parse ip {}",
+                             ip);
+            }
+            else
+            {
+                PeerBareAddress pba{parsed, static_cast<unsigned short>(port)};
+                result.emplace_back(std::make_pair(pba, record));
+            }
             st.fetch();
         }
     }

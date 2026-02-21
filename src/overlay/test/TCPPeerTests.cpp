@@ -76,11 +76,11 @@ TEST_CASE("TCPPeer lifetime", "[overlay]")
                     .count() == 0);
     }
 
-    auto p0 = n0->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+    auto p0 = n0->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n1->getConfig().PEER_PORT});
 
-    auto p1 = n1->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+    auto p1 = n1->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n0->getConfig().PEER_PORT});
 
     REQUIRE(!p0);
     REQUIRE(!p1);
@@ -112,11 +112,11 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     s->startAllNodes();
     s->crankForAtLeast(std::chrono::seconds(1), false);
 
-    auto p0 = n0->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+    auto p0 = n0->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n1->getConfig().PEER_PORT});
 
-    auto p1 = n1->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+    auto p1 = n1->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n0->getConfig().PEER_PORT});
 
     REQUIRE(p0);
     REQUIRE(p1);
@@ -164,11 +164,11 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
     s->startAllNodes();
     s->stopOverlayTick();
     s->crankForAtLeast(std::chrono::seconds(5), false);
-    auto p0 = n0->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+    auto p0 = n0->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n1->getConfig().PEER_PORT});
 
-    auto p1 = n1->getOverlayManager().getConnectedPeer(
-        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+    auto p1 = n1->getOverlayManager().getConnectedPeer(PeerBareAddress{
+        asio::ip::address_v4::loopback(), n0->getConfig().PEER_PORT});
 
     REQUIRE(p0);
     REQUIRE(p1);

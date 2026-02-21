@@ -349,7 +349,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
   public:
     /* The following functions must all be called from the main thread (they all
      * contain releaseAssert(threadIsMain())) */
-    Peer(Application& app, PeerRole role);
+    Peer(Application& app, PeerRole role, PeerBareAddress const& address);
 
     void cancelTimers();
 

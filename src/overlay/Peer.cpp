@@ -131,7 +131,7 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 static constexpr uint32_t QUERY_RESPONSE_MULTIPLIER = 5;
 
-Peer::Peer(Application& app, PeerRole role)
+Peer::Peer(Application& app, PeerRole role, PeerBareAddress const& address)
     : mAppConnector(app.getAppConnector())
     , mNetworkID(app.getNetworkID())
     , mFlowControl(
@@ -145,6 +145,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(0)
+    , mAddress(address)
     , mCreationTime(app.getClock().now())
     , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
@@ -1719,7 +1720,6 @@ void
 Peer::updatePeerRecordAfterEcho()
 {
     releaseAssert(threadIsMain());
-    releaseAssert(!getAddress().isEmpty());
 
     PeerType type;
     if (mAppConnector.getOverlayManager().isPreferred(this))
@@ -1745,7 +1745,6 @@ void
 Peer::updatePeerRecordAfterAuthentication()
 {
     releaseAssert(threadIsMain());
-    releaseAssert(!getAddress().isEmpty());
 
     if (mRole == WE_CALLED_REMOTE)
     {
@@ -1801,12 +1800,6 @@ Peer::recvHello(Hello const& elo)
     // mAddress is set in TCPPeer::initiate and TCPPeer::accept. It should
     // contain valid IP (but not necessarily port yet)
     auto ip = mAddress.getIP();
-    if (ip.empty())
-    {
-        drop("failed to determine remote address",
-             Peer::DropDirection::WE_DROPPED_REMOTE);
-        return;
-    }
     mAddress =
         PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
 
@@ -1853,7 +1846,7 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX)
     {
         sendErrorAndDrop(ERR_CONF, "bad address");
         return;
@@ -1989,14 +1982,7 @@ Peer::recvPeers(StellarMessage const& msg)
                        peer.port);
             continue;
         }
-        if (peer.ip.type() == IPv6)
-        {
-            CLOG_DEBUG(Overlay,
-                       "ignoring received IPv6 address (not yet supported)");
-            continue;
-        }
 
-        releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
         if (address.isPrivate())

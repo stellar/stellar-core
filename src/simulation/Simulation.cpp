@@ -31,6 +31,22 @@ namespace stellar
 
 using namespace std;
 
+namespace
+{
+// Returns the IP address a node is listening on based on its config.
+// If PEER_LISTEN_IP is set, returns that address; otherwise returns IPv4
+// loopback.
+asio::ip::address
+getNodeListenAddress(Config const& cfg)
+{
+    if (!cfg.PEER_LISTEN_IP.empty())
+    {
+        return asio::ip::make_address(cfg.PEER_LISTEN_IP);
+    }
+    return asio::ip::address_v4::loopback();
+}
+} // namespace
+
 Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
                        QuorumSetAdjuster qSetAdjust)
     : mVirtualClockMode(mode != OVER_TCP)
@@ -285,8 +301,9 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
         {
             auto& cAcceptor = mNodes[acceptor].mApp->getConfig();
 
-            auto peer = iApp->getOverlayManager().getConnectedPeer(
-                PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
+            auto peer =
+                iApp->getOverlayManager().getConnectedPeer(PeerBareAddress{
+                    getNodeListenAddress(cAcceptor), cAcceptor.PEER_PORT});
             if (peer)
             {
                 peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE);
@@ -352,7 +369,8 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     {
         throw runtime_error("PEER_PORT cannot be set to 0");
     }
-    auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
+    auto address = PeerBareAddress{getNodeListenAddress(to->getConfig()),
+                                   to->getConfig().PEER_PORT};
     from->getOverlayManager().connectTo(address);
 }
 

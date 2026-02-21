@@ -695,6 +695,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // overlay config
     unsigned short PEER_PORT;
+    std::string PEER_LISTEN_IP; // IP address to listen on (empty = 0.0.0.0)
     unsigned short TARGET_PEER_CONNECTIONS;
     unsigned short MAX_PENDING_CONNECTIONS;
     int MAX_ADDITIONAL_PEER_CONNECTIONS;

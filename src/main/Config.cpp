@@ -1094,6 +1094,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 #endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
+                {"PEER_LISTEN_IP",
+                 [&]() { PEER_LISTEN_IP = readString(item); }},
                 {"HTTP_PORT",
                  [&]() { HTTP_PORT = readInt<unsigned short>(item); }},
                 {"HTTP_QUERY_PORT",

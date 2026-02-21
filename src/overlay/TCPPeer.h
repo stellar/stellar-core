@@ -86,7 +86,7 @@ class TCPPeer : public Peer
     // an atomic
     std::atomic<bool> mDropStarted{false};
     std::shared_ptr<SocketType> mSocket;
-    std::string const mIPAddress;
+    asio::ip::address const mIPAddress;
 
     bool recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes,
@@ -143,12 +143,9 @@ class TCPPeer : public Peer
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
 
+    // hollow constructor; use `initiate` or `accept` instead
     TCPPeer(Application& app, Peer::PeerRole role,
-            std::shared_ptr<SocketType> socket,
-            std::string address); // hollow
-                                  // constructor; use
-                                  // `initiate` or
-                                  // `accept` instead
+            std::shared_ptr<SocketType> socket, asio::ip::address address);
 
     static pointer initiate(Application& app, PeerBareAddress const& address);
     static pointer accept(Application& app, std::shared_ptr<SocketType> socket);

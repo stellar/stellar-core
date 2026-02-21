@@ -906,7 +906,7 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
 }
 
 bool
-OverlayManagerImpl::isPossiblyPreferred(std::string const& ip) const
+OverlayManagerImpl::isPossiblyPreferred(asio::ip::address const& ip) const
 {
     return std::any_of(
         std::begin(mConfigurationPreferredPeers),
@@ -915,7 +915,7 @@ OverlayManagerImpl::isPossiblyPreferred(std::string const& ip) const
 }
 
 bool
-OverlayManagerImpl::haveSpaceForConnection(std::string const& ip) const
+OverlayManagerImpl::haveSpaceForConnection(asio::ip::address const& ip) const
 {
     auto totalAuthenticated = getInboundAuthenticatedPeers().size();
     auto totalTracked = *getLiveInboundPeersCounter();
@@ -947,7 +947,7 @@ OverlayManagerImpl::haveSpaceForConnection(std::string const& ip) const
         CLOG_DEBUG(
             Overlay,
             "Peer rejected - all pending inbound connections are taken: {}",
-            ip);
+            ip.to_string());
         CLOG_DEBUG(Overlay, "If you wish to allow for more pending "
                             "inbound connections, please update your "
                             "MAX_PENDING_CONNECTIONS setting in "

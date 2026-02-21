@@ -35,11 +35,10 @@ class PeerStub : public Peer
   public:
     int mSent = 0;
     PeerStub(Application& app, PeerBareAddress const& address)
-        : Peer(app, WE_CALLED_REMOTE)
+        : Peer(app, WE_CALLED_REMOTE, address)
     {
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
-        mAddress = address;
         mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
     }
     virtual void
@@ -173,8 +172,9 @@ class OverlayManagerTests
         for (auto it = rs.begin(); it != rs.end(); ++it, ++i)
         {
 
-            PeerBareAddress pba{it->get<std::string>(0),
-                                static_cast<unsigned short>(it->get<int>(1))};
+            PeerBareAddress pba{
+                asio::ip::address::from_string(it->get<std::string>(0)),
+                static_cast<unsigned short>(it->get<int>(1))};
             auto type = it->get<int>(2);
             if (i < fourPeers.size())
             {
@@ -199,8 +199,8 @@ class OverlayManagerTests
         // (from INBOUND to OUTBOUND)
 
         OverlayManagerStub& pm = app->getOverlayManager();
-        PeerBareAddress prefPba{"127.0.0.1", 2011};
-        PeerBareAddress pba{"127.0.0.1", 64000};
+        PeerBareAddress prefPba{asio::ip::address_v4::loopback(), 2011};
+        PeerBareAddress pba{asio::ip::address_v4::loopback(), 64000};
 
         auto prefPr = pm.getPeerManager().load(prefPba);
         auto pr = pm.getPeerManager().load(pba);
@@ -220,7 +220,7 @@ class OverlayManagerTests
         for (auto it = rs.begin(); it != rs.end(); ++it)
         {
             PeerBareAddress storedPba{
-                it->get<std::string>(0),
+                asio::ip::address::from_string(it->get<std::string>(0)),
                 static_cast<unsigned short>(it->get<int>(1))};
             auto type = it->get<int>(2);
             if (storedPba == pba)
