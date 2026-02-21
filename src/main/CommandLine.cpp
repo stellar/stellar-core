@@ -1955,6 +1955,12 @@ runApplyLoad(CommandLineArgs const& args)
                 // disable them so they don't bottleneck the test, but this
                 // should be addressed in the future.
                 config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
+
+                // Disable budget metering in the Soroban host. The budget
+                // is pre-computed from declared resources and native SAC
+                // execution is bounded, so charge() calls are pure
+                // overhead (~800 calls × ~45ns = ~35µs per invocation).
+                rust_bridge::set_soroban_metering_disabled(true);
                 config.DISABLE_META_TRACKING_FOR_TESTING = true;
                 config.METADATA_OUTPUT_STREAM = "";
                 config.METADATA_DEBUG_LEDGERS = 0;

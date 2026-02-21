@@ -190,6 +190,7 @@ pub(crate) mod rust_bridge {
             message_ptr: *const u8,
             message_len: usize,
         ) -> bool;
+        fn set_soroban_metering_disabled(disabled: bool);
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
