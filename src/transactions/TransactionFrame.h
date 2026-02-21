@@ -102,6 +102,7 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<LedgerEntryWrapper>
     commonValidPreSeqNum(AppConnector& app, SorobanNetworkConfig const* cfg,
                          LedgerSnapshot const& ls, bool chargeFee,
+                         bool applying,
                          uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
                          std::optional<FeePair> sorobanResourceFee,

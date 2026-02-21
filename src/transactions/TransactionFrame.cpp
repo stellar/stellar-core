@@ -1229,12 +1229,30 @@ std::optional<LedgerEntryWrapper>
 TransactionFrame::commonValidPreSeqNum(
     AppConnector& app, SorobanNetworkConfig const* cfg,
     LedgerSnapshot const& ls, bool chargeFee,
+    bool applying,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee,
     MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
+
+    // During apply for Soroban transactions, all structural validations below
+    // (envelope type, extra signers, op count, soroban resources, footprint
+    // duplicates, time bounds, fees) were already performed during TX set
+    // building and cannot change. Skip directly to account loading.
+    if (applying && isSoroban())
+    {
+        auto header = ls.getLedgerHeader();
+        auto sourceAccount = ls.getAccount(header, *this);
+        if (!sourceAccount)
+        {
+            txResult.setInnermostError(txNO_ACCOUNT);
+            return std::nullopt;
+        }
+        return sourceAccount;
+    }
+
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
@@ -1588,7 +1606,7 @@ TransactionFrame::commonValid(AppConnector& app,
         // Get the source account during commonValidPreSeqNum to avoid redundant
         // account loading
         auto sourceAccount = commonValidPreSeqNum(
-            app, cfg, ls, chargeFee, lowerBoundCloseTimeOffset,
+            app, cfg, ls, chargeFee, applying, lowerBoundCloseTimeOffset,
             upperBoundCloseTimeOffset, sorobanResourceFee, txResult,
             diagnosticEvents);
 
