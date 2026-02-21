@@ -359,8 +359,7 @@ struct RestoredEntries
                                   LedgerEntry const& entry,
                                   LedgerKey const& ttlKey,
                                   LedgerEntry const& ttlEntry);
-    void addRestoresFrom(RestoredEntries const& other,
-                         bool allowDuplicates = false);
+    void addRestoresFrom(RestoredEntries const& other);
 };
 
 class AbstractLedgerTxn;
@@ -617,6 +616,13 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     restored. This just adds the information to the map tracking entries
     //     restored from the hot archive. The actual restoration of the entry is
     //     handled separately.
+    // - markRestoredFromLiveBucketList:
+    //     Indicates that an entry in the live BucketList is being restored.
+    //     Used by the parallel apply path to signal to LedgerTxn that the
+    //     entry and TTL should be treated as if they have been restored. This
+    //     just adds the information to the map tracking entries restored from
+    //     the live BucketList. The actual restoration of the entry is handled
+    //     separately.
     // All of these functions throw if the AbstractLedgerTxn is sealed or if
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
@@ -626,6 +632,9 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                                      uint32_t ttl) = 0;
     virtual void markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
                                             LedgerEntry const& ttlEntry) = 0;
+    virtual void
+    markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
+                                   LedgerEntry const& ttlEntry) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
@@ -774,6 +783,8 @@ class LedgerTxn : public AbstractLedgerTxn
                                              uint32_t ttl) override;
     void markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
                                     LedgerEntry const& ttlEntry) override;
+    void markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
+                                        LedgerEntry const& ttlEntry) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 

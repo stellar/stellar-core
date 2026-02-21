@@ -428,7 +428,7 @@ ArchivedStateConsistency::checkRestoreInvariants(
                            "in live state: {}"),
                 xdrToCerealString(key, "key"));
         }
-        else if (liveEntry->second != entry)
+        else if (key.type() != TTL && liveEntry->second != entry)
         {
             return fmt::format(
                 FMT_STRING("ArchivedStateConsistency invariant failed: "
@@ -438,14 +438,24 @@ ArchivedStateConsistency::checkRestoreInvariants(
                 xdrToCerealString(entry, "entry_to_restore"));
         }
 
-        if (key.type() == TTL && isLive(entry, ledgerSeq))
+        if (key.type() == TTL)
         {
-            return fmt::format(
-                FMT_STRING("ArchivedStateConsistency invariant failed: "
-                           "Restored entry from live BucketList is not "
-                           "expired: Entry: {}, TTL Entry: {}"),
-                xdrToCerealString(entry, "entry"),
-                xdrToCerealString(entry, "ttl_entry"));
+            if (!isLive(entry, ledgerSeq))
+            {
+                return fmt::format(
+                    FMT_STRING("ArchivedStateConsistency invariant failed: "
+                               "Restored entries updated state is still "
+                               "expired: TTL Entry: {}"),
+                    xdrToCerealString(entry, "ttl_entry"));
+            }
+            if (isLive(liveEntry->second, ledgerSeq))
+            {
+                return fmt::format(
+                    FMT_STRING("ArchivedStateConsistency invariant failed: "
+                               "Restored entry from live BucketList is not "
+                               "expired: TTL Entry: {}"),
+                    xdrToCerealString(liveEntry->second, "ttl_entry"));
+            }
         }
     }
 
