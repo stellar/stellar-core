@@ -4,10 +4,6 @@ use crate::{
     CxxTransactionResources, FeePair, InvokeHostFunctionOutput, SorobanModuleCache,
 };
 
-pub(crate) fn set_soroban_metering_disabled(disabled: bool) {
-    crate::soroban_proto_all::soroban_curr::soroban_env_host::budget::Budget::set_global_metering_disabled(disabled);
-}
-
 pub(crate) fn invoke_host_function(
     config_max_protocol: u32,
     enable_diagnostics: bool,

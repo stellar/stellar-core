@@ -1967,6 +1967,7 @@ TransactionFrame::commonPreApply(
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
         isSoroban())
     {
+        ZoneNamedN(resourceFeeZone, "computePreApplySorobanResourceFee", true);
         sorobanResourceFee = computePreApplySorobanResourceFee(
             ledgerVersion, *sorobanConfig, app.getConfig());
 
@@ -1978,19 +1979,31 @@ TransactionFrame::commonPreApply(
     }
     LedgerTxn ltxTx(ltx);
     LedgerSnapshot lsTx(ltxTx);
-    auto cv = commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
-                          chargeFee, 0, 0, sorobanResourceFee, txResult,
-                          meta.getDiagnosticEventManager());
+    ValidationType cv;
+    {
+        ZoneNamedN(commonValidZone, "commonValid", true);
+        cv = commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
+                         chargeFee, 0, 0, sorobanResourceFee, txResult,
+                         meta.getDiagnosticEventManager());
+    }
     if (cv >= ValidationType::kInvalidUpdateSeqNum)
     {
+        ZoneNamedN(seqNumZone, "processSeqNum", true);
         processSeqNum(ltxTx);
     }
 
-    bool signaturesValid =
-        processSignatures(cv, *signatureChecker, ltxTx, txResult);
+    bool signaturesValid;
+    {
+        ZoneNamedN(sigZone, "processSignatures", true);
+        signaturesValid =
+            processSignatures(cv, *signatureChecker, ltxTx, txResult);
+    }
 
-    meta.pushTxChangesBefore(ltxTx);
-    ltxTx.commit();
+    {
+        ZoneNamedN(commitZone, "commonPreApply: pushAndCommit", true);
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+    }
 
     if (signaturesValid && cv == ValidationType::kMaybeValid)
     {

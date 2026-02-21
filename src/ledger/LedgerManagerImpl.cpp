@@ -1626,8 +1626,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #endif
     {
         // first, prefetch source accounts for txset, then charge fees
-        prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
-                            mApp.getConfig());
+        {
+            ZoneNamedN(prefetchZone, "prefetchTxSourceIds", true);
+            prefetchTxSourceIds(mApp.getLedgerTxnRoot(), *applicableTxSet,
+                                mApp.getConfig());
+        }
 
         // Time the entire transaction processing phase from fee processing
         // through transaction application
@@ -1649,7 +1652,10 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                                       txResultSet);
     }
 
-    ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
+    {
+        ZoneNamedN(hashZone, "xdrSha256 txResultSet", true);
+        ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
+    }
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -2239,7 +2245,10 @@ LedgerManagerImpl::processFeesSeqNums(
             }
         }
 
-        ltx.commit();
+        {
+            ZoneNamedN(commitFeeZone, "processFeesSeqNums: commit", true);
+            ltx.commit();
+        }
     }
     catch (std::exception& e)
     {
@@ -2589,7 +2598,10 @@ LedgerManagerImpl::applyTransactions(
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(numTxs);
 
-    prefetchTransactionData(mApp.getLedgerTxnRoot(), txSet, mApp.getConfig());
+    {
+        ZoneNamedN(prefetchTxDataZone, "prefetchTransactionData", true);
+        prefetchTransactionData(mApp.getLedgerTxnRoot(), txSet, mApp.getConfig());
+    }
     auto phases = txSet.getPhasesInApplyOrder();
 
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
@@ -2612,6 +2624,7 @@ LedgerManagerImpl::applyTransactions(
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
+        ZoneNamedN(loadConfigZone, "SorobanNetworkConfig::loadFromLedger", true);
         sorobanConfig =
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
@@ -2647,8 +2660,11 @@ LedgerManagerImpl::applyTransactions(
         }
     }
 
-    processPostTxSetApply(phases, applyStages, ltx, ledgerCloseMeta,
-                          txResultSet);
+    {
+        ZoneNamedN(postApplyZone, "processPostTxSetApply", true);
+        processPostTxSetApply(phases, applyStages, ltx, ledgerCloseMeta,
+                              txResultSet);
+    }
 
     // Update cluster and stage metrics
     if (!applyStages.empty())
@@ -2687,6 +2703,8 @@ LedgerManagerImpl::applyParallelPhase(
 
     applyStages.reserve(txSetStages.size());
 
+    {
+    ZoneNamedN(buildBundlesZone, "buildTransactionBundles", true);
     for (auto const& stage : txSetStages)
     {
         std::vector<Cluster> applyClusters;
@@ -2726,6 +2744,7 @@ LedgerManagerImpl::applyParallelPhase(
         }
         applyStages.emplace_back(std::move(applyClusters));
     }
+    } // end buildTransactionBundles zone
 
     applySorobanStages(mApp.getAppConnector(), ltx, applyStages, sorobanConfig,
                        sorobanBasePrngSeed);
@@ -2935,9 +2954,14 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
         auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
-        auto evictedState =
-            mApp.getBucketManager().resolveBackgroundEvictionScan(
-                lclSnapshot, ltx, ltx.getAllKeysWithoutSealing());
+        decltype(mApp.getBucketManager().resolveBackgroundEvictionScan(
+            lclSnapshot, ltx, ltx.getAllKeysWithoutSealing())) evictedState;
+        {
+            ZoneNamedN(evictZone, "finalize: resolveEviction", true);
+            evictedState =
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    lclSnapshot, ltx, ltx.getAllKeysWithoutSealing());
+        }
 
         if (protocolVersionStartsFrom(
                 initialLedgerVers,
@@ -3014,7 +3038,10 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
     }
     // NB: getAllEntries seals the ltx.
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+    {
+        ZoneNamedN(getAllEntriesZone, "finalize: getAllEntries", true);
+        ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+    }
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
 
@@ -3022,14 +3049,21 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // an independent InMemorySorobanState and only reads the const entry
     // vectors. Main thread runs addLiveBatch concurrently.
     auto inMemoryFuture = std::async(std::launch::async, [&]() {
+        ZoneNamedN(inMemZone, "finalize: updateInMemorySorobanState", true);
         mApplyState.updateInMemorySorobanStateFromCommitWorker(
             initEntries, liveEntries, deadEntries, lh, finalSorobanConfig);
     });
 
     // addLiveBatch runs on main thread concurrently with the in-memory update.
-    mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
-    inMemoryFuture.get();
+    {
+        ZoneNamedN(addLiveBatchZone, "finalize: addLiveBatch", true);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
+                                             deadEntries);
+    }
+    {
+        ZoneNamedN(waitZone, "finalize: waitForInMemoryUpdate", true);
+        inMemoryFuture.get();
+    }
 }
 
 CompleteConstLedgerStatePtr
@@ -3077,10 +3111,16 @@ LedgerManagerImpl::sealLedgerTxnAndStoreInBucketsAndDB(
 
     CompleteConstLedgerStatePtr res;
     ltx.unsealHeader([this, &res](LedgerHeader& lh) {
-        mApp.getBucketManager().snapshotLedger(lh);
-        auto has = storePersistentStateAndLedgerHeaderInDB(
-            lh, /* appendToCheckpoint */ true);
-        res = advanceBucketListSnapshotAndMakeLedgerState(lh, has);
+        {
+            ZoneNamedN(snapshotZone, "seal: snapshotLedger", true);
+            mApp.getBucketManager().snapshotLedger(lh);
+        }
+        {
+            ZoneNamedN(storeZone, "seal: storePersistentState", true);
+            auto has = storePersistentStateAndLedgerHeaderInDB(
+                lh, /* appendToCheckpoint */ true);
+            res = advanceBucketListSnapshotAndMakeLedgerState(lh, has);
+        }
     });
 
     releaseAssert(res);

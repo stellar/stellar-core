@@ -315,6 +315,13 @@ class TxParallelApplyLedgerState
     // sequence number.
     bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
                      uint32_t ledgerSeq);
+
+    // Like upsertEntry, but skips the getLiveEntryOpt existence check.
+    // Caller must guarantee the entry already exists in parent state.
+    void upsertEntryKnownExisting(LedgerKey const& key,
+                                  LedgerEntry const& entry,
+                                  uint32_t ledgerSeq);
+
     bool eraseEntryIfExists(LedgerKey const& key);
     bool entryWasRestored(LedgerKey const& key) const;
     void addHotArchiveRestore(LedgerKey const& key, LedgerEntry const& entry,
@@ -343,6 +350,15 @@ class LedgerAccessHelper
     // create.
     virtual bool upsertLedgerEntry(LedgerKey const& key,
                                    LedgerEntry const& entry) = 0;
+
+    // Like upsertLedgerEntry, but the caller guarantees the entry already
+    // exists. Skips the existence check and never reports a "create".
+    // Default implementation just calls upsertLedgerEntry.
+    virtual void upsertLedgerEntryKnownExisting(LedgerKey const& key,
+                                                LedgerEntry const& entry)
+    {
+        upsertLedgerEntry(key, entry);
+    }
 
     // erase returns true if the entry was erased, false if it wasn't present.
     // as with upsert, this is interpreted narrowly to mean that an erase
@@ -383,6 +399,8 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
     bool upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
+    void upsertLedgerEntryKnownExisting(LedgerKey const& key,
+                                        LedgerEntry const& entry) override;
     bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;
     uint32_t getLedgerSeq() override;

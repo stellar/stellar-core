@@ -368,7 +368,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         for (size_t i = 0; i < footprintKeys.size(); ++i)
         {
             auto const& lk = footprintKeys[i];
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+            uint32_t keySize = 0; // Deferred: only computed for disk metering
             uint32_t entrySize = 0u;
             std::optional<TTLEntry> ttlEntry;
             bool sorobanEntryLive = false;
@@ -381,7 +381,11 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 // handleArchivedEntry may need to load the TTL key to write the
                 // restored TTL, so make sure any TTL ltxe destructs before
                 // calling handleArchivedEntry
-                auto ttlEntryOpt = getLedgerEntryOpt(ttlKey);
+                std::optional<LedgerEntry> ttlEntryOpt;
+                {
+                    ZoneNamedN(ttlLoadZone, "addReads: getLedgerEntryOpt TTL", true);
+                    ttlEntryOpt = getLedgerEntryOpt(ttlKey);
+                }
 
                 if (ttlEntryOpt)
                 {
@@ -447,20 +451,32 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             if (!isSorobanEntry(lk) || sorobanEntryLive)
             {
-                auto entryOpt = getLedgerEntryOpt(lk);
+                std::optional<LedgerEntry> entryOpt;
+                {
+                    ZoneNamedN(entryLoadZone, "addReads: getLedgerEntryOpt", true);
+                    entryOpt = getLedgerEntryOpt(lk);
+                }
                 if (entryOpt)
                 {
-                    auto leBuf = toCxxBuf(*entryOpt);
+                    CxxBuf leBuf;
+                    {
+                        ZoneNamedN(entryBufZone, "addReads: toCxxBuf entry", true);
+                        leBuf = toCxxBuf(*entryOpt);
+                    }
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
 
-                    // For entry types that don't have an ttlEntry (i.e.
-                    // Accounts), the rust host expects an "empty" CxxBuf such
-                    // that the buffer has a non-null pointer that points to an
-                    // empty byte vector
-                    auto ttlBuf =
-                        ttlEntry
-                            ? toCxxBuf(*ttlEntry)
-                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+                    CxxBuf ttlBuf;
+                    {
+                        ZoneNamedN(ttlBufZone, "addReads: toCxxBuf TTL", true);
+                        // For entry types that don't have an ttlEntry (i.e.
+                        // Accounts), the rust host expects an "empty" CxxBuf such
+                        // that the buffer has a non-null pointer that points to an
+                        // empty byte vector
+                        ttlBuf =
+                            ttlEntry
+                                ? toCxxBuf(*ttlEntry)
+                                : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+                    }
 
                     mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
                     mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
@@ -488,6 +504,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 protocolVersionIsBefore(
                     ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
             {
+                keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
                 if (!meterDiskReadResource(lk, keySize, entrySize))
                 {
                     return false;
@@ -526,29 +543,43 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     invokeHostFunction(InvokeHostFunctionOutput& out)
     {
         ZoneScoped;
+        // Pre-serialize all inputs before the Rust bridge call
+        CxxBuf hostFunctionBuf;
+        CxxBuf resourcesBuf;
+        CxxBuf sourceIDBuf;
         rust::Vec<CxxBuf> authEntryCxxBufs;
-        authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
-        for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
+        CxxBuf basePrngSeedBuf;
+        CxxLedgerInfo ledgerInfo;
         {
-            authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
+            ZoneNamedN(serZone, "invokeHostFunction: serialize inputs", true);
+            hostFunctionBuf = toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction);
+            resourcesBuf = toCxxBuf(mResources);
+            sourceIDBuf = toCxxBuf(mOpFrame.getSourceID());
+
+            authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
+            for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
+            {
+                authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
+            }
+
+            basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
+            basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
+                                         mSorobanBasePrngSeed.end());
+
+            ledgerInfo = getLedgerInfo();
         }
 
         out.success = false;
         try
         {
-            CxxBuf basePrngSeedBuf{};
-            basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
-            basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
-                                         mSorobanBasePrngSeed.end());
-
             out = rust_bridge::invoke_host_function(
                 mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
                 mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
                 mResources.instructions,
-                toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-                toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
-                toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
-                getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
+                hostFunctionBuf,
+                std::move(resourcesBuf), mAutoRestoredRwEntryIndices,
+                sourceIDBuf, authEntryCxxBufs,
+                std::move(ledgerInfo), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
                 basePrngSeedBuf,
                 mSorobanConfig.rustBridgeRentFeeConfiguration(), *mModuleCache);
             mMetrics.mCpuInsn = out.cpu_insns;
@@ -616,7 +647,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
-            xdr::xdr_from_opaque(buf.data, le);
+            {
+                ZoneNamedN(deserZone, "recordStorageChanges: xdr_from_opaque", true);
+                xdr::xdr_from_opaque(buf.data, le);
+            }
             auto lk = LedgerEntryKey(le);
             if (!validateContractLedgerEntry(
                     lk, buf.data.size(), mSorobanConfig, mAppConfig,
@@ -629,13 +663,13 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             createdAndModifiedKeys.insert(lk);
 
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
 
             // ttlEntry write fees come out of refundableFee, already
             // accounted for by the host
             if (lk.type() != TTL)
             {
+                uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
                 mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
                                         entrySize);
                 if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
@@ -652,9 +686,12 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
             }
 
-            if (upsertLedgerEntry(lk, le))
             {
-                createdKeys.insert(lk);
+                ZoneNamedN(upsertZone, "recordStorageChanges: upsertLedgerEntry", true);
+                if (upsertLedgerEntry(lk, le))
+                {
+                    createdKeys.insert(lk);
+                }
             }
         }
 

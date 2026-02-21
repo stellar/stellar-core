@@ -275,6 +275,13 @@ ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
     return mTxState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
 }
 
+void
+ParallelLedgerAccessHelper::upsertLedgerEntryKnownExisting(
+    LedgerKey const& key, LedgerEntry const& entry)
+{
+    mTxState.upsertEntryKnownExisting(key, entry, mLedgerInfo.getLedgerSeq());
+}
+
 bool
 ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 {
@@ -407,25 +414,25 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             // updateWithoutLoading (LIVE) without querying the root LedgerTxn.
             // This avoids the expensive getNewestVersion root lookup that
             // dominated the cost of the old load()-based approach.
-            auto [foundBelowRoot, belowRootEntry] =
-                ltx.getNewestVersionBelowRoot(key);
             bool entryExisted;
-            if (foundBelowRoot)
+            if (InMemorySorobanState::isInMemoryType(key))
             {
-                // Entry is in ltx.mEntry (e.g., classic entry from
-                // preParallelApply). If it has a value, it existed; if nullptr,
-                // it was deleted in ltx.
-                entryExisted = (belowRootEntry != nullptr);
+                // Soroban entries (CONTRACT_DATA, CONTRACT_CODE, TTL) are
+                // never modified by preParallelApply, so they are never in
+                // ltx.mEntry below root. Skip getNewestVersionBelowRoot and
+                // check the in-memory state directly.
+                entryExisted =
+                    (mInMemorySorobanState.get(key) != nullptr);
             }
             else
             {
-                // Entry is not in ltx.mEntry. Check original state.
-                if (InMemorySorobanState::isInMemoryType(key))
+                // Classic entries may be in ltx.mEntry from
+                // preParallelApply, so we need to check below root.
+                auto [foundBelowRoot, belowRootEntry] =
+                    ltx.getNewestVersionBelowRoot(key);
+                if (foundBelowRoot)
                 {
-                    // For Soroban entries (CONTRACT_DATA, CONTRACT_CODE, TTL),
-                    // check the in-memory state for existence.
-                    entryExisted =
-                        (mInMemorySorobanState.get(key) != nullptr);
+                    entryExisted = (belowRootEntry != nullptr);
                 }
                 else
                 {
@@ -962,6 +969,21 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
         le.value().lastModifiedLedgerSeq = ledgerSeq;
     });
     return !liveEntryExistedAlready;
+}
+
+void
+TxParallelApplyLedgerState::upsertEntryKnownExisting(
+    LedgerKey const& key, LedgerEntry const& entry, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    // Skip getLiveEntryOpt — caller guarantees entry already exists in parent
+    // state, so this is always a logical update (not a create).
+    auto [mapEntry, _] =
+        mTxEntryMap.insert_or_assign(key, scopeAdoptEntryOpt(entry));
+    mapEntry->second.modifyInScope(*this, [&](std::optional<LedgerEntry>& le) {
+        releaseAssertOrThrow(le);
+        le.value().lastModifiedLedgerSeq = ledgerSeq;
+    });
 }
 
 bool
