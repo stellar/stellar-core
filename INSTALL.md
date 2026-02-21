@@ -57,7 +57,7 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 
 ## Build Dependencies
 
-- c++ toolchain and headers that supports c++17
+- c++ toolchain and headers that supports c++20
     - `clang` >= 20.0
     - `g++` >= 14.0
 - `pkg-config`

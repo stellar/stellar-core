@@ -4,6 +4,7 @@
 
 #include "util/xdrquery/XDRQueryEval.h"
 #include "fmt/format.h"
+#include "fmt/ranges.h"
 #include "util/xdrquery/XDRQueryError.h"
 
 namespace xdrquery
