@@ -98,17 +98,15 @@ using ThreadParallelApplyEntryMap =
 using TxParallelApplyEntryMap =
     ParallelApplyEntryMap<StaticLedgerEntryScope::TxParApply>;
 
-// Returned by each parallel transaction. It will contain the entries modified
-// by the transaction, the success status of the transaction, and the keys
-// restored.
-class ParallelTxReturnVal
+// Returned by each parallel transaction on success. It will contain the entries
+// modified by the transaction and the keys restored.
+class ParallelTxSuccessVal
     : public LedgerEntryScope<StaticLedgerEntryScope::TxParApply>
 {
   public:
-    ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
-                        ScopeIdT txScopeID)
+    ParallelTxSuccessVal(TxModifiedEntryMap&& modifiedEntryMap,
+                         ScopeIdT txScopeID)
         : LedgerEntryScope(txScopeID)
-        , mSuccess(success)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
     {
         // The ModifiedEntryMap should not be used for reading entries, only
@@ -117,21 +115,15 @@ class ParallelTxReturnVal
         // prevent accidental reads.
         scopeDeactivate();
     }
-    ParallelTxReturnVal(bool success, TxModifiedEntryMap&& modifiedEntryMap,
-                        RestoredEntries&& restoredEntries, ScopeIdT txScopeID)
+    ParallelTxSuccessVal(TxModifiedEntryMap&& modifiedEntryMap,
+                         RestoredEntries&& restoredEntries, ScopeIdT txScopeID)
         : LedgerEntryScope(txScopeID)
-        , mSuccess(success)
         , mModifiedEntryMap(std::move(modifiedEntryMap))
         , mRestoredEntries(std::move(restoredEntries))
     {
         scopeDeactivate();
     }
 
-    bool
-    getSuccess() const
-    {
-        return mSuccess;
-    }
     TxModifiedEntryMap const&
     getModifiedEntryMap() const
     {
@@ -146,7 +138,6 @@ class ParallelTxReturnVal
     friend class TxParallelApplyLedgerState;
 
   private:
-    bool mSuccess;
     // This will contain a key for every entry modified by a transaction
     TxModifiedEntryMap mModifiedEntryMap;
     RestoredEntries mRestoredEntries;
@@ -171,7 +162,10 @@ class TransactionFrameBase
                      MutableTransactionResultBase& txResult,
                      SorobanNetworkConfig const& sorobanConfig) const = 0;
 
-    virtual ParallelTxReturnVal parallelApply(
+    // If the transaction fails during parallel apply, returns std::nullopt.
+    // Otherwise returns a ParallelTxSuccessVal containing the modified entries
+    // and restored keys.
+    virtual std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,
         MutableTransactionResultBase& resPayload,

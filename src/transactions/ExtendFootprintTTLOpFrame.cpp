@@ -253,20 +253,14 @@ class ExtendFootprintTTLParallelApplyHelper
         return true;
     }
 
-    ParallelTxReturnVal
-    takeSuccess()
+    std::optional<ParallelTxSuccessVal>
+    takeResult(bool success)
     {
-        return mTxState.takeSuccess();
-    }
-
-    ParallelTxReturnVal
-    takeFailure()
-    {
-        return mTxState.takeFailure();
+        return mTxState.takeResult(success);
     }
 };
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 ExtendFootprintTTLOpFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& _txPrngSeed,
@@ -281,14 +275,7 @@ ExtendFootprintTTLOpFrame::doParallelApply(
                                   PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION));
     ExtendFootprintTTLParallelApplyHelper helper(
         app, threadState, ledgerInfo, res, refundableFeeTracker, opMeta, *this);
-    if (helper.apply())
-    {
-        return helper.takeSuccess();
-    }
-    else
-    {
-        return helper.takeFailure();
-    }
+    return helper.takeResult(helper.apply());
 }
 
 bool

@@ -26,7 +26,7 @@ class OperationMetaBuilder
     // thread state and return value maps to track entry changes.
     void setLedgerChangesFromSuccessfulOp(
         ThreadParallelApplyLedgerState const& threadState,
-        ParallelTxReturnVal const& res, uint32_t ledgerSeq);
+        ParallelTxSuccessVal const& res, uint32_t ledgerSeq);
 
     // Sets the return value for a Soroban operation.
     void setSorobanReturnValue(SCVal const& val);
