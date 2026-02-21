@@ -70,8 +70,7 @@ computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
     return minFee;
 }
 
-SurgePricingPriorityQueue::TxComparator::TxComparator(bool isGreater,
-                                                      size_t _seed)
+TxFeeComparator::TxFeeComparator(bool isGreater, size_t _seed)
     : mIsGreater(isGreater)
 #ifndef BUILD_TESTS
     , mSeed(_seed)
@@ -80,47 +79,43 @@ SurgePricingPriorityQueue::TxComparator::TxComparator(bool isGreater,
 }
 
 bool
-SurgePricingPriorityQueue::TxComparator::operator()(
-    TransactionFrameBasePtr const& tx1,
-    TransactionFrameBasePtr const& tx2) const
+TxFeeComparator::operator()(TransactionFrameBasePtr const& tx1,
+                            TransactionFrameBasePtr const& tx2) const
 {
-    return txLessThan(tx1, tx2) ^ mIsGreater;
+    return txLessThan(tx1, tx2);
 }
 
 bool
-SurgePricingPriorityQueue::TxComparator::compareFeeOnly(
-    TransactionFrameBase const& tx1, TransactionFrameBase const& tx2) const
+TxFeeComparator::compareFeeOnly(TransactionFrameBase const& tx1,
+                                TransactionFrameBase const& tx2) const
 {
     return compareFeeOnly(tx1.getInclusionFee(), tx1.getNumOperations(),
                           tx2.getInclusionFee(), tx2.getNumOperations());
 }
 
 bool
-SurgePricingPriorityQueue::TxComparator::compareFeeOnly(int64_t tx1Bid,
-                                                        uint32_t tx1Ops,
-                                                        int64_t tx2Bid,
-                                                        uint32_t tx2Ops) const
+TxFeeComparator::compareFeeOnly(int64_t tx1Bid, uint32_t tx1Ops, int64_t tx2Bid,
+                                uint32_t tx2Ops) const
 {
     bool isLess = feeRate3WayCompare(tx1Bid, tx1Ops, tx2Bid, tx2Ops) < 0;
     return isLess ^ mIsGreater;
 }
 
 bool
-SurgePricingPriorityQueue::TxComparator::isGreater() const
+TxFeeComparator::isGreater() const
 {
     return mIsGreater;
 }
 
 bool
-SurgePricingPriorityQueue::TxComparator::txLessThan(
-    TransactionFrameBasePtr const& tx1,
-    TransactionFrameBasePtr const& tx2) const
+TxFeeComparator::txLessThan(TransactionFrameBasePtr const& tx1,
+                            TransactionFrameBasePtr const& tx2) const
 {
     auto cmp3 = feeRate3WayCompare(*tx1, *tx2);
 
     if (cmp3 != 0)
     {
-        return cmp3 < 0;
+        return mIsGreater ? cmp3 > 0 : cmp3 < 0;
     }
 #ifndef BUILD_TESTS
     // break tie with pointer arithmetic
@@ -132,7 +127,7 @@ SurgePricingPriorityQueue::TxComparator::txLessThan(
     auto lx = tx1->getFullHash();
     auto rx = tx2->getFullHash();
 #endif
-    return lx < rx;
+    return mIsGreater ? rx < lx : lx < rx;
 }
 
 SurgePricingPriorityQueue::SurgePricingPriorityQueue(
