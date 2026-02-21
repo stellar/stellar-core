@@ -99,7 +99,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
         has.serialize(ar);
     }
 
-    // Immediately produce a final checkpoint JSON (suitable for confirmed
+    // Immediately produce a final checkpoint file (suitable for confirmed
     // ledgers)
     if (finalize)
     {
@@ -113,7 +113,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
     {
         auto out = HistoryManager::publishQueuePath(app.getConfig()) /
                    publishQueueTmpFileName(has.currentLedger);
-        // Otherwise, white a temporary durable file, to be finalized once
+        // Otherwise, write a temporary durable file, to be finalized once
         // has.currentLedger is actually committed
         fs::durableRename(
             tmpOut.string(), out.string(),
