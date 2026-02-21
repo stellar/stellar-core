@@ -1674,18 +1674,19 @@ LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
     return mRestoredEntries.liveBucketList;
 }
 
-LedgerKeySet
+UnorderedSet<LedgerKey>
 LedgerTxn::getAllKeysWithoutSealing() const
 {
     return getImpl()->getAllKeysWithoutSealing();
 }
 
-LedgerKeySet
+UnorderedSet<LedgerKey>
 LedgerTxn::Impl::getAllKeysWithoutSealing() const
 {
     abortIfWrongThread("getAllKeysWithoutSealing");
     throwIfNotExactConsistency();
-    LedgerKeySet result;
+    UnorderedSet<LedgerKey> result;
+    result.reserve(mEntry.size());
     // Subtle: mEntry contains only *modified* entries in this LedgerTxn.
     // Callers rely on this — for example, to enforce that expired entries
     // (which cannot be modified) are never present here.

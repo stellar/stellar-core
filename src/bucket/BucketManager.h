@@ -11,7 +11,9 @@
 #include "util/ThreadAnnotations.h"
 #include "util/TmpDir.h"
 #include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include "util/types.h"
+#include <ledger/LedgerHashUtils.h>
 #include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
@@ -352,7 +354,7 @@ class BucketManager : NonMovableOrCopyable
     EvictedStateVectors
     resolveBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
                                   AbstractLedgerTxn& ltx,
-                                  LedgerKeySet const& modifiedKeys);
+                                  UnorderedSet<LedgerKey> const& modifiedKeys);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;

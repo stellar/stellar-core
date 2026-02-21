@@ -196,7 +196,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 // LedgerManagerForBucketTests does not modify entries via the
                 // ltx subsystem, so replicate the behavior of
                 // ltx.getAllTTLKeysWithoutSealing() here
-                LedgerKeySet keys;
+                UnorderedSet<LedgerKey> keys;
                 for (auto const& le : mTestInitEntries)
                 {
                     if (le.data.type() == TTL)

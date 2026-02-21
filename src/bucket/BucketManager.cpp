@@ -1194,7 +1194,7 @@ BucketManager::startBackgroundEvictionScan(
 EvictedStateVectors
 BucketManager::resolveBackgroundEvictionScan(
     SearchableSnapshotConstPtr lclSnapshot, AbstractLedgerTxn& ltx,
-    LedgerKeySet const& modifiedKeys)
+    UnorderedSet<LedgerKey> const& modifiedKeys)
 {
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
