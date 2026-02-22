@@ -192,6 +192,11 @@ class HerderImpl : public Herder
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
 
+    void
+    setFilteredAccounts(std::vector<std::string> const& addresses) override;
+
+    std::vector<std::string> getFilteredAccounts() const override;
+
     void forceSCPStateIntoSyncWithLastClosedLedger() override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;

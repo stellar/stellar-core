@@ -162,6 +162,9 @@ class TransactionQueue
     TxFrameList getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
 
+    void setFilteredAccounts(UnorderedSet<AccountID> const& accounts);
+    UnorderedSet<AccountID> const& getFilteredAccounts() const;
+
     virtual size_t getMaxQueueSizeOps() const = 0;
 
 #ifdef BUILD_TESTS

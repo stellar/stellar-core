@@ -72,6 +72,7 @@ class CommandHandler
     void tx(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
+    void banaccounts(std::string const& params, std::string& retStr);
     void dumpProposedSettings(std::string const& params, std::string& retStr);
     void surveyTopology(std::string const&, std::string& retStr);
     void stopSurvey(std::string const&, std::string& retStr);
