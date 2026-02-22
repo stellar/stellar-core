@@ -1529,8 +1529,24 @@ TransactionFrame::processSignatures(
     if (auto code = txResult.getInnermostResultCode();
         code == txSUCCESS || code == txFAILED)
     {
-        LedgerSnapshot ls(ltxOuter);
-        allOpsValid = checkOperationSignatures(signatureChecker, ls, &txResult);
+        // For Soroban TXs with a single operation that uses the TX source
+        // account, checkOperationSignatures is redundant:
+        // - commonValid already called checkAllTransactionSignatures which
+        //   verified the TX source's signature and marked it in
+        //   signatureChecker.
+        // - The operation uses the same source account, so the same signers
+        //   and signature would be checked again.
+        // - All matching signatures are already marked as "used" in
+        //   signatureChecker, so checkAllSignaturesUsed will still pass.
+        // Skip it to avoid an expensive LedgerSnapshot creation + account
+        // load (~1.2us/TX).
+        if (!isSoroban() || mOperations.size() != 1 ||
+            mOperations[0]->getOperation().sourceAccount)
+        {
+            LedgerSnapshot ls(ltxOuter);
+            allOpsValid =
+                checkOperationSignatures(signatureChecker, ls, &txResult);
+        }
     }
 
     removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
