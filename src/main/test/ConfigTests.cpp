@@ -570,6 +570,85 @@ TEST_CASE("operation filter configuration", "[config]")
     }
 }
 
+TEST_CASE("FILTERED_G_ADDRESSES configuration", "[config]")
+{
+    auto makeQuorumConfig = []() {
+        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
+        auto secretKey = SecretKey::fromSeed(hash);
+        std::stringstream ss;
+        ss << "UNSAFE_QUORUM=true\n";
+        ss << "[QUORUM_SET]\n";
+        ss << "THRESHOLD_PERCENT=100\n";
+        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
+        return ss;
+    };
+
+    SECTION("defaults are set when not configured")
+    {
+        auto ss = makeQuorumConfig();
+        Config c;
+        c.load(ss);
+        REQUIRE(c.FILTERED_G_ADDRESSES.size() == 3);
+        REQUIRE(c.FILTERED_G_ADDRESSES[0] ==
+                "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC");
+    }
+
+    SECTION("user config overrides defaults")
+    {
+        auto key1 = SecretKey::pseudoRandomForTesting();
+        auto key2 = SecretKey::pseudoRandomForTesting();
+        auto addr1 = KeyUtils::toStrKey(key1.getPublicKey());
+        auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
+
+        std::stringstream ss;
+        ss << "UNSAFE_QUORUM=true\n";
+        ss << "FILTERED_G_ADDRESSES=[\"" << addr1 << "\", \"" << addr2
+           << "\"]\n";
+        ss << "[QUORUM_SET]\n";
+        ss << "THRESHOLD_PERCENT=100\n";
+        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
+        auto secretKey = SecretKey::fromSeed(hash);
+        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
+
+        Config c;
+        c.load(ss);
+        REQUIRE(c.FILTERED_G_ADDRESSES.size() == 2);
+        REQUIRE(c.FILTERED_G_ADDRESSES[0] == addr1);
+        REQUIRE(c.FILTERED_G_ADDRESSES[1] == addr2);
+    }
+
+    SECTION("empty list overrides defaults")
+    {
+        std::stringstream ss;
+        ss << "UNSAFE_QUORUM=true\n";
+        ss << "FILTERED_G_ADDRESSES=[]\n";
+        ss << "[QUORUM_SET]\n";
+        ss << "THRESHOLD_PERCENT=100\n";
+        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
+        auto secretKey = SecretKey::fromSeed(hash);
+        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
+
+        Config c;
+        c.load(ss);
+        REQUIRE(c.FILTERED_G_ADDRESSES.empty());
+    }
+
+    SECTION("invalid G address is rejected")
+    {
+        std::stringstream ss;
+        ss << "UNSAFE_QUORUM=true\n";
+        ss << "FILTERED_G_ADDRESSES=[\"NOT_A_VALID_ADDRESS\"]\n";
+        ss << "[QUORUM_SET]\n";
+        ss << "THRESHOLD_PERCENT=100\n";
+        auto hash = sha256(fmt::format("NODE_SEED_{}", 0));
+        auto secretKey = SecretKey::fromSeed(hash);
+        ss << "VALIDATORS=[\"" << secretKey.getStrKeyPublic() << " A\"]\n";
+
+        Config c;
+        REQUIRE_THROWS(c.load(ss));
+    }
+}
+
 // Test that the config loader rejects validator configs with all validators
 // marked low quality (including 'self').
 TEST_CASE("reject all low quality validators config", "[config]")

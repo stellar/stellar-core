@@ -118,6 +118,18 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
 
+void
+TransactionQueue::setFilteredAccounts(UnorderedSet<AccountID> const& accounts)
+{
+    mFilteredAccounts = accounts;
+}
+
+UnorderedSet<AccountID> const&
+TransactionQueue::getFilteredAccounts() const
+{
+    return mFilteredAccounts;
+}
+
 ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
                                                  uint32 pendingDepth,
                                                  uint32 banDepth,
