@@ -192,6 +192,7 @@ class TransactionQueue
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
     UnorderedSet<LedgerKey> mKeysToFilter;
+    UnorderedSet<AccountID> mFilteredAccounts;
 
     // counters
     struct QueueMetrics
@@ -203,7 +204,8 @@ class TransactionQueue
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
                      medida::Counter& txsNotAcceptedDueToLowFeeCounter,
-                     medida::Counter& txsFilteredDueToFpKeys)
+                     medida::Counter& txsFilteredDueToFpKeys,
+                     medida::Counter& txsFilteredDueToAccountKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelay(transactionsDelay)
@@ -213,6 +215,7 @@ class TransactionQueue
             , mTxsNotAcceptedDueToLowFeeCounter(
                   txsNotAcceptedDueToLowFeeCounter)
             , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
+            , mTxsFilteredDueToAccountKeys(txsFilteredDueToAccountKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -238,6 +241,7 @@ class TransactionQueue
         medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
 
         medida::Counter& mTxsFilteredDueToFootprintKeys;
+        medida::Counter& mTxsFilteredDueToAccountKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;

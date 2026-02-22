@@ -487,6 +487,24 @@ FeeBumpTransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
+FeeBumpTransactionFrame::validateAccountFilterForFlooding(
+    UnorderedSet<AccountID> const& filteredAccounts) const
+{
+    if (filteredAccounts.empty())
+    {
+        return true;
+    }
+
+    // Check fee-bump fee source account
+    if (filteredAccounts.find(getFeeSourceID()) != filteredAccounts.end())
+    {
+        return false;
+    }
+
+    return mInnerTx->validateAccountFilterForFlooding(filteredAccounts);
+}
+
+bool
 FeeBumpTransactionFrame::validateSorobanMemo() const
 {
     return mInnerTx->validateSorobanMemo();
