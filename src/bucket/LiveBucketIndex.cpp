@@ -102,7 +102,7 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
     }
 
     // Cache is already initialized
-    if (std::shared_lock<std::shared_mutex> lock(mCacheMutex); mCache)
+    if (SharedLockShared lock(mCacheMutex); mCache)
     {
         return;
     }
@@ -123,7 +123,7 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
         return;
     }
 
-    std::unique_lock<std::shared_mutex> lock(mCacheMutex);
+    SharedLockExclusive lock(mCacheMutex);
     if (totalBucketListAccountsSizeBytes < maxBucketListBytesToCache)
     {
         // We can cache the entire bucket
@@ -202,7 +202,7 @@ LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
 {
     if (shouldUseCache() && isCachedType(k))
     {
-        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        SharedLockShared lock(mCacheMutex);
         auto cachePtr = mCache->maybeGet(k);
         if (cachePtr)
         {
@@ -323,7 +323,7 @@ LiveBucketIndex::shouldUseCache() const
 {
     if (mDiskIndex)
     {
-        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        SharedLockShared lock(mCacheMutex);
         return mCache != nullptr;
     }
 
@@ -353,7 +353,7 @@ LiveBucketIndex::maybeAddToCache(
         // earlier.
         mCacheMissMeter.Mark();
 
-        std::unique_lock<std::shared_mutex> lock(mCacheMutex);
+        SharedLockExclusive lock(mCacheMutex);
         mCache->put(k, entry);
     }
 }
@@ -392,7 +392,7 @@ LiveBucketIndex::getMaxCacheSize() const
 {
     if (shouldUseCache())
     {
-        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        SharedLockShared lock(mCacheMutex);
         return mCache->maxSize();
     }
 
@@ -405,7 +405,7 @@ LiveBucketIndex::getCurrentCacheSize() const
 {
     if (shouldUseCache())
     {
-        std::shared_lock<std::shared_mutex> lock(mCacheMutex);
+        SharedLockShared lock(mCacheMutex);
         return mCache->size();
     }
 

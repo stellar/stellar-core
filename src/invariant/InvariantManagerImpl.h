@@ -37,7 +37,7 @@ class InvariantManagerImpl : public InvariantManager
         std::string lastFailedWithMessage;
     };
 
-    Mutex mutable mFailureInformationMutex;
+    ANNOTATED_MUTEX(mFailureInformationMutex);
     std::map<std::string, InvariantFailureInformation>
         mFailureInformation GUARDED_BY(mFailureInformationMutex);
 

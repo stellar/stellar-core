@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <list>
@@ -183,7 +184,7 @@ class Scheduler
     // or run.
     size_t mSize{0};
 
-    bool mIsShutdown{false};
+    std::atomic<bool> mIsShutdown{false};
 
     void trimSingleActionQueue(Qptr q,
                                std::chrono::steady_clock::time_point now);

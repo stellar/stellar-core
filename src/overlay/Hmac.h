@@ -11,17 +11,23 @@
 
 using namespace stellar;
 
+namespace stellar
+{
+class Peer;
+}
+
 class Hmac
 {
-#ifndef USE_TRACY
-    Mutex mMutex;
-#else
-    TracyLockable(std::mutex, mMutex);
+#ifdef THREAD_SAFETY
+    // Make the peer class a friend for thread safety analysis
+    friend class stellar::Peer;
 #endif
-    HmacSha256Key mSendMacKey;
-    HmacSha256Key mRecvMacKey;
-    uint64_t mSendMacSeq{0};
-    uint64_t mRecvMacSeq{0};
+
+    ANNOTATED_MUTEX(mMutex);
+    HmacSha256Key mSendMacKey GUARDED_BY(mMutex);
+    HmacSha256Key mRecvMacKey GUARDED_BY(mMutex);
+    uint64_t mSendMacSeq GUARDED_BY(mMutex){0};
+    uint64_t mRecvMacSeq GUARDED_BY(mMutex){0};
 
   public:
     bool setSendMackey(HmacSha256Key const& key);

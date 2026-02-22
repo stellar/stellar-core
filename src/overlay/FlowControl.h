@@ -67,7 +67,7 @@ class FlowControl
     size_t mTxQueueByteCount GUARDED_BY(mFlowControlMutex){0};
 
     // Mutex to synchronize flow control state
-    Mutex mutable mFlowControlMutex;
+    mutable ANNOTATED_MUTEX(mFlowControlMutex);
     // Is this peer currently throttled due to lack of capacity
     std::optional<VirtualClock::time_point>
         mLastThrottle GUARDED_BY(mFlowControlMutex);
