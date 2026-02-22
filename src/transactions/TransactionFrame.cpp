@@ -311,6 +311,49 @@ TransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
+TransactionFrame::validateAccountFilterForFlooding(
+    UnorderedSet<AccountID> const& filteredAccounts) const
+{
+    if (filteredAccounts.empty())
+    {
+        return true;
+    }
+
+    // Check transaction source account
+    if (filteredAccounts.find(getSourceID()) != filteredAccounts.end())
+    {
+        return false;
+    }
+
+    // Check operation source accounts
+    for (auto const& op : mOperations)
+    {
+        if (filteredAccounts.find(op->getSourceID()) != filteredAccounts.end())
+        {
+            return false;
+        }
+    }
+
+    // For Soroban txs, check ACCOUNT-type entries in write footprint
+    if (isSoroban() && mEnvelope.type() == ENVELOPE_TYPE_TX &&
+        mEnvelope.v1().tx.ext.v() == 1)
+    {
+        auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
+        for (auto const& key : sorobanData.resources.footprint.readWrite)
+        {
+            if (key.type() == ACCOUNT &&
+                filteredAccounts.find(key.account().accountID) !=
+                    filteredAccounts.end())
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool
 TransactionFrame::validateHostFn() const
 {
     if (!isSoroban())
