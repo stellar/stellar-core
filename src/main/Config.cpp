@@ -351,6 +351,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
 
+    FILTERED_G_ADDRESSES = {
+        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH",
+        "GC2XJKN5VZEMM35F5LRSUP5CWVDZJVM37YKR7UYYXGN3TGKZXMP5FZIB",
+        "GCQCWEQDICASV3R737LPWPDJ3FPBC6XPWXKPJDL22DLQVGOJAUH5DBJI"};
+
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
@@ -1511,6 +1517,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
                          readXdrEnumArray<OperationType>(item);
+                 }},
+                {"FILTERED_G_ADDRESSES",
+                 [&]() {
+                     FILTERED_G_ADDRESSES = readArray<std::string>(item);
+                     for (auto const& addr : FILTERED_G_ADDRESSES)
+                     {
+                         KeyUtils::fromStrKey<PublicKey>(addr);
+                     }
                  }},
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
                  [&]() {

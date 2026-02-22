@@ -4,6 +4,7 @@
 
 #include "herder/TransactionQueue.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
@@ -107,6 +108,12 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
+
+    for (auto const& addr : app.getConfig().FILTERED_G_ADDRESSES)
+    {
+        mFilteredAccounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
+    }
+
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
@@ -140,7 +147,9 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -325,6 +334,11 @@ TransactionQueue::canAdd(
     if (!tx->validateSorobanTxForFlooding(mKeysToFilter))
     {
         mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+    if (!tx->validateAccountFilterForFlooding(mFilteredAccounts))
+    {
+        mQueueMetrics->mTxsFilteredDueToAccountKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
@@ -1097,7 +1111,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
                                      "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     mKeysToFilter = keysToFilter;
 }
