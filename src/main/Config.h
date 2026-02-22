@@ -926,6 +926,11 @@ class Config : public std::enable_shared_from_this<Config>
     // contains an operation in this list.
     std::vector<OperationType> EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
 
+    // Any transaction that reaches the TransactionQueue will be rejected if
+    // its source account, any operation source account, or (for Soroban txs)
+    // any ACCOUNT-type write footprint entry matches an address in this list.
+    std::vector<std::string> FILTERED_G_ADDRESSES;
+
     Config();
 
     void load(std::string const& filename);
