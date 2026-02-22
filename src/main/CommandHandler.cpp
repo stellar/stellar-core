@@ -43,6 +43,7 @@
 #include "test/TxTests.h"
 #endif
 #include <optional>
+#include <sstream>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -123,6 +124,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("banaccounts", &CommandHandler::banaccounts);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
@@ -665,6 +667,65 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     {
         retStr = fmt::format(FMT_STRING("Unknown mode: {}"), s);
     }
+}
+
+void
+CommandHandler::banaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        // parseParams drops empty values, so check the raw params to
+        // distinguish "not specified" (list) from "empty value" (clear).
+        if (params.find("accountids") != std::string::npos)
+        {
+            mApp.getHerder().setFilteredAccounts({});
+            retStr = R"({"status": "filtered accounts cleared"})";
+            return;
+        }
+
+        // No accountids param at all: list current filtered accounts
+        auto accounts = mApp.getHerder().getFilteredAccounts();
+        Json::Value root;
+        root["filteredAccounts"] = Json::arrayValue;
+        for (auto const& addr : accounts)
+        {
+            root["filteredAccounts"].append(addr);
+        }
+        retStr = root.toStyledString();
+        return;
+    }
+
+    std::vector<std::string> addresses;
+    std::istringstream iss(it->second);
+    std::string addr;
+    while (std::getline(iss, addr, ','))
+    {
+        if (addr.empty())
+        {
+            continue;
+        }
+        try
+        {
+            KeyUtils::fromStrKey<PublicKey>(addr);
+        }
+        catch (std::exception const&)
+        {
+            retStr = fmt::format(
+                FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
+            return;
+        }
+        addresses.push_back(addr);
+    }
+
+    mApp.getHerder().setFilteredAccounts(addresses);
+    retStr = fmt::format(
+        FMT_STRING(R"({{"status": "filtered accounts updated", "count": {}}})"),
+        addresses.size());
 }
 
 void
