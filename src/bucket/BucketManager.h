@@ -101,7 +101,7 @@ class BucketManager : NonMovableOrCopyable
     // mLedgerStateMutex to prevent deadlocks. Code must NOT hold mBucketMutex
     // while trying to acquire LedgerManagerImpl::mLedgerStateMutex, as this
     // will cause a deadlock.
-    mutable RecursiveMutex mBucketMutex;
+    mutable ANNOTATED_RECURSIVE_MUTEX(mBucketMutex);
 
 #ifdef THREAD_SAFETY
   private:

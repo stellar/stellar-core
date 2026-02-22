@@ -296,11 +296,8 @@ class LedgerManagerImpl : public LedgerManager
     VirtualClock::time_point mLastClose;
 
     // Use mutex to guard ledger state during apply
-    mutable RecursiveMutex mLedgerStateMutex
-#ifdef THREAD_SAFETY
-        ACQUIRED_BEFORE(BucketManager::mBucketMutex)
-#endif
-            ;
+    ANNOTATED_RECURSIVE_MUTEX(mLedgerStateMutex,
+                              ACQUIRED_BEFORE(BucketManager::mBucketMutex));
 
     medida::Timer& mCatchupDuration;
 
@@ -564,6 +561,7 @@ class LedgerManagerImpl : public LedgerManager
     virtual bool
     isApplying() const override
     {
+        releaseAssert(threadIsMain());
         return mCurrentlyApplyingLedger;
     }
     void markApplyStateReset() override;

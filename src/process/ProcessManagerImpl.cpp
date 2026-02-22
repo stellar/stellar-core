@@ -197,7 +197,7 @@ class ProcessExitEvent::Impl
 size_t
 ProcessManagerImpl::getNumRunningProcesses()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     size_t n = 0;
     for (auto const& pe : mProcesses)
     {
@@ -212,7 +212,7 @@ ProcessManagerImpl::getNumRunningProcesses()
 size_t
 ProcessManagerImpl::getNumRunningOrShuttingDownProcesses()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     return mProcesses.size();
 }
 
@@ -262,7 +262,7 @@ ProcessManagerImpl::isShutdown() const
 void
 ProcessManagerImpl::shutdown()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     if (!mIsShutdown)
     {
         mIsShutdown = true;
@@ -281,7 +281,7 @@ ProcessManagerImpl::shutdown()
 void
 ProcessManagerImpl::tryProcessShutdownAll()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     for (auto const& pe : mProcesses)
     {
         tryProcessShutdown(pe.second);
@@ -292,7 +292,7 @@ bool
 ProcessManagerImpl::tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     checkInvariants();
 
     if (!pe)
@@ -364,7 +364,7 @@ asio::error_code
 ProcessManagerImpl::handleProcessTermination(int pid, int status)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     checkInvariants();
 
     auto pair = mProcesses.find(pid);
@@ -668,14 +668,14 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     , mTmpDir(
           std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("process")))
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     startWaitingForSignalChild();
 }
 
 void
 ProcessManagerImpl::startWaitingForSignalChild()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     mSigChild.async_wait(
         std::bind(&ProcessManagerImpl::handleSignalChild, this));
 }
@@ -696,7 +696,7 @@ ProcessManagerImpl::reapChildren()
 {
     // Store tuples (pid, status)
     std::vector<std::tuple<int, int>> signaledChildren;
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     for (auto const& pair : mProcesses)
     {
         int const pid = pair.first;
@@ -840,7 +840,7 @@ std::weak_ptr<ProcessExitEvent>
 ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     auto pe =
         std::shared_ptr<ProcessExitEvent>(new ProcessExitEvent(mIOContext));
 
@@ -867,7 +867,7 @@ ProcessManagerImpl::maybeRunPendingProcesses()
     {
         return;
     }
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     while (!mPending.empty() &&
            getNumRunningOrShuttingDownProcesses() < mMaxProcesses)
     {
@@ -905,7 +905,7 @@ ProcessManagerImpl::maybeRunPendingProcesses()
 void
 ProcessManagerImpl::checkInvariants()
 {
-    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    RECURSIVE_LOCK_GUARD(mProcessesMutex, guard);
     if (mIsShutdown)
     {
         releaseAssertOrThrow(mPending.empty());
