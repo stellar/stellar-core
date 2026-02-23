@@ -428,8 +428,13 @@ fn invoke_host_function_or_maybe_panic(
             if cached_cpu.as_slice() == cpu_params_bytes
                 && cached_mem.as_slice() == mem_params_bytes
             {
-                super::reset_budget_for_new_tx(cached_budget, cpu_limit, mem_limit);
-                return Ok(cached_budget.clone());
+                // reset_budget_for_new_tx returns true if the budget was
+                // actually reset (p25+). For older protocols that don't
+                // support reset, we must create a fresh budget to avoid
+                // accumulating charges across transactions.
+                if super::reset_budget_for_new_tx(cached_budget, cpu_limit, mem_limit) {
+                    return Ok(cached_budget.clone());
+                }
             }
         }
         let budget = Budget::try_from_configs(

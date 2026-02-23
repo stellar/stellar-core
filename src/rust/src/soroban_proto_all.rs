@@ -93,8 +93,10 @@ pub(crate) mod p26 {
     }
 
     #[allow(unused_variables)]
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
-        // No-op: reset_for_new_tx not available in upstream p26 env
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
+        // reset_for_new_tx not available in upstream p26 env; return false to
+        // signal that the caller must create a fresh Budget instead.
+        false
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -252,8 +254,9 @@ pub(crate) mod p25 {
         v.interface.protocol
     }
 
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
         budget.reset_for_new_tx(cpu_limit, mem_limit);
+        true
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -412,8 +415,10 @@ pub(crate) mod p24 {
     }
 
     #[allow(unused_variables)]
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
-        // No-op: reset_for_new_tx not available before p25
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
+        // reset_for_new_tx not available before p25; return false to
+        // signal that the caller must create a fresh Budget instead.
+        false
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -572,8 +577,10 @@ pub(crate) mod p23 {
     }
 
     #[allow(unused_variables)]
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
-        // No-op: reset_for_new_tx not available before p25
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
+        // reset_for_new_tx not available before p25; return false to
+        // signal that the caller must create a fresh Budget instead.
+        false
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -771,8 +778,10 @@ pub(crate) mod p22 {
     }
 
     #[allow(unused_variables)]
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
-        // No-op: reset_for_new_tx not available before p25
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
+        // reset_for_new_tx not available before p25; return false to
+        // signal that the caller must create a fresh Budget instead.
+        false
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -965,8 +974,10 @@ pub(crate) mod p21 {
     }
 
     #[allow(unused_variables)]
-    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
-        // No-op: reset_for_new_tx not available before p25
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) -> bool {
+        // reset_for_new_tx not available before p25; return false to
+        // signal that the caller must create a fresh Budget instead.
+        false
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<

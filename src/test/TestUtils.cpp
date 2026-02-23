@@ -302,7 +302,7 @@ prepareSorobanNetworkConfigUpgrade(
     auto root = app.getRoot();
 
     auto closeWithTx = [&](TransactionFrameBaseConstPtr tx) {
-        auto res = txtest::closeLedgerOn(
+        txtest::closeLedgerOn(
             app, app.getLedgerManager().getLastClosedLedgerNum() + 1, 2, 1,
             2016, {tx});
         root->loadSequenceNumber();

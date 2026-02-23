@@ -593,6 +593,11 @@ GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps(
                     uint32_t const& newTTL = ttl(newLe);
                     uint32_t& oldTTL = ttl(oldLe);
                     oldTTL = std::max(oldTTL, newTTL);
+                    // Propagate lastModifiedLedgerSeq from the thread's
+                    // entry. This is necessary when the old entry was
+                    // pre-loaded with a stale lastModifiedLedgerSeq.
+                    oldLe.value().lastModifiedLedgerSeq =
+                        newLe.value().lastModifiedLedgerSeq;
                     merged = true;
                 }
             }
@@ -621,6 +626,14 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
             bool oldIsNew = it->second.mIsNew;
             it->second = rescopedParEntry;
             it->second.mIsNew = oldIsNew;
+        }
+        else
+        {
+            // The merge modified the entry value in-place. Mark it dirty
+            // so commitChangesToLedgerTxn writes it. This is necessary
+            // when the entry was pre-loaded (with mIsDirty=false) by the
+            // Soroban RO entry pre-loading in the constructor.
+            it->second.mIsDirty = true;
         }
     }
 }

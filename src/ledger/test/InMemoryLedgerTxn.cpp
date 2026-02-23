@@ -249,10 +249,26 @@ InMemoryLedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 }
 
 void
+InMemoryLedgerTxn::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    auto key = entry.toKey();
+    LedgerTxn::createWithoutLoading(std::move(entry));
+    updateLedgerKeyMap(key, true);
+}
+
+void
 InMemoryLedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
     LedgerTxn::updateWithoutLoading(entry);
     updateLedgerKeyMap(entry.toKey(), true);
+}
+
+void
+InMemoryLedgerTxn::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    auto key = entry.toKey();
+    LedgerTxn::updateWithoutLoading(std::move(entry));
+    updateLedgerKeyMap(key, true);
 }
 
 void
