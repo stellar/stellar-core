@@ -222,7 +222,7 @@ class TransactionFrameBase
     virtual bool validateSorobanTxForFlooding(
         UnorderedSet<LedgerKey> const& keysToFilter) const = 0;
     virtual bool validateAccountFilterForFlooding(
-        UnorderedSet<AccountID> const& filteredAccounts) const = 0;
+        std::set<AccountID> const& filteredAccounts) const = 0;
     virtual bool validateSorobanMemo() const = 0;
     virtual bool validateHostFn() const = 0;
 

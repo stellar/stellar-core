@@ -313,7 +313,7 @@ TransactionFrame::validateSorobanTxForFlooding(
 
 bool
 TransactionFrame::validateAccountFilterForFlooding(
-    UnorderedSet<AccountID> const& filteredAccounts) const
+    std::set<AccountID> const& filteredAccounts) const
 {
     if (filteredAccounts.empty())
     {
