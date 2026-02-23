@@ -14,6 +14,7 @@
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/QueryServer.h"
 #include "overlay/BanManager.h"
@@ -120,6 +121,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("banaccounts", &CommandHandler::banaccounts);
+    addRoute("unbanaccounts", &CommandHandler::unbanaccounts);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
@@ -686,6 +688,8 @@ CommandHandler::banaccounts(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
     auto it = retMap.find("accountids");
     if (it == retMap.end())
     {
@@ -693,18 +697,19 @@ CommandHandler::banaccounts(std::string const& params, std::string& retStr)
         // distinguish "not specified" (list) from "empty value" (clear).
         if (params.find("accountids") != std::string::npos)
         {
-            mApp.getHerder().setFilteredAccounts({});
-            retStr = R"({"status": "filtered accounts cleared"})";
+            persistor.clearBannedAccounts();
+            mApp.getHerder().setFilteredAccounts(persistor.getBannedAccounts());
+            retStr = R"({"status": "banned accounts cleared"})";
             return;
         }
 
-        // No accountids param at all: list current filtered accounts
-        auto accounts = mApp.getHerder().getFilteredAccounts();
+        // No accountids param at all: list current banned accounts
+        auto accounts = persistor.getBannedAccountStrKeys();
         Json::Value root;
-        root["filteredAccounts"] = Json::arrayValue;
+        root["bannedAccounts"] = Json::arrayValue;
         for (auto const& addr : accounts)
         {
-            root["filteredAccounts"].append(addr);
+            root["bannedAccounts"].append(addr);
         }
         retStr = root.toStyledString();
         return;
@@ -732,10 +737,59 @@ CommandHandler::banaccounts(std::string const& params, std::string& retStr)
         addresses.push_back(addr);
     }
 
-    mApp.getHerder().setFilteredAccounts(addresses);
+    persistor.addBannedAccounts(addresses);
+    mApp.getHerder().setFilteredAccounts(persistor.getBannedAccounts());
     retStr = fmt::format(
-        FMT_STRING(R"({{"status": "filtered accounts updated", "count": {}}})"),
-        addresses.size());
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "added": {}, "total": {}}})"),
+        addresses.size(), persistor.getBannedAccounts().size());
+}
+
+void
+CommandHandler::unbanaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        retStr =
+            R"({"error": "must specify accountids parameter, e.g. unbanaccounts?accountids=G_ADDRESS1,G_ADDRESS2"})";
+        return;
+    }
+
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
+    std::vector<std::string> addresses;
+    std::istringstream iss(it->second);
+    std::string addr;
+    while (std::getline(iss, addr, ','))
+    {
+        if (addr.empty())
+        {
+            continue;
+        }
+        try
+        {
+            KeyUtils::fromStrKey<PublicKey>(addr);
+        }
+        catch (std::exception const&)
+        {
+            retStr = fmt::format(
+                FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
+            return;
+        }
+        addresses.push_back(addr);
+    }
+
+    persistor.removeBannedAccounts(addresses);
+    mApp.getHerder().setFilteredAccounts(persistor.getBannedAccounts());
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "removed": {}, "total": {}}})"),
+        addresses.size(), persistor.getBannedAccounts().size());
 }
 
 void

@@ -1517,6 +1517,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      {
                          KeyUtils::fromStrKey<PublicKey>(addr);
                      }
+                     CLOG_WARNING(
+                         Overlay,
+                         "FILTERED_G_ADDRESSES is deprecated. It will be "
+                         "removed in a future release. Please use "
+                         "`banaccounts` HTTP endpoint instead to ban accounts "
+                         "from submitting transactions to this node.");
                  }},
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
                  [&]() {
