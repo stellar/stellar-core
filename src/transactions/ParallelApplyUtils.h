@@ -270,7 +270,10 @@ class GlobalParallelApplyLedgerState
             threads,
         ApplyStage const& stage);
 
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+    // Consumes the global entry map: moves entries into the LedgerTxn
+    // instead of copying. Must only be called once, as the final operation
+    // on this state (entries are left in a moved-from state afterwards).
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
 
     // The snapshot ledger sequence number is one less than the
     // applying ledger sequence number.

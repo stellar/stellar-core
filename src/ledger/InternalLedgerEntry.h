@@ -140,6 +140,7 @@ class InternalLedgerEntry
     explicit InternalLedgerEntry(InternalLedgerEntryType t);
 
     InternalLedgerEntry(LedgerEntry const& le);
+    InternalLedgerEntry(LedgerEntry&& le);
     explicit InternalLedgerEntry(SponsorshipEntry const& se);
     explicit InternalLedgerEntry(SponsorshipCounterEntry const& sce);
     explicit InternalLedgerEntry(MaxSeqNumToApplyEntry const& msne);
