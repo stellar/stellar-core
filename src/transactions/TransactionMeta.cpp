@@ -992,6 +992,12 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
     }
 }
 
+bool
+TransactionMetaBuilder::isEnabled() const
+{
+    return mEnabled;
+}
+
 TxEventManager&
 TransactionMetaBuilder::getTxEventManager()
 {

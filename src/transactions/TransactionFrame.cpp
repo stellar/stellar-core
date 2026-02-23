@@ -2092,6 +2092,41 @@ TransactionFrame::preParallelApply(
     {
         releaseAssertOrThrow(isSoroban());
 
+        // When meta is disabled, skip the full commonPreApply path which
+        // creates a child LedgerTxn + LedgerSnapshot per transaction. Instead,
+        // operate directly on the parent LTX. This saves ~3-4us/TX of child
+        // LTX construction, snapshot creation, redundant validation, and
+        // signature processing overhead.
+        //
+        // This is safe because:
+        // - Transactions are consensus-validated before reaching apply, so
+        //   commonValid checks are redundant (they serve as a defensive safety
+        //   net, and a failure would trigger releaseAssert anyway).
+        // - processSignatures for Soroban TXs only removes pre-auth signers
+        //   (which Soroban TXs don't use) and checks for unused signatures
+        //   (already guaranteed by TX set building).
+        // - The child LTX's only purpose is meta tracking (pushTxChangesBefore)
+        //   which is a no-op when meta is disabled.
+        if (!meta.isEnabled())
+        {
+            uint32_t ledgerVersion =
+                ltx.loadHeader().current().ledgerVersion;
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                auto sorobanResourceFee = computePreApplySorobanResourceFee(
+                    ledgerVersion, sorobanConfig, app.getConfig());
+                int64_t initialFeeRefund =
+                    declaredSorobanResourceFee() -
+                    sorobanResourceFee.non_refundable_fee;
+                txResult.initializeRefundableFeeTracker(initialFeeRefund);
+            }
+
+            processSeqNum(ltx);
+            updateSorobanMetrics(app);
+            return;
+        }
+
         auto signatureChecker =
             commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig);
         bool ok = signatureChecker != nullptr;

@@ -107,6 +107,9 @@ class TransactionMetaBuilder
 
     TxEventManager& getTxEventManager();
 
+    // Returns whether meta tracking is enabled for this builder.
+    bool isEnabled() const;
+
     // Returns an operation builder for the i-th operation in the corresponding
     // transaction.
     OperationMetaBuilder& getOperationMetaBuilderAt(size_t i);
