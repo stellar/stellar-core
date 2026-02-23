@@ -1244,6 +1244,24 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     mNominateTimeout.Update(SCPTiming.mNominationTimeoutCount);
     mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
 
+    if (SCPTiming.mNominationTimeoutCount > 0)
+    {
+        auto const leaders = getSCP().getNominationLeaders(slotIndex);
+        std::string leaderStr;
+        for (auto const& leader : leaders)
+        {
+            if (!leaderStr.empty())
+            {
+                leaderStr += ", ";
+            }
+            leaderStr += toShortString(leader);
+        }
+        CLOG_INFO(Herder,
+                  "Nomination for slot {} timed out {} time(s) with "
+                  "the following round leaders: [{}]",
+                  slotIndex, SCPTiming.mNominationTimeoutCount, leaderStr);
+    }
+
     // Compute nomination time
     if (SCPTiming.mNominationStart && SCPTiming.mPrepareStart)
     {

@@ -261,6 +261,17 @@ SCP::getMissingNodes(NodeID const& id, uint64 index)
     return ret;
 }
 
+std::set<NodeID>
+SCP::getNominationLeaders(uint64 slotIndex)
+{
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->getNominationLeaders();
+    }
+    return {};
+}
+
 bool
 SCP::isValidator()
 {
