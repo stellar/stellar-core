@@ -2540,12 +2540,12 @@ LedgerManagerImpl::processResultAndMeta(
         mApplyState.getMetrics().mTransactionApplyFailed.inc();
     }
 
-    // First gather the TransactionResultPair into the TxResultSet
-    // for hashing into the ledger header.
-    txResultSet.results.emplace_back(resultPair);
-
     if (ledgerCloseMeta)
     {
+        // Meta path: need resultPair for both txResultSet and meta,
+        // so copy into txResultSet first, then move into meta.
+        txResultSet.results.emplace_back(resultPair);
+
         auto metaXDR = txMetaBuilder.finalize(result.isSuccess());
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_META_TRACKING_FOR_TESTING)
@@ -2559,6 +2559,9 @@ LedgerManagerImpl::processResultAndMeta(
     }
     else
     {
+        // No meta — move resultPair into txResultSet to avoid copy.
+        txResultSet.results.emplace_back(std::move(resultPair));
+
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_META_TRACKING_FOR_TESTING)
         {

@@ -149,6 +149,10 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanOpsConsistency() const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
+    int64_t refundSorobanFeeWithHeader(
+        LedgerTxnHeader& header, AbstractLedgerTxn& ltx,
+        AccountID const& feeSource,
+        MutableTransactionResultBase& txResult) const;
     void updateSorobanMetrics(AppConnector& app) const;
 #ifdef BUILD_TESTS
   public:

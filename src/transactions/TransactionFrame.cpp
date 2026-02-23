@@ -1016,6 +1016,26 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
     // modifying the balance, and finalizeFeeRefund + feePool arithmetic
     // cannot throw. So there's no partial modification to roll back.
     auto header = ltxOuter.loadHeader();
+    return refundSorobanFeeWithHeader(header, ltxOuter, feeSource, txResult);
+}
+
+int64_t
+TransactionFrame::refundSorobanFeeWithHeader(
+    LedgerTxnHeader& header, AbstractLedgerTxn& ltxOuter,
+    AccountID const& feeSource,
+    MutableTransactionResultBase& txResult) const
+{
+    auto const& refundableFeeTracker = txResult.getRefundableFeeTracker();
+    if (!refundableFeeTracker)
+    {
+        return 0;
+    }
+    auto const feeRefund = refundableFeeTracker->getFeeRefund();
+    if (feeRefund == 0)
+    {
+        return 0;
+    }
+
     // The fee source could be from a Fee-bump, so it needs to be forwarded here
     // instead of using TransactionFrame's getFeeSource() method
     auto feeSourceAccount = loadAccount(ltxOuter, header, feeSource);
@@ -2588,14 +2608,19 @@ TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
     {
         return;
     }
-    // Process Soroban resource fee refund (this is independent of the
-    // transaction success).
-    int64_t refund = refundSorobanFee(ltxOuter, feeSource, txResult);
+
+    // Load the header once and share between refundSorobanFee and the
+    // V23 event stage check. This avoids loading the header twice per TX
+    // (once in refundSorobanFee and once for the version check).
+    auto header = ltxOuter.loadHeader();
+
+    int64_t refund =
+        refundSorobanFeeWithHeader(header, ltxOuter, feeSource, txResult);
 
     // Emit fee refund event. A refund counts as a negative amount of fee
     // charged.
     auto stage = TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_TX;
-    if (protocolVersionStartsFrom(ltxOuter.loadHeader().current().ledgerVersion,
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
                                   ProtocolVersion::V_23))
     {
         stage = TransactionEventStage::TRANSACTION_EVENT_STAGE_AFTER_ALL_TXS;
