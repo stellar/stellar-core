@@ -213,6 +213,14 @@ class Herder
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
 
+    // Override the filtered G-addresses at runtime, updating both classic
+    // and soroban transaction queues.
+    virtual void
+    setFilteredAccounts(std::vector<std::string> const& addresses) = 0;
+
+    // Return the currently active filtered G-addresses.
+    virtual std::vector<std::string> getFilteredAccounts() const = 0;
+
     virtual void forceSCPStateIntoSyncWithLastClosedLedger() = 0;
 
     // helper function to craft an SCPValue

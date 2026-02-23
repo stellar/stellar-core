@@ -252,6 +252,18 @@ Most commands return their results in JSON format.
 * **bans**
   List current active bans
 
+* **banaccounts**
+  * `banaccounts`<br>
+    Lists the currently filtered account addresses as a JSON array.<br>
+  * `banaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
+    Overrides the set of filtered G-addresses at runtime (the
+    `FILTERED_G_ADDRESSES` configuration). Any transaction whose source account,
+    operation source account, fee-bump fee source, or (for Soroban transactions)
+    write footprint account entry matches an address in this list will be
+    rejected from the transaction queue.<br>
+  * `banaccounts?accountids=`<br>
+    Clears all filtered accounts.<br>
+
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 

@@ -188,6 +188,14 @@ TransactionTestFrame::validateSorobanTxForFlooding(
 }
 
 bool
+TransactionTestFrame::validateAccountFilterForFlooding(
+    UnorderedSet<AccountID> const& filteredAccounts) const
+{
+    return mTransactionFrame->validateAccountFilterForFlooding(
+        filteredAccounts);
+}
+
+bool
 TransactionTestFrame::validateSorobanMemo() const
 {
     return mTransactionFrame->validateSorobanMemo();

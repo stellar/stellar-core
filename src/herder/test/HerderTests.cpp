@@ -44,6 +44,7 @@
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-ledger.h"
@@ -6273,6 +6274,331 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
 
         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+}
+
+TEST_CASE("filter transactions by G address", "[herder]")
+{
+    // Use the default filtered addresses from Config
+    auto const& defaultFilteredAddrs = Config{}.FILTERED_G_ADDRESSES;
+    REQUIRE(!defaultFilteredAddrs.empty());
+    auto const filteredPubKey =
+        KeyUtils::fromStrKey<PublicKey>(defaultFilteredAddrs[0]);
+    auto const filteredSecretKey = SecretKey::pseudoRandomForTesting();
+
+    SECTION("no filter - transaction accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("default filter does not reject unrelated source")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("filtered source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // Use a custom key for a funded account, then add it to the filter
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {KeyUtils::toStrKey(srcKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto src = root->create(srcKey, 1000000000);
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("filtered operation source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        // Build a tx from root but with an op sourced from filtered account
+        auto op = payment(root->getPublicKey(), 1);
+        op.sourceAccount.activate() =
+            toMuxedAccount(filteredKey.getPublicKey());
+        auto tx = root->tx({op});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("soroban tx with filtered account in write footprint is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+
+        // Build a Soroban tx whose write footprint contains the filtered
+        // account key
+        SorobanResources resources;
+        resources.footprint.readWrite = {
+            accountKey(filteredKey.getPublicKey())};
+        resources.instructions = 1'000'000;
+        resources.diskReadBytes = 1000;
+        resources.writeBytes = 1000;
+
+        auto op = createUploadWasmOperation(1000);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), *root, {op}, {}, resources,
+            /* inclusionFee */ 1000, /* resourceFee */ 10000);
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered fee source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        auto feeSource = TestAccount{*app, filteredKey};
+
+        auto innerTx = root->tx({payment(root->getPublicKey(), 1)});
+        auto fb = feeBump(*app, feeSource, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered inner source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto filteredAcct = root->create(filteredKey, 1000000000);
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        // Inner tx source is filtered; fee source (other) is not
+        auto innerTx = filteredAcct.tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with non-filtered accounts is accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults - none of the test accounts match
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        auto innerTx = root->tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+}
+
+TEST_CASE("banaccounts HTTP command", "[herder]")
+{
+    SECTION("ban accounts via command")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        auto src = root->create(srcKey, 1000000000);
+
+        // Initially, no filter — transaction should be accepted
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+
+        // Now set the filter via the HTTP command
+        auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
+        auto result = app->getCommandHandler().manualCmd(
+            "banaccounts?accountids=" + addr);
+        REQUIRE(result.find("filtered accounts updated") != std::string::npos);
+        REQUIRE(result.find("\"count\": 1") != std::string::npos);
+
+        // New transaction from the same source should now be filtered
+        auto acc2 = getAccount("acc2");
+        auto tx2 = src.tx({createAccount(acc2.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx2, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("clear banned accounts via command")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {KeyUtils::toStrKey(srcKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto src = root->create(srcKey, 1000000000);
+
+        // Source is initially filtered
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+
+        // Clear the filter via empty accountids
+        auto result = app->getCommandHandler().manualCmd(
+            "banaccounts?accountids=");
+        REQUIRE(result.find("filtered accounts cleared") != std::string::npos);
+
+        // Resubmit the same transaction — it should now be accepted
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("multiple accounts")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto key1 = SecretKey::pseudoRandomForTesting();
+        auto key2 = SecretKey::pseudoRandomForTesting();
+        auto src1 = root->create(key1, 1000000000);
+        auto src2 = root->create(key2, 1000000000);
+
+        auto addr1 = KeyUtils::toStrKey(key1.getPublicKey());
+        auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
+
+        auto result = app->getCommandHandler().manualCmd(
+            "banaccounts?accountids=" + addr1 + "," + addr2);
+        REQUIRE(result.find("\"count\": 2") != std::string::npos);
+
+        auto acc = getAccount("acc");
+        auto tx1 = src1.tx({createAccount(acc.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx1, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+
+        auto acc2 = getAccount("acc2");
+        auto tx2 = src2.tx({createAccount(acc2.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx2, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("invalid address returns error")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto result = app->getCommandHandler().manualCmd(
+            "banaccounts?accountids=NOT_A_VALID_ADDRESS");
+        REQUIRE(result.find("invalid address") != std::string::npos);
+    }
+
+    SECTION("no accountids lists current filter")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
+        cfg.FILTERED_G_ADDRESSES = {addr};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        // With no accountids param, should list the current filter
+        auto result = app->getCommandHandler().manualCmd("banaccounts");
+        REQUIRE(result.find("filteredAccounts") != std::string::npos);
+        REQUIRE(result.find(addr) != std::string::npos);
+
+        // Set two accounts, then list again
+        auto key2 = SecretKey::pseudoRandomForTesting();
+        auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
+        app->getCommandHandler().manualCmd(
+            "banaccounts?accountids=" + addr + "," + addr2);
+
+        result = app->getCommandHandler().manualCmd("banaccounts");
+        REQUIRE(result.find(addr) != std::string::npos);
+        REQUIRE(result.find(addr2) != std::string::npos);
+
+        // Clear and verify empty list
+        app->getCommandHandler().manualCmd("banaccounts?accountids=");
+        result = app->getCommandHandler().manualCmd("banaccounts");
+        REQUIRE(result.find("filteredAccounts") != std::string::npos);
+        REQUIRE(result.find(addr) == std::string::npos);
+    }
+
+    SECTION("fee-bump with banned fee source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        auto feeSource = root->create(filteredKey, 1000000000);
+        auto feeSourceAcct = TestAccount{*app, filteredKey};
+
+        auto addr = KeyUtils::toStrKey(filteredKey.getPublicKey());
+        app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr);
+
+        auto innerTx = root->tx({payment(root->getPublicKey(), 1)});
+        auto fb = feeBump(*app, feeSourceAcct, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 }
 
