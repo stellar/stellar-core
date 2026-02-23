@@ -314,6 +314,7 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
+    ZoneScoped;
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          getSnapshotLedgerSeq() + 1);
 
@@ -368,27 +369,33 @@ GlobalParallelApplyLedgerState::
     // because preParallelApply modifies the fee source accounts
     // and those accounts could show up in the footprint
     // of a different transaction.
-    for (auto const& stage : stages)
     {
-        for (auto const& txBundle : stage)
+        ZoneNamedN(preApplyZone, "preParallelApply all txs", true);
+        for (auto const& stage : stages)
         {
-            // Make sure to call preParallelApply on all txs because this will
-            // modify the fee source accounts sequence numbers.
-            txBundle.getTx()->preParallelApply(
-                app, ltx, txBundle.getEffects().getMeta(),
-                txBundle.getResPayload(), mSorobanConfig);
+            for (auto const& txBundle : stage)
+            {
+                // Make sure to call preParallelApply on all txs because this
+                // will modify the fee source accounts sequence numbers.
+                txBundle.getTx()->preParallelApply(
+                    app, ltx, txBundle.getEffects().getMeta(),
+                    txBundle.getResPayload(), mSorobanConfig);
+            }
         }
     }
 
-    for (auto const& stage : stages)
     {
-        for (auto const& txBundle : stage)
+        ZoneNamedN(fetchZone, "fetchClassicEntries from footprints", true);
+        for (auto const& stage : stages)
         {
-            auto const& footprint =
-                txBundle.getTx()->sorobanResources().footprint;
+            for (auto const& txBundle : stage)
+            {
+                auto const& footprint =
+                    txBundle.getTx()->sorobanResources().footprint;
 
-            fetchInMemoryClassicEntries(footprint.readWrite);
-            fetchInMemoryClassicEntries(footprint.readOnly);
+                fetchInMemoryClassicEntries(footprint.readWrite);
+                fetchInMemoryClassicEntries(footprint.readOnly);
+            }
         }
     }
 }
