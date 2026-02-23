@@ -304,7 +304,7 @@ class LedgerManagerImpl : public LedgerManager
     // snapshot immediately after applying a ledger, then post the result back
     // to main thread. This means the apply snapshot may be ahead of
     // mLastClosedLedgerState at any given point.
-    mutable SharedMutex mLedgerStateSnapshotMutex;
+    mutable ANNOTATED_SHARED_MUTEX(mLedgerStateSnapshotMutex);
     CompleteConstLedgerStatePtr
         mLastClosedLedgerState GUARDED_BY(mLedgerStateSnapshotMutex);
 
