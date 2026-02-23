@@ -40,11 +40,11 @@
 namespace
 {
 // The current version of the upgrade parameters serialization.
-constexpr const uint32_t UPGRADE_VERSION = 1;
+constexpr uint32_t const UPGRADE_VERSION = 1;
 
 // The version of upgrade parameters serialization that introduced the
 // nominationtimeoutlimit and expirationminutes fields.
-constexpr const uint32_t UPGRADE_VERSION_WITH_NOMINATION_STRIPPING = 1;
+constexpr uint32_t const UPGRADE_VERSION_WITH_NOMINATION_STRIPPING = 1;
 }
 
 namespace cereal
