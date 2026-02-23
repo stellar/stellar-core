@@ -30,7 +30,6 @@ ctx(std::byte* s)
 uint256
 sha256(ByteSlice const& bin)
 {
-    ZoneScoped;
     uint256 out;
     // Use the fully-qualified OpenSSL ::SHA256 to avoid name conflict with
     // stellar::SHA256 class.
@@ -62,7 +61,6 @@ SHA256::reset()
 void
 SHA256::add(ByteSlice const& bin)
 {
-    ZoneScoped;
     if (mFinished)
     {
         throw std::runtime_error("adding bytes to finished SHA256");

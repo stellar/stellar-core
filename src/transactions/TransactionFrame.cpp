@@ -121,7 +121,6 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
 Hash const&
 TransactionFrame::getFullHash() const
 {
-    ZoneScoped;
     if (isZero(mFullHash))
     {
         mFullHash = xdrSha256(mEnvelope);
@@ -132,7 +131,6 @@ TransactionFrame::getFullHash() const
 Hash const&
 TransactionFrame::getContentsHash() const
 {
-    ZoneScoped;
 #ifdef _DEBUG
     // force recompute
     Hash oldHash;
@@ -1117,7 +1115,6 @@ TransactionFrame::computePreApplySorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg) const
 {
-    ZoneScoped;
     releaseAssertOrThrow(isSoroban());
     // We always use the declared resource value for the resource fee
     // computation. The refunds are performed as a separate operation that
@@ -2618,7 +2615,6 @@ TransactionFrame::toStellarMessage() const
 uint32_t
 TransactionFrame::getSize() const
 {
-    ZoneScoped;
     if (mCachedSize == 0)
     {
         mCachedSize = static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
