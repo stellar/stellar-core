@@ -103,7 +103,6 @@ class Stage
     Stage(ParallelPartitionConfig cfg, size_t txCount)
         : mConfig(cfg), mTxToCluster(txCount, nullptr)
     {
-        mBinPacking.resize(mConfig.mClustersPerStage);
         mBinInstructions.resize(mConfig.mClustersPerStage);
     }
 
@@ -201,16 +200,14 @@ class Stage
         // Try to recompute the bin-packing from scratch with a more efficient
         // heuristic. binPacking() sorts mClusters in-place.
         std::vector<uint64_t> newBinInstructions;
-        auto newPacking = binPacking(mClusters, newBinInstructions);
         // Even if the new cluster is below the limit, it may invalidate the
         // stage as a whole in case if we can no longer pack the clusters into
         // the required number of bins.
-        if (!newPacking)
+        if (!binPacking(mClusters, newBinInstructions))
         {
             rollbackClusters(addedCluster, savedClusters);
             return false;
         }
-        mBinPacking = std::move(newPacking.value());
         mInstructions += tx.mInstructions;
         mBinInstructions = newBinInstructions;
         // Update the global conflict mask so future lookups can
@@ -285,8 +282,6 @@ class Stage
         for (auto const& cluster : clustersToRemove)
         {
             mBinInstructions[cluster->mBinId.value()] -= cluster->mInstructions;
-            mBinPacking[cluster->mBinId.value()].inplaceDifference(
-                cluster->mTxIds);
         }
 
         for (size_t binId = 0; binId < mConfig.mClustersPerStage; ++binId)
@@ -295,7 +290,6 @@ class Stage
                 mConfig.mInstructionsPerCluster)
             {
                 mBinInstructions[binId] += newCluster.mInstructions;
-                mBinPacking[binId].inplaceUnion(newCluster.mTxIds);
                 newCluster.mBinId = std::make_optional(binId);
                 return true;
             }
@@ -304,7 +298,6 @@ class Stage
         for (auto const& cluster : clustersToRemove)
         {
             mBinInstructions[cluster->mBinId.value()] += cluster->mInstructions;
-            mBinPacking[cluster->mBinId.value()].inplaceUnion(cluster->mTxIds);
         }
         return false;
     }
@@ -362,7 +355,7 @@ class Stage
     // (https://en.wikipedia.org/wiki/First-fit-decreasing_bin_packing).
     // This has around 11/9 maximum approximation ratio, which probably has
     // the best complexity/performance tradeoff out of all the heuristics.
-    std::optional<std::vector<BitSet>>
+    bool
     binPacking(std::vector<std::unique_ptr<Cluster const>>& clusters,
                std::vector<uint64_t>& binInsns) const
     {
@@ -375,7 +368,6 @@ class Stage
                   });
         size_t const binCount = mConfig.mClustersPerStage;
         binInsns.resize(binCount);
-        std::vector<BitSet> bins(binCount);
         std::vector<size_t> newBinId(clusters.size());
         // Just add every cluster into the first bin it fits into.
         for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
@@ -388,7 +380,6 @@ class Stage
                     mConfig.mInstructionsPerCluster)
                 {
                     binInsns[i] += cluster->mInstructions;
-                    bins[i].inplaceUnion(cluster->mTxIds);
                     newBinId[clusterId] = i;
                     packed = true;
                     break;
@@ -396,7 +387,7 @@ class Stage
             }
             if (!packed)
             {
-                return std::nullopt;
+                return false;
             }
         }
         for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
@@ -404,7 +395,7 @@ class Stage
             clusters[clusterId]->mBinId =
                 std::make_optional(newBinId[clusterId]);
         }
-        return std::make_optional(bins);
+        return true;
     }
     // The `Cluster`s in `mClusters` are groups of transactions that have
     // (transitive) data dependencies between one another. If there is a data
@@ -442,7 +433,6 @@ class Stage
     // threads that all nodes _must_ have, and running bin-packing against that
     // minimum assumption, we can form txsets into binned clusters each small
     // enough to run in the close-time target on the guaranteed parallelism.
-    std::vector<BitSet> mBinPacking;
     std::vector<uint64_t> mBinInstructions;
     uint64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
