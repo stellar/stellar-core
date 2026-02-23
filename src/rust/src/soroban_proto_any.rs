@@ -428,7 +428,7 @@ fn invoke_host_function_or_maybe_panic(
             if cached_cpu.as_slice() == cpu_params_bytes
                 && cached_mem.as_slice() == mem_params_bytes
             {
-                cached_budget.reset_for_new_tx(cpu_limit, mem_limit);
+                super::reset_budget_for_new_tx(cached_budget, cpu_limit, mem_limit);
                 return Ok(cached_budget.clone());
             }
         }

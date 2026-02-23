@@ -92,6 +92,10 @@ pub(crate) mod p26 {
         v.interface.protocol
     }
 
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        budget.reset_for_new_tx(cpu_limit, mem_limit);
+    }
+
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
         T: AsRef<[u8]>,
         I: ExactSizeIterator<Item = T>,
@@ -245,6 +249,10 @@ pub(crate) mod p25 {
 
     pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
         v.interface.protocol
+    }
+
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        budget.reset_for_new_tx(cpu_limit, mem_limit);
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -402,6 +410,11 @@ pub(crate) mod p24 {
         v.interface.protocol
     }
 
+    #[allow(unused_variables)]
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        // No-op: reset_for_new_tx not available before p25
+    }
+
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
         T: AsRef<[u8]>,
         I: ExactSizeIterator<Item = T>,
@@ -555,6 +568,11 @@ pub(crate) mod p23 {
 
     pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
         v.interface.protocol
+    }
+
+    #[allow(unused_variables)]
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        // No-op: reset_for_new_tx not available before p25
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
@@ -751,6 +769,11 @@ pub(crate) mod p22 {
         v.interface.protocol
     }
 
+    #[allow(unused_variables)]
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        // No-op: reset_for_new_tx not available before p25
+    }
+
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
         T: AsRef<[u8]>,
         I: ExactSizeIterator<Item = T>,
@@ -938,6 +961,11 @@ pub(crate) mod p21 {
 
     pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
         soroban_env_host::meta::get_ledger_protocol_version(v.interface)
+    }
+
+    #[allow(unused_variables)]
+    pub(crate) fn reset_budget_for_new_tx(budget: &Budget, cpu_limit: u64, mem_limit: u64) {
+        // No-op: reset_for_new_tx not available before p25
     }
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
