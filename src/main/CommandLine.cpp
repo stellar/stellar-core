@@ -1418,7 +1418,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
     std::optional<Config> cfg = std::nullopt;
     std::string jsonPath;
     std::string resultJson;
-    bool analyzeCriticalGroups;
+    bool analyzeCriticalGroups = false;
     uint64_t timeLimitMs = 5000;                 // Default: 5 seconds
     size_t memoryLimitBytes = 100 * 1024 * 1024; // Default: 100 MiB
     bool v2 = true;
