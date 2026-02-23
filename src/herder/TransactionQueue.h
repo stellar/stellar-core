@@ -162,8 +162,7 @@ class TransactionQueue
     TxFrameList getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
 
-    void setFilteredAccounts(UnorderedSet<AccountID> const& accounts);
-    UnorderedSet<AccountID> const& getFilteredAccounts() const;
+    void setFilteredAccounts(std::set<AccountID> const& accounts);
 
     virtual size_t getMaxQueueSizeOps() const = 0;
 
@@ -195,7 +194,7 @@ class TransactionQueue
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
     UnorderedSet<LedgerKey> mKeysToFilter;
-    UnorderedSet<AccountID> mFilteredAccounts;
+    std::set<AccountID> mFilteredAccounts;
 
     // counters
     struct QueueMetrics
