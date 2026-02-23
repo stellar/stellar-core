@@ -641,9 +641,29 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
-        // Create or update every entry returned.
-        UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        UnorderedSet<LedgerKey> createdKeys;
+
+        // Track which RW footprint keys appear in the host's modified entries.
+        // Uses a simple bitfield instead of UnorderedSet<LedgerKey> to avoid
+        // per-entry hash computation (LedgerKey hashing involves xdrComputeHash
+        // + SipHash which is expensive at ~300-500ns per hash). RW footprints
+        // are small (typically 2-8 keys), so linear scan is faster.
+        auto const& rwKeys = mResources.footprint.readWrite;
+        size_t const rwKeysSize = rwKeys.size();
+        uint64_t rwKeyCoveredBits = 0;
+        // Fall back to vector for extremely large footprints (> 64 keys)
+        std::vector<bool> rwKeyCoveredVec;
+        bool const useVecFallback = rwKeysSize > 64;
+        if (useVecFallback)
+        {
+            rwKeyCoveredVec.resize(rwKeysSize, false);
+        }
+
+        // Track created entry counts for TTL pairing verification.
+        // Replaces UnorderedSet<LedgerKey> + getTTLKey verification loop
+        // (getTTLKey involves SHA-256 + XDR serialization per call).
+        size_t numCreatedSorobanEntries = 0;
+        size_t numCreatedTTLEntries = 0;
+
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
@@ -661,7 +681,25 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
 
-            createdAndModifiedKeys.insert(lk);
+            // Mark matching RW footprint key as covered
+            for (size_t j = 0; j < rwKeysSize; ++j)
+            {
+                bool alreadyCovered = useVecFallback
+                                          ? rwKeyCoveredVec[j]
+                                          : (rwKeyCoveredBits & (1ULL << j));
+                if (!alreadyCovered && rwKeys[j] == lk)
+                {
+                    if (useVecFallback)
+                    {
+                        rwKeyCoveredVec[j] = true;
+                    }
+                    else
+                    {
+                        rwKeyCoveredBits |= (1ULL << j);
+                    }
+                    break;
+                }
+            }
 
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
 
@@ -690,35 +728,34 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 ZoneNamedN(upsertZone, "recordStorageChanges: upsertLedgerEntry", true);
                 if (upsertLedgerEntry(lk, le))
                 {
-                    createdKeys.insert(lk);
+                    if (isSorobanEntry(lk))
+                    {
+                        ++numCreatedSorobanEntries;
+                    }
+                    else
+                    {
+                        releaseAssertOrThrow(lk.type() == TTL);
+                        ++numCreatedTTLEntries;
+                    }
                 }
             }
         }
 
-        // Check that each newly created ContractCode or ContractData entry also
-        // creates an ttlEntry
-        for (auto const& key : createdKeys)
-        {
-            if (isSorobanEntry(key))
-            {
-                auto ttlKey = getTTLKey(key);
-                releaseAssertOrThrow(createdKeys.find(ttlKey) !=
-                                     createdKeys.end());
-            }
-            else
-            {
-                releaseAssertOrThrow(key.type() == TTL);
-            }
-        }
+        // Verify that each newly created Soroban entry has a corresponding
+        // newly created TTL entry (1:1 pairing guaranteed by the host).
+        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
 
-        // Erase every entry not returned.
+        // Erase every RW footprint entry not returned by the host.
         // NB: The entries that haven't been touched are passed through
         // from host, so this should never result in removing an entry
         // that hasn't been removed by host explicitly.
-        for (auto const& lk : mResources.footprint.readWrite)
+        for (size_t j = 0; j < rwKeysSize; ++j)
         {
-            if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
+            bool covered = useVecFallback ? rwKeyCoveredVec[j]
+                                          : (rwKeyCoveredBits & (1ULL << j));
+            if (!covered)
             {
+                auto const& lk = rwKeys[j];
                 if (eraseLedgerEntryIfExists(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));

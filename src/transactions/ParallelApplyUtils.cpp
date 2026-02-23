@@ -407,6 +407,12 @@ GlobalParallelApplyLedgerState::
     // transfers where all TXs share the same read-only entries
     // (contract instance), this saves thousands of redundant lookups
     // per thread.
+    //
+    // Note: Only RO entries benefit from pre-loading because they are
+    // shared across many TXs. RW entries are unique per TX (e.g.
+    // balance entries), so pre-loading them just moves the
+    // InMemorySorobanState load from per-TX time to setup time and
+    // ADDS overhead from global->thread->TX copy chain.
     {
         ZoneNamedN(fetchSorobanRoZone,
                    "fetchSorobanReadOnlyEntries from footprints", true);
