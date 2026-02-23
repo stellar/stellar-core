@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="overlay">
@@ -406,9 +406,6 @@
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\main.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\Maintainer.cpp">
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
@@ -846,6 +843,9 @@
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListStateConsistency.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
@@ -1239,9 +1239,6 @@
     <ClCompile Include="..\..\src\transactions\TransactionMeta.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -1276,6 +1273,9 @@
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
@@ -1320,7 +1320,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1419,6 +1418,25 @@
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\ArchivedStateConsistency.cpp">
       <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListStateConsistency.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntryScope.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\MetricsRegistry.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\SimpleTimer.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
+      <Filter>lib\tracy</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\FrozenLedgerKeysTests.cpp" />
+    <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
+      <Filter>main</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1660,9 +1678,6 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ErrorMessages.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\Maintainer.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">
@@ -2067,6 +2082,9 @@
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h">
       <Filter>invariant</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\invariant\BucketListStateConsistency.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h">
       <Filter>invariant</Filter>
     </ClInclude>
@@ -2340,9 +2358,6 @@
     <ClInclude Include="..\..\src\transactions\TransactionMeta.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionSQL.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -2372,6 +2387,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
+      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxAdverts.h">
       <Filter>overlay</Filter>
@@ -2517,6 +2535,24 @@
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\ArchivedStateConsistency.h">
       <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\BucketListStateConsistency.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\MetricsRegistry.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SimpleTimer.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h" />
+    <ClInclude Include="..\..\src\util\MetricsRegistry.h" />
+    <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

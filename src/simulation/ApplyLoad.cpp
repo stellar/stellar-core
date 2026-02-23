@@ -23,12 +23,11 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
-#include "util/MetricsRegistry.h"
-#include "util/types.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
 #include "util/XDRCereal.h"
+#include "util/types.h"
 #include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 
