@@ -96,7 +96,8 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     {
         auto adoptedEntry =
             s2.scopeAdoptEntryOptFrom(std::move(mLedgerEntry), s1);
-        return ParallelApplyEntry<S2>{std::move(adoptedEntry), mIsDirty};
+        return ParallelApplyEntry<S2>{std::move(adoptedEntry), mIsDirty,
+                                      mIsNew};
     }
 };
 using GlobalParallelApplyEntry =

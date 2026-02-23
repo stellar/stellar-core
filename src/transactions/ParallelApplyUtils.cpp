@@ -612,16 +612,16 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
                              : std::nullopt);
 
         mGlobalEntryMap.emplace(lk, GlobalParallelApplyEntry{entry, false});
-        mOriginalLedgerTxnKeys.emplace(lk);
     }
 }
 
 void
 GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
-    AbstractLedgerTxn& ltx) const
+    AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
-    for (auto const& [key, entry] : mGlobalEntryMap)
+    LedgerTxn ltxInner(ltx);
+    for (auto& [key, entry] : mGlobalEntryMap)
     {
         // Only update if dirty bit is set
         if (!entry.mIsDirty)
@@ -629,9 +629,11 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             continue;
         }
 
-        std::optional<LedgerEntry> const& updatedLe =
-            entry.mLedgerEntry.readInScope(*this);
-        if (updatedLe)
+        // Move the LedgerEntry out of the scoped wrapper. This is safe
+        // because commitChangesToLedgerTxn is the final operation on the
+        // global state â€” it is destroyed immediately after this call.
+        auto movedLe = entry.mLedgerEntry.moveFromScope(*this);
+        if (movedLe)
         {
             // Use the mIsNew flag tracked during the parallel apply phase to
             // decide between createWithoutLoading (INIT) and
@@ -639,24 +641,24 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             // existence check (mInMemorySorobanState.get() does SHA256 per
             // CONTRACT_DATA key, and getNewestVersionBelowRoot does a hash map
             // lookup for classic entries).
-            InternalLedgerEntry ile(*updatedLe);
+            InternalLedgerEntry ile(std::move(*movedLe));
             if (entry.mIsNew)
             {
-                ltx.createWithoutLoading(ile);
+                ltxInner.createWithoutLoading(std::move(ile));
             }
             else
             {
-                ltx.updateWithoutLoading(ile);
+                ltxInner.updateWithoutLoading(std::move(ile));
             }
         }
         else
         {
             // Delete case: use load() + erase() to maintain EXACT consistency.
             // Deletes are rare in SAC transfers, so the cost is negligible.
-            auto ltxe = ltx.load(key);
+            auto ltxe = ltxInner.load(key);
             if (ltxe)
             {
-                ltx.erase(key);
+                ltxInner.erase(key);
             }
         }
     }
@@ -1047,7 +1049,7 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     else if (newEntryOpt)
     {
         // If oldEntryOpt is null, the entry doesn't exist in any parent map
-        // or persistent state — it's a newly created entry.
+        // or persistent state - it's a newly created entry.
         bool isNew = !oldEntryOpt.has_value();
         upsertEntry(key, scopeAdoptEntry(newEntryOpt.value()),
                     getSnapshotLedgerSeq() + 1, isNew);
