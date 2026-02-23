@@ -88,20 +88,6 @@ TEST_CASE("BannedAccountsPersistor basic operations", "[banaccounts]")
         persistor.clearBannedAccounts();
         REQUIRE(persistor.getBannedAccounts().empty());
     }
-
-    SECTION("persists across loadFromDB")
-    {
-        persistor.addBannedAccounts({addr1, addr2});
-        REQUIRE(persistor.getBannedAccounts().size() == 2);
-
-        // Reload from database
-        persistor.getBannedAccounts();
-        REQUIRE(persistor.getBannedAccounts().size() == 2);
-
-        auto keys = persistor.getBannedAccountStrKeys();
-        REQUIRE(std::find(keys.begin(), keys.end(), addr1) != keys.end());
-        REQUIRE(std::find(keys.begin(), keys.end(), addr2) != keys.end());
-    }
 }
 
 TEST_CASE("FILTERED_G_ADDRESSES migration", "[banaccounts]")

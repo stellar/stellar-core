@@ -1663,29 +1663,13 @@ HerderImpl::getUpgradesJson()
 }
 
 void
-HerderImpl::setFilteredAccounts(std::vector<std::string> const& addresses)
+HerderImpl::setFilteredAccounts(std::set<AccountID> const& accounts)
 {
-    UnorderedSet<AccountID> accounts;
-    for (auto const& addr : addresses)
-    {
-        accounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
-    }
     mTransactionQueue.setFilteredAccounts(accounts);
     if (mSorobanTransactionQueue)
     {
         mSorobanTransactionQueue->setFilteredAccounts(accounts);
     }
-}
-
-std::vector<std::string>
-HerderImpl::getFilteredAccounts() const
-{
-    std::vector<std::string> result;
-    for (auto const& acc : mTransactionQueue.getFilteredAccounts())
-    {
-        result.push_back(KeyUtils::toStrKey(acc));
-    }
-    return result;
 }
 
 void

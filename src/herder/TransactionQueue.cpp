@@ -119,15 +119,9 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
 }
 
 void
-TransactionQueue::setFilteredAccounts(UnorderedSet<AccountID> const& accounts)
+TransactionQueue::setFilteredAccounts(std::set<AccountID> const& accounts)
 {
     mFilteredAccounts = accounts;
-}
-
-UnorderedSet<AccountID> const&
-TransactionQueue::getFilteredAccounts() const
-{
-    return mFilteredAccounts;
 }
 
 ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
