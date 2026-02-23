@@ -59,22 +59,27 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     // it due to hitting read limits.
     ScopedLedgerEntryOpt<S> mLedgerEntry;
     bool mIsDirty;
+    // True if this entry was newly created during the parallel apply phase
+    // (did not exist in persistent state before). Used by
+    // commitChangesToLedgerTxn to choose createWithoutLoading (INIT) vs
+    // updateWithoutLoading (LIVE) without expensive existence checks.
+    bool mIsNew{false};
     static ParallelApplyEntry
     clean(ScopedLedgerEntryOpt<S> const& e)
     {
-        return ParallelApplyEntry{e, false};
+        return ParallelApplyEntry{e, false, false};
     }
     static ParallelApplyEntry
     dirty(ScopedLedgerEntryOpt<S> const& e)
     {
-        return ParallelApplyEntry{e, true};
+        return ParallelApplyEntry{e, true, false};
     }
     template <StaticLedgerEntryScope S2>
     ParallelApplyEntry<S2>
     rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) const
     {
         auto adoptedEntry = s2.scopeAdoptEntryOptFrom(mLedgerEntry, s1);
-        return ParallelApplyEntry<S2>{adoptedEntry, mIsDirty};
+        return ParallelApplyEntry<S2>{adoptedEntry, mIsDirty, mIsNew};
     }
 };
 using GlobalParallelApplyEntry =

@@ -417,47 +417,20 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             entry.mLedgerEntry.readInScope(*this);
         if (updatedLe)
         {
-            // Determine whether to use createWithoutLoading (INIT) or
-            // updateWithoutLoading (LIVE) without querying the root LedgerTxn.
-            // This avoids the expensive getNewestVersion root lookup that
-            // dominated the cost of the old load()-based approach.
-            bool entryExisted;
-            if (InMemorySorobanState::isInMemoryType(key))
-            {
-                // Soroban entries (CONTRACT_DATA, CONTRACT_CODE, TTL) are
-                // never modified by preParallelApply, so they are never in
-                // ltx.mEntry below root. Skip getNewestVersionBelowRoot and
-                // check the in-memory state directly.
-                entryExisted =
-                    (mInMemorySorobanState.get(key) != nullptr);
-            }
-            else
-            {
-                // Classic entries may be in ltx.mEntry from
-                // preParallelApply, so we need to check below root.
-                auto [foundBelowRoot, belowRootEntry] =
-                    ltx.getNewestVersionBelowRoot(key);
-                if (foundBelowRoot)
-                {
-                    entryExisted = (belowRootEntry != nullptr);
-                }
-                else
-                {
-                    // For classic entries not found in ltx.mEntry, they must
-                    // have existed in the original ledger state (they were
-                    // loaded into mGlobalEntryMap from the snapshot).
-                    entryExisted = true;
-                }
-            }
-
+            // Use the mIsNew flag tracked during the parallel apply phase to
+            // decide between createWithoutLoading (INIT) and
+            // updateWithoutLoading (LIVE). This avoids the expensive per-entry
+            // existence check (mInMemorySorobanState.get() does SHA256 per
+            // CONTRACT_DATA key, and getNewestVersionBelowRoot does a hash map
+            // lookup for classic entries).
             InternalLedgerEntry ile(*updatedLe);
-            if (entryExisted)
-            {
-                ltx.updateWithoutLoading(ile);
-            }
-            else
+            if (entry.mIsNew)
             {
                 ltx.createWithoutLoading(ile);
+            }
+            else
+            {
+                ltx.updateWithoutLoading(ile);
             }
         }
         else
@@ -558,7 +531,10 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
         if (!maybeMergeRoTTLBumps(key, rescopedParEntry, it->second,
                                   readWriteSet))
         {
+            // Preserve mIsNew from the first stage that touched this entry.
+            bool oldIsNew = it->second.mIsNew;
             it->second = rescopedParEntry;
+            it->second.mIsNew = oldIsNew;
         }
     }
 }
@@ -601,9 +577,11 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
         auto entryIt = globalEntryMap.find(key);
         if (entryIt != globalEntryMap.end())
         {
-            mThreadEntryMap.emplace(
-                key, ThreadParallelApplyEntry::clean(scopeAdoptEntryOptFrom(
-                         entryIt->second.mLedgerEntry, global)));
+            auto threadEntry = ThreadParallelApplyEntry::clean(
+                scopeAdoptEntryOptFrom(entryIt->second.mLedgerEntry, global));
+            // Propagate mIsNew from global so subsequent upserts preserve it.
+            threadEntry.mIsNew = entryIt->second.mIsNew;
+            mThreadEntryMap.emplace(key, threadEntry);
         }
     };
 
@@ -759,24 +737,40 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
 void
 ThreadParallelApplyLedgerState::upsertEntry(
     LedgerKey const& key, ThreadParApplyLedgerEntry const& entry,
-    uint32_t ledgerSeq)
+    uint32_t ledgerSeq, bool isNew)
 {
-    // Weird syntax avoid extra map lookup
     auto parAppEntry = ThreadParallelApplyEntry::dirty(entry);
     parAppEntry.mLedgerEntry.modifyInScope(
         *this, [&](std::optional<LedgerEntry>& le) {
             releaseAssertOrThrow(le);
             le.value().lastModifiedLedgerSeq = ledgerSeq;
         });
-    mThreadEntryMap.insert_or_assign(key, parAppEntry);
+    // Use try_emplace to preserve mIsNew from the first touch of this entry.
+    // If the entry already exists in the thread map (from collectCluster or a
+    // previous TX), keep its mIsNew flag. Otherwise use the caller's isNew.
+    parAppEntry.mIsNew = isNew;
+    auto [it, inserted] = mThreadEntryMap.try_emplace(key, parAppEntry);
+    if (!inserted)
+    {
+        parAppEntry.mIsNew = it->second.mIsNew;
+        it->second = parAppEntry;
+    }
 }
 void
-ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
+ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key, bool isNew)
 {
-
     auto parAppEntry =
         ThreadParallelApplyEntry::dirty(scopeAdoptEntryOpt(std::nullopt));
-    mThreadEntryMap.insert_or_assign(key, parAppEntry);
+    // Preserve mIsNew from previous touch, or use caller's isNew for first
+    // touch. This matters when a subsequent TX recreates the entry: the
+    // preserved flag determines INIT vs LIVE in commitChangesToLedgerTxn.
+    parAppEntry.mIsNew = isNew;
+    auto [it, inserted] = mThreadEntryMap.try_emplace(key, parAppEntry);
+    if (!inserted)
+    {
+        parAppEntry.mIsNew = it->second.mIsNew;
+        it->second = parAppEntry;
+    }
 }
 
 void
@@ -799,12 +793,16 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     }
     else if (newEntryOpt)
     {
+        // If oldEntryOpt is null, the entry doesn't exist in any parent map
+        // or persistent state — it's a newly created entry.
+        bool isNew = !oldEntryOpt.has_value();
         upsertEntry(key, scopeAdoptEntry(newEntryOpt.value()),
-                    getSnapshotLedgerSeq() + 1);
+                    getSnapshotLedgerSeq() + 1, isNew);
     }
     else
     {
-        eraseEntry(key);
+        bool isNew = !oldEntryOpt.has_value();
+        eraseEntry(key, isNew);
     }
 }
 

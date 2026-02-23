@@ -121,8 +121,8 @@ class ThreadParallelApplyLedgerState
 
     void upsertEntry(LedgerKey const& key,
                      ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq);
-    void eraseEntry(LedgerKey const& key);
+                     uint32_t ledgerSeq, bool isNew = false);
+    void eraseEntry(LedgerKey const& key, bool isNew = false);
     void
     commitChangeFromSuccessfulTx(LedgerKey const& key,
                                  ThreadParApplyLedgerEntryOpt const& entryOpt,
