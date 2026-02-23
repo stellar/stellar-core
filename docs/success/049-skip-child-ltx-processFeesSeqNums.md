@@ -42,4 +42,4 @@ explicitly deactivating the header in the caller before the call.
 - `src/ledger/LedgerManagerImpl.cpp` — deactivate header before processFeesSeqNums; conditional child LTX creation
 
 ## Commit
-<pending>
+1551dcf32

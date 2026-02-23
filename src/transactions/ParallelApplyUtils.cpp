@@ -398,6 +398,84 @@ GlobalParallelApplyLedgerState::
             }
         }
     }
+
+    // Pre-load Soroban read-only entries (and their TTLs) from
+    // InMemorySorobanState into the global entry map. Without this,
+    // every thread-level getLiveEntryOpt for a read-only Soroban key
+    // falls through to InMemorySorobanState::get() (involving hash
+    // computation and LedgerEntry copy). For workloads like SAC
+    // transfers where all TXs share the same read-only entries
+    // (contract instance), this saves thousands of redundant lookups
+    // per thread.
+    {
+        ZoneNamedN(fetchSorobanRoZone,
+                   "fetchSorobanReadOnlyEntries from footprints", true);
+        for (auto const& stage : stages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                for (auto const& lk :
+                     txBundle.getTx()->sorobanResources().footprint.readOnly)
+                {
+                    if (!isSorobanEntry(lk))
+                    {
+                        continue;
+                    }
+                    if (mGlobalEntryMap.find(lk) != mGlobalEntryMap.end())
+                    {
+                        continue;
+                    }
+
+                    std::shared_ptr<LedgerEntry const> res;
+                    if (InMemorySorobanState::isInMemoryType(lk))
+                    {
+                        res = mInMemorySorobanState.get(lk);
+                    }
+                    else
+                    {
+                        res = mLiveSnapshot->load(lk);
+                    }
+
+                    if (res)
+                    {
+                        GlobalParApplyLedgerEntryOpt entry =
+                            scopeAdoptEntryOpt(
+                                std::make_optional(*res));
+                        mGlobalEntryMap.emplace(
+                            lk,
+                            GlobalParallelApplyEntry{entry, false});
+
+                        // Also pre-load the TTL entry
+                        auto ttlKey = getTTLKey(lk);
+                        if (mGlobalEntryMap.find(ttlKey) ==
+                            mGlobalEntryMap.end())
+                        {
+                            std::shared_ptr<LedgerEntry const> ttlRes;
+                            if (InMemorySorobanState::isInMemoryType(ttlKey))
+                            {
+                                ttlRes =
+                                    mInMemorySorobanState.get(ttlKey);
+                            }
+                            else
+                            {
+                                ttlRes = mLiveSnapshot->load(ttlKey);
+                            }
+                            if (ttlRes)
+                            {
+                                GlobalParApplyLedgerEntryOpt ttlEntry =
+                                    scopeAdoptEntryOpt(
+                                        std::make_optional(*ttlRes));
+                                mGlobalEntryMap.emplace(
+                                    ttlKey,
+                                    GlobalParallelApplyEntry{ttlEntry,
+                                                             false});
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void
