@@ -1637,8 +1637,12 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         auto totalTxApplyTime =
             mApplyState.getMetrics().mTotalTxApply.TimeScope();
 
-        // Subtle: after this call, `header` is invalidated, and is not safe
-        // to use
+        // Deactivate the LedgerTxnHeader before processFeesSeqNums so that
+        // it can call loadHeader() on ltx directly when meta tracking is
+        // disabled (skipping the child LTX). When meta is enabled,
+        // processFeesSeqNums creates a child LTX which would have
+        // deactivated it via addChild() anyway.
+        header.deactivate();
         auto const mutableTxResults = processFeesSeqNums(
             *applicableTxSet, ltx, ledgerCloseMeta, ledgerData);
         txResultSet = applyTransactions(*applicableTxSet, mutableTxResults, ltx,
@@ -2135,7 +2139,17 @@ LedgerManagerImpl::processFeesSeqNums(
     int index = 0;
     try
     {
-        LedgerTxn ltx(ltxOuter);
+        // When meta tracking is disabled (ledgerCloseMeta == nullptr),
+        // skip the child LTX entirely and operate directly on ltxOuter.
+        // This avoids: child LTX creation (~1ms), commit overhead copying
+        // ~17K entries from child to parent (4.5ms), and the cost of
+        // each account load traversing child→parent chain (~5ms).
+        std::unique_ptr<LedgerTxn> maybeLtx;
+        if (ledgerCloseMeta)
+        {
+            maybeLtx = std::make_unique<LedgerTxn>(ltxOuter);
+        }
+        AbstractLedgerTxn& ltx = maybeLtx ? *maybeLtx : ltxOuter;
         auto header = ltx.loadHeader().current();
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
@@ -2245,9 +2259,10 @@ LedgerManagerImpl::processFeesSeqNums(
             }
         }
 
+        if (maybeLtx)
         {
             ZoneNamedN(commitFeeZone, "processFeesSeqNums: commit", true);
-            ltx.commit();
+            maybeLtx->commit();
         }
     }
     catch (std::exception& e)
