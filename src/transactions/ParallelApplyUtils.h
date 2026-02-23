@@ -71,9 +71,9 @@ class ParallelLedgerInfo
 class ThreadParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
-    // Copy of the ledger state snapshot from the global state, with fresh
+    // Copy of the LCL state snapshot from the global state, with fresh
     // file caches for thread safety.
-    ApplyLedgerStateSnapshot mSnapshot;
+    ApplyLedgerStateSnapshot mLCLSnapshot;
 
     // Reference to the live in-memory Soroban state. For Soroban entries
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
@@ -182,11 +182,11 @@ class ThreadParallelApplyLedgerState
 class GlobalParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::GlobalParApply>
 {
-    // Contains the full ledger state snapshot from the start of the ledger
+    // Contains the full LCL state snapshot from the start of the ledger
     // close, providing access to both the live bucket list and the hot archive
     // bucket list. Note that this does not reflect changes from the classic
     // apply phase, but is a snapshot of the start of the ledger.
-    ApplyLedgerStateSnapshot mSnapshot;
+    ApplyLedgerStateSnapshot mLCLSnapshot;
 
     // Contains an exact one-to-one in-memory mapping of the live snapshot for
     // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,

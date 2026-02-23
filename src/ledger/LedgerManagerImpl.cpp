@@ -493,7 +493,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
 
-    ApplyLedgerStateSnapshot snap = [&] {
+    ApplyLedgerStateSnapshot snap = [this] {
         SharedLockShared guard(mLedgerStateSnapshotMutex);
         return ApplyLedgerStateSnapshot(mLastClosedLedgerState,
                                         mApp.getMetrics());
@@ -604,14 +604,16 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
     // Step 4. Restore LedgerManager's LCL state
     advanceLastClosedLedgerState(advanceApplySnapshotAndMakeLedgerState(
-        *latestLedgerHeader, has, std::nullopt));
+        *latestLedgerHeader, has, /* sorobanConfig */ std::nullopt));
 
     // Maybe truncate checkpoint files if we're restarting after a crash
     // in applyLedger (in which case any modifications to the ledger state have
     // been rolled back)
     mApp.getHistoryManager().restoreCheckpoint(latestLedgerHeader->ledgerSeq);
 
-    // Prime module cache
+    // Prime module cache using mApplyState, which at this point contains LCL
+    // state. This is acceptable because we just started and there is no apply
+    // thread running yet.
     if (!skipBuildingFullState)
     {
         mApplyState.compileAllContractsInLedger(
@@ -1867,8 +1869,8 @@ LedgerManagerImpl::setLastClosedLedger(
         header.current(), /* appendToCheckpoint */ false);
     ltx.commit();
 
-    auto output = advanceApplySnapshotAndMakeLedgerState(lastClosed.header, has,
-                                                         std::nullopt);
+    auto output = advanceApplySnapshotAndMakeLedgerState(
+        lastClosed.header, has, /* sorobanConfig */ std::nullopt);
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
@@ -1903,8 +1905,9 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
     mApplyState.markStartOfApplying();
     mApplyState.markStartOfCommitting();
     mApplyState.manuallyAdvanceLedgerHeader(header);
-    advanceLastClosedLedgerState(
-        advanceApplySnapshotAndMakeLedgerState(header, has, std::nullopt));
+    advanceLastClosedLedgerState(advanceApplySnapshotAndMakeLedgerState(
+        header, has,
+        /* sorobanConfig */ std::nullopt));
     mApplyState.markEndOfCommitting();
 }
 
@@ -2063,6 +2066,7 @@ LedgerManagerImpl::buildLedgerState(
     CompleteConstLedgerStatePtr prevState,
     std::optional<SorobanNetworkConfig> sorobanConfig)
 {
+    mApplyState.threadInvariant();
     auto& bm = mApp.getBucketManager();
 
     // If the caller didn't provide a SorobanNetworkConfig, load it from the

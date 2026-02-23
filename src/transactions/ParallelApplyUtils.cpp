@@ -300,14 +300,14 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mSnapshot(std::move(snapshot))
+    , mLCLSnapshot(std::move(snapshot))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
-    releaseAssertOrThrow(mSnapshot.getLedgerSeq() ==
+    releaseAssertOrThrow(mLCLSnapshot.getLedgerSeq() ==
                          mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         mSnapshot.getLedgerSeq() + 1);
+                         mLCLSnapshot.getLedgerSeq() + 1);
 
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
@@ -594,7 +594,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    , mSnapshot(global.mSnapshot)
+    , mLCLSnapshot(global.mLCLSnapshot)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -711,7 +711,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mSnapshot.loadLiveEntry(key);
+        res = mLCLSnapshot.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -849,7 +849,7 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
 ApplyLedgerStateSnapshot const&
 ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mSnapshot;
+    return mLCLSnapshot;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&
