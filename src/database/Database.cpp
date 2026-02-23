@@ -7,6 +7,7 @@
 #include "database/DatabaseConnectionString.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "main/Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/Decoder.h"
@@ -301,15 +302,20 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
         BanManager::maybeDropAndCreateNew(mMiscSession);
         // Copy contents from the main DB.
         populateMiscDatabase();
-        break;
+        tx.commit();
+        // Detach the source database _after_ commit to avoid "database is
+        // locked errors". If schema version is already the most recent, DETACH
+        // is a no-op.
+        getRawMiscSession() << "DETACH DATABASE source_db";
+        return;
+    case 2:
+        // Add banned accounts table for persistent account filtering.
+        BannedAccountsPersistor::maybeDropAndCreateNew(getRawMiscSession());
+        return;
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
     tx.commit();
-
-    // Detach the source database _after_ commit to avoid "database is locked
-    // errors". If schema version is already the most recent, DETACH is a no-op.
-    getRawMiscSession() << "DETACH DATABASE source_db";
 }
 
 void
@@ -396,8 +402,18 @@ Database::applySchemaUpgrade(unsigned long vers)
         }
         break;
     case 27:
+        // Add banned accounts table for persistent account filtering.
+        // For SQLite-on-disk this is handled by misc schema upgrade v2;
+        // for Postgres and in-memory SQLite, create in the main DB.
+        if (!canUseMiscDB())
+        {
+            BannedAccountsPersistor::maybeDropAndCreateNew(getRawSession());
+        }
+        break;
+    case 28:
         migrateLedgerHeadersToStoreState(*this);
         break;
+
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
@@ -647,6 +663,7 @@ Database::initialize()
     LedgerHeaderUtils::maybeDropAndCreateNew(*this);
     HerderPersistence::maybeDropAndCreateNew(mSession.session());
     BanManager::maybeDropAndCreateNew(mSession);
+    BannedAccountsPersistor::maybeDropAndCreateNew(getRawMiscSession());
     putMainSchemaVersion(MIN_SCHEMA_VERSION);
 
     LOG_INFO(DEFAULT_LOG, "* ");
