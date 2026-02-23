@@ -1975,6 +1975,30 @@ AssetContractTestClient::clawback(TestAccount& admin, SCAddress const& fromAddr,
     return success;
 }
 
+bool
+AssetContractTestClient::trust(TestAccount& addr)
+{
+    auto addrSC = makeAccountAddress(addr.getPublicKey());
+
+    SCVal addrVal(SCV_ADDRESS);
+    addrVal.address() = addrSC;
+
+    LedgerKey trustlineKey(TRUSTLINE);
+    trustlineKey.trustLine().accountID = addr.getPublicKey();
+    trustlineKey.trustLine().asset = assetToTrustLineAsset(mAsset);
+
+    LedgerKey accountKey(ACCOUNT);
+    accountKey.account().accountID = addr.getPublicKey();
+
+    auto spec = defaultSpec()
+                    .setReadWriteFootprint({trustlineKey, accountKey})
+                    .extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+
+    auto invocation = mContract.prepareInvocation("trust", {addrVal}, spec)
+                          .withAuthorizedTopCall();
+    return invocation.invoke(&addr);
+}
+
 ContractStorageTestClient::ContractStorageTestClient(
     SorobanTest& test, int64_t additionalRefundableFee)
     : mContract(test.deployWasmContract(

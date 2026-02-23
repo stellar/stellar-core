@@ -406,6 +406,7 @@ class AssetContractTestClient
     bool burn(TestAccount& from, int64_t amount);
     bool clawback(TestAccount& admin, SCAddress const& fromAddr,
                   int64_t amount);
+    bool trust(TestAccount& addr);
     TestContract const& getContract() const;
     std::optional<ContractEvent> lastEvent() const;
 

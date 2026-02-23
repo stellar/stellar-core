@@ -325,6 +325,37 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
             checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
             checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
         }
+
+        // Test CAP-73: trust() creates a trustline via the SAC
+        if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                      ProtocolVersion::V_26))
+        {
+            auto trustAcc = root.create(
+                "trustAcc", app.getLedgerManager().getLastMinBalance(2));
+            // Account has no trustline for IDR yet
+            {
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                auto tlAsset = assetToTrustLineAsset(idr);
+                REQUIRE(
+                    !ltx.load(trustlineKey(trustAcc.getPublicKey(), tlAsset)));
+            }
+
+            REQUIRE(client.trust(trustAcc));
+
+            // Trustline should now exist with zero balance and max limit
+            {
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                auto tlAsset = assetToTrustLineAsset(idr);
+                auto tlEntry =
+                    ltx.load(trustlineKey(trustAcc.getPublicKey(), tlAsset));
+                REQUIRE(tlEntry);
+                REQUIRE(tlEntry.current().data.trustLine().balance == 0);
+                REQUIRE(tlEntry.current().data.trustLine().limit == INT64_MAX);
+            }
+
+            // Calling trust again should be a no-op (idempotent)
+            REQUIRE(client.trust(trustAcc));
+        }
     });
 }
 
@@ -425,6 +456,81 @@ TEST_CASE("Native stellar asset contract",
         checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0, 2,
                          0, 2);
         checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
+    }
+
+    // Test CAP-73: XLM transfer to non-existent account creates the account
+    if (protocolVersionStartsFrom(test.getLedgerVersion(),
+                                  ProtocolVersion::V_26))
+    {
+        auto newAccKey = SecretKey::pseudoRandomForTesting();
+        auto newAccPub = newAccKey.getPublicKey();
+        auto newAccAddr = makeAccountAddress(newAccPub);
+
+        // Account should not exist yet
+        REQUIRE(!doesAccountExist(app, newAccPub));
+
+        // Transfer 2 * base_reserve (minimum to create account) via SAC
+        auto baseReserve =
+            static_cast<int64_t>(app.getLedgerManager().getLastReserve());
+        auto createAmount = 2 * baseReserve;
+
+        // Construct the footprint manually since the destination account
+        // doesn't exist yet and client.transfer() would try to read its
+        // balance.
+        LedgerKey fromAccountKey(ACCOUNT);
+        fromAccountKey.account().accountID = a1.getPublicKey();
+        LedgerKey toAccountKey(ACCOUNT);
+        toAccountKey.account().accountID = newAccPub;
+
+        auto spec = client.defaultSpec().setReadWriteFootprint(
+            {fromAccountKey, toAccountKey});
+
+        SCVal fromVal(SCV_ADDRESS);
+        fromVal.address() = makeAccountAddress(a1.getPublicKey());
+        SCVal toVal(SCV_ADDRESS);
+        toVal.address() = newAccAddr;
+
+        auto invocation =
+            client.getContract()
+                .prepareInvocation(
+                    "transfer", {fromVal, toVal, makeI128(createAmount)}, spec)
+                .withAuthorizedTopCall();
+        REQUIRE(invocation.invoke(&a1));
+
+        // Account should now exist with the correct balance
+        REQUIRE(doesAccountExist(app, newAccPub));
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto entry = stellar::loadAccount(ltx, newAccPub);
+            REQUIRE(entry.current().data.account().balance == createAmount);
+        }
+
+        // Transferring below minimum should fail for a non-existent account
+        auto newAccKey2 = SecretKey::pseudoRandomForTesting();
+        auto newAccPub2 = newAccKey2.getPublicKey();
+        auto newAccAddr2 = makeAccountAddress(newAccPub2);
+
+        REQUIRE(!doesAccountExist(app, newAccPub2));
+
+        LedgerKey toAccountKey2(ACCOUNT);
+        toAccountKey2.account().accountID = newAccPub2;
+
+        auto specFail = client.defaultSpec().setReadWriteFootprint(
+            {fromAccountKey, toAccountKey2});
+
+        SCVal toVal2(SCV_ADDRESS);
+        toVal2.address() = newAccAddr2;
+
+        auto failInvocation =
+            client.getContract()
+                .prepareInvocation(
+                    "transfer", {fromVal, toVal2, makeI128(createAmount - 1)},
+                    specFail)
+                .withAuthorizedTopCall();
+        REQUIRE(!failInvocation.invoke(&a1));
+
+        // Account should still not exist
+        REQUIRE(!doesAccountExist(app, newAccPub2));
     }
 
     // Test batch_transfer with 5 destinations (protocol 23+)
