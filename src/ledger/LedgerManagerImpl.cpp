@@ -1904,7 +1904,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #endif
 
 #ifdef BUILD_TESTS
-    mLatestTxResultSet = txResultSet;
+    mLatestTxResultSet = std::move(txResultSet);
 #endif
 
     // step 3
@@ -2314,6 +2314,11 @@ LedgerManagerImpl::processFeesSeqNums(
     {
         LedgerTxn ltx(ltxOuter);
         auto header = ltx.loadHeader().current();
+        // Cache protocol version to avoid repeated loadHeader() calls
+        // in the per-TX loop below.
+        auto const cachedLedgerVersion = header.ledgerVersion;
+        bool const isV19OrLater =
+            protocolVersionStartsFrom(cachedLedgerVersion, ProtocolVersion::V_19);
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
 #ifdef BUILD_TESTS
@@ -2357,9 +2362,12 @@ LedgerManagerImpl::processFeesSeqNums(
                     }
 #endif // BUILD_TESTS
 
-                    if (protocolVersionStartsFrom(
-                            activeLtx.loadHeader().current().ledgerVersion,
-                            ProtocolVersion::V_19))
+                    // Merge-op tracking (accToMaxSeq) is only needed for
+                    // non-Soroban TXs. Soroban TXs have exactly one
+                    // InvokeHostFunction op and can never contain
+                    // ACCOUNT_MERGE, so mergeSeen will never be set.
+                    // Use cached version to avoid per-TX loadHeader() calls.
+                    if (isV19OrLater && !tx->isSoroban())
                     {
                         auto res = accToMaxSeq.emplace(tx->getSourceID(),
                                                        tx->getSeqNum());
@@ -2394,9 +2402,7 @@ LedgerManagerImpl::processFeesSeqNums(
                 ++index;
             }
         }
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      ProtocolVersion::V_19) &&
-            mergeSeen)
+        if (isV19OrLater && mergeSeen)
         {
             for (auto const& [accountID, seqNum] : accToMaxSeq)
             {
