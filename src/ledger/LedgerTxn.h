@@ -642,6 +642,12 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
 
     virtual void createWithoutLoading(InternalLedgerEntry const& entry) = 0;
     virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    // Move overloads: avoid deep-copying InternalLedgerEntry when the caller
+    // is consuming a temporary or explicitly moving ownership. Default
+    // implementations forward to the const& versions; LedgerTxn overrides
+    // to move directly into make_shared for zero-copy insertion.
+    virtual void createWithoutLoading(InternalLedgerEntry&& entry);
+    virtual void updateWithoutLoading(InternalLedgerEntry&& entry);
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
     // getChanges, getDelta, and getAllEntries are used to
@@ -823,6 +829,8 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void createWithoutLoading(InternalLedgerEntry const& entry) override;
     void updateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry&& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry&& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;

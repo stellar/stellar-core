@@ -410,6 +410,22 @@ AbstractLedgerTxn::~AbstractLedgerTxn()
 {
 }
 
+void
+AbstractLedgerTxn::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    // Default: forward to const-ref version (copies).
+    // LedgerTxn overrides this to move directly into make_shared.
+    createWithoutLoading(static_cast<InternalLedgerEntry const&>(entry));
+}
+
+void
+AbstractLedgerTxn::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    // Default: forward to const-ref version (copies).
+    // LedgerTxn overrides this to move directly into make_shared.
+    updateWithoutLoading(static_cast<InternalLedgerEntry const&>(entry));
+}
+
 // Implementation of LedgerTxn ----------------------------------------------
 LedgerTxn::LedgerTxn(AbstractLedgerTxnParent& parent,
                      bool shouldUpdateLastModified, TransactionMode mode)
@@ -784,6 +800,33 @@ LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
 }
 
 void
+LedgerTxn::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->createWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry&& entry)
+{
+    abortIfWrongThread("createWithoutLoading");
+    throwIfSealed();
+    throwIfChild();
+
+    auto key = entry.toKey();
+    auto iter = mActive.find(key);
+    if (iter != mActive.end())
+    {
+        throw std::runtime_error("Key is already active");
+    }
+
+    updateEntry(
+        key, /* keyHint */ nullptr,
+        LedgerEntryPtr::Init(
+            std::make_shared<InternalLedgerEntry>(std::move(entry))),
+        /* effectiveActive */ false);
+}
+
+void
 LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
 {
     getImpl()->updateWithoutLoading(entry);
@@ -806,6 +849,33 @@ LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
     updateEntry(
         key, /* keyHint */ nullptr,
         LedgerEntryPtr::Live(std::make_shared<InternalLedgerEntry>(entry)),
+        /* effectiveActive */ false);
+}
+
+void
+LedgerTxn::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    getImpl()->updateWithoutLoading(std::move(entry));
+}
+
+void
+LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry&& entry)
+{
+    abortIfWrongThread("updateWithoutLoading");
+    throwIfSealed();
+    throwIfChild();
+
+    auto key = entry.toKey();
+    auto iter = mActive.find(key);
+    if (iter != mActive.end())
+    {
+        throw std::runtime_error("Key is already active");
+    }
+
+    updateEntry(
+        key, /* keyHint */ nullptr,
+        LedgerEntryPtr::Live(
+            std::make_shared<InternalLedgerEntry>(std::move(entry))),
         /* effectiveActive */ false);
 }
 

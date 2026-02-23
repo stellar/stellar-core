@@ -402,10 +402,10 @@ GlobalParallelApplyLedgerState::
 
 void
 GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
-    AbstractLedgerTxn& ltx) const
+    AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
-    for (auto const& [key, entry] : mGlobalEntryMap)
+    for (auto& [key, entry] : mGlobalEntryMap)
     {
         // Only update if dirty bit is set
         if (!entry.mIsDirty)
@@ -413,9 +413,11 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             continue;
         }
 
-        std::optional<LedgerEntry> const& updatedLe =
-            entry.mLedgerEntry.readInScope(*this);
-        if (updatedLe)
+        // Move the LedgerEntry out of the scoped wrapper. This is safe
+        // because commitChangesToLedgerTxn is the final operation on the
+        // global state — it is destroyed immediately after this call.
+        auto movedLe = entry.mLedgerEntry.moveFromScope(*this);
+        if (movedLe)
         {
             // Use the mIsNew flag tracked during the parallel apply phase to
             // decide between createWithoutLoading (INIT) and
@@ -423,14 +425,14 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             // existence check (mInMemorySorobanState.get() does SHA256 per
             // CONTRACT_DATA key, and getNewestVersionBelowRoot does a hash map
             // lookup for classic entries).
-            InternalLedgerEntry ile(*updatedLe);
+            InternalLedgerEntry ile(std::move(*movedLe));
             if (entry.mIsNew)
             {
-                ltx.createWithoutLoading(ile);
+                ltx.createWithoutLoading(std::move(ile));
             }
             else
             {
-                ltx.updateWithoutLoading(ile);
+                ltx.updateWithoutLoading(std::move(ile));
             }
         }
         else

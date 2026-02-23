@@ -450,10 +450,12 @@ class LedgerTxn::Impl
     // createWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
     void createWithoutLoading(InternalLedgerEntry const& entry);
+    void createWithoutLoading(InternalLedgerEntry&& entry);
 
     // updateWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
     void updateWithoutLoading(InternalLedgerEntry const& entry);
+    void updateWithoutLoading(InternalLedgerEntry&& entry);
 
     // eraseWithoutLoading has the strong exception safety guarantee. If it
     // throws an exception, then the current LedgerTxn::Impl is unchanged.
