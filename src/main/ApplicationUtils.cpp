@@ -150,6 +150,35 @@ runApp(Application::pointer app)
         }
 
         app->applyCfgCommands();
+
+        auto& bap = app->getBannedAccountsPersistor();
+        if (!app->getConfig().FILTERED_G_ADDRESSES.empty())
+        {
+            CLOG_WARNING(
+                Herder,
+                "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
+                "future release. Migrating {} address(es) to persistent banned "
+                "accounts table. Use the 'banaccounts' HTTP command instead.",
+                app->getConfig().FILTERED_G_ADDRESSES.size());
+            bap.addBannedAccounts(app->getConfig().FILTERED_G_ADDRESSES);
+        }
+
+        // Warn if COMMANDS contains banaccounts entries (after persisting
+        // those accounts)
+        for (auto const& cmd : app->getConfig().COMMANDS)
+        {
+            if (cmd.find("banaccounts") != std::string::npos)
+            {
+                CLOG_WARNING(Herder,
+                             "COMMANDS entry '{}' is no longer needed: banned "
+                             "accounts are now persisted across restarts. "
+                             "Consider removing this entry.",
+                             cmd);
+            }
+        }
+
+        // Push persisted banned accounts into the transaction queues.
+        app->getHerder().setFilteredAccounts(bap.getBannedAccounts());
     }
     catch (std::exception const& e)
     {

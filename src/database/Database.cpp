@@ -312,7 +312,7 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
     case 2:
         // Add banned accounts table for persistent account filtering.
         BannedAccountsPersistor::maybeDropAndCreateNew(getRawMiscSession());
-        return;
+        break;
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
