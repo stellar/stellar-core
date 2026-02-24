@@ -1718,13 +1718,19 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
 
             if (entry.get())
             {
+                // Move instead of copy: the LedgerTxn is sealed immediately
+                // after this lambda, so these entries are never accessed
+                // again. Moving avoids deep-copying large XDR LedgerEntry
+                // objects (~128K+ entries per ledger).
                 if (entry.isInit())
                 {
-                    resInit.emplace_back(entry->ledgerEntry());
+                    resInit.emplace_back(
+                        std::move(entry->ledgerEntry()));
                 }
                 else
                 {
-                    resLive.emplace_back(entry->ledgerEntry());
+                    resLive.emplace_back(
+                        std::move(entry->ledgerEntry()));
                 }
             }
             else
