@@ -6,7 +6,7 @@ This is a fork of [stellar-core](https://github.com/stellar/stellar-core) used a
 
 The objective was to see whether an autonomous AI agent, running in a loop with no human guidance, could make meaningful, incremental performance improvements to stellar-core.
 
-The specific target was the **SAC (Stellar Asset Contract) transfer TPS** benchmark (`apply-load --mode max-sac-tps`), which measures maximum sustainable throughput of the ledger apply path. The starting baseline was ~8,000 TPS, and so far the agent has gotten up to ~18,500 TPS.
+The specific target was the **SAC (Stellar Asset Contract) transfer TPS** benchmark (`apply-load --mode max-sac-tps`), which measures maximum sustainable throughput of the ledger apply path. The starting baseline was ~8,000 TPS, and so far the agent has gotten up to ~19,300 TPS.
 
 Each iteration of the loop, the agent would: profile the code with Tracy, analyze hotspots, hypothesize an optimization, implement it, run tests, benchmark, and document the result — then repeat.
 
@@ -17,8 +17,8 @@ through 25214fbcddef716609a3dc70644cd16e4f33fcfe were not made by the autonomous
 
 Over the course of the experiment, the agent ran **52+ experiment cycles**, producing:
 
-- **~30 successful optimizations** committed to the branch (see [`docs/success/`](docs/success/))
-- **~30 failed experiments** documented locally (see [`docs/fail/`](docs/fail/))
+- **~45 successful optimizations** committed to the branch (see [`docs/success/`](docs/success/))
+- **~25 failed experiments** documented locally (see [`docs/fail/`](docs/fail/))
 
 Successful optimizations ranged from low-level changes (removing unnecessary Tracy zones from hot functions, adding move semantics to avoid XDR copies) to algorithmic improvements (sharded signature verification caches, parallel index construction, eliminating redundant child LedgerTxn allocations, skipping unnecessary validation during apply).
 
@@ -87,6 +87,6 @@ Initially, this experiment was run with Claude Code using Opus 4.5, before agent
 After redoing the experiment with Claude Code using Opus 4.6 with experimental agent teams enabled, both systems seem to perform equally well. I'll continue experimenting to see if opencode's mixed-model routing can give better results, but for folks starting out, I'd recommend **Claude Code with agent teams** due to its simplicity — no plugins, no preset configuration, just enable the feature flag and go.
 
 Once the prompt and skills were sufficiently setup, running the optimization loop with claude code is straightforward. After starting a session via `claude --dangerously-skip-permissions ` and
-enabling "no permissions" mode, the entire prompt I inputed was just "/optimizing-max-sac-tps". Claude was able to run autonomously and make progress for days, simply running this skill. I would
-strongly recommend building a robust skill set and a "memoized," long running skill like "optimizing-max-sac-tps." At this time I would recommend against investing time in exotic harnesses, plugins, or agentic orchestration. 
+enabling "no permissions" mode, the entire prompt I inputted was just "/optimizing-max-sac-tps". Claude was able to run autonomously and make progress for days, simply running this skill. I would
+strongly recommend building a robust skill set and a "memoized," long running skill like "optimizing-max-sac-tps." At this time I would recommend against investing time in exotic harnesses, plugins, or agentic orchestration.
 
