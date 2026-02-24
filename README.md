@@ -18,7 +18,7 @@ through 25214fbcddef716609a3dc70644cd16e4f33fcfe were not made by the autonomous
 Over the course of the experiment, the agent ran **52+ experiment cycles**, producing:
 
 - **~45 successful optimizations** committed to the branch (see [`docs/success/`](docs/success/))
-- **~25 failed experiments** documented locally (see [`docs/fail/`](docs/fail/))
+- **~50 failed experiments** documented locally (see [`docs/fail/`](docs/fail/))
 
 Successful optimizations ranged from low-level changes (removing unnecessary Tracy zones from hot functions, adding move semantics to avoid XDR copies) to algorithmic improvements (sharded signature verification caches, parallel index construction, eliminating redundant child LedgerTxn allocations, skipping unnecessary validation during apply).
 
