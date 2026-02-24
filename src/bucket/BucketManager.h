@@ -346,6 +346,14 @@ class BucketManager : NonMovableOrCopyable
     // second vector contains all archived entries (persistent and
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
+    // Production path: checks modified keys via direct O(1) lookups in the
+    // LedgerTxn's EntryMap, avoiding building a full UnorderedSet.
+    EvictedStateVectors
+    resolveBackgroundEvictionScan(ApplyLedgerStateSnapshot const& lclSnapshot,
+                                  AbstractLedgerTxn& ltx);
+
+    // Test path: uses an explicitly provided set of modified keys (for test
+    // helpers that don't write entries through the LedgerTxn subsystem).
     EvictedStateVectors
     resolveBackgroundEvictionScan(ApplyLedgerStateSnapshot const& lclSnapshot,
                                   AbstractLedgerTxn& ltx,

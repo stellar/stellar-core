@@ -405,7 +405,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             ltx.loadHeader().current().ledgerSeq++;
             auto evictedState =
                 app->getBucketManager().resolveBackgroundEvictionScan(applySnap,
-                                                                      ltx, {});
+                                                                      ltx);
 
             applySnap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
 

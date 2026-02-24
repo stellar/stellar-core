@@ -1772,30 +1772,17 @@ LedgerTxn::Impl::getRestoredLiveBucketListKeys() const
     return mRestoredEntries.liveBucketList;
 }
 
-LedgerKeySet
-LedgerTxn::getAllKeysWithoutSealing() const
+bool
+LedgerTxn::isModifiedKey(LedgerKey const& key) const
 {
-    return getImpl()->getAllKeysWithoutSealing();
+    return getImpl()->isModifiedKey(key);
 }
 
-LedgerKeySet
-LedgerTxn::Impl::getAllKeysWithoutSealing() const
+bool
+LedgerTxn::Impl::isModifiedKey(LedgerKey const& key) const
 {
-    abortIfWrongThread("getAllKeysWithoutSealing");
-    throwIfNotExactConsistency();
-    LedgerKeySet result;
-    // Subtle: mEntry contains only *modified* entries in this LedgerTxn.
-    // Callers rely on this — for example, to enforce that expired entries
-    // (which cannot be modified) are never present here.
-    for (auto const& [k, v] : mEntry)
-    {
-        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY)
-        {
-            result.emplace(k.ledgerKey());
-        }
-    }
-
-    return result;
+    abortIfWrongThread("isModifiedKey");
+    return mEntry.find(InternalLedgerKey(key)) != mEntry.end();
 }
 
 std::shared_ptr<InternalLedgerEntry const>

@@ -3232,13 +3232,14 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        // In `getAllTTLKeysWithoutSealing` it is important not to seal ltx,
-        // because it is still being modified by the eviction flow.
-        // `getAllTTLKeysWithoutSealing` must be called at the right time
-        // _after_ all operations have been applied, but _before_ evictions.
+        // resolveBackgroundEvictionScan checks modified keys via direct O(1)
+        // lookups in the LedgerTxn's EntryMap (isModifiedKey), avoiding the
+        // need to build a full UnorderedSet of all modified keys.
+        // It must be called at the right time _after_ all operations have
+        // been applied, but _before_ evictions (ltx must not be sealed).
         auto evictedState =
-            mApp.getBucketManager().resolveBackgroundEvictionScan(
-                lclSnapshot, ltx, ltx.getAllKeysWithoutSealing());
+            mApp.getBucketManager().resolveBackgroundEvictionScan(lclSnapshot,
+                                                                  ltx);
 
         if (protocolVersionStartsFrom(
                 initialLedgerVers,
