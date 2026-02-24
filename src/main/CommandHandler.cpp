@@ -720,7 +720,28 @@ CommandHandler::banaccounts(std::string const& params, std::string& retStr)
     }
 
     std::vector<std::string> addresses;
-    std::istringstream iss(it->second);
+    if (!parseAccountIds(it->second, addresses, retStr))
+    {
+        return;
+    }
+
+    auto beforeCount = persistor.getBannedAccountsCount();
+    persistor.addBannedAccounts(addresses);
+    auto updated = persistor.getBannedAccounts();
+    mApp.getHerder().setFilteredAccounts(updated);
+    auto actuallyAdded = updated.size() - beforeCount;
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "added": {}, "total": {}}})"),
+        actuallyAdded, updated.size());
+}
+
+bool
+CommandHandler::parseAccountIds(std::string const& value,
+                                std::vector<std::string>& addresses,
+                                std::string& retStr)
+{
+    std::istringstream iss(value);
     std::string addr;
     while (std::getline(iss, addr, ','))
     {
@@ -736,20 +757,11 @@ CommandHandler::banaccounts(std::string const& params, std::string& retStr)
         {
             retStr = fmt::format(
                 FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
-            return;
+            return false;
         }
         addresses.push_back(addr);
     }
-
-    auto beforeCount = persistor.getBannedAccountsCount();
-    persistor.addBannedAccounts(addresses);
-    auto updated = persistor.getBannedAccounts();
-    mApp.getHerder().setFilteredAccounts(updated);
-    auto actuallyAdded = updated.size() - beforeCount;
-    retStr = fmt::format(
-        FMT_STRING(
-            R"({{"status": "banned accounts updated", "added": {}, "total": {}}})"),
-        actuallyAdded, updated.size());
+    return true;
 }
 
 void
@@ -773,25 +785,9 @@ CommandHandler::unbanaccounts(std::string const& params, std::string& retStr)
     }
 
     std::vector<std::string> addresses;
-    std::istringstream iss(it->second);
-    std::string addr;
-    while (std::getline(iss, addr, ','))
+    if (!parseAccountIds(it->second, addresses, retStr))
     {
-        if (addr.empty())
-        {
-            continue;
-        }
-        try
-        {
-            KeyUtils::fromStrKey<PublicKey>(addr);
-        }
-        catch (std::exception const&)
-        {
-            retStr = fmt::format(
-                FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
-            return;
-        }
-        addresses.push_back(addr);
+        return;
     }
 
     auto beforeCount = persistor.getBannedAccountsCount();

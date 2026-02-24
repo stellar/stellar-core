@@ -25,7 +25,7 @@ BannedAccountsPersistor::maybeDropAndCreateNew(soci::session& sess)
 }
 
 std::set<AccountID>
-BannedAccountsPersistor::getBannedAccounts()
+BannedAccountsPersistor::getBannedAccounts() const
 {
     releaseAssert(threadIsMain());
 
@@ -61,7 +61,7 @@ BannedAccountsPersistor::getBannedAccounts()
 }
 
 size_t
-BannedAccountsPersistor::getBannedAccountsCount()
+BannedAccountsPersistor::getBannedAccountsCount() const
 {
     releaseAssert(threadIsMain());
 
@@ -136,7 +136,7 @@ BannedAccountsPersistor::clearBannedAccounts()
 }
 
 std::vector<std::string>
-BannedAccountsPersistor::getBannedAccountStrKeys()
+BannedAccountsPersistor::getBannedAccountStrKeys() const
 {
     releaseAssert(threadIsMain());
 

@@ -304,14 +304,14 @@ Database::applyMiscSchemaUpgrade(unsigned long vers)
         // Copy contents from the main DB.
         populateMiscDatabase();
         tx.commit();
-        // Detach the source database _after_ commit to avoid "database is
-        // locked errors". If schema version is already the most recent, DETACH
-        // is a no-op.
+        // Detach the source database (attached by populateMiscDatabase)
+        // _after_ commit to avoid "database is locked errors". If schema
+        // version is already the most recent, DETACH is a no-op.
         getRawMiscSession() << "DETACH DATABASE source_db";
         return;
     case 2:
         // Add banned accounts table for persistent account filtering.
-        BannedAccountsPersistor::maybeDropAndCreateNew(getRawMiscSession());
+        BannedAccountsPersistor::maybeDropAndCreateNew(mMiscSession.session());
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -608,7 +608,6 @@ Database::initialize()
     LedgerHeaderUtils::maybeDropAndCreateNew(*this);
     HerderPersistence::maybeDropAndCreateNew(mSession.session());
     BanManager::maybeDropAndCreateNew(mSession);
-    BannedAccountsPersistor::maybeDropAndCreateNew(getRawMiscSession());
     putMainSchemaVersion(MIN_SCHEMA_VERSION);
 
     LOG_INFO(DEFAULT_LOG, "* ");

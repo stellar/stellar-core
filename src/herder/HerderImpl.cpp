@@ -2400,14 +2400,15 @@ HerderImpl::start()
         CLOG_WARNING(
             Herder,
             "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
-            "future release. Migrating {} address(es) to persistent banned "
-            "accounts table. Use the 'banaccounts' HTTP command instead.",
+            "future release. The current {} address(es) will be stored in the "
+            "database. You can safely remove FILTERED_G_ADDRESSES from the "
+            "config. Use 'banaccounts'/'unbanaccounts' HTTP commands to manage "
+            "banned accounts going forward.",
             mApp.getConfig().FILTERED_G_ADDRESSES.size());
         bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
     }
 
     setFilteredAccounts(bap.getBannedAccounts());
-
 }
 
 void
