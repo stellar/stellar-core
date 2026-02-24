@@ -1209,6 +1209,20 @@ ApplicationImpl::applyCfgCommands()
     {
         mCommandHandler->manualCmd(cmd);
     }
+
+    // Warn if COMMANDS contains banaccounts entries (after persisting
+    // those accounts)
+    for (auto const& cmd : mConfig.COMMANDS)
+    {
+        if (cmd.find("banaccounts") != std::string::npos)
+        {
+            CLOG_WARNING(Herder,
+                            "COMMANDS entry '{}' is no longer needed: banned "
+                            "accounts are now persisted across restarts. "
+                            "Consider removing this entry.",
+                            cmd);
+        }
+    }
 }
 
 Config const&
