@@ -659,7 +659,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         }
 
         // Check that each newly created ContractCode or ContractData entry also
-        // creates an ttlEntry
+        // creates a ttlEntry. Starting from protocol 26 (CAP-73), the Stellar
+        // Asset Contract can also create classic entries (ACCOUNT, TRUSTLINE).
         for (auto const& key : createdKeys)
         {
             if (isSorobanEntry(key))
@@ -667,6 +668,13 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 auto ttlKey = getTTLKey(key);
                 releaseAssertOrThrow(createdKeys.find(ttlKey) !=
                                      createdKeys.end());
+            }
+            else if (protocolVersionStartsFrom(getLedgerVersion(),
+                                               ProtocolVersion::V_26))
+            {
+                releaseAssertOrThrow(key.type() == TTL ||
+                                     key.type() == ACCOUNT ||
+                                     key.type() == TRUSTLINE);
             }
             else
             {
