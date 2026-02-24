@@ -29,11 +29,11 @@ class Application;
 
 // smallest schema version supported
 static constexpr unsigned long MIN_SCHEMA_VERSION = 25;
-static constexpr unsigned long SCHEMA_VERSION = 26;
+static constexpr unsigned long SCHEMA_VERSION = 27;
 static constexpr unsigned long FIRST_MAIN_VERSION_WITH_MISC = 26;
 // Misc schema version 0 means no misc table exists yet
 static constexpr unsigned long MIN_MISC_SCHEMA_VERSION = 0;
-static constexpr unsigned long MISC_SCHEMA_VERSION = 1;
+static constexpr unsigned long MISC_SCHEMA_VERSION = 2;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local

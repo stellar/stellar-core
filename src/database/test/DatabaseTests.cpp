@@ -5,11 +5,13 @@
 #include "util/asio.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
@@ -25,6 +27,7 @@
 #include <algorithm>
 #include <optional>
 #include <random>
+#include <set>
 
 using namespace stellar;
 
@@ -573,6 +576,128 @@ TEST_CASE("Database splitting migration works correctly", "[db]")
             st.define_and_bind();
             st.execute(true);
             REQUIRE(state == "testvalue");
+        }
+    }
+}
+
+TEST_CASE("schema parity across DB backends", "[db][schematest]")
+{
+    // This test verifies that after initialization, persistent SQLite (with
+    // main + misc DB split) and PostgreSQL end up with the exact same set of
+    // tables and the same row counts. It catches bugs where a table or schema
+    // upgrade is applied for one backend but not the other.
+
+    // Helper: get sorted table names from a SQLite session.
+    auto getSqliteTables = [](Database& db, SessionWrapper& session) {
+        std::set<std::string> tables;
+        std::string name;
+        auto prep = db.getPreparedStatement(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name",
+            session);
+        auto& st = prep.statement();
+        st.exchange(soci::into(name));
+        st.define_and_bind();
+        st.execute(false);
+        while (st.fetch())
+        {
+            tables.insert(name);
+        }
+        return tables;
+    };
+
+    // Helper: count rows in a table.
+    auto countRows = [](soci::session& sess, std::string const& table) {
+        int count = 0;
+        soci::statement st = (sess.prepare << "SELECT COUNT(*) FROM " + table,
+                              soci::into(count));
+        st.execute(true);
+        return count;
+    };
+
+    // ---- Build the SQLite persistent reference (main + misc split) ----
+    TmpDir tmpDir("schema-parity-test");
+    Config cfg1 = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    cfg1.DATABASE = SecretValue{"sqlite3://" + tmpDir.getName() + "/test.db"};
+    // Use non-empty FILTERED_G_ADDRESSES to test migration as well
+    cfg1.FILTERED_G_ADDRESSES = {
+        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
+
+    VirtualClock clock1;
+    Application::pointer app1 = createTestApplication(clock1, cfg1);
+    auto& db1 = app1->getDatabase();
+
+    REQUIRE(db1.canUseMiscDB());
+    REQUIRE(db1.getMainDBSchemaVersion() == SCHEMA_VERSION);
+    REQUIRE(db1.getMiscDBSchemaVersion() == MISC_SCHEMA_VERSION);
+
+    // Union of main + misc tables is the full set
+    auto mainTables = getSqliteTables(db1, db1.getSession());
+    auto miscTables = getSqliteTables(db1, db1.getMiscSession());
+
+    // Main and misc must not overlap
+    for (auto const& t : mainTables)
+    {
+        INFO("Table in both main and misc: " << t);
+        REQUIRE(miscTables.count(t) == 0);
+    }
+
+    std::set<std::string> allSqliteTables = mainTables;
+    allSqliteTables.insert(miscTables.begin(), miscTables.end());
+
+    // ---- PostgreSQL: compare tables and row counts ----
+    Config cfg2 = getTestConfig(1, Config::TESTDB_POSTGRESQL);
+    cfg2.FILTERED_G_ADDRESSES = {
+        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
+
+    VirtualClock clock2;
+    Application::pointer app2 = createTestApplication(clock2, cfg2);
+    auto& db2 = app2->getDatabase();
+
+    REQUIRE_FALSE(db2.canUseMiscDB());
+    REQUIRE(db2.getMainDBSchemaVersion() == SCHEMA_VERSION);
+
+    // Get Postgres table names
+    std::set<std::string> pgTables;
+    {
+        std::string name;
+        soci::statement st =
+            (db2.getRawSession().prepare << "SELECT tablename FROM pg_tables "
+                                            "WHERE schemaname = 'public' "
+                                            "ORDER BY tablename",
+             soci::into(name));
+        st.execute(false);
+        while (st.fetch())
+        {
+            pgTables.insert(name);
+        }
+    }
+
+    // Must have the exact same tables
+    CHECK(pgTables == allSqliteTables);
+
+    // Verify every table has the same row count across both backends.
+    // slotstate has an extra row in SQLite misc DB for the misc schema
+    // version, which doesn't exist in Postgres (it uses storestate).
+    for (auto const& table : allSqliteTables)
+    {
+        // For SQLite, query the right session (main or misc)
+        auto& sqliteSess = miscTables.count(table) ? db1.getRawMiscSession()
+                                                   : db1.getRawSession();
+        int sqliteRows = countRows(sqliteSess, table);
+        int pgRows = countRows(db2.getRawSession(), table);
+
+        INFO("Table: " << table);
+        if (table == "slotstate")
+        {
+            // SQLite misc DB has one extra row for miscdatabaseschema
+            CHECK(sqliteRows == pgRows + 1);
+        }
+        else
+        {
+            CHECK(sqliteRows == pgRows);
         }
     }
 }

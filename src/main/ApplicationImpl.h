@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "medida/timer_context.h"
@@ -76,6 +77,7 @@ class ApplicationImpl : public Application
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
+    virtual BannedAccountsPersistor& getBannedAccountsPersistor() override;
     virtual StatusManager& getStatusManager() override;
     virtual AppConnector& getAppConnector() override;
     std::unique_ptr<p23_hot_archive_bug::Protocol23CorruptionDataVerifier>&
@@ -192,6 +194,7 @@ class ApplicationImpl : public Application
     std::shared_ptr<WorkScheduler> mWorkScheduler;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<BanManager> mBanManager;
+    std::unique_ptr<BannedAccountsPersistor> mBannedAccountsPersistor;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<AbstractLedgerTxnParent> mLedgerTxnRoot;
     std::unique_ptr<AppConnector> mAppConnector;

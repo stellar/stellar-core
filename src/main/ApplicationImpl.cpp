@@ -338,6 +338,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // constructor
     mProcessManager = ProcessManager::create(*this);
 
+    // Initialize banned accounts persistence and migrate any deprecated
+    // FILTERED_G_ADDRESSES config entries into the persistent table.
+    mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
+
     // After everything is initialized, start accepting HTTP commands
     mCommandHandler = std::make_unique<CommandHandler>(*this);
 
@@ -1199,6 +1203,20 @@ ApplicationImpl::applyCfgCommands()
     {
         mCommandHandler->manualCmd(cmd);
     }
+
+    // Warn if COMMANDS contains banaccounts entries (after persisting
+    // those accounts)
+    for (auto const& cmd : mConfig.COMMANDS)
+    {
+        if (cmd.find("banaccounts") != std::string::npos)
+        {
+            CLOG_WARNING(Herder,
+                         "COMMANDS entry '{}' is no longer needed: banned "
+                         "accounts are now persisted across restarts. "
+                         "Consider removing this entry.",
+                         cmd);
+        }
+    }
 }
 
 Config const&
@@ -1449,6 +1467,12 @@ BanManager&
 ApplicationImpl::getBanManager()
 {
     return *mBanManager;
+}
+
+BannedAccountsPersistor&
+ApplicationImpl::getBannedAccountsPersistor()
+{
+    return *mBannedAccountsPersistor;
 }
 
 StatusManager&

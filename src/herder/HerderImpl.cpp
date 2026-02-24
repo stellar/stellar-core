@@ -1638,29 +1638,13 @@ HerderImpl::getUpgradesJson()
 }
 
 void
-HerderImpl::setFilteredAccounts(std::vector<std::string> const& addresses)
+HerderImpl::setFilteredAccounts(std::set<AccountID> const& accounts)
 {
-    UnorderedSet<AccountID> accounts;
-    for (auto const& addr : addresses)
-    {
-        accounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
-    }
     mTransactionQueue.setFilteredAccounts(accounts);
     if (mSorobanTransactionQueue)
     {
         mSorobanTransactionQueue->setFilteredAccounts(accounts);
     }
-}
-
-std::vector<std::string>
-HerderImpl::getFilteredAccounts() const
-{
-    std::vector<std::string> result;
-    for (auto const& acc : mTransactionQueue.getFilteredAccounts())
-    {
-        result.push_back(KeyUtils::toStrKey(acc));
-    }
-    return result;
 }
 
 void
@@ -2409,6 +2393,22 @@ HerderImpl::start()
     restoreUpgrades();
     startTxSetGCTimer();
     startCheckForDeadNodesInterval();
+
+    auto& bap = mApp.getBannedAccountsPersistor();
+    if (!mApp.getConfig().FILTERED_G_ADDRESSES.empty())
+    {
+        CLOG_WARNING(
+            Herder,
+            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
+            "future release. The current {} address(es) will be stored in the "
+            "database. You can safely remove FILTERED_G_ADDRESSES from the "
+            "config. Use 'banaccounts'/'unbanaccounts' HTTP commands to manage "
+            "banned accounts going forward.",
+            mApp.getConfig().FILTERED_G_ADDRESSES.size());
+        bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
+    }
+
+    setFilteredAccounts(bap.getBannedAccounts());
 }
 
 void
