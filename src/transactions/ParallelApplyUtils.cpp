@@ -147,6 +147,15 @@ getReadWriteKeysForStage(ApplyStage const& stage)
     ZoneScoped;
     std::unordered_set<LedgerKey> res;
 
+    // Pre-reserve to avoid rehashing. Each RW key may also have a TTL key.
+    size_t estimatedKeys = 0;
+    for (auto const& txBundle : stage)
+    {
+        estimatedKeys +=
+            txBundle.getTx()->sorobanResources().footprint.readWrite.size() * 2;
+    }
+    res.reserve(estimatedKeys);
+
     for (auto const& txBundle : stage)
     {
         for (auto const& lk :
@@ -298,6 +307,25 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
     ZoneScoped;
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          getSnapshotLedgerSeq() + 1);
+
+    // Pre-reserve global entry map to avoid rehashing as entries accumulate
+    // from classic fee processing, Soroban RO pre-loading, and thread commits.
+    // Each footprint key may have an associated TTL key, plus one classic
+    // source account entry per TX.
+    {
+        size_t estimatedEntries = 0;
+        for (auto const& stage : stages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                auto const& fp =
+                    txBundle.getTx()->sorobanResources().footprint;
+                estimatedEntries +=
+                    fp.readWrite.size() * 2 + fp.readOnly.size() * 2 + 1;
+            }
+        }
+        mGlobalEntryMap.reserve(estimatedEntries);
+    }
 
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
@@ -640,6 +668,20 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
 {
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
+
+    // Pre-reserve thread entry map to avoid rehashing during per-TX
+    // execution. Each footprint key may have an associated TTL key.
+    {
+        size_t estimatedEntries = 0;
+        for (auto const& txBundle : cluster)
+        {
+            auto const& fp =
+                txBundle.getTx()->sorobanResources().footprint;
+            estimatedEntries +=
+                fp.readWrite.size() * 2 + fp.readOnly.size() * 2;
+        }
+        mThreadEntryMap.reserve(estimatedEntries);
+    }
 
     // As part of the initialization of this thread state, we need to
     // collect all the keys that are in the global state map. For any keys
