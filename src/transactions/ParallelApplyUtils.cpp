@@ -122,25 +122,6 @@ ttl(std::optional<LedgerEntry> const& le)
     return ttl(le.value());
 }
 
-// Construct a set of all the TTL keys associated with all RO soroban
-// (code-or-data) keys named in the footprint of the `txBundle`. Note
-// that since RO and RW footprints are disjoint, we only have to look
-// at the RO set.
-UnorderedSet<LedgerKey>
-buildRoTTLSet(TxBundle const& txBundle)
-{
-    UnorderedSet<LedgerKey> isReadOnlyTTLSet;
-    for (auto const& ro :
-         txBundle.getTx()->sorobanResources().footprint.readOnly)
-    {
-        if (!isSorobanEntry(ro))
-        {
-            continue;
-        }
-        isReadOnlyTTLSet.emplace(getTTLKey(ro));
-    }
-    return isReadOnlyTTLSet;
-}
 
 // Accumulate into the buffer of `roTTLBumps` the max of any existing entry and
 // the provided `updatedLE`, which must be a non-nullopt TTL LE.
@@ -694,8 +675,16 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                 fetchFromGlobal(key);
                 if (isSorobanEntry(key))
                 {
-                    auto ttlKey = getTTLKey(key);
-                    fetchFromGlobal(ttlKey);
+                    // Use TTL key cache to avoid redundant SHA-256
+                    // computation for repeated keys across TXs in
+                    // the cluster.
+                    auto [cacheIt, inserted] =
+                        mTTLKeyCache.try_emplace(key, LedgerKey{});
+                    if (inserted)
+                    {
+                        cacheIt->second = getTTLKey(key);
+                    }
+                    fetchFromGlobal(cacheIt->second);
                 }
             }
         }
@@ -735,7 +724,10 @@ ThreadParallelApplyLedgerState::flushRoTTLBumpsInTxWriteFootprint(
             continue;
         }
 
-        auto const& ttlKey = getTTLKey(lk);
+        // Use TTL key cache to avoid redundant SHA-256 computation.
+        auto cacheIt = mTTLKeyCache.find(lk);
+        releaseAssertOrThrow(cacheIt != mTTLKeyCache.end());
+        auto const& ttlKey = cacheIt->second;
         auto b = mRoTTLBumps.find(ttlKey);
         if (b != mRoTTLBumps.end())
         {
@@ -875,7 +867,7 @@ ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key, bool isNew)
 void
 ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     LedgerKey const& key, ThreadParApplyLedgerEntryOpt const& newScopedEntryOpt,
-    UnorderedSet<LedgerKey> const& roTTLSet)
+    xdr::xvector<LedgerKey> const& roFootprint)
 {
     ThreadParApplyLedgerEntryOpt oldScopedEntryOpt = getLiveEntryOpt(key);
     std::optional<LedgerEntry> const& oldEntryOpt =
@@ -883,7 +875,31 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     std::optional<LedgerEntry> const& newEntryOpt =
         newScopedEntryOpt.readInScope(*this);
 
-    if (newEntryOpt && oldEntryOpt && roTTLSet.find(key) != roTTLSet.end())
+    // Check if this key is a TTL key for a read-only Soroban entry by
+    // scanning the TX's RO footprint with cached TTL key lookups.
+    // This avoids building a per-TX UnorderedSet (hash + emplace per RO
+    // entry) and instead does a small linear scan (typically 2-4 entries
+    // for SAC transfers).
+    bool isRoTTL = false;
+    if (newEntryOpt && oldEntryOpt && key.type() == TTL)
+    {
+        for (auto const& ro : roFootprint)
+        {
+            if (!isSorobanEntry(ro))
+            {
+                continue;
+            }
+            auto cacheIt = mTTLKeyCache.find(ro);
+            releaseAssertOrThrow(cacheIt != mTTLKeyCache.end());
+            if (cacheIt->second == key)
+            {
+                isRoTTL = true;
+                break;
+            }
+        }
+    }
+
+    if (isRoTTL)
     {
         auto const& entry = newEntryOpt.value();
         // Accumulate RO bumps instead of writing them to the entryMap.
@@ -953,12 +969,13 @@ ThreadParallelApplyLedgerState::commitChangesFromSuccessfulTx(
     ParallelTxReturnVal const& res, TxBundle const& txBundle)
 {
     releaseAssertOrThrow(res.getSuccess());
-    auto roTTLSet = buildRoTTLSet(txBundle);
+    auto const& roFootprint =
+        txBundle.getTx()->sorobanResources().footprint.readOnly;
     for (auto const& [key, txScopedEntryOpt] : res.getModifiedEntryMap())
     {
         auto threadScopedEntryOpt =
             scopeAdoptEntryOptFrom(txScopedEntryOpt, res);
-        commitChangeFromSuccessfulTx(key, threadScopedEntryOpt, roTTLSet);
+        commitChangeFromSuccessfulTx(key, threadScopedEntryOpt, roFootprint);
     }
     mThreadRestoredEntries.addRestoresFrom(res.getRestoredEntries());
 }

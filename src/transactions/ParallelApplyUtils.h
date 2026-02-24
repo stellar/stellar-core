@@ -115,6 +115,12 @@ class ThreadParallelApplyLedgerState
     // (by taking maximums) into the global map at the end of the thread's life.
     UnorderedMap<LedgerKey, uint32_t> mRoTTLBumps;
 
+    // Cache mapping Soroban data/code keys to their TTL keys. Populated
+    // during collectClusterFootprintEntriesFromGlobal so that subsequent
+    // getTTLKey calls (in buildRoTTLSet, flushRoTTLBumpsInTxWriteFootprint)
+    // can use a simple lookup instead of SHA-256 + XDR serialization.
+    UnorderedMap<LedgerKey, LedgerKey> mTTLKeyCache;
+
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
@@ -126,7 +132,7 @@ class ThreadParallelApplyLedgerState
     void
     commitChangeFromSuccessfulTx(LedgerKey const& key,
                                  ThreadParApplyLedgerEntryOpt const& entryOpt,
-                                 UnorderedSet<LedgerKey> const& roTTLSet);
+                                 xdr::xvector<LedgerKey> const& roFootprint);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
