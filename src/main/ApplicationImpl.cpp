@@ -339,36 +339,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // Initialize banned accounts persistence and migrate any deprecated
     // FILTERED_G_ADDRESSES config entries into the persistent table.
     mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
-    mBannedAccountsPersistor->getBannedAccounts();
-
-    if (!mConfig.FILTERED_G_ADDRESSES.empty())
-    {
-        CLOG_WARNING(
-            Herder,
-            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
-            "future release. Migrating {} address(es) to persistent banned "
-            "accounts table. Use the 'banaccounts' HTTP command instead.",
-            mConfig.FILTERED_G_ADDRESSES.size());
-        mBannedAccountsPersistor->addBannedAccounts(
-            mConfig.FILTERED_G_ADDRESSES);
-    }
-
-    // Warn if COMMANDS contains banaccounts entries (no longer needed since
-    // bans are now persisted).
-    for (auto const& cmd : mConfig.COMMANDS)
-    {
-        if (cmd.find("banaccounts") != std::string::npos)
-        {
-            CLOG_WARNING(Herder,
-                         "COMMANDS entry '{}' is no longer needed: banned "
-                         "accounts are now persisted across restarts. "
-                         "Consider removing this entry.",
-                         cmd);
-        }
-    }
-
-    // Push persisted banned accounts into the transaction queues.
-    mHerder->setFilteredAccounts(mBannedAccountsPersistor->getBannedAccounts());
 
     // After everything is initialized, start accepting HTTP commands
     mCommandHandler = std::make_unique<CommandHandler>(*this);

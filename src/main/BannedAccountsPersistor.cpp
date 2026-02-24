@@ -8,7 +8,6 @@
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include <algorithm>
 
 namespace stellar
 {
@@ -59,6 +58,22 @@ BannedAccountsPersistor::getBannedAccounts()
     CLOG_INFO(Herder, "Loaded {} banned account(s) from database",
               result.size());
     return result;
+}
+
+size_t
+BannedAccountsPersistor::getBannedAccountsCount()
+{
+    releaseAssert(threadIsMain());
+
+    int count = 0;
+    auto& db = mApp.getDatabase();
+    auto prep = db.getPreparedStatement("SELECT COUNT(*) FROM bannedaccounts;",
+                                        db.getMiscSession());
+    auto& st = prep.statement();
+    st.exchange(soci::into(count));
+    st.define_and_bind();
+    st.execute(true);
+    return static_cast<size_t>(count);
 }
 
 void
