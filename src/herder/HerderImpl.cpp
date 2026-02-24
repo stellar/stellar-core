@@ -2418,6 +2418,21 @@ HerderImpl::start()
     restoreUpgrades();
     startTxSetGCTimer();
     startCheckForDeadNodesInterval();
+
+    auto& bap = mApp.getBannedAccountsPersistor();
+    if (!mApp.getConfig().FILTERED_G_ADDRESSES.empty())
+    {
+        CLOG_WARNING(
+            Herder,
+            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
+            "future release. Migrating {} address(es) to persistent banned "
+            "accounts table. Use the 'banaccounts' HTTP command instead.",
+            mApp.getConfig().FILTERED_G_ADDRESSES.size());
+        bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
+    }
+
+    setFilteredAccounts(bap.getBannedAccounts());
+
 }
 
 void
