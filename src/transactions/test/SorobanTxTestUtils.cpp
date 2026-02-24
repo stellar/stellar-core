@@ -1990,9 +1990,15 @@ AssetContractTestClient::trust(TestAccount& addr)
     LedgerKey accountKey(ACCOUNT);
     accountKey.account().accountID = addr.getPublicKey();
 
-    auto spec = defaultSpec()
-                    .setReadWriteFootprint({trustlineKey, accountKey})
-                    .extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+    auto spec = defaultSpec();
+    // If this is the native asset, we expect the tx to fail, but we still want
+    // to be able to test that failure, so make sure the tx that is built passes
+    // initial validation.
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        spec = spec.setReadWriteFootprint({trustlineKey, accountKey})
+                   .extendReadOnlyFootprint({makeIssuerKey(mAsset)});
+    }
 
     auto invocation = mContract.prepareInvocation("trust", {addrVal}, spec)
                           .withAuthorizedTopCall();

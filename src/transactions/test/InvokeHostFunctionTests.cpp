@@ -505,6 +505,9 @@ TEST_CASE("Native stellar asset contract",
             REQUIRE(entry.current().data.account().balance == createAmount);
         }
 
+        // Calling trust on the native asset should fail
+        REQUIRE(!client.trust(a2));
+
         // Transferring below minimum should fail for a non-existent account
         auto newAccKey2 = SecretKey::pseudoRandomForTesting();
         auto newAccPub2 = newAccKey2.getPublicKey();
