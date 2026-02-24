@@ -1071,6 +1071,18 @@ ThreadParallelApplyLedgerState::getModuleCache() const
     return mModuleCache;
 }
 
+LedgerKey const*
+ThreadParallelApplyLedgerState::lookupCachedTTLKey(
+    LedgerKey const& key) const
+{
+    auto it = mTTLKeyCache.find(key);
+    if (it != mTTLKeyCache.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 TxParallelApplyLedgerState::TxParallelApplyLedgerState(
     ThreadParallelApplyLedgerState const& parent)
     : LedgerEntryScope(
@@ -1241,5 +1253,11 @@ uint32_t
 TxParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
     return mThreadState.getSnapshotLedgerSeq();
+}
+
+LedgerKey const*
+TxParallelApplyLedgerState::getCachedTTLKey(LedgerKey const& key) const
+{
+    return mThreadState.lookupCachedTTLKey(key);
 }
 }

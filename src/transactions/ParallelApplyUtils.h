@@ -224,6 +224,10 @@ class ThreadParallelApplyLedgerState
     SearchableHotArchiveSnapshotConstPtr const& getHotArchiveSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
+
+    // Look up a pre-computed TTL key from the cache populated during
+    // collectClusterFootprintEntriesFromGlobal. Returns nullptr if not cached.
+    LedgerKey const* lookupCachedTTLKey(LedgerKey const& key) const;
 };
 
 class GlobalParallelApplyLedgerState
@@ -380,6 +384,9 @@ class TxParallelApplyLedgerState
     ParallelTxReturnVal takeSuccess();
     ParallelTxReturnVal takeFailure();
     uint32_t getSnapshotLedgerSeq() const;
+
+    // Delegate to thread state's TTL key cache.
+    LedgerKey const* getCachedTTLKey(LedgerKey const& key) const;
 };
 
 class LedgerAccessHelper

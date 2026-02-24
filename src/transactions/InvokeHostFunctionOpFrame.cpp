@@ -354,6 +354,15 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
     virtual bool previouslyRestoredFromHotArchive(LedgerKey const& lk) = 0;
 
+    // Compute the TTL key for a soroban entry. Default implementation
+    // calls getTTLKey (XDR serialize + SHA-256). Parallel apply overrides
+    // this to use the pre-computed TTL key cache.
+    virtual LedgerKey
+    computeTTLKey(LedgerKey const& lk)
+    {
+        return getTTLKey(lk);
+    }
+
     // Helper to meter disk read resources and validate
     // resource usage. Returns false if the operation
     // should fail and populates result code and
@@ -405,7 +414,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             // For soroban entries, check if the entry is expired before loading
             if (isSorobanEntry(lk))
             {
-                auto ttlKey = getTTLKey(lk);
+                auto ttlKey = computeTTLKey(lk);
 
                 // handleArchivedEntry may need to load the TTL key to write the
                 // restored TTL, so make sure any TTL ltxe destructs before
@@ -1258,6 +1267,17 @@ class InvokeHostFunctionParallelApplyHelper
     getLedgerInfo() override
     {
         return getLedgerInfoFromCache(mLedgerInfo);
+    }
+
+    LedgerKey
+    computeTTLKey(LedgerKey const& lk) override
+    {
+        auto cached = mTxState.getCachedTTLKey(lk);
+        if (cached)
+        {
+            return *cached;
+        }
+        return getTTLKey(lk);
     }
 
   public:
