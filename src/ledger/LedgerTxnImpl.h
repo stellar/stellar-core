@@ -429,6 +429,7 @@ class LedgerTxn::Impl
     UnorderedMap<LedgerKey, LedgerEntry> getRestoredLiveBucketListKeys() const;
 
     UnorderedSet<LedgerKey> getAllKeysWithoutSealing() const;
+    bool isModifiedKey(LedgerKey const& key) const;
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then

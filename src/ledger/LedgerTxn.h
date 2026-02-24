@@ -680,6 +680,11 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // modified.
     virtual UnorderedSet<LedgerKey> getAllKeysWithoutSealing() const = 0;
 
+    // Returns true if the given LedgerKey has been modified (created, updated,
+    // or deleted) in this LedgerTxn. This is an O(1) lookup that avoids
+    // building the full key set.
+    virtual bool isModifiedKey(LedgerKey const& key) const = 0;
+
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
     // in any parent AbstractLedgerTxn has already been loaded). This function
@@ -813,6 +818,7 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
     UnorderedSet<LedgerKey> getAllKeysWithoutSealing() const override;
+    bool isModifiedKey(LedgerKey const& key) const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const override;

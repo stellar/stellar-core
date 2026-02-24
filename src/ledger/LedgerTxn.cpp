@@ -1777,6 +1777,19 @@ LedgerTxn::Impl::getAllKeysWithoutSealing() const
     return result;
 }
 
+bool
+LedgerTxn::isModifiedKey(LedgerKey const& key) const
+{
+    return getImpl()->isModifiedKey(key);
+}
+
+bool
+LedgerTxn::Impl::isModifiedKey(LedgerKey const& key) const
+{
+    abortIfWrongThread("isModifiedKey");
+    return mEntry.find(InternalLedgerKey(key)) != mEntry.end();
+}
+
 std::shared_ptr<InternalLedgerEntry const>
 LedgerTxn::getNewestVersion(InternalLedgerKey const& key) const
 {
