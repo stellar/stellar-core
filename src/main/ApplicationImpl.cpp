@@ -1217,10 +1217,10 @@ ApplicationImpl::applyCfgCommands()
         if (cmd.find("banaccounts") != std::string::npos)
         {
             CLOG_WARNING(Herder,
-                            "COMMANDS entry '{}' is no longer needed: banned "
-                            "accounts are now persisted across restarts. "
-                            "Consider removing this entry.",
-                            cmd);
+                         "COMMANDS entry '{}' is no longer needed: banned "
+                         "accounts are now persisted across restarts. "
+                         "Consider removing this entry.",
+                         cmd);
         }
     }
 }

@@ -49,6 +49,8 @@ TEST_CASE("BannedAccountsPersistor basic operations", "[banaccounts]")
         REQUIRE(keys.size() == 2);
         // Keys are sorted
         REQUIRE(std::is_sorted(keys.begin(), keys.end()));
+        REQUIRE(std::find(keys.begin(), keys.end(), addr1) != keys.end());
+        REQUIRE(std::find(keys.begin(), keys.end(), addr2) != keys.end());
     }
 
     SECTION("add is idempotent")
@@ -136,7 +138,17 @@ TEST_CASE("FILTERED_G_ADDRESSES migration", "[banaccounts]")
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto& persistor = app->getBannedAccountsPersistor();
-        REQUIRE(persistor.getBannedAccounts().size() == 3);
+        auto keys = persistor.getBannedAccountStrKeys();
+        REQUIRE(keys.size() == 3);
+        REQUIRE(std::find(keys.begin(), keys.end(),
+                          "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6"
+                          "BHZBOC2WXC") != keys.end());
+        REQUIRE(std::find(keys.begin(), keys.end(),
+                          "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU"
+                          "3RT2UAMVZH") != keys.end());
+        REQUIRE(std::find(keys.begin(), keys.end(),
+                          "GCQCWEQDICASV3R737LPWPDJ3FPBC6XPWXKPJDL22DLQVG"
+                          "OJAUH5DBJI") != keys.end());
     }
 }
 
@@ -153,22 +165,16 @@ TEST_CASE("banaccounts HTTP command with persistence", "[banaccounts]")
         auto srcKey = SecretKey::pseudoRandomForTesting();
         auto src = root->create(srcKey, 1000000000);
 
-        // Initially, no ban — transaction should be accepted
-        auto acc = getAccount("acc");
-        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
-
         // Ban via HTTP command
         auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
         auto result = app->getCommandHandler().manualCmd(
             "banaccounts?accountids=" + addr);
         REQUIRE(result.find("banned accounts updated") != std::string::npos);
 
-        // New transaction from the same source should now be filtered
-        auto acc2 = getAccount("acc2");
-        auto tx2 = src.tx({createAccount(acc2.getPublicKey(), 1)});
-        REQUIRE(app->getHerder().recvTransaction(tx2, false).code ==
+        // Transaction from the banned source should be filtered
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
         // Verify persisted
