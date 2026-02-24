@@ -149,25 +149,38 @@ class InternalContractDataMapEntry
     {
       private:
         ContractDataMapEntryT entry;
+        // Cached TTL key hash (SHA-256 of the XDR-serialized LedgerKey).
+        // Computed once at construction and reused for all hash/equality
+        // operations, avoiding repeated SHA-256 + XDR serialize per lookup.
+        uint256 mCachedKeyHash;
+
+        // Private constructor that accepts a pre-computed hash (used by clone)
+        ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
+                   TTLData ttlData, uint256 const& cachedKeyHash)
+            : entry(std::move(ledgerEntry), ttlData)
+            , mCachedKeyHash(cachedKeyHash)
+        {
+        }
 
       public:
         ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
                    TTLData ttlData)
             : entry(std::move(ledgerEntry), ttlData)
+            , mCachedKeyHash(
+                  getTTLKey(LedgerEntryKey(*entry.ledgerEntry)).ttl().keyHash)
         {
         }
 
         uint256
         copyKey() const override
         {
-            auto ttlKey = getTTLKey(LedgerEntryKey(*entry.ledgerEntry));
-            return ttlKey.ttl().keyHash;
+            return mCachedKeyHash;
         }
 
         size_t
         hash() const override
         {
-            return std::hash<uint256>{}(copyKey());
+            return std::hash<uint256>{}(mCachedKeyHash);
         }
 
         ContractDataMapEntryT const&
@@ -179,9 +192,9 @@ class InternalContractDataMapEntry
         std::unique_ptr<AbstractEntry>
         clone() const override
         {
-            return std::make_unique<ValueEntry>(
+            return std::unique_ptr<AbstractEntry>(new ValueEntry(
                 std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
-                entry.ttlData);
+                entry.ttlData, mCachedKeyHash));
         }
 
         void
