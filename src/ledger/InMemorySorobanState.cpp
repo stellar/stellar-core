@@ -55,11 +55,11 @@ InMemorySorobanState::updateContractDataTTL(
                        InternalContractDataEntryHash>::iterator dataIt,
     TTLData newTtlData)
 {
-    // Since entries are immutable, we must erase and re-insert
-    auto ledgerEntryPtr = dataIt->get().ledgerEntry;
-    mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(
-        InternalContractDataMapEntry(std::move(ledgerEntryPtr), newTtlData));
+    // In-place mutation: TTLData is not part of the hash or equality,
+    // so modifying it doesn't invalidate the unordered_set invariants.
+    // This avoids erase+emplace which triggers SHA-256 recomputation
+    // and memory allocation/deallocation.
+    dataIt->updateTTLData(newTtlData);
 }
 
 void
@@ -103,11 +103,11 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     uint32_t newSize = xdr::xdr_size(ledgerEntry);
     updateStateSizeOnEntryUpdate(oldSize, newSize, /*isContractCode=*/false);
 
-    // Preserve the existing TTL while updating the data
-    auto preservedTTL = dataIt->get().ttlData;
-    mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, preservedTTL));
+    // In-place mutation: swap the LedgerEntry pointer without erase+emplace.
+    // The LedgerEntry is not part of the hash key (hash is based on the
+    // TTL key hash which doesn't change for the same contract data key).
+    dataIt->updateLedgerEntryPtr(
+        std::make_shared<LedgerEntry const>(ledgerEntry));
 }
 
 void

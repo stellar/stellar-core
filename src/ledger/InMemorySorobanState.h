@@ -46,10 +46,14 @@ struct TTLData
 
 // ContractDataMapEntryT stores a ContractData LedgerEntry and its TTL. TTL is
 // stored directly with the data to avoid an additional lookup and save memory.
+// Fields are non-const to allow in-place updates through the unordered_set's
+// shallow const semantics (unique_ptr<T>::operator*() const returns T&),
+// avoiding expensive erase+emplace cycles that trigger SHA-256 recomputation
+// and memory allocation.
 struct ContractDataMapEntryT
 {
-    std::shared_ptr<LedgerEntry const> const ledgerEntry;
-    TTLData const ttlData;
+    std::shared_ptr<LedgerEntry const> ledgerEntry;
+    TTLData ttlData;
 
     explicit ContractDataMapEntryT(
         std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
@@ -124,6 +128,13 @@ class InternalContractDataMapEntry
         // Creates a deep copy of this entry. Required for copy constructor.
         virtual std::unique_ptr<AbstractEntry> clone() const = 0;
 
+        // In-place mutation methods. These modify the entry data without
+        // affecting the hash key, avoiding expensive erase+emplace cycles.
+        // Only valid for ValueEntry instances; QueryKey throws.
+        virtual void updateTTLData(TTLData newTtl) = 0;
+        virtual void
+        updateLedgerEntryPtr(std::shared_ptr<LedgerEntry const>&& newEntry) = 0;
+
         // Equality comparison based on TTL keys
         virtual bool
         operator==(AbstractEntry const& other) const
@@ -172,6 +183,19 @@ class InternalContractDataMapEntry
                 std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
                 entry.ttlData);
         }
+
+        void
+        updateTTLData(TTLData newTtl) override
+        {
+            entry.ttlData = newTtl;
+        }
+
+        void
+        updateLedgerEntryPtr(
+            std::shared_ptr<LedgerEntry const>&& newEntry) override
+        {
+            entry.ledgerEntry = std::move(newEntry);
+        }
     };
 
     // QueryKey is a lightweight key-only entry used for map lookups.
@@ -210,6 +234,21 @@ class InternalContractDataMapEntry
         clone() const override
         {
             return std::make_unique<QueryKey>(ledgerKeyHash);
+        }
+
+        void
+        updateTTLData(TTLData) override
+        {
+            throw std::runtime_error(
+                "QueryKey::updateTTLData() called - this is a logic error");
+        }
+
+        void
+        updateLedgerEntryPtr(std::shared_ptr<LedgerEntry const>&&) override
+        {
+            throw std::runtime_error(
+                "QueryKey::updateLedgerEntryPtr() called - this is a "
+                "logic error");
         }
     };
 
@@ -274,6 +313,21 @@ class InternalContractDataMapEntry
     get() const
     {
         return impl->get();
+    }
+
+    // In-place mutation through unordered_set's shallow const semantics.
+    // unique_ptr<T>::operator*() const returns T&, allowing mutation of
+    // the pointed-to AbstractEntry without modifying the hash key.
+    void
+    updateTTLData(TTLData newTtl) const
+    {
+        impl->updateTTLData(newTtl);
+    }
+
+    void
+    updateLedgerEntryPtr(std::shared_ptr<LedgerEntry const>&& newEntry) const
+    {
+        impl->updateLedgerEntryPtr(std::move(newEntry));
     }
 };
 
