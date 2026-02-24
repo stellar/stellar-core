@@ -199,36 +199,17 @@ TEST_CASE("banaccounts HTTP command with persistence", "[banaccounts]")
                 2);
     }
 
-    SECTION("clear banned accounts via command")
+    SECTION("empty accountids returns error")
     {
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.FILTERED_G_ADDRESSES = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
-        auto root = app->getRoot();
-        auto srcKey = SecretKey::pseudoRandomForTesting();
-        auto src = root->create(srcKey, 1000000000);
-        auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
-
-        // Ban first
-        app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr);
-        auto acc = getAccount("acc");
-        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
-
-        // Clear
         auto result =
             app->getCommandHandler().manualCmd("banaccounts?accountids=");
-        REQUIRE(result.find("banned accounts cleared") != std::string::npos);
-
-        // Transaction should now be accepted
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
-
-        // Verify persisted state is empty
-        REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().empty());
+        REQUIRE(result.find("accountids must not be empty") !=
+                std::string::npos);
     }
 
     SECTION("list banned accounts")
@@ -343,15 +324,35 @@ TEST_CASE("unbanaccounts HTTP command", "[banaccounts]")
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 
-    SECTION("missing accountids returns error")
+    SECTION("clear all banned accounts")
     {
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.FILTERED_G_ADDRESSES = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
+        auto root = app->getRoot();
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        auto src = root->create(srcKey, 1000000000);
+        auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
+
+        // Ban first
+        app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr);
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+
+        // Clear all via unbanaccounts with no accountids
         auto result = app->getCommandHandler().manualCmd("unbanaccounts");
-        REQUIRE(result.find("must specify accountids") != std::string::npos);
+        REQUIRE(result.find("banned accounts cleared") != std::string::npos);
+
+        // Transaction should now be accepted
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+
+        // Verify persisted state is empty
+        REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().empty());
     }
 
     SECTION("invalid address returns error")

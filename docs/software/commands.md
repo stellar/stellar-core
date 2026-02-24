@@ -263,14 +263,14 @@ Most commands return their results in JSON format.
   * `banaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
     Adds the specified addresses to the persistent ban list. Existing bans are
     preserved (additive).<br>
-  * `banaccounts?accountids=`<br>
-    Clears all banned accounts.<br>
 
   Note: The `FILTERED_G_ADDRESSES` configuration option is deprecated. Any
   addresses configured there will be automatically migrated to the persistent
   ban list on startup.
 
 * **unbanaccounts**
+  * `unbanaccounts`<br>
+    Clears all banned accounts.<br>
   * `unbanaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
     Removes the specified addresses from the persistent ban list.<br>
 

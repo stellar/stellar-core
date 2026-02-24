@@ -6,7 +6,7 @@
 
 #include "crypto/KeyUtils.h"
 #include "overlay/StellarXDR.h"
-#include "util/UnorderedSet.h"
+#include <set>
 #include <soci.h>
 #include <string>
 #include <vector>
@@ -36,6 +36,9 @@ class BannedAccountsPersistor
 
     // Get the set of banned accounts.
     std::set<AccountID> getBannedAccounts();
+
+    // Get the number of banned accounts.
+    size_t getBannedAccountsCount();
 
     // Get the banned accounts as a sorted list of StrKey strings.
     std::vector<std::string> getBannedAccountStrKeys();
