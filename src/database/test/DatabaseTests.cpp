@@ -714,8 +714,10 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
     TmpDir tmpDir("schema-parity-test");
     Config cfg1 = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg1.DATABASE = SecretValue{"sqlite3://" + tmpDir.getName() + "/test.db"};
-    // Clear FILTERED_G_ADDRESSES to avoid migration artifacts
-    cfg1.FILTERED_G_ADDRESSES = {};
+    // Use non-empty FILTERED_G_ADDRESSES to test migration as well
+    cfg1.FILTERED_G_ADDRESSES = {
+        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
 
     VirtualClock clock1;
     Application::pointer app1 = createTestApplication(clock1, cfg1);
@@ -733,7 +735,7 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
     for (auto const& t : mainTables)
     {
         INFO("Table in both main and misc: " << t);
-        CHECK(miscTables.count(t) == 0);
+        REQUIRE(miscTables.count(t) == 0);
     }
 
     std::set<std::string> allSqliteTables = mainTables;
@@ -741,71 +743,56 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
 
     // ---- PostgreSQL: compare tables and row counts ----
     Config cfg2 = getTestConfig(1, Config::TESTDB_POSTGRESQL);
-    cfg2.FILTERED_G_ADDRESSES = {};
+    cfg2.FILTERED_G_ADDRESSES = {
+        "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+        "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH"};
 
     VirtualClock clock2;
-    try
+    Application::pointer app2 = createTestApplication(clock2, cfg2);
+    auto& db2 = app2->getDatabase();
+
+    REQUIRE_FALSE(db2.canUseMiscDB());
+    REQUIRE(db2.getMainDBSchemaVersion() == SCHEMA_VERSION);
+
+    // Get Postgres table names
+    std::set<std::string> pgTables;
     {
-        Application::pointer app2 = createTestApplication(clock2, cfg2);
-        auto& db2 = app2->getDatabase();
-
-        REQUIRE_FALSE(db2.canUseMiscDB());
-        REQUIRE(db2.getMainDBSchemaVersion() == SCHEMA_VERSION);
-
-        // Get Postgres table names
-        std::set<std::string> pgTables;
+        std::string name;
+        soci::statement st =
+            (db2.getRawSession().prepare << "SELECT tablename FROM pg_tables "
+                                            "WHERE schemaname = 'public' "
+                                            "ORDER BY tablename",
+             soci::into(name));
+        st.execute(false);
+        while (st.fetch())
         {
-            std::string name;
-            soci::statement st = (db2.getRawSession().prepare
-                                      << "SELECT tablename FROM pg_tables "
-                                         "WHERE schemaname = 'public' "
-                                         "ORDER BY tablename",
-                                  soci::into(name));
-            st.execute(false);
-            while (st.fetch())
-            {
-                pgTables.insert(name);
-            }
-        }
-
-        // Must have the exact same tables
-        CHECK(pgTables == allSqliteTables);
-
-        // Verify every table has the same row count across both backends.
-        // slotstate has an extra row in SQLite misc DB for the misc schema
-        // version, which doesn't exist in Postgres (it uses storestate).
-        for (auto const& table : allSqliteTables)
-        {
-            // For SQLite, query the right session (main or misc)
-            auto& sqliteSess = miscTables.count(table) ? db1.getRawMiscSession()
-                                                       : db1.getRawSession();
-            int sqliteRows = countRows(sqliteSess, table);
-            int pgRows = countRows(db2.getRawSession(), table);
-
-            INFO("Table: " << table);
-            if (table == "slotstate")
-            {
-                // SQLite misc DB has one extra row for miscdatabaseschema
-                CHECK(sqliteRows == pgRows + 1);
-            }
-            else
-            {
-                CHECK(sqliteRows == pgRows);
-            }
+            pgTables.insert(name);
         }
     }
-    catch (soci::soci_error& err)
+
+    // Must have the exact same tables
+    CHECK(pgTables == allSqliteTables);
+
+    // Verify every table has the same row count across both backends.
+    // slotstate has an extra row in SQLite misc DB for the misc schema
+    // version, which doesn't exist in Postgres (it uses storestate).
+    for (auto const& table : allSqliteTables)
     {
-        std::string what(err.what());
-        if (what.find("Cannot establish connection") != std::string::npos)
+        // For SQLite, query the right session (main or misc)
+        auto& sqliteSess = miscTables.count(table) ? db1.getRawMiscSession()
+                                                   : db1.getRawSession();
+        int sqliteRows = countRows(sqliteSess, table);
+        int pgRows = countRows(db2.getRawSession(), table);
+
+        INFO("Table: " << table);
+        if (table == "slotstate")
         {
-            LOG_WARNING(DEFAULT_LOG, "Cannot connect to postgres server {}",
-                        what);
+            // SQLite misc DB has one extra row for miscdatabaseschema
+            CHECK(sqliteRows == pgRows + 1);
         }
         else
         {
-            LOG_ERROR(DEFAULT_LOG, "DB error: {}", what);
-            REQUIRE(0);
+            CHECK(sqliteRows == pgRows);
         }
     }
 }

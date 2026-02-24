@@ -35,13 +35,13 @@ class BannedAccountsPersistor
     void clearBannedAccounts();
 
     // Get the set of banned accounts.
-    std::set<AccountID> getBannedAccounts();
+    std::set<AccountID> getBannedAccounts() const;
 
     // Get the number of banned accounts.
-    size_t getBannedAccountsCount();
+    size_t getBannedAccountsCount() const;
 
     // Get the banned accounts as a sorted list of StrKey strings.
-    std::vector<std::string> getBannedAccountStrKeys();
+    std::vector<std::string> getBannedAccountStrKeys() const;
 
   private:
     Application& mApp;
