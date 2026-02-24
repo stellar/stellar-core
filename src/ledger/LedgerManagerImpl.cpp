@@ -2363,10 +2363,13 @@ LedgerManagerImpl::applyThread(
 }
 
 static ParallelLedgerInfo
-getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
+getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh,
+                      SorobanNetworkConfig const& sorobanConfig)
 {
-    return {lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, app.getNetworkID()};
+    ParallelLedgerInfo info{lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
+                            lh.scpValue.closeTime, app.getNetworkID()};
+    info.cacheSorobanConfig(sorobanConfig);
+    return info;
 }
 
 void
@@ -2500,11 +2503,12 @@ void
 LedgerManagerImpl::applySorobanStage(
     AppConnector& app, LedgerHeader const& header,
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
-    Hash const& sorobanBasePrngSeed)
+    Hash const& sorobanBasePrngSeed,
+    SorobanNetworkConfig const& sorobanConfig)
 {
     ZoneScoped;
     auto const& config = app.getConfig();
-    auto ledgerInfo = getParallelLedgerInfo(app, header);
+    auto ledgerInfo = getParallelLedgerInfo(app, header, sorobanConfig);
 
     applySorobanStageClustersInParallel(
         app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo);
@@ -2527,7 +2531,7 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
     for (auto const& stage : stages)
     {
         applySorobanStage(app, header, globalParState, stage,
-                          sorobanBasePrngSeed);
+                          sorobanBasePrngSeed, sorobanConfig);
     }
     globalParState.commitChangesToLedgerTxn(ltx);
 }

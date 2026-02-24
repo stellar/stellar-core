@@ -69,6 +69,35 @@ getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
     return info;
 }
 
+// Construct CxxLedgerInfo using pre-serialized cost params from
+// ParallelLedgerInfo, avoiding per-TX XDR serialization.
+CxxLedgerInfo
+getLedgerInfoFromCache(ParallelLedgerInfo const& cached)
+{
+    CxxLedgerInfo info{};
+    info.base_reserve = cached.getBaseReserve();
+    info.protocol_version = cached.getLedgerVersion();
+    info.sequence_number = cached.getLedgerSeq();
+    info.timestamp = cached.getCloseTime();
+    info.memory_limit = cached.getCachedMemoryLimit();
+    info.min_persistent_entry_ttl = cached.getCachedMinPersistentEntryTTL();
+    info.min_temp_entry_ttl = cached.getCachedMinTempEntryTTL();
+    info.max_entry_ttl = cached.getCachedMaxEntryTTL();
+
+    info.cpu_cost_params = CxxBuf{std::make_unique<std::vector<uint8_t>>(
+        cached.getCpuCostParamsOpaque())};
+    info.mem_cost_params = CxxBuf{std::make_unique<std::vector<uint8_t>>(
+        cached.getMemCostParamsOpaque())};
+
+    auto const& networkID = cached.getNetworkID();
+    info.network_id.reserve(networkID.size());
+    for (auto c : networkID)
+    {
+        info.network_id.emplace_back(static_cast<unsigned char>(c));
+    }
+    return info;
+}
+
 DiagnosticEvent
 metricsEvent(bool success, std::string&& topic, uint64_t value)
 {
@@ -1228,10 +1257,7 @@ class InvokeHostFunctionParallelApplyHelper
     CxxLedgerInfo
     getLedgerInfo() override
     {
-        return stellar::getLedgerInfo(
-            mSorobanConfig, mLedgerInfo.getLedgerVersion(),
-            mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
-            mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());
+        return getLedgerInfoFromCache(mLedgerInfo);
     }
 
   public:

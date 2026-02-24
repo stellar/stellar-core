@@ -38,6 +38,10 @@ class ParallelLedgerInfo
     {
     }
 
+    // Pre-serialize cost params and config fields that are identical for all
+    // TXs in a ledger, avoiding redundant XDR serialization per TX.
+    void cacheSorobanConfig(SorobanNetworkConfig const& sorobanConfig);
+
     uint32_t
     getLedgerVersion() const
     {
@@ -64,12 +68,45 @@ class ParallelLedgerInfo
         return networkID;
     }
 
+    std::vector<uint8_t> const& getCpuCostParamsOpaque() const
+    {
+        return mCpuCostParamsOpaque;
+    }
+    std::vector<uint8_t> const& getMemCostParamsOpaque() const
+    {
+        return mMemCostParamsOpaque;
+    }
+    uint32_t getCachedMemoryLimit() const
+    {
+        return mMemoryLimit;
+    }
+    uint32_t getCachedMinPersistentEntryTTL() const
+    {
+        return mMinPersistentEntryTTL;
+    }
+    uint32_t getCachedMinTempEntryTTL() const
+    {
+        return mMinTempEntryTTL;
+    }
+    uint32_t getCachedMaxEntryTTL() const
+    {
+        return mMaxEntryTTL;
+    }
+
   private:
     uint32_t ledgerVersion;
     uint32_t ledgerSeq;
     uint32_t baseReserve;
     TimePoint closeTime;
     Hash networkID;
+
+    // Pre-serialized cost params (populated by cacheSorobanConfig)
+    std::vector<uint8_t> mCpuCostParamsOpaque;
+    std::vector<uint8_t> mMemCostParamsOpaque;
+    uint32_t mMemoryLimit{0};
+    uint32_t mMinPersistentEntryTTL{0};
+    uint32_t mMinTempEntryTTL{0};
+    uint32_t mMaxEntryTTL{0};
 };
 
 class ThreadParallelApplyLedgerState

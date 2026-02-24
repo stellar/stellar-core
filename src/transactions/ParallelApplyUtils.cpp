@@ -15,6 +15,7 @@
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
+#include <xdrpp/marshal.h>
 #include <fmt/core.h>
 #include <fmt/std.h>
 #include <thread>
@@ -140,6 +141,19 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
 
 namespace stellar
 {
+
+void
+ParallelLedgerInfo::cacheSorobanConfig(
+    SorobanNetworkConfig const& sorobanConfig)
+{
+    mCpuCostParamsOpaque = xdr::xdr_to_opaque(sorobanConfig.cpuCostParams());
+    mMemCostParamsOpaque = xdr::xdr_to_opaque(sorobanConfig.memCostParams());
+    mMemoryLimit = sorobanConfig.txMemoryLimit();
+    mMinPersistentEntryTTL =
+        sorobanConfig.stateArchivalSettings().minPersistentTTL;
+    mMinTempEntryTTL = sorobanConfig.stateArchivalSettings().minTemporaryTTL;
+    mMaxEntryTTL = sorobanConfig.stateArchivalSettings().maxEntryTTL;
+}
 
 std::unordered_set<LedgerKey>
 getReadWriteKeysForStage(ApplyStage const& stage)
