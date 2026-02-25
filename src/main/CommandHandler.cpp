@@ -1140,6 +1140,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> paramMap;
     http::server::server::parseParams(params, paramMap);
     std::string blob = paramMap["blob"];
+    bool force = paramMap["force"] == "true";
 
     if (!blob.empty())
     {
@@ -1163,7 +1164,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // Add it to our current set and make sure it is valid.
             auto addResult =
-                mApp.getHerder().recvTransaction(transaction, true);
+                mApp.getHerder().recvTransaction(transaction, true, force);
 
             root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
             if (addResult.code ==

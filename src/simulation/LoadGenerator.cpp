@@ -1417,8 +1417,8 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
 
     // Skip certain checks for pregenerated transactions
     bool isPregeneratedTx = (mode == LoadGenMode::PAY_PREGENERATED);
-    auto addResult =
-        mApp.getHerder().recvTransaction(txf, true, isPregeneratedTx);
+    auto addResult = mApp.getHerder().recvTransaction(
+        txf, true, /*force=*/false, /*isLoadgenTx=*/isPregeneratedTx);
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
 
