@@ -328,33 +328,29 @@ migrateLedgerHeadersToStoreState(Database& db)
 {
     // Migrate LCL header from ledgerheaders table to storestate
     std::string lclHash;
-
-    db.getRawSession() << "SELECT state FROM storestate WHERE statename = "
-                          "'lastclosedledger'",
+    auto& sess = db.getRawSession();
+    sess << "SELECT state FROM storestate WHERE statename = "
+            "'lastclosedledger'",
         soci::into(lclHash);
+
     // When we're doing this migration for a new db, storestate will be empty.
     // So, only try to set lastclosedledgerheader when the data is found
-    if (db.getRawSession().got_data())
+    if (sess.got_data())
     {
-
         if (lclHash.empty())
         {
             throw std::runtime_error(
                 "No reference in DB to any last closed ledger");
         }
-
         std::string headerData =
             LedgerHeaderUtils::getHeaderDataForHash(db, hexToBin256(lclHash));
-
-        db.getRawSession() << "INSERT INTO storestate (statename, state) "
-                              "VALUES ('lastclosedledgerheader', :v)",
+        sess << "INSERT INTO storestate (statename, state) VALUES "
+                "('lastclosedledgerheader', :v)",
             soci::use(headerData);
-
-        db.getRawSession()
-            << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
+        sess << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
     }
 
-    db.getRawSession() << "DROP TABLE ledgerheaders";
+    sess << "DROP TABLE ledgerheaders";
 }
 
 void
