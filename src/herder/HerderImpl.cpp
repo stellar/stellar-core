@@ -612,7 +612,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                            bool force
 #ifdef BUILD_TESTS
                             ,
                             bool isLoadgenTx
@@ -644,7 +645,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (!tx->isSoroban())
     {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, force
 #ifdef BUILD_TESTS
                                           ,
                                           isLoadgenTx
@@ -653,7 +654,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (mSorobanTransactionQueue)
     {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf
+        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf, force
 #ifdef BUILD_TESTS
                                                   ,
                                                   isLoadgenTx

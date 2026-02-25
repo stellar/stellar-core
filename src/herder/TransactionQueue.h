@@ -138,9 +138,10 @@ class TransactionQueue
 
 #ifdef BUILD_TESTS
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                     bool isLoadgenTx = false);
+                     bool force = false, bool isLoadgenTx = false);
 #else
-    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
+    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                     bool force = false);
 #endif
     void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
@@ -274,11 +275,12 @@ class TransactionQueue
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
            std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-           bool isLoadgenTx = false);
+           bool force = false, bool isLoadgenTx = false);
 #else
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
+           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+           bool force = false);
 #endif
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);

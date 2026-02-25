@@ -315,7 +315,8 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+    bool force
 #ifdef BUILD_TESTS
     ,
     bool isLoadgenTx
@@ -342,7 +343,7 @@ TransactionQueue::canAdd(
         mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
-    if (!tx->validateAccountFilterForFlooding(mFilteredAccounts))
+    if (!force && !tx->validateAccountFilterForFlooding(mFilteredAccounts))
     {
         mQueueMetrics->mTxsFilteredDueToAccountKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
@@ -669,7 +670,8 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                         bool force
 #ifdef BUILD_TESTS
                          ,
                          bool isLoadgenTx
@@ -687,7 +689,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
-    auto res = canAdd(tx, stateIter, txsToEvict
+    auto res = canAdd(tx, stateIter, txsToEvict, force
 #ifdef BUILD_TESTS
                       ,
                       isLoadgenTx
