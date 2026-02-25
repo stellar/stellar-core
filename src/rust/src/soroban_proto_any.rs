@@ -491,15 +491,19 @@ fn invoke_host_function_or_maybe_panic(
     // is disabled).
     log_diagnostic_events(&diagnostic_events);
 
-    let cpu_insns = budget.get_cpu_insns_consumed()?;
-    let mem_bytes = budget.get_mem_bytes_consumed()?;
-    let cpu_insns_excluding_vm_instantiation = cpu_insns.saturating_sub(
-        budget
-            .get_tracker(xdr::ContractCostType::VmInstantiation)?
-            .cpu,
-    );
-    let time_nsecs_excluding_vm_instantiation =
-        time_nsecs.saturating_sub(budget.get_time(xdr::ContractCostType::VmInstantiation)?);
+    let (cpu_insns, mem_bytes, cpu_insns_excluding_vm_instantiation, time_nsecs_excluding_vm_instantiation) = {
+        let _span = tracy_span!("budget metric extraction");
+        let cpu_insns = budget.get_cpu_insns_consumed()?;
+        let mem_bytes = budget.get_mem_bytes_consumed()?;
+        let cpu_insns_excluding_vm_instantiation = cpu_insns.saturating_sub(
+            budget
+                .get_tracker(xdr::ContractCostType::VmInstantiation)?
+                .cpu,
+        );
+        let time_nsecs_excluding_vm_instantiation =
+            time_nsecs.saturating_sub(budget.get_time(xdr::ContractCostType::VmInstantiation)?);
+        (cpu_insns, mem_bytes, cpu_insns_excluding_vm_instantiation, time_nsecs_excluding_vm_instantiation)
+    };
     #[cfg(feature = "tracy")]
     {
         client.plot(
@@ -514,17 +518,20 @@ fn invoke_host_function_or_maybe_panic(
     let err = match res {
         Ok(res) => match res.encoded_invoke_result {
             Ok(result_value) => {
-                let rent_changes = extract_rent_changes(&res.ledger_changes);
-                let rent_fee = host_compute_rent_fee(
-                    &rent_changes,
-                    &rent_fee_configuration.into(),
-                    ledger_seq_num,
-                );
-                let modified_ledger_entries = extract_ledger_effects(res.ledger_changes)?;
+                let rent_changes = { let _span = tracy_span!("extract_rent_changes"); extract_rent_changes(&res.ledger_changes) };
+                let rent_fee = {
+                    let _span = tracy_span!("host_compute_rent_fee");
+                    host_compute_rent_fee(
+                        &rent_changes,
+                        &rent_fee_configuration.into(),
+                        ledger_seq_num,
+                    )
+                };
+                let modified_ledger_entries = { let _span = tracy_span!("extract_ledger_effects"); extract_ledger_effects(res.ledger_changes)? };
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
                     is_internal_error: false,
-                    diagnostic_events: encode_diagnostic_events(&diagnostic_events),
+                    diagnostic_events: { let _span = tracy_span!("encode_diagnostic_events"); encode_diagnostic_events(&diagnostic_events) },
                     cpu_insns,
                     mem_bytes,
                     time_nsecs,

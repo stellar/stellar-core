@@ -130,3 +130,5 @@ tracy.out
 tracy-capture
 rustup-init
 output
+core*
+archtmp-*
