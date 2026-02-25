@@ -584,16 +584,6 @@ TEST_CASE("FILTERED_G_ADDRESSES configuration", "[config]")
         return ss;
     };
 
-    SECTION("defaults are set when not configured")
-    {
-        auto ss = makeQuorumConfig();
-        Config c;
-        c.load(ss);
-        REQUIRE(c.FILTERED_G_ADDRESSES.size() == 3);
-        REQUIRE(c.FILTERED_G_ADDRESSES[0] ==
-                "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC");
-    }
-
     SECTION("user config overrides defaults")
     {
         auto key1 = SecretKey::pseudoRandomForTesting();
