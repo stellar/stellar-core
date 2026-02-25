@@ -134,6 +134,10 @@ TEST_CASE("FILTERED_G_ADDRESSES migration", "[banaccounts]")
     {
         VirtualClock clock;
         auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {
+            "GBO7VUL2TOKPWFAWKATIW7K3QYA7WQ63VDY5CAE6AFUUX6BHZBOC2WXC",
+            "GATDQL767ZM2JQTBEG4BQ5WKOQNGAGWZDUN4GYT2UINPEU3RT2UAMVZH",
+            "GCQCWEQDICASV3R737LPWPDJ3FPBC6XPWXKPJDL22DLQVGOJAUH5DBJI"};
         // Default config has 3 hardcoded addresses
         Application::pointer app = createTestApplication(clock, cfg);
 
