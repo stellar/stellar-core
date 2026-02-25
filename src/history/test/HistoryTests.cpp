@@ -1599,6 +1599,14 @@ TEST_CASE_VERSIONS(
 
             while (hm.getPublishQueueCount() != 1)
             {
+                // With background apply, wait for any in-progress
+                // ledger close to finish before writing to the shared
+                // test-entry vectors that finalizeLedgerTxnChanges
+                // reads on the apply thread.
+                while (lm.isApplying())
+                {
+                    clock.crank(true);
+                }
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
                 // Generate entries excluding soroban types to avoid worrying
@@ -1969,6 +1977,12 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
+
+    // With background apply, crank until all queued ledgers are applied
+    while (lm.getLastClosedLedgerNum() < nextLedger + 5)
+    {
+        app->getClock().crank(true);
+    }
     REQUIRE(lm.isSynced());
     REQUIRE(lam.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!lam.isCatchupInitialized());

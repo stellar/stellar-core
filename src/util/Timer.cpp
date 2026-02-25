@@ -388,12 +388,26 @@ VirtualClock::crank(bool block)
 
         // Subtract out any timer cancellations from the above two steps.
         progressCount -= nRealTimerCancelEvents;
+
         if (mMode == VIRTUAL_TIME && progressCount == 0 &&
             mBackgroundWorkCount.load() == 0)
         {
-            // If we did nothing and we're in virtual mode, we're idle and can
-            // skip time forward, dispatching all timers at the next time-step.
-            progressCount += advanceToNext();
+            // Check if there are pending actions from background threads
+            // before deciding to advance virtual time. Without this check,
+            // we might spuriously jump time forward while background apply
+            // results are waiting in the pending queue.
+            bool hasPendingActions = false;
+            {
+                std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+                hasPendingActions = !mPendingActionQueue.empty();
+            }
+            if (!hasPendingActions)
+            {
+                // If we did nothing and we're in virtual mode, we're idle
+                // and can skip time forward, dispatching all timers at the
+                // next time-step.
+                progressCount += advanceToNext();
+            }
         }
     }
 
@@ -421,7 +435,19 @@ VirtualClock::crank(bool block)
 
     if (mMode == VIRTUAL_TIME)
     {
-        progressCount += mBackgroundWorkCount.load();
+        auto bgCount = mBackgroundWorkCount.load();
+        if (bgCount > 0 && progressCount == 0)
+        {
+            // Background ledger apply is in progress but the main thread
+            // has no real work to do: virtual time cannot advance until
+            // background work finishes (see the advanceToNext guard above).
+            // Without this sleep, every caller that loops on
+            // crank(false) > 0 (crankNode, crankFor, crankUntil, dozens
+            // of test loops, ...) would spin at 100% CPU, starving the
+            // background thread and causing multi-hour hangs on CI.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        progressCount += bgCount;
     }
 
     return progressCount;
