@@ -328,14 +328,24 @@ migrateLedgerHeadersToStoreState(Database& db)
 {
     // Migrate LCL header from ledgerheaders table to storestate
     std::string lclHash;
-    auto& sess = db.getRawSession();
-    sess << "SELECT state FROM storestate WHERE statename = "
-            "'lastclosedledger'",
-        soci::into(lclHash);
+    auto& session = db.getSession();
+    auto& raw = session.session();
+
+    // Open a scope because we need prep to be cleaned up before the body of the
+    // `if`
+    {
+        auto prep = db.getPreparedStatement(
+            "SELECT state FROM storestate WHERE statename = 'lastclosedledger'",
+            session);
+        auto& stmt = prep.statement();
+        stmt.exchange(soci::into(lclHash));
+        stmt.define_and_bind();
+        stmt.execute(true);
+    }
 
     // When we're doing this migration for a new db, storestate will be empty.
     // So, only try to set lastclosedledgerheader when the data is found
-    if (sess.got_data())
+    if (raw.got_data())
     {
         if (lclHash.empty())
         {
@@ -349,13 +359,18 @@ migrateLedgerHeadersToStoreState(Database& db)
             throw std::runtime_error(
                 "No ledger header found in DB for last closed ledger hash");
         }
-        sess << "INSERT INTO storestate (statename, state) VALUES "
-                "('lastclosedledgerheader', :v)",
-            soci::use(headerData);
-        sess << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
+        auto prep =
+            db.getPreparedStatement("INSERT INTO storestate (statename, state) "
+                                    "VALUES ('lastclosedledgerheader', :v)",
+                                    session);
+        auto& stmt = prep.statement();
+        stmt.exchange(soci::use(headerData));
+        stmt.define_and_bind();
+        stmt.execute(true);
+        raw << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
     }
 
-    sess << "DROP TABLE ledgerheaders";
+    raw << "DROP TABLE ledgerheaders";
 }
 
 void
