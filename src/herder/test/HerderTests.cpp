@@ -6364,13 +6364,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
 
 TEST_CASE("filter transactions by G address", "[herder]")
 {
-    // Use the default filtered addresses from Config
-    auto const& defaultFilteredAddrs = Config{}.FILTERED_G_ADDRESSES;
-    REQUIRE(!defaultFilteredAddrs.empty());
-    auto const filteredPubKey =
-        KeyUtils::fromStrKey<PublicKey>(defaultFilteredAddrs[0]);
-    auto const filteredSecretKey = SecretKey::pseudoRandomForTesting();
-
     SECTION("no filter - transaction accepted")
     {
         VirtualClock clock;
