@@ -158,6 +158,64 @@ TEST_CASE("FILTERED_G_ADDRESSES migration", "[banaccounts]")
 
 TEST_CASE("banaccounts HTTP command with persistence", "[banaccounts]")
 {
+    SECTION("force flag bypasses banned account filtering")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        auto src = root->create(srcKey, 1000000000);
+
+        // Ban the source account
+        auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
+        app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr);
+
+        auto acc = getAccount("forceAcc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+
+        // Without force: filtered
+        REQUIRE(
+            app->getHerder().recvTransaction(tx, false, /*force=*/false).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+
+        // With force: bypasses account filter
+        REQUIRE(
+            app->getHerder().recvTransaction(tx, false, /*force=*/true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("force flag bypasses ban for fee-bump with banned fee source")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        auto feeSourceAcct = root->create(filteredKey, 1000000000);
+
+        // Ban the fee source account
+        auto addr = KeyUtils::toStrKey(filteredKey.getPublicKey());
+        app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr);
+
+        auto innerTx = root->tx({payment(root->getPublicKey(), 1)});
+        auto fb = feeBump(*app, feeSourceAcct, innerTx, 200);
+
+        // Without force: filtered
+        REQUIRE(
+            app->getHerder().recvTransaction(fb, false, /*force=*/false).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+
+        // With force: bypasses account filter
+        REQUIRE(
+            app->getHerder().recvTransaction(fb, false, /*force=*/true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
     SECTION("ban via command persists and filters transactions")
     {
         VirtualClock clock;
@@ -178,8 +236,9 @@ TEST_CASE("banaccounts HTTP command with persistence", "[banaccounts]")
         // Transaction from the banned source should be filtered
         auto acc = getAccount("acc");
         auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
-        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
-                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+        REQUIRE(
+            app->getHerder().recvTransaction(tx, false, /*force=*/false).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
         // Verify persisted
         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==

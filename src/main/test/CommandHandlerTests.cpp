@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/KeyUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
@@ -601,5 +602,43 @@ TEST_CASE("toggleoverlayonlymode", "[commandhandler]")
         Json::Reader reader;
         REQUIRE(reader.parse(retStr, root));
         REQUIRE(root["overlay_only_mode"].asBool() == expectedMode);
+    }
+}
+
+TEST_CASE("tx force flag bypasses banned account filter", "[commandhandler]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.FILTERED_G_ADDRESSES = {};
+    auto app = createTestApplication(clock, cfg);
+    auto& ch = app->getCommandHandler();
+
+    closeLedgerOn(*app, 2, 1, 1, 2017);
+
+    auto root = app->getRoot();
+    auto srcKey = SecretKey::pseudoRandomForTesting();
+    auto src = root->create(srcKey, 1000000000);
+
+    // Ban the source account
+    auto addr = KeyUtils::toStrKey(srcKey.getPublicKey());
+    ch.manualCmd("banaccounts?accountids=" + addr);
+
+    // Build a valid transaction from the banned account
+    auto acc = getAccount("forceTestAcc");
+    auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+    auto blob = decoder::encode_b64(xdr::xdr_to_opaque(tx->getEnvelope()));
+
+    SECTION("without force flag, tx is filtered")
+    {
+        std::string ret;
+        ch.tx("?blob=" + blob, ret);
+        REQUIRE(ret.find("FILTERED") != std::string::npos);
+    }
+
+    SECTION("with force=true, tx bypasses account ban")
+    {
+        std::string ret;
+        ch.tx("?blob=" + blob + "&force=true", ret);
+        REQUIRE(ret.find("PENDING") != std::string::npos);
     }
 }

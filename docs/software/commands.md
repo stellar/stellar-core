@@ -359,6 +359,12 @@ Most commands return their results in JSON format.
         The network is under high load and the fee is too low.
     * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
 
+  Optional parameters:
+    * `force=true` - bypasses banned account filtering (see `banaccounts`),
+      allowing the transaction into the mempool even if its source account or
+      fee source is on the ban list. Other filtering (operation type, Soroban
+      key filtering) still applies. Example: `tx?blob=Base64&force=true`
+
 * **upgrades**
   * `upgrades?mode=get`<br>
     Retrieves the currently configured upgrade settings.<br>
