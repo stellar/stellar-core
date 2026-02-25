@@ -595,10 +595,12 @@ TEST_CASE("ledgerheaders migration works correctly", "[db]")
                                        Config::TESTDB_POSTGRESQL
 #endif
     );
-    Config cfg = getTestConfig(0, mode);
+#ifdef USE_POSTGRES
     INFO("Testing mode: " << (mode == Config::TESTDB_POSTGRESQL
                                   ? "PostgreSQL"
                                   : "Persistent"));
+#endif
+    Config cfg = getTestConfig(0, mode);
 
     VirtualClock clock;
     // Set startApp to false to trigger migration manually
