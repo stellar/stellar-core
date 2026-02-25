@@ -344,6 +344,11 @@ migrateLedgerHeadersToStoreState(Database& db)
         }
         std::string headerData =
             LedgerHeaderUtils::getHeaderDataForHash(db, hexToBin256(lclHash));
+        if (headerData.empty())
+        {
+            throw std::runtime_error(
+                "No ledger header found in DB for last closed ledger hash");
+        }
         sess << "INSERT INTO storestate (statename, state) VALUES "
                 "('lastclosedledgerheader', :v)",
             soci::use(headerData);

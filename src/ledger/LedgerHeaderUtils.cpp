@@ -10,7 +10,9 @@
 #include "util/Decoder.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+
 #include <Tracy.hpp>
+#include <fmt/format.h>
 
 namespace stellar
 {
@@ -121,8 +123,6 @@ std::string
 getHeaderDataForHash(Database& db, Hash const& hash)
 {
     ZoneScoped;
-    std::shared_ptr<LedgerHeader> lhPtr;
-
     std::string hash_s(binToHex(hash));
     std::string headerEncoded;
 

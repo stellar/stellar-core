@@ -1293,7 +1293,7 @@ HerderImpl::setupTriggerNextLedger()
 uint32_t
 getSafeLedgerToDelete(uint32_t ledger, Config const& cfg)
 {
-    // Calculate the minimum of *minSlot and/or any queued checkpoint.
+    // Calculate the minimum of ledger and/or any queued checkpoint.
     uint32_t ql = HistoryManager::getMinLedgerQueuedToPublish(cfg);
     uint32_t qmin = ql == 0 ? ledger : std::min(ql, ledger);
 

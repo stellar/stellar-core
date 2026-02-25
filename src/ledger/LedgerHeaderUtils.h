@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "database/Database.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
 class Database;
+class SessionWrapper;
 
 namespace LedgerHeaderUtils
 {
@@ -29,6 +29,8 @@ void storeInDatabase(Database& db, LedgerHeader const& header,
 
 LedgerHeader decodeFromData(std::string const& data);
 
+// Returns the base64-encoded header data for the given hash. Returns an empty
+// string if no header is found for the hash.
 std::string getHeaderDataForHash(Database& db, Hash const& hash);
 
 void maybeDropAndCreateNew(Database& db);
