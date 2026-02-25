@@ -426,7 +426,10 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 
     // While the final state of a restored key that will be written to the
     // Live BucketList is already handled in mGlobalEntryMap, we need to
-    // let the ltx know what keys need to be removed from the Hot Archive.
+    // let the ltx know what keys were restored so that:
+    // 1. Hot Archive restores can be removed from the Hot Archive BucketList
+    // 2. The ArchivedStateConsistency invariant can validate both hot archive
+    //    and live BucketList restores
     for (auto const& kvp : mGlobalRestoredEntries.hotArchive)
     {
         // We will search for the ttl key in the hot archive when the entry
@@ -437,6 +440,20 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
             releaseAssertOrThrow(it != mGlobalRestoredEntries.hotArchive.end());
             ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
+        }
+    }
+    // Live BucketList restores are only tracked in LedgerTxn for the
+    // ArchivedStateConsistency invariant, but we unconditionally track it for
+    // now.
+    for (auto const& kvp : mGlobalRestoredEntries.liveBucketList)
+    {
+        if (kvp.first.type() != TTL)
+        {
+            auto it = mGlobalRestoredEntries.liveBucketList.find(
+                getTTLKey(kvp.first));
+            releaseAssertOrThrow(it !=
+                                 mGlobalRestoredEntries.liveBucketList.end());
+            ltxInner.markRestoredFromLiveBucketList(kvp.second, it->second);
         }
     }
     ltxInner.commit();

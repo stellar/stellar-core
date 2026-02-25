@@ -261,18 +261,17 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 
         SECTION("commited to parent")
         {
+            auto getTTLEntry = [](LedgerEntry const& entry,
+                                  uint32_t liveUntilLedgerSeq) -> LedgerEntry {
+                LedgerEntry ttl;
+                ttl.data.type(TTL);
+                ttl.data.ttl().liveUntilLedgerSeq = liveUntilLedgerSeq;
+                ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
+                return ttl;
+            };
+
             SECTION("hot archive")
             {
-                auto getTTLEntry =
-                    [](LedgerEntry const& entry,
-                       uint32_t liveUntilLedgerSeq) -> LedgerEntry {
-                    LedgerEntry ttl;
-                    ttl.data.type(TTL);
-                    ttl.data.ttl().liveUntilLedgerSeq = liveUntilLedgerSeq;
-                    ttl.data.ttl().keyHash = getTTLKey(entry).ttl().keyHash;
-                    return ttl;
-                };
-
                 ltx1.markRestoredFromHotArchive(
                     randomEntries[0], getTTLEntry(randomEntries[0], 42));
 
@@ -313,9 +312,51 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                 }
             }
 
+            SECTION("mark live BL")
+            {
+                ltx1.markRestoredFromLiveBucketList(
+                    randomEntries[0], getTTLEntry(randomEntries[0], 42));
+
+                SECTION("rollback")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.markRestoredFromLiveBucketList(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
+                    }
+
+                    REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
+                    auto keys = ltx1.getRestoredLiveBucketListKeys();
+
+                    // Data key + TTL
+                    REQUIRE(keys.size() == 2);
+                    checkKey(keys, randomKeys[0]);
+                }
+
+                SECTION("commit")
+                {
+                    {
+                        LedgerTxn ltx2(ltx1);
+                        ltx2.markRestoredFromLiveBucketList(
+                            randomEntries[1],
+                            getTTLEntry(randomEntries[1], 42));
+                        ltx2.commit();
+                    }
+
+                    REQUIRE(ltx1.getRestoredHotArchiveKeys().empty());
+                    auto keys = ltx1.getRestoredLiveBucketListKeys();
+
+                    // (data key + TTL) * 2
+                    REQUIRE(keys.size() == 4);
+                    checkKey(keys, randomKeys[0]);
+                    checkKey(keys, randomKeys[1]);
+                }
+            }
+
             SECTION("live BL")
             {
-                auto getTTLEntry = [](LedgerKey const& key) {
+                auto getTTLEntryFromKey = [](LedgerKey const& key) {
                     LedgerEntry ttl;
                     ttl.data.type(TTL);
                     ttl.data.ttl().liveUntilLedgerSeq = 42;
@@ -325,7 +366,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 
                 // Populate live BL with key, then restore it
                 ltx1.create(randomEntries[0]);
-                ltx1.create(getTTLEntry(randomKeys[0]));
+                ltx1.create(getTTLEntryFromKey(randomKeys[0]));
                 ltx1.restoreFromLiveBucketList(randomEntries[0], 42);
 
                 SECTION("rollback")
@@ -333,7 +374,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                     {
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
-                        ltx2.create(getTTLEntry(randomKeys[1]));
+                        ltx2.create(getTTLEntryFromKey(randomKeys[1]));
                         ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                     }
 
@@ -350,7 +391,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
                     {
                         LedgerTxn ltx2(ltx1);
                         ltx2.create(randomEntries[1]);
-                        ltx2.create(getTTLEntry(randomKeys[1]));
+                        ltx2.create(getTTLEntryFromKey(randomKeys[1]));
                         ltx2.restoreFromLiveBucketList(randomEntries[1], 42);
                         ltx2.commit();
                     }

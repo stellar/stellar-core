@@ -251,11 +251,10 @@ RestoredEntries::addLiveBucketlistRestore(LedgerKey const& key,
 }
 
 void
-RestoredEntries::addRestoresFrom(RestoredEntries const& other,
-                                 bool allowDuplicates)
+RestoredEntries::addRestoresFrom(RestoredEntries const& other)
 {
     ZoneScoped;
-    // This method is called from three different call sites. In 2 of them it is
+    // This method is called from three different call sites. In all three it is
     // correct to assert that each restore is new/disjoint from any existing
     // restore:
     //
@@ -272,19 +271,19 @@ RestoredEntries::addRestoresFrom(RestoredEntries const& other,
     //     entry -- it'd be a concurrency bug if not! -- so there should not be
     //     any other restores of the same entry from other threads.
     //
-    // In the third place we're committing from an ltx to its parent, and the
-    // ltx was actually starting with a copy of the restored-maps from the
-    // parent, so there are going to be duplicates. We allow duplicates in that
-    // case.
-    for (auto kvp : other.hotArchive)
+    //   - In the third call site we're committing from a child ltx to its
+    //     parent. Since child LedgerTxns only track their own restores (they
+    //     do not start with a copy of the parent's restored entries), there
+    //     should be no duplicates.
+    for (auto const& kvp : other.hotArchive)
     {
         auto [_, inserted] = hotArchive.emplace(kvp.first, kvp.second);
-        releaseAssert(inserted || allowDuplicates);
+        releaseAssert(inserted);
     }
-    for (auto kvp : other.liveBucketList)
+    for (auto const& kvp : other.liveBucketList)
     {
         auto [_, inserted] = liveBucketList.emplace(kvp.first, kvp.second);
-        releaseAssert(inserted || allowDuplicates);
+        releaseAssert(inserted);
     }
 }
 
@@ -435,15 +434,6 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mConsistency(LedgerTxnConsistency::EXACT)
     , mActiveThreadId(std::this_thread::get_id())
 {
-    for (auto const& [key, entry] : mParent.getRestoredHotArchiveKeys())
-    {
-        mRestoredEntries.hotArchive.emplace(key, entry);
-    }
-    for (auto const& [key, entry] : mParent.getRestoredLiveBucketListKeys())
-    {
-        mRestoredEntries.liveBucketList.emplace(key, entry);
-    }
-
     mParent.addChild(self, mode);
 }
 
@@ -703,10 +693,7 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
         printErrorAndAbort("unknown fatal error during commit to LedgerTxn");
     }
 
-    // The child will have started with a copy of the parents mRestoredEntries,
-    // so we can see duplicates here, but duplicate restores would've been
-    // caught during restoration in the restoreFrom* functions.
-    mRestoredEntries.addRestoresFrom(restoredEntries, /*allowDuplicates=*/true);
+    mRestoredEntries.addRestoresFrom(restoredEntries);
 
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);
@@ -909,6 +896,41 @@ LedgerTxn::Impl::markRestoredFromHotArchive(LedgerEntry const& ledgerEntry,
         if (!inserted)
         {
             throw std::runtime_error("Key already removed from hot archive");
+        }
+    };
+    addKey(ledgerEntry);
+    addKey(ttlEntry);
+}
+
+void
+LedgerTxn::markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
+                                          LedgerEntry const& ttlEntry)
+{
+    getImpl()->markRestoredFromLiveBucketList(ledgerEntry, ttlEntry);
+}
+
+void
+LedgerTxn::Impl::markRestoredFromLiveBucketList(LedgerEntry const& ledgerEntry,
+                                                LedgerEntry const& ttlEntry)
+{
+    abortIfWrongThread("markRestoredFromLiveBucketList");
+    throwIfSealed();
+    throwIfChild();
+
+    if (!isPersistentEntry(ledgerEntry.data))
+    {
+        throw std::runtime_error(
+            "Key type not supported for live BucketList restore");
+    }
+
+    // Mark the keys as restored
+    auto addKey = [this](LedgerEntry const& entry) {
+        auto [_, inserted] = mRestoredEntries.liveBucketList.emplace(
+            LedgerEntryKey(entry), entry);
+        if (!inserted)
+        {
+            throw std::runtime_error(
+                "Key already restored from Live BucketList");
         }
     };
     addKey(ledgerEntry);
