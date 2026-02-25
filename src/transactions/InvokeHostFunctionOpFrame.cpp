@@ -299,6 +299,12 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
+    // Tracks which RW footprint keys had existing entries during addReads.
+    // Uses a bitfield for small footprints (<=64 keys) and falls back to
+    // a vector for larger ones. Used by recordStorageChanges to skip
+    // getLiveEntryOpt for entries known to already exist.
+    uint64_t mRwKeyExistedBits{0};
+    std::vector<bool> mRwKeyExistedVec;
     HostFunctionMetrics mMetrics;
     SearchableHotArchiveSnapshotConstPtr mHotArchive;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
@@ -496,6 +502,25 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
                 if (entryOpt)
                 {
+                    // Track that this RW entry existed for
+                    // upsertEntryKnownExisting optimization in
+                    // recordStorageChanges
+                    if (!isReadOnly)
+                    {
+                        if (i < 64)
+                        {
+                            mRwKeyExistedBits |= (1ULL << i);
+                        }
+                        else
+                        {
+                            if (mRwKeyExistedVec.empty())
+                            {
+                                mRwKeyExistedVec.resize(
+                                    footprintKeys.size(), false);
+                            }
+                            mRwKeyExistedVec[i] = true;
+                        }
+                    }
                     CxxBuf leBuf;
                     {
                         ZoneNamedN(entryBufZone, "addReads: toCxxBuf entry", true);
@@ -719,7 +744,9 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
 
-            // Mark matching RW footprint key as covered
+            // Mark matching RW footprint key as covered and check if
+            // the entry existed during addReads
+            bool rwKeyExisted = false;
             for (size_t j = 0; j < rwKeysSize; ++j)
             {
                 bool alreadyCovered = useVecFallback
@@ -735,6 +762,12 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                     {
                         rwKeyCoveredBits |= (1ULL << j);
                     }
+                    // Check if this RW key had an existing entry during
+                    // addReads
+                    rwKeyExisted = (j < 64)
+                                       ? (mRwKeyExistedBits & (1ULL << j))
+                                       : (!mRwKeyExistedVec.empty() &&
+                                          mRwKeyExistedVec[j]);
                     break;
                 }
             }
@@ -764,7 +797,13 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             {
                 ZoneNamedN(upsertZone, "recordStorageChanges: upsertLedgerEntry", true);
-                if (upsertLedgerEntry(lk, le))
+                if (rwKeyExisted)
+                {
+                    // Entry was loaded during addReads, so it definitely
+                    // exists -- skip the getLiveEntryOpt existence check
+                    upsertLedgerEntryKnownExisting(lk, le);
+                }
+                else if (upsertLedgerEntry(lk, le))
                 {
                     if (isSorobanEntry(lk))
                     {
