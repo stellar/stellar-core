@@ -16,12 +16,13 @@ namespace LedgerHeaderUtils
 
 uint32_t getFlags(LedgerHeader const& lh);
 
-// Return base64-encoded header data and optionally the hex-encoded hash of the
-// header in the hash out parameter. Throws if the header fails basic sanity
-// checks (e.g., fee pool > 0).
+// Return base64-encoded header data. Throws if the header fails basic sanity
+// checks (e.g., fee pool >= 0).
 std::string encodeHeader(LedgerHeader const& header);
 
 #ifdef BUILD_TESTS
+// Like the non-test encodeHeader, except also include the hex-encoded hash of
+// the header in the `hash` out parameter
 std::string encodeHeader(LedgerHeader const& header, std::string& hash);
 void storeInDatabase(Database& db, LedgerHeader const& header,
                      SessionWrapper& sess);

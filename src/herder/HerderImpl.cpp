@@ -1290,7 +1290,7 @@ HerderImpl::setupTriggerNextLedger()
 
 // Returns the ledger index of the oldest ledger that it is safe to delete while
 // still keeping all the information needed to publish checkpoints
-uint32_t
+static uint32_t
 getSafeLedgerToDelete(uint32_t ledger, Config const& cfg)
 {
     // Calculate the minimum of ledger and/or any queued checkpoint.
