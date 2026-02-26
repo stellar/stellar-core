@@ -203,14 +203,12 @@ class VirtualClock
     RealSteadyTimer mRealTimer;
     std::mutex mutable mVirtualNowMutex;
 
-#ifdef BUILD_TESTS
     // Offset applied to system_now() to simulate wall-clock drift without
     // affecting steady_clock scheduling. Positive values make system_now()
     // return a time in the future; negative values make it return a time in
     // the past.
     std::atomic<std::chrono::microseconds> mSystemTimeOffset{
         std::chrono::microseconds{0}};
-#endif
 
   public:
     // A VirtualClock is instantiated in either real or virtual mode. In real
@@ -258,11 +256,9 @@ class VirtualClock
     bool actionQueueIsOverloaded() const;
     Scheduler::ActionType currentSchedulerActionType() const;
 
-#ifdef BUILD_TESTS
     // Inject a wall-clock offset into system_now() to simulate clock drift.
     // Does not affect steady_clock (now()) or event scheduling.
     void setSystemTimeOffset(std::chrono::microseconds offset);
-#endif
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable

@@ -205,6 +205,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             [this]() { mLedgerCloseIOContext->run(); });
         mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
     }
+
+    if (mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING != 0)
+    {
+        getClock().setSystemTimeOffset(std::chrono::milliseconds(
+            mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING));
+    }
 }
 
 static void

@@ -283,6 +283,11 @@ class Config : public std::enable_shared_from_this<Config>
     // be enabled when testing.
     std::chrono::milliseconds ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING;
 
+    // Offset (in milliseconds) applied to system_now() to simulate wall-clock
+    // drift without affecting steady_clock scheduling. Positive = future,
+    // negative = past.
+    int64_t ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
 
