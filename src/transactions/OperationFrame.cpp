@@ -172,7 +172,7 @@ OperationFrame::apply(
     return applyRes;
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 OperationFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& config, ParallelLedgerInfo const& ledgerInfo,
@@ -188,7 +188,7 @@ OperationFrame::parallelApply(
                            sorobanMetrics, res, refundableFeeTracker, opMeta);
 }
 
-ParallelTxReturnVal
+std::optional<ParallelTxSuccessVal>
 OperationFrame::doParallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
     Config const& appConfig, Hash const& txPrngSeed,
