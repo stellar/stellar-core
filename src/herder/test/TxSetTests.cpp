@@ -3321,12 +3321,32 @@ TEST_CASE("parallel tx set building benchmark",
                   << ", mean duration: " << 1e-6 * totalDuration / iterCount
                   << " ms" << std::endl;
     };
+    std::cout << "=== Parallel Tx Set Building Benchmark ===" << std::endl;
+    std::cout << "TX_COUNT="
+              << MEAN_INCLUDED_TX_COUNT * TX_COUNT_MEMPOOL_MULTIPLIER
+              << " CLUSTER_COUNT=" << CLUSTER_COUNT
+              << " STAGES=" << MIN_STAGE_COUNT << "-" << MAX_STAGE_COUNT
+              << std::endl;
+    std::cout << "---" << std::endl;
+    // Fully independent (no conflicts) - stresses bin packing & cluster scan
     runBenchmark(0, 0, 0);
+    // Very sparse conflicts - mostly independent fast path
+    runBenchmark(0.1, 5, 1);
+    // Mix of independent and small conflict clusters
+    runBenchmark(0.5, 2, 2);
+    // Rare conflicts with large RO fan-out
     runBenchmark(1, 1000, 1);
+    // RW-only small conflict groups
+    runBenchmark(5, 0, 3);
+    // Moderate conflicts, large RO fan-out
     runBenchmark(10, 40, 1);
+    // Heavy conflicts, large RO fan-out
     runBenchmark(20, 40, 1);
+    // Moderate balanced RO/RW conflicts
     runBenchmark(10, 10, 10);
+    // Very heavy conflicts
     runBenchmark(50, 50, 5);
+    std::cout << "===" << std::endl;
 }
 } // namespace
 } // namespace stellar

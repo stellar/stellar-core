@@ -8,6 +8,8 @@
 #include "transactions/TransactionFrameBase.h"
 #include "util/BitSet.h"
 
+#include <algorithm>
+#include <numeric>
 #include <unordered_set>
 
 namespace stellar
@@ -92,9 +94,15 @@ struct Cluster
 class Stage
 {
   public:
-    Stage(ParallelPartitionConfig cfg) : mConfig(cfg)
+    Stage(const Stage&) = delete;
+    Stage& operator=(const Stage&) = delete;
+
+    Stage(Stage&&) = default;
+    Stage& operator=(Stage&&) = default;
+
+    Stage(ParallelPartitionConfig cfg, size_t txCount)
+        : mConfig(cfg), mTxToCluster(txCount, nullptr)
     {
-        mBinPacking.resize(mConfig.mClustersPerStage);
         mBinInstructions.resize(mConfig.mClustersPerStage);
     }
 
@@ -113,23 +121,45 @@ class Stage
         // First, find all clusters that conflict with the new transaction.
         auto conflictingClusters = getConflictingClusters(tx);
 
-        // Then, try creating new clusters by merging the conflicting clusters
-        // together and adding the new transaction to the resulting cluster.
-        // Note, that the new cluster is guaranteed to be added at the end of
-        // `newClusters`.
-        auto newClusters = createNewClusters(tx, conflictingClusters);
-        // Fail fast if a new cluster will end up too large to fit into the
-        // stage and thus no new clusters could be created.
-        if (!newClusters)
+        // Check if the merged cluster would exceed the instruction limit.
+        uint64_t mergedInstructions = tx.mInstructions;
+        for (auto const* cluster : conflictingClusters)
+        {
+            mergedInstructions += cluster->mInstructions;
+        }
+        if (mergedInstructions > mConfig.mInstructionsPerCluster)
         {
             return false;
         }
+
+        // Create the merged cluster from the new transaction and all
+        // conflicting clusters.
+        auto newCluster = std::make_unique<Cluster>(tx);
+        for (auto const* cluster : conflictingClusters)
+        {
+            newCluster->merge(*cluster);
+        }
+
+        // Mutate mClusters in-place: remove conflicting clusters (saving
+        // them for potential rollback) and append the new merged cluster.
+        std::vector<std::unique_ptr<Cluster const>> savedClusters;
+        if (!conflictingClusters.empty())
+        {
+            savedClusters.reserve(conflictingClusters.size());
+            removeConflictingClusters(conflictingClusters, savedClusters);
+        }
+        mClusters.push_back(std::move(newCluster));
+
         // If it's possible to pack the newly-created cluster into one of the
         // bins 'in-place' without rebuilding the bin-packing, we do so.
-        if (inPlaceBinPacking(*newClusters->back(), conflictingClusters))
+        auto* addedCluster = mClusters.back().get();
+        if (inPlaceBinPacking(*addedCluster, conflictingClusters))
         {
-            mClusters = std::move(newClusters.value());
             mInstructions += tx.mInstructions;
+            // Update the global conflict mask so future lookups can
+            // fast-path when a tx has no conflicts with any cluster.
+            mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
+            updateTxToCluster(*addedCluster);
             return true;
         }
 
@@ -162,25 +192,28 @@ class Stage
         {
             if (mTriedCompactingBinPacking)
             {
+                rollbackClusters(addedCluster, savedClusters);
                 return false;
             }
             mTriedCompactingBinPacking = true;
         }
         // Try to recompute the bin-packing from scratch with a more efficient
-        // heuristic.
+        // heuristic. binPacking() sorts mClusters in-place.
         std::vector<uint64_t> newBinInstructions;
-        auto newPacking = binPacking(*newClusters, newBinInstructions);
         // Even if the new cluster is below the limit, it may invalidate the
         // stage as a whole in case if we can no longer pack the clusters into
         // the required number of bins.
-        if (!newPacking)
+        if (!binPacking(mClusters, newBinInstructions))
         {
+            rollbackClusters(addedCluster, savedClusters);
             return false;
         }
-        mClusters = std::move(newClusters.value());
-        mBinPacking = std::move(newPacking.value());
         mInstructions += tx.mInstructions;
         mBinInstructions = newBinInstructions;
+        // Update the global conflict mask so future lookups can
+        // fast-path when a tx has no conflicts with any cluster.
+        mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
+        updateTxToCluster(*addedCluster);
         return true;
     }
 
@@ -205,15 +238,39 @@ class Stage
     std::unordered_set<Cluster const*>
     getConflictingClusters(BuilderTx const& tx) const
     {
-        std::unordered_set<Cluster const*> conflictingClusters;
-        for (auto const& cluster : mClusters)
+        // Fast path: if the tx's id is not in any cluster's conflict set,
+        // there are no conflicting clusters.
+        if (!mAllConflictTxs.get(tx.mId))
         {
-            if (cluster->mConflictTxs.get(tx.mId))
+            return {};
+        }
+        // O(K) lookup: iterate the conflict tx ids and find their
+        // clusters via the tx-to-cluster mapping, instead of scanning
+        // all clusters (which would be O(C)).
+        std::unordered_set<Cluster const*> conflictingClusters;
+        size_t conflictTxId = 0;
+        while (tx.mConflictTxs.nextSet(conflictTxId))
+        {
+            auto const* cluster = mTxToCluster[conflictTxId];
+            if (cluster != nullptr)
             {
-                conflictingClusters.insert(cluster.get());
+                conflictingClusters.insert(cluster);
             }
+            ++conflictTxId;
         }
         return conflictingClusters;
+    }
+
+    void
+    updateTxToCluster(Cluster const& cluster)
+    {
+        auto* clusterPtr = &cluster;
+        size_t txId = 0;
+        while (cluster.mTxIds.nextSet(txId))
+        {
+            mTxToCluster[txId] = clusterPtr;
+            ++txId;
+        }
     }
 
     bool
@@ -225,8 +282,6 @@ class Stage
         for (auto const& cluster : clustersToRemove)
         {
             mBinInstructions[cluster->mBinId.value()] -= cluster->mInstructions;
-            mBinPacking[cluster->mBinId.value()].inplaceDifference(
-                cluster->mTxIds);
         }
 
         for (size_t binId = 0; binId < mConfig.mClustersPerStage; ++binId)
@@ -235,7 +290,6 @@ class Stage
                 mConfig.mInstructionsPerCluster)
             {
                 mBinInstructions[binId] += newCluster.mInstructions;
-                mBinPacking[binId].inplaceUnion(newCluster.mTxIds);
                 newCluster.mBinId = std::make_optional(binId);
                 return true;
             }
@@ -244,53 +298,65 @@ class Stage
         for (auto const& cluster : clustersToRemove)
         {
             mBinInstructions[cluster->mBinId.value()] += cluster->mInstructions;
-            mBinPacking[cluster->mBinId.value()].inplaceUnion(cluster->mTxIds);
         }
         return false;
     }
 
-    std::optional<std::vector<std::shared_ptr<Cluster const>>>
-    createNewClusters(
-        BuilderTx const& tx,
-        std::unordered_set<Cluster const*> const& txConflicts) const
+    // Remove conflicting clusters from mClusters in-place, saving them
+    // in 'saved' for potential rollback.
+    void
+    removeConflictingClusters(
+        std::unordered_set<Cluster const*> const& toRemove,
+        std::vector<std::unique_ptr<Cluster const>>& saved)
     {
-        uint64_t newInstructions = tx.mInstructions;
-        for (auto const* cluster : txConflicts)
+        size_t writePos = 0;
+        for (size_t readPos = 0; readPos < mClusters.size(); ++readPos)
         {
-            newInstructions += cluster->mInstructions;
-        }
-
-        // Fast-fail condition to ensure that the new cluster doesn't exceed
-        // the instructions limit.
-        if (newInstructions > mConfig.mInstructionsPerCluster)
-        {
-            return std::nullopt;
-        }
-        auto newCluster = std::make_shared<Cluster>(tx);
-        for (auto const* cluster : txConflicts)
-        {
-            newCluster->merge(*cluster);
-        }
-
-        std::vector<std::shared_ptr<Cluster const>> newClusters;
-        newClusters.reserve(mClusters.size() + 1 - txConflicts.size());
-        for (auto const& cluster : mClusters)
-        {
-            if (txConflicts.find(cluster.get()) == txConflicts.end())
+            if (toRemove.find(mClusters[readPos].get()) != toRemove.end())
             {
-                newClusters.push_back(cluster);
+                saved.push_back(std::move(mClusters[readPos]));
+            }
+            else
+            {
+                if (writePos != readPos)
+                {
+                    mClusters[writePos] = std::move(mClusters[readPos]);
+                }
+                ++writePos;
             }
         }
-        newClusters.push_back(newCluster);
-        return std::make_optional(std::move(newClusters));
+        mClusters.resize(writePos);
+    }
+
+    // Rollback an in-place mutation: find and remove the merged cluster,
+    // then restore the saved conflicting clusters.
+    void
+    rollbackClusters(Cluster const* mergedCluster,
+                     std::vector<std::unique_ptr<Cluster const>>& savedClusters)
+    {
+        // Find and swap-pop the merged cluster.
+        for (size_t i = 0; i < mClusters.size(); ++i)
+        {
+            if (mClusters[i].get() == mergedCluster)
+            {
+                mClusters[i] = std::move(mClusters.back());
+                mClusters.pop_back();
+                break;
+            }
+        }
+        // Restore the saved conflicting clusters.
+        for (auto& saved : savedClusters)
+        {
+            mClusters.push_back(std::move(saved));
+        }
     }
 
     // Simple bin-packing first-fit-decreasing heuristic
     // (https://en.wikipedia.org/wiki/First-fit-decreasing_bin_packing).
     // This has around 11/9 maximum approximation ratio, which probably has
     // the best complexity/performance tradeoff out of all the heuristics.
-    std::optional<std::vector<BitSet>>
-    binPacking(std::vector<std::shared_ptr<Cluster const>>& clusters,
+    bool
+    binPacking(std::vector<std::unique_ptr<Cluster const>>& clusters,
                std::vector<uint64_t>& binInsns) const
     {
         // We could consider dropping the sort here in order to save some time
@@ -302,7 +368,6 @@ class Stage
                   });
         size_t const binCount = mConfig.mClustersPerStage;
         binInsns.resize(binCount);
-        std::vector<BitSet> bins(binCount);
         std::vector<size_t> newBinId(clusters.size());
         // Just add every cluster into the first bin it fits into.
         for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
@@ -315,7 +380,6 @@ class Stage
                     mConfig.mInstructionsPerCluster)
                 {
                     binInsns[i] += cluster->mInstructions;
-                    bins[i].inplaceUnion(cluster->mTxIds);
                     newBinId[clusterId] = i;
                     packed = true;
                     break;
@@ -323,7 +387,7 @@ class Stage
             }
             if (!packed)
             {
-                return std::nullopt;
+                return false;
             }
         }
         for (size_t clusterId = 0; clusterId < clusters.size(); ++clusterId)
@@ -331,7 +395,7 @@ class Stage
             clusters[clusterId]->mBinId =
                 std::make_optional(newBinId[clusterId]);
         }
-        return std::make_optional(bins);
+        return true;
     }
     // The `Cluster`s in `mClusters` are groups of transactions that have
     // (transitive) data dependencies between one another. If there is a data
@@ -344,7 +408,7 @@ class Stage
     // Looked at another way: two clusters that _aren't_ merged by the end of
     // the process of forming clusters _are_ data-independent and _could_
     // potentially run in parallel.
-    std::vector<std::shared_ptr<Cluster const>> mClusters;
+    std::vector<std::unique_ptr<Cluster const>> mClusters;
     // The clusters formed by data dependency merging may, however,
     // significantly outnumber the maximum _allowed_ amount of parallelism in
     // the stage -- a number called `ledgerMaxDependentTxClusters` in CAP-0063
@@ -369,11 +433,18 @@ class Stage
     // threads that all nodes _must_ have, and running bin-packing against that
     // minimum assumption, we can form txsets into binned clusters each small
     // enough to run in the close-time target on the guaranteed parallelism.
-    std::vector<BitSet> mBinPacking;
     std::vector<uint64_t> mBinInstructions;
     uint64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
     bool mTriedCompactingBinPacking = false;
+    // Union of all clusters' mConflictTxs. Used as a fast-path check in
+    // getConflictingClusters to avoid scanning all clusters when the
+    // transaction has no conflicts with any existing cluster.
+    BitSet mAllConflictTxs;
+    // Maps tx id -> cluster pointer for O(K) conflict lookup.
+    // Sized to the total number of transactions; nullptr means the tx
+    // has not been added to this stage.
+    std::vector<Cluster const*> mTxToCluster;
 };
 
 struct ParallelPhaseBuildResult
@@ -385,53 +456,68 @@ struct ParallelPhaseBuildResult
 
 ParallelPhaseBuildResult
 buildSurgePricedParallelSorobanPhaseWithStageCount(
-    SurgePricingPriorityQueue queue,
-    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*> const&
-        builderTxForTx,
-    TxFrameList const& txFrames, uint32_t stageCount,
-    SorobanNetworkConfig const& sorobanCfg,
-    std::shared_ptr<SurgePricingLaneConfig> laneConfig, uint32_t ledgerVersion)
+    std::vector<size_t> const& sortedTxOrder,
+    std::vector<Resource> const& txResources, Resource const& laneLimit,
+    std::vector<BuilderTx> const& builderTxs, TxFrameList const& txFrames,
+    uint32_t stageCount, SorobanNetworkConfig const& sorobanCfg)
 {
     ZoneScoped;
     ParallelPartitionConfig partitionCfg(stageCount, sorobanCfg);
 
-    std::vector<Stage> stages(partitionCfg.mStageCount, partitionCfg);
+    std::vector<Stage> stages;
+    stages.reserve(partitionCfg.mStageCount);
+    for (uint32_t i = 0; i < partitionCfg.mStageCount; ++i)
+    {
+        stages.emplace_back(partitionCfg, txFrames.size());
+    }
 
-    // Visit the transactions in the surge pricing queue and try to add them to
-    // at least one of the stages.
-    auto visitor = [&stages,
-                    &builderTxForTx](TransactionFrameBaseConstPtr const& tx) {
+    // Iterate transactions in decreasing fee order and try greedily pack them
+    // into one of the stages until the limits are reached. Transactions that
+    // don't fit into any of the stages are skipped and surge pricing will be
+    // triggered for the transaction set.
+    Resource laneLeft = laneLimit;
+    bool hadTxNotFittingLane = false;
+
+    for (size_t txIdx : sortedTxOrder)
+    {
+        auto const& txRes = txResources[txIdx];
+
+        // Check if the transaction fits within the remaining lane resource
+        // limits. This mirrors the anyGreater check in popTopTxs that skips
+        // transactions exceeding resource limits.
+        if (anyGreater(txRes, laneLeft))
+        {
+            hadTxNotFittingLane = true;
+            continue;
+        }
+
+        // Try to add the transaction to one of the stages.
         bool added = false;
-        auto builderTxIt = builderTxForTx.find(tx);
-        releaseAssert(builderTxIt != builderTxForTx.end());
         for (auto& stage : stages)
         {
-            if (stage.tryAdd(*builderTxIt->second))
+            if (stage.tryAdd(builderTxs[txIdx]))
             {
                 added = true;
                 break;
             }
         }
+
         if (added)
         {
-            return SurgePricingPriorityQueue::VisitTxResult::PROCESSED;
+            // Transaction included in the stage, update the remaining lane
+            // resources.
+            laneLeft -= txRes;
         }
-        // If a transaction didn't fit into any of the stages, we consider it
-        // to have been excluded due to resource limits and thus notify the
-        // surge pricing queue that surge pricing should be triggered (
-        // REJECTED imitates the behavior for exceeding the resource limit
-        // within the queue itself).
-        return SurgePricingPriorityQueue::VisitTxResult::REJECTED;
-    };
+        else
+        {
+            // Transaction didn't fit into any of the stages, mark that lane
+            // limits were exceeded to trigger surge pricing.
+            hadTxNotFittingLane = true;
+        }
+    }
 
     ParallelPhaseBuildResult result;
-    std::vector<Resource> laneLeftUntilLimitUnused;
-    queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimitUnused,
-                    result.mHadTxNotFittingLane, ledgerVersion);
-    // There is only a single fee lane for Soroban, so there is only a single
-    // flag that indicates whether there was a transaction that didn't fit into
-    // lane (and thus all transactions are surge priced at once).
-    releaseAssert(result.mHadTxNotFittingLane.size() == 1);
+    result.mHadTxNotFittingLane = {hadTxNotFittingLane};
 
     // At this point the stages have been filled with transactions and we just
     // need to place the full transactions into the respective stages/clusters.
@@ -442,22 +528,20 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
         auto& resStage = result.mStages.emplace_back();
         resStage.reserve(partitionCfg.mClustersPerStage);
 
-        std::unordered_map<size_t, size_t> clusterIdToStageCluster;
+        std::vector<size_t> binToStageCluster(
+            partitionCfg.mClustersPerStage, std::numeric_limits<size_t>::max());
 
-        stage.visitAllTransactions(
-            [&resStage, &txFrames, &clusterIdToStageCluster,
-             &totalInclusionFee](size_t clusterId, size_t txId) {
-                auto it = clusterIdToStageCluster.find(clusterId);
-                if (it == clusterIdToStageCluster.end())
-                {
-                    it = clusterIdToStageCluster
-                             .emplace(clusterId, resStage.size())
-                             .first;
-                    resStage.emplace_back();
-                }
-                totalInclusionFee += txFrames[txId]->getInclusionFee();
-                resStage[it->second].push_back(txFrames[txId]);
-            });
+        stage.visitAllTransactions([&resStage, &txFrames, &binToStageCluster,
+                                    &totalInclusionFee](size_t binId,
+                                                        size_t txId) {
+            if (binToStageCluster[binId] == std::numeric_limits<size_t>::max())
+            {
+                binToStageCluster[binId] = resStage.size();
+                resStage.emplace_back();
+            }
+            totalInclusionFee += txFrames[txId]->getInclusionFee();
+            resStage[binToStageCluster[binId]].push_back(txFrames[txId]);
+        });
         // Algorithm ensures that clusters are populated from first to last and
         // no empty clusters are generated.
         for (auto const& cluster : resStage)
@@ -480,6 +564,140 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     return result;
 }
 
+std::vector<BuilderTx>
+prepareBuilderTxs(TxFrameList const& txFrames)
+{
+    std::vector<BuilderTx> builderTxs;
+    builderTxs.reserve(txFrames.size());
+    for (size_t i = 0; i < txFrames.size(); ++i)
+    {
+        builderTxs.emplace_back(i, *txFrames[i]);
+    }
+
+    // Before trying to include any transactions, find all the pairs of the
+    // conflicting transactions and mark the conflicts in the builderTxs.
+    //
+    // We use a sort-based approach: collect all footprint entries into a flat
+    // vector tagged with (key hash, tx id, RO/RW), sort by hash,
+    // then scan for groups sharing the same key hash. This is significantly
+    // faster in practice than using hash map lookups.
+    //
+    // This also has the further optimization potential: we could populate the
+    // key maps and even the conflicting transactions eagerly in tx queue, thus
+    // amortizing the costs across the whole ledger duration.
+    struct FpEntry
+    {
+        size_t keyHash;
+        uint32_t txId;
+        bool isRW;
+    };
+
+    // Count total footprint entries for a single allocation.
+    size_t totalFpEntries = 0;
+    for (auto const& txFrame : txFrames)
+    {
+        auto const& fp = txFrame->sorobanResources().footprint;
+        totalFpEntries += fp.readOnly.size() + fp.readWrite.size();
+    }
+
+    std::vector<FpEntry> fpEntries;
+    fpEntries.reserve(totalFpEntries);
+    std::hash<LedgerKey> keyHasher;
+    for (size_t i = 0; i < txFrames.size(); ++i)
+    {
+        auto const& footprint = txFrames[i]->sorobanResources().footprint;
+        for (auto const& key : footprint.readOnly)
+        {
+            fpEntries.push_back(
+                {keyHasher(key), static_cast<uint32_t>(i), false});
+        }
+        for (auto const& key : footprint.readWrite)
+        {
+            fpEntries.push_back(
+                {keyHasher(key), static_cast<uint32_t>(i), true});
+        }
+    }
+
+    // Sort by hash for cache-friendly grouping.
+    std::sort(fpEntries.begin(), fpEntries.end(),
+              [](FpEntry const& a, FpEntry const& b) {
+                  return a.keyHash < b.keyHash;
+              });
+
+    // Scan sorted entries for groups sharing the same hash, then mark
+    // conflicts between transactions that share RW keys (RW-RW and RO-RW).
+    // Conservatively treat hash collisions as potential conflicts - collisions
+    // should generally be rare and allocating collisions to the same thread
+    // is guaranteed to be safe (while disambiguating the conflicts would be
+    // expensive and complex). Collision probability is really low (K^2/2^64).
+    for (size_t groupStart = 0; groupStart < fpEntries.size();)
+    {
+        size_t groupEnd = groupStart + 1;
+        while (groupEnd < fpEntries.size() &&
+               fpEntries[groupEnd].keyHash == fpEntries[groupStart].keyHash)
+        {
+            ++groupEnd;
+        }
+
+        // Skip singleton groups — no possible conflicts.
+        if (groupEnd - groupStart < 2)
+        {
+            groupStart = groupEnd;
+            continue;
+        }
+
+        // Collect all entries with the matching key hash.
+        std::vector<size_t> roTxs;
+        std::vector<size_t> rwTxs;
+        for (size_t i = groupStart; i < groupEnd; ++i)
+        {
+            if (fpEntries[i].isRW)
+            {
+                rwTxs.push_back(fpEntries[i].txId);
+            }
+            else
+            {
+                roTxs.push_back(fpEntries[i].txId);
+            }
+        }
+        // RW-RW conflicts
+        for (size_t i = 0; i < rwTxs.size(); ++i)
+        {
+            for (size_t j = i + 1; j < rwTxs.size(); ++j)
+            {
+                // In a rare case of hash collision within a transaction, we
+                // might have the same transaction appear several times in the
+                // same group.
+                if (rwTxs[i] == rwTxs[j])
+                {
+                    continue;
+                }
+                builderTxs[rwTxs[i]].mConflictTxs.set(rwTxs[j]);
+                builderTxs[rwTxs[j]].mConflictTxs.set(rwTxs[i]);
+            }
+        }
+        // RO-RW conflicts
+        for (size_t i = 0; i < roTxs.size(); ++i)
+        {
+            for (size_t j = 0; j < rwTxs.size(); ++j)
+            {
+                // In a rare case of hash collision within a transaction, we
+                // might have the same transaction appear several times in the
+                // same group.
+                if (roTxs[i] == rwTxs[j])
+                {
+                    continue;
+                }
+                builderTxs[roTxs[i]].mConflictTxs.set(rwTxs[j]);
+                builderTxs[rwTxs[j]].mConflictTxs.set(roTxs[i]);
+            }
+        }
+
+        groupStart = groupEnd;
+    }
+    return builderTxs;
+}
+
 } // namespace
 
 TxStageFrameList
@@ -498,89 +716,36 @@ buildSurgePricedParallelSorobanPhase(
     double const MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT = 0.999;
 
     // Simplify the transactions to the minimum necessary amount of data.
-    std::unordered_map<TransactionFrameBaseConstPtr, BuilderTx const*>
-        builderTxForTx;
-    std::vector<std::unique_ptr<BuilderTx>> builderTxs;
-    builderTxs.reserve(txFrames.size());
-    for (size_t i = 0; i < txFrames.size(); ++i)
-    {
-        auto const& txFrame = txFrames[i];
-        builderTxs.emplace_back(std::make_unique<BuilderTx>(i, *txFrame));
-        builderTxForTx.emplace(txFrame, builderTxs.back().get());
-    }
+    auto builderTxs = prepareBuilderTxs(txFrames);
 
-    // Before trying to include any transactions, find all the pairs of the
-    // conflicting transactions and mark the conflicts in the builderTxs.
-    //
-    // In order to find the conflicts, we build the maps from the footprint
-    // keys to transactions, then mark the conflicts between the transactions
-    // that share RW key, or between the transactions that share RO and RW key.
-    //
-    // The approach here is optimized towards the low number of conflicts,
-    // specifically when there are no conflicts at all, the complexity is just
-    // O(total_footprint_entry_count). The worst case is roughly
-    // O(max_tx_footprint_size * transaction_count ^ 2), which is equivalent
-    // to the complexity of the straightforward approach of iterating over all
-    // the transaction pairs.
-    //
-    // This also has the further optimization potential: we could populate the
-    // key maps and even the conflicting transactions eagerly in tx queue, thus
-    // amortizing the costs across the whole ledger duration.
-    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRoKey;
-    UnorderedMap<LedgerKey, std::vector<size_t>> txsWithRwKey;
-    for (size_t i = 0; i < txFrames.size(); ++i)
-    {
-        auto const& txFrame = txFrames[i];
-        auto const& footprint = txFrame->sorobanResources().footprint;
-        for (auto const& key : footprint.readOnly)
-        {
-            txsWithRoKey[key].push_back(i);
-        }
-        for (auto const& key : footprint.readWrite)
-        {
-            txsWithRwKey[key].push_back(i);
-        }
-    }
-
-    for (auto const& [key, rwTxIds] : txsWithRwKey)
-    {
-        // RW-RW conflicts
-        for (size_t i = 0; i < rwTxIds.size(); ++i)
-        {
-            for (size_t j = i + 1; j < rwTxIds.size(); ++j)
-            {
-                builderTxs[rwTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
-                builderTxs[rwTxIds[j]]->mConflictTxs.set(rwTxIds[i]);
-            }
-        }
-        // RO-RW conflicts
-        auto roIt = txsWithRoKey.find(key);
-        if (roIt != txsWithRoKey.end())
-        {
-            auto const& roTxIds = roIt->second;
-            for (size_t i = 0; i < roTxIds.size(); ++i)
-            {
-                for (size_t j = 0; j < rwTxIds.size(); ++j)
-                {
-                    builderTxs[roTxIds[i]]->mConflictTxs.set(rwTxIds[j]);
-                    builderTxs[rwTxIds[j]]->mConflictTxs.set(roTxIds[i]);
-                }
-            }
-        }
-    }
-
-    // Process the transactions in the surge pricing (decreasing fee) order.
-    // This also automatically ensures that the resource limits are respected
-    // for all the dimensions besides instructions.
-    SurgePricingPriorityQueue queue(
-        /* isHighestPriority */ true, laneConfig,
+    // Sort transactions in decreasing inclusion fee order.
+    TxFeeComparator txComparator(
+        /* isGreater */ true,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    std::vector<size_t> sortedTxOrder(txFrames.size());
+    std::iota(sortedTxOrder.begin(), sortedTxOrder.end(), 0);
+    std::sort(sortedTxOrder.begin(), sortedTxOrder.end(),
+              [&txFrames, &txComparator](size_t a, size_t b) {
+                  return txComparator(txFrames[a], txFrames[b]);
+              });
+
+    // Precompute per-transaction resources to avoid repeated virtual calls
+    // and heap allocations across threads.
+    std::vector<Resource> txResources;
+    txResources.reserve(txFrames.size());
     for (auto const& tx : txFrames)
     {
-        queue.add(tx, ledgerVersion);
+        txResources.push_back(
+            tx->getResources(/* useByteLimitInClassic */ false, ledgerVersion));
     }
 
-    // Create a worker thread for each stage count.
+    // Get the lane limit. Soroban uses a single generic lane.
+    auto const& laneLimits = laneConfig->getLaneLimits();
+    releaseAssert(laneLimits.size() == 1);
+    auto const& laneLimit = laneLimits[0];
+
+    // Create a worker thread for each stage count. The sorted order and
+    // precomputed resources are shared across all threads (read-only).
     std::vector<std::thread> threads;
     uint32_t stageCountOptions = cfg.SOROBAN_PHASE_MAX_STAGE_COUNT -
                                  cfg.SOROBAN_PHASE_MIN_STAGE_COUNT + 1;
@@ -590,13 +755,13 @@ buildSurgePricedParallelSorobanPhase(
          stageCount <= cfg.SOROBAN_PHASE_MAX_STAGE_COUNT; ++stageCount)
     {
         size_t resultIndex = stageCount - cfg.SOROBAN_PHASE_MIN_STAGE_COUNT;
-        threads.emplace_back([queue, &builderTxForTx, txFrames, stageCount,
-                              sorobanCfg, laneConfig, resultIndex, &results,
-                              ledgerVersion]() {
+        threads.emplace_back([&sortedTxOrder, &txResources, &laneLimit,
+                              &builderTxs, &txFrames, stageCount, &sorobanCfg,
+                              resultIndex, &results]() {
             results.at(resultIndex) =
                 buildSurgePricedParallelSorobanPhaseWithStageCount(
-                    std::move(queue), builderTxForTx, txFrames, stageCount,
-                    sorobanCfg, laneConfig, ledgerVersion);
+                    sortedTxOrder, txResources, laneLimit, builderTxs, txFrames,
+                    stageCount, sorobanCfg);
         });
     }
     for (auto& thread : threads)

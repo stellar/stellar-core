@@ -940,15 +940,20 @@ makeTxSetFromTransactions(
                                      static_cast<TxSetPhase>(i));
         }
     }
-
-    // We already trimmed invalid transactions in an earlier call to
-    // `trimInvalid`, so skip transaction validation here
-    valid = valid && outputApplicableTxSet->checkValidInternal(
-                         app, lowerBoundCloseTimeOffset,
-                         upperBoundCloseTimeOffset, true);
     if (!valid)
     {
-        throw std::runtime_error("Created invalid tx set frame");
+        throw std::runtime_error("Created invalid tx set frame - shape is "
+                                 "mismatched after roundtrip.");
+    }
+    // We already trimmed invalid transactions in an earlier call to
+    // `trimInvalid`, so skip transaction validation here
+    auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
+        app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, true);
+    if (validationResult != TxSetValidationResult::VALID)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Created invalid tx set frame, validation result: {:s}"),
+            toString(validationResult)));
     }
 
     return std::make_pair(outputTxSet, std::move(outputApplicableTxSet));
