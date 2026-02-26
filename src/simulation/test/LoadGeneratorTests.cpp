@@ -17,7 +17,9 @@
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
 #include "util/finally.h"
+#include <cmath>
 #include <fmt/format.h>
+#include <random>
 
 using namespace stellar;
 
@@ -984,8 +986,8 @@ TEST_CASE("apply load find max limits for model tx",
     // Also generate that many classic simple payments.
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
-    // Close 3 ledgers per iteration.
-    cfg.APPLY_LOAD_NUM_LEDGERS = 3;
+    // Close 30 ledgers per iteration.
+    cfg.APPLY_LOAD_NUM_LEDGERS = 30;
     // The target close time is 500ms.
     cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 500;
 
@@ -1033,7 +1035,7 @@ TEST_CASE("apply load find max limits for model tx",
     REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
 }
 
-TEST_CASE("basic MAX_SAC_TPS functionality",
+TEST_CASE("apply load find max SAC TPS",
           "[loadgen][applyload][soroban][acceptance]")
 {
     auto cfg = getTestConfig();
@@ -1047,8 +1049,8 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1500;
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
     cfg.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS = 1;
-    cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 1000;
-    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 1500;
+    cfg.APPLY_LOAD_NUM_LEDGERS = 30;
     cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
@@ -1068,4 +1070,414 @@ TEST_CASE("basic MAX_SAC_TPS functionality",
     REQUIRE(maxClustersMetric.count() ==
             cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
     REQUIRE(successCountMetric.count() > 200);
+}
+
+TEST_CASE("noisy binary search", "[applyload]")
+{
+    std::mt19937 rng(12345); // Fixed seed for reproducibility
+
+    // Helper to create a noisy monotone function with normally distributed
+    // noise.
+    // meanFunc: function that computes the true mean at x
+    // stddevFunc: function that computes the standard deviation at x
+    auto makeNoisyMonotone = [&rng](std::function<double(uint32_t)> meanFunc,
+                                    std::function<double(uint32_t)> stddevFunc)
+        -> std::function<double(uint32_t)> {
+        return [&rng, meanFunc, stddevFunc](uint32_t x) {
+            double mean = meanFunc(x);
+            double stddev = stddevFunc(x);
+            std::normal_distribution<double> dist(mean, stddev);
+            return dist(rng);
+        };
+    };
+
+    // Mean functions: linear, sqrt, x^2
+    auto linearMean = [](uint32_t x) { return static_cast<double>(x); };
+    auto sqrtMean = [](uint32_t x) {
+        return std::sqrt(static_cast<double>(x));
+    };
+    auto quadraticMean = [](uint32_t x) {
+        return static_cast<double>(x) * static_cast<double>(x);
+    };
+
+    // Variance functions: constant, proportional to x
+    auto constStddev = [](uint32_t) { return 50.0; };
+    auto proportionalStddev = [](uint32_t x) {
+        return std::max(1.0, static_cast<double>(x) * 0.1);
+    };
+
+    double const confidence = 0.99;
+    size_t const maxSamples = 1000;
+
+    SECTION("linear mean, constant variance")
+    {
+        // Search for x where E[f(x)] = target
+        uint32_t const trueX = 500;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 1000;
+        uint32_t const tolerance = 50;
+
+        auto f = makeNoisyMonotone(linearMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("linear mean, proportional variance")
+    {
+        uint32_t const trueX = 750;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 1000;
+        uint32_t const tolerance = 200;
+
+        auto f = makeNoisyMonotone(linearMean, proportionalStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("sqrt mean, constant variance")
+    {
+        uint32_t const trueX = 2500;
+        double const target = sqrtMean(trueX); // sqrt(2500) = 50
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 10000;
+        uint32_t const tolerance = 100;
+
+        // Use smaller stddev relative to the signal range (10..100)
+        auto smallConstStddev = [](uint32_t) { return 2.0; };
+        auto f = makeNoisyMonotone(sqrtMean, smallConstStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("sqrt mean, proportional variance")
+    {
+        uint32_t const trueX = 4000;
+        double const target = sqrtMean(trueX);
+        uint32_t const xMin = 500;
+        uint32_t const xMax = 10000;
+        uint32_t const tolerance = 100;
+
+        auto smallProportionalStddev = [](uint32_t x) {
+            return std::max(1.0, std::sqrt(static_cast<double>(x)) * 0.05);
+        };
+        auto f = makeNoisyMonotone(sqrtMean, smallProportionalStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("quadratic mean, constant variance")
+    {
+        uint32_t const trueX = 100;
+        double const target = quadraticMean(trueX); // 100^2 = 10000
+        uint32_t const xMin = 10;
+        uint32_t const xMax = 500;
+        uint32_t const tolerance = 20;
+
+        auto f = makeNoisyMonotone(quadraticMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("quadratic mean, proportional variance")
+    {
+        uint32_t const trueX = 200;
+        double const target = quadraticMean(trueX);
+        uint32_t const xMin = 50;
+        uint32_t const xMax = 500;
+        uint32_t const tolerance = 50;
+
+        auto f = makeNoisyMonotone(quadraticMean, proportionalStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("narrow search range")
+    {
+        uint32_t const trueX = 55;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 50;
+        uint32_t const xMax = 60;
+        uint32_t const tolerance = 10;
+
+        auto f = makeNoisyMonotone(linearMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(lo >= xMin);
+        REQUIRE(hi <= xMax);
+    }
+
+    SECTION("tight tolerance")
+    {
+        uint32_t const trueX = 500;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 1000;
+        uint32_t const tolerance = 10;
+
+        // Use lower noise for tight tolerance test
+        auto lowNoiseStddev = [](uint32_t) { return 1.0; };
+        auto f = makeNoisyMonotone(linearMean, lowNoiseStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+    }
+
+    SECTION("target at boundary - near min")
+    {
+        uint32_t const trueX = 110;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 1000;
+        uint32_t const tolerance = 50;
+
+        auto f = makeNoisyMonotone(linearMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(lo >= xMin);
+    }
+
+    SECTION("target at boundary - near max")
+    {
+        uint32_t const trueX = 950;
+        double const target = linearMean(trueX);
+        uint32_t const xMin = 100;
+        uint32_t const xMax = 1000;
+        uint32_t const tolerance = 100;
+
+        auto f = makeNoisyMonotone(linearMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi <= xMax);
+    }
+
+    SECTION("single point range")
+    {
+        uint32_t const xMin = 500;
+        uint32_t const xMax = 500;
+        double const target = linearMean(xMin);
+        uint32_t const tolerance = 0;
+
+        auto f = makeNoisyMonotone(linearMean, constStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        REQUIRE(lo == xMin);
+        REQUIRE(hi == xMax);
+    }
+    SECTION("benchmark-like: tx count to execution time")
+    {
+        auto benchmarkMean = [](uint32_t x) {
+            double xd = static_cast<double>(x);
+            // Model partially parallel execution with sequential stages that
+            // scale up slowly as x increases.
+            return 10.0 + 0.1 * xd + 0.5 * std::sqrt(xd);
+        };
+
+        // Variance is proportional to apply time (mean).
+        auto benchmarkStddev = [&](uint32_t x) {
+            return 0.01 * benchmarkMean(x);
+        };
+
+        uint32_t const trueX = 3500;
+        uint32_t const targetTimeMs = benchmarkMean(trueX);
+        double const target = static_cast<double>(targetTimeMs);
+
+        uint32_t const xMin = 1000;
+        uint32_t const xMax = 10000;
+        uint32_t const tolerance = 200;
+
+        auto f = makeNoisyMonotone(benchmarkMean, benchmarkStddev);
+        auto [lo, hi] = noisyBinarySearch(f, target, xMin, xMax, confidence,
+                                          tolerance, maxSamples);
+
+        // Verify the interval contains the true value
+        REQUIRE(lo <= trueX);
+        REQUIRE(hi >= trueX);
+        REQUIRE(hi - lo <= tolerance);
+
+        // Also verify the mean at the found interval is close to target
+        double loTime = benchmarkMean(lo);
+        double hiTime = benchmarkMean(hi);
+        REQUIRE(loTime <= target + 50);
+        REQUIRE(hiTime >= target - 50);
+    }
+    SECTION("randomized test")
+    {
+        // Test many random combinations of parameters
+        std::mt19937 paramRng(42); // Different seed for parameter generation
+
+        // Mean function types
+        enum class MeanType
+        {
+            LINEAR,
+            SQRT,
+            QUADRATIC,
+            LOG
+        };
+
+        // Variance function types
+        enum class VarianceType
+        {
+            CONSTANT,
+            PROPORTIONAL
+        };
+
+        auto getMeanFunc =
+            [](MeanType type) -> std::function<double(uint32_t)> {
+            switch (type)
+            {
+            case MeanType::LINEAR:
+                return [](uint32_t x) { return static_cast<double>(x); };
+            case MeanType::SQRT:
+                return [](uint32_t x) {
+                    return std::sqrt(static_cast<double>(x)) * 100.0;
+                };
+            case MeanType::QUADRATIC:
+                return [](uint32_t x) {
+                    return static_cast<double>(x) * static_cast<double>(x) /
+                           1000.0;
+                };
+            case MeanType::LOG:
+                return [](uint32_t x) {
+                    return std::log(static_cast<double>(x) + 1.0) * 100.0;
+                };
+            default:
+                return [](uint32_t x) { return static_cast<double>(x); };
+            }
+        };
+
+        // Stddev functions based on the mean value, not x
+        // This gives us direct control over signal-to-noise ratio
+        auto getStddevFunc = [](VarianceType type, double noiseRatio,
+                                std::function<double(uint32_t)> const& meanFunc)
+            -> std::function<double(uint32_t)> {
+            switch (type)
+            {
+            case VarianceType::CONSTANT:
+                // Constant stddev as a fraction of the mean at x
+                return [noiseRatio, meanFunc](uint32_t x) {
+                    return std::max(0.1, std::abs(meanFunc(x)) * noiseRatio);
+                };
+            case VarianceType::PROPORTIONAL:
+                // Stddev proportional to sqrt of mean (like Poisson-ish)
+                return [noiseRatio, meanFunc](uint32_t x) {
+                    double m = std::abs(meanFunc(x));
+                    return std::max(0.1, std::sqrt(m) * noiseRatio);
+                };
+            default:
+                return [](uint32_t) { return 1.0; };
+            }
+        };
+
+        size_t const numTests = 200;
+        size_t passed = 0;
+
+        for (size_t testIdx = 0; testIdx < numTests; ++testIdx)
+        {
+            // Generate random parameters within sane bounds
+            MeanType meanType = static_cast<MeanType>(
+                stellar::uniform_int_distribution<int>(0, 3)(paramRng));
+            VarianceType varType = static_cast<VarianceType>(
+                stellar::uniform_int_distribution<int>(0, 1)(paramRng));
+
+            // Range parameters
+            uint32_t xMin =
+                stellar::uniform_int_distribution<uint32_t>(10, 500)(paramRng);
+            uint32_t rangeSize = stellar::uniform_int_distribution<uint32_t>(
+                100, 5000)(paramRng);
+            uint32_t xMax = xMin + rangeSize;
+
+            // True x* somewhere in the range (not too close to edges)
+            uint32_t margin = rangeSize / 10;
+            uint32_t trueX = stellar::uniform_int_distribution<uint32_t>(
+                xMin + margin, xMax - margin)(paramRng);
+
+            // Get the mean function and compute target
+            auto meanFunc = getMeanFunc(meanType);
+            double target = meanFunc(trueX);
+
+            // Tolerance: between 1% and 20% of range
+            uint32_t tolerance = stellar::uniform_int_distribution<uint32_t>(
+                rangeSize / 100 + 1, rangeSize / 5 + 1)(paramRng);
+
+            // Confidence level: 0.90 to 0.99
+            double testConfidence =
+                std::uniform_real_distribution<double>(0.90, 0.99)(paramRng);
+
+            // Noise ratio: stddev as fraction of mean, kept reasonable (1-10%)
+            double noiseRatio =
+                std::uniform_real_distribution<double>(0.01, 0.10)(paramRng);
+
+            auto stddevFunc = getStddevFunc(varType, noiseRatio, meanFunc);
+
+            // Create the noisy function with a fresh RNG for each test
+            std::mt19937 testRng(testIdx * 1000 + 12345);
+            auto noisyFunc = [&testRng, meanFunc,
+                              stddevFunc](uint32_t x) -> double {
+                double mean = meanFunc(x);
+                double stddev = stddevFunc(x);
+                std::normal_distribution<double> dist(mean, stddev);
+                return dist(testRng);
+            };
+
+            // Run the search
+            auto [lo, hi] =
+                noisyBinarySearch(noisyFunc, target, xMin, xMax, testConfidence,
+                                  tolerance, maxSamples);
+
+            // Check if the result is valid
+            bool containsTrueX = (lo <= trueX && hi >= trueX);
+            bool withinTolerance = (hi - lo <= tolerance);
+            bool withinBounds = (lo >= xMin && hi <= xMax);
+
+            if (containsTrueX && withinTolerance && withinBounds)
+            {
+                passed++;
+            }
+        }
+
+        // We expect at least 90% of tests to pass
+        double passRate = static_cast<double>(passed) / numTests;
+        INFO("Passed " << passed << "/" << numTests << " tests ("
+                       << (passRate * 100) << "%)");
+        REQUIRE(passRate >= 0.90);
+    }
 }

@@ -35,6 +35,8 @@ namespace stellar
 {
 namespace
 {
+constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
+
 SorobanUpgradeConfig
 getUpgradeConfig(Config const& cfg, bool validate = true)
 {
@@ -164,6 +166,203 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
 
     return upgradeConfig;
 }
+} // namespace
+
+/*
+ * Binary search for a noisy monotone function.
+ *
+ * This function locates an integer x* such that:
+ *
+ *     E[f(x*)] == targetA
+ *
+ * under the assumptions that:
+ *   - f(x) is strictly monotone in x
+ *   - evaluations of f(x) are noisy
+ *   - the noise distribution and variance are unknown
+ *
+ * The algorithm performs adaptive binary search:
+ *   - at each midpoint, samples until confident about the direction
+ *   - uses t-statistics to determine if mean is above/below target
+ *   - adjusts per-decision confidence to achieve overall confidence
+ *
+ * Parameters:
+ * ----------
+ * f :
+ *     Expensive benchmark or measurement function.
+ *     Must be monotone in x.
+ *     Returns a noisy scalar measurement.
+ *
+ * targetA :
+ *     Target value such that x* satisfies E[f(x*)] == targetA.
+ *
+ * xMin :
+ *     Inclusive lower bound of the search domain.
+ *
+ * xMax :
+ *     Inclusive upper bound of the search domain.
+ *
+ * confidence :
+ *     Desired confidence level for the final result.
+ *     Example: 0.95 means 95% probability the true x* is in [lo, hi].
+ *     The algorithm computes per-decision confidence as confidence^(1/k)
+ *     where k is the number of binary search decisions, ensuring the
+ *     product of all decision confidences meets the overall target.
+ *
+ * xTolerance :
+ *     Early-stop threshold on interval width.
+ *     Search stops when (hi - lo) <= xTolerance.
+ *     Use 0 to require a single integer solution.
+ *
+ * maxSamplesPerPoint :
+ *     Maximum samples to take at each midpoint before giving up on confidence.
+ *
+ * prepareIteration :
+ *     When set, call before sampling f at each midpoint.
+ *
+ * iterationResult :
+ *     When set, call after iterations are done with a bool indicating whether
+ *     the midpoint was confidently above (true) or below (false) the target.
+ *
+ * Returns:
+ * --------
+ * A pair (lo, hi) representing the search interval such that with
+ * probability >= confidence, the true x* lies within [lo, hi].
+ * The bounds are inclusive.
+ */
+#ifndef BUILD_TESTS
+static std::pair<uint32_t, uint32_t>
+#else
+std::pair<uint32_t, uint32_t>
+#endif
+noisyBinarySearch(std::function<double(uint32_t)> const& f, double targetA,
+                  uint32_t xMin, uint32_t xMax, double confidence,
+                  uint32_t xTolerance, size_t maxSamplesPerPoint,
+                  std::function<void(uint32_t)> const& prepareIteration,
+                  std::function<void(uint32_t, bool)> const& iterationResult)
+{
+    releaseAssert(xMin <= xMax);
+    size_t const minSamples = 30;
+    releaseAssert(maxSamplesPerPoint >= minSamples);
+
+    // Binary search bounds
+    uint32_t lo = xMin;
+    uint32_t hi = xMax;
+
+    // Calculate per-decision confidence needed to achieve final confidence.
+    // With k decisions each having probability p of being correct,
+    // P(all correct) = p^k >= confidence
+    // => p >= confidence^(1/k)
+    size_t rangeSize = static_cast<size_t>(xMax - xMin + 1);
+    size_t numDecisions = static_cast<size_t>(std::ceil(
+        std::log2(static_cast<double>(rangeSize) / (xTolerance + 1))));
+    numDecisions = std::max(numDecisions, size_t{1});
+
+    double perDecisionConfidence =
+        std::pow(confidence, 1.0 / static_cast<double>(numDecisions));
+
+    // Minimum samples before we start checking confidence
+
+    size_t totalSamples = 0;
+
+    while (hi - lo > xTolerance)
+    {
+        uint32_t mid = lo + (hi - lo) / 2;
+
+        // Collect samples using Welford's algorithm
+        size_t count = 0;
+        double mean = 0.0;
+        double m2 = 0.0;
+
+        double probAbove = 0.5;
+        bool confident = false;
+        if (prepareIteration)
+        {
+            prepareIteration(mid);
+        }
+        while (count < maxSamplesPerPoint)
+        {
+            // Take a sample
+            double y = f(mid);
+            count++;
+            totalSamples++;
+            double delta = y - mean;
+            mean += delta / count;
+            double delta2 = y - mean;
+            m2 += delta * delta2;
+
+            if (count < minSamples)
+            {
+                continue;
+            }
+
+            // Compute t-statistic: t = (mean - target) / (s / sqrt(n))
+            double variance = m2 / (count - 1);
+            double sem = std::sqrt(variance / count);
+            CLOG_INFO(Perf,
+                      "noisy binary search:x={}, y={}, n={}, mean={:.4f}, "
+                      "variance={:.4f}, sem={:.4f}",
+                      mid, y, count, mean, variance, sem);
+            // Avoid division by zero
+            if (sem < 1e-10)
+            {
+                // Variance is essentially zero - mean is very stable
+                probAbove = (mean > targetA) ? 1.0 - 1e-10 : 1e-10;
+                confident = true;
+                break;
+            }
+
+            double t = (mean - targetA) / sem;
+
+            // Convert t-statistic to probability using normal approximation
+            // (good enough with 30+ samples).
+            probAbove = 0.5 * std::erfc(-t / std::sqrt(2.0));
+            // Check if we have enough confidence to make a decision
+            if (probAbove >= perDecisionConfidence ||
+                probAbove <= (1.0 - perDecisionConfidence))
+            {
+                confident = true;
+                break;
+            }
+        }
+
+        if (!confident)
+        {
+            // Couldn't reach required confidence - log a warning
+            // but still make a decision based on best estimate
+            CLOG_WARNING(
+                Perf,
+                "Noisy binary search: couldn't reach {:.4f} confidence at "
+                "x={} after {} samples (probAbove={:.4f})",
+                perDecisionConfidence, mid, count, probAbove);
+        }
+        else
+        {
+            CLOG_INFO(Perf,
+                      "Noisy binary search: at x={} took {} samples to reach "
+                      "{:.4f} confidence (probAbove={:.4f})",
+                      mid, count, perDecisionConfidence, probAbove);
+        }
+
+        if (iterationResult)
+        {
+            iterationResult(mid, probAbove >= 0.5);
+        }
+        // Make decision based on best estimate
+        if (probAbove >= 0.5)
+        {
+            hi = mid;
+        }
+        else
+        {
+            lo = mid + 1;
+        }
+    }
+    CLOG_INFO(Perf,
+              "Noisy binary search completed {} total samples; final interval "
+              "[{}, {}]",
+              totalSamples, lo, hi);
+
+    return {lo, hi};
 }
 
 uint64_t
@@ -1112,7 +1311,7 @@ ApplyLoad::benchmarkLimits()
     CLOG_INFO(Perf, "Tx Success Rate: {:f}%", successRate() * 100);
 }
 
-void
+double
 ApplyLoad::benchmarkLimitsIteration()
 {
     releaseAssert(mMode != ApplyLoadMode::MAX_SAC_TPS);
@@ -1221,7 +1420,14 @@ ApplyLoad::benchmarkLimitsIteration()
     // accounts, which should not happen.
     releaseAssert(sorobanLimitHit);
 
+    auto& ledgerCloseTime =
+        mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
+    double timeBefore = ledgerCloseTime.sum();
+
     closeLedger(txs, {}, /* recordSorobanUtilization */ true);
+
+    double timeAfter = ledgerCloseTime.sum();
+    return timeAfter - timeBefore;
 }
 
 void
@@ -1267,25 +1473,13 @@ ApplyLoad::findMaxLimitsForModelTransaction()
     validateTxParam("APPLY_LOAD_EVENT_COUNT", config.APPLY_LOAD_EVENT_COUNT,
                     config.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION, true);
 
-    auto roundDown = [](uint64_t value, uint64_t step) {
-        return value - value % step;
-    };
-
-    auto& ledgerCloseTime =
-        mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
-
-    uint64_t minTxsPerLedger = 1;
-    uint64_t maxTxsPerLedger = mApp.getConfig().APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
-    SorobanUpgradeConfig maxLimitsConfig;
-    uint64_t maxLimitsTxsPerLedger = 0;
-    uint64_t prevTxsPerLedger = 0;
-
     double targetTimeMs = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
 
-    while (minTxsPerLedger <= maxTxsPerLedger)
-    {
-        uint64_t testTxsPerLedger = (minTxsPerLedger + maxTxsPerLedger) / 2;
+    // Track the best config found during the search
+    SorobanUpgradeConfig maxLimitsConfig;
+    uint64_t maxLimitsTxsPerLedger = 0;
 
+    auto prepareIteration = [this, &config](uint32_t testTxsPerLedger) {
         CLOG_INFO(Perf,
                   "Testing ledger max model txs: {}, generated limits: "
                   "instructions {}, tx size {}, disk read entries {}, rw "
@@ -1295,52 +1489,50 @@ ApplyLoad::findMaxLimitsForModelTransaction()
                   testTxsPerLedger * config.APPLY_LOAD_TX_SIZE_BYTES[0],
                   testTxsPerLedger * config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0],
                   testTxsPerLedger * config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
+
         auto [upgradeConfig, actualMaxTxsPerLedger] =
             updateSettingsForTxCount(testTxsPerLedger);
-        // Break when due to rounding we've arrived at the same actual txs to
-        // test as in the previous iteration, or at the value lower than the
-        // best found so far.
-        if (actualMaxTxsPerLedger == prevTxsPerLedger ||
-            actualMaxTxsPerLedger <= maxLimitsTxsPerLedger)
-        {
-            CLOG_INFO(Perf, "No change in generated limits after update due to "
-                            "rounding, ending search.");
-            break;
-        }
-        applyConfigUpgrade(upgradeConfig);
 
-        prevTxsPerLedger = actualMaxTxsPerLedger;
-        ledgerCloseTime.Clear();
-        for (size_t i = 0; i < mApp.getConfig().APPLY_LOAD_NUM_LEDGERS; ++i)
+        applyConfigUpgrade(upgradeConfig);
+    };
+    auto iterationResult = [this, &maxLimitsTxsPerLedger, &maxLimitsConfig](
+                               uint32_t testTxsPerLedger, bool isAbove) {
+        auto [upgradeConfig, actualMaxTxsPerLedger] =
+            updateSettingsForTxCount(testTxsPerLedger);
+        // Store the config if this is the best so far
+        if (!isAbove && actualMaxTxsPerLedger > maxLimitsTxsPerLedger)
         {
-            benchmarkLimitsIteration();
-        }
-        releaseAssert(successRate() == 1.0);
-        if (ledgerCloseTime.mean() > targetTimeMs)
-        {
-            CLOG_INFO(
-                Perf,
-                "Failed: {} model txs per ledger (avg close time: {:.2f}ms)",
-                actualMaxTxsPerLedger, ledgerCloseTime.mean());
-            maxTxsPerLedger = testTxsPerLedger - 1;
-        }
-        else
-        {
-            CLOG_INFO(Perf,
-                      "Success: {} model txs per ledger (avg close time: "
-                      "{:.2f}ms)",
-                      actualMaxTxsPerLedger, ledgerCloseTime.mean());
-            minTxsPerLedger = testTxsPerLedger + 1;
             maxLimitsTxsPerLedger = actualMaxTxsPerLedger;
             maxLimitsConfig = upgradeConfig;
         }
-    }
+    };
+
+    auto benchmarkFunc = [this](uint32_t testTxsPerLedger) -> double {
+        double closeTime = benchmarkLimitsIteration();
+        releaseAssert(successRate() == 1.0);
+        return closeTime;
+    };
+
+    uint32_t minTxsPerLedger = 1;
+    uint32_t maxTxsPerLedger = mApp.getConfig().APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
+    size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
+    uint32_t xTolerance = 100;
+
+    auto [lo, hi] = noisyBinarySearch(
+        benchmarkFunc, targetTimeMs, minTxsPerLedger, maxTxsPerLedger,
+        NOISY_BINARY_SEARCH_CONFIDENCE, xTolerance, maxSamplesPerPoint,
+        prepareIteration, iterationResult);
+    // Note, that the final search range may be above the TPL found, that's due
+    // to rounding we do when calculating TPL to benchmark (not every TPL
+    // value can be tested fairly).
     CLOG_INFO(Perf,
-              "Maximum limits found for model transaction ({} TPL): "
+              "Maximum limits found for model transaction ({} TPL, [{}, {}] "
+              "final search range): "
               "instructions {}, "
               "tx size {}, disk read entries {}, disk read bytes {}, "
               "write entries {}, write bytes {}",
-              maxLimitsTxsPerLedger, *maxLimitsConfig.ledgerMaxInstructions,
+              maxLimitsTxsPerLedger, lo, hi,
+              *maxLimitsConfig.ledgerMaxInstructions,
               *maxLimitsConfig.ledgerMaxTransactionsSizeBytes,
               *maxLimitsConfig.ledgerMaxDiskReadEntries,
               *maxLimitsConfig.ledgerMaxDiskReadBytes,
@@ -1424,21 +1616,13 @@ ApplyLoad::findMaxSacTps()
             std::ceil(static_cast<double>(MIN_TXS_PER_STEP) / txsPerStep) *
             txsPerStep;
     }
-    uint32_t stepsPerSecond = 1000 / ApplyLoad::TARGET_CLOSE_TIME_STEP_MS;
-    // Round min and max rate of txs per step of TARGET_CLOSE_TIME_STEP_MS
-    // duration to be multiple of txsPerStep.
-    uint32_t minTxRateSteps =
-        std::max(1u, mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS /
-                         stepsPerSecond / txsPerStep);
-    uint32_t maxTxRateSteps = std::ceil(
+    uint32_t minSteps = std::max(
+        1u, mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS / txsPerStep);
+    uint32_t maxSteps = std::ceil(
         static_cast<double>(mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS) /
-        stepsPerSecond / txsPerStep);
-    uint32_t bestTps = 0;
+        txsPerStep);
 
     double targetCloseTimeMs = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
-    uint32_t targetCloseTimeSteps =
-        mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS /
-        ApplyLoad::TARGET_CLOSE_TIME_STEP_MS;
 
     auto txsPerLedgerToTPS =
         [targetCloseTimeMs](uint32_t txsPerLedger) -> uint32_t {
@@ -1449,47 +1633,44 @@ ApplyLoad::findMaxSacTps()
     CLOG_WARNING(Perf,
                  "Starting MAX_SAC_TPS binary search between {} and {} TPS "
                  "with search step of {} txs",
-                 txsPerLedgerToTPS(minTxRateSteps * txsPerStep),
-                 txsPerLedgerToTPS(maxTxRateSteps * txsPerStep), txsPerStep);
+                 txsPerLedgerToTPS(minSteps * txsPerStep),
+                 txsPerLedgerToTPS(maxSteps * txsPerStep), txsPerStep);
     CLOG_WARNING(Perf, "Target close time: {}ms", targetCloseTimeMs);
     CLOG_WARNING(Perf, "Num parallel clusters: {}",
                  mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
-    while (minTxRateSteps <= maxTxRateSteps)
-    {
-        uint32_t testTxRateSteps = (minTxRateSteps + maxTxRateSteps) / 2;
-        uint32_t testTxRate = testTxRateSteps * txsPerStep;
+    auto prepareIter = [this, txsPerStep](uint32_t numSteps) {
+        uint32_t testTxRate = numSteps * txsPerStep;
+        uint32_t txsPerLedger =
+            testTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
 
-        // Calculate transactions per ledger based on target close time
-        uint32_t txsPerLedger = targetCloseTimeSteps * testTxRate /
-                                mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
-        uint32_t testTps = txsPerLedgerToTPS(
-            txsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
-
-        CLOG_WARNING(
-            Perf,
-            "Testing {} TPS with {} batched TXs per ledger ({} transfers).",
-            testTps, txsPerLedger,
-            txsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
+        CLOG_INFO(Perf, "Testing {} TXs per ledger ({} transfers).",
+                  txsPerLedger,
+                  txsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
 
         upgradeSettingsForMaxTPS(txsPerLedger);
+    };
+    // Create benchmark function that returns close time for a given TPS step
+    auto benchmarkFunc = [this, txsPerStep](uint32_t numSteps) -> double {
+        uint32_t testTxRate = numSteps * txsPerStep;
+        uint32_t txsPerLedger =
+            testTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+        return benchmarkSacTpsSingleLedger(txsPerLedger);
+    };
 
-        double avgCloseTime = benchmarkSacTps(txsPerLedger);
+    size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
+    uint32_t const tolerance = 0;
 
-        if (avgCloseTime <= targetCloseTimeMs)
-        {
-            bestTps = testTps;
-            minTxRateSteps = testTxRateSteps + 1;
-            CLOG_WARNING(Perf, "Success: {} TPS (avg total tx apply: {:.2f}ms)",
-                         testTps, avgCloseTime);
-        }
-        else
-        {
-            maxTxRateSteps = testTxRateSteps - 1;
-            CLOG_WARNING(Perf, "Failed: {} TPS (avg total tx apply: {:.2f}ms)",
-                         testTps, avgCloseTime);
-        }
-    }
+    auto [lo, hi] =
+        noisyBinarySearch(benchmarkFunc, targetCloseTimeMs, minSteps, maxSteps,
+                          NOISY_BINARY_SEARCH_CONFIDENCE, tolerance,
+                          maxSamplesPerPoint, prepareIter);
+    releaseAssert(lo == hi);
+    uint32_t bestTxRate = lo * txsPerStep;
+    uint32_t bestTxsPerLedger =
+        bestTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+    uint32_t bestTps = txsPerLedgerToTPS(
+        bestTxsPerLedger * mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT);
 
     CLOG_WARNING(Perf, "================================================");
     CLOG_WARNING(Perf, "Maximum sustainable SAC payments per second: {}",
@@ -1500,74 +1681,53 @@ ApplyLoad::findMaxSacTps()
 }
 
 double
-ApplyLoad::benchmarkSacTps(uint32_t txsPerLedger)
+ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 {
-    // For timing, we just want to track the TX application itself. This
-    // includes charging fees, applying transactions, and post apply work (like
-    // meta). It does not include writing the results to disk.
-    // When APPLY_LOAD_TIME_WRITES is true, use the ledger close timer instead
-    // which includes database writes.
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES
             ? mApp.getMetrics().NewTimer({"ledger", "ledger", "close"})
             : mApp.getMetrics().NewTimer(
                   {"ledger", "transaction", "total-apply"});
-    totalTxApplyTimer.Clear();
 
-    uint32_t numLedgers = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
-    for (uint32_t iter = 0; iter < numLedgers; ++iter)
-    {
-        warmAccountCache();
+    warmAccountCache();
 
-        int64_t initialSuccessCount =
-            mTxGenerator.getApplySorobanSuccess().count();
+    int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
 
-        // Generate exactly enough SAC payment transactions
-        std::vector<TransactionFrameBasePtr> txs;
-        txs.reserve(txsPerLedger);
+    // Generate exactly enough SAC payment transactions
+    std::vector<TransactionFrameBasePtr> txs;
+    txs.reserve(txsPerLedger);
 
-        generateSacPayments(txs, txsPerLedger);
-        releaseAssertOrThrow(txs.size() == txsPerLedger);
+    generateSacPayments(txs, txsPerLedger);
+    releaseAssertOrThrow(txs.size() == txsPerLedger);
 
-        mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
-        releaseAssert(
-            mApp.getBucketManager().getLiveBucketList().futuresAllResolved());
+    mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
+    releaseAssert(
+        mApp.getBucketManager().getLiveBucketList().futuresAllResolved());
 
-        closeLedger(txs);
+    double timeBefore = totalTxApplyTimer.sum();
+    closeLedger(txs);
+    double timeAfter = totalTxApplyTimer.sum();
 
-        CLOG_WARNING(Perf, "  Ledger {}/{} completed", iter + 1, numLedgers);
+    // Check transaction success rate. We should never have any failures,
+    // and all TXs should have been executed.
+    int64_t newSuccessCount =
+        mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
 
-        // Check transaction success rate. We should never have any failures,
-        // and all TXs should have been executed.
-        int64_t newSuccessCount =
-            mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+    releaseAssert(newSuccessCount == txsPerLedger);
 
-        releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
-        releaseAssert(newSuccessCount == txsPerLedger);
+    // Verify we had max parallelism, i.e. 1 stage with
+    // maxDependentTxClusters clusters
+    auto& stagesMetric =
+        mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "stages"});
+    auto& maxClustersMetric = mApp.getMetrics().NewCounter(
+        {"ledger", "apply-soroban", "max-clusters"});
 
-        // Verify we had max parallelism, i.e. 1 stage with
-        // maxDependentTxClusters clusters
-        auto& stagesMetric =
-            mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "stages"});
-        auto& maxClustersMetric = mApp.getMetrics().NewCounter(
-            {"ledger", "apply-soroban", "max-clusters"});
+    releaseAssert(stagesMetric.count() == 1);
+    releaseAssert(maxClustersMetric.count() ==
+                  mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
-        releaseAssert(stagesMetric.count() == 1);
-        releaseAssert(
-            maxClustersMetric.count() ==
-            mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
-    }
-
-    // Calculate average close time from all closed ledgers
-    double totalTime = totalTxApplyTimer.sum();
-    double avgTime = totalTime / numLedgers;
-
-    CLOG_WARNING(Perf, "  Total time: {:.2f}ms for {} ledgers", totalTime,
-                 numLedgers);
-    CLOG_WARNING(Perf, "  Average total tx apply time per ledger: {:.2f}ms",
-                 avgTime);
-
-    return avgTime;
+    return timeAfter - timeBefore;
 }
 
 void
@@ -1646,4 +1806,4 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
         }
     }
 }
-}
+} // namespace stellar
