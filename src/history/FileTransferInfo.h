@@ -4,17 +4,18 @@
 
 #pragma once
 
-#include "bucket/LiveBucket.h"
+#include "bucket/BucketUtils.h"
 #include "crypto/Hex.h"
-#include "main/Config.h"
-#include "util/Fs.h"
-#include "util/TmpDir.h"
+#include <filesystem>
 #include <string>
 
 namespace stellar
 {
 
-std::string const HISTORY_LOCAL_DIR_NAME = "history";
+class Config;
+class TmpDir;
+
+inline std::string const HISTORY_LOCAL_DIR_NAME = "history";
 enum class FileType
 {
     HISTORY_FILE_TYPE_BUCKET,
@@ -47,29 +48,13 @@ class FileTransferInfo
     }
 
     FileTransferInfo(TmpDir const& snapDir, FileType const& snapType,
-                     uint32_t checkpointLedger)
-        : mType(snapType)
-        , mHexDigits(fs::hexStr(checkpointLedger))
-        , mLocalPath(getLocalDir(snapDir) + "/" + baseName_nogz())
-    {
-    }
+                     uint32_t checkpointLedger);
 
     FileTransferInfo(FileType const& snapType, uint32_t checkpointLedger,
-                     Config const& cfg)
-        : mType(snapType)
-        , mHexDigits(fs::hexStr(checkpointLedger))
-        , mLocalPath(getPublishHistoryDir(snapType, cfg).string() + "/" +
-                     baseName_nogz())
-    {
-    }
+                     Config const& cfg);
 
     FileTransferInfo(TmpDir const& snapDir, FileType const& snapType,
-                     std::string const& hexDigits)
-        : mType(snapType)
-        , mHexDigits(hexDigits)
-        , mLocalPath(getLocalDir(snapDir) + "/" + baseName_nogz())
-    {
-    }
+                     std::string const& hexDigits);
 
     FileType
     getType() const
@@ -106,31 +91,10 @@ class FileTransferInfo
         return mLocalPath + ".gz.tmp";
     }
 
-    std::string
-    baseName_nogz() const
-    {
-        return fs::baseName(getTypeString(), mHexDigits, "xdr");
-    }
-    std::string
-    baseName_gz() const
-    {
-        return baseName_nogz() + ".gz";
-    }
-    std::string
-    baseName_gz_tmp() const
-    {
-        return baseName_nogz() + ".gz.tmp";
-    }
-
-    std::string
-    remoteDir() const
-    {
-        return fs::remoteDir(getTypeString(), mHexDigits);
-    }
-    std::string
-    remoteName() const
-    {
-        return fs::remoteName(getTypeString(), mHexDigits, "xdr.gz");
-    }
+    std::string baseName_nogz() const;
+    std::string baseName_gz() const;
+    std::string baseName_gz_tmp() const;
+    std::string remoteDir() const;
+    std::string remoteName() const;
 };
 }

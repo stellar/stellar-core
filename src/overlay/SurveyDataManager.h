@@ -16,7 +16,6 @@
 #include "xdr/Stellar-types.h"
 
 #include <chrono>
-#include <mutex>
 #include <optional>
 #include <unordered_map>
 

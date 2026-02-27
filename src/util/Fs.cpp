@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Fs.h"
-#include "crypto/Hex.h"
 #include "util/FileSystemException.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -12,7 +11,6 @@
 #include <filesystem>
 #include <fmt/format.h>
 
-#include <map>
 #include <regex>
 #include <sstream>
 

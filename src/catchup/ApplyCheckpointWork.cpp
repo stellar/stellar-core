@@ -9,8 +9,6 @@
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryUtils.h"
-#include "historywork/Progress.h"
-#include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"

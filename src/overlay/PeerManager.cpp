@@ -13,7 +13,6 @@
 
 #include <Tracy.hpp>
 #include <algorithm>
-#include <cmath>
 #include <fmt/format.h>
 #include <regex>
 #include <soci.h>

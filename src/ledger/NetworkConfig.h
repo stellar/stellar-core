@@ -5,11 +5,9 @@
 #pragma once
 
 #include "ledger/LedgerTxn.h"
-#include "main/Config.h"
 #include "rust/RustBridge.h"
 #include "util/TxResource.h"
 #include <cstdint>
-#include <deque>
 
 namespace stellar
 {

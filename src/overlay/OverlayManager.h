@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "crypto/BLAKE2.h"
 #include "overlay/Peer.h"
 
 /**
@@ -86,11 +85,7 @@ class OverlayManager
     // fills msgID with msg's hash
     virtual bool recvFloodedMsgID(Peer::pointer peer, Hash const& msgID) = 0;
 
-    bool
-    recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
-    {
-        return recvFloodedMsgID(peer, xdrBlake2(msg));
-    }
+    bool recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer);
 
     // Process incoming transaction, pass it down to the transaction queue
     virtual void recvTransaction(TransactionFrameBasePtr transaction,

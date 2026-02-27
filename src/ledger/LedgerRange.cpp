@@ -6,6 +6,8 @@
 #include "util/GlobalChecks.h"
 
 #include <fmt/format.h>
+#include <limits>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -14,6 +16,26 @@ LedgerRange::LedgerRange(uint32_t first, uint32_t count)
     : mFirst{first}, mCount{count}
 {
     releaseAssert(count == 0 || mFirst > 0);
+}
+
+LedgerRange
+LedgerRange::inclusive(uint32_t first, uint32_t last)
+{
+    // LedgerRange is half-open: in exchange for being able to represent
+    // empty ranges, it can't represent ranges that include UINT32_MAX.
+    releaseAssert(last < std::numeric_limits<uint32_t>::max());
+    return LedgerRange(first, last - first + 1);
+}
+
+uint32_t
+LedgerRange::last() const
+{
+    if (mCount == 0)
+    {
+        throw std::logic_error("last() cannot be called on "
+                               "LedgerRange when mCount == 0");
+    }
+    return limit() - 1;
 }
 
 std::string

@@ -8,12 +8,9 @@
 #include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerManager.h"
-#include "herder/TxSetFrame.h"
-#include "ledger/LedgerTxn.h"
 #include "overlay/Floodgate.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/SurveyManager.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/Timer.h"
 
@@ -34,6 +31,8 @@ Maintain the set of peers we are connected to
 */
 namespace stellar
 {
+
+class SurveyManager;
 
 class OverlayManagerImpl : public OverlayManager
 {

@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/OperationFrame.h"
-#include "ledger/LedgerTypeUtils.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BeginSponsoringFutureReservesOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"

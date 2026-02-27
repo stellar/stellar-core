@@ -7,7 +7,6 @@
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

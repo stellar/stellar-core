@@ -6,8 +6,6 @@
 
 #include "catchup/CatchupConfiguration.h"
 #include "ledger/LedgerRange.h"
-#include "util/GlobalChecks.h"
-#include <stdexcept>
 
 namespace stellar
 {
@@ -50,57 +48,11 @@ class CatchupRange
   public:
     // Return a LedgerRange spanning both the apply-buckets phase (if it
     // exists) and the replay phase.
-    LedgerRange
-    getFullRangeIncludingBucketApply() const
-    {
-        if (mApplyBuckets)
-        {
-            return LedgerRange(mApplyBucketsAtLedger, mReplayRange.mCount + 1);
-        }
-        else
-        {
-            return mReplayRange;
-        }
-    }
+    LedgerRange getFullRangeIncludingBucketApply() const;
 
-    uint32_t
-    count() const
-    {
-        if (mApplyBuckets)
-        {
-            return mReplayRange.mCount + 1;
-        }
-        return mReplayRange.mCount;
-    }
-
-    uint32_t
-    first() const
-    {
-        if (mApplyBuckets)
-        {
-            return mApplyBucketsAtLedger;
-        }
-        else
-        {
-            return mReplayRange.mFirst;
-        }
-    }
-
-    uint32_t
-    last() const
-    {
-        if (mReplayRange.mCount != 0)
-        {
-            return mReplayRange.last();
-        }
-        else
-        {
-            // If we're not doing any ledger replay, we should at least be
-            // applying buckets.
-            releaseAssert(mApplyBuckets);
-            return mApplyBucketsAtLedger;
-        }
-    }
+    uint32_t count() const;
+    uint32_t first() const;
+    uint32_t last() const;
 
     // Return the LedgerRange that covers the ledger-replay part of this
     // catchup.
@@ -150,16 +102,7 @@ class CatchupRange
         return mApplyBuckets;
     }
 
-    uint32_t
-    getBucketApplyLedger() const
-    {
-        if (!mApplyBuckets)
-        {
-            throw std::logic_error("getBucketApplyLedger() cannot be called on "
-                                   "CatchupRange when mApplyBuckets == false");
-        }
-        return mApplyBucketsAtLedger;
-    }
+    uint32_t getBucketApplyLedger() const;
 
     /**
      * Preconditions:

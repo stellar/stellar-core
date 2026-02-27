@@ -4,11 +4,14 @@
 
 #pragma once
 
-#include "herder/TxSetFrame.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
+
+class TxSetXDRFrame;
+struct EvictedStateVectors;
+class SorobanNetworkConfig;
 
 // Wrapper around LedgerCloseMeta XDR that provides mutable access to fields
 // in the proper version of meta.

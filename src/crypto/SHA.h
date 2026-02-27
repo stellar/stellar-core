@@ -8,7 +8,6 @@
 #include "crypto/XDRHasher.h"
 #include "sodium/crypto_hash_sha256.h"
 #include "xdr/Stellar-types.h"
-#include <memory>
 
 namespace stellar
 {

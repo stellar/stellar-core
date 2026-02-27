@@ -4,12 +4,15 @@
 
 #pragma once
 
-#include "historywork/GzipFileWork.h"
-#include "util/XDRStream.h"
+#include "work/Work.h"
 #include <filesystem>
+#include <memory>
 
 namespace stellar
 {
+
+class GzipFileWork;
+class XDROutputFileStream;
 
 class FlushAndRotateMetaDebugWork : public Work
 {

@@ -4,9 +4,7 @@
 
 #include "util/MetaUtils.h"
 #include "crypto/SHA.h"
-#include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
-#include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 #include <algorithm>

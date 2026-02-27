@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/SurveyDataManager.h"
-
-#include "crypto/SecretKey.h"
 #include "overlay/OverlayUtils.h"
 #include "overlay/Peer.h"
 #include "util/Logging.h"

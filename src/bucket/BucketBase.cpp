@@ -18,7 +18,6 @@
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
-#include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"

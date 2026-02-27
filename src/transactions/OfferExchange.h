@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "transactions/OperationFrame.h"
+#include "overlay/StellarXDR.h"
 #include <functional>
 #include <vector>
 

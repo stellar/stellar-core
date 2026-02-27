@@ -7,8 +7,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
 #include "util/GlobalChecks.h"
-#include "util/Logging.h"
-#include <fmt/format.h>
+#include <stdexcept>
 
 namespace
 {
@@ -127,6 +126,69 @@ CatchupRange::CatchupRange(uint32_t lastClosedLedger,
                                          historyManager))
 {
     checkInvariants();
+}
+
+LedgerRange
+CatchupRange::getFullRangeIncludingBucketApply() const
+{
+    if (mApplyBuckets)
+    {
+        return LedgerRange(mApplyBucketsAtLedger, mReplayRange.mCount + 1);
+    }
+    else
+    {
+        return mReplayRange;
+    }
+}
+
+uint32_t
+CatchupRange::count() const
+{
+    if (mApplyBuckets)
+    {
+        return mReplayRange.mCount + 1;
+    }
+    return mReplayRange.mCount;
+}
+
+uint32_t
+CatchupRange::first() const
+{
+    if (mApplyBuckets)
+    {
+        return mApplyBucketsAtLedger;
+    }
+    else
+    {
+        return mReplayRange.mFirst;
+    }
+}
+
+uint32_t
+CatchupRange::last() const
+{
+    if (mReplayRange.mCount != 0)
+    {
+        return mReplayRange.last();
+    }
+    else
+    {
+        // If we're not doing any ledger replay, we should at least be
+        // applying buckets.
+        releaseAssert(mApplyBuckets);
+        return mApplyBucketsAtLedger;
+    }
+}
+
+uint32_t
+CatchupRange::getBucketApplyLedger() const
+{
+    if (!mApplyBuckets)
+    {
+        throw std::logic_error("getBucketApplyLedger() cannot be called on "
+                               "CatchupRange when mApplyBuckets == false");
+    }
+    return mApplyBucketsAtLedger;
 }
 
 void

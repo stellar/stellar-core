@@ -5,9 +5,19 @@
 #pragma once
 
 #include "xdr/Stellar-ledger.h"
+#include <cstdint>
+#include <memory>
+
+namespace soci
+{
+class session;
+}
 
 namespace stellar
 {
+class Database;
+class SessionWrapper;
+
 class Database;
 class SessionWrapper;
 

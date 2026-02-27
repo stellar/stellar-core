@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "FileSystemException.h"
+#include "util/Logging.h"
+#include <cerrno>
+#include <cstring>
 #include <fmt/format.h>
 
 #ifdef _WIN32
@@ -11,6 +14,19 @@
 
 namespace stellar
 {
+
+void
+FileSystemException::failWith(std::string msg)
+{
+    CLOG_FATAL(Fs, "{}", msg);
+    throw FileSystemException(msg);
+}
+
+void
+FileSystemException::failWithErrno(std::string msg)
+{
+    failWith(msg + std::strerror(errno));
+}
 
 #ifdef _WIN32
 

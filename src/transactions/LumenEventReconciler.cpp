@@ -5,7 +5,6 @@
 #include "transactions/LumenEventReconciler.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
 #include <numeric>
 
 namespace stellar

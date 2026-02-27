@@ -3,8 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerEntryScope.h"
-#include "ledger/LedgerHashUtils.h"
-#include "util/types.h"
+#include "util/XDROperators.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstddef>
 #include <fmt/format.h>

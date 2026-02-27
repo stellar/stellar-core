@@ -5,10 +5,8 @@
 #pragma once
 
 #include "history/HistoryArchive.h"
-#include "util/Timer.h"
 #include "util/TmpDir.h"
 
-#include <map>
 #include <memory>
 #include <vector>
 

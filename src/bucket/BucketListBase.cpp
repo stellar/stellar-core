@@ -3,12 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketListBase.h"
-#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
 #include "crypto/SHA.h"
-#include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

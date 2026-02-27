@@ -63,7 +63,6 @@
 #ifdef BUILD_TESTS
 #include "test/TxTests.h"
 #endif
-#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/types.h"

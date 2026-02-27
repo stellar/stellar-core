@@ -6,12 +6,10 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
-#include "xdr/Stellar-ledger-entries.h"
 
 using namespace stellar;
 

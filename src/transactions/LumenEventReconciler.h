@@ -4,14 +4,13 @@
 
 #pragma once
 
-#include "ledger/LedgerTxn.h"
 #include "transactions/EventManager.h"
-#include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
-#include <vector>
 
 namespace stellar
 {
+
+struct LedgerTxnDelta;
 
 // This method is for handling a pre-protocol 8 bug where XLM could be minted or
 // burned. It will add additional events to reflect the actual behaviour of the

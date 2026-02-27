@@ -3,19 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/MergeOpFrame.h"
-#include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
 #include "util/ProtocolVersion.h"
-#include "util/XDROperators.h"
 #include <Tracy.hpp>
-
-using namespace soci;
 
 namespace stellar
 {

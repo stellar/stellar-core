@@ -10,9 +10,6 @@
 #include "overlay/StellarXDR.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionFrameBase.h"
-#include "util/GlobalChecks.h"
-#include "util/types.h"
-#include "xdr/Stellar-ledger.h"
 
 #include <memory>
 #include <optional>

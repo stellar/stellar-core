@@ -3,12 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/InflationOpFrame.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
-#include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 

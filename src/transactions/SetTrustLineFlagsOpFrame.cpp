@@ -6,7 +6,6 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>

@@ -5,7 +5,6 @@
 #pragma once
 
 #include "overlay/Peer.h"
-#include "util/Timer.h"
 #include <deque>
 
 namespace medida

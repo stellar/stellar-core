@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ledger/LedgerTxn.h"
+#include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 
 namespace stellar

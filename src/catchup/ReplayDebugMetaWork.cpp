@@ -3,8 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ReplayDebugMetaWork.h"
-#include "catchup/CatchupWork.h"
-#include "work/WorkScheduler.h"
+#include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 
 #include "catchup/ApplyLedgerWork.h"

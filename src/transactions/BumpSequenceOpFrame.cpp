@@ -3,13 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/BumpSequenceOpFrame.h"
-#include "crypto/SignerKey.h"
-#include "database/Database.h"
-#include "main/Application.h"
-#include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
-#include "util/XDROperators.h"
 #include <Tracy.hpp>
 
 namespace stellar

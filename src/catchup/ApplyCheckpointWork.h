@@ -11,7 +11,6 @@
 #include "util/XDRStream.h"
 #include "work/ConditionalWork.h"
 #include "work/Work.h"
-#include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar

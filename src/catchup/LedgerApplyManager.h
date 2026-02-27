@@ -4,10 +4,10 @@
 
 #pragma once
 
-#include "catchup/CatchupWork.h"
+#include "catchup/CatchupConfiguration.h"
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
-#include <functional>
+#include "work/BasicWork.h"
 #include <memory>
 #include <system_error>
 
@@ -23,6 +23,7 @@ namespace stellar
 class Application;
 class CatchupMetrics;
 class FileTransferInfo;
+class HistoryArchive;
 
 class LedgerApplyManager
 {

@@ -4,7 +4,6 @@
 
 #include "RandHasher.h"
 #include "Math.h"
-#include "fmt/format.h"
 #include <mutex>
 
 namespace stellar

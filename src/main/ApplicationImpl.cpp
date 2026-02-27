@@ -5,6 +5,7 @@
 #include "ApplicationImpl.h"
 #include "util/Fs.h"
 #include "work/ConditionalWork.h"
+#include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <limits>

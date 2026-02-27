@@ -5,11 +5,11 @@
 #pragma once
 
 #include "herder/TxSetFrame.h"
-#include "util/XDRStream.h"
 
 namespace stellar
 {
 class Application;
+class XDROutputFileStream;
 
 /*
  * CheckpointBuilder manages the ACID transactional appending of confirmed

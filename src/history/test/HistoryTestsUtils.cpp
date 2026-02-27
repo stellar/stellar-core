@@ -8,6 +8,7 @@
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
 #include "catchup/CatchupRange.h"
+#include "catchup/CatchupWork.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "herder/TxSetFrame.h"

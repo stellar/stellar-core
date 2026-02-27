@@ -127,12 +127,7 @@ class LedgerApplyManagerImpl : public LedgerApplyManager
     }
 
     std::optional<uint32_t> mMaxExternalizeApplyBuffer;
-    uint32_t
-    getMaxExternalizeApplyBuffer()
-    {
-        return mMaxExternalizeApplyBuffer ? *mMaxExternalizeApplyBuffer
-                                          : MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
-    }
+    uint32_t getMaxExternalizeApplyBuffer();
 #endif
 };
 }

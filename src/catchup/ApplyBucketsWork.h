@@ -5,7 +5,6 @@
 #pragma once
 
 #include "bucket/BucketApplicator.h"
-#include "ledger/LedgerHashUtils.h"
 #include "work/Work.h"
 
 namespace stellar

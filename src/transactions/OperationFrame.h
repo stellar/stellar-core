@@ -5,18 +5,15 @@
 #pragma once
 
 #include "ledger/LedgerHashUtils.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/ParallelApplyUtils.h"
-#include "util/types.h"
 #include <memory>
 
 namespace stellar
 {
 class AbstractLedgerTxn;
-class LedgerManager;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
 

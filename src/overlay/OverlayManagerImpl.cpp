@@ -4,12 +4,12 @@
 
 #include "overlay/OverlayManagerImpl.h"
 #include "bucket/BucketManager.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "lib/util/finally.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
@@ -20,6 +20,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/SurveyDataManager.h"
+#include "overlay/SurveyManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/GlobalChecks.h"
@@ -1114,6 +1115,12 @@ OverlayManager::createTxBatch()
     msg->type(TX_SET);
     msg->txSet().previousLedgerHash = TX_BATCH_HASH;
     return msg;
+}
+
+bool
+OverlayManager::recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
+{
+    return recvFloodedMsgID(peer, xdrBlake2(msg));
 }
 
 bool

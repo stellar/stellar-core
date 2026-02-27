@@ -3,8 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerCloseMetaFrame.h"
-#include "crypto/SHA.h"
+#include "bucket/BucketUtils.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "transactions/TransactionMeta.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"

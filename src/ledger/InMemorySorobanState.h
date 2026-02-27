@@ -11,7 +11,6 @@
 #include <unordered_set>
 
 #include "bucket/BucketSnapshotManager.h"
-#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"

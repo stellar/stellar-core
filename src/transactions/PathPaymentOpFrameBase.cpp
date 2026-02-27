@@ -10,7 +10,6 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
-#include "util/XDROperators.h"
 
 namespace stellar
 {

@@ -5,7 +5,6 @@
 #include "util/Timer.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
-#include "util/Logging.h"
 #include "util/Scheduler.h"
 #include <Tracy.hpp>
 #include <chrono>

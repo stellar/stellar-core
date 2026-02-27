@@ -4,11 +4,9 @@
 
 #pragma once
 
-#include "util/GlobalChecks.h"
 #include "xdr/Stellar-types.h"
 #include <cstdint>
 #include <optional>
-#include <stdexcept>
 
 namespace stellar
 {
@@ -25,14 +23,7 @@ struct LedgerRange final
     uint32_t const mCount;
 
     LedgerRange(uint32_t first, uint32_t count);
-    static LedgerRange
-    inclusive(uint32_t first, uint32_t last)
-    {
-        // LedgerRange is half-open: in exchange for being able to represent
-        // empty ranges, it can't represent ranges that include UINT32_MAX.
-        releaseAssert(last < std::numeric_limits<uint32_t>::max());
-        return LedgerRange(first, last - first + 1);
-    }
+    static LedgerRange inclusive(uint32_t first, uint32_t last);
     std::string toString() const;
 
     // Return first+count, which is the _exclusive_ range limit.
@@ -45,16 +36,7 @@ struct LedgerRange final
 
     // Return first+count-1 unless count == 0, in which case throw.
     // This is the _inclusive_ range limit, meaningful iff count != 0.
-    uint32_t
-    last() const
-    {
-        if (mCount == 0)
-        {
-            throw std::logic_error("last() cannot be called on "
-                                   "LedgerRange when mCount == 0");
-        }
-        return limit() - 1;
-    }
+    uint32_t last() const;
 
     friend bool operator==(LedgerRange const& x, LedgerRange const& y);
     friend bool operator!=(LedgerRange const& x, LedgerRange const& y);

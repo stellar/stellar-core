@@ -8,7 +8,6 @@
 #include "util/XDROperators.h"
 #include "xdr/Stellar-types.h"
 
-#include <array>
 #include <functional>
 #include <ostream>
 

@@ -4,10 +4,8 @@
 
 #pragma once
 
-#include "util/Logging.h"
-#include <cerrno>
-#include <cstring>
 #include <stdexcept>
+#include <string>
 
 namespace stellar
 {
@@ -15,17 +13,8 @@ namespace stellar
 class FileSystemException : public std::runtime_error
 {
   public:
-    static void
-    failWith(std::string msg)
-    {
-        CLOG_FATAL(Fs, "{}", msg);
-        throw FileSystemException(msg);
-    }
-    static void
-    failWithErrno(std::string msg)
-    {
-        failWith(msg + std::strerror(errno));
-    }
+    static void failWith(std::string msg);
+    static void failWithErrno(std::string msg);
 #ifdef _WIN32
     static std::string getLastErrorString();
     static void failWithGetLastError(std::string msg);

@@ -10,7 +10,6 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

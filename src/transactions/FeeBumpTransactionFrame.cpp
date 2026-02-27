@@ -3,16 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/FeeBumpTransactionFrame.h"
-#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/AppConnector.h"
-#include "main/Application.h"
 #include "transactions/EventManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureChecker.h"
@@ -25,8 +22,6 @@
 #include "util/numeric128.h"
 #include "xdrpp/depth_checker.h"
 #include "xdrpp/marshal.h"
-
-#include <numeric>
 
 namespace stellar
 {

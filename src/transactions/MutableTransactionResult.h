@@ -5,12 +5,14 @@
 #pragma once
 
 #include "transactions/EventManager.h"
-#include "transactions/TransactionFrame.h"
 
 #include <memory>
 
 namespace stellar
 {
+
+class SorobanNetworkConfig;
+class TransactionFrame;
 
 // This class tracks the refundable resources and corresponding fees for a
 // transaction.

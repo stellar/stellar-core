@@ -5,7 +5,6 @@
 #include "SurveyManager.h"
 #include "crypto/Curve25519.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"

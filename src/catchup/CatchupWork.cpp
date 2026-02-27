@@ -3,10 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupWork.h"
-#include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/ApplyBufferedLedgersWork.h"
-#include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
@@ -17,13 +15,14 @@
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
 #include "historywork/DownloadVerifyTxResultsWork.h"
-#include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/PersistentState.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/Thread.h"
+#include "util/XDRStream.h"
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -116,6 +115,16 @@ CatchupWork::getStatus() const
     return fmt::format(FMT_STRING("Catching up to ledger {}: {}"), toLedger,
                        mCurrentWork ? mCurrentWork->getStatus()
                                     : Work::getStatus());
+}
+
+bool
+CatchupWork::fatalFailure()
+{
+    if (futureIsReady(mFatalFailureFuture))
+    {
+        return mFatalFailureFuture.get();
+    }
+    return false;
 }
 
 void

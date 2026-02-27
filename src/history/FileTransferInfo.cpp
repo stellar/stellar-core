@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "FileTransferInfo.h"
+#include "main/Config.h"
+#include "util/Fs.h"
+#include "util/TmpDir.h"
 #include <Tracy.hpp>
 #include <thread>
 
@@ -72,5 +75,62 @@ getPublishHistoryDir(FileType type, Config const& cfg)
 {
     std::filesystem::path root = cfg.BUCKET_DIR_PATH;
     return root / HISTORY_LOCAL_DIR_NAME / typeString(type);
+}
+
+FileTransferInfo::FileTransferInfo(TmpDir const& snapDir,
+                                   FileType const& snapType,
+                                   uint32_t checkpointLedger)
+    : mType(snapType)
+    , mHexDigits(fs::hexStr(checkpointLedger))
+    , mLocalPath(getLocalDir(snapDir) + "/" + baseName_nogz())
+{
+}
+
+FileTransferInfo::FileTransferInfo(FileType const& snapType,
+                                   uint32_t checkpointLedger, Config const& cfg)
+    : mType(snapType)
+    , mHexDigits(fs::hexStr(checkpointLedger))
+    , mLocalPath(getPublishHistoryDir(snapType, cfg).string() + "/" +
+                 baseName_nogz())
+{
+}
+
+FileTransferInfo::FileTransferInfo(TmpDir const& snapDir,
+                                   FileType const& snapType,
+                                   std::string const& hexDigits)
+    : mType(snapType)
+    , mHexDigits(hexDigits)
+    , mLocalPath(getLocalDir(snapDir) + "/" + baseName_nogz())
+{
+}
+
+std::string
+FileTransferInfo::baseName_nogz() const
+{
+    return fs::baseName(getTypeString(), mHexDigits, "xdr");
+}
+
+std::string
+FileTransferInfo::baseName_gz() const
+{
+    return baseName_nogz() + ".gz";
+}
+
+std::string
+FileTransferInfo::baseName_gz_tmp() const
+{
+    return baseName_nogz() + ".gz.tmp";
+}
+
+std::string
+FileTransferInfo::remoteDir() const
+{
+    return fs::remoteDir(getTypeString(), mHexDigits);
+}
+
+std::string
+FileTransferInfo::remoteName() const
+{
+    return fs::remoteName(getTypeString(), mHexDigits, "xdr.gz");
 }
 }

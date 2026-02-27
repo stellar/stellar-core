@@ -27,8 +27,6 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
 #include <fstream>
-#include <iostream>
-#include <medida/meter.h>
 #include <set>
 #include <sstream>
 

@@ -14,6 +14,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "work/ConditionalWork.h"
+#include "work/WorkSequence.h"
 #include <Tracy.hpp>
 #include <algorithm>
 #include <filesystem>

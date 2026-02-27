@@ -5,7 +5,7 @@
 #pragma once
 
 #include "lib/util/stdrandom.h"
-#include "util/Timer.h"
+#include <chrono>
 #include <cstdlib>
 #include <random>
 #include <set>
@@ -19,7 +19,7 @@ std::set<double> k_means(std::vector<double> const& points, uint32_t k);
 
 double closest_cluster(double p, std::set<double> const& centers);
 
-VirtualClock::duration exponentialBackoff(uint64_t n);
+std::chrono::steady_clock::duration exponentialBackoff(uint64_t n);
 
 bool rand_flip();
 

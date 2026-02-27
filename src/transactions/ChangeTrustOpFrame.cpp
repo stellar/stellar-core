@@ -3,13 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ChangeTrustOpFrame.h"
-#include "database/Database.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "ledger/TrustLineWrapper.h"
-#include "main/Application.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"

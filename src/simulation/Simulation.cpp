@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerManager.h"
+#include "overlay/SurveyManager.h"
 #include "scp/LocalNode.h"
 #include "test/TestUtils.h"
 #include "test/test.h"

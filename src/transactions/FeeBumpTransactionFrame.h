@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionMeta.h"
 

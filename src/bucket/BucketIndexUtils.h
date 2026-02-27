@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "crypto/SHA.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
@@ -29,6 +28,7 @@ namespace stellar
 
 class BucketManager;
 class Config;
+class SHA256;
 
 using AssetPoolIDMap = std::map<Asset, std::vector<PoolID>>;
 using IndexPtrT = std::shared_ptr<BucketEntry const>;

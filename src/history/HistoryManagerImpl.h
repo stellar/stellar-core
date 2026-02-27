@@ -7,7 +7,6 @@
 #include "history/CheckpointBuilder.h"
 #include "history/HistoryManager.h"
 #include "util/TmpDir.h"
-#include "work/Work.h"
 #include <memory>
 
 namespace medida
@@ -20,7 +19,7 @@ namespace stellar
 {
 
 class Application;
-class Work;
+class BasicWork;
 
 class HistoryManagerImpl : public HistoryManager
 {
