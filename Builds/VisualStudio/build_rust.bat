@@ -33,9 +33,9 @@ setlocal EnableDelayedExpansion
 
 rem -- range to use for stable host envs
 set MIN_P=21
-set MAX_P=24
+set MAX_P=25
 rem -- version of the latest WIP protocol
-set LATEST_P=25
+set LATEST_P=26
 
 rem ---- Accumulators for final rustc link flags ----
 set "EXTERNS="
