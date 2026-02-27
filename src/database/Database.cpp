@@ -324,6 +324,58 @@ dropMiscTablesFromMain(Application& app)
 }
 
 void
+migrateLedgerHeadersToStoreState(Database& db)
+{
+    // Migrate LCL header from ledgerheaders table to storestate
+    std::string lclHash;
+    auto& session = db.getSession();
+    auto& raw = session.session();
+
+    bool gotData = false;
+    // Open a scope because we need prep to be cleaned up before the body of the
+    // `if`
+    {
+        auto prep = db.getPreparedStatement(
+            "SELECT state FROM storestate WHERE statename = 'lastclosedledger'",
+            session);
+        auto& stmt = prep.statement();
+        stmt.exchange(soci::into(lclHash));
+        stmt.define_and_bind();
+        stmt.execute(true);
+        gotData = stmt.got_data();
+    }
+
+    // When we're doing this migration for a new db, storestate will be empty.
+    // So, only try to set lastclosedledgerheader when the data is found
+    if (gotData)
+    {
+        if (lclHash.empty())
+        {
+            throw std::runtime_error(
+                "No reference in DB to any last closed ledger");
+        }
+        std::string headerData =
+            LedgerHeaderUtils::getHeaderDataForHash(db, hexToBin256(lclHash));
+        if (headerData.empty())
+        {
+            throw std::runtime_error(
+                "No ledger header found in DB for last closed ledger hash");
+        }
+        auto prep =
+            db.getPreparedStatement("INSERT INTO storestate (statename, state) "
+                                    "VALUES ('lastclosedledgerheader', :v)",
+                                    session);
+        auto& stmt = prep.statement();
+        stmt.exchange(soci::use(headerData));
+        stmt.define_and_bind();
+        stmt.execute(true);
+        raw << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
+    }
+
+    raw << "DROP TABLE ledgerheaders";
+}
+
+void
 Database::applySchemaUpgrade(unsigned long vers)
 {
     soci::transaction tx(mSession.session());
@@ -342,6 +394,9 @@ Database::applySchemaUpgrade(unsigned long vers)
             // If misc database is used, drop the migrated tables from main DB
             dropMiscTablesFromMain(mApp);
         }
+        break;
+    case 27:
+        migrateLedgerHeadersToStoreState(*this);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");

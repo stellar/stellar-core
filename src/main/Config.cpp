@@ -180,16 +180,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
-    // automatic maintenance settings:
-    // short and prime with 1 hour which will cause automatic maintenance to
-    // rarely conflict with any other scheduled tasks on a machine (that tend to
-    // run on a fixed schedule)
-    AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{359};
-    // count picked as to catchup with 1 month worth of ledgers
-    // in about 1 week.
-    // (30*24*3600/5) / (400 - 359/5 ) // number of periods needed to catchup
-    //   * (359) / (24*3600) = 6.56 days
-    AUTOMATIC_MAINTENANCE_COUNT = 400;
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
@@ -1238,12 +1228,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"AUTOMATIC_MAINTENANCE_PERIOD",
                  [&]() {
-                     AUTOMATIC_MAINTENANCE_PERIOD =
-                         std::chrono::seconds{readInt<uint32_t>(item)};
+                     LOG_WARNING(DEFAULT_LOG,
+                                 "AUTOMATIC_MAINTENANCE_PERIOD is deprecated "
+                                 "and ignored. Please remove this from config");
                  }},
                 {"AUTOMATIC_MAINTENANCE_COUNT",
                  [&]() {
-                     AUTOMATIC_MAINTENANCE_COUNT = readInt<uint32_t>(item);
+                     LOG_WARNING(DEFAULT_LOG,
+                                 "AUTOMATIC_MAINTENANCE_COUNT is deprecated "
+                                 "and ignored. Please remove this from config");
                  }},
                 {"AUTOMATIC_SELF_CHECK_PERIOD",
                  [&]() {

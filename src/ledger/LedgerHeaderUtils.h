@@ -4,23 +4,35 @@
 
 #pragma once
 
-#include "database/Database.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
+class Database;
+class SessionWrapper;
 
 namespace LedgerHeaderUtils
 {
 
 uint32_t getFlags(LedgerHeader const& lh);
 
+// Return base64-encoded header data. Throws if the header fails basic sanity
+// checks (e.g., fee pool >= 0).
+std::string encodeHeader(LedgerHeader const& header);
+
+#ifdef BUILD_TESTS
+// Like the non-test encodeHeader, except also include the hex-encoded hash of
+// the header in the `hash` out parameter
+std::string encodeHeader(LedgerHeader const& header, std::string& hash);
 void storeInDatabase(Database& db, LedgerHeader const& header,
                      SessionWrapper& sess);
+#endif
 
-std::shared_ptr<LedgerHeader> loadByHash(Database& db, Hash const& hash);
+LedgerHeader decodeFromData(std::string const& data);
 
-void deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count);
+// Returns the base64-encoded header data for the given hash. Returns an empty
+// string if no header is found for the hash.
+std::string getHeaderDataForHash(Database& db, Hash const& hash);
 
 void maybeDropAndCreateNew(Database& db);
 }

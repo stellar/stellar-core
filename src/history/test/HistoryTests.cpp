@@ -16,9 +16,7 @@
 #include "historywork/GunzipFileWork.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
-#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
-#include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
 #include "test/TestAccount.h"
@@ -1674,9 +1672,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         REQUIRE(hm0.getPublishSuccessCount() == 0);
         REQUIRE(HistoryManager::getMinLedgerQueuedToPublish(hm0.getConfig()) ==
                 7);
-
-        // Trim history after publishing.
-        app0->getMaintainer().performMaintenance(50000);
     }
 
     cfg.MAX_CONCURRENT_SUBPROCESSES = 32;
@@ -1693,9 +1688,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         while (hm1.getPublishSuccessCount() < 5)
         {
             clock.crank(true);
-
-            // Trim history after publishing whenever possible.
-            app1->getMaintainer().performMaintenance(50000);
         }
 
         // Verify old history got trimmed

@@ -13,12 +13,8 @@
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include <util/basen.h>
 
 namespace stellar
-{
-
-namespace
 {
 
 static bool
@@ -32,27 +28,6 @@ isValid(LedgerHeader const& lh)
     return res;
 }
 
-static LedgerHeader
-decodeFromData(std::string const& data)
-{
-    ZoneScoped;
-    LedgerHeader lh;
-    std::vector<uint8_t> decoded;
-    decoder::decode_b64(data, decoded);
-
-    xdr::xdr_get g(&decoded.front(), &decoded.back() + 1);
-    xdr::xdr_argpack_archive(g, lh);
-    g.done();
-
-    if (!isValid(lh))
-    {
-        throw std::runtime_error("invalid ledger header (load)");
-    }
-    return lh;
-}
-
-} // anonymous namespace
-
 namespace LedgerHeaderUtils
 {
 
@@ -62,22 +37,42 @@ getFlags(LedgerHeader const& lh)
     return lh.ext.v() == 1 ? lh.ext.v1().flags : 0;
 }
 
-void
-storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
+static std::string
+encodeHeader(LedgerHeader const& header, std::string* hash)
 {
-    ZoneScoped;
     if (!isValid(header))
     {
         throw std::runtime_error("invalid ledger header (insert)");
     }
-
     auto headerBytes(xdr::xdr_to_opaque(header));
-    std::string hash(binToHex(sha256(headerBytes))),
-        prevHash(binToHex(header.previousLedgerHash)),
-        bucketListHash(binToHex(header.bucketListHash));
+    if (hash)
+    {
+        *hash = binToHex(sha256(headerBytes));
+    }
+    return decoder::encode_b64(headerBytes);
+}
 
-    std::string headerEncoded;
-    headerEncoded = decoder::encode_b64(headerBytes);
+std::string
+encodeHeader(LedgerHeader const& header)
+{
+    return encodeHeader(header, nullptr);
+}
+
+#ifdef BUILD_TESTS
+std::string
+encodeHeader(LedgerHeader const& header, std::string& hash)
+{
+    return encodeHeader(header, &hash);
+}
+
+void
+storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
+{
+    ZoneScoped;
+
+    std::string hash, prevHash(binToHex(header.previousLedgerHash)),
+        bucketListHash(binToHex(header.bucketListHash));
+    std::string headerEncoded = encodeHeader(header, hash);
 
     // note: columns other than "data" are there to facilitate lookup/processing
     auto prep = db.getPreparedStatement(
@@ -103,13 +98,36 @@ storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
         throw std::runtime_error("Could not update data in SQL");
     }
 }
+#endif
 
-std::shared_ptr<LedgerHeader>
-loadByHash(Database& db, Hash const& hash)
+LedgerHeader
+decodeFromData(std::string const& data)
 {
     ZoneScoped;
-    std::shared_ptr<LedgerHeader> lhPtr;
+    LedgerHeader lh;
+    std::vector<uint8_t> decoded;
+    decoder::decode_b64(data, decoded);
 
+    if (decoded.empty())
+    {
+        throw std::runtime_error("invalid base64 ledger header data");
+    }
+
+    xdr::xdr_get g(&decoded.front(), &decoded.back() + 1);
+    xdr::xdr_argpack_archive(g, lh);
+    g.done();
+
+    if (!isValid(lh))
+    {
+        throw std::runtime_error("invalid ledger header (load)");
+    }
+    return lh;
+}
+
+std::string
+getHeaderDataForHash(Database& db, Hash const& hash)
+{
+    ZoneScoped;
     std::string hash_s(binToHex(hash));
     std::string headerEncoded;
 
@@ -127,7 +145,6 @@ loadByHash(Database& db, Hash const& hash)
     if (st.got_data())
     {
         auto lh = decodeFromData(headerEncoded);
-        lhPtr = std::make_shared<LedgerHeader>(lh);
         auto ledgerHash = xdrSha256(lh);
         if (ledgerHash != hash)
         {
@@ -138,15 +155,7 @@ loadByHash(Database& db, Hash const& hash)
         }
     }
 
-    return lhPtr;
-}
-
-void
-deleteOldEntries(soci::session& sess, uint32_t ledgerSeq, uint32_t count)
-{
-    ZoneScoped;
-    DatabaseUtils::deleteOldEntriesHelper(sess, ledgerSeq, count,
-                                          "ledgerheaders", "ledgerseq");
+    return headerEncoded;
 }
 
 void

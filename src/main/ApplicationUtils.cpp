@@ -22,7 +22,6 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
-#include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
@@ -150,15 +149,16 @@ applyBucketsForLCL(Application& app)
     HistoryArchiveState has;
     has.fromString(app.getPersistentState().getState(
         PersistentState::kHistoryArchiveState, app.getDatabase().getSession()));
-    auto lclHash = app.getPersistentState().getState(
-        PersistentState::kLastClosedLedger, app.getDatabase().getSession());
 
     auto maxProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
-    auto currentLedger =
-        LedgerHeaderUtils::loadByHash(app.getDatabase(), hexToBin256(lclHash));
-    if (currentLedger)
+    std::string headerEncoded = app.getPersistentState().getState(
+        PersistentState::kLastClosedLedgerHeader,
+        app.getDatabase().getSession());
+    if (!headerEncoded.empty())
     {
-        maxProtocolVersion = currentLedger->ledgerVersion;
+        LedgerHeader currentLedger =
+            LedgerHeaderUtils::decodeFromData(headerEncoded);
+        maxProtocolVersion = currentLedger.ledgerVersion;
     }
 
     std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
@@ -462,8 +462,6 @@ getHotArchiveListBalanceForAsset(Application& app,
                                  AssetContractInfo const& assetContractInfo,
                                  int64_t& runningBalance)
 {
-    auto& bm = app.getBucketManager();
-
     std::map<LedgerKey, LedgerEntry> archived =
         app.getBucketManager().loadCompleteHotArchiveState(has);
     for (auto const& [_, entry] : archived)

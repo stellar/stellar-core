@@ -1288,6 +1288,23 @@ HerderImpl::setupTriggerNextLedger()
 #endif
 }
 
+// Returns the ledger index of the oldest ledger that it is safe to delete while
+// still keeping all the information needed to publish checkpoints
+static uint32_t
+getSafeLedgerToDelete(uint32_t ledger, Config const& cfg)
+{
+    // Calculate the minimum of ledger and/or any queued checkpoint.
+    uint32_t ql = HistoryManager::getMinLedgerQueuedToPublish(cfg);
+    uint32_t qmin = ql == 0 ? ledger : std::min(ql, ledger);
+
+    // Next calculate, given qmin, the first ledger it'd be _safe to delete_
+    // while still keeping everything required to publish. So if qmin is
+    // (for example) 0x7f = 127, then we want to keep 64 ledgers before
+    // that, and therefore can erase 0x3f = 63 and less.
+    uint32_t freq = HistoryManager::getCheckpointFrequency(cfg);
+    return qmin >= freq ? qmin - freq : 0;
+}
+
 void
 HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
@@ -1296,6 +1313,14 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
     mPendingEnvelopes.eraseBelow(ledgerSeq, lastCheckpointSeq);
     auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
+
+    uint32_t lmin = getSafeLedgerToDelete(ledgerSeq, mApp.getConfig());
+    // To avoid blocking too long, don't delete more than one checkpoint of
+    // history
+    uint32_t const ledgersToDelete =
+        HistoryManager::getCheckpointFrequency(mApp.getConfig());
+    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawMiscSession(),
+                                        lmin, ledgersToDelete);
 }
 
 bool
