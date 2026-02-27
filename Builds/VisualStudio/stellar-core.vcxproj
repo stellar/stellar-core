@@ -128,15 +128,15 @@
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
       <ControlFlowGuard>
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj /Zc:__cplusplus /Zc:lambda %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
@@ -191,15 +191,15 @@ exit /b 0
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
       <ControlFlowGuard>
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj /Zc:__cplusplus /Zc:lambda %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
@@ -255,15 +255,15 @@ exit /b 0
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
-      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
       <ControlFlowGuard>
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj /Zc:__cplusplus /Zc:lambda %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
@@ -323,10 +323,10 @@ exit /b 0
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <AdditionalOptions>/bigobj /Zc:__cplusplus /Zc:lambda %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
@@ -386,10 +386,10 @@ exit /b 0
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;src/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592;5054</DisableSpecificWarnings>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <AdditionalOptions>/bigobj /Zc:__cplusplus /Zc:lambda %(AdditionalOptions)</AdditionalOptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
@@ -2034,7 +2034,7 @@ exit /b 0
     <None Include="..\..\src\util\LogPartitions.def" />
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryParser.yy">
       <FileType>Document</FileType>
-      <Command>bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
+      <Command>wsl bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
       <Message>running bison for XDRQueryParser.yy</Message>
       <Outputs>../../src/util/xdrquery/XDRQueryParser.h</Outputs>
       <BuildInParallel>true</BuildInParallel>
@@ -2046,7 +2046,7 @@ exit /b 0
     </CustomBuild>
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryScanner.ll">
       <FileType>Document</FileType>
-      <Command>flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
+      <Command>wsl flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
       <Message>running flex for XDRQueryScanner.ll</Message>
       <Outputs>../../src/util/xdrquery/XDRQueryScanner.cpp</Outputs>
       <BuildInParallel>true</BuildInParallel>
