@@ -65,6 +65,7 @@ jobs:
            token: ${{ secrets.SUBMODULE_TOKEN }}
            fetch-depth: 200
            submodules: true
+           persist-credentials: false
       - name: install core packages
         run: |
           sudo apt-get update
