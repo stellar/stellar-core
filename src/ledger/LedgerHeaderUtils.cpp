@@ -108,6 +108,11 @@ decodeFromData(std::string const& data)
     std::vector<uint8_t> decoded;
     decoder::decode_b64(data, decoded);
 
+    if (decoded.empty())
+    {
+        throw std::runtime_error("invalid base64 ledger header data");
+    }
+
     xdr::xdr_get g(&decoded.front(), &decoded.back() + 1);
     xdr::xdr_argpack_archive(g, lh);
     g.done();

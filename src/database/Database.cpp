@@ -331,6 +331,7 @@ migrateLedgerHeadersToStoreState(Database& db)
     auto& session = db.getSession();
     auto& raw = session.session();
 
+    bool gotData = false;
     // Open a scope because we need prep to be cleaned up before the body of the
     // `if`
     {
@@ -341,11 +342,12 @@ migrateLedgerHeadersToStoreState(Database& db)
         stmt.exchange(soci::into(lclHash));
         stmt.define_and_bind();
         stmt.execute(true);
+        gotData = stmt.got_data();
     }
 
     // When we're doing this migration for a new db, storestate will be empty.
     // So, only try to set lastclosedledgerheader when the data is found
-    if (raw.got_data())
+    if (gotData)
     {
         if (lclHash.empty())
         {
