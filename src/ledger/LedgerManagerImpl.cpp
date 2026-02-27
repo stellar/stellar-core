@@ -2782,8 +2782,7 @@ LedgerManagerImpl::storePersistentStateAndLedgerHeaderInDB(
 {
     ZoneScoped;
 
-    Hash hash = xdrSha256(header);
-    releaseAssert(!isZero(hash));
+    releaseAssert(!isZero(xdrSha256(header)));
     auto& sess = mApp.getLedgerTxnRoot().getSession();
 
     if (mApp.getConfig().ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING.count() >
