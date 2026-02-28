@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "util/asio.h"
-
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/InMemorySorobanState.h"
@@ -159,6 +158,9 @@ class LedgerManagerImpl : public LedgerManager
 
         AppConnector& mAppConnector;
 
+        // Ledger state snapshot that is the base for current ledger apply
+        CompleteConstLedgerStatePtr mLedgerState;
+
         // The current reusable / inter-ledger soroban module cache.
         ::rust::Box<rust_bridge::SorobanModuleCache> mModuleCache;
 
@@ -181,11 +183,10 @@ class LedgerManagerImpl : public LedgerManager
         Phase mPhase{Phase::SETTING_UP_STATE};
 
         // Kicks off (on auxiliary threads) compilation of all contracts in the
-        // provided snapshot, for ledger protocols starting at minLedgerVersion
-        // and running through to Config::CURRENT_LEDGER_PROTOCOL_VERSION (to
-        // enable upgrades).
-        void startCompilingAllContracts(SearchableSnapshotConstPtr snap,
-                                        uint32_t minLedgerVersion);
+        // apply state snapshot, for ledger protocols starting at
+        // minLedgerVersion and running through to
+        // Config::CURRENT_LEDGER_PROTOCOL_VERSION (to enable upgrades).
+        void startCompilingAllContracts(uint32_t minLedgerVersion);
 
         // Checks if ApplyState can currently be modified. For functions that
         // are only called in ledgerClose, use the stronger
@@ -211,6 +212,7 @@ class LedgerManagerImpl : public LedgerManager
         ::rust::Box<rust_bridge::SorobanModuleCache> const&
         getModuleCacheForTesting();
         uint64_t getSorobanInMemoryStateSizeForTesting() const;
+        void setLedgerStateForTesting(CompleteConstLedgerStatePtr state);
 #endif
 
         ::rust::Box<rust_bridge::SorobanModuleCache> const&
@@ -236,14 +238,12 @@ class LedgerManagerImpl : public LedgerManager
 
         // Equivalent to calling `startCompilingAllContracts` followed by
         // `finishPendingCompilation`.
-        void compileAllContractsInLedger(SearchableSnapshotConstPtr snap,
-                                         uint32_t minLedgerVersion);
+        void compileAllContractsInLedger(uint32_t minLedgerVersion);
 
         // Estimates the size of the arena underlying the module cache's shared
         // wasmi engine, from metrics, and rebuilds if it has likely built up a
         // lot of dead space inside of it.
-        void maybeRebuildModuleCache(SearchableSnapshotConstPtr snap,
-                                     uint32_t minLedgerVersion);
+        void maybeRebuildModuleCache(uint32_t minLedgerVersion);
 
         // Evicts a single contract from the module cache, if it is present.
         // This should be done whenever a contract LE is evicted from the
@@ -258,11 +258,16 @@ class LedgerManagerImpl : public LedgerManager
 
         // Populates all live Soroban state into the cache from the provided
         // snapshot.
-        void populateInMemorySorobanState(SearchableSnapshotConstPtr snap,
-                                          uint32_t ledgerVersion);
+        void populateInMemorySorobanState();
 
         void handleUpgradeAffectingSorobanInMemoryStateSize(
             AbstractLedgerTxn& upgradeLtx);
+
+        // Advance the ledger state to the provided snapshot.
+        void setLedgerState(CompleteConstLedgerStatePtr state);
+
+        CompleteConstLedgerStatePtr getLedgerState() const;
+        ApplyLedgerStateSnapshot copyLedgerStateSnapshot() const;
 
         // Throws if current state is not READY_TO_APPLY, advances to APPLYING
         void markStartOfApplying();
@@ -290,8 +295,21 @@ class LedgerManagerImpl : public LedgerManager
     // that gets accessed via the AppConnector, from inside transactions.
     ApplyState mApplyState;
 
-    // Cached LCL state output from last apply (or loaded from DB on startup).
-    CompleteConstLedgerStatePtr mLastClosedLedgerState;
+    // We maintain two (potentially different) ledger state snapshots, one for
+    // the apply thread, and one for everyone else, managed by the main thread.
+    // mLastClosedLedgerState is managed by the main thread and is copyable
+    // by all threads (except for apply). This is protected by
+    // mLedgerStateSnapshotMutex.
+    // When background apply is enabled, the apply thread will advance it's own
+    // snapshot immediately after applying a ledger, then post the result back
+    // to main thread. This means the apply snapshot may be ahead of
+    // mLastClosedLedgerState at any given point.
+    mutable SharedMutex mLedgerStateSnapshotMutex;
+    CompleteConstLedgerStatePtr
+        mLastClosedLedgerState GUARDED_BY(mLedgerStateSnapshotMutex);
+
+    // Max number of historical snapshots to maintain.
+    uint32_t const mNumHistoricalSnapshots;
 
     VirtualClock::time_point mLastClose;
 
@@ -382,9 +400,7 @@ class LedgerManagerImpl : public LedgerManager
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
     // initialLedgerVers must be vN.
     CompleteConstLedgerStatePtr sealLedgerTxnAndStoreInBucketsAndDB(
-        SearchableSnapshotConstPtr lclSnapshot,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-        AbstractLedgerTxn& ltx,
+        ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         uint32_t initialLedgerVers);
 
@@ -392,22 +408,12 @@ class LedgerManagerImpl : public LedgerManager
     storePersistentStateAndLedgerHeaderInDB(LedgerHeader const& header,
                                             bool appendToCheckpoint);
 
-    // Copies in-memory Soroban state for snapshot invariant if required for
-    // this ledger, or returns nullptr otherwise. Should be called in
-    // READY_TO_APPLY phase when InMemorySorobanState is read only.
-    // Also clears the snapshot trigger flag to prevent race conditions.
-    std::shared_ptr<InMemorySorobanState const>
-    maybeCopySorobanStateForInvariant();
-
-    // Trigger snapshot invariant on background thread if
-    // inMemorySnapshotForInvariant is not null.
-    // If runInParallel is false, runs on the calling thread (this is useful in
-    // certain scenarios such as startup)
+    // If the invariant timer has fired, copies the in-memory Soroban state and
+    // the apply-state snapshot, then kicks off the snapshot invariant check.
+    // If runInParallel is false, runs on the calling thread (useful at
+    // startup).
     void maybeRunSnapshotInvariantFromLedgerState(
-        CompleteConstLedgerStatePtr const& ledgerState,
-        std::shared_ptr<InMemorySorobanState const>
-            inMemorySnapshotForInvariant,
-        bool runInParallel = true) const;
+        ApplyLedgerStateSnapshot const& ledgerState, bool runInParallel = true);
 
     static void prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
                                         ApplicableTxSetFrame const& txSet,
@@ -451,19 +457,25 @@ class LedgerManagerImpl : public LedgerManager
 
     // NB: LedgerHeader is a copy here to prevent footguns in case ltx
     // invalidates any header references
-    virtual void finalizeLedgerTxnChanges(
-        SearchableSnapshotConstPtr lclSnapshot,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-        AbstractLedgerTxn& ltx,
+    virtual std::optional<SorobanNetworkConfig> finalizeLedgerTxnChanges(
+        ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    // Update bucket list snapshot, and construct LedgerState return
-    // value, which contains all information relevant to ledger state (HAS,
-    // ledger header, network config, bucketlist snapshot).
+    // Build a new CompleteConstLedgerState from the current BucketLists,
+    // copying then updating historical snapshots from prevState. If
+    // sorobanConfig is not provided, it is loaded from a temporary bucket
+    // snapshot when the protocol requires it.
     CompleteConstLedgerStatePtr
-    advanceBucketListSnapshotAndMakeLedgerState(LedgerHeader const& header,
-                                                HistoryArchiveState const& has);
+    buildLedgerState(LedgerHeader const& header, HistoryArchiveState const& has,
+                     CompleteConstLedgerStatePtr prevState,
+                     std::optional<SorobanNetworkConfig> sorobanConfig);
+
+    // Build a new ledger state and advance ApplyState snapshot to it. This does
+    // not yet publish or post the new snapshot to the main thread.
+    CompleteConstLedgerStatePtr advanceApplySnapshotAndMakeLedgerState(
+        LedgerHeader const& header, HistoryArchiveState const& has,
+        std::optional<SorobanNetworkConfig> sorobanConfig);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -514,7 +526,6 @@ class LedgerManagerImpl : public LedgerManager
     void storeCurrentLedgerForTest(LedgerHeader const& header) override;
     std::function<void()> mAdvanceLedgerStateAndPublishOverride;
     InMemorySorobanState const& getInMemorySorobanStateForTesting() override;
-    CompleteConstLedgerStatePtr getLastClosedLedgerStateForTesting() override;
     ::rust::Box<rust_bridge::SorobanModuleCache>
     getModuleCacheForTesting() override;
     void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
@@ -540,17 +551,14 @@ class LedgerManagerImpl : public LedgerManager
 
     void applyLedger(LedgerCloseData const& ledgerData,
                      bool calledViaExternalize) override;
-    void advanceLedgerStateAndPublish(
-        uint32_t ledgerSeq, bool calledViaExternalize,
-        LedgerCloseData const& ledgerData,
-        CompleteConstLedgerStatePtr newLedgerState, bool queueRebuildNeeded,
-        std::shared_ptr<InMemorySorobanState const>
-            inMemorySnapshotForInvariant = nullptr) override;
+    void
+    advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
+                                 LedgerCloseData const& ledgerData,
+                                 CompleteConstLedgerStatePtr newLedgerState,
+                                 bool queueRebuildNeeded) override;
     void ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
                              LedgerCloseData const& ledgerData,
-                             bool queueRebuildNeeded,
-                             std::shared_ptr<InMemorySorobanState const>
-                                 inMemorySnapshotForInvariant);
+                             bool queueRebuildNeeded);
     void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
                              bool rebuildInMemoryState) override;
 
@@ -560,7 +568,13 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    SearchableSnapshotConstPtr getLastClosedSnapshot() const override;
+    LedgerStateSnapshot copyLedgerStateSnapshot() const override;
+    ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot() const override;
+    void maybeUpdateLedgerStateSnapshot(
+        LedgerStateSnapshot& snapshot) const override;
+#ifdef BUILD_TESTS
+    void updateCanonicalStateForTesting(LedgerHeader const& header) override;
+#endif
     virtual bool
     isApplying() const override
     {

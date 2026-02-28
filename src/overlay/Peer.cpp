@@ -67,7 +67,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
     auto& snapshot = app.getOverlayThreadSnapshot();
-    app.maybeCopySearchableBucketListSnapshot(snapshot);
+    app.maybeUpdateLedgerStateSnapshot(snapshot);
     LedgerSnapshot ledgerSnapshot(snapshot);
 
     // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to

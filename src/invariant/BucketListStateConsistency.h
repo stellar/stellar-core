@@ -19,8 +19,7 @@ class BucketListStateConsistency : public Invariant
     virtual std::string getName() const override;
 
     virtual std::string
-    checkSnapshot(SearchableSnapshotConstPtr liveSnapshot,
-                  SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    checkSnapshot(ApplyLedgerStateSnapshot const& snapshot,
                   InMemorySorobanState const& inMemorySnapshot,
                   std::function<bool()> isStopping) override;
 };

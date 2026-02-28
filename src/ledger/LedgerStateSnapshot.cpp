@@ -4,7 +4,8 @@
 
 #include "ledger/LedgerStateSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucketList.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
@@ -168,10 +169,24 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     return f(lsg);
 }
 
-BucketSnapshotState::BucketSnapshotState(SearchableSnapshotConstPtr snapshot)
-    : mSnapshot(snapshot)
-    , mLedgerHeader(LedgerHeaderWrapper(
-          std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
+BucketSnapshotState::BucketSnapshotState(LedgerStateSnapshot const& snap)
+    : mLiveSnap(snap.mLiveSnapshot)
+    , mLedgerHeader(std::make_shared<LedgerHeader>(snap.getLedgerHeader()))
+{
+}
+
+BucketSnapshotState::BucketSnapshotState(ApplyLedgerStateSnapshot const& snap)
+    : mLiveSnap(static_cast<LedgerStateSnapshot const&>(snap).mLiveSnapshot)
+    , mLedgerHeader(std::make_shared<LedgerHeader>(snap.getLedgerHeader()))
+{
+}
+
+BucketSnapshotState::BucketSnapshotState(
+    MetricsRegistry& metrics,
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
+    LedgerHeader const& header)
+    : mLiveSnap(metrics, std::move(liveData), {}, header.ledgerSeq)
+    , mLedgerHeader(std::make_shared<LedgerHeader>(header))
 {
 }
 
@@ -182,13 +197,13 @@ BucketSnapshotState::~BucketSnapshotState()
 LedgerHeaderWrapper
 BucketSnapshotState::getLedgerHeader() const
 {
-    return LedgerHeaderWrapper(std::get<1>(mLedgerHeader.mHeader));
+    return LedgerHeaderWrapper(mLedgerHeader);
 }
 
 LedgerEntryWrapper
 BucketSnapshotState::getAccount(AccountID const& account) const
 {
-    return LedgerEntryWrapper(mSnapshot->load(accountKey(account)));
+    return LedgerEntryWrapper(mLiveSnap.load(accountKey(account)));
 }
 
 LedgerEntryWrapper
@@ -209,7 +224,7 @@ BucketSnapshotState::getAccount(LedgerHeaderWrapper const& header,
 LedgerEntryWrapper
 BucketSnapshotState::load(LedgerKey const& key) const
 {
-    return LedgerEntryWrapper(mSnapshot->load(key));
+    return LedgerEntryWrapper(mLiveSnap.load(key));
 }
 
 void
@@ -240,12 +255,28 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     }
     else
 #endif
-        mGetter = std::make_unique<BucketSnapshotState>(
-            app.getLedgerManager().getLastClosedSnapshot());
+    {
+        auto snap = app.getLedgerManager().copyLedgerStateSnapshot();
+        mGetter = std::make_unique<BucketSnapshotState>(snap);
+    }
 }
 
-LedgerSnapshot::LedgerSnapshot(SearchableSnapshotConstPtr snapshot)
-    : mGetter(std::make_unique<BucketSnapshotState>(snapshot))
+LedgerSnapshot::LedgerSnapshot(LedgerStateSnapshot const& snap)
+    : mGetter(std::make_unique<BucketSnapshotState>(snap))
+{
+}
+
+LedgerSnapshot::LedgerSnapshot(ApplyLedgerStateSnapshot const& snap)
+    : mGetter(std::make_unique<BucketSnapshotState>(snap))
+{
+}
+
+LedgerSnapshot::LedgerSnapshot(
+    MetricsRegistry& metrics,
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
+    LedgerHeader const& header)
+    : mGetter(std::make_unique<BucketSnapshotState>(
+          metrics, std::move(liveData), header))
 {
 }
 
@@ -279,42 +310,71 @@ CompleteConstLedgerState::checkInvariant() const
 {
     releaseAssert(mLastClosedHistoryArchiveState.currentLedger ==
                   mLastClosedLedgerHeader.header.ledgerSeq);
-    if (mLastClosedLedgerHeader.header.ledgerSeq > 0)
-    {
-        releaseAssert(mBucketSnapshot->getLedgerHeader() ==
-                      mLastClosedLedgerHeader.header);
-    }
+    releaseAssert(mLiveBucketData);
+    releaseAssert(mHotArchiveBucketData);
 }
+
+namespace
+{
+// Build the next historical snapshot map by copying the previous map,
+// evicting the oldest entry if at capacity, and inserting the previous
+// state's current snapshot keyed by its ledger sequence number.
+template <class BucketT>
+auto
+rotateHistorical(
+    std::shared_ptr<BucketListSnapshotData<BucketT> const> const& prevData,
+    std::map<uint32_t,
+             std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
+        prevHistorical,
+    uint32_t prevLedgerSeq, uint32_t numHistorical)
+{
+    std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
+        result;
+    if (numHistorical == 0 || !prevData)
+    {
+        return result;
+    }
+    result = prevHistorical;
+    if (result.size() == numHistorical)
+    {
+        result.erase(result.begin());
+    }
+    result.emplace(prevLedgerSeq, prevData);
+    return result;
+}
+} // anonymous namespace
 
 CompleteConstLedgerState::CompleteConstLedgerState(
-    SearchableSnapshotConstPtr searchableSnapshot,
-    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
-    LedgerHeaderHistoryEntry const& lastClosedLedgerHeader,
-    HistoryArchiveState const& lastClosedHistoryArchiveState)
-    : mBucketSnapshot(searchableSnapshot)
-    , mHotArchiveSnapshot(hotArchiveSnapshot)
-    , mSorobanConfig(
-          protocolVersionStartsFrom(lastClosedLedgerHeader.header.ledgerVersion,
-                                    SOROBAN_PROTOCOL_VERSION)
-              ? std::make_optional(
-                    SorobanNetworkConfig::loadFromLedger(searchableSnapshot))
-              : std::nullopt)
-    , mLastClosedLedgerHeader(lastClosedLedgerHeader)
-    , mLastClosedHistoryArchiveState(lastClosedHistoryArchiveState)
+    LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
+    LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
+    std::optional<SorobanNetworkConfig> sorobanConfig,
+    CompleteConstLedgerStatePtr prevState, uint32_t numHistorical)
+    : mLiveBucketData(
+          std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL))
+    , mLiveHistoricalSnapshots(
+          prevState ? rotateHistorical<LiveBucket>(
+                          prevState->mLiveBucketData,
+                          prevState->mLiveHistoricalSnapshots,
+                          prevState->mLastClosedLedgerHeader.header.ledgerSeq,
+                          numHistorical)
+                    : std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<
+                                             LiveBucket> const>>{})
+    , mHotArchiveBucketData(
+          std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(
+              hotArchiveBL))
+    , mHotArchiveHistoricalSnapshots(
+          prevState ? rotateHistorical<HotArchiveBucket>(
+                          prevState->mHotArchiveBucketData,
+                          prevState->mHotArchiveHistoricalSnapshots,
+                          prevState->mLastClosedLedgerHeader.header.ledgerSeq,
+                          numHistorical)
+                    : std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<
+                                             HotArchiveBucket> const>>{})
+    , mSorobanConfig(std::move(sorobanConfig))
+    , mLastClosedLedgerHeader(lcl)
+    , mLastClosedHistoryArchiveState(has)
 {
     checkInvariant();
-}
-
-SearchableSnapshotConstPtr
-CompleteConstLedgerState::getBucketSnapshot() const
-{
-    return mBucketSnapshot;
-}
-
-SearchableHotArchiveSnapshotConstPtr
-CompleteConstLedgerState::getHotArchiveSnapshot() const
-{
-    return mHotArchiveSnapshot;
 }
 
 SorobanNetworkConfig const&
@@ -341,4 +401,130 @@ CompleteConstLedgerState::getLastClosedHistoryArchiveState() const
     return mLastClosedHistoryArchiveState;
 }
 
+LedgerStateSnapshot::LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
+                                         MetricsRegistry& metrics)
+    : mState(state)
+    , mLiveSnapshot(metrics, state->mLiveBucketData,
+                    state->mLiveHistoricalSnapshots,
+                    state->mLastClosedLedgerHeader.header.ledgerSeq)
+    , mHotArchiveSnapshot(metrics, state->mHotArchiveBucketData,
+                          state->mHotArchiveHistoricalSnapshots,
+                          state->mLastClosedLedgerHeader.header.ledgerSeq)
+    , mMetrics(metrics)
+{
+}
+
+CompleteConstLedgerState const&
+LedgerStateSnapshot::getState() const
+{
+    releaseAssert(mState);
+    return *mState;
+}
+
+LedgerHeader const&
+LedgerStateSnapshot::getLedgerHeader() const
+{
+    return mState->getLastClosedLedgerHeader().header;
+}
+
+uint32_t
+LedgerStateSnapshot::getLedgerSeq() const
+{
+    return mState->getLastClosedLedgerHeader().header.ledgerSeq;
+}
+
+// === Live BucketList wrapper methods ===
+
+std::shared_ptr<LedgerEntry const>
+LedgerStateSnapshot::loadLiveEntry(LedgerKey const& k) const
+{
+    return mLiveSnapshot.load(k);
+}
+
+std::vector<LedgerEntry>
+LedgerStateSnapshot::loadLiveKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    std::string const& label) const
+{
+    return mLiveSnapshot.loadKeys(inKeys, label);
+}
+
+std::optional<std::vector<LedgerEntry>>
+LedgerStateSnapshot::loadLiveKeysFromLedger(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    uint32_t ledgerSeq) const
+{
+    return mLiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
+}
+
+std::vector<LedgerEntry>
+LedgerStateSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& accountID, Asset const& asset) const
+{
+    return mLiveSnapshot.loadPoolShareTrustLinesByAccountAndAsset(accountID,
+                                                                  asset);
+}
+
+std::vector<InflationWinner>
+LedgerStateSnapshot::loadInflationWinners(size_t maxWinners,
+                                          int64_t minBalance) const
+{
+    return mLiveSnapshot.loadInflationWinners(maxWinners, minBalance);
+}
+
+std::unique_ptr<EvictionResultCandidates>
+LedgerStateSnapshot::scanForEviction(uint32_t ledgerSeq,
+                                     EvictionMetrics& metrics,
+                                     EvictionIterator iter,
+                                     std::shared_ptr<EvictionStatistics> stats,
+                                     StateArchivalSettings const& sas,
+                                     uint32_t ledgerVers) const
+{
+    return mLiveSnapshot.scanForEviction(ledgerSeq, metrics, std::move(iter),
+                                         std::move(stats), sas, ledgerVers);
+}
+
+void
+LedgerStateSnapshot::scanLiveEntriesOfType(
+    LedgerEntryType type,
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    mLiveSnapshot.scanForEntriesOfType(type, std::move(callback));
+}
+
+// === Hot Archive BucketList wrapper methods ===
+
+std::shared_ptr<HotArchiveBucketEntry const>
+LedgerStateSnapshot::loadArchiveEntry(LedgerKey const& k) const
+{
+    return mHotArchiveSnapshot.load(k);
+}
+
+std::vector<HotArchiveBucketEntry>
+LedgerStateSnapshot::loadArchiveKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
+{
+    return mHotArchiveSnapshot.loadKeys(inKeys);
+}
+
+std::optional<std::vector<HotArchiveBucketEntry>>
+LedgerStateSnapshot::loadArchiveKeysFromLedger(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    uint32_t ledgerSeq) const
+{
+    return mHotArchiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
+}
+
+void
+LedgerStateSnapshot::scanAllArchiveEntries(
+    std::function<Loop(HotArchiveBucketEntry const&)> callback) const
+{
+    mHotArchiveSnapshot.scanAllEntries(std::move(callback));
+}
+
+ApplyLedgerStateSnapshot::ApplyLedgerStateSnapshot(
+    CompleteConstLedgerStatePtr state, MetricsRegistry& metrics)
+    : LedgerStateSnapshot(std::move(state), metrics)
+{
+}
 }

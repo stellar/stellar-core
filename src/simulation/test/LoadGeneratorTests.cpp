@@ -6,8 +6,8 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Config.h"
-#include "scp/QuorumSetUtils.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
@@ -956,16 +956,14 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
 
-    auto hotArchive = app->getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
+    auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
     for (auto idx : sampleIndices)
     {
         sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
     }
 
-    auto sampleEntries = hotArchive->loadKeys(sampleKeys);
+    auto sampleEntries = snap.loadArchiveKeys(sampleKeys);
     REQUIRE(sampleEntries.size() == sampleKeys.size());
 
     al.execute();

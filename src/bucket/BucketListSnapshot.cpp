@@ -40,7 +40,7 @@ BucketListSnapshotData<BucketT>::Level::Level(
 
 template <class BucketT>
 BucketListSnapshotData<BucketT>::BucketListSnapshotData(
-    BucketListBase<BucketT> const& bl, LedgerHeader const& header)
+    BucketListBase<BucketT> const& bl)
     : levels([&bl]() {
         std::vector<Level> v;
         v.reserve(BucketListBase<BucketT>::kNumLevels);
@@ -50,15 +50,7 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
         }
         return v;
     }())
-    , header(header)
 {
-}
-
-template <class BucketT>
-uint32_t
-BucketListSnapshotData<BucketT>::getLedgerSeq() const
-{
-    return header.ledgerSeq;
 }
 
 //
@@ -70,9 +62,11 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
     std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        historicalSnapshots)
+        historicalSnapshots,
+    uint32_t ledgerSeq)
     : mData(std::move(data))
     , mHistoricalSnapshots(std::move(historicalSnapshots))
+    , mLedgerSeq(ledgerSeq)
     , mMetrics(metrics)
     , mBulkLoadMeter(
           metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
@@ -85,6 +79,39 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
                                               std::chrono::microseconds{1});
         mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
     }
+}
+
+template <class BucketT>
+SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
+    SearchableBucketListSnapshot const& other)
+    : mData(other.mData)
+    , mHistoricalSnapshots(other.mHistoricalSnapshots)
+    , mLedgerSeq(other.mLedgerSeq)
+    // mStreams intentionally left empty — each copy gets its own stream cache
+    , mMetrics(other.mMetrics)
+    , mPointTimers(other.mPointTimers)
+    , mBulkTimers(other.mBulkTimers)
+    , mBulkLoadMeter(other.mBulkLoadMeter)
+{
+}
+
+template <class BucketT>
+SearchableBucketListSnapshot<BucketT>&
+SearchableBucketListSnapshot<BucketT>::operator=(
+    SearchableBucketListSnapshot const& other)
+{
+    if (this != &other)
+    {
+        mData = other.mData;
+        mHistoricalSnapshots = other.mHistoricalSnapshots;
+        mLedgerSeq = other.mLedgerSeq;
+        mStreams.clear();
+        mMetrics = other.mMetrics;
+        mPointTimers = other.mPointTimers;
+        mBulkTimers = other.mBulkTimers;
+        mBulkLoadMeter = other.mBulkLoadMeter;
+    }
+    return *this;
 }
 
 // File streams are fairly expensive to create, so they are lazily created and
@@ -292,7 +319,7 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 
     auto timerIter = mPointTimers.find(k.type());
     releaseAssert(timerIter != mPointTimers.end());
-    auto timer = timerIter->second.TimeScope();
+    auto timer = timerIter->second.get().TimeScope();
 
     std::shared_ptr<typename BucketT::LoadT const> result{};
 
@@ -336,7 +363,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
-    if (!ledgerSeq || *ledgerSeq == mData->getLedgerSeq())
+    if (!ledgerSeq || *ledgerSeq == mLedgerSeq)
     {
         loopAllBuckets(loadKeysLoop, *mData);
     }
@@ -370,34 +397,18 @@ SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
 {
     if (numEntries != 0)
     {
-        mBulkLoadMeter.Mark(numEntries);
+        mBulkLoadMeter.get().Mark(numEntries);
     }
 
     auto iter = mBulkTimers.find(label);
     if (iter == mBulkTimers.end())
     {
         auto& metric =
-            mMetrics.NewTimer({BucketT::METRIC_STRING, "bulk", label});
+            mMetrics.get().NewTimer({BucketT::METRIC_STRING, "bulk", label});
         iter = mBulkTimers.emplace(label, metric).first;
     }
 
-    return iter->second;
-}
-
-template <class BucketT>
-uint32_t
-SearchableBucketListSnapshot<BucketT>::getLedgerSeq() const
-{
-    releaseAssert(mData);
-    return mData->getLedgerSeq();
-}
-
-template <class BucketT>
-LedgerHeader const&
-SearchableBucketListSnapshot<BucketT>::getLedgerHeader() const
-{
-    releaseAssert(mData);
-    return mData->header;
+    return iter->second.get();
 }
 
 template <class BucketT>
@@ -424,9 +435,10 @@ SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
-        historicalSnapshots)
-    : SearchableBucketListSnapshot<LiveBucket>(metrics, std::move(data),
-                                               std::move(historicalSnapshots))
+        historicalSnapshots,
+    uint32_t ledgerSeq)
+    : SearchableBucketListSnapshot<LiveBucket>(
+          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
 {
 }
 
@@ -855,9 +867,10 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
     std::map<uint32_t,
              std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
-        historicalSnapshots)
+        historicalSnapshots,
+    uint32_t ledgerSeq)
     : SearchableBucketListSnapshot<HotArchiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots))
+          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
 {
 }
 

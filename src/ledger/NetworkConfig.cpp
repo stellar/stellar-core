@@ -1696,13 +1696,6 @@ SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
 }
 
 SorobanNetworkConfig
-SorobanNetworkConfig::loadFromLedger(SearchableSnapshotConstPtr snapshot)
-{
-    LedgerSnapshot ls(snapshot);
-    return SorobanNetworkConfig::loadFromLedger(ls);
-}
-
-SorobanNetworkConfig
 SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
 {
     LedgerSnapshot ls(ltx);

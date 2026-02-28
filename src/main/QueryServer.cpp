@@ -78,11 +78,8 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
 #ifdef BUILD_TESTS
     if (useMainThreadForTesting)
     {
-        auto [live, hotArchive] =
-            mAppConnector.copySearchableBucketListSnapshots();
-        mBucketListSnapshots[std::this_thread::get_id()] = std::move(live);
-        mHotArchiveBucketListSnapshots[std::this_thread::get_id()] =
-            std::move(hotArchive);
+        mSnapshots.emplace(std::this_thread::get_id(),
+                           mAppConnector.copyLedgerStateSnapshot());
     }
     else
 #endif
@@ -90,10 +87,7 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
         auto workerPids = mServer.start();
         for (auto pid : workerPids)
         {
-            auto [live, hotArchive] =
-                mAppConnector.copySearchableBucketListSnapshots();
-            mBucketListSnapshots[pid] = std::move(live);
-            mHotArchiveBucketListSnapshots[pid] = std::move(hotArchive);
+            mSnapshots.emplace(pid, mAppConnector.copyLedgerStateSnapshot());
         }
     }
 }
@@ -167,10 +161,6 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
                                std::string const& body, std::string& retStr)
 {
     ZoneScoped;
-
-    auto& snapshotPtr = mBucketListSnapshots.at(std::this_thread::get_id());
-    mAppConnector.maybeCopySearchableBucketListSnapshot(snapshotPtr);
-
     Json::Value root;
 
     std::map<std::string, std::vector<std::string>> paramMap;
@@ -181,7 +171,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
     if (!keys.empty())
     {
-        auto& bl = *snapshotPtr;
+        auto& snapshot = mSnapshots.at(std::this_thread::get_id());
+        mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
 
         LedgerKeySet orderedKeys;
         for (auto const& key : keys)
@@ -199,7 +190,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
             root["ledgerSeq"] = *snapshotLedger;
 
             auto loadedKeysOp =
-                bl.loadKeysFromLedger(orderedKeys, *snapshotLedger);
+                snapshot.loadLiveKeysFromLedger(orderedKeys, *snapshotLedger);
 
             // Return 404 if ledgerSeq not found
             if (!loadedKeysOp)
@@ -213,8 +204,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         // Otherwise default to current ledger
         else
         {
-            loadedKeys = bl.loadKeys(orderedKeys, "query");
-            root["ledgerSeq"] = bl.getLedgerSeq();
+            loadedKeys = snapshot.loadLiveKeys(orderedKeys, "query");
+            root["ledgerSeq"] = snapshot.getLedgerSeq();
         }
 
         for (auto const& le : loadedKeys)
@@ -247,13 +238,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
                             std::string& retStr)
 {
     ZoneScoped;
-
-    auto& liveBl = mBucketListSnapshots.at(std::this_thread::get_id());
-    auto& hotArchiveBl =
-        mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
-
-    mAppConnector.maybeCopyLiveAndHotArchiveSnapshots(liveBl, hotArchiveBl);
-
     Json::Value root;
 
     std::map<std::string, std::vector<std::string>> paramMap;
@@ -269,6 +253,8 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         return false;
     }
 
+    auto& snapshot = mSnapshots.at(std::this_thread::get_id());
+    mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
     LedgerKeySet keysToSearch;
 
     // Keep track of keys in their original order for response ordering
@@ -297,10 +283,11 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::vector<LedgerEntry> liveEntries;
     std::vector<HotArchiveBucketEntry> archivedEntries;
     uint32_t ledgerSeq =
-        snapshotLedger ? *snapshotLedger : liveBl->getLedgerSeq();
+        snapshotLedger ? *snapshotLedger : snapshot.getLedgerSeq();
     root["ledgerSeq"] = ledgerSeq;
 
-    auto liveEntriesOp = liveBl->loadKeysFromLedger(keysToSearch, ledgerSeq);
+    auto liveEntriesOp =
+        snapshot.loadLiveKeysFromLedger(keysToSearch, ledgerSeq);
 
     // Return 404 if ledgerSeq not found
     if (!liveEntriesOp)
@@ -329,8 +316,8 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     // Only query archive for soroban keys we didn't find in the live bucketList
     if (!hotArchiveKeysToSearch.empty())
     {
-        auto archivedEntriesOp =
-            hotArchiveBl->loadKeysFromLedger(hotArchiveKeysToSearch, ledgerSeq);
+        auto archivedEntriesOp = snapshot.loadArchiveKeysFromLedger(
+            hotArchiveKeysToSearch, ledgerSeq);
         if (!archivedEntriesOp)
         {
             retStr = "Ledger not found\n";
@@ -354,8 +341,8 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     {
         // We haven't updated the live snapshot so we know the have a snapshot
         // available for ledgerSeq
-        ttlEntries =
-            std::move(liveBl->loadKeysFromLedger(ttlKeys, ledgerSeq).value());
+        ttlEntries = std::move(
+            snapshot.loadLiveKeysFromLedger(ttlKeys, ledgerSeq).value());
     }
 
     std::unordered_map<LedgerKey, LedgerEntry> ttlMap;

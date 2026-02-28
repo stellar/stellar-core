@@ -6,7 +6,7 @@
 
 #include "lib/httpthreaded/server.hpp"
 
-#include "bucket/BucketSnapshotManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include <atomic>
 #include <functional>
 #include <string>
@@ -26,11 +26,7 @@ class QueryServer
 
     httpThreaded::server::server mServer;
 
-    std::unordered_map<std::thread::id, SearchableSnapshotConstPtr>
-        mBucketListSnapshots;
-
-    std::unordered_map<std::thread::id, SearchableHotArchiveSnapshotConstPtr>
-        mHotArchiveBucketListSnapshots;
+    std::unordered_map<std::thread::id, LedgerStateSnapshot> mSnapshots;
 
     AppConnector& mAppConnector;
 
