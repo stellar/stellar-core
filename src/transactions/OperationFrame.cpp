@@ -30,6 +30,9 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/RestoreFootprintOpFrame.h"
 #include "transactions/RevokeSponsorshipOpFrame.h"
+#ifdef XDR_HELLO_WORLD
+#include "transactions/HelloWorldOpFrame.h"
+#endif
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SetTrustLineFlagsOpFrame.h"
 #include "transactions/TransactionFrame.h"
@@ -123,6 +126,10 @@ OperationFrame::makeHelper(Operation const& op, TransactionFrame const& tx,
         return std::make_shared<ExtendFootprintTTLOpFrame>(op, tx);
     case RESTORE_FOOTPRINT:
         return std::make_shared<RestoreFootprintOpFrame>(op, tx);
+#ifdef XDR_HELLO_WORLD
+    case HELLO_WORLD:
+        return std::make_shared<HelloWorldOpFrame>(op, tx);
+#endif
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

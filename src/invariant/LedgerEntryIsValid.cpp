@@ -107,6 +107,17 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     {
         return "LedgerEntry has v1 extension before protocol version 14";
     }
+#ifdef XDR_LEDGER_ENTRY_EXT_V2
+    if (le.ext.v() > 2)
+    {
+        return "LedgerEntry has unknown ext version";
+    }
+#else
+    if (le.ext.v() > 1)
+    {
+        return "LedgerEntry has unknown ext version";
+    }
+#endif
 
     switch (le.data.type())
     {
@@ -125,7 +136,11 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         }
         return checkIsValid(le.data.claimableBalance(), previous, version);
     case LIQUIDITY_POOL:
+#ifdef XDR_LEDGER_ENTRY_EXT_V2
+        if (le.ext.v() == 1)
+#else
         if (le.ext.v() != 0)
+#endif
         {
             return "LiquidityPool is sponsored";
         }

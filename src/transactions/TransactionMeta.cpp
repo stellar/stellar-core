@@ -532,7 +532,11 @@ TransactionMetaBuilder::TransactionMetaWrapper::TransactionMetaWrapper(
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_23) ||
         config.BACKFILL_STELLAR_ASSET_EVENTS)
     {
+#ifdef XDR_TRANSACTION_META_V5
+        version = 5;
+#else
         version = 4;
+#endif
     }
     else if (protocolVersionStartsFrom(protocolVersion,
                                        SOROBAN_PROTOCOL_VERSION))
@@ -558,6 +562,10 @@ TransactionMetaBuilder::TransactionMetaWrapper::getChangesBefore()
     case 4:
         return mTransactionMeta.v4().txChangesBefore;
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().txChangesBefore;
+#endif
     default:
         releaseAssert(false);
     }
@@ -589,6 +597,11 @@ TransactionMetaBuilder::TransactionMetaWrapper::setOperationMetas(
     case 4:
         mTransactionMeta.v4().operations = std::move(opMetas);
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        mTransactionMeta.v5().operations = std::move(opMetas);
+        break;
+#endif
     default:
         releaseAssert(false);
     }
@@ -605,6 +618,10 @@ TransactionMetaBuilder::TransactionMetaWrapper::getChangesAfter()
         return mTransactionMeta.v3().txChangesAfter;
     case 4:
         return mTransactionMeta.v4().txChangesAfter;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().txChangesAfter;
+#endif
     default:
         releaseAssert(false);
     }
@@ -619,6 +636,10 @@ TransactionMetaBuilder::TransactionMetaWrapper::getSorobanMetaExt()
         return mTransactionMeta.v3().sorobanMeta.activate().ext;
     case 4:
         return mTransactionMeta.v4().sorobanMeta.activate().ext;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().sorobanMeta.activate().ext;
+#endif
     // Calling this before Soroban meta ext is available is a bug.
     case 2:
     default:
@@ -639,6 +660,11 @@ TransactionMetaBuilder::TransactionMetaWrapper::setDiagnosticEvents(
     case 4:
         mTransactionMeta.v4().diagnosticEvents = std::move(events);
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        mTransactionMeta.v5().diagnosticEvents = std::move(events);
+        break;
+#endif
     // It's a bug to call this when diagnostic events are not supported.
     case 2:
     default:
@@ -661,6 +687,11 @@ TransactionMetaBuilder::TransactionMetaWrapper::maybeSetContractEventsAtTxLevel(
     case 4:
         // Do nothing, v4 contract events live in the operation meta
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        // Do nothing, v5 contract events live in the operation meta
+        break;
+#endif
     default:
         releaseAssert(false);
     }
@@ -685,6 +716,14 @@ TransactionMetaBuilder::TransactionMetaWrapper::maybeActivateSorobanMeta(
             mTransactionMeta.v4().sorobanMeta.activate();
         }
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        if (success)
+        {
+            mTransactionMeta.v5().sorobanMeta.activate();
+        }
+        break;
+#endif
     // It's a bug to call this when Soroban meta is not supported.
     case 2:
     default:
@@ -705,6 +744,12 @@ TransactionMetaBuilder::TransactionMetaWrapper::setReturnValue(
         mTransactionMeta.v4().sorobanMeta.activate().returnValue.activate() =
             returnValue;
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        mTransactionMeta.v5().sorobanMeta.activate().returnValue.activate() =
+            returnValue;
+        break;
+#endif
     // Setting Soroban return value prior to meta v3 is a bug.
     case 2:
     default:
@@ -721,6 +766,11 @@ TransactionMetaBuilder::TransactionMetaWrapper::setTransactionEvents(
     case 4:
         mTransactionMeta.v4().events = std::move(events);
         break;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        mTransactionMeta.v5().events = std::move(events);
+        break;
+#endif
     // Setting transaction events before meta v4 is a bug.
     case 2:
     case 3:
@@ -745,6 +795,10 @@ TransactionMetaFrame::getNumOperations() const
         return mTransactionMeta.v3().operations.size();
     case 4:
         return mTransactionMeta.v4().operations.size();
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().operations.size();
+#endif
     default:
         releaseAssert(false);
     }
@@ -761,6 +815,10 @@ TransactionMetaFrame::getNumChangesBefore() const
         return mTransactionMeta.v3().txChangesBefore.size();
     case 4:
         return mTransactionMeta.v4().txChangesBefore.size();
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().txChangesBefore.size();
+#endif
     default:
         releaseAssert(false);
     }
@@ -777,6 +835,10 @@ TransactionMetaFrame::getChangesBefore() const
         return mTransactionMeta.v3().txChangesBefore;
     case 4:
         return mTransactionMeta.v4().txChangesBefore;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().txChangesBefore;
+#endif
     default:
         releaseAssert(false);
     }
@@ -793,6 +855,10 @@ TransactionMetaFrame::getChangesAfter() const
         return mTransactionMeta.v3().txChangesAfter;
     case 4:
         return mTransactionMeta.v4().txChangesAfter;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().txChangesAfter;
+#endif
     default:
         releaseAssert(false);
     }
@@ -810,6 +876,11 @@ TransactionMetaFrame::getReturnValue() const
     case 4:
         releaseAssert(mTransactionMeta.v4().sorobanMeta->returnValue);
         return *mTransactionMeta.v4().sorobanMeta->returnValue;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        releaseAssert(mTransactionMeta.v5().sorobanMeta->returnValue);
+        return *mTransactionMeta.v5().sorobanMeta->returnValue;
+#endif
     default:
         releaseAssert(false);
     }
@@ -832,6 +903,10 @@ TransactionMetaFrame::getDiagnosticEvents() const
         return mTransactionMeta.v3().sorobanMeta->diagnosticEvents;
     case 4:
         return mTransactionMeta.v4().diagnosticEvents;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().diagnosticEvents;
+#endif
     default:
         releaseAssert(false);
     }
@@ -848,6 +923,10 @@ TransactionMetaFrame::getOpEventsAtOp(size_t opIdx) const
             "Operation events not available for v2/v3 meta");
     case 4:
         return mTransactionMeta.v4().operations.at(opIdx).events;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().operations.at(opIdx).events;
+#endif
     default:
         releaseAssert(false);
     }
@@ -864,6 +943,10 @@ TransactionMetaFrame::getTxEvents() const
             "Transaction-level contract events not available for v2/v3 meta");
     case 4:
         return mTransactionMeta.v4().events;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().events;
+#endif
     default:
         releaseAssert(false);
     }
@@ -892,6 +975,22 @@ TransactionMetaFrame::getSorobanContractEvents() const
             throw std::runtime_error("Operation meta size can only be 0 or 1 "
                                      "in a Soroban transaction");
         }
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        if (mTransactionMeta.v5().operations.empty())
+        {
+            return xdr::xvector<ContractEvent>{};
+        }
+        else if (mTransactionMeta.v5().operations.size() == 1)
+        {
+            return mTransactionMeta.v5().operations.at(0).events;
+        }
+        else
+        {
+            throw std::runtime_error("Operation meta size can only be 0 or 1 "
+                                     "in a Soroban transaction");
+        }
+#endif
     default:
         releaseAssert(false);
     }
@@ -908,6 +1007,10 @@ TransactionMetaFrame::getLedgerEntryChangesAtOp(size_t opIdx) const
         return mTransactionMeta.v3().operations.at(opIdx).changes;
     case 4:
         return mTransactionMeta.v4().operations.at(opIdx).changes;
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+        return mTransactionMeta.v5().operations.at(opIdx).changes;
+#endif
     default:
         releaseAssert(false);
     }
@@ -956,6 +1059,9 @@ TransactionMetaBuilder::TransactionMetaBuilder(bool metaEnabled,
         break;
     }
     case 4:
+#ifdef XDR_TRANSACTION_META_V5
+    case 5:
+#endif
     {
         auto& opMeta = mOperationMetas.emplace<xdr::xvector<OperationMetaV2>>();
         opMeta.resize(numOperations);

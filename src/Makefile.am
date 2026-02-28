@@ -91,7 +91,7 @@ $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h .rs
 .x.h:
 	mkdir -p $(@D)
-	$(XDRC) -hh -pedantic -o $@ $<
+	$(XDRC) -hh -pedantic $(XDR_DEFINES) -o $@ $<
 
 BISON=bison
 FLEX=flex
@@ -117,6 +117,8 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 
 BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
+
+stellar_core_SOURCES += transactions/HelloWorldOpFrame.h transactions/HelloWorldOpFrame.cpp
 
 if UNIFIED_RUST
 RUST_TOOLCHAIN_CHANNEL=nightly
