@@ -17,6 +17,7 @@ rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
 rand = "=0.8.5"
+sys-info = "=0.9.1"
 
 itertools = "=0.10.5"
 backtrace = { version = "=0.3.76", features = [ "cpp_demangle" ] }

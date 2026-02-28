@@ -665,6 +665,14 @@ class Config : public std::enable_shared_from_this<Config>
     bool LOG_COLOR;
     std::string BUCKET_DIR_PATH;
 
+    // Config parameters controlling startup system info validation (only
+    // relevant for mainnet validators). See the comment above
+    // validateSystemInfo in CommandLine.cpp for details.
+    uint32_t SYSCHECK_UNKNOWN_MEMORY_DEFAULT{0};
+    uint32_t SYSCHECK_UNKNOWN_CPU_DEFAULT{0};
+    std::string SYSCHECK_FORCE_IGNORE_MEMORY;
+    std::string SYSCHECK_FORCE_IGNORE_CPU;
+
     // Path to Protocol 23 corruption CSV file for testing/recovery
     std::string PATH_TO_PROTOCOL_23_CORRUPTION_FILE;
 

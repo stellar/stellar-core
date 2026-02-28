@@ -120,3 +120,7 @@ pub(crate) fn check_xdr_version_identities() -> Result<(), Box<dyn std::error::E
     // Add more comparisons between XDR file lists as needed
     Ok(())
 }
+
+pub(crate) fn get_host_total_memory() -> u64 {
+    sys_info::mem_info().map(|mem| mem.total).unwrap_or(0)
+}
