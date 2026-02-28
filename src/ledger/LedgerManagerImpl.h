@@ -564,6 +564,7 @@ class LedgerManagerImpl : public LedgerManager
     virtual bool
     isApplying() const override
     {
+        releaseAssert(threadIsMain());
         return mCurrentlyApplyingLedger;
     }
     void markApplyStateReset() override;

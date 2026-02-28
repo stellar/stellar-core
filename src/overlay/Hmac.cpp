@@ -83,6 +83,7 @@ Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
 void
 Hmac::damageRecvMacKey()
 {
+    LOCK_GUARD(mMutex, guard);
     auto bytes = randomBytes(mRecvMacKey.key.size());
     std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
 }

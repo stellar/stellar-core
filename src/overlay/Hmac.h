@@ -13,15 +13,21 @@ using namespace stellar;
 
 class Hmac
 {
+#ifdef THREAD_SAFETY
+  public:
+#endif
 #ifndef USE_TRACY
     Mutex mMutex;
 #else
     TracyLockable(std::mutex, mMutex);
 #endif
-    HmacSha256Key mSendMacKey;
-    HmacSha256Key mRecvMacKey;
-    uint64_t mSendMacSeq{0};
-    uint64_t mRecvMacSeq{0};
+#ifdef THREAD_SAFETY
+  private:
+#endif
+    HmacSha256Key mSendMacKey GUARDED_BY(mMutex);
+    HmacSha256Key mRecvMacKey GUARDED_BY(mMutex);
+    uint64_t mSendMacSeq GUARDED_BY(mMutex){0};
+    uint64_t mRecvMacSeq GUARDED_BY(mMutex){0};
 
   public:
     bool setSendMackey(HmacSha256Key const& key);
