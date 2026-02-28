@@ -102,7 +102,7 @@ class JitterInjector
     }
 
     // Configure jitter behavior
-    static void configure(const Config& cfg);
+    static void configure(Config const& cfg);
 
     // Main injection point: probabilistically delay with random duration
     // Returns true if a delay was injected, false otherwise

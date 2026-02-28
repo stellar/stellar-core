@@ -39,3 +39,10 @@ then
     echo "to calls to std::uniform_int_distribution, which varies between compilers."
     exit 1
 fi
+
+if git grep 'SecretKey::random' '**/test/*.h' '**/test/*.cpp'
+then
+    echo
+    echo "please use SecretKey::pseudoRandomForTesting() instead of SecretKey::random() in tests"
+    exit 1
+fi
