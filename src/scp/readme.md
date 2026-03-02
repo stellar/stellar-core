@@ -29,3 +29,4 @@ The `stellar-core` program has a single subclass of SCPDriver called
 ([LedgerManager](../ledger)).
 
 For details of the protocol itself, see the [paper on SCP](https://www.stellar.org/papers/stellar-consensus-protocol.pdf).
+src/xdr/Stellar-SCP.x
