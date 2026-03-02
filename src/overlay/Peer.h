@@ -274,6 +274,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::shared_ptr<TxAdverts> mTxAdverts;
     QueryInfo mQSetQueryInfo;
     QueryInfo mTxSetQueryInfo;
+    QueryInfo mSCPStateQueryInfo;
     bool mPeersReceived{false};
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
@@ -317,7 +318,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
-    bool process(QueryInfo& queryInfo);
+
+    // Returns `true` if a query should be processed, `false` if it should be
+    // dropped. Modifies `queryInfo` to track activity in the current window.
+    // Callers may optionally set `maxQueriesPerWindow` to override the default
+    // per-window query limit.
+    bool process(QueryInfo& queryInfo,
+                 std::optional<uint32_t> maxQueriesPerWindow = std::nullopt);
 
     void recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 
