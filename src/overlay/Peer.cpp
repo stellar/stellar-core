@@ -56,6 +56,10 @@ using namespace soci;
 
 namespace
 {
+// Maximum number of GET_SCP_STATE requests per window per peer to respond to. A
+// window defaults to roughly 1 minute.
+constexpr uint32_t GET_SCP_STATE_MAX_RATE = 10;
+
 // Check the signature(s) in `tx`, adding the result to the signature cache in
 // the process. This function requires that background signature verification
 // is enabled and the current thread is the overlay thread.
@@ -1416,15 +1420,15 @@ Peer::recvDontHave(StellarMessage const& msg)
 }
 
 bool
-Peer::process(QueryInfo& queryInfo)
+Peer::process(QueryInfo& queryInfo, std::optional<uint32_t> maxQueriesPerWindow)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
         std::chrono::duration_cast<std::chrono::seconds>(
             mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
             cfg.MAX_SLOTS_TO_REMEMBER);
-    uint32_t const QUERIES_PER_WINDOW =
-        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;
+    uint32_t const QUERIES_PER_WINDOW = maxQueriesPerWindow.value_or(
+        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER);
     if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)
     {
         queryInfo.mLastTimeStamp = mAppConnector.now();
@@ -1679,6 +1683,13 @@ Peer::recvGetSCPState(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    if (!process(mSCPStateQueryInfo, GET_SCP_STATE_MAX_RATE))
+    {
+        CLOG_DEBUG(Overlay, "Dropping GET_SCP_STATE request from {}",
+                   KeyUtils::toShortString(mPeerID));
+        return;
+    }
+    mSCPStateQueryInfo.mNumQueries++;
     uint32 seq = msg.getSCPLedgerSeq();
     mAppConnector.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
