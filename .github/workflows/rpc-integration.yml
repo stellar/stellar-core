@@ -6,8 +6,12 @@ on:
     branches:
       - master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  rpc-integration:
-    uses: stellar/stellar-rpc/.github/workflows/stellar-rpc.yml@main
+  rpc:
+    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@03dc7760be9380d046f46aacada382554fbe50a2
     with:
       core_git_ref: ${{ github.sha }}
