@@ -1,0 +1,12 @@
+name: RPC Integration Tests
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  rpc-integration:
+    uses: stellar/stellar-rpc/.github/workflows/stellar-rpc.yml@main
+    with:
+      core_git_ref: ${{ github.sha }}
