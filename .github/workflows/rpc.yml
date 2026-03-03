@@ -1,0 +1,19 @@
+name: RPC Integration Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rpc:
+    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml
+    with:
+      rpc_git_ref: protocol-next
+      core_git_ref: ${{ github.sha }}
+      protocol_version: '26'
