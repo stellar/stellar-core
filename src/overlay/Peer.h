@@ -321,10 +321,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
-    // Returns `true` if a query should be processed, `false` if it should be
-    // dropped. Modifies `queryInfo` to track activity in the current window.
-    // Callers may optionally set `maxQueriesPerWindow` to override the default
-    // per-window query limit.
+    // Returns `true` if a query is within the configured limits and should be
+    // processed, `false` if it exceeds limits and should be dropped. This
+    // function may reset the per-window state in `queryInfo` when a new
+    // window begins, but it does not increment any query counters; callers
+    // are responsible for updating `queryInfo` (for example, incrementing the
+    // number of processed queries) after a query is accepted. Callers may
+    // optionally set `maxQueriesPerWindow` to override the default per-window
+    // query limit.
     bool process(QueryInfo& queryInfo,
                  std::optional<uint32_t> maxQueriesPerWindow = std::nullopt);
 
