@@ -125,6 +125,7 @@ RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
 endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
+RUSTC_WRAPPER=@RUSTC_WRAPPER@
 
 # we pass some configuration by environment variable
 # to tests since they can't take command-line arguments.
@@ -225,7 +226,7 @@ ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_
 
 $(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
-	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
@@ -283,6 +284,7 @@ RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve2551
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
 	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
@@ -359,6 +361,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		mkdir -p $(SOROBAN_BUILD_DIR)/$$proto/target && \
 		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+		RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
 		RUSTFLAGS="-Cmetadata=$$proto" \
 		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
@@ -390,6 +393,7 @@ LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \

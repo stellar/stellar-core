@@ -233,6 +233,103 @@ AS_IF([test "x$enable_ccache" = "xyes"], [
   esac
 ])
 
+AC_ARG_ENABLE([sccache],
+              AS_HELP_STRING([--enable-sccache], [build with sccache]))
+
+AC_ARG_ENABLE([nsc-sccache],
+              AS_HELP_STRING([--enable-nsc-sccache], [configure sccache using nsc cache setup]))
+
+AS_IF([test "x$enable_nsc_sccache" = "xyes"], [
+  AC_CHECK_PROGS([NSC], [nsc])
+  AS_IF([test -z "$NSC"], [
+    AC_MSG_ERROR([--enable-nsc-sccache requested but nsc was not found])
+  ])
+
+  AC_MSG_NOTICE([configuring sccache environment with: nsc cache sccache setup --cache_name stellar])
+  NSC_SCCACHE_SETUP=`$NSC cache sccache setup --cache_name stellar`
+  nsc_rc=$?
+  AS_IF([test $nsc_rc -ne 0 -o "x$NSC_SCCACHE_SETUP" = "x"], [
+    AC_MSG_ERROR([nsc cache sccache setup failed or returned empty result])
+  ])
+
+  # Eval the nsc output into configure's environment so the sccache
+  # daemon we start below inherits the remote-cache credentials.
+  AC_MSG_NOTICE([applying nsc sccache environment variables])
+  eval "$NSC_SCCACHE_SETUP" || AC_MSG_ERROR([failed to eval nsc sccache setup output])
+
+  export SCCACHE_WEBDAV_ENDPOINT
+  export SCCACHE_WEBDAV_KEY_PREFIX
+  export SCCACHE_WEBDAV_TOKEN
+
+  enable_sccache=yes
+  enable_nsc_sccache_done=yes
+])
+
+AS_IF([test "x$enable_ccache" = "xyes" -a "x$enable_sccache" = "xyes"], [
+  AC_MSG_ERROR([Cannot enable both ccache and sccache])
+])
+
+AS_IF([test "x$enable_sccache" = "xyes"], [
+  AC_CHECK_PROGS([SCCACHE], [sccache])
+  AS_IF([test -z "$SCCACHE"], [
+    AC_MSG_ERROR([sccache enabled but not found])
+  ])
+
+  # Set SCCACHE_BASEDIRS so sccache can normalize absolute paths in
+  # both the source and build trees, improving cache hit rates when
+  # the same code is built from different directories.
+  SCCACHE_BASEDIRS="$(cd "$srcdir" && pwd):$(pwd)"
+  export SCCACHE_BASEDIRS
+  AC_MSG_NOTICE([sccache base dirs: $SCCACHE_BASEDIRS])
+
+  # Stop any existing sccache daemon -- it may be running with stale
+  # config (different credentials, local-only caching, etc.). The
+  # daemon we start below will have the correct nsc environment.
+  AC_MSG_NOTICE([stopping any existing sccache daemon])
+  "$SCCACHE" --stop-server >/dev/null 2>&1 || true
+
+  # Set idle timeout to 0 so the daemon stays alive for the entire
+  # build rather than dying after 10 minutes of inactivity (e.g.
+  # during long link steps).
+  SCCACHE_IDLE_TIMEOUT=0
+  export SCCACHE_IDLE_TIMEOUT
+
+  # Start a fresh daemon with the exported environment.
+  AC_MSG_NOTICE([starting sccache daemon with exported environment])
+  "$SCCACHE" --start-server || AC_MSG_ERROR([failed to start sccache daemon])
+
+  AS_IF([test "x$enable_nsc_sccache_done" = "xyes"], [
+    # Verify the daemon is using a remote cache (webdav/nsc) and not
+    # just local disk storage. This catches misconfiguration early.
+    # The stats line looks like: "Cache location    webdav, name: ..."
+    AC_MSG_NOTICE([verifying sccache is using remote (webdav) storage])
+    SCCACHE_STATS=`"$SCCACHE" -s 2>&1`
+    AC_MSG_NOTICE([sccache stats:
+$SCCACHE_STATS])
+    AS_CASE(["$SCCACHE_STATS"],
+      [*webdav*], [AC_MSG_NOTICE([confirmed: sccache is using webdav remote cache])],
+      [AC_MSG_ERROR([sccache daemon does not appear to be using webdav storage -- nsc configuration may have failed. Run 'sccache -s' to diagnose.])])
+  ])
+
+  case "$CC" in
+  *sccache\ *)
+      ;;
+  *)
+      CC="$SCCACHE ${CC}"
+      ;;
+  esac
+  case "$CXX" in
+    *sccache\ *)
+      ;;
+    *)
+      CXX="$SCCACHE ${CXX}"
+      ;;
+  esac
+  AS_IF([test -z "${RUSTC_WRAPPER+set}"], [
+    RUSTC_WRAPPER="$SCCACHE"
+  ])
+])
+
 # Permit user to enable AFL instrumentation
 AC_ARG_ENABLE([afl],
               AS_HELP_STRING([--enable-afl],
@@ -243,6 +340,9 @@ AS_IF([test "x$enable_afl" = "xyes"], [
   ])
   AS_IF([test "x$enable_ccache" = "xyes"], [
     AC_MSG_ERROR([AFL is presently incompatible with ccache])
+  ])
+  AS_IF([test "x$enable_sccache" = "xyes"], [
+    AC_MSG_ERROR([AFL is presently incompatible with sccache])
   ])
   AC_CHECK_PROGS([AFL_FUZZ], [afl-fuzz])
   AS_CASE(["$CC"],
@@ -470,8 +570,9 @@ AX_COMPARE_VERSION([${RUSTC_VERSION}],[ge],[1.57],[],[
   AC_MSG_ERROR([rustc version too old (need >= 1.57)])
 ])
 AC_ARG_VAR(RUSTC)
+AC_ARG_VAR([RUSTC_WRAPPER], [rustc wrapper executable (for example, sccache)])
 
-# Need this to pass through ccache for xdrpp, libsodium
+# Need this to pass through ccache/sccache for xdrpp, libsodium
 esc() {
     out=
     for arg in "$@"; do
@@ -481,7 +582,7 @@ esc() {
 }
 
 # explicitly propagate CFLAGS, CXXFLAGS and LDFLAGS in case they got modified by global options
-ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX" "CFLAGS=$CFLAGS" "CXXFLAGS=$CXXFLAGS" "LDFLAGS=$LDFLAGS")"
+ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX" "CFLAGS=$CFLAGS" "CXXFLAGS=$CXXFLAGS" "LDFLAGS=$LDFLAGS" "RUSTC_WRAPPER=$RUSTC_WRAPPER")"
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(lib/Makefile src/Makefile Makefile)
