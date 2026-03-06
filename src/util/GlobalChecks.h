@@ -6,7 +6,6 @@
 
 #include "util/ThreadAnnotations.h"
 #include <Tracy.hpp>
-#include <mutex>
 
 namespace stellar
 {

@@ -5,9 +5,7 @@
 #pragma once
 
 #include "ledger/LedgerRange.h"
-#include "util/GlobalChecks.h"
 #include <cstdint>
-#include <stdexcept>
 #include <string>
 
 namespace stellar
@@ -24,23 +22,8 @@ struct CheckpointRange final
     uint32_t const mFrequency;
 
     CheckpointRange(uint32_t first, uint32_t count, uint32_t frequency);
-    static CheckpointRange
-    inclusive(uint32_t first, uint32_t last, uint32_t frequency)
-    {
-        // CheckpointRange is half-open: in exchange for being able to represent
-        // empty ranges, it can't represent ranges that include UINT32_MAX.
-        releaseAssert(last < std::numeric_limits<uint32_t>::max());
-
-        // First and last must both be ledgers identifying checkpoints (i.e. one
-        // less than multiples of frequency), and last must be >= first. The
-        // resulting count will always be 1 or more since this is an inclusive
-        // range.
-        releaseAssert(last >= first);
-        releaseAssert((first + 1) % frequency == 0);
-        releaseAssert((last + 1) % frequency == 0);
-        uint32_t count = 1 + ((last - first) / frequency);
-        return CheckpointRange(first, count, frequency);
-    }
+    static CheckpointRange inclusive(uint32_t first, uint32_t last,
+                                     uint32_t frequency);
     CheckpointRange(LedgerRange const& ledgerRange,
                     HistoryManager const& historyManager);
     friend bool operator==(CheckpointRange const& x, CheckpointRange const& y);
@@ -64,16 +47,7 @@ struct CheckpointRange final
         return mFirst + getLedgerCount();
     }
 
-    uint32_t
-    last() const
-    {
-        if (mCount == 0)
-        {
-            throw std::logic_error("last() cannot be called on "
-                                   "CheckpointRange when mCount == 0");
-        }
-        return mFirst + ((mCount - 1) * mFrequency);
-    }
+    uint32_t last() const;
 
     std::string toString() const;
 };

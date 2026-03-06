@@ -4,7 +4,6 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
@@ -16,7 +15,6 @@
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
-#include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -33,9 +31,8 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
-#include "util/UnorderedMap.h"
 #include "util/types.h"
-#include "xdr/Stellar-ledger.h"
+#include "work/WorkSequence.h"
 #include <filesystem>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -45,7 +42,6 @@
 #include <set>
 #include <thread>
 
-#include "history/FileTransferInfo.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/timer.h"

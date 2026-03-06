@@ -8,7 +8,6 @@
 
 #include "util/Logging.h"
 #include <functional>
-#include <memory>
 #include <ostream>
 #include <set>
 #include <sstream>

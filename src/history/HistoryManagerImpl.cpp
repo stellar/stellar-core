@@ -10,7 +10,6 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
-#include "herder/HerderImpl.h"
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
@@ -19,12 +18,10 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManagerImpl.h"
 #include "history/StateSnapshot.h"
-#include "historywork/FetchRecentQsetsWork.h"
 #include "historywork/PublishWork.h"
 #include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
-#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
@@ -58,6 +55,84 @@ void
 HistoryManager::createPublishQueueDir(Config const& cfg)
 {
     fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
+}
+
+uint32_t
+HistoryManager::checkpointContainingLedger(uint32_t ledger, Config const& cfg)
+{
+    uint32_t freq = getCheckpointFrequency(cfg);
+    // Round-up to next multiple of freq, then subtract 1 since checkpoints
+    // are numbered for (and cover ledgers up to) the last ledger in them,
+    // which is one-before the next multiple of freq.
+    return (((ledger / freq) + 1) * freq) - 1;
+}
+
+bool
+HistoryManager::publishCheckpointOnLedgerClose(uint32_t ledger,
+                                               Config const& cfg)
+{
+    return checkpointContainingLedger(ledger, cfg) == ledger;
+}
+
+bool
+HistoryManager::isFirstLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
+{
+    return firstLedgerInCheckpointContaining(ledger, cfg) == ledger;
+}
+
+bool
+HistoryManager::isLastLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
+{
+    return checkpointContainingLedger(ledger, cfg) == ledger;
+}
+
+uint32_t
+HistoryManager::sizeOfCheckpointContaining(uint32_t ledger, Config const& cfg)
+{
+    uint32_t freq = getCheckpointFrequency(cfg);
+    if (ledger < freq)
+    {
+        return freq - 1;
+    }
+    return freq;
+}
+
+uint32_t
+HistoryManager::firstLedgerInCheckpointContaining(uint32_t ledger,
+                                                  Config const& cfg)
+{
+    uint32_t last = checkpointContainingLedger(ledger, cfg); // == 63, 127, 191
+    uint32_t size = sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
+    return last - (size - 1);                                // == 1, 64, 128
+}
+
+uint32_t
+HistoryManager::firstLedgerAfterCheckpointContaining(uint32_t ledger,
+                                                     Config const& cfg)
+{
+    uint32_t first =
+        firstLedgerInCheckpointContaining(ledger, cfg);      // == 1, 64, 128
+    uint32_t size = sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
+    return first + size;                                     // == 64, 128, 192
+}
+
+uint32_t
+HistoryManager::lastLedgerBeforeCheckpointContaining(uint32_t ledger,
+                                                     Config const& cfg)
+{
+    uint32_t last = checkpointContainingLedger(ledger, cfg); // == 63, 127, 191
+    uint32_t size = sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
+    releaseAssert(last >= size);
+    return last - size; // == 0, 63, 127
+}
+
+uint32_t
+HistoryManager::ledgerToTriggerCatchup(uint32_t firstLedgerOfBufferedCheckpoint,
+                                       Config const& cfg)
+{
+    releaseAssert(
+        isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint, cfg));
+    return firstLedgerOfBufferedCheckpoint + 1;
 }
 
 namespace

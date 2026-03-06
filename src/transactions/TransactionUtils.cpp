@@ -5,6 +5,7 @@
 #include "transactions/TransactionUtils.h"
 #include "crypto/SHA.h"
 #include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"

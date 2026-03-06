@@ -7,7 +7,6 @@
 #include "util/GlobalChecks.h"
 #include <cstdio>
 #include <cstdlib>
-#include <string>
 
 namespace stellar
 {

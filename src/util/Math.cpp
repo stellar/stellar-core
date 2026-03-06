@@ -65,7 +65,7 @@ closest_cluster(double p, std::set<double> const& centers)
     return bestCenter;
 }
 
-VirtualClock::duration
+std::chrono::steady_clock::duration
 exponentialBackoff(uint64_t n)
 {
     // Cap to 512 sec or ~8 minutes

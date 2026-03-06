@@ -5,9 +5,7 @@
 #pragma once
 
 #include "ledger/LedgerRange.h"
-#include "util/XDRStream.h"
 #include "work/BatchWork.h"
-#include "xdr/Stellar-ledger.h"
 
 namespace medida
 {

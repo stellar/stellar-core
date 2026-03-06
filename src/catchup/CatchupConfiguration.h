@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
 #include <cstdint>
 #include <optional>

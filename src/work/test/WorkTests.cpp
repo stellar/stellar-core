@@ -13,6 +13,7 @@
 #include "historywork/RunCommandWork.h"
 #include "work/BatchWork.h"
 #include "work/ConditionalWork.h"
+#include "work/WorkSequence.h"
 
 #include <thread>
 

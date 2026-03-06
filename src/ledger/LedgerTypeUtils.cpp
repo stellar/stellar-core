@@ -8,8 +8,6 @@
 #include "rust/RustBridge.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
-#include "xdr/Stellar-types.h"
-#include <fmt/format.h>
 
 namespace stellar
 {

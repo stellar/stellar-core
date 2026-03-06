@@ -6,9 +6,6 @@
 
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchive.h"
-#include "overlay/StellarXDR.h"
-#include "util/GlobalChecks.h"
-#include <functional>
 #include <memory>
 
 /**
@@ -219,94 +216,41 @@ class HistoryManager
     // Return checkpoint that contains given ledger. Checkpoint is identified
     // by last ledger in range. This does not consult the network nor take
     // account of manual checkpoints.
-    static uint32_t
-    checkpointContainingLedger(uint32_t ledger, Config const& cfg)
-    {
-        uint32_t freq = getCheckpointFrequency(cfg);
-        // Round-up to next multiple of freq, then subtract 1 since checkpoints
-        // are numbered for (and cover ledgers up to) the last ledger in them,
-        // which is one-before the next multiple of freq.
-        return (((ledger / freq) + 1) * freq) - 1;
-    }
+    static uint32_t checkpointContainingLedger(uint32_t ledger,
+                                               Config const& cfg);
 
     // Return true iff closing `ledger` should cause publishing a checkpoint.
     // Equivalent to `ledger == checkpointContainingLedger(ledger)` but a little
     // more obviously named.
-    static bool
-    publishCheckpointOnLedgerClose(uint32_t ledger, Config const& cfg)
-    {
-        return checkpointContainingLedger(ledger, cfg) == ledger;
-    }
+    static bool publishCheckpointOnLedgerClose(uint32_t ledger,
+                                               Config const& cfg);
 
-    static bool
-    isFirstLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
-    {
-        return firstLedgerInCheckpointContaining(ledger, cfg) == ledger;
-    }
+    static bool isFirstLedgerInCheckpoint(uint32_t ledger, Config const& cfg);
 
-    static bool
-    isLastLedgerInCheckpoint(uint32_t ledger, Config const& cfg)
-    {
-        return checkpointContainingLedger(ledger, cfg) == ledger;
-    }
+    static bool isLastLedgerInCheckpoint(uint32_t ledger, Config const& cfg);
 
     // Return the number of ledgers in the checkpoint containing a given ledger.
-    static uint32_t
-    sizeOfCheckpointContaining(uint32_t ledger, Config const& cfg)
-    {
-        uint32_t freq = getCheckpointFrequency(cfg);
-        if (ledger < freq)
-        {
-            return freq - 1;
-        }
-        return freq;
-    }
+    static uint32_t sizeOfCheckpointContaining(uint32_t ledger,
+                                               Config const& cfg);
 
     // Return the first ledger in the checkpoint containing a given ledger.
-    static uint32_t
-    firstLedgerInCheckpointContaining(uint32_t ledger, Config const& cfg)
-    {
-        uint32_t last =
-            checkpointContainingLedger(ledger, cfg); // == 63, 127, 191
-        uint32_t size =
-            sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
-        return last - (size - 1);                    // == 1, 64, 128
-    }
+    static uint32_t firstLedgerInCheckpointContaining(uint32_t ledger,
+                                                      Config const& cfg);
 
     // Return the first ledger after the checkpoint containing a given ledger.
-    static uint32_t
-    firstLedgerAfterCheckpointContaining(uint32_t ledger, Config const& cfg)
-    {
-        uint32_t first =
-            firstLedgerInCheckpointContaining(ledger, cfg); // == 1, 64, 128
-        uint32_t size =
-            sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
-        return first + size;                         // == 64, 128, 192
-    }
+    static uint32_t firstLedgerAfterCheckpointContaining(uint32_t ledger,
+                                                         Config const& cfg);
 
     // Return the last ledger before the checkpoint containing a given ledger,
     // or zero if `ledger` is contained inside the first checkpoint.
-    static uint32_t
-    lastLedgerBeforeCheckpointContaining(uint32_t ledger, Config const& cfg)
-    {
-        uint32_t last =
-            checkpointContainingLedger(ledger, cfg); // == 63, 127, 191
-        uint32_t size =
-            sizeOfCheckpointContaining(ledger, cfg); // == 63, 64, 64
-        releaseAssert(last >= size);
-        return last - size; // == 0, 63, 127
-    }
+    static uint32_t lastLedgerBeforeCheckpointContaining(uint32_t ledger,
+                                                         Config const& cfg);
 
     // Return the ledger to trigger the catchup machinery on, given a ledger
     // that is the start of a checkpoint buffered in the catchup manager.
     static uint32_t
     ledgerToTriggerCatchup(uint32_t firstLedgerOfBufferedCheckpoint,
-                           Config const& cfg)
-    {
-        releaseAssert(
-            isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint, cfg));
-        return firstLedgerOfBufferedCheckpoint + 1;
-    }
+                           Config const& cfg);
 
     // Return the length of the current publishing queue.
     static size_t publishQueueLength(Config const& cfg);

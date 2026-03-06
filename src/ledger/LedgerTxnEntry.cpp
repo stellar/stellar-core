@@ -5,9 +5,6 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
-#include "util/XDROperators.h"
-#include "util/types.h"
-#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {

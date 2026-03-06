@@ -7,7 +7,6 @@
 #include "bucket/LiveBucket.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/AppConnector.h"
-#include "main/Application.h"
 #include "util/MetricsRegistry.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"

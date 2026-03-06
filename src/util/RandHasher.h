@@ -5,9 +5,7 @@
 #pragma once
 
 #include "util/GlobalChecks.h"
-#include "util/Math.h"
 #include <functional>
-#include <limits>
 
 namespace stellar
 {

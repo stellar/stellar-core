@@ -8,11 +8,9 @@
 #include "util/asio.h"
 #include "catchup/LedgerApplyManagerImpl.h"
 #include "catchup/CatchupConfiguration.h"
-#include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "medida/meter.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -610,5 +608,14 @@ LedgerApplyManagerImpl::fileDownloaded(FileType type, uint32_t num)
             typeString(type)));
     }
 }
+
+#ifdef BUILD_TESTS
+uint32_t
+LedgerApplyManagerImpl::getMaxExternalizeApplyBuffer()
+{
+    return mMaxExternalizeApplyBuffer ? *mMaxExternalizeApplyBuffer
+                                      : MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT;
+}
+#endif
 
 }

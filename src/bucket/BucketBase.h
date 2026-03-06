@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"

@@ -12,14 +12,12 @@
 #include "util/TmpDir.h"
 #include "util/UnorderedMap.h"
 #include "util/types.h"
-#include "work/BasicWork.h"
 #include "xdr/Stellar-ledger.h"
 
 #include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <set>
 #include <string>
 
@@ -36,6 +34,7 @@ namespace stellar
 class TmpDir;
 class AbstractLedgerTxn;
 class AppConnector;
+class BasicWork;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;

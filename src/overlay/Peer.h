@@ -5,7 +5,6 @@
 #pragma once
 
 #include "util/asio.h" // IWYU pragma: keep
-#include "database/Database.h"
 #include "lib/json/json.h"
 #include "main/AppConnector.h"
 #include "medida/timer.h"
@@ -16,7 +15,6 @@
 #include "util/ThreadAnnotations.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
-#include <medida/counter.h>
 
 namespace stellar
 {

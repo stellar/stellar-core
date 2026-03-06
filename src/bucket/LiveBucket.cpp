@@ -6,10 +6,12 @@
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketBase.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
+#include "main/Application.h"
 #include <medida/counter.h>
 
 namespace stellar

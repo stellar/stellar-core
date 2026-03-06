@@ -10,9 +10,11 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
+#include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <functional>
 #include <mutex>
 
 namespace stellar

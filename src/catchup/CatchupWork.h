@@ -8,7 +8,6 @@
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
-#include "util/Thread.h"
 #include "work/Work.h"
 #include "work/WorkSequence.h"
 
@@ -76,15 +75,7 @@ class CatchupWork : public Work
         return mCatchupConfiguration;
     }
 
-    bool
-    fatalFailure()
-    {
-        if (futureIsReady(mFatalFailureFuture))
-        {
-            return mFatalFailureFuture.get();
-        }
-        return false;
-    }
+    bool fatalFailure();
 
   private:
     LedgerNumHashPair mLastClosedLedgerHashPair;

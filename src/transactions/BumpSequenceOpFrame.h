@@ -4,9 +4,6 @@
 
 #pragma once
 
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
 #include "transactions/OperationFrame.h"
 
 namespace stellar

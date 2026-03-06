@@ -6,7 +6,10 @@
 
 #include "util/HashOfHash.h" // IWYU pragma: keep
 #include "util/RandomEvictionCache.h"
+#include "util/Timer.h"
 #include "xdr/Stellar-overlay.h"
+#include <deque>
+#include <list>
 #include <optional>
 
 namespace stellar

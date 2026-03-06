@@ -6,13 +6,11 @@
 #include "lib/util/uint128_t.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
-#include "util/XDROperators.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <fmt/format.h>
 
 #include <algorithm>
 #include <limits>
-#include <locale>
 
 namespace stellar
 {
@@ -245,6 +243,59 @@ compareAsset(T const& first, Asset const& second)
 
 template bool compareAsset<Asset>(Asset const&, Asset const&);
 template bool compareAsset<TrustLineAsset>(TrustLineAsset const&, Asset const&);
+
+std::string
+assetToString(Asset const& asset)
+{
+    auto r = std::string{};
+    switch (asset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        r = std::string{"XLM"};
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        assetCodeToStr(asset.alphaNum4().assetCode, r);
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        assetCodeToStr(asset.alphaNum12().assetCode, r);
+        break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        throw std::runtime_error(
+            "ASSET_TYPE_POOL_SHARE is not a valid Asset type");
+    }
+    return r;
+}
+
+LedgerKey
+getBucketLedgerKey(HotArchiveBucketEntry const& be)
+{
+    switch (be.type())
+    {
+    case HOT_ARCHIVE_LIVE:
+        return be.key();
+    case HOT_ARCHIVE_ARCHIVED:
+        return LedgerEntryKey(be.archivedEntry());
+    case HOT_ARCHIVE_METAENTRY:
+    default:
+        throw std::invalid_argument("Tried to get key for METAENTRY");
+    }
+}
+
+LedgerKey
+getBucketLedgerKey(BucketEntry const& be)
+{
+    switch (be.type())
+    {
+    case LIVEENTRY:
+    case INITENTRY:
+        return LedgerEntryKey(be.liveEntry());
+    case DEADENTRY:
+        return be.deadEntry();
+    case METAENTRY:
+    default:
+        throw std::invalid_argument("Tried to get key for METAENTRY");
+    }
+}
 
 int32_t
 unsignedToSigned(uint32_t v)

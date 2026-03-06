@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "main/ErrorMessages.h"
+#include "util/FileSystemException.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"

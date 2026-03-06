@@ -4,10 +4,9 @@
 
 #include "ledger/InMemorySorobanState.h"
 #include "bucket/BucketListSnapshot.h"
-#include "ledger/LedgerTypeUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
-#include <cstdint>
 #include <medida/counter.h>
 
 namespace stellar

@@ -14,8 +14,6 @@
 #include "overlay/StellarXDR.h"
 #include "util/TxResource.h"
 #include "util/UnorderedSet.h"
-#include "util/types.h"
-#include <optional>
 
 #include "ledger/SorobanMetrics.h"
 

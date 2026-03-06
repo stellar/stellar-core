@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
+#include "crypto/SHA.h"
 #include "util/XDRStream.h"
 
 #include <memory>
@@ -17,6 +17,7 @@ namespace stellar
 
 class Bucket;
 class BucketManager;
+struct MergeKey;
 
 // Helper class that writes new elements to a file and returns a bucket
 // when finished.

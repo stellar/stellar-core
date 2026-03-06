@@ -4,6 +4,7 @@
 
 #include "transactions/TrustFlagsOpFrameBase.h"
 #include "ledger/LedgerTxn.h"
+#include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>

@@ -4,6 +4,7 @@
 
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketMergeAdapter.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"

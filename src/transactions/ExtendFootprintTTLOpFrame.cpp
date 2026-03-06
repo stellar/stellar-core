@@ -4,7 +4,6 @@
 
 #include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "TransactionUtils.h"
-#include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "medida/meter.h"

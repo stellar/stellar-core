@@ -4,9 +4,10 @@
 
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "bucket/BucketManager.h"
+#include "historywork/GzipFileWork.h"
 #include "util/DebugMetaUtils.h"
-#include "util/Fs.h"
 #include "util/GlobalChecks.h"
+#include "util/XDRStream.h"
 #include <filesystem>
 #include <memory>
 #include <regex>

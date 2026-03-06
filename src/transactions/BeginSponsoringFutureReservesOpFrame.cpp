@@ -5,7 +5,6 @@
 #include "transactions/BeginSponsoringFutureReservesOpFrame.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>

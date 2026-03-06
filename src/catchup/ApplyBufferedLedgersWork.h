@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "herder/LedgerCloseData.h"
 #include "work/BasicWork.h"
 #include "work/ConditionalWork.h"
 

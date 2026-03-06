@@ -6,19 +6,16 @@
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
-#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/IndexBucketsWork.h"
 #include "catchup/LedgerApplyManager.h"
 #include "crypto/Hex.h"
-#include "crypto/SecretKey.h"
-#include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/types.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 

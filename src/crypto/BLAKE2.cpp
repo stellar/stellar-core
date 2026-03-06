@@ -5,7 +5,6 @@
 #include "crypto/BLAKE2.h"
 #include "crypto/ByteSlice.h"
 #include "crypto/CryptoError.h"
-#include "util/NonCopyable.h"
 #include <Tracy.hpp>
 #include <sodium.h>
 

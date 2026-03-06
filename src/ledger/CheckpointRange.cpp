@@ -4,10 +4,11 @@
 
 #include "ledger/CheckpointRange.h"
 #include "history/HistoryManager.h"
-#include "ledger/LedgerRange.h"
 #include "util/GlobalChecks.h"
 
 #include <fmt/format.h>
+#include <limits>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -18,6 +19,35 @@ CheckpointRange::CheckpointRange(uint32_t first, uint32_t count,
 {
     releaseAssert(mFirst > 0);
     releaseAssert((mFirst + 1) % mFrequency == 0);
+}
+
+CheckpointRange
+CheckpointRange::inclusive(uint32_t first, uint32_t last, uint32_t frequency)
+{
+    // CheckpointRange is half-open: in exchange for being able to represent
+    // empty ranges, it can't represent ranges that include UINT32_MAX.
+    releaseAssert(last < std::numeric_limits<uint32_t>::max());
+
+    // First and last must both be ledgers identifying checkpoints (i.e. one
+    // less than multiples of frequency), and last must be >= first. The
+    // resulting count will always be 1 or more since this is an inclusive
+    // range.
+    releaseAssert(last >= first);
+    releaseAssert((first + 1) % frequency == 0);
+    releaseAssert((last + 1) % frequency == 0);
+    uint32_t count = 1 + ((last - first) / frequency);
+    return CheckpointRange(first, count, frequency);
+}
+
+uint32_t
+CheckpointRange::last() const
+{
+    if (mCount == 0)
+    {
+        throw std::logic_error("last() cannot be called on "
+                               "CheckpointRange when mCount == 0");
+    }
+    return mFirst + ((mCount - 1) * mFrequency);
 }
 
 namespace

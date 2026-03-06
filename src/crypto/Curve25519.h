@@ -5,7 +5,6 @@
 #pragma once
 
 #include "ByteSlice.h"
-#include "util/Logging.h"
 #include "xdr/Stellar-types.h"
 #include <fmt/format.h>
 #include <functional>

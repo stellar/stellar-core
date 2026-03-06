@@ -7,6 +7,7 @@
 #include "herder/QuorumTracker.h"
 #include "herder/RustQuorumCheckerAdaptor.h"
 #include "rust/RustBridge.h"
+#include "util/Math.h"
 #include "util/TmpDir.h"
 #include <atomic>
 #include <memory>

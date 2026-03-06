@@ -7,7 +7,6 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketListBase.h"
 #include "bucket/LiveBucketList.h"
-#include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/MetricsRegistry.h"

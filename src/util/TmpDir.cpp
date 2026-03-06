@@ -6,7 +6,6 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "main/Application.h"
-#include "main/Config.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 

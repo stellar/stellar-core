@@ -5,12 +5,10 @@
 #include "crypto/SecretKey.h"
 #include "crypto/BLAKE2.h"
 #include "crypto/CryptoError.h"
-#include "crypto/Curve25519.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/Random.h"
 #include "crypto/StrKey.h"
-#include "main/Config.h"
 #include "rust/RustBridge.h"
 #include "transactions/SignatureUtils.h"
 #include "util/GlobalChecks.h"
@@ -19,10 +17,8 @@
 #include "util/RandomEvictionCache.h"
 #include <Tracy.hpp>
 #include <chrono>
-#include <memory>
 #include <mutex>
 #include <sodium.h>
-#include <type_traits>
 
 #ifdef MSAN_ENABLED
 #include <sanitizer/msan_interface.h>

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "main/Application.h"
 #include "work/Work.h"
 #include <filesystem>
 

@@ -5,8 +5,7 @@
 #pragma once
 
 #include "util/numeric.h"
-#include <algorithm>
-#include <stdexcept>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -33,103 +32,24 @@ class Resource
         WRITE_LEDGER_ENTRIES = 6
     };
 
-    static std::string
-    getStringFromType(Type type)
-    {
-        switch (type)
-        {
-        case Type::OPERATIONS:
-            return "Operations";
-        case Type::INSTRUCTIONS:
-            return "Instructions";
-        case Type::TX_BYTE_SIZE:
-            return "TxByteSize";
-        case Type::DISK_READ_BYTES:
-            return "DiskReadBytes";
-        case Type::WRITE_BYTES:
-            return "WriteBytes";
-        case Type::READ_LEDGER_ENTRIES:
-            return "ReadLedgerEntries";
-        case Type::WRITE_LEDGER_ENTRIES:
-            return "WriteLedgerEntries";
-        }
-        return "Unknown";
-    }
+    static std::string getStringFromType(Type type);
 
-    Resource(std::vector<int64_t> args)
-    {
-        if (args.size() != NUM_CLASSIC_TX_RESOURCES &&
-            args.size() != NUM_SOROBAN_TX_RESOURCES &&
-            args.size() != NUM_CLASSIC_TX_BYTES_RESOURCES)
-        {
-            throw std::runtime_error("Invalid number of resources");
-        }
-        mResources = args;
-    }
+    Resource(std::vector<int64_t> args);
+    Resource(int64_t arg);
 
-    Resource(int64_t arg)
-    {
-        mResources = std::vector<int64_t>(1, arg);
-    }
-
-    bool
-    isZero() const
-    {
-        return std::all_of(mResources.begin(), mResources.end(),
-                           [](int64_t x) { return x == 0; });
-    }
-
-    bool
-    anyPositive() const
-    {
-        return std::any_of(mResources.begin(), mResources.end(),
-                           [](int64_t x) { return x > 0; });
-    }
-
-    size_t
-    size() const
-    {
-        return mResources.size();
-    }
-
-    std::string
-    toString() const
-    {
-        std::string res = "";
-        for (auto const& r : mResources)
-        {
-            res += std::to_string(r) + ", ";
-        }
-        return res;
-    }
+    bool isZero() const;
+    bool anyPositive() const;
+    size_t size() const;
+    std::string toString() const;
 
     Resource& operator+=(Resource const& other);
     Resource& operator-=(Resource const& other);
 
-    static Resource
-    makeEmptySoroban()
-    {
-        return makeEmpty(NUM_SOROBAN_TX_RESOURCES);
-    }
+    static Resource makeEmptySoroban();
+    static Resource makeEmpty(size_t numRes);
 
-    static Resource
-    makeEmpty(size_t numRes)
-    {
-        std::vector<int64_t> res(numRes, 0);
-        return Resource(res);
-    }
-
-    int64_t
-    getVal(Resource::Type valType) const
-    {
-        return mResources.at(static_cast<size_t>(valType));
-    }
-
-    void
-    setVal(Resource::Type valType, int64_t val)
-    {
-        mResources.at(static_cast<size_t>(valType)) = val;
-    }
+    int64_t getVal(Resource::Type valType) const;
+    void setVal(Resource::Type valType, int64_t val);
 
     bool canAdd(Resource const& other) const;
 

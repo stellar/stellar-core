@@ -6,10 +6,6 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "util/Logging.h"
-#include "work/WorkSequence.h"
-#include <Tracy.hpp>
-#include <fmt/format.h>
-#include <iostream>
 
 namespace stellar
 {

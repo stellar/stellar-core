@@ -4,8 +4,6 @@
 
 #include "StatusManager.h"
 
-#include <array>
-
 namespace stellar
 {
 

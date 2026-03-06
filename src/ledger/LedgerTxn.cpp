@@ -8,7 +8,6 @@
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
 #include "ledger/InMemorySorobanState.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"

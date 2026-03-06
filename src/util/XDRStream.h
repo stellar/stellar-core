@@ -6,10 +6,8 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
-#include "util/FileSystemException.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
-#include "util/Logging.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -49,79 +47,17 @@ class XDRInputFileStream
     {
     }
 
-    void
-    close()
-    {
-        ZoneScoped;
-        mIn.close();
-    }
-
-    void
-    open(std::string const& filename)
-    {
-        ZoneScoped;
-        mIn.open(filename, std::ifstream::binary);
-        if (!mIn)
-        {
-            std::string msg("failed to open XDR file: ");
-            msg += filename;
-            msg += ", reason: ";
-            msg += std::to_string(errno);
-            CLOG_ERROR(Fs, "{}", msg);
-            throw FileSystemException(msg);
-        }
-        mIn.exceptions(std::ios::badbit);
-        mSize = fs::size(mIn);
-    }
-
-    void
-    open(std::filesystem::path const& filename)
-    {
-        open(filename.string());
-    }
-
-    operator bool() const
-    {
-        return mIn.good();
-    }
-
-    size_t
-    size() const
-    {
-        return mSize;
-    }
-
-    std::streamoff
-    pos()
-    {
-        releaseAssertOrThrow(!mIn.fail());
-        return mIn.tellg();
-    }
-
-    void
-    seek(size_t pos)
-    {
-        releaseAssertOrThrow(!mIn.fail());
-        mIn.seekg(pos);
-    }
+    void close();
+    void open(std::string const& filename);
+    void open(std::filesystem::path const& filename);
+    operator bool() const;
+    size_t size() const;
+    std::streamoff pos();
+    void seek(size_t pos);
 
     // Reads the fragment header, clears the last-fragment flag bit, and
     // returns the length. See the class comment for the header format.
-    static inline uint32_t
-    getXDRSize(char* buf)
-    {
-        // Read 4 bytes of size, big-endian, with last-fragment flag bit cleared
-        // (high bit of high byte).
-        uint32_t sz = 0;
-        sz |= static_cast<uint8_t>(buf[0] & '\x7f');
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(buf[1]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(buf[2]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(buf[3]);
-        return sz;
-    }
+    static uint32_t getXDRSize(char* buf);
 
     // If a hasher is provided, it will be updated with the raw XDR bytes
     // read from the stream.
@@ -268,184 +204,17 @@ class OutputFileStream
 #endif
 
   public:
-    OutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
-        : mFsyncOnClose(fsyncOnClose)
-#ifndef WIN32
-        , mBufferedWriteStream(ctx, stellar::fs::bufsz())
-#endif
-    {
-    }
+    OutputFileStream(asio::io_context& ctx, bool fsyncOnClose);
+    ~OutputFileStream();
 
-    ~OutputFileStream()
-    {
-        if (isOpen())
-        {
-            close();
-        }
-    }
-
-    bool
-    isOpen()
-    {
-#ifdef WIN32
-        return mOut != nullptr;
-#else
-        return mBufferedWriteStream.next_layer().is_open();
-#endif
-    }
-
-    fs::native_handle_t
-    getHandle()
-    {
-#ifdef WIN32
-        return mHandle;
-#else
-        return mBufferedWriteStream.next_layer().native_handle();
-#endif
-    }
-
-    void
-    close()
-    {
-        ZoneScoped;
-        if (!isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::close() on non-open FILE*");
-        }
-        flush();
-        if (mFsyncOnClose)
-        {
-            fs::flushFileChanges(getHandle());
-        }
-#ifdef WIN32
-        fclose(mOut);
-        mOut = nullptr;
-#else
-        mBufferedWriteStream.close();
-#endif
-    }
-
-    void
-    fdopen(int fd)
-    {
-#ifdef WIN32
-        FileSystemException::failWith(
-            "XDROutputFileStream::fdopen() not supported on windows");
-#else
-        if (isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::fdopen() on already-open stream");
-        }
-        mBufferedWriteStream.next_layer().assign(fd);
-        if (!isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::fdopen() failed");
-        }
-#endif
-    }
-
-    void
-    flush()
-    {
-        ZoneScoped;
-        if (!isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::flush() on non-open stream");
-        }
-#ifdef WIN32
-        fflush(mOut);
-#else
-        asio::error_code ec;
-        do
-        {
-            mBufferedWriteStream.flush(ec);
-            if (ec && ec != asio::error::interrupted)
-            {
-                FileSystemException::failWith(
-                    std::string("XDROutputFileStream::flush() failed: ") +
-                    ec.message());
-            }
-        } while (ec);
-#endif
-    }
-
-    void
-    open(std::string const& filename)
-    {
-        ZoneScoped;
-        if (isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::open() on already-open stream");
-        }
-        fs::native_handle_t handle = fs::openFileToWrite(filename);
-#ifdef WIN32
-        mOut = fs::fdOpen(handle);
-        if (mOut != NULL)
-        {
-            mHandle = handle;
-        }
-        else
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::open() could not open file");
-        }
-#else
-        mBufferedWriteStream.next_layer().assign(handle);
-#endif
-    }
-
-    operator bool()
-    {
-        return isOpen();
-    }
-
-    void
-    writeBytes(char const* buf, size_t const sizeBytes)
-    {
-        ZoneScoped;
-        if (!isOpen())
-        {
-            FileSystemException::failWith(
-                "OutputFileStream::writeBytes() on non-open stream");
-        }
-
-        size_t written = 0;
-        while (written < sizeBytes)
-        {
-#ifdef WIN32
-            auto w = fwrite(buf + written, 1, sizeBytes - written, mOut);
-            if (w == 0)
-            {
-                FileSystemException::failWith(
-                    std::string("XDROutputFileStream::writeOne() failed"));
-            }
-            written += w;
-#else
-            asio::error_code ec;
-            auto asioBuf = asio::buffer(buf + written, sizeBytes - written);
-            written += asio::write(mBufferedWriteStream, asioBuf, ec);
-            if (ec)
-            {
-                if (ec == asio::error::interrupted)
-                {
-                    continue;
-                }
-                else
-                {
-                    FileSystemException::failWith(
-                        std::string(
-                            "XDROutputFileStream::writeOne() failed: ") +
-                        ec.message());
-                }
-            }
-#endif
-        }
-    }
+    bool isOpen();
+    fs::native_handle_t getHandle();
+    void close();
+    void fdopen(int fd);
+    void flush();
+    void open(std::string const& filename);
+    operator bool();
+    void writeBytes(char const* buf, size_t sizeBytes);
 };
 
 /**
