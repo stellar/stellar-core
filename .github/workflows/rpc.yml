@@ -13,7 +13,7 @@ concurrency:
 jobs:
   rpc:
     name: RPC integration tests
-    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@123a559ae044eb5791ba3405db3573d285c384c6
+    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@main
     with:
       core_git_ref: ${{ github.sha }}
       protocol_version: '25'
