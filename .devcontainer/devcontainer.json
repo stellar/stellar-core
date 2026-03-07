@@ -8,7 +8,7 @@
 			"APT_MIRROR": "${localEnv:APT_MIRROR}"
 		}
 	},
-	"onCreateCommand": "./install-rust.sh",
+	"remoteUser": "dev",
 	// The optional 'runArgs' property can be used to specify additional runtime arguments.
 	"runArgs": [
 		// Uncomment these lines if you will use a ptrace-based debugger like C++, Go, and Rust.
@@ -23,7 +23,7 @@
 		// new files getting created as root, but you may need to update the USER_UID
 		// and USER_GID in .devcontainer/Dockerfile to match your user if not 1000.
 		"-u",
-		"vscode"
+		"dev"
 	],
 
 	// We previously had `features.docker-from-docker` enabled here to allow
