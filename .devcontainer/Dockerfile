@@ -7,11 +7,11 @@ FROM ubuntu:noble
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
 
-# This Dockerfile adds a non-root 'vscode' user with sudo access. However, for Linux,
+# This Dockerfile adds a non-root 'dev' user with sudo access. However, for Linux,
 # this user's GID/UID must match your local user UID/GID to avoid permission issues
 # with bind mounts. Update USER_UID / USER_GID if yours is not 1000. See
 # https://aka.ms/vscode-remote/containers/non-root-user for details.
-ARG USERNAME=vscode
+ARG USERNAME=dev
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
@@ -65,14 +65,8 @@ RUN apt-get update && \
     libpq-dev parallel curl ccache bear \
     cpp-14 gcc-14 g++-14 libstdc++-14-dev \
     clang-20 llvm-20 libc++-20-dev clang-format-20 clangd-20 libc++abi-20-dev libclang-rt-20-dev \
-    postgresql
-
-# rust
-ENV PATH "/root/.cargo/bin:$PATH"
-
-# clang by default
-ENV CC=clang-20
-ENV CXX=clang++-20
+    postgresql \
+    jq ripgrep vim emacs-nox uftrace
 
 # Set up locale
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
@@ -82,6 +76,36 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
 # high-entropy ASLR in much newer kernels that GitHub runners are
 # using leading to random crashes: https://reviews.llvm.org/D148280
 RUN sysctl vm.mmap_rnd_bits=28
+
+### Finished root-user-requiring stuff, rest is non-root-user
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+# rust
+ENV PATH=/home/${USERNAME}/.local/bin:/home/${USERNAME}/.cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN rustup component add clippy rustfmt rust-src rust-analyzer llvm-tools
+RUN rustup target add wasm32-unknown-unknown wasm32v1-none
+
+# fuzzer support
+RUN rustup toolchain install nightly
+RUN rustup component add rust-src --toolchain nightly
+
+# rust-based packages (using binstall to get binaries when possible)
+RUN cargo install --locked cargo-binstall
+RUN cargo binstall -y --locked cargo-llvm-cov lcov-summary cargo-acl cargo-hack cargo-deny cargo-semver-checks cargo-fuzz sccache
+
+# clang by default
+ENV CC=clang-20
+ENV CXX=clang++-20
+
+# install namespace CLI
+RUN curl -fsSL https://get.namespace.so/cloud/install.sh | sh
+
+# install opencode and claude code
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.2.20
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
