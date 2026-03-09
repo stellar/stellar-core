@@ -1064,6 +1064,52 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     metrics.accumulateLedgerWriteByte(r.writeBytes);
 }
 
+bool
+TransactionFrame::accessesFrozenKey(SorobanNetworkConfig const& cfg) const
+{
+    if (!cfg.hasFrozenKeys())
+    {
+        return false;
+    }
+
+    // Transaction source account
+    auto srcAcctKey = accountKey(getSourceID());
+    if (cfg.isKeyFrozen(srcAcctKey))
+    {
+        return true;
+    }
+
+    // Soroban footprint: check if any readOnly/readWrite key is frozen
+    if (isSoroban())
+    {
+        auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
+        for (auto const& lk : sorobanData.resources.footprint.readOnly)
+        {
+            if (cfg.isKeyFrozen(lk))
+            {
+                return true;
+            }
+        }
+        for (auto const& lk : sorobanData.resources.footprint.readWrite)
+        {
+            if (cfg.isKeyFrozen(lk))
+            {
+                return true;
+            }
+        }
+    }
+
+    // Check every operation
+    for (auto const& op : mOperations)
+    {
+        if (op->accessesFrozenKey(cfg))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 FeePair
 TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanResources const& txResources,
@@ -1229,7 +1275,7 @@ TransactionFrame::commonValidPreSeqNum(
     AppConnector& app, SorobanNetworkConfig const* cfg,
     LedgerSnapshot const& ls, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    std::optional<FeePair> sorobanResourceFee,
+    Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
     MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
@@ -1453,6 +1499,22 @@ TransactionFrame::commonValidPreSeqNum(
         return std::nullopt;
     }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // CAP-77: Frozen ledger key checks.
+    // `cfg` check here could be a protocol-gated assertion as we're expected
+    // to have network config in protocol supporting CAP-77. However, that
+    // would break the tests that invoke `apply` directly and unconditionally
+    // pass `nullopt` for the config.
+    // We can clean this up after updating all the tests to pass the config
+    // properly.
+    if (cfg && accessesFrozenKey(*cfg) &&
+        !cfg->isFreezeBypassTx(envelopeContentsHash))
+    {
+        txResult.setInnermostError(txFROZEN_KEY_ACCESSED);
+        return std::nullopt;
+    }
+#endif
+
     return sourceAccount;
 }
 
@@ -1503,9 +1565,9 @@ TransactionFrame::processSignatures(
     }
 
     bool allOpsValid = true;
-    // From protocol 10-13, there's a dangling reference bug where we check op
-    // signatures even if no OperationResult object exists. This check ensures
-    // opResult actually exists.
+    // From protocol 10-13, there's a dangling reference bug where we check
+    // op signatures even if no OperationResult object exists. This check
+    // ensures opResult actually exists.
     if (auto code = txResult.getInnermostResultCode();
         code == txSUCCESS || code == txFAILED)
     {
@@ -1539,9 +1601,9 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
         return true;
     }
 
-    // If seqNum == INT64_MAX, seqNum >= getSeqNum() is guaranteed to be true
-    // because SequenceNumber is int64, so isBadSeq will always return true in
-    // that case.
+    // If seqNum == INT64_MAX, seqNum >= getSeqNum() is guaranteed to be
+    // true because SequenceNumber is int64, so isBadSeq will always return
+    // true in that case.
     if (protocolVersionStartsFrom(header.current().ledgerVersion,
                                   ProtocolVersion::V_19))
     {
@@ -1558,16 +1620,14 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
 }
 
 TransactionFrame::ValidationType
-TransactionFrame::commonValid(AppConnector& app,
-                              SorobanNetworkConfig const* cfg,
-                              SignatureChecker& signatureChecker,
-                              LedgerSnapshot const& ls, SequenceNumber current,
-                              bool applying, bool chargeFee,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              std::optional<FeePair> sorobanResourceFee,
-                              MutableTransactionResultBase& txResult,
-                              DiagnosticEventManager& diagnosticEvents) const
+TransactionFrame::commonValid(
+    AppConnector& app, SorobanNetworkConfig const* cfg,
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SequenceNumber current, bool applying, bool chargeFee,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
+    MutableTransactionResultBase& txResult,
+    DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
     ValidationType res = ValidationType::kInvalid;
@@ -1575,8 +1635,8 @@ TransactionFrame::commonValid(AppConnector& app,
     auto validate = [this, &signatureChecker, applying,
                      lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, &app,
                      chargeFee, sorobanResourceFee, &txResult,
-                     &diagnosticEvents, &current, &res,
-                     &cfg](LedgerSnapshot const& ls) {
+                     &diagnosticEvents, &current, &res, &cfg,
+                     &envelopeContentsHash](LedgerSnapshot const& ls) {
         if (applying &&
             (lowerBoundCloseTimeOffset != 0 || upperBoundCloseTimeOffset != 0))
         {
@@ -1584,12 +1644,12 @@ TransactionFrame::commonValid(AppConnector& app,
                 "Applying transaction with non-current closeTime");
         }
 
-        // Get the source account during commonValidPreSeqNum to avoid redundant
-        // account loading
+        // Get the source account during commonValidPreSeqNum to avoid
+        // redundant account loading
         auto sourceAccount = commonValidPreSeqNum(
             app, cfg, ls, chargeFee, lowerBoundCloseTimeOffset,
-            upperBoundCloseTimeOffset, sorobanResourceFee, txResult,
-            diagnosticEvents);
+            upperBoundCloseTimeOffset, envelopeContentsHash, sorobanResourceFee,
+            txResult, diagnosticEvents);
 
         if (!sourceAccount)
         {
@@ -1692,9 +1752,9 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);
-        // Note: TransactionUtil addBalance checks that reserve plus liabilities
-        // are respected. In this case, we allow it to fall below that since it
-        // will be caught later in commonValid.
+        // Note: TransactionUtil addBalance checks that reserve plus
+        // liabilities are respected. In this case, we allow it to fall
+        // below that since it will be caught later in commonValid.
         stellar::addBalance(acc.balance, -fee);
         header.current().feePool += fee;
     }
@@ -1704,8 +1764,8 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     {
         if (acc.seqNum + 1 != getSeqNum())
         {
-            // this should not happen as the transaction set is sanitized for
-            // sequence numbers
+            // this should not happen as the transaction set is sanitized
+            // for sequence numbers
             throw std::runtime_error("Unexpected account state");
         }
         acc.seqNum = getSeqNum();
@@ -1791,7 +1851,8 @@ void
 TransactionFrame::checkValidWithOptionallyChargedFee(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, MutableTransactionResultBase& txResult,
+    uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
+    MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
@@ -1803,19 +1864,22 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 
     std::optional<FeePair> sorobanResourceFee;
     SorobanNetworkConfig const* sorobanConfig = nullptr;
-    if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION) &&
-        isSoroban())
+    auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    // Load sorobanConfig for all transactions at protocol >= V20.
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         sorobanConfig =
             &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-        sorobanResourceFee = computePreApplySorobanResourceFee(
-            ls.getLedgerHeader().current().ledgerVersion, *sorobanConfig,
-            app.getConfig());
+        if (isSoroban())
+        {
+            sorobanResourceFee = computePreApplySorobanResourceFee(
+                ledgerVersion, *sorobanConfig, app.getConfig());
+        }
     }
     if (commonValid(app, sorobanConfig, signatureChecker, ls, current, false,
                     chargeFee, lowerBoundCloseTimeOffset,
-                    upperBoundCloseTimeOffset, sorobanResourceFee, txResult,
+                    upperBoundCloseTimeOffset, envelopeContentsHash,
+                    sorobanResourceFee, txResult,
                     diagnosticEvents) != ValidationType::kMaybeValid)
     {
         return;
@@ -1871,16 +1935,17 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     {
         return MutableTransactionResult::createTxError(txMALFORMED);
     }
-    // Setting the fees in this flow is potentially misleading, as these aren't
-    // the fees that would end up being applied. However, this is what Core
-    // used to return for a while, and some users may rely on this, so we
-    // maintain this logic for the time being.
+    // Setting the fees in this flow is potentially misleading, as these
+    // aren't the fees that would end up being applied. However, this is
+    // what Core used to return for a while, and some users may rely on
+    // this, so we maintain this logic for the time being.
     int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
     auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
     auto txResult = MutableTransactionResult::createSuccess(*this, feeCharged);
     checkValidWithOptionallyChargedFee(
         app, ls, current, true, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset, *txResult, diagnosticEvents);
+        upperBoundCloseTimeOffset, getContentsHash(), *txResult,
+        diagnosticEvents);
     return txResult;
 }
 
@@ -1933,10 +1998,12 @@ maybeTriggerTestInternalError(TransactionEnvelope const& env)
 #endif
 
 std::unique_ptr<SignatureChecker>
-TransactionFrame::commonPreApply(
-    bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
-    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const* sorobanConfig) const
+TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
+                                 AbstractLedgerTxn& ltx,
+                                 TransactionMetaBuilder& meta,
+                                 MutableTransactionResultBase& txResult,
+                                 SorobanNetworkConfig const* sorobanConfig,
+                                 Hash const& envelopeContentsHash) const
 {
     mCachedAccountPreProtocol8.reset();
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
@@ -1977,9 +2044,10 @@ TransactionFrame::commonPreApply(
     }
     LedgerTxn ltxTx(ltx);
     LedgerSnapshot lsTx(ltxTx);
-    auto cv = commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
-                          chargeFee, 0, 0, sorobanResourceFee, txResult,
-                          meta.getDiagnosticEventManager());
+    auto cv =
+        commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
+                    chargeFee, 0, 0, envelopeContentsHash, sorobanResourceFee,
+                    txResult, meta.getDiagnosticEventManager());
     if (cv >= ValidationType::kInvalidUpdateSeqNum)
     {
         processSeqNum(ltxTx);
@@ -2007,14 +2075,17 @@ TransactionFrame::preParallelApply(
     MutableTransactionResultBase& resPayload,
     SorobanNetworkConfig const& sorobanConfig) const
 {
-    preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig);
+    preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig,
+                     getContentsHash());
 }
 
 void
-TransactionFrame::preParallelApply(
-    bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
-    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig) const
+TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
+                                   AbstractLedgerTxn& ltx,
+                                   TransactionMetaBuilder& meta,
+                                   MutableTransactionResultBase& txResult,
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   Hash const& envelopeContentsHash) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -2024,7 +2095,8 @@ TransactionFrame::preParallelApply(
         releaseAssertOrThrow(isSoroban());
 
         auto signatureChecker =
-            commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig);
+            commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig,
+                           envelopeContentsHash);
         bool ok = signatureChecker != nullptr;
         if (ok)
         {
@@ -2032,9 +2104,10 @@ TransactionFrame::preParallelApply(
 
             auto& opResult = txResult.getOpResultAt(0);
 
-            // Pre parallel soroban, OperationFrame::checkValid is called right
-            // before OperationFrame::doApply, but we do it here instead to
-            // avoid making OperationFrame::checkValid thread safe.
+            // Pre parallel soroban, OperationFrame::checkValid is called
+            // right before OperationFrame::doApply, but we do it here
+            // instead to avoid making OperationFrame::checkValid thread
+            // safe.
             ok = mOperations.front()->checkValid(
                 app, *signatureChecker, &sorobanConfig, ltx, true, opResult,
                 meta.getDiagnosticEventManager());
@@ -2044,8 +2117,8 @@ TransactionFrame::preParallelApply(
             }
         }
 
-        // If validation fails, we check the result code in the parallel step to
-        // make sure we don't apply the transaction.
+        // If validation fails, we check the result code in the parallel
+        // step to make sure we don't apply the transaction.
         releaseAssertOrThrow(ok == txResult.isSuccess());
     }
     catch (std::exception& e)
@@ -2371,14 +2444,15 @@ TransactionFrame::apply(
     bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    Hash const& sorobanBasePrngSeed) const
+    Hash const& sorobanBasePrngSeed, Hash const& envelopeContentsHash) const
 {
     ZoneScoped;
     try
     {
         auto signatureChecker =
             commonPreApply(chargeFee, app, ltx, meta, txResult,
-                           sorobanConfig ? &sorobanConfig.value() : nullptr);
+                           sorobanConfig ? &sorobanConfig.value() : nullptr,
+                           envelopeContentsHash);
         bool ok = signatureChecker != nullptr;
         try
         {
@@ -2429,7 +2503,7 @@ TransactionFrame::apply(
     Hash const& sorobanBasePrngSeed) const
 {
     return apply(true, app, ltx, meta, txResult, sorobanConfig,
-                 sorobanBasePrngSeed);
+                 sorobanBasePrngSeed, getContentsHash());
 }
 
 void

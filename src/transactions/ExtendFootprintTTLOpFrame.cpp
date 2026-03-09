@@ -380,4 +380,13 @@ ExtendFootprintTTLOpFrame::getThresholdLevel() const
     return ThresholdLevel::LOW;
 }
 
+bool
+ExtendFootprintTTLOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Soroban footprint checks happen at transaction level, so we can safely
+    // say that the operation itself doesn't access frozen keys.
+    return false;
+}
+
 }

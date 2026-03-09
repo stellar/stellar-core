@@ -292,7 +292,8 @@ enum class OfferFilterResult
 {
     eKeep,
     eStopBadPrice,
-    eStopCrossSelf
+    eStopCrossSelf,
+    eSkipFrozen
 };
 
 enum class ConvertResult

@@ -189,4 +189,11 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
 
     return true;
 }
+
+bool
+AllowTrustOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return sorobanConfig.isKeyFrozen(trustlineKey(mAllowTrust.trustor, mAsset));
+}
 }

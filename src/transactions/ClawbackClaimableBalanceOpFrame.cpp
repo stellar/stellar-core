@@ -96,4 +96,11 @@ ClawbackClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
 {
     keys.emplace(claimableBalanceKey(mClawbackClaimableBalance.balanceID));
 }
+
+bool
+ClawbackClaimableBalanceOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

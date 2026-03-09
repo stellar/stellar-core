@@ -408,9 +408,6 @@
     <ClCompile Include="..\..\src\main\main.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\Maintainer.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1437,6 +1434,7 @@
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\FrozenLedgerKeysTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -1677,9 +1675,6 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ErrorMessages.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\Maintainer.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">

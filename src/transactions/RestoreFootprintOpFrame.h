@@ -60,6 +60,10 @@ class RestoreFootprintOpFrame : public OperationFrame
     virtual bool isSoroban() const override;
 
     ThresholdLevel getThresholdLevel() const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     friend class RestoreFootprintApplyHelper;
     friend class RestoreFootprintPreV23ApplyHelper;
     friend class RestoreFootprintParallelApplyHelper;

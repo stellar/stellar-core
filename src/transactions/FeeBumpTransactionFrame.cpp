@@ -106,7 +106,7 @@ FeeBumpTransactionFrame::preParallelApply(
     try
     {
         mInnerTx->preParallelApply(/*chargeFee=*/false, app, ltx, meta,
-                                   txResult, sorobanConfig);
+                                   txResult, sorobanConfig, getContentsHash());
     }
     catch (std::exception& e)
     {
@@ -179,7 +179,7 @@ FeeBumpTransactionFrame::apply(
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
         return mInnerTx->apply(false, app, ltx, meta, txResult, sorobanConfig,
-                               sorobanBasePrngSeed);
+                               sorobanBasePrngSeed, getContentsHash());
     }
     catch (std::exception& e)
     {
@@ -287,14 +287,33 @@ FeeBumpTransactionFrame::checkValid(
     auto txResult = FeeBumpMutableTransactionResult::createSuccess(
         *mInnerTx, feeCharged, 0);
 
-    SignatureChecker signatureChecker{
-        ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
-        mEnvelope.feeBump().signatures};
+    auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
+                                      mEnvelope.feeBump().signatures};
     if (commonValid(signatureChecker, ls, false, *txResult) !=
         ValidationType::kFullyValid)
     {
         return txResult;
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        // CAP-77: Check if fee bump source account is frozen
+        auto const& sorobanConfig =
+            app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        if (sorobanConfig.hasFrozenKeys())
+        {
+            auto feeAcctKey = accountKey(getFeeSourceID());
+            if (sorobanConfig.isKeyFrozen(feeAcctKey) &&
+                !sorobanConfig.isFreezeBypassTx(getContentsHash()))
+            {
+                txResult->setError(txFROZEN_KEY_ACCESSED);
+                return txResult;
+            }
+        }
+    }
+#endif
 
     if (!signatureChecker.checkAllSignaturesUsed())
     {
@@ -304,7 +323,8 @@ FeeBumpTransactionFrame::checkValid(
 
     mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset, *txResult, diagnosticEvents);
+        upperBoundCloseTimeOffset, getContentsHash(), *txResult,
+        diagnosticEvents);
 
     return txResult;
 }

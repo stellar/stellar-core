@@ -29,6 +29,16 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                         OperationResult& res,
                         OperationMetaBuilder& opMeta) const
 {
+    throw std::runtime_error("PaymentOp may only be applied "
+                             "with doApply overload accepting sorobanConfig");
+}
+
+bool
+PaymentOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
+{
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
     ZoneTextV(applyZone, payStr.c_str(), payStr.size());
@@ -72,7 +82,7 @@ PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
     PathPaymentStrictReceiveOpFrame ppayment(op, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion, ppRes) ||
-        !ppayment.doApply(app, ltx, ppRes, opMeta))
+        !ppayment.doApply(app, ltx, sorobanConfig, ppRes, opMeta))
     {
         if (ppRes.code() != opINNER)
         {
@@ -154,5 +164,26 @@ PaymentOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
         keys.emplace(trustlineKey(destID, mPayment.asset));
         keys.emplace(trustlineKey(getSourceID(), mPayment.asset));
     }
+}
+
+bool
+PaymentOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    if (mPayment.asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return sorobanConfig.isKeyFrozen(
+            accountKey(toAccountID(mPayment.destination)));
+    }
+    if (sorobanConfig.isKeyFrozen(trustlineKey(getSourceID(), mPayment.asset)))
+    {
+        return true;
+    }
+    if (sorobanConfig.isKeyFrozen(
+            trustlineKey(toAccountID(mPayment.destination), mPayment.asset)))
+    {
+        return true;
+    }
+    return false;
 }
 }

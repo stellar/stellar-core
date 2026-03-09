@@ -22,6 +22,10 @@ class ClaimClaimableBalanceOpFrame : public OperationFrame
 
     ClaimClaimableBalanceOp const& mClaimClaimableBalance;
 
+    bool accessesFrozenKeyAtApplyTime(
+        std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+        Asset const& asset, OperationResult& res) const;
+
   public:
     ClaimClaimableBalanceOpFrame(Operation const& op,
                                  TransactionFrame const& parentTx);
@@ -31,10 +35,17 @@ class ClaimClaimableBalanceOpFrame : public OperationFrame
     bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  OperationResult& res,
                  OperationMetaBuilder& opMeta) const override;
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
+                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+                 OperationResult& res,
+                 OperationMetaBuilder& opMeta) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
+
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
 
     static ClaimClaimableBalanceResultCode
     getInnerCode(OperationResult const& res)

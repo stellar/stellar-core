@@ -79,4 +79,11 @@ BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion,
     }
     return true;
 }
+
+bool
+BumpSequenceOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

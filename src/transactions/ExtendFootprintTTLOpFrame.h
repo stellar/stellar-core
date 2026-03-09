@@ -62,6 +62,9 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
 
     ThresholdLevel getThresholdLevel() const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     friend class ExtendFootprintTTLApplyHelper;
     friend class ExtendFootprintTTLPreV23ApplyHelper;
     friend class ExtendFootprintTTLParallelApplyHelper;

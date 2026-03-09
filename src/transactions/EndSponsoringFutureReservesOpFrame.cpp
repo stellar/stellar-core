@@ -73,4 +73,11 @@ EndSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion,
 {
     return true;
 }
+
+bool
+EndSponsoringFutureReservesOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return false;
+}
 }

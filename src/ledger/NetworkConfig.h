@@ -297,6 +297,12 @@ class SorobanNetworkConfig
     // upgrade.
     static void updateCostTypesForV26(AbstractLedgerTxn& ltx, Application& app);
 
+    // Creates the new ledger entries introduced in v26.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void createLedgerEntriesForV26(AbstractLedgerTxn& ltx,
+                                          Application& app);
+
     // Creates the new ledger entries introduced in v23 and updates the existing
     // entries.
     // This should happen once during the correspondent protocol version
@@ -449,6 +455,11 @@ class SorobanNetworkConfig
     uint32_t ballotTimeoutInitialMilliseconds() const;
     uint32_t ballotTimeoutIncrementMilliseconds() const;
 
+    // Frozen ledger keys
+    bool hasFrozenKeys() const;
+    bool isKeyFrozen(LedgerKey const& key) const;
+    bool isFreezeBypassTx(Hash const& txHash) const;
+
 #ifdef BUILD_TESTS
     // Update the protocol 20 cost types to match the real network
     // configuration.
@@ -461,6 +472,9 @@ class SorobanNetworkConfig
     static void updateRecalibratedCostTypesForV20(AbstractLedgerTxn& ltx);
 
     bool operator==(SorobanNetworkConfig const& other) const;
+
+    UnorderedSet<LedgerKey> const& frozenLedgerKeys() const;
+    UnorderedSet<Hash> const& freezeBypassTxs() const;
 #endif
 
   private:
@@ -483,6 +497,8 @@ class SorobanNetworkConfig
     void loadParallelComputeConfig(LedgerSnapshot const& ls);
     void loadLedgerCostExtConfig(LedgerSnapshot const& ls);
     void loadSCPTimingConfig(LedgerSnapshot const& ls);
+    void loadFrozenLedgerKeys(LedgerSnapshot const& ls);
+    void loadFreezeBypassTxs(LedgerSnapshot const& ls);
     void computeRentWriteFee(uint32_t protocolVersion);
 
 #ifdef BUILD_TESTS
@@ -561,6 +577,10 @@ class SorobanNetworkConfig
     uint32_t mNominationTimeoutIncrementMilliseconds{};
     uint32_t mBallotTimeoutInitialMilliseconds{};
     uint32_t mBallotTimeoutIncrementMilliseconds{};
+
+    // Frozen ledger keys
+    UnorderedSet<LedgerKey> mFrozenLedgerKeys;
+    UnorderedSet<Hash> mFreezeBypassTxs;
 };
 
 #ifdef BUILD_TESTS

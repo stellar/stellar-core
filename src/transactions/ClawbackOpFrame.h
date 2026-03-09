@@ -34,6 +34,9 @@ class ClawbackOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static ClawbackResultCode
     getInnerCode(OperationResult const& res)
     {

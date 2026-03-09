@@ -103,6 +103,7 @@ class TransactionFrame : public TransactionFrameBase
                          LedgerSnapshot const& ls, bool chargeFee,
                          uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
+                         Hash const& envelopeContentsHash,
                          std::optional<FeePair> sorobanResourceFee,
                          MutableTransactionResultBase& txResult,
                          DiagnosticEventManager& diagnosticEvents) const;
@@ -117,6 +118,7 @@ class TransactionFrame : public TransactionFrameBase
                                bool applying, bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset,
+                               Hash const& envelopeContentsHash,
                                std::optional<FeePair> sorobanResourceFee,
                                MutableTransactionResultBase& txResult,
                                DiagnosticEventManager& diagnosticEvents) const;
@@ -148,6 +150,8 @@ class TransactionFrame : public TransactionFrameBase
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
     void updateSorobanMetrics(AppConnector& app) const;
+    bool accessesFrozenKey(SorobanNetworkConfig const& cfg) const;
+
 #ifdef BUILD_TESTS
   public:
 #endif
@@ -236,7 +240,7 @@ class TransactionFrame : public TransactionFrameBase
     void checkValidWithOptionallyChargedFee(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
         MutableTransactionResultBase& result,
         DiagnosticEventManager& diagnosticEvents) const;
     MutableTxResultPtr
@@ -278,12 +282,14 @@ class TransactionFrame : public TransactionFrameBase
     commonPreApply(bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
                    TransactionMetaBuilder& meta,
                    MutableTransactionResultBase& txResult,
-                   SorobanNetworkConfig const* sorobanConfig) const;
+                   SorobanNetworkConfig const* sorobanConfig,
+                   Hash const& envelopeContentsHash) const;
 
     void preParallelApply(bool chargeFee, AppConnector& app,
                           AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
                           MutableTransactionResultBase& txResult,
-                          SorobanNetworkConfig const& sorobanConfig) const;
+                          SorobanNetworkConfig const& sorobanConfig,
+                          Hash const& envelopeContentsHash) const;
 
     void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
@@ -304,7 +310,8 @@ class TransactionFrame : public TransactionFrameBase
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-               Hash const& sorobanBasePrngSeed) const;
+               Hash const& sorobanBasePrngSeed,
+               Hash const& envelopeContentsHash) const;
     bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaBuilder& meta,
                MutableTransactionResultBase& txResult,

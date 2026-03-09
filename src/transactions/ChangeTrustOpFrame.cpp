@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ChangeTrustOpFrame.h"
+#include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -338,5 +339,31 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
         return false;
     }
     return true;
+}
+
+bool
+ChangeTrustOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    auto const& ct = mChangeTrust;
+    if (ct.line.type() == ASSET_TYPE_CREDIT_ALPHANUM4 ||
+        ct.line.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        Asset asset;
+        asset.type(ct.line.type());
+        if (ct.line.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+        {
+            asset.alphaNum4() = ct.line.alphaNum4();
+        }
+        else
+        {
+            asset.alphaNum12() = ct.line.alphaNum12();
+        }
+        if (sorobanConfig.isKeyFrozen(trustlineKey(getSourceID(), asset)))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 }

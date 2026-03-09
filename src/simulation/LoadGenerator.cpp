@@ -1551,6 +1551,54 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
         updatedConfig.nominationTimeoutInitialMilliseconds();
     upgradeCfg.nominationTimeoutIncrementMilliseconds =
         updatedConfig.nominationTimeoutIncrementMilliseconds();
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Compute frozen ledger keys delta
+    auto const& baseKeys = baseConfig.frozenLedgerKeys();
+    auto const& updatedKeys = updatedConfig.frozenLedgerKeys();
+    if (baseKeys != updatedKeys)
+    {
+        FrozenLedgerKeysDelta delta;
+        for (auto const& key : updatedKeys)
+        {
+            if (baseKeys.find(key) == baseKeys.end())
+            {
+                delta.keysToFreeze.emplace_back(xdr::xdr_to_opaque(key));
+            }
+        }
+        for (auto const& key : baseKeys)
+        {
+            if (updatedKeys.find(key) == updatedKeys.end())
+            {
+                delta.keysToUnfreeze.emplace_back(xdr::xdr_to_opaque(key));
+            }
+        }
+        upgradeCfg.frozenLedgerKeysDelta = delta;
+    }
+
+    // Compute freeze bypass tx hashes delta
+    auto const& baseBypassTxs = baseConfig.freezeBypassTxs();
+    auto const& updatedBypassTxs = updatedConfig.freezeBypassTxs();
+    if (baseBypassTxs != updatedBypassTxs)
+    {
+        FreezeBypassTxsDelta delta;
+        for (auto const& txHash : updatedBypassTxs)
+        {
+            if (baseBypassTxs.find(txHash) == baseBypassTxs.end())
+            {
+                delta.addTxs.emplace_back(txHash);
+            }
+        }
+        for (auto const& txHash : baseBypassTxs)
+        {
+            if (updatedBypassTxs.find(txHash) == updatedBypassTxs.end())
+            {
+                delta.removeTxs.emplace_back(txHash);
+            }
+        }
+        upgradeCfg.freezeBypassTxsDelta = delta;
+    }
+#endif
 }
 
 GeneratedLoadConfig

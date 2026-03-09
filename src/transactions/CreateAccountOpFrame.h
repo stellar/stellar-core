@@ -35,6 +35,9 @@ class CreateAccountOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static CreateAccountResultCode
     getInnerCode(OperationResult const& res)
     {

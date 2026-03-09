@@ -229,6 +229,36 @@ offerKey(AccountID const& sellerID, uint64_t offerID)
     return key;
 }
 
+bool
+offerAccessesFrozenKey(OfferEntry const& offer,
+                       SorobanNetworkConfig const& sorobanConfig)
+{
+    if (!sorobanConfig.hasFrozenKeys())
+    {
+        return false;
+    }
+
+    // Frozen seller account only matters when at least one side of the offer
+    // is native (the account entry holds the native balance).
+    if ((offer.selling.type() == ASSET_TYPE_NATIVE ||
+         offer.buying.type() == ASSET_TYPE_NATIVE) &&
+        sorobanConfig.isKeyFrozen(accountKey(offer.sellerID)))
+    {
+        return true;
+    }
+    if (offer.selling.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig.isKeyFrozen(trustlineKey(offer.sellerID, offer.selling)))
+    {
+        return true;
+    }
+    if (offer.buying.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig.isKeyFrozen(trustlineKey(offer.sellerID, offer.buying)))
+    {
+        return true;
+    }
+    return false;
+}
+
 LedgerKey
 dataKey(AccountID const& accountID, std::string const& dataName)
 {

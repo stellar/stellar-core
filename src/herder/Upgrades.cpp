@@ -1246,13 +1246,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         PubKeyUtils::enableRustDalekVerify();
         SorobanNetworkConfig::createCostTypesForV25(ltx, app);
     }
-    // Starting from protocol 23 we need to fully override the Soroban in-memory
-    // state size on upgrade, as before protocol 23 bucket list size has bene
-    // used.
-    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_23))
+    if (needUpgradeToVersion(ProtocolVersion::V_26, prevVersion, newVersion))
     {
-        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
-            ltx);
+        SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
+        SorobanNetworkConfig::createLedgerEntriesForV26(ltx, app);
     }
 
     if (protocolVersionEquals(prevVersion, ProtocolVersion::V_23) &&
@@ -1264,9 +1261,16 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
         header.current().feePool += 31879035;
     }
 
-    if (needUpgradeToVersion(ProtocolVersion::V_26, prevVersion, newVersion))
+    // Starting from protocol 23 we need to fully override the Soroban in-memory
+    // state size on upgrade, as before protocol 23 bucket list size has been
+    // used.
+    // NB: this has to be the last step in this function, as it reloads the
+    // network config from the ledger and expects it to already have all the
+    // expected entries.
+    if (protocolVersionStartsFrom(newVersion, ProtocolVersion::V_23))
     {
-        SorobanNetworkConfig::updateCostTypesForV26(ltx, app);
+        app.getLedgerManager().handleUpgradeAffectingSorobanInMemoryStateSize(
+            ltx);
     }
 }
 
@@ -1419,6 +1423,18 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
     }
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
+        // The delta entry has no stored counterpart — it always needs
+        // to be applied (it modifies CONFIG_SETTING_FROZEN_LEDGER_KEYS).
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (updatedEntry.configSettingID() ==
+                ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA ||
+            updatedEntry.configSettingID() ==
+                ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS_DELTA)
+        {
+            return true;
+        }
+#endif
+
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
         bool isSame =
@@ -1438,10 +1454,76 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
     bool hasMemorySettingsUpgrade = false;
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
-        LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         auto const id = updatedEntry.configSettingID();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // Delta entries are not stored config entries. They modify the
+        // corresponding base entries instead.
+        if (id == ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA)
+        {
+            LedgerKey frozenKeysLk(LedgerEntryType::CONFIG_SETTING);
+            frozenKeysLk.configSetting().configSettingID =
+                CONFIG_SETTING_FROZEN_LEDGER_KEYS;
+            auto frozenKeysLtxe = ltx.load(frozenKeysLk);
+            auto& frozenKeysVec = frozenKeysLtxe.current()
+                                      .data.configSetting()
+                                      .frozenLedgerKeys()
+                                      .keys;
+            std::set<xdr::opaque_vec<>> existing;
+            for (auto const& k : frozenKeysVec)
+            {
+                existing.insert(k);
+            }
+
+            auto const& delta = updatedEntry.frozenLedgerKeysDelta();
+            for (auto const& k : delta.keysToFreeze)
+            {
+                existing.insert(k);
+            }
+            for (auto const& k : delta.keysToUnfreeze)
+            {
+                existing.erase(k);
+            }
+
+            frozenKeysVec.assign(existing.begin(), existing.end());
+            continue;
+        }
+
+        if (id == ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS_DELTA)
+        {
+            LedgerKey bypassTxsLk(LedgerEntryType::CONFIG_SETTING);
+            bypassTxsLk.configSetting().configSettingID =
+                CONFIG_SETTING_FREEZE_BYPASS_TXS;
+            auto bypassTxsLtxe = ltx.load(bypassTxsLk);
+            auto& bypassTxsVec = bypassTxsLtxe.current()
+                                     .data.configSetting()
+                                     .freezeBypassTxs()
+                                     .txHashes;
+
+            std::set<Hash> existing;
+            for (auto const& h : bypassTxsVec)
+            {
+                existing.insert(h);
+            }
+
+            auto const& delta = updatedEntry.freezeBypassTxsDelta();
+            for (auto const& h : delta.addTxs)
+            {
+                existing.insert(h);
+            }
+            for (auto const& h : delta.removeTxs)
+            {
+                existing.erase(h);
+            }
+
+            bypassTxsVec.assign(existing.begin(), existing.end());
+            continue;
+        }
+#endif
+
+        LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = id;
-        auto& currentEntry = ltx.load(key).current().data.configSetting();
+        auto ltxe = ltx.load(key);
+        auto& currentEntry = ltxe.current().data.configSetting();
         if (id == ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL &&
             currentEntry.stateArchivalSettings()
                     .liveSorobanStateSizeWindowSampleSize !=

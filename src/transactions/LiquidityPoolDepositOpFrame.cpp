@@ -5,6 +5,7 @@
 #include "transactions/LiquidityPoolDepositOpFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
@@ -13,6 +14,65 @@
 
 namespace stellar
 {
+namespace
+{
+bool
+isBadPrice(int64_t amountA, int64_t amountB, Price const& minPrice,
+           Price const& maxPrice)
+{
+    // a * d < b * n is equivalent to a/b < n/d but avoids rounding.
+    if (amountA == 0 || amountB == 0 ||
+        bigMultiply(amountA, minPrice.d) < bigMultiply(amountB, minPrice.n) ||
+        bigMultiply(amountA, maxPrice.d) > bigMultiply(amountB, maxPrice.n))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+minAmongValid(int64_t& res, int64_t x, bool xValid, int64_t y, bool yValid)
+{
+    if (xValid && yValid)
+    {
+        res = std::min(x, y);
+    }
+    else if (xValid)
+    {
+        res = x;
+    }
+    else if (yValid)
+    {
+        res = y;
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
+void
+updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
+              LedgerTxnEntry& acc, int64_t delta)
+{
+    if (tl)
+    {
+        if (!tl.addBalance(header, delta))
+        {
+            throw std::runtime_error("insufficient balance");
+        }
+    }
+    else
+    {
+        if (!stellar::addBalance(header, acc, delta))
+        {
+            throw std::runtime_error("insufficient balance");
+        }
+    }
+}
+
+} // namespace
 
 LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
     Operation const& op, TransactionFrame const& parentTx)
@@ -27,20 +87,6 @@ LiquidityPoolDepositOpFrame::isOpSupported(LedgerHeader const& header) const
     return protocolVersionStartsFrom(header.ledgerVersion,
                                      ProtocolVersion::V_18) &&
            !isPoolDepositDisabled(header);
-}
-
-static bool
-isBadPrice(int64_t amountA, int64_t amountB, Price const& minPrice,
-           Price const& maxPrice)
-{
-    // a * d < b * n is equivalent to a/b < n/d but avoids rounding.
-    if (amountA == 0 || amountB == 0 ||
-        bigMultiply(amountA, minPrice.d) < bigMultiply(amountB, minPrice.n) ||
-        bigMultiply(amountA, maxPrice.d) > bigMultiply(amountB, maxPrice.n))
-    {
-        return true;
-    }
-    return false;
 }
 
 bool
@@ -75,26 +121,32 @@ LiquidityPoolDepositOpFrame::depositIntoEmptyPool(
     return true;
 }
 
-static bool
-minAmongValid(int64_t& res, int64_t x, bool xValid, int64_t y, bool yValid)
+bool
+LiquidityPoolDepositOpFrame::accessesFrozenKeyAtApplyTime(
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    LiquidityPoolConstantProductParameters const& cpp) const
 {
-    if (xValid && yValid)
-    {
-        res = std::min(x, y);
-    }
-    else if (xValid)
-    {
-        res = x;
-    }
-    else if (yValid)
-    {
-        res = y;
-    }
-    else
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
     {
         return false;
     }
-    return true;
+    // Check asset A trustline (if non-native, otherwise account freezing
+    // would apply)
+    if (cpp.assetA.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig->isKeyFrozen(trustlineKey(getSourceID(), cpp.assetA)))
+    {
+        return true;
+    }
+    // Check asset B trustline (if non-native, otherwise account freezing
+    // would apply)
+    if (cpp.assetB.type() != ASSET_TYPE_NATIVE &&
+        sorobanConfig->isKeyFrozen(trustlineKey(getSourceID(), cpp.assetB)))
+    {
+        return true;
+    }
+#endif
+    return false;
 }
 
 bool
@@ -168,30 +220,20 @@ LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
     return true;
 }
 
-static void
-updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
-              LedgerTxnEntry& acc, int64_t delta)
-{
-    if (tl)
-    {
-        if (!tl.addBalance(header, delta))
-        {
-            throw std::runtime_error("insufficient balance");
-        }
-    }
-    else
-    {
-        if (!stellar::addBalance(header, acc, delta))
-        {
-            throw std::runtime_error("insufficient balance");
-        }
-    }
-}
-
 bool
 LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                      OperationResult& res,
                                      OperationMetaBuilder& opMeta) const
+{
+    throw std::runtime_error("LiquidityPoolDepositOp may only be applied with "
+                             "doApply overload accepting sorobanConfig");
+}
+
+bool
+LiquidityPoolDepositOpFrame::doApply(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    OperationResult& res, OperationMetaBuilder& opMeta) const
 {
     ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
 
@@ -232,6 +274,16 @@ LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
+    // CAP-77: Check if any of the relevant trustlines are frozen.
+    auto header = ltx.loadHeader();
+    if (accessesFrozenKeyAtApplyTime(sorobanConfig, cpp()))
+    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        innerResult(res).code(LIQUIDITY_POOL_DEPOSIT_TRUSTLINE_FROZEN);
+#endif
+        return false;
+    }
+
     // If one of the assets is native, we'll also need the source account
     LedgerTxnEntry source;
     if (cpp().assetA.type() == ASSET_TYPE_NATIVE ||
@@ -241,8 +293,6 @@ LiquidityPoolDepositOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
         // point
         source = loadAccount(ltx, getSourceID());
     }
-
-    auto header = ltx.loadHeader();
 
     int64_t amountA = 0;
     int64_t amountB = 0;
@@ -374,5 +424,14 @@ LiquidityPoolDepositOpFrame::insertLedgerKeysToPrefetch(
     keys.emplace(liquidityPoolKey(mLiquidityPoolDeposit.liquidityPoolID));
     keys.emplace(poolShareTrustLineKey(getSourceID(),
                                        mLiquidityPoolDeposit.liquidityPoolID));
+}
+
+bool
+LiquidityPoolDepositOpFrame::doesAccessFrozenKey(
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Checks for the frozen keys are done at apply time in
+    // accessesFrozenKeyAtApplyTime, we can't check anything at validation time.
+    return false;
 }
 }

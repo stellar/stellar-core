@@ -1543,6 +1543,20 @@ convertWithOffers(
                 return ConvertResult::eFilterStopBadPrice;
             case OfferFilterResult::eStopCrossSelf:
                 return ConvertResult::eFilterStopCrossSelf;
+            case OfferFilterResult::eSkipFrozen:
+            {
+                // CAP-77: Remove the frozen offer, release liabilities,
+                // and continue matching with subsequent offers.
+                auto& offer = wheatOffer.current().data.offer();
+                auto header = ltx.loadHeader();
+                releaseLiabilities(ltx, header, wheatOffer);
+                auto accountB = stellar::loadAccount(ltx, offer.sellerID);
+                removeEntryWithPossibleSponsorship(
+                    ltx, header, wheatOffer.current(), accountB);
+                wheatOffer.erase();
+                ltx.commit();
+                continue;
+            }
             default:
                 throw std::runtime_error("unexpected filter result");
             }

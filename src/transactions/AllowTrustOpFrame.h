@@ -49,6 +49,9 @@ class AllowTrustOpFrame : public TrustFlagsOpFrameBase
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
+    bool doesAccessFrozenKey(
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
     static AllowTrustResultCode
     getInnerCode(OperationResult const& res)
     {
