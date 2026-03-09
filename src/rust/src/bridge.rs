@@ -317,14 +317,10 @@ pub(crate) mod rust_bridge {
         type SorobanModuleCache;
 
         fn new_module_cache() -> Result<Box<SorobanModuleCache>>;
-        fn compile(
-            self: &mut SorobanModuleCache,
-            ledger_protocol: u32,
-            source: &[u8],
-        ) -> Result<()>;
+        fn compile(self: &SorobanModuleCache, ledger_protocol: u32, source: &[u8]) -> Result<()>;
         fn shallow_clone(self: &SorobanModuleCache) -> Result<Box<SorobanModuleCache>>;
-        fn evict_contract_code(self: &mut SorobanModuleCache, key: &[u8]) -> Result<()>;
-        fn clear(self: &mut SorobanModuleCache) -> Result<()>;
+        fn evict_contract_code(self: &SorobanModuleCache, key: &[u8]) -> Result<()>;
+        fn clear(self: &SorobanModuleCache) -> Result<()>;
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
         fn get_mem_bytes_consumed(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
 
