@@ -437,6 +437,47 @@ testTxSet(uint32 protocolVersion)
                     txs, TxSetValidationResult::TX_VALIDATION_FAILED);
             }
         }
+        SECTION("zero ops transaction")
+        {
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+
+            auto tx =
+                transactionFromOperations(*app, root->getSecretKey(),
+                                          root->nextSequenceNumber(), {}, 1000);
+
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                txSet.txs.push_back(tx->getEnvelope());
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet != nullptr);
+                REQUIRE(applicableTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::GENERALIZED_TXSET_MISMATCH);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{tx})},
+                         {}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
     }
 }
 
