@@ -341,16 +341,6 @@ HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
 
     // We queue history inside ledger commit, so do not finalize the file yet
     writeCheckpointFile(mApp, has, /* finalize */ false);
-
-    // We have now written the current HAS to the database, so
-    // it's "safe" to crash (at least after the enclosing tx commits);
-    // but that HAS might have merges running and if we throw it
-    // away at this point we'll lose the merges and have to restart
-    // them. So instead we're going to insert the HAS we have in hand
-    // into the in-memory publish queue in order to preserve those
-    // merges-in-progress, avoid restarting them.
-
-    mPublishQueued++;
 }
 
 void
@@ -692,12 +682,6 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
         // haven't rotated yet. No-op if checkpoint has been rotated already
         maybeCheckpointComplete(lcl);
     }
-}
-
-uint64_t
-HistoryManagerImpl::getPublishQueueCount() const
-{
-    return mPublishQueued;
 }
 
 uint64_t
