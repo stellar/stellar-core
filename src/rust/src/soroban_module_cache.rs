@@ -36,7 +36,7 @@ impl SorobanModuleCache {
         })
     }
     pub fn compile(
-        &mut self,
+        &self,
         ledger_protocol: u32,
         _wasm: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -60,7 +60,7 @@ impl SorobanModuleCache {
         }))
     }
 
-    pub fn evict_contract_code(&mut self, key: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn evict_contract_code(&self, key: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let _hash: [u8; 32] = key
             .as_ref()
             .try_into()
@@ -71,7 +71,7 @@ impl SorobanModuleCache {
         self.p26_cache.evict(&_hash)?;
         Ok(())
     }
-    pub fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.p23_cache.clear()?;
         self.p24_cache.clear()?;
         self.p25_cache.clear()?;

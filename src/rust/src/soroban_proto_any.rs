@@ -720,7 +720,7 @@ impl ProtocolSpecificModuleCache {
         })
     }
 
-    pub(crate) fn compile(&mut self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn compile(&self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let compilation_context = CoreCompilationContext::new()?;
         let res = self.module_cache.parse_and_cache_module_simple(
             &compilation_context,
@@ -736,12 +736,12 @@ impl ProtocolSpecificModuleCache {
         Ok(res?)
     }
 
-    pub(crate) fn evict(&mut self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn evict(&self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
         let _ = self.module_cache.remove_module(&key.clone().into())?;
         Ok(())
     }
 
-    pub(crate) fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(self.module_cache.clear()?)
     }
 
