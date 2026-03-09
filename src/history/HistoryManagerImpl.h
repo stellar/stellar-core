@@ -28,7 +28,6 @@ class HistoryManagerImpl : public HistoryManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<BasicWork> mPublishWork;
 
-    std::atomic<int> mPublishQueued{0};
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
 
@@ -74,7 +73,6 @@ class HistoryManagerImpl : public HistoryManager
 
     std::string localFilename(std::string const& basename) override;
 
-    uint64_t getPublishQueueCount() const override;
     uint64_t getPublishSuccessCount() const override;
     uint64_t getPublishFailureCount() const override;
 

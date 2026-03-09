@@ -308,7 +308,8 @@ class HistoryManager
         return firstLedgerOfBufferedCheckpoint + 1;
     }
 
-    // Return the length of the current publishing queue.
+    // Return the number of checkpoints currently present in the publish
+    // queue directory, i.e., checkpoints currently awaiting publication.
     static size_t publishQueueLength(Config const& cfg);
 
     // Emit a log message and set StatusManager HISTORY_PUBLISH status to
@@ -390,11 +391,6 @@ class HistoryManager
     // Return the path of `basename` situated inside the HistoryManager's
     // tmpdir.
     virtual std::string localFilename(std::string const& basename) = 0;
-
-    // Return the number of checkpoints that have been enqueued for
-    // publication. This may be less than the number "started", but every
-    // enqueued checkpoint should eventually start.
-    virtual uint64_t getPublishQueueCount() const = 0;
 
     // Return the number of checkpoints that completed publication successfully.
     virtual uint64_t getPublishSuccessCount() const = 0;

@@ -712,7 +712,7 @@ TEST_CASE_VERSIONS(
             tcfg.getArchiveDirName());
         UnorderedSet<LedgerKey> hotArchiveKeys{};
         auto lastLcl = lm.getLastClosedLedgerNum();
-        while (hm.getPublishQueueCount() < 5)
+        while (hm.publishQueueLength(cfg) < 5)
         {
             // Do not merge this line with the next line: CLOG and
             // readMergeCounters each acquire a mutex, and it's possible to

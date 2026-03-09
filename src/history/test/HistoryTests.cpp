@@ -1582,7 +1582,6 @@ TEST_CASE_VERSIONS(
     Config cfg(getTestConfig(0));
     cfg.MANUAL_CLOSE = false;
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
-    cfg.PARALLEL_LEDGER_APPLY = false;
     TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
     VirtualClock clock;
@@ -1596,7 +1595,7 @@ TEST_CASE_VERSIONS(
             auto& lm = app->getLedgerManager();
             auto& bl = app->getBucketManager().getLiveBucketList();
 
-            while (hm.getPublishQueueCount() != 1)
+            while (hm.publishQueueLength(cfg) != 1)
             {
                 // With background apply, wait for any in-progress
                 // ledger close to finish before writing to the shared
@@ -1664,7 +1663,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         VirtualClock clock;
         Application::pointer app0 = createTestApplication(clock, cfg);
         auto& hm0 = app0->getHistoryManager();
-        while (hm0.getPublishQueueCount() < 5)
+        while (hm0.publishQueueLength(cfg) < 5)
         {
             clock.crank(true);
         }
