@@ -878,7 +878,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
         if (app->getHistoryArchiveManager().publishEnabled())
         {
             auto& hm = app->getHistoryManager();
-            REQUIRE(hm.getPublishQueueCount() - hm.getPublishSuccessCount() <=
+            REQUIRE(hm.publishQueueLength(app->getConfig()) <=
                     CatchupWork::PUBLISH_QUEUE_MAX_SIZE);
         }
     }
