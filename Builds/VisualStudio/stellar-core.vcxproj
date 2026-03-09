@@ -625,6 +625,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\SorobanMetrics.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\AppConnector.cpp" />
+    <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\QueryServer.cpp" />
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
@@ -1086,6 +1087,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\SorobanMetrics.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\AppConnector.h" />
+    <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
     <ClInclude Include="..\..\src\main\QueryServer.h" />
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />
