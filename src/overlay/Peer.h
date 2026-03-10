@@ -501,6 +501,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static void
     populateSignatureCacheForTesting(AppConnector& app,
                                      TransactionFrameBaseConstPtr tx);
+
+    uint32_t
+    getSCPStateQueryCountForTesting() const
+    {
+        releaseAssert(threadIsMain());
+        return mSCPStateQueryInfo.mNumQueries;
+    }
 #endif
 
     // Public thread-safe methods that access Peer's state
