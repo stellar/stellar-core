@@ -769,6 +769,84 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                         TxSetValidationResult::ACCOUNT_CANT_PAY_FEE);
             }
         }
+        SECTION("cross-phase fee bumps")
+        {
+            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+                auto mx = std::numeric_limits<uint32_t>::max();
+                cfg.mLedgerMaxTxCount = mx;
+                cfg.mLedgerMaxInstructions = mx;
+                cfg.mLedgerMaxDiskReadBytes = mx;
+                cfg.mLedgerMaxWriteBytes = mx;
+                cfg.mLedgerMaxDiskReadEntries = mx;
+                cfg.mLedgerMaxWriteLedgerEntries = mx;
+            });
+
+            auto& feeSourceAccount = account1;
+
+            SorobanResources resources;
+            resources.instructions = 1'000'000;
+            resources.diskReadBytes = 1000;
+            resources.writeBytes = 1000;
+
+            auto classicTx = transaction(*app, account2, 1, 1, 100);
+            auto sorobanTx = createUploadWasmTx(
+                *app, account3, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
+
+            auto balanceOfFbAccount = feeSourceAccount.getAvailableBalance();
+
+            auto classicFb = feeBump(*app, feeSourceAccount, classicTx, 200);
+            int64_t sorobanFee =
+                balanceOfFbAccount - classicFb->getFullFee() + 1;
+            auto sorobanFb =
+                feeBump(*app, feeSourceAccount, sorobanTx, sorobanFee,
+                        /* useInclusionAsFullFee */ true);
+
+            REQUIRE(balanceOfFbAccount <
+                    classicFb->getFullFee() + sorobanFb->getFullFee());
+            REQUIRE(classicFb->getFullFee() < balanceOfFbAccount);
+            REQUIRE(sorobanFb->getFullFee() < balanceOfFbAccount);
+
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            REQUIRE(classicFb
+                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                     diagnostics)
+                        ->isSuccess());
+            REQUIRE(sorobanFb
+                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                     diagnostics)
+                        ->isSuccess());
+
+            PerPhaseTransactionList invalidPerPhase;
+            invalidPerPhase.resize(2);
+            SECTION("build block")
+            {
+                auto txSet = makeTxSetFromTransactions(
+                    {{classicFb}, {sorobanFb}}, *app, 0, 0, invalidPerPhase);
+                compareTxs(invalidPerPhase[0], {});
+                compareTxs(invalidPerPhase[1], {sorobanFb});
+            }
+            SECTION("validate block")
+            {
+                auto ledgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{classicFb})},
+                         {std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{sorobanFb})}},
+                        *app, ledgerHash)
+                        .second;
+                auto expected =
+                    protocolVersion >=
+                            static_cast<uint32>(ProtocolVersion::V_26)
+                        ? TxSetValidationResult::ACCOUNT_CANT_PAY_FEE
+                        : TxSetValidationResult::VALID;
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) == expected);
+            }
+        }
     }
 }
 
@@ -837,8 +915,10 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
     REQUIRE(fb3->getFullFee() < balanceOfFeeSource);
 
     TxFrameList txs = {fb1, fb2, fb3};
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
     auto invalidTxs =
-        TxSetUtils::getInvalidTxListWithErrors(txs, *app, 0, 0).first;
+        TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0)
+            .first;
 
     // Check for no duplicates by comparing size with unique count
     std::unordered_set<Hash> uniqueHashes;
@@ -2801,10 +2881,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // and only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxFrameList removed;
+            UnorderedMap<AccountID, int64_t> accountFeeMap;
             TxSetUtils::trimInvalid(
                 applicableTxSet->getPhase(TxSetPhase::CLASSIC)
                     .getSequentialTxs(),
-                *app, closeTimeOffset, closeTimeOffset, removed);
+                *app, accountFeeMap, closeTimeOffset, closeTimeOffset, removed);
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 

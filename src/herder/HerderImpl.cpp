@@ -2516,8 +2516,9 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
         externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
 
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
-
-    auto updateQueue = [&](auto& queue, auto const& applied, bool isSoroban) {
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    auto updateQueue = [&accountFeeMap, this, queueRebuildNeeded, &lhhe](
+                           auto& queue, auto const& applied, bool isSoroban) {
         queue.removeApplied(applied);
         queue.shift();
 
@@ -2530,7 +2531,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
         auto txs = queue.getTransactions(lhhe.header);
 
         auto invalidTxs = TxSetUtils::getInvalidTxListWithErrors(
-                              txs, mApp, 0,
+                              txs, mApp, accountFeeMap, 0,
                               getUpperBoundCloseTimeOffset(
                                   mApp, lhhe.header.scpValue.closeTime))
                               .first;
