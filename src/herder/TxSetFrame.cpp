@@ -217,7 +217,7 @@ computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
         protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION)
             ? Rounding::ROUND_DOWN
             : Rounding::ROUND_UP;
-    auto txOps = tx.getNumOperations();
+    auto txOps = std::max(tx.getNumOperations(), 1u);
     return bigDivideOrThrow(tx.getInclusionFee(), 1,
                             static_cast<int64_t>(txOps), rounding);
 }

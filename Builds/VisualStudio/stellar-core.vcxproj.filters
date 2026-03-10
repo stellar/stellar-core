@@ -1437,6 +1437,9 @@
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2549,6 +2552,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\SimpleTimer.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
