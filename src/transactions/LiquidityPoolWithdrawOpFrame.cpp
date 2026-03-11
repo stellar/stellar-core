@@ -34,7 +34,6 @@ LiquidityPoolWithdrawOpFrame::accessesFrozenKeyAtApplyTime(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     LiquidityPoolEntry const& pool) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
     {
         return false;
@@ -56,7 +55,6 @@ LiquidityPoolWithdrawOpFrame::accessesFrozenKeyAtApplyTime(
     {
         return true;
     }
-#endif
     return false;
 }
 
@@ -106,9 +104,7 @@ LiquidityPoolWithdrawOpFrame::doApply(
     if (accessesFrozenKeyAtApplyTime(sorobanConfig,
                                      poolEntry.current().data.liquidityPool()))
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_TRUSTLINE_FROZEN);
-#endif
         return false;
     }
 

@@ -88,12 +88,10 @@ struct SorobanUpgradeConfig
     std::optional<uint32_t> ballotTimeoutInitialMilliseconds{};
     std::optional<uint32_t> ballotTimeoutIncrementMilliseconds{};
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Frozen ledger keys delta
     std::optional<FrozenLedgerKeysDelta> frozenLedgerKeysDelta{};
     // Freeze bypass tx hashes delta
     std::optional<FreezeBypassTxsDelta> freezeBypassTxsDelta{};
-#endif
 };
 
 class TxGenerator

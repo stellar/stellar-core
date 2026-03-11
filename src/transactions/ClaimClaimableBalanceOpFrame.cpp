@@ -30,7 +30,6 @@ ClaimClaimableBalanceOpFrame::accessesFrozenKeyAtApplyTime(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     Asset const& asset, OperationResult& res) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
     {
         return false;
@@ -49,7 +48,6 @@ ClaimClaimableBalanceOpFrame::accessesFrozenKeyAtApplyTime(
         innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_TRUSTLINE_FROZEN);
         return true;
     }
-#endif
     return false;
 }
 

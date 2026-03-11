@@ -2797,7 +2797,6 @@ TEST_CASE("upgrade to version 25 and check cost types", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
 {
     VirtualClock clock;
@@ -2851,7 +2850,6 @@ TEST_CASE("upgrade to version 26 and check cost types", "[upgrades]")
                 static_cast<uint32>(ContractCostType::Bn254G1Msm) + 1);
     }
 }
-#endif
 
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger

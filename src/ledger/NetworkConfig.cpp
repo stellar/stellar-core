@@ -634,7 +634,6 @@ updateCpuCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 void
 updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerTxn ltx(ltxRoot);
 
     LedgerKey key(CONFIG_SETTING);
@@ -693,7 +692,6 @@ updateCpuCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
         }
     }
     ltx.commit();
-#endif
 }
 
 ConfigSettingEntry
@@ -1136,7 +1134,6 @@ updateMemCostParamsEntryForV25(AbstractLedgerTxn& ltxRoot)
 void
 updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerTxn ltx(ltxRoot);
 
     LedgerKey key(CONFIG_SETTING);
@@ -1190,7 +1187,6 @@ updateMemCostParamsEntryForV26(AbstractLedgerTxn& ltxRoot)
     }
 
     ltx.commit();
-#endif
 }
 
 ConfigSettingEntry
@@ -1487,7 +1483,6 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MaximumSorobanNetworkConfig::
                     BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS:
         // The frozen keys entry itself is always valid (it's just a list of
         // encoded keys). But it cannot be directly upgraded — only the delta
@@ -1575,7 +1570,6 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
     case ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS_DELTA:
         valid = protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_26);
         break;
-#endif
     default:
         break;
     }
@@ -1598,12 +1592,9 @@ SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     // never be changed via upgrade
     return cfg ==
                ConfigSettingID::CONFIG_SETTING_LIVE_SOROBAN_STATE_SIZE_WINDOW ||
-           cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-           || cfg == ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS ||
-           cfg == ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS
-#endif
-        ;
+           cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR ||
+           cfg == ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS ||
+           cfg == ConfigSettingID::CONFIG_SETTING_FREEZE_BYPASS_TXS;
 }
 
 void
@@ -2548,7 +2539,6 @@ void
 SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mFrozenLedgerKeys.clear();
 
     LedgerKey key(CONFIG_SETTING);
@@ -2564,14 +2554,12 @@ SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
         xdr::xdr_from_opaque(encodedKey, lk);
         mFrozenLedgerKeys.insert(lk);
     }
-#endif
 }
 
 void
 SorobanNetworkConfig::loadFreezeBypassTxs(LedgerSnapshot const& ls)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mFreezeBypassTxs.clear();
 
     LedgerKey key(CONFIG_SETTING);
@@ -2585,7 +2573,6 @@ SorobanNetworkConfig::loadFreezeBypassTxs(LedgerSnapshot const& ls)
     {
         mFreezeBypassTxs.insert(txHash);
     }
-#endif
 }
 
 void
@@ -2593,7 +2580,6 @@ SorobanNetworkConfig::createLedgerEntriesForV26(AbstractLedgerTxn& ltx,
                                                 Application& app)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ConfigSettingEntry frozenKeysEntry;
     frozenKeysEntry.configSettingID(CONFIG_SETTING_FROZEN_LEDGER_KEYS);
     // Start with an empty frozen keys set
@@ -2613,7 +2599,6 @@ SorobanNetworkConfig::createLedgerEntriesForV26(AbstractLedgerTxn& ltx,
     e.data.configSetting() = bypassTxsEntry;
     inner.create(e);
     inner.commit();
-#endif
 }
 
 #ifdef BUILD_TESTS
@@ -2845,17 +2830,10 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
         {
             return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         else
         {
             return static_cast<uint32_t>(ContractCostType::Bn254G1Msm) + 1;
         }
-#else
-        else
-        {
-            return static_cast<uint32_t>(ContractCostType::Bn254FrInv) + 1;
-        }
-#endif
     };
 
     if (params.size() != getNumCostTypes(ledgerVersion))

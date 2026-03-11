@@ -2526,7 +2526,6 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
                 continue;
             }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             // Delta settings are upgrade payloads only and have no stored
             // ledger entries to load.
             if (type == CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA ||
@@ -2534,7 +2533,6 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             {
                 continue;
             }
-#endif
 
             // Because we added more cost types in v21 and later, the initial
             // contractDataEntrySizeBytes setting of 2000 is too low to write
@@ -5697,7 +5695,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             continue;
         }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // Delta settings are upgrade payloads only and have no stored
         // ledger entries to load.
         if (type == CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA ||
@@ -5705,7 +5702,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         {
             continue;
         }
-#endif
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto entry = ltx.load(configSettingKey(type));
@@ -5975,7 +5971,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                 continue;
             }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             // Delta settings are upgrade payloads only and have no stored
             // ledger entries to load.
             if (type == CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA ||
@@ -5983,7 +5978,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             {
                 continue;
             }
-#endif
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto entry = ltx.load(configSettingKey(type));

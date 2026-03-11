@@ -880,7 +880,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             continue;
         }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // The delta has no stored ledger entry — construct it from the
         // upgrade config if present, then move on.
         if (type == CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA)
@@ -910,7 +909,6 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             }
             continue;
         }
-#endif
 
         auto entryPtr = lsg.load(configSettingKey(type));
         // This could happen if we have not yet upgraded
