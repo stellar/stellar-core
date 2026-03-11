@@ -833,6 +833,7 @@ makeTxSetFromTransactions(
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 
     std::vector<TxSetPhaseFrame> validatedPhases;
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
     for (size_t i = 0; i < txPhases.size(); ++i)
     {
         auto const& phaseTxs = txPhases[i];
@@ -856,7 +857,7 @@ makeTxSetFromTransactions(
         {
 #endif
             validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, lowerBoundCloseTimeOffset,
+                phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
                 upperBoundCloseTimeOffset, invalid);
 #ifdef BUILD_TESTS
         }
@@ -1719,16 +1720,17 @@ TxSetPhaseFrame::checkValid(Application& app,
                             uint64_t upperBoundCloseTimeOffset,
                             bool txsAreValidated) const
 {
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
     return checkValidWithResult(app, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, txsAreValidated) ==
-           TxSetValidationResult::VALID;
+                                upperBoundCloseTimeOffset, txsAreValidated,
+                                accountFeeMap) == TxSetValidationResult::VALID;
 }
 
 TxSetValidationResult
-TxSetPhaseFrame::checkValidWithResult(Application& app,
-                                      uint64_t lowerBoundCloseTimeOffset,
-                                      uint64_t upperBoundCloseTimeOffset,
-                                      bool txsAreValidated) const
+TxSetPhaseFrame::checkValidWithResult(
+    Application& app, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, bool txsAreValidated,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap) const
 {
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Verify the fee map for the phase. This check is independent of the phase
@@ -1774,7 +1776,8 @@ TxSetPhaseFrame::checkValidWithResult(Application& app,
     }
 
     auto invalid = TxSetUtils::getInvalidTxListWithErrors(
-        *this, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+        *this, app, accountFeeMap, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset);
     if (invalid.first.empty())
     {
         releaseAssert(invalid.second == TxSetValidationResult::VALID);
@@ -2149,11 +2152,18 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
         }
     }
 
+    bool useCrossPhaseFeeMap = protocolVersionStartsFrom(
+        lcl.header.ledgerVersion, ProtocolVersion::V_26);
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
     for (auto const& phase : mPhases)
     {
-        auto result = phase.checkValidWithResult(app, lowerBoundCloseTimeOffset,
-                                                 upperBoundCloseTimeOffset,
-                                                 txsAreValidated);
+        if (!useCrossPhaseFeeMap)
+        {
+            accountFeeMap.clear();
+        }
+        auto result = phase.checkValidWithResult(
+            app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+            txsAreValidated, accountFeeMap);
         if (result != TxSetValidationResult::VALID)
         {
             return result;

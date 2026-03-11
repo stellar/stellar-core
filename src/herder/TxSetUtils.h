@@ -50,12 +50,14 @@ class TxSetUtils
     template <typename TxContainer>
     static TxFrameListWithErrors
     getInvalidTxListWithErrors(TxContainer const& txs, Application& app,
+                               UnorderedMap<AccountID, int64_t>& accountFeeMap,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
 
-    static TxFrameList trimInvalid(TxFrameList const& txs, Application& app,
-                                   uint64_t lowerBoundCloseTimeOffset,
-                                   uint64_t upperBoundCloseTimeOffset,
-                                   TxFrameList& invalidTxs);
+    static TxFrameList
+    trimInvalid(TxFrameList const& txs, Application& app,
+                UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                uint64_t lowerBoundCloseTimeOffset,
+                uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs);
 }; // class TxSetUtils
 } // namespace stellar

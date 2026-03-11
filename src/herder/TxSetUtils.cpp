@@ -164,9 +164,10 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
 
 template <typename T>
 TxFrameListWithErrors
-TxSetUtils::getInvalidTxListWithErrors(T const& txs, Application& app,
-                                       uint64_t lowerBoundCloseTimeOffset,
-                                       uint64_t upperBoundCloseTimeOffset)
+TxSetUtils::getInvalidTxListWithErrors(
+    T const& txs, Application& app,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -176,7 +177,6 @@ TxSetUtils::getInvalidTxListWithErrors(T const& txs, Application& app,
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
     TxFrameListWithErrors invalidTxsWithError;
     auto& invalidTxs = invalidTxsWithError.first;
     auto& errorCode = invalidTxsWithError.second;
@@ -253,19 +253,23 @@ TxSetUtils::getInvalidTxListWithErrors(T const& txs, Application& app,
 template TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors<TxFrameList>(
     TxFrameList const& txs, Application& app,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 template TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
     TxSetPhaseFrame const& txs, Application& app,
+    UnorderedMap<AccountID, int64_t>& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 
 TxFrameList
 TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
+                        UnorderedMap<AccountID, int64_t>& accountFeeMap,
                         uint64_t lowerBoundCloseTimeOffset,
                         uint64_t upperBoundCloseTimeOffset,
                         TxFrameList& invalidTxs)
 {
-    invalidTxs = getInvalidTxListWithErrors(txs, app, lowerBoundCloseTimeOffset,
+    invalidTxs = getInvalidTxListWithErrors(txs, app, accountFeeMap,
+                                            lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset)
                      .first;
     return removeTxs(txs, invalidTxs);

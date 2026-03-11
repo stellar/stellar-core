@@ -10,6 +10,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
+#include "util/UnorderedMap.h"
 #include "xdr/Stellar-internal.h"
 
 #include <deque>
@@ -411,7 +412,8 @@ class TxSetPhaseFrame
     TxSetValidationResult
     checkValidWithResult(Application& app, uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
-                         bool txsAreValidated = false) const;
+                         bool txsAreValidated,
+                         UnorderedMap<AccountID, int64_t>& accountFeeMap) const;
     TxSetValidationResult
     checkValidClassic(LedgerHeader const& lclHeader) const;
     TxSetValidationResult
