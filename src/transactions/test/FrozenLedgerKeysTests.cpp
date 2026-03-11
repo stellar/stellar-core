@@ -30,7 +30,6 @@ namespace stellar
 namespace
 {
 using namespace stellar::txtest;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 EncodedLedgerKey
 encodeLedgerKey(LedgerKey const& key)
 {
@@ -2000,6 +1999,5 @@ TEST_CASE("frozen ledger keys DEX path payments",
     }
 }
 
-#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 } // namespace
 } // namespace stellar

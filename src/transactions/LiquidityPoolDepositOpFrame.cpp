@@ -126,7 +126,6 @@ LiquidityPoolDepositOpFrame::accessesFrozenKeyAtApplyTime(
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
     LiquidityPoolConstantProductParameters const& cpp) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!sorobanConfig || !sorobanConfig->hasFrozenKeys())
     {
         return false;
@@ -145,7 +144,6 @@ LiquidityPoolDepositOpFrame::accessesFrozenKeyAtApplyTime(
     {
         return true;
     }
-#endif
     return false;
 }
 
@@ -278,9 +276,7 @@ LiquidityPoolDepositOpFrame::doApply(
     auto header = ltx.loadHeader();
     if (accessesFrozenKeyAtApplyTime(sorobanConfig, cpp()))
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         innerResult(res).code(LIQUIDITY_POOL_DEPOSIT_TRUSTLINE_FROZEN);
-#endif
         return false;
     }
 

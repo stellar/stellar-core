@@ -296,7 +296,6 @@ FeeBumpTransactionFrame::checkValid(
         return txResult;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         // CAP-77: Check if fee bump source account is frozen
@@ -313,7 +312,6 @@ FeeBumpTransactionFrame::checkValid(
             }
         }
     }
-#endif
 
     if (!signatureChecker.checkAllSignaturesUsed())
     {
