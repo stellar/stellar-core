@@ -31,10 +31,11 @@ use crate::RustBuf;
 
 // We also alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just "always supposed to use the latest".
-#[cfg(not(feature = "next"))]
-pub(crate) use p25 as soroban_curr;
-#[cfg(feature = "next")]
+
+//#[cfg(not(feature = "next"))]
 pub(crate) use p26 as soroban_curr;
+//#[cfg(feature = "next")]
+//pub(crate) use p27 as soroban_curr;
 
 // We also pin some protocol _agnostic_ definitions that are technically
 // implemented by a specific version of soroban, but which is protocol-stable
@@ -51,7 +52,6 @@ pub(crate) mod protocol_agnostic {
     pub(crate) use super::p24::soroban_env_host::xdr::int128_helpers;
 }
 
-#[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p26 {
     pub(crate) extern crate soroban_env_host_p26;
@@ -1192,7 +1192,6 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p23),
     proto_versioned_functions_for_module!(p24),
     proto_versioned_functions_for_module!(p25),
-    #[cfg(feature = "next")]
     proto_versioned_functions_for_module!(p26),
 ];
 
