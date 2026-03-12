@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <numeric>
 #include <string>
 #include <unordered_map>
@@ -20,15 +19,11 @@
 
 #include "herder/HerderImpl.h"
 
-#include "medida/metrics_registry.h"
-
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
-#include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 
 namespace stellar

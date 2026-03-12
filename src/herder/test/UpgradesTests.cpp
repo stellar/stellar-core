@@ -14,6 +14,7 @@
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -4056,8 +4057,7 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
     };
     auto runUpgradeAndGetSnapshot = [&]() {
         executeUpgrade(*app, makeProtocolVersionUpgrade(fixedProtocolVersion));
-        return app->getAppConnector()
-            .copySearchableHotArchiveBucketListSnapshot();
+        return app->getAppConnector().copyLedgerStateSnapshot();
     };
     auto const& corruptedEntries =
         p23_hot_archive_bug::internal::P23_CORRUPTED_HOT_ARCHIVE_ENTRIES;
@@ -4077,10 +4077,10 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
         BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
             *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
             allCorruptedEntries, {});
-        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
+        auto snap = runUpgradeAndGetSnapshot();
         for (auto const& [key, expectedEntry] : allExpectedFixedByKey)
         {
-            auto actual = hotArchiveSnapshot->load(key);
+            auto actual = snap.loadArchiveEntry(key);
             REQUIRE(actual);
             REQUIRE(actual->archivedEntry() == expectedEntry);
         }
@@ -4092,8 +4092,8 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
         BucketTestUtils::addHotArchiveBatchAndUpdateSnapshot(
             *app, app->getLedgerManager().getLastClosedLedgerHeader().header,
             allCorruptedEntries, {});
-        auto hotArchiveSnapshot = runUpgradeAndGetSnapshot();
-        auto actual = hotArchiveSnapshot->load(removedKey);
+        auto snap = runUpgradeAndGetSnapshot();
+        auto actual = snap.loadArchiveEntry(removedKey);
         REQUIRE(!actual);
     }
 }

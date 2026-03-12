@@ -4,11 +4,9 @@
 
 #include "invariant/ArchivedStateConsistency.h"
 #include "bucket/BucketListSnapshot.h"
-#include "bucket/BucketSnapshotManager.h"
-#include "bucket/HotArchiveBucket.h"
 #include "bucket/LedgerCmp.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -40,8 +38,7 @@ ArchivedStateConsistency::getName() const
 
 std::string
 ArchivedStateConsistency::checkOnLedgerCommit(
-    SearchableSnapshotConstPtr lclLiveState,
-    SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+    ApplyLedgerStateSnapshot const& lclSnapshot,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -51,14 +48,15 @@ ArchivedStateConsistency::checkOnLedgerCommit(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::milliseconds(1));
 
+    auto ledgerSeq = lclSnapshot.getLedgerSeq() + 1;
+    auto ledgerVers = lclSnapshot.getLedgerHeader().ledgerVersion;
+
     if (protocolVersionIsBefore(
-            lclLiveState->getLedgerHeader().ledgerVersion,
+            ledgerVers,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         return std::string{};
     }
-    auto ledgerSeq = lclLiveState->getLedgerSeq() + 1;
-    auto ledgerVers = lclLiveState->getLedgerHeader().ledgerVersion;
 
     // Collect all keys to preload
     LedgerKeySet allKeys;
@@ -95,13 +93,13 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     // Preload from both live and archived state
     UnorderedMap<LedgerKey, LedgerEntry> preloadedLiveEntries;
     auto preloadedLiveVector =
-        lclLiveState->loadKeys(allKeys, "ArchivedStateConsistency");
+        lclSnapshot.loadLiveKeys(allKeys, "ArchivedStateConsistency");
     for (auto const& entry : preloadedLiveVector)
     {
         preloadedLiveEntries[LedgerEntryKey(entry)] = entry;
     }
 
-    auto preloadedArchivedVector = lclHotArchiveState->loadKeys(allKeys);
+    auto preloadedArchivedVector = lclSnapshot.loadArchiveKeys(allKeys);
     UnorderedMap<LedgerKey, HotArchiveBucketEntry> preloadedArchivedEntries;
     for (auto const& entry : preloadedArchivedVector)
     {
