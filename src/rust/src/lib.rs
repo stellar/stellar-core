@@ -40,6 +40,8 @@ mod soroban_test_wasm;
 #[cfg(feature = "testutils")]
 mod soroban_test_extra_protocol;
 
+mod soroban_fuzz;
+
 use soroban_module_cache::SorobanModuleCache;
 
 mod bridge;
