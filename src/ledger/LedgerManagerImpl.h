@@ -123,7 +123,15 @@ class LedgerManagerImpl : public LedgerManager
         //   ApplyState. This occurs on startup and after BucketApply during
         //   catchup.
         // - READY_TO_APPLY: Apply State is ready but not actively executing
-        //   transactions or committing ledger state. ApplyState is immutable.
+        //   transactions or committing ledger state. ApplyState is immutable,
+        //   with one exception: if a pending module cache recompilation is
+        //   running from the _previous_ ledger, we will wait for it to complete
+        //   and swap it into position as the new module cache before entering
+        //   APPLYING. Essentially just caching a derived view of data that
+        //   had its official/durable form written during the last COMMITTING.
+        //   We _could_ do this during COMMITTING but it would risk stalling,
+        //   so we let it run in the background during the time between
+        //   COMMITTING and next APPLYING.
         // - APPLYING: ApplyState is actively executing transactions.
         //   During this time, ApplyState is immutable and multiple Soroban
         //   execution threads may read ApplyState concurrently. During TX
