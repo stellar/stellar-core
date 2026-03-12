@@ -507,6 +507,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 {
     ZoneScoped;
     mApplyState.assertSetupPhase();
+    auto rebuildStart = mApp.getClock().now();
 
     // Step 1. Load LCL state from the DB
     HistoryArchiveState has;
@@ -553,13 +554,16 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     // Only restart merges in full startup mode. Many modes in core
     // (standalone offline commands, in-memory setup) do not need to
     // spin up expensive merge processes.
+    auto assumeStart = mApp.getClock().now();
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
         has, latestLedgerHeader->ledgerVersion,
         /* restartMerges */ !skipBuildingFullState);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
-        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                  ledgerAbbrev(*latestLedgerHeader));
+        std::chrono::duration<double> assumeSecs =
+            mApp.getClock().now() - assumeStart;
+        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {} ({:.3f} sec)",
+                  ledgerAbbrev(*latestLedgerHeader), assumeSecs.count());
     }
     else
     {
@@ -584,8 +588,17 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
     {
         mApplyState.compileAllContractsInLedger(
             snapshot, latestLedgerHeader->ledgerVersion);
+
+        auto populateStart = mApp.getClock().now();
+        CLOG_INFO(Perf,
+                  "Populating in-memory Soroban state from LCL for ledger {}",
+                  ledgerAbbrev(*latestLedgerHeader));
         mApplyState.populateInMemorySorobanState(
             snapshot, latestLedgerHeader->ledgerVersion);
+        std::chrono::duration<double> populateSecs =
+            mApp.getClock().now() - populateStart;
+        CLOG_INFO(Perf, "Populated in-memory Soroban state in {:.3f} sec",
+                  populateSecs.count());
     }
 
     if (!skipBuildingFullState)
@@ -595,6 +608,11 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
             /* runInParallel */ false);
     }
     mApplyState.markEndOfSetupPhase();
+
+    std::chrono::duration<double> rebuildSecs =
+        mApp.getClock().now() - rebuildStart;
+    CLOG_INFO(Perf, "Startup state load took {:.3f} sec (full={})",
+              rebuildSecs.count(), !skipBuildingFullState);
 }
 
 void
