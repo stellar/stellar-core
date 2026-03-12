@@ -2000,6 +2000,298 @@ TEST_CASE("frozen ledger keys DEX path payments",
     }
 }
 
+TEST_CASE("frozen offers are transparent to DEX matching - randomized",
+          "[frozenledgerkeys][tx][offers][acceptance]")
+{
+    constexpr int NUM_ITERATIONS = 10;
+    constexpr int ACTIVE_MAKERS_PER_PAIR = 10;
+    constexpr int FROZEN_MAKERS_PER_PAIR = 5;
+    constexpr int NUM_PAIRS = 3;
+    constexpr int NUM_OPS = 15;
+    constexpr int NUM_ASSETS = 3;
+    constexpr int MAX_BATCH_SIZE = 10;
+    constexpr int TOTAL_ACTIVE_MAKERS = ACTIVE_MAKERS_PER_PAIR * NUM_PAIRS;
+    constexpr int TOTAL_FROZEN_MAKERS = FROZEN_MAKERS_PER_PAIR * NUM_PAIRS;
+
+    constexpr int NUM_TRACKED = 1 + TOTAL_ACTIVE_MAKERS;
+
+    struct MarketResult
+    {
+        std::vector<int64_t> deltas;
+        int frozenOffersRemoved;
+        int txsSucceeded;
+    };
+
+    int totalFrozenOffersRemoved = 0;
+    int totalTxsSucceeded = 0;
+
+    for (int iter = 0; iter < NUM_ITERATIONS; ++iter)
+    {
+        INFO("iteration " << iter);
+
+        auto iterSeed = stellar::uniform_int_distribution<uint32_t>(
+            0, UINT32_MAX)(Catch::rng());
+
+        auto runMarket = [&](uint32_t seed,
+                             bool withFrozenOffers) -> MarketResult {
+            std::mt19937 rng(seed);
+
+            VirtualClock clock;
+            auto cfg = getTestConfig();
+            auto app = createTestApplication(clock, cfg);
+            auto root = app->getRoot();
+            auto const& lm = app->getLedgerManager();
+            auto minBalance =
+                lm.getLastMinBalance(20) + 100 * lm.getLastTxFee();
+
+            // Initialize accounts and assets.
+            auto issuerUSD = root->create("issuerUSD", minBalance);
+            auto issuerEUR = root->create("issuerEUR", minBalance);
+            auto xlm = makeNativeAsset();
+            auto usd = makeAsset(issuerUSD, "USD");
+            auto eur = makeAsset(issuerEUR, "EUR");
+
+            Asset assets[NUM_ASSETS] = {xlm, usd, eur};
+
+            struct Pair
+            {
+                Asset selling;
+                Asset buying;
+            };
+            Pair pairs[NUM_PAIRS] = {{usd, xlm}, {eur, xlm}, {usd, eur}};
+
+            auto randInt = [&](int lo, int hi) {
+                stellar::uniform_int_distribution<int> dist(lo, hi);
+                return dist(rng);
+            };
+
+            auto fundNonNativeAssets = [&](TestAccount& account) {
+                for (auto const& asset : assets)
+                {
+                    if (asset.type() != ASSET_TYPE_NATIVE)
+                    {
+                        account.changeTrust(asset, INT64_MAX);
+                        auto& issuer = (asset == usd) ? issuerUSD : issuerEUR;
+                        issuer.pay(account, asset, 100'000);
+                    }
+                }
+            };
+
+            std::vector<TestAccount> activeMakers;
+            activeMakers.reserve(TOTAL_ACTIVE_MAKERS);
+            for (int i = 0; i < TOTAL_ACTIVE_MAKERS; ++i)
+            {
+                auto name = fmt::format("maker{}", i);
+                activeMakers.emplace_back(root->create(name, minBalance));
+                fundNonNativeAssets(activeMakers.back());
+            }
+
+            auto taker = root->create("taker", minBalance);
+            fundNonNativeAssets(taker);
+
+            std::vector<TestAccount> feePayers;
+            feePayers.reserve(MAX_BATCH_SIZE);
+            for (int i = 0; i < MAX_BATCH_SIZE; ++i)
+            {
+                auto name = fmt::format("feePayer{}", i);
+                feePayers.emplace_back(root->create(name, minBalance));
+            }
+
+            // Initialize market with active offers.
+            int makerIdx = 0;
+            for (auto const& pair : pairs)
+            {
+                for (int j = 0; j < ACTIVE_MAKERS_PER_PAIR; ++j, ++makerIdx)
+                {
+                    auto priceN = static_cast<int32_t>(randInt(1, 10));
+                    auto priceD = static_cast<int32_t>(randInt(1, 10));
+                    int64_t amount = randInt(100, 5000);
+                    activeMakers[makerIdx].manageOffer(
+                        0, pair.selling, pair.buying, Price{priceN, priceD},
+                        amount);
+                }
+            }
+
+            struct FrozenOfferInfo
+            {
+                TestAccount account;
+                int64_t offerID;
+            };
+            std::vector<FrozenOfferInfo> frozenOffers;
+            // Create frozen offers (only in run with frozen offers).
+            if (withFrozenOffers)
+            {
+                int frozenIdx = 0;
+                for (auto const& pair : pairs)
+                {
+                    for (int j = 0; j < FROZEN_MAKERS_PER_PAIR;
+                         ++j, ++frozenIdx)
+                    {
+                        auto name = fmt::format("frozen{}", frozenIdx);
+                        auto frozenMaker = root->create(name, minBalance);
+                        fundNonNativeAssets(frozenMaker);
+
+                        auto priceN = static_cast<int32_t>(randInt(1, 10));
+                        auto priceD = static_cast<int32_t>(randInt(1, 10));
+                        int64_t amount = randInt(100, 5000);
+                        auto offerID = frozenMaker.manageOffer(
+                            0, pair.selling, pair.buying, Price{priceN, priceD},
+                            amount);
+                        freezeKey(*app,
+                                  frozenKeyForAsset(frozenMaker, pair.selling));
+                        frozenOffers.emplace_back(
+                            FrozenOfferInfo{std::move(frozenMaker), offerID});
+                    }
+                }
+            }
+
+            auto recordBalances = [&]() {
+                std::vector<int64_t> balances(NUM_TRACKED * NUM_ASSETS, 0);
+                auto record = [&](int accIdx, TestAccount& acc) {
+                    for (int a = 0; a < NUM_ASSETS; ++a)
+                    {
+                        balances[accIdx * NUM_ASSETS + a] =
+                            loadDexAssetState(*app, acc, assets[a]).balance;
+                    }
+                };
+                record(0, taker);
+                for (int i = 0; i < TOTAL_ACTIVE_MAKERS; ++i)
+                {
+                    record(i + 1, activeMakers[i]);
+                }
+                return balances;
+            };
+
+            auto preBalances = recordBalances();
+
+            // Execute deterministic operation sequence in random-sized
+            // batches. Use a separate RNG stream so frozen offer creation
+            // does not change the operations.
+            std::mt19937 opsRng(seed + 1000);
+            auto opsRandInt = [&](int lo, int hi) {
+                stellar::uniform_int_distribution<int> dist(lo, hi);
+                return dist(opsRng);
+            };
+
+            int txsSucceeded = 0;
+            int opsGenerated = 0;
+            while (opsGenerated < NUM_OPS)
+            {
+                int batchSize = std::min(opsRandInt(1, MAX_BATCH_SIZE),
+                                         NUM_OPS - opsGenerated);
+
+                std::vector<TransactionFrameBasePtr> batch;
+                batch.reserve(batchSize);
+                for (int b = 0; b < batchSize; ++b, ++opsGenerated)
+                {
+                    int opType = opsRandInt(0, 4);
+                    int pairIdx = opsRandInt(0, NUM_PAIRS - 1);
+                    auto const& pair = pairs[pairIdx];
+
+                    int64_t amount = opsRandInt(50, 2000);
+                    auto pN = static_cast<int32_t>(opsRandInt(1, 10));
+                    auto pD = static_cast<int32_t>(opsRandInt(1, 10));
+
+                    Operation dexOp;
+                    switch (opType)
+                    {
+                    case 0:
+                        dexOp = manageOffer(0, pair.buying, pair.selling,
+                                            Price{pN, pD}, amount);
+                        break;
+                    case 1:
+                        dexOp = manageBuyOffer(0, pair.buying, pair.selling,
+                                               Price{pN, pD}, amount);
+                        break;
+                    case 2:
+                        dexOp = createPassiveOffer(pair.buying, pair.selling,
+                                                   Price{pN, pD}, amount);
+                        break;
+                    case 3:
+                        dexOp =
+                            pathPayment(taker.getPublicKey(), pair.buying,
+                                        amount * 10, pair.selling, amount, {});
+                        break;
+                    default:
+                        dexOp = pathPaymentStrictSend(taker.getPublicKey(),
+                                                      pair.buying, amount,
+                                                      pair.selling, 1, {});
+                        break;
+                    }
+
+                    dexOp.sourceAccount.activate() =
+                        toMuxedAccount(taker.getPublicKey());
+                    auto& feePayer = feePayers[b];
+                    auto tx = transactionFromOperations(
+                        *app, feePayer.getSecretKey(),
+                        feePayer.nextSequenceNumber(), {dexOp});
+                    tx->addSignature(taker.getSecretKey());
+
+                    {
+                        LedgerSnapshot ls(*app);
+                        auto result =
+                            tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+                        REQUIRE(result->isSuccess());
+                    }
+
+                    batch.emplace_back(std::move(tx));
+                }
+
+                // Subtle: strict order has to be used because ledger hashes
+                // are going to be different between frozen and non-frozen
+                // runs, which causes different ordering of the exact same
+                // transactions.
+                auto r = closeLedger(*app, batch, /*strictOrder=*/true);
+                REQUIRE(r.results.size() == static_cast<size_t>(batchSize));
+                for (int b = 0; b < batchSize; ++b)
+                {
+                    if (r.results[b].result.result.code() == txSUCCESS)
+                    {
+                        ++txsSucceeded;
+                    }
+                }
+            }
+
+            int frozenRemoved = 0;
+            for (auto const& fo : frozenOffers)
+            {
+                if (!offerExists(*app, fo.account, fo.offerID))
+                {
+                    ++frozenRemoved;
+                }
+            }
+
+            auto postBalances = recordBalances();
+            std::vector<int64_t> deltas(NUM_TRACKED * NUM_ASSETS, 0);
+            for (int i = 0; i < NUM_TRACKED * NUM_ASSETS; ++i)
+            {
+                deltas[i] = postBalances[i] - preBalances[i];
+            }
+            return MarketResult{deltas, frozenRemoved, txsSucceeded};
+        };
+
+        auto baseline = runMarket(iterSeed, false);
+        auto withFrozen = runMarket(iterSeed, true);
+
+        std::cerr << fmt::format("frozen offers removed: {}/{}, "
+                                 "txs succeeded: {}",
+                                 withFrozen.frozenOffersRemoved,
+                                 TOTAL_FROZEN_MAKERS, baseline.txsSucceeded)
+                  << std::endl;
+
+        REQUIRE(baseline.deltas == withFrozen.deltas);
+        REQUIRE(baseline.txsSucceeded == withFrozen.txsSucceeded);
+
+        totalFrozenOffersRemoved += withFrozen.frozenOffersRemoved;
+        totalTxsSucceeded += baseline.txsSucceeded;
+    }
+
+    // We should have enough test iterations and transactions to get at least
+    // some frozen offer removals and successful transactions.
+    REQUIRE(totalFrozenOffersRemoved > 0);
+    REQUIRE(totalTxsSucceeded > 0);
+}
+
 #endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 } // namespace
 } // namespace stellar
