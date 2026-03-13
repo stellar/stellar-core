@@ -6,30 +6,16 @@
 
 #include "main/Application.h"
 #include "simulation/TxGenerator.h"
-#include "test/TestAccount.h"
-
-#include "medida/meter.h"
 
 namespace stellar
 {
 
-enum class ApplyLoadMode
-{
-    // Generate load within the configured ledger limits.
-    LIMIT_BASED,
-    // Generate load that finds max ledger limits for the 'model' transaction.
-    FIND_LIMITS_FOR_MODEL_TX,
-    // Generate load that only finds max TPS for the cheap operations (SAC
-    // transfers), ignoring ledger limits.
-    MAX_SAC_TPS
-};
-
 class ApplyLoad
 {
   public:
-    ApplyLoad(Application& app, ApplyLoadMode mode);
+    explicit ApplyLoad(Application& app);
 
-    // Execute the benchmark according to the mode specified in the constructor.
+    // Execute the benchmark according to the mode specified in config.
     void execute();
 
     // Returns the % of transactions that succeeded during apply time. The range
@@ -63,8 +49,6 @@ class ApplyLoad
 
   private:
     void setup();
-
-    void setupAccounts();
     void setupUpgradeContract();
     void setupLoadContract();
     void setupXLMContract();
@@ -98,6 +82,12 @@ class ApplyLoad
     // APPLY_LOAD_TARGET_CLOSE_TIME_MS.
     void findMaxSacTps();
 
+    // Runs for `execute() in `ApplyLoadMode::BENCHMARK_MODEL_TX` mode.
+    // Benchmarks APPLY_LOAD_NUM_LEDGERS ledgers containing
+    // APPLY_LOAD_MAX_SOROBAN_TX_COUNT model transactions each and outputs
+    // close-time summary statistics.
+    void benchmarkModelTx();
+
     // Run a single ledger benchmark at the given TPS. Returns the close time
     // in milliseconds for that ledger.
     double benchmarkSacTpsSingleLedger(uint32_t txsPerLedger);
@@ -106,7 +96,7 @@ class ApplyLoad
     // the close time in milliseconds for that ledger.
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
-    // specified in the ApplyLoad constructor, create a TransactionSet out of
+    // specified in config, create a TransactionSet out of
     // those transactions, and then close a ledger with that TransactionSet. The
     // generated transactions are generated using the LOADGEN_* config
     // parameters.
@@ -119,6 +109,10 @@ class ApplyLoad
 
     // Calculate instructions per transaction based on batch size
     uint64_t calculateInstructionsPerTx() const;
+
+    // Convert benchmark model SAC transfer count into number of tx envelopes
+    // to execute, taking APPLY_LOAD_BATCH_SAC_COUNT into account.
+    uint32_t calculateBenchmarkSacTxCount() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
     // BucketListDB cache. Note that this should be run every time an account
@@ -145,7 +139,7 @@ class ApplyLoad
 
     Application& mApp;
     ApplyLoadMode mMode;
-    TxGenerator::TestAccountPtr mRoot;
+    ApplyLoadModelTx mModelTx;
 
     uint32_t mNumAccounts;
     uint32_t mTotalHotArchiveEntries;
