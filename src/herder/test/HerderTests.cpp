@@ -6408,16 +6408,15 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             auto prep = db.getPreparedStatement(
                 "SELECT envelope FROM scphistory WHERE ledgerseq = :l",
                 db.getMiscSession());
-            auto& st = prep.statement();
-            st.exchange(soci::use(ledgerNum));
+            prep.exchange(soci::use(ledgerNum));
             std::string envStr;
-            st.exchange(soci::into(envStr));
-            st.define_and_bind();
-            st.execute(false);
+            prep.exchange(soci::into(envStr));
+            prep.define_and_bind();
+            prep.execute(false);
 
             // Count the number of entries of each type
             UnorderedMap<SCPStatementType, size_t> actualTypes;
-            while (st.fetch())
+            while (prep.fetch())
             {
                 Value v;
                 decoder::decode_b64(envStr, v);

@@ -35,39 +35,6 @@ static constexpr unsigned long FIRST_MAIN_VERSION_WITH_MISC = 26;
 static constexpr unsigned long MIN_MISC_SCHEMA_VERSION = 0;
 static constexpr unsigned long MISC_SCHEMA_VERSION = 1;
 
-/**
- * Helper class for borrowing a SOCI prepared statement handle into a local
- * scope and cleaning it up once done with it. Returned by
- * Database::getPreparedStatement below.
- */
-class StatementContext : NonCopyable
-{
-    std::shared_ptr<soci::statement> mStmt;
-
-  public:
-    StatementContext(std::shared_ptr<soci::statement> stmt) : mStmt(stmt)
-    {
-        mStmt->clean_up(false);
-    }
-    StatementContext(StatementContext&& other)
-    {
-        mStmt = other.mStmt;
-        other.mStmt.reset();
-    }
-    ~StatementContext()
-    {
-        if (mStmt)
-        {
-            mStmt->clean_up(false);
-        }
-    }
-    soci::statement&
-    statement()
-    {
-        return *mStmt;
-    }
-};
-
 class SessionWrapper : NonCopyable
 {
     soci::session mSession;
@@ -160,12 +127,9 @@ class Database : NonMovableOrCopyable
     {
     }
 
-    // Return a helper object that borrows, from the Database, a prepared
-    // statement handle for the provided query. The prepared statement handle
-    // is created and reset (unbound from data) when the statement context
-    // is destroyed.
-    StatementContext getPreparedStatement(std::string const& query,
-                                          SessionWrapper& session);
+    // Return a prepared statement handle for the provided query.
+    soci::statement getPreparedStatement(std::string const& query,
+                                         SessionWrapper& session);
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
