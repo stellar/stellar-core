@@ -16,6 +16,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
@@ -1271,7 +1272,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"NODE_SEED",
                  [&]() {
                      PublicKey nodeID;
-                     parseNodeID(readString(item), nodeID, NODE_SEED, true);
+                     parseNodeID(secretmanager::resolve(readString(item)),
+                                 nodeID, NODE_SEED, true);
                  }},
                 {"NODE_IS_VALIDATOR",
                  [&]() { NODE_IS_VALIDATOR = readBool(item); }},
