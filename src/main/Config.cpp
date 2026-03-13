@@ -1248,6 +1248,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
                 {"BUCKET_DIR_PATH",
                  [&]() { BUCKET_DIR_PATH = readString(item); }},
+                {"SYSCHECK_UNKNOWN_MEMORY_DEFAULT",
+                 [&]() {
+                     SYSCHECK_UNKNOWN_MEMORY_DEFAULT = readInt<uint32_t>(item);
+                 }},
+                {"SYSCHECK_UNKNOWN_CPU_DEFAULT",
+                 [&]() {
+                     SYSCHECK_UNKNOWN_CPU_DEFAULT = readInt<uint32_t>(item);
+                 }},
+                {"SYSCHECK_FORCE_IGNORE_MEMORY",
+                 [&]() { SYSCHECK_FORCE_IGNORE_MEMORY = readString(item); }},
+                {"SYSCHECK_FORCE_IGNORE_CPU",
+                 [&]() { SYSCHECK_FORCE_IGNORE_CPU = readString(item); }},
                 {"FILTERED_SOROBAN_KEYS_PATH",
                  [&]() {
                      LOG_WARNING(DEFAULT_LOG,
