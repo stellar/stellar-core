@@ -1425,7 +1425,6 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
     {
         // The delta entry has no stored counterpart — it always needs
         // to be applied (it modifies CONFIG_SETTING_FROZEN_LEDGER_KEYS).
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (updatedEntry.configSettingID() ==
                 ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA ||
             updatedEntry.configSettingID() ==
@@ -1433,7 +1432,6 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
         {
             return true;
         }
-#endif
 
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
@@ -1455,7 +1453,6 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
         auto const id = updatedEntry.configSettingID();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // Delta entries are not stored config entries. They modify the
         // corresponding base entries instead.
         if (id == ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS_DELTA)
@@ -1518,7 +1515,6 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
             bypassTxsVec.assign(existing.begin(), existing.end());
             continue;
         }
-#endif
 
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = id;

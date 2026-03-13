@@ -1552,7 +1552,6 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
     upgradeCfg.nominationTimeoutIncrementMilliseconds =
         updatedConfig.nominationTimeoutIncrementMilliseconds();
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Compute frozen ledger keys delta
     auto const& baseKeys = baseConfig.frozenLedgerKeys();
     auto const& updatedKeys = updatedConfig.frozenLedgerKeys();
@@ -1598,7 +1597,6 @@ GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
         }
         upgradeCfg.freezeBypassTxsDelta = delta;
     }
-#endif
 }
 
 GeneratedLoadConfig

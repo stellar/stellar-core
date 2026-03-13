@@ -1499,7 +1499,6 @@ TransactionFrame::commonValidPreSeqNum(
         return std::nullopt;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // CAP-77: Frozen ledger key checks.
     // `cfg` check here could be a protocol-gated assertion as we're expected
     // to have network config in protocol supporting CAP-77. However, that
@@ -1513,7 +1512,6 @@ TransactionFrame::commonValidPreSeqNum(
         txResult.setInnermostError(txFROZEN_KEY_ACCESSED);
         return std::nullopt;
     }
-#endif
 
     return sourceAccount;
 }

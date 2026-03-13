@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 26,
+	"!cfg protocol version" : 27,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -31,7 +31,8 @@
 		23,
 		24,
 		25,
-		26
+		26,
+		27
 	],
 	"inflation|protocol version 10|inflation scenarios|50/50 split" : 
 	[
@@ -7386,6 +7387,7 @@
 	"inflation|protocol version 24|not supported" : [ "Zby/J3+a3+M=" ],
 	"inflation|protocol version 25|not supported" : [ "Zby/J3+a3+M=" ],
 	"inflation|protocol version 26|not supported" : [ "Zby/J3+a3+M=" ],
+	"inflation|protocol version 27|not supported" : [ "Zby/J3+a3+M=" ],
 	"inflation|protocol version 2|inflation scenarios|50/50 split" : 
 	[
 		"kLAIaEj7I2M=",

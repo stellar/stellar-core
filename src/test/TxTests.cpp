@@ -291,11 +291,8 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
                 bool earlyFailure =
                     (code == txMISSING_OPERATION || code == txTOO_EARLY ||
                      code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
-                     code == txBAD_SEQ || code == txMALFORMED
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                     || code == txFROZEN_KEY_ACCESSED
-#endif
-                    );
+                     code == txBAD_SEQ || code == txMALFORMED ||
+                     code == txFROZEN_KEY_ACCESSED);
                 // verify that the sequence number changed (v10+)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
