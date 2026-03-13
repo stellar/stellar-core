@@ -143,7 +143,7 @@ loadFreezeBypassTxsFromLedger(Application& app)
 }
 
 TEST_CASE("frozen ledger keys config setting does not exist prior to p26",
-          "[frozenledgerkeys][upgrades]")
+          "[frozenledgerkeys][upgrades][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -159,7 +159,7 @@ TEST_CASE("frozen ledger keys config setting does not exist prior to p26",
 }
 
 TEST_CASE("freeze bypass txs config setting does not exist prior to p26",
-          "[frozenledgerkeys][upgrades]")
+          "[frozenledgerkeys][upgrades][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -175,7 +175,7 @@ TEST_CASE("freeze bypass txs config setting does not exist prior to p26",
 }
 
 TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
-                   "[frozenledgerkeys][upgrades]")
+                   "[frozenledgerkeys][upgrades][gen-lcm]")
 {
     auto cfg = getTestConfig();
 
@@ -399,7 +399,7 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
 }
 
 TEST_CASE_VERSIONS("freeze bypass txs config setting upgrades",
-                   "[frozenledgerkeys][upgrades]")
+                   "[frozenledgerkeys][upgrades][gen-lcm]")
 {
     auto cfg = getTestConfig();
 
@@ -502,7 +502,7 @@ TEST_CASE_VERSIONS("freeze bypass txs config setting upgrades",
 }
 
 TEST_CASE("freeze bypass tx hash allows frozen key access at validation time",
-          "[frozenledgerkeys][tx][bypass]")
+          "[frozenledgerkeys][tx][bypass][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -635,7 +635,7 @@ TEST_CASE("freeze bypass tx hash allows frozen key access at validation time",
 }
 
 TEST_CASE("frozen ledger keys in Soroban footprint",
-          "[frozenledgerkeys][tx][soroban]")
+          "[frozenledgerkeys][tx][soroban][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -718,7 +718,7 @@ TEST_CASE("frozen ledger keys in Soroban footprint",
     }
 }
 
-TEST_CASE("source account frozen", "[frozenledgerkeys][tx]")
+TEST_CASE("source account frozen", "[frozenledgerkeys][tx][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -873,7 +873,7 @@ TEST_CASE("source account frozen", "[frozenledgerkeys][tx]")
     }
 }
 
-TEST_CASE("source trustline frozen", "[frozenledgerkeys][tx]")
+TEST_CASE("source trustline frozen", "[frozenledgerkeys][tx][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -985,7 +985,7 @@ TEST_CASE("source trustline frozen", "[frozenledgerkeys][tx]")
     }
 }
 
-TEST_CASE("operation destination frozen", "[frozenledgerkeys][tx]")
+TEST_CASE("operation destination frozen", "[frozenledgerkeys][tx][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1142,7 +1142,8 @@ TEST_CASE("operation destination frozen", "[frozenledgerkeys][tx]")
     }
 }
 
-TEST_CASE("frozen ledger keys apply time validation", "[frozenledgerkeys][tx]")
+TEST_CASE("frozen ledger keys apply time validation",
+          "[frozenledgerkeys][tx][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1247,7 +1248,7 @@ TEST_CASE("frozen ledger keys apply time validation", "[frozenledgerkeys][tx]")
 }
 
 TEST_CASE("sponsorship can be removed with frozen sponsor",
-          "[frozenledgerkeys][tx][sponsorship]")
+          "[frozenledgerkeys][tx][sponsorship][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1302,7 +1303,8 @@ TEST_CASE("sponsorship can be removed with frozen sponsor",
     REQUIRE(getNumSponsoredFor(sponsored) == 0);
 }
 
-TEST_CASE("deauth removes offers on frozen account", "[frozenledgerkeys][tx]")
+TEST_CASE("deauth removes offers on frozen account",
+          "[frozenledgerkeys][tx][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1553,7 +1555,7 @@ claimedOfferCount(T const& tr, DexPathOpKind opKind)
 }
 
 TEST_CASE("frozen ledger keys DEX offer operations",
-          "[frozenledgerkeys][tx][offers]")
+          "[frozenledgerkeys][tx][offers][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1803,7 +1805,7 @@ TEST_CASE("frozen ledger keys DEX offer operations",
 }
 
 TEST_CASE("frozen ledger keys DEX path payments",
-          "[frozenledgerkeys][tx][offers]")
+          "[frozenledgerkeys][tx][offers][gen-lcm]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();

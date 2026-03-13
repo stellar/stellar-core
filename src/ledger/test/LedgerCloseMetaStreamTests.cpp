@@ -357,7 +357,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             // Close ledgers until out contract expires. These ledgers won't
             // emit meta
             for (uint32_t i =
-                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                     test.getApp().getLedgerManager().getLastClosedLedgerNum() +
+                     1;
                  i <= liveUntilLedger + 1; ++i)
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);

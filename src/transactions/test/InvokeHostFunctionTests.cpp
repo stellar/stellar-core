@@ -177,7 +177,7 @@ overrideNetworkSettingsToMin(Application& app)
 } // namespace
 
 TEST_CASE_VERSIONS("Trustline stellar asset contract",
-                   "[tx][soroban][invariant][conservationoflumens]")
+                   "[tx][soroban][invariant][conservationoflumens][gen-lcm]")
 {
     auto issuerKey = getAccount("issuer");
     Asset idr = makeAsset(issuerKey, "IDR");
@@ -360,7 +360,7 @@ TEST_CASE_VERSIONS("Trustline stellar asset contract",
 }
 
 TEST_CASE("Native stellar asset contract",
-          "[tx][soroban][invariant][conservationoflumens]")
+          "[tx][soroban][invariant][conservationoflumens][gen-lcm]")
 {
     auto cfg = getTestConfig();
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
@@ -2878,7 +2878,7 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
 
         // Archive entry
         for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                 test.getApp().getLedgerManager().getLastClosedLedgerNum() + 1;
              i <= originalExpectedLiveUntilLedger + 1; ++i)
         {
             closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -2910,7 +2910,7 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
 
         // Archive entry
         for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                 test.getApp().getLedgerManager().getLastClosedLedgerNum() + 1;
              i <= originalExpectedLiveUntilLedger + 1; ++i)
         {
             closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -3123,7 +3123,8 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                 test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
 
             for (uint32_t i =
-                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                     test.getApp().getLedgerManager().getLastClosedLedgerNum() +
+                     1;
                  i <= originalExpectedLiveUntilLedger + 1; ++i)
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -3271,7 +3272,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
 
             // Close ledgers until temp entry expires
             uint32 nextLedgerSeq =
-                test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                test.getApp().getLedgerManager().getLastClosedLedgerNum() + 1;
             for (; nextLedgerSeq < expectedTempLiveUntilLedger; ++nextLedgerSeq)
             {
                 closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
@@ -3310,8 +3311,9 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
 
             SECTION("TTL enforcement")
             {
+                nextLedgerSeq = test.getLCLSeq() + 1;
                 // Close one more ledger so temp entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
                 REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger);
 
                 // Check that temp entry has expired in the current ledger, i.e.
@@ -3377,10 +3379,13 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                             expectedPersistentLiveUntilLedger);
                 }
 
+                nextLedgerSeq = test.getLCLSeq() + 1;
                 // Close one more ledger so entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                // The sections above can bump the lcl, which is why this check
+                // is >=
                 REQUIRE(
-                    test.getApp().getLedgerManager().getLastClosedLedgerNum() ==
+                    test.getApp().getLedgerManager().getLastClosedLedgerNum() >=
                     expectedPersistentLiveUntilLedger);
 
                 // Check that persistent entry has expired in the current ledger
@@ -3794,8 +3799,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
 
             // Advance ledgers to just before eviction
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger - 2;
-                 ++i)
+            for (uint32_t i = test.getLCLSeq() + 1;
+                 i < tempEntryEvictionLedger - 2; ++i)
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
             }
@@ -3834,7 +3839,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         {
             // Verify that we're on the ledger where the entry would get
             // evicted it wasn't recreated.
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger;
+            for (uint32_t i = test.getLCLSeq() + 1; i < tempEntryEvictionLedger;
                  ++i)
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -4215,7 +4220,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             auto expirationLedger =
                 test.getLCLSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-            for (uint32_t i = test.getLCLSeq(); i <= expirationLedger; ++i)
+            for (uint32_t i = test.getLCLSeq() + 1; i <= expirationLedger; ++i)
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
             }
@@ -4521,7 +4526,8 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             {
                 // Close ledgers until entry is evicted
                 auto evictionLedger = 33;
-                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+                for (uint32_t i = test.getLCLSeq() + 1; i <= evictionLedger;
+                     ++i)
                 {
                     closeLedgerOn(test.getApp(), i, 2, 1, 2016);
                 }
@@ -4598,7 +4604,7 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
     SECTION("restore operation")
     {
         for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                 test.getApp().getLedgerManager().getLastClosedLedgerNum() + 1;
              i <= k2LiveUntilLedger; ++i)
         {
             closeLedgerOn(test.getApp(), i, 2, 1, 2016);
@@ -7969,7 +7975,7 @@ TEST_CASE_VERSIONS("non-fee source account is recipient of payment in both "
     });
 }
 
-TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
+TEST_CASE("parallel txs", "[tx][soroban][parallelapply][gen-lcm]")
 {
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION =

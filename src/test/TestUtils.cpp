@@ -417,6 +417,16 @@ modifySorobanNetworkConfig(Application& app,
                                      {upgrade});
     app.getRoot()->loadSequenceNumber();
 
+    if (isLcmCaptureEnabled())
+    {
+        auto const& closeMeta =
+            app.getLedgerManager().getLastClosedLedgerCloseMeta();
+        if (closeMeta.has_value())
+        {
+            txtest::appendToAccumulatedLcm(closeMeta->getXDR());
+        }
+    }
+
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();

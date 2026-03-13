@@ -1742,6 +1742,16 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         throw std::runtime_error("Local node's ledger corrupted during close");
     }
 
+#ifdef BUILD_TESTS
+    if (ledgerCloseMeta)
+    {
+        ledgerCloseMeta->ledgerHeader() =
+            appliedLedgerState->getLastClosedLedgerHeader();
+        // Copy this before we move it into mNextMetaToEmit below
+        mLastLedgerCloseMeta = *ledgerCloseMeta;
+    }
+#endif
+
     if (mMetaStream || mMetaDebugStream)
     {
         releaseAssert(ledgerCloseMeta);
@@ -2603,11 +2613,6 @@ LedgerManagerImpl::applyTransactions(
         mApplyState.getMetrics().mMaxClustersPerLedger.set_count(maxClusters);
         mApplyState.getMetrics().mStagesPerLedger.set_count(applyStages.size());
     }
-
-#ifdef BUILD_TESTS
-    releaseAssert(ledgerCloseMeta);
-    mLastLedgerCloseMeta = *ledgerCloseMeta;
-#endif
 
     logTxApplyMetrics(ltx, numTxs, numOps);
     return txResultSet;
