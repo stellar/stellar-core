@@ -10,9 +10,13 @@
 #include "test/Catch2.h"
 #include "test/test.h"
 #include "util/Math.h"
+#include "util/SecretManager.h"
+#include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
 
 using namespace stellar;
+namespace stdfs = std::filesystem;
 
 namespace
 {
@@ -699,4 +703,151 @@ PUBLIC_KEY="GBVZFVEARURUJTN5ABZPKW36FHKVJK2GHXEVY2SZCCNU5I3CQMTZ3OES"
 )";
     std::stringstream ss(configStr);
     c.load(ss);
+}
+
+TEST_CASE("secret resolution", "[config]")
+{
+    // A known test seed and its expected public key
+    std::string const testSeed =
+        "SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT";
+    auto expectedKey = SecretKey::fromStrKeySeed(testSeed).getPublicKey();
+
+    SECTION("resolve passthrough for plain values")
+    {
+        REQUIRE(secretmanager::resolve("hello") == "hello");
+        REQUIRE(secretmanager::resolve(testSeed) == testSeed);
+        REQUIRE(secretmanager::resolve("sqlite3://test.db") ==
+                "sqlite3://test.db");
+    }
+
+    SECTION("resolve from file with correct permissions")
+    {
+        std::string tmpPath = "/tmp/stellar_test_seed_file";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed;
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto resolved = secretmanager::resolve("$FILE:" + tmpPath);
+        REQUIRE(resolved == testSeed);
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("resolve from file trims trailing whitespace")
+    {
+        std::string tmpPath = "/tmp/stellar_test_seed_trim";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed << "\n";
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto resolved = secretmanager::resolve("$FILE:" + tmpPath);
+        REQUIRE(resolved == testSeed);
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("reject missing file")
+    {
+        REQUIRE_THROWS_WITH(
+            secretmanager::resolve("$FILE:/tmp/stellar_nonexistent_file"),
+            Catch::Contains("not a regular file"));
+    }
+
+    SECTION("reject file with overly permissive permissions")
+    {
+        std::string tmpPath = "/tmp/stellar_test_seed_perm";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed;
+        }
+        stdfs::permissions(
+            tmpPath, stdfs::perms::owner_read | stdfs::perms::owner_write |
+                         stdfs::perms::group_read | stdfs::perms::others_read);
+        REQUIRE_THROWS_WITH(secretmanager::resolve("$FILE:" + tmpPath),
+                            Catch::Contains("permissive permissions"));
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("reject empty file")
+    {
+        std::string tmpPath = "/tmp/stellar_test_seed_empty";
+        {
+            std::ofstream ofs(tmpPath);
+            // write nothing
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        REQUIRE_THROWS_WITH(secretmanager::resolve("$FILE:" + tmpPath),
+                            Catch::Contains("empty"));
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("NODE_SEED from file in config")
+    {
+        std::string tmpPath = "/tmp/stellar_test_node_seed";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed << " self\n";
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto otherKey = SecretKey::random().getStrKeyPublic();
+        std::string configStr = R"(
+NODE_SEED="$FILE:)" + tmpPath +
+                                R"("
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        c.load(ss);
+        REQUIRE(c.NODE_SEED.getPublicKey() == expectedKey);
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("backward compatibility - inline NODE_SEED")
+    {
+        auto otherKey = SecretKey::random().getStrKeyPublic();
+        std::string configStr = R"(
+NODE_SEED=")" + testSeed + R"( self"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        c.load(ss);
+        REQUIRE(c.NODE_SEED.getPublicKey() == expectedKey);
+    }
+
+    SECTION("reject external secrets on public network")
+    {
+        std::string tmpPath = "/tmp/stellar_test_node_seed_pubnet";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed << " self";
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto otherKey = SecretKey::random().getStrKeyPublic();
+        std::string configStr = R"(
+NODE_SEED="$FILE:)" + tmpPath +
+                                R"("
+NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        REQUIRE_THROWS_WITH(c.load(ss),
+                            Catch::Contains("not supported on the public"));
+        std::remove(tmpPath.c_str());
+    }
 }
