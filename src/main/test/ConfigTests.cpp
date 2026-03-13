@@ -755,4 +755,30 @@ VALIDATORS=[")" + otherKey + R"( A"]
         c.load(ss);
         REQUIRE(c.NODE_SEED.getPublicKey() == expectedKey);
     }
+
+    SECTION("reject external secrets on public network")
+    {
+        std::string tmpPath = "/tmp/stellar_test_node_seed_pubnet";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed << " self";
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto otherKey = SecretKey::random().getStrKeyPublic();
+        std::string configStr = R"(
+NODE_SEED="$FILE:)" + tmpPath +
+                                R"("
+NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        REQUIRE_THROWS_WITH(c.load(ss),
+                            Catch::Contains("not supported on the public"));
+        std::remove(tmpPath.c_str());
+    }
 }

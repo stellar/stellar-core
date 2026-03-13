@@ -82,5 +82,11 @@ resolve(std::string const& configValue)
     return configValue;
 }
 
+bool
+isExternalSecret(std::string const& configValue)
+{
+    return configValue.substr(0, FILE_PREFIX.size()) == FILE_PREFIX;
+}
+
 } // namespace secretmanager
 } // namespace stellar

@@ -22,5 +22,8 @@ namespace secretmanager
 // empty resolved value).
 std::string resolve(std::string const& configValue);
 
+// Returns true if the value uses an external secret reference ($FILE: prefix).
+bool isExternalSecret(std::string const& configValue);
+
 } // namespace secretmanager
 } // namespace stellar
