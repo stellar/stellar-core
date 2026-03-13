@@ -11,10 +11,12 @@
 #include "test/test.h"
 #include "util/Math.h"
 #include "util/SecretManager.h"
+#include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
 
 using namespace stellar;
+namespace stdfs = std::filesystem;
 
 namespace
 {
@@ -649,13 +651,15 @@ TEST_CASE("secret resolution", "[config]")
                 "sqlite3://test.db");
     }
 
-    SECTION("resolve from file")
+    SECTION("resolve from file with correct permissions")
     {
         std::string tmpPath = "/tmp/stellar_test_seed_file";
         {
             std::ofstream ofs(tmpPath);
             ofs << testSeed;
         }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
         auto resolved = secretmanager::resolve("$FILE:" + tmpPath);
         REQUIRE(resolved == testSeed);
         std::remove(tmpPath.c_str());
@@ -668,6 +672,8 @@ TEST_CASE("secret resolution", "[config]")
             std::ofstream ofs(tmpPath);
             ofs << testSeed << "\n";
         }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
         auto resolved = secretmanager::resolve("$FILE:" + tmpPath);
         REQUIRE(resolved == testSeed);
         std::remove(tmpPath.c_str());
@@ -677,7 +683,22 @@ TEST_CASE("secret resolution", "[config]")
     {
         REQUIRE_THROWS_WITH(
             secretmanager::resolve("$FILE:/tmp/stellar_nonexistent_file"),
-            Catch::Contains("Cannot open"));
+            Catch::Contains("not a regular file"));
+    }
+
+    SECTION("reject file with overly permissive permissions")
+    {
+        std::string tmpPath = "/tmp/stellar_test_seed_perm";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << testSeed;
+        }
+        stdfs::permissions(
+            tmpPath, stdfs::perms::owner_read | stdfs::perms::owner_write |
+                         stdfs::perms::group_read | stdfs::perms::others_read);
+        REQUIRE_THROWS_WITH(secretmanager::resolve("$FILE:" + tmpPath),
+                            Catch::Contains("permissive permissions"));
+        std::remove(tmpPath.c_str());
     }
 
     SECTION("reject empty file")
@@ -687,6 +708,8 @@ TEST_CASE("secret resolution", "[config]")
             std::ofstream ofs(tmpPath);
             // write nothing
         }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
         REQUIRE_THROWS_WITH(secretmanager::resolve("$FILE:" + tmpPath),
                             Catch::Contains("empty"));
         std::remove(tmpPath.c_str());
@@ -699,6 +722,8 @@ TEST_CASE("secret resolution", "[config]")
             std::ofstream ofs(tmpPath);
             ofs << testSeed << " self\n";
         }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
         auto otherKey = SecretKey::random().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED="$FILE:)" + tmpPath +

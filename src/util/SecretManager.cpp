@@ -5,6 +5,7 @@
 #include "util/SecretManager.h"
 #include "util/Logging.h"
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -13,6 +14,8 @@ namespace stellar
 {
 namespace secretmanager
 {
+
+namespace stdfs = std::filesystem;
 
 static std::string const FILE_PREFIX = "$FILE:";
 
@@ -27,10 +30,33 @@ rtrim(std::string s)
     return s.substr(0, end + 1);
 }
 
+static void
+checkFilePermissions(std::string const& filePath)
+{
+    stdfs::path p(filePath);
+    auto status = stdfs::status(p);
+    if (!stdfs::is_regular_file(status))
+    {
+        throw std::runtime_error("Secret path is not a regular file: " +
+                                 filePath);
+    }
+    auto perms = status.permissions();
+    // Reject if group or others have any access
+    auto forbidden = stdfs::perms::group_all | stdfs::perms::others_all;
+    if ((perms & forbidden) != stdfs::perms::none)
+    {
+        throw std::runtime_error(
+            "Secret file has overly permissive permissions "
+            "(must not be accessible by group or others): " +
+            filePath);
+    }
+}
+
 static std::string
 resolveFromFile(std::string const& filePath)
 {
     LOG_INFO(DEFAULT_LOG, "Resolving secret from file");
+    checkFilePermissions(filePath);
     std::ifstream ifs(filePath);
     if (!ifs.is_open())
     {
