@@ -182,21 +182,20 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
 
         auto prep =
             db.getPreparedStatement(sql, mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
 
-        st.exchange(use(minNumFailures));
+        prep.exchange(use(minNumFailures));
 
         std::string ip;
         if (address)
         {
             ip = address->getIP();
-            st.exchange(use(ip));
+            prep.exchange(use(ip));
         }
-        st.define_and_bind();
+        prep.define_and_bind();
 
         {
             auto timer = db.getDeleteTimer("peer");
-            st.execute(true);
+            prep.execute(true);
         }
     }
     catch (soci_error& err)
@@ -240,19 +239,18 @@ PeerManager::load(PeerBareAddress const& address)
             "SELECT numfailures, nextattempt, type FROM peers "
             "WHERE ip = :v1 AND port = :v2",
             mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
-        st.exchange(into(result.mNumFailures));
-        st.exchange(into(result.mNextAttempt));
-        st.exchange(into(result.mType));
+        prep.exchange(into(result.mNumFailures));
+        prep.exchange(into(result.mNextAttempt));
+        prep.exchange(into(result.mType));
         std::string ip = address.getIP();
-        st.exchange(use(ip));
+        prep.exchange(use(ip));
         int port = address.getPort();
-        st.exchange(use(port));
-        st.define_and_bind();
+        prep.exchange(use(port));
+        prep.define_and_bind();
         {
             auto timer = mApp.getDatabase().getSelectTimer("peer");
-            st.execute(true);
-            inDatabase = st.got_data();
+            prep.execute(true);
+            inDatabase = prep.got_data();
 
             if (!inDatabase)
             {
@@ -298,19 +296,18 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
     {
         auto prep = mApp.getDatabase().getPreparedStatement(
             query, mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
-        st.exchange(use(peerRecord.mNextAttempt));
-        st.exchange(use(peerRecord.mNumFailures));
-        st.exchange(use(peerRecord.mType));
+        prep.exchange(use(peerRecord.mNextAttempt));
+        prep.exchange(use(peerRecord.mNumFailures));
+        prep.exchange(use(peerRecord.mType));
         std::string ip = address.getIP();
-        st.exchange(use(ip));
+        prep.exchange(use(ip));
         int port = address.getPort();
-        st.exchange(use(port));
-        st.define_and_bind();
+        prep.exchange(use(port));
+        prep.define_and_bind();
         {
             auto timer = mApp.getDatabase().getUpdateTimer("peer");
-            st.execute(true);
-            if (st.get_affected_rows() != 1)
+            prep.execute(true);
+            if (prep.get_affected_rows() != 1)
             {
                 CLOG_ERROR(Overlay, "PeerManager::store failed on {}",
                            address.toString());
@@ -514,13 +511,12 @@ PeerManager::countPeers(std::string const& where,
 
         auto prep = mApp.getDatabase().getPreparedStatement(
             sql, mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
 
-        bind(st);
-        st.exchange(into(count));
+        bind(prep);
+        prep.exchange(into(count));
 
-        st.define_and_bind();
-        st.execute(true);
+        prep.define_and_bind();
+        prep.execute(true);
     }
     catch (soci_error& err)
     {
@@ -545,29 +541,28 @@ PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
 
         auto prep = mApp.getDatabase().getPreparedStatement(
             sql, mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
 
-        bind(st);
-        st.exchange(use(limit));
-        st.exchange(use(offset));
+        bind(prep);
+        prep.exchange(use(limit));
+        prep.exchange(use(offset));
 
         std::string ip;
         int lport;
-        st.exchange(into(ip));
-        st.exchange(into(lport));
+        prep.exchange(into(ip));
+        prep.exchange(into(lport));
 
-        st.define_and_bind();
+        prep.define_and_bind();
         {
             auto timer = mApp.getDatabase().getSelectTimer("peer");
-            st.execute(true);
+            prep.execute(true);
         }
-        while (st.got_data())
+        while (prep.got_data())
         {
             if (!ip.empty() && lport > 0)
             {
                 result.emplace_back(ip, static_cast<unsigned short>(lport));
             }
-            st.fetch();
+            prep.fetch();
         }
     }
     catch (soci_error& err)
@@ -601,24 +596,23 @@ PeerManager::loadAllPeers()
 
         auto prep = mApp.getDatabase().getPreparedStatement(
             sql, mApp.getDatabase().getMiscSession());
-        auto& st = prep.statement();
 
-        st.exchange(into(ip));
-        st.exchange(into(port));
-        st.exchange(into(record.mNextAttempt));
-        st.exchange(into(record.mNumFailures));
-        st.exchange(into(record.mType));
+        prep.exchange(into(ip));
+        prep.exchange(into(port));
+        prep.exchange(into(record.mNextAttempt));
+        prep.exchange(into(record.mNumFailures));
+        prep.exchange(into(record.mType));
 
-        st.define_and_bind();
+        prep.define_and_bind();
         {
             auto timer = mApp.getDatabase().getSelectTimer("peer");
-            st.execute(true);
+            prep.execute(true);
         }
-        while (st.got_data())
+        while (prep.got_data())
         {
             PeerBareAddress pba{ip, static_cast<unsigned short>(port)};
             result.emplace_back(std::make_pair(pba, record));
-            st.fetch();
+            prep.fetch();
         }
     }
     catch (soci_error& err)

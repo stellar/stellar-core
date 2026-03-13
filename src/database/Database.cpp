@@ -344,11 +344,10 @@ migrateLedgerHeadersToStoreState(Database& db)
         auto prep = db.getPreparedStatement(
             "SELECT state FROM storestate WHERE statename = 'lastclosedledger'",
             session);
-        auto& stmt = prep.statement();
-        stmt.exchange(soci::into(lclHash));
-        stmt.define_and_bind();
-        stmt.execute(true);
-        gotData = stmt.got_data();
+        prep.exchange(soci::into(lclHash));
+        prep.define_and_bind();
+        prep.execute(true);
+        gotData = prep.got_data();
     }
 
     // When we're doing this migration for a new db, storestate will be empty.
@@ -371,10 +370,9 @@ migrateLedgerHeadersToStoreState(Database& db)
             db.getPreparedStatement("INSERT INTO storestate (statename, state) "
                                     "VALUES ('lastclosedledgerheader', :v)",
                                     session);
-        auto& stmt = prep.statement();
-        stmt.exchange(soci::use(headerData));
-        stmt.define_and_bind();
-        stmt.execute(true);
+        prep.exchange(soci::use(headerData));
+        prep.define_and_bind();
+        prep.execute(true);
         raw << "DELETE FROM storestate WHERE statename = 'lastclosedledger'";
     }
 
@@ -587,9 +585,8 @@ Database::setCurrentTransactionReadOnly()
     {
         auto prep =
             getPreparedStatement("SET TRANSACTION READ ONLY", getSession());
-        auto& st = prep.statement();
-        st.define_and_bind();
-        st.execute(false);
+        prep.define_and_bind();
+        prep.execute(false);
     }
 }
 
@@ -755,13 +752,13 @@ Database::getMiscPool()
                       Database::getMiscDBName(mApp.getConfig().DATABASE.value));
 }
 
-StatementContext
+soci::statement
 Database::getPreparedStatement(std::string const& query,
                                SessionWrapper& session)
 {
-    auto p = std::make_shared<soci::statement>(session.session());
-    p->alloc();
-    p->prepare(query);
-    return StatementContext(p);
+    soci::statement p(session.session());
+    p.alloc();
+    p.prepare(query);
+    return p;
 }
 }
