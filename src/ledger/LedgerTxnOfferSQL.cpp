@@ -786,7 +786,7 @@ class BulkLoadOffersOperation
             "FROM offers WHERE offerid IN carray(?, ?, 'int64')";
 
         auto prep = mDb.getPreparedStatement(sql, mSession);
-        auto be = prep.statement().get_backend();
+        auto be = prep.get_backend();
         if (be == nullptr)
         {
             throw std::runtime_error("no sql backend");
