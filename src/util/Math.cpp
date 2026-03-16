@@ -189,6 +189,7 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
     PubKeyUtils::seedVerifySigCache(seed);
     srand(seed);
     getGlobalRandomEngine().seed(seed);
+    randHash::gHaveInitialized = false;
     randHash::initialize();
     randomEvictionCacheSeed = seed;
 #ifdef BUILD_THREAD_JITTER
