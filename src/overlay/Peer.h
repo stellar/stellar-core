@@ -195,12 +195,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
 #endif
 
     // Mutex to protect PeerState, which can be accessed and modified from
-    // multiple threads
-#ifndef USE_TRACY
-    RecursiveMutex mutable mStateMutex;
-#else
-    mutable TracyLockable(std::recursive_mutex, mStateMutex);
-#endif
+    // multiple threads.
+    // LOCK ORDERING: mStateMutex must be acquired before Hmac::mMutex.
+    mutable ANNOTATED_RECURSIVE_MUTEX(mStateMutex,
+                                      ACQUIRED_BEFORE(Hmac::mMutex));
 
     Hmac mHmac;
     // Does local node have capacity to read from this peer

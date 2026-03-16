@@ -37,7 +37,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     AppConnector& mAppConnector;
 
     // Lock must be held when accessing any member variables holding snapshots
-    mutable SharedMutex mSnapshotMutex;
+    mutable ANNOTATED_SHARED_MUTEX(mSnapshotMutex);
 
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a

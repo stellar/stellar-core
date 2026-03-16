@@ -10,7 +10,7 @@ namespace stellar
 // Wrapper around medida::MetricsRegistry to support registering `SimpleTimer`s
 class MetricsRegistry : public medida::MetricsRegistry
 {
-    Mutex mLock;
+    ANNOTATED_MUTEX(mLock);
     // Note that it is safe to hand out references to this map because values
     // have pointer stability.
     std::map<SimpleTimerName, SimpleTimer> mSimpleTimers GUARDED_BY(mLock);
