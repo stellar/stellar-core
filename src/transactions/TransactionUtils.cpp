@@ -1543,6 +1543,13 @@ prefetchPoolShareTrustLinesByAccountAndGetKeys(AbstractLedgerTxn& ltx,
         poolTLKeys.emplace_back(LedgerEntryKey(poolShareTrustLine.current()));
     }
 
+    // The ordering of poolTLKeys isn't deterministic across the network because
+    // getPoolShareTrustLinesByAccountAndAsset returns an UnorderedMap, which is
+    // why we need to sort here. There's a subtle bug in pool share revocation
+    // and sponsorships where the operation can succeed or fail based on the
+    // order of the pool share trustlines.
+    std::sort(poolTLKeys.begin(), poolTLKeys.end());
+
     return poolTLKeys;
 }
 
