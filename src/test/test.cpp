@@ -164,7 +164,11 @@ writeLcmToFile(std::string const& path, size_t startIndex)
 
     // Remove any existing file (XDROutputFileStream uses O_APPEND on
     // POSIX, so we must remove first to avoid appending to stale data)
-    std::remove(path.c_str());
+    if (!fs::removeWithLog(path))
+    {
+        throw std::runtime_error(fmt::format(
+            "LCM auto-capture: failed to remove existing file '{}'", path));
+    }
 
     asio::io_context ioc;
     XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
