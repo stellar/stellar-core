@@ -1175,16 +1175,22 @@ publish(Application::pointer app)
     return 0;
 }
 
-// Returns the major release version extracted from the git tag _if_ this is a
-// release-tagged version of stellar core (one that looks like vNN.X.Y or
-// vNN.X.YrcZ or vNN.X.YHOTZ). If its version has some other name structure
+// Returns the major release version extracted from a release-version string if
+// it matches one of the supported release formats, such as vNN.X.Y,
+// vNN.X.YrcZ, vNN.X.Y-external, or the packaged form
+// `stellar-core NN.X.Y (<commit-hash>)`. If its version has some other name
 // structure, return std::nullopt.
 std::optional<uint32_t>
 getStellarCoreMajorReleaseVersion(std::string const& vstr)
 {
-    std::regex re("^v([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|HOT[0-9]+)?$");
+    std::regex releaseTagRe(
+        "^v([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|-external)?$");
+    std::regex packagedReleaseRe(
+        "^stellar-core ([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|-external)? "
+        "\\([0-9a-fA-F]+\\)$");
     std::smatch match;
-    if (std::regex_match(vstr, match, re))
+    if (std::regex_match(vstr, match, releaseTagRe) ||
+        std::regex_match(vstr, match, packagedReleaseRe))
     {
         uint32_t vers = stoi(match.str(1));
         return std::make_optional<uint32_t>(vers);
