@@ -165,7 +165,13 @@ TEST_CASE("application major version numbers", "[applicationutils]")
           std::make_optional<uint32_t>(20));
     CHECK(getStellarCoreMajorReleaseVersion("v20.0.0HOT4") ==
           std::make_optional<uint32_t>(20));
+    CHECK(getStellarCoreMajorReleaseVersion(
+              "stellar-core 23.0.0 "
+              "(d5cbc0793d6eab25eac886969c5bc0f7da69d6ea)") ==
+          std::make_optional<uint32_t>(23));
     CHECK(getStellarCoreMajorReleaseVersion("v19.1.2-10") == std::nullopt);
+    CHECK(getStellarCoreMajorReleaseVersion("v23.0.0-1-gd5cbc0793d6e") ==
+          std::nullopt);
     CHECK(getStellarCoreMajorReleaseVersion("v19.9.0-30-g726eabdea-dirty") ==
           std::nullopt);
 }
