@@ -15,6 +15,7 @@
 #include <catch.hpp>
 #include <cmath>
 #include <numeric>
+#include <optional>
 #include <set>
 
 namespace stellar
@@ -180,7 +181,7 @@ k_means(std::vector<double> const& points, uint32_t k)
     return centroids;
 }
 
-static unsigned int lastGlobalSeed{0};
+static std::optional<unsigned int> lastGlobalSeed{std::nullopt};
 static void
 reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
@@ -199,7 +200,7 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 void
 initializeAllGlobalState()
 {
-    releaseAssert(lastGlobalSeed == 0);
+    releaseAssert(!lastGlobalSeed.has_value());
     auto const seed = static_cast<unsigned int>(
         std::chrono::system_clock::now().time_since_epoch().count());
     reinitializeAllGlobalStateWithSeedInternal(seed);
@@ -223,10 +224,25 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
 #endif
 }
 
-unsigned int
+std::optional<unsigned int>
 getLastGlobalStateSeed()
 {
     return lastGlobalSeed;
+}
+
+void
+reinitializeAllGlobalStateForFuzzing(unsigned int seed)
+{
+    // If global state has already been seeded (e.g., by Catch2's test framework
+    // via ReseedPRNGListener), skip reseeding to avoid conflicts with shortHash
+    // which throws if reseeded after use. This allows fuzz targets to work both
+    // as standalone binaries (where they need to seed) and as regression tests
+    // inside the unit test framework (where the framework already seeded).
+    if (lastGlobalSeed.has_value())
+    {
+        return;
+    }
+    reinitializeAllGlobalStateWithSeed(seed);
 }
 #endif
 }
