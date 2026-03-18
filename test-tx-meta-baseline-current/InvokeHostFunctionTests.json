@@ -34,19 +34,6 @@
 		26
 	],
 	"Failed write still causes ttl observation" : [ "+cR3oq2qY0I=", "qJ8KIK1AUN8=", "mvtbiiIU4+E=", "tLtF1ukXymY=" ],
-	"Module cache" : [ "MR6BJ3xmn2c=" ],
-	"Module cache across protocol versions" : [ "bKDF6V5IzTo=" ],
-	"Module cache cost with restore gaps" : 
-	[
-		"+cR3oq2qY0I=",
-		"aNLDpx+d0IQ=",
-		"xUGbgZ/E+CU=",
-		"+cR3oq2qY0I=",
-		"aNLDpx+d0IQ=",
-		"xUGbgZ/E+CU="
-	],
-	"Module cache miss on immediate execution" : [ "+cR3oq2qY0I=", "+cR3oq2qY0I=" ],
-	"Module cache miss on immediate execution|same ledger upload and execution" : [ "aNLDpx+d0IQ=", "xUGbgZ/E+CU=", "c5cI6O8UE2k=", "U18PA9C2bOU=" ],
 	"Native stellar asset contract" : 
 	[
 		"+cR3oq2qY0I=",
