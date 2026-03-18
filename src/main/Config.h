@@ -276,6 +276,11 @@ class Config : public std::enable_shared_from_this<Config>
     // be enabled when testing.
     std::chrono::milliseconds ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING;
 
+    // Offset (in milliseconds) applied to system_now() to simulate wall-clock
+    // drift without affecting steady_clock scheduling. Positive = future,
+    // negative = past.
+    int64_t ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
 
@@ -537,6 +542,10 @@ class Config : public std::enable_shared_from_this<Config>
     // over the network. Does nothing if `BACKGROUND_OVERLAY_PROCESSING` is not
     // also enabled.
     bool BACKGROUND_TX_SIG_VERIFICATION;
+
+    // Experimental flag to use externalized close time for trigger timer
+    // calculation instead of prepare start time.
+    bool EXPERIMENTAL_TRIGGER_TIMER;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.

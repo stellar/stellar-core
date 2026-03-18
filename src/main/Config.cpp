@@ -72,6 +72,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
+    "ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING",
     "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
     "TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING",
     "SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER_FOR_TESTING"};
@@ -175,6 +176,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PARALLEL_LEDGER_APPLY = true;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
+    EXPERIMENTAL_TRIGGER_TIMER = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
@@ -194,6 +196,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
         std::chrono::seconds::zero();
     ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::milliseconds(0);
+    ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING = 0;
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     GENESIS_TEST_ACCOUNT_COUNT = 0;
@@ -1126,10 +1129,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
+                {"EXPERIMENTAL_TRIGGER_TIMER",
+                 [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                          std::chrono::milliseconds(readInt<uint32_t>(item));
+                 }},
+                {"ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                         readInt<int64_t>(item);
                  }},
                 // https://github.com/stellar/stellar-core/issues/4581
                 {"BACKGROUND_EVICTION_SCAN",
