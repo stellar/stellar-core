@@ -23,9 +23,11 @@
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
+#include <cctype>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <medida/meter.h>
@@ -148,10 +150,107 @@ HistoryArchiveState::toString() const
     return out.str();
 }
 
+static bool
+isValidHexHash(std::string const& s)
+{
+    if (s.size() != 64)
+    {
+        return false;
+    }
+    for (unsigned char c : s)
+    {
+        if (!std::isxdigit(c))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void
+validateHASAfterDeserialization(HistoryArchiveState const& has)
+{
+    if (has.version < HistoryArchiveState::
+                          HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE ||
+        has.version >=
+            HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION_LAST_ITEM)
+    {
+        CLOG_ERROR(History, "Unexpected history archive state version: {}",
+                   has.version);
+        throw std::runtime_error("unexpected history archive state version");
+    }
+
+    if (has.currentBuckets.size() != LiveBucketList::kNumLevels)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Invalid currentBuckets count: {}"),
+                        has.currentBuckets.size()));
+    }
+
+    if (has.hasHotArchiveBuckets() &&
+        has.hotArchiveBuckets.size() != HotArchiveBucketList::kNumLevels)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Invalid hotArchiveBuckets count: {}"),
+                        has.hotArchiveBuckets.size()));
+    }
+
+    // Prevent integer overflow in downstream CheckpointRange calculations
+    if (has.currentLedger > HistoryArchiveState::MAX_CURRENT_LEDGER)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("currentLedger {} is too large"), has.currentLedger));
+    }
+
+    // Validate all bucket hash strings are well-formed 64-character hex
+    auto validateHashesInBuckets = [](auto const& buckets,
+                                      std::string const& name) {
+        for (size_t i = 0; i < buckets.size(); ++i)
+        {
+            auto const& level = buckets[i];
+            if (!isValidHexHash(level.curr))
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("Invalid {} curr hash at level {}"), name, i));
+            }
+            if (!isValidHexHash(level.snap))
+            {
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("Invalid {} snap hash at level {}"), name, i));
+            }
+            for (auto const& h : level.next.getHashes())
+            {
+                if (!isValidHexHash(h))
+                {
+                    throw std::runtime_error(fmt::format(
+                        FMT_STRING("Invalid {} next hash at level {}"), name,
+                        i));
+                }
+            }
+        }
+    };
+
+    validateHashesInBuckets(has.currentBuckets, "currentBuckets");
+    if (has.hasHotArchiveBuckets())
+    {
+        validateHashesInBuckets(has.hotArchiveBuckets, "hotArchiveBuckets");
+    }
+}
+
 void
 HistoryArchiveState::load(std::string const& inFile)
 {
     ZoneScoped;
+
+    // Check file size before parsing to prevent OOM from crafted JSON
+    auto fileSize = std::filesystem::file_size(inFile);
+    if (fileSize > MAX_HAS_FILE_SIZE)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("HAS file size {} exceeds maximum {}"),
+                        fileSize, MAX_HAS_FILE_SIZE));
+    }
+
     std::ifstream in(inFile);
     if (!in)
     {
@@ -161,22 +260,26 @@ HistoryArchiveState::load(std::string const& inFile)
     in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
-    if (version != HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE &&
-        version != HISTORY_ARCHIVE_STATE_VERSION_WITH_HOT_ARCHIVE)
-    {
-        CLOG_ERROR(History, "Unexpected history archive state version: {}",
-                   version);
-        throw std::runtime_error("unexpected history archive state version");
-    }
+    validateHASAfterDeserialization(*this);
 }
 
 void
 HistoryArchiveState::fromString(std::string const& str)
 {
     ZoneScoped;
+
+    // Check string size before parsing to prevent OOM from crafted JSON
+    if (str.size() > MAX_HAS_FILE_SIZE)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("HAS string size {} exceeds maximum {}"),
+                        str.size(), MAX_HAS_FILE_SIZE));
+    }
+
     std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
+    validateHASAfterDeserialization(*this);
 }
 
 std::string
