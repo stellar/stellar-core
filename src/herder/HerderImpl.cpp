@@ -1338,15 +1338,14 @@ HerderImpl::eraseOutsideRange(std::optional<uint32> minSlot,
     {
         auto lastIndex = trackingConsensusLedgerIndex();
         mApp.getOverlayManager().clearLedgersBelow(*minSlot, lastIndex);
+        uint32_t lmin = getSafeLedgerToDelete(*minSlot, mApp.getConfig());
+        // To avoid blocking too long, don't delete more than one checkpoint of
+        // history
+        uint32_t const ledgersToDelete =
+            HistoryManager::getCheckpointFrequency(mApp.getConfig());
+        HerderPersistence::deleteOldEntries(
+            mApp.getDatabase().getRawMiscSession(), lmin, ledgersToDelete);
     }
-    
-    uint32_t lmin = getSafeLedgerToDelete(ledgerSeq, mApp.getConfig());
-    // To avoid blocking too long, don't delete more than one checkpoint of
-    // history
-    uint32_t const ledgersToDelete =
-        HistoryManager::getCheckpointFrequency(mApp.getConfig());
-    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawMiscSession(),
-                                        lmin, ledgersToDelete);
 }
 
 bool

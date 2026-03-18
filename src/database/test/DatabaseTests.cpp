@@ -675,6 +675,7 @@ TEST_CASE("ledgerheaders migration works correctly", "[db]")
     }
 }
 
+#ifdef USE_POSTGRES
 TEST_CASE("schema parity across DB backends", "[db][schematest]")
 {
     // This test verifies that after initialization, persistent SQLite (with
@@ -796,3 +797,4 @@ TEST_CASE("schema parity across DB backends", "[db][schematest]")
         }
     }
 }
+#endif
