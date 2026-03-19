@@ -306,6 +306,12 @@ class Application
     // Access the runtime overlay-only mode flag for testing
     virtual bool getRunInOverlayOnlyMode() const = 0;
     virtual void setRunInOverlayOnlyMode(bool mode) = 0;
+
+    // Register the calling thread's type so threadIsType() works for
+    // ad-hoc test threads created after app initialization.  Uses a
+    // thread-local rather than mThreadTypes, since the production map
+    // must not be written after construction.
+    static void setTestThreadType(ThreadType type);
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS
