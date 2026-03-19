@@ -22,6 +22,7 @@
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
@@ -1435,6 +1436,7 @@ LedgerStateSnapshot&
 OverlayManagerImpl::getOverlayThreadSnapshot()
 {
     releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
+    JITTER_INJECT_DELAY();
     if (!mOverlayThreadSnapshot)
     {
         // Create a new snapshot
