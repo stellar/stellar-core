@@ -436,7 +436,8 @@ class LedgerManagerImpl : public LedgerManager
 
     // Update cached last closed ledger state values managed by this class.
     void
-    advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState);
+    advanceLastClosedLedgerState(CompleteConstLedgerStatePtr newLedgerState)
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 
     // Internal helper for loading last known ledger and an option to skip
     // building the 'full' state (including in-memory Soroban state, module
@@ -500,18 +501,26 @@ class LedgerManagerImpl : public LedgerManager
     void valueExternalized(LedgerCloseData const& ledgerData,
                            bool isLatestSlot) override;
 
-    uint32_t getLastMaxTxSetSize() const override;
-    uint32_t getLastMaxTxSetSizeOps() const override;
+    uint32_t getLastMaxTxSetSize() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
+    uint32_t getLastMaxTxSetSizeOps() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
     Resource maxLedgerResources(bool isSoroban) override;
     Resource maxSorobanTransactionResources() override;
-    int64_t getLastMinBalance(uint32_t ownerCount) const override;
-    uint32_t getLastReserve() const override;
-    uint32_t getLastTxFee() const override;
-    uint32_t getLastClosedLedgerNum() const override;
+    int64_t getLastMinBalance(uint32_t ownerCount) const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
+    uint32_t getLastReserve() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
+    uint32_t getLastTxFee() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
+    uint32_t getLastClosedLedgerNum() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
     SorobanNetworkConfig const&
-    getLastClosedSorobanNetworkConfig() const override;
+    getLastClosedSorobanNetworkConfig() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 
-    bool hasLastClosedSorobanNetworkConfig() const override;
+    bool hasLastClosedSorobanNetworkConfig() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
     std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
 #ifdef BUILD_TESTS
@@ -537,9 +546,11 @@ class LedgerManagerImpl : public LedgerManager
     void loadLastKnownLedger() override;
     void partiallyLoadLastKnownLedgerForUtils() override;
 
-    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
+    LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 
-    HistoryArchiveState getLastClosedLedgerHAS() const override;
+    HistoryArchiveState getLastClosedLedgerHAS() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 
     Database& getDatabase() override;
 
@@ -565,12 +576,15 @@ class LedgerManagerImpl : public LedgerManager
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
     SorobanMetrics& getSorobanMetrics() override;
-    LedgerStateSnapshot copyLedgerStateSnapshot() const override;
+    LedgerStateSnapshot copyLedgerStateSnapshot() const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
     ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot() const override;
-    void maybeUpdateLedgerStateSnapshot(
-        LedgerStateSnapshot& snapshot) const override;
+    void
+    maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot) const override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 #ifdef BUILD_TESTS
-    void updateCanonicalStateForTesting(LedgerHeader const& header) override;
+    void updateCanonicalStateForTesting(LedgerHeader const& header) override
+        LOCKS_EXCLUDED(mLedgerStateSnapshotMutex);
 #endif
     virtual bool
     isApplying() const override
