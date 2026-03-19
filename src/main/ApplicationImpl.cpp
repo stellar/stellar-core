@@ -1200,6 +1200,7 @@ ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
 {
     mRunInOverlayOnlyMode = mode;
 }
+
 #endif
 
 void
@@ -1297,9 +1298,30 @@ ApplicationImpl::getMetrics()
     return *mMetrics;
 }
 
+#ifdef BUILD_TESTS
+// Some tests spin up ad-hoc threads after app initialization and need those
+// threads to pass threadIsType() checks.  The production mThreadTypes map
+// must not be written after construction (concurrent unsynchronized reads),
+// so test threads register themselves via this thread-local instead.
+// threadIsType() checks it before the instance map.
+static thread_local std::optional<Application::ThreadType> gTestThreadType;
+
+void
+Application::setTestThreadType(ThreadType type)
+{
+    gTestThreadType = type;
+}
+#endif
+
 bool
 ApplicationImpl::threadIsType(ThreadType type) const
 {
+#ifdef BUILD_TESTS
+    if (gTestThreadType.has_value())
+    {
+        return *gTestThreadType == type;
+    }
+#endif
     auto it = mThreadTypes.find(std::this_thread::get_id());
     releaseAssert(it != mThreadTypes.end());
     return it->second == type;

@@ -2087,7 +2087,9 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
     releaseAssert(threadIsMain());
     releaseAssert(newLedgerState);
 
+    JITTER_INJECT_DELAY();
     SharedLockExclusive lock(mLedgerStateSnapshotMutex);
+    JITTER_INJECT_DELAY();
     if (mLastClosedLedgerState)
     {
         CLOG_DEBUG(
@@ -2146,7 +2148,9 @@ LedgerManagerImpl::copyLedgerStateSnapshot() const
     // Apply thread must use the ApplyState's copyLedgerStateSnapshot.
     releaseAssert(!mApp.threadIsType(Application::ThreadType::APPLY));
 
+    JITTER_INJECT_DELAY();
     SharedLockShared guard(mLedgerStateSnapshotMutex);
+    JITTER_INJECT_DELAY();
     releaseAssert(mLastClosedLedgerState);
     return LedgerStateSnapshot(mLastClosedLedgerState, mApp.getMetrics());
 }
@@ -2164,7 +2168,10 @@ void
 LedgerManagerImpl::maybeUpdateLedgerStateSnapshot(
     LedgerStateSnapshot& snapshot) const
 {
+    JITTER_INJECT_DELAY();
     SharedLockShared guard(mLedgerStateSnapshotMutex);
+    JITTER_INJECT_DELAY();
+
     releaseAssert(mLastClosedLedgerState);
     if (snapshot.getLedgerSeq() !=
         mLastClosedLedgerState->getLastClosedLedgerHeader().header.ledgerSeq)
@@ -2204,7 +2211,10 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
 
+    JITTER_INJECT_DELAY();
     SharedLockExclusive lock(mLedgerStateSnapshotMutex);
+    JITTER_INJECT_DELAY();
+
     auto state =
         buildLedgerState(header, has, mLastClosedLedgerState, std::nullopt);
 
