@@ -286,6 +286,12 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     int moduleCacheProtocolCount =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION -
         static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) + 1;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // When we build with vnext, we direct (over in the rust bridge) the module
+    // cache code to use the same module cache for p26 and p27, which means
+    // there's one less copy of each module.
+    moduleCacheProtocolCount -= 1;
+#endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
                 .mModuleCacheNumEntries.count() ==
