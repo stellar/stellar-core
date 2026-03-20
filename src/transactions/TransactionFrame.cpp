@@ -40,6 +40,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
+#include "util/numeric.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/depth_checker.h"
@@ -310,6 +311,49 @@ TransactionFrame::validateSorobanTxForFlooding(
 }
 
 bool
+TransactionFrame::validateAccountFilterForFlooding(
+    std::set<AccountID> const& filteredAccounts) const
+{
+    if (filteredAccounts.empty())
+    {
+        return true;
+    }
+
+    // Check transaction source account
+    if (filteredAccounts.find(getSourceID()) != filteredAccounts.end())
+    {
+        return false;
+    }
+
+    // Check operation source accounts
+    for (auto const& op : mOperations)
+    {
+        if (filteredAccounts.find(op->getSourceID()) != filteredAccounts.end())
+        {
+            return false;
+        }
+    }
+
+    // For Soroban txs, check ACCOUNT-type entries in write footprint
+    if (isSoroban() && mEnvelope.type() == ENVELOPE_TYPE_TX &&
+        mEnvelope.v1().tx.ext.v() == 1)
+    {
+        auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
+        for (auto const& key : sorobanData.resources.footprint.readWrite)
+        {
+            if (key.type() == ACCOUNT &&
+                filteredAccounts.find(key.account().accountID) !=
+                    filteredAccounts.end())
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool
 TransactionFrame::validateHostFn() const
 {
     if (!isSoroban())
@@ -430,19 +474,20 @@ TransactionFrame::getFee(LedgerHeader const& header,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
-        int64_t adjustedFee =
-            *baseFee * std::max<int64_t>(1, getNumOperations());
+        int64_t adjustedFee = saturatingMultiply(
+            *baseFee, std::max<int64_t>(1, getNumOperations()));
         int64_t maybeResourceFee =
             isSoroban() ? declaredSorobanResourceFee() : 0;
 
         if (applying)
         {
-            return maybeResourceFee +
-                   std::min<int64_t>(getInclusionFee(), adjustedFee);
+            return saturatingAdd(
+                maybeResourceFee,
+                std::min<int64_t>(getInclusionFee(), adjustedFee));
         }
         else
         {
-            return maybeResourceFee + adjustedFee;
+            return saturatingAdd(maybeResourceFee, adjustedFee);
         }
     }
     else

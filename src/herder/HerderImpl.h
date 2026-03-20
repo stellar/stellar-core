@@ -15,6 +15,7 @@
 #include "util/XDROperators.h"
 #include <deque>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace medida
@@ -100,11 +101,11 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool isLoadgenTx = false) override;
+                    bool force = false, bool isLoadgenTx = false) override;
 #else
-    TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx,
-                    bool submittedFromSelf) override;
+    TransactionQueue::AddResult recvTransaction(TransactionFrameBasePtr tx,
+                                                bool submittedFromSelf,
+                                                bool force = false) override;
 #endif
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
@@ -190,6 +191,8 @@ class HerderImpl : public Herder
 
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
+
+    void setFilteredAccounts(std::set<AccountID> const& accounts) override;
 
     void forceSCPStateIntoSyncWithLastClosedLedger() override;
 
@@ -347,10 +350,12 @@ class HerderImpl : public Herder
 
     void checkAndMaybeReanalyzeQuorumMapV2();
 
-    // erase all data for ledgers strictly less than ledgerSeq except for the
-    // first ledger on the current checkpoint. Hold onto this ledger so
-    // peers can catchup without waiting for the next checkpoint.
-    void eraseBelow(uint32 ledgerSeq);
+    // erase all data for ledgers outside the range [minSlot, maxSlot].
+    // Either bound may be nullopt to skip that direction.
+    // Always preserves the first ledger on the current checkpoint so peers
+    // can catchup without waiting for the next checkpoint.
+    void eraseOutsideRange(std::optional<uint32> minSlot,
+                           std::optional<uint32> maxSlot);
 
     std::shared_ptr<QuorumMapIntersectionState> mLastQuorumMapIntersectionState;
 

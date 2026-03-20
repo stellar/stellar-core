@@ -4,6 +4,7 @@
 
 #include "herder/TransactionQueue.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
@@ -107,8 +108,20 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
+
+    for (auto const& addr : app.getConfig().FILTERED_G_ADDRESSES)
+    {
+        mFilteredAccounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
+    }
+
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
+}
+
+void
+TransactionQueue::setFilteredAccounts(std::set<AccountID> const& accounts)
+{
+    mFilteredAccounts = accounts;
 }
 
 ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
@@ -140,7 +153,9 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -300,7 +315,8 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+    bool force
 #ifdef BUILD_TESTS
     ,
     bool isLoadgenTx
@@ -325,6 +341,11 @@ TransactionQueue::canAdd(
     if (!tx->validateSorobanTxForFlooding(mKeysToFilter))
     {
         mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+    if (!force && !tx->validateAccountFilterForFlooding(mFilteredAccounts))
+    {
+        mQueueMetrics->mTxsFilteredDueToAccountKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
@@ -649,7 +670,8 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                         bool force
 #ifdef BUILD_TESTS
                          ,
                          bool isLoadgenTx
@@ -667,7 +689,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
-    auto res = canAdd(tx, stateIter, txsToEvict
+    auto res = canAdd(tx, stateIter, txsToEvict, force
 #ifdef BUILD_TESTS
                       ,
                       isLoadgenTx
@@ -1097,7 +1119,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
                                      "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     mKeysToFilter = keysToFilter;
 }

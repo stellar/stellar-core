@@ -257,11 +257,27 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
 
     // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
-    auto minSlotToRemember = getMinLedgerSeqToRemember();
-    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
+    std::optional<uint32> minSlotToRemember;
+    auto minSeq = getMinLedgerSeqToRemember();
+    if (minSeq > LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        eraseBelow(minSlotToRemember);
+        minSlotToRemember = minSeq;
     }
+
+    // Evict slots that are too far in the future (only meaningful when
+    // tracking, as that's when we have a reliable "current" slot index)
+    std::optional<uint32> maxSlotToRemember;
+    if (isTracking())
+    {
+        maxSlotToRemember =
+            nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
+    }
+
+    if (minSlotToRemember || maxSlotToRemember)
+    {
+        eraseOutsideRange(minSlotToRemember, maxSlotToRemember);
+    }
+
     mPendingEnvelopes.forceRebuildQuorum();
 
     // Process new ready messages for the next slot
@@ -530,7 +546,10 @@ HerderImpl::outOfSyncRecovery()
     if (purgeSlot)
     {
         CLOG_INFO(Herder, "Purging slots older than {}", purgeSlot);
-        eraseBelow(purgeSlot);
+        // Only erase old slots. Because we're not tracking, we don't have a
+        // reliable "current" slot index to use for determining which future
+        // slots to keep.
+        eraseOutsideRange(purgeSlot, std::nullopt);
     }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
@@ -593,7 +612,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                            bool force
 #ifdef BUILD_TESTS
                             ,
                             bool isLoadgenTx
@@ -625,7 +645,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (!tx->isSoroban())
     {
-        result = mTransactionQueue.tryAdd(tx, submittedFromSelf
+        result = mTransactionQueue.tryAdd(tx, submittedFromSelf, force
 #ifdef BUILD_TESTS
                                           ,
                                           isLoadgenTx
@@ -634,7 +654,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf
     }
     else if (mSorobanTransactionQueue)
     {
-        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf
+        result = mSorobanTransactionQueue->tryAdd(tx, submittedFromSelf, force
 #ifdef BUILD_TESTS
                                                   ,
                                                   isLoadgenTx
@@ -1306,21 +1326,26 @@ getSafeLedgerToDelete(uint32_t ledger, Config const& cfg)
 }
 
 void
-HerderImpl::eraseBelow(uint32 ledgerSeq)
+HerderImpl::eraseOutsideRange(std::optional<uint32> minSlot,
+                              std::optional<uint32> maxSlot)
 {
     auto lastCheckpointSeq = getMostRecentCheckpointSeq();
-    getHerderSCPDriver().purgeSlots(ledgerSeq, lastCheckpointSeq);
-    mPendingEnvelopes.eraseBelow(ledgerSeq, lastCheckpointSeq);
-    auto lastIndex = trackingConsensusLedgerIndex();
-    mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
+    getHerderSCPDriver().purgeSlotsOutsideRange(minSlot, maxSlot,
+                                                lastCheckpointSeq);
+    mPendingEnvelopes.eraseOutsideRange(minSlot, maxSlot, lastCheckpointSeq);
 
-    uint32_t lmin = getSafeLedgerToDelete(ledgerSeq, mApp.getConfig());
-    // To avoid blocking too long, don't delete more than one checkpoint of
-    // history
-    uint32_t const ledgersToDelete =
-        HistoryManager::getCheckpointFrequency(mApp.getConfig());
-    HerderPersistence::deleteOldEntries(mApp.getDatabase().getRawMiscSession(),
-                                        lmin, ledgersToDelete);
+    if (minSlot)
+    {
+        auto lastIndex = trackingConsensusLedgerIndex();
+        mApp.getOverlayManager().clearLedgersBelow(*minSlot, lastIndex);
+        uint32_t lmin = getSafeLedgerToDelete(*minSlot, mApp.getConfig());
+        // To avoid blocking too long, don't delete more than one checkpoint of
+        // history
+        uint32_t const ledgersToDelete =
+            HistoryManager::getCheckpointFrequency(mApp.getConfig());
+        HerderPersistence::deleteOldEntries(
+            mApp.getDatabase().getRawMiscSession(), lmin, ledgersToDelete);
+    }
 }
 
 bool
@@ -1635,6 +1660,16 @@ HerderImpl::getUpgradesJson()
 {
     auto ls = LedgerSnapshot(mApp);
     return mUpgrades.getParameters().toDebugJson(ls);
+}
+
+void
+HerderImpl::setFilteredAccounts(std::set<AccountID> const& accounts)
+{
+    mTransactionQueue.setFilteredAccounts(accounts);
+    if (mSorobanTransactionQueue)
+    {
+        mSorobanTransactionQueue->setFilteredAccounts(accounts);
+    }
 }
 
 void
@@ -2383,6 +2418,22 @@ HerderImpl::start()
     restoreUpgrades();
     startTxSetGCTimer();
     startCheckForDeadNodesInterval();
+
+    auto& bap = mApp.getBannedAccountsPersistor();
+    if (!mApp.getConfig().FILTERED_G_ADDRESSES.empty())
+    {
+        CLOG_WARNING(
+            Herder,
+            "FILTERED_G_ADDRESSES is deprecated and will be removed in a "
+            "future release. The current {} address(es) will be stored in the "
+            "database. You can safely remove FILTERED_G_ADDRESSES from the "
+            "config. Use 'banaccounts'/'unbanaccounts' HTTP commands to manage "
+            "banned accounts going forward.",
+            mApp.getConfig().FILTERED_G_ADDRESSES.size());
+        bap.addBannedAccounts(mApp.getConfig().FILTERED_G_ADDRESSES);
+    }
+
+    setFilteredAccounts(bap.getBannedAccounts());
 }
 
 void

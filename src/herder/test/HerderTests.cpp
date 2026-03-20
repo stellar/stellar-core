@@ -43,6 +43,7 @@
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-ledger.h"
@@ -434,6 +435,47 @@ testTxSet(uint32 protocolVersion)
             {
                 validateReceivedBlock(
                     txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("zero ops transaction")
+        {
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+
+            auto tx =
+                transactionFromOperations(*app, root->getSecretKey(),
+                                          root->nextSequenceNumber(), {}, 1000);
+
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                txSet.txs.push_back(tx->getEnvelope());
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet != nullptr);
+                REQUIRE(applicableTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::GENERALIZED_TXSET_MISMATCH);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{tx})},
+                         {}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
             }
         }
     }
@@ -6361,6 +6403,167 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
     }
 }
 
+TEST_CASE("filter transactions by G address", "[herder]")
+{
+    SECTION("no filter - transaction accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("default filter does not reject unrelated source")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("filtered source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // Use a custom key for a funded account, then add it to the filter
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {KeyUtils::toStrKey(srcKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto src = root->create(srcKey, 1000000000);
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("filtered operation source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        // Build a tx from root but with an op sourced from filtered account
+        auto op = payment(root->getPublicKey(), 1);
+        op.sourceAccount.activate() =
+            toMuxedAccount(filteredKey.getPublicKey());
+        auto tx = root->tx({op});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("soroban tx with filtered account in write footprint is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+
+        // Build a Soroban tx whose write footprint contains the filtered
+        // account key
+        SorobanResources resources;
+        resources.footprint.readWrite = {
+            accountKey(filteredKey.getPublicKey())};
+        resources.instructions = 1'000'000;
+        resources.diskReadBytes = 1000;
+        resources.writeBytes = 1000;
+
+        auto op = createUploadWasmOperation(1000);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), *root, {op}, {}, resources,
+            /* inclusionFee */ 1000, /* resourceFee */ 10000);
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered fee source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        auto feeSource = TestAccount{*app, filteredKey};
+
+        auto innerTx = root->tx({payment(root->getPublicKey(), 1)});
+        auto fb = feeBump(*app, feeSource, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered inner source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto filteredAcct = root->create(filteredKey, 1000000000);
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        // Inner tx source is filtered; fee source (other) is not
+        auto innerTx = filteredAcct.tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with non-filtered accounts is accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults - none of the test accounts match
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        auto innerTx = root->tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+}
+
 // Test that Herder updates the scphistory table with additional messages from
 // ledger `n-1` when closing ledger `n`
 TEST_CASE("SCP message capture from previous ledger", "[herder]")
@@ -7806,4 +8009,114 @@ TEST_CASE("late joining node reaches consensus", "[herder]")
     REQUIRE(A->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
     REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
+}
+
+TEST_CASE("far-future slots cleanup", "[herder]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    Simulation simulation(mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i);
+        // Ensure we can test catch-up without history
+        cfg.MAX_SLOTS_TO_REMEMBER = 100;
+        return cfg;
+    });
+
+    // 3 validators with threshold 2 (majority)
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+
+    // Add all 4 nodes. v0 is a non-validator watcher.
+    // Use config index 4 to avoid collisions with the simulation's internal
+    // config counter (which allocates indices 0-2 for v1, v2, v3).
+    simulation.addNode(v0SecretKey, qSet);
+    simulation.addNode(v1SecretKey, qSet);
+    simulation.addNode(v2SecretKey, qSet);
+    simulation.addNode(v3SecretKey, qSet);
+
+    // Connect all nodes and start
+    simulation.addPendingConnection(v0NodeID, v1NodeID);
+    simulation.addPendingConnection(v1NodeID, v2NodeID);
+    simulation.addPendingConnection(v2NodeID, v3NodeID);
+    simulation.startAllNodes();
+
+    // Close a few ledgers so all nodes are in sync and tracking
+    auto const INITIAL_LEDGERS = 3u;
+    simulation.crankUntil(
+        [&]() {
+            return simulation.haveAllExternalized(
+                LedgerManager::GENESIS_LEDGER_SEQ + INITIAL_LEDGERS, 1);
+        },
+        10 * INITIAL_LEDGERS * simulation.getExpectedLedgerCloseTime(), false);
+
+    auto app0 = simulation.getNode(v0NodeID);
+    auto& herder0 = static_cast<HerderImpl&>(app0->getHerder());
+    REQUIRE(herder0.isTracking());
+
+    // Disconnect v0 from the network
+    simulation.dropConnection(v0NodeID, v1NodeID);
+
+    // Run the simulation until v0 is no longer tracking.
+    simulation.crankUntil([&]() { return !herder0.isTracking(); },
+                          50 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Inject far-future envelopes into the non-tracking v0.
+    auto localQSet = herder0.getSCP().getLocalQuorumSet();
+    auto qsetHash = sha256(xdr::xdr_to_opaque(localQSet));
+    auto const ct = app0->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.scpValue.closeTime +
+                    1;
+    auto injectEnvelope = [&](SecretKey const& sk, uint64_t slotIndex) {
+        SCPEnvelope envelope;
+        envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        auto txSet = TxSetXDRFrame::makeEmpty(
+            app0->getLedgerManager().getLastClosedLedgerHeader());
+        StellarValue sv = herder0.makeStellarValue(
+            txSet->getContentsHash(), ct, xdr::xvector<UpgradeType, 6>{},
+            v1SecretKey);
+        ext.commit.counter = 1;
+        ext.commit.value = xdr::xdr_to_opaque(sv);
+        ext.commitQuorumSetHash = qsetHash;
+        ext.nH = 1;
+        envelope.statement.nodeID = sk.getPublicKey();
+        herder0.signEnvelope(sk, envelope);
+        return herder0.recvSCPEnvelope(envelope, localQSet, txSet);
+    };
+
+    auto const NUM_FUTURE = 50;
+    auto const FAR_FUTURE_BASE = 1'000'000;
+    auto slotsBefore = herder0.getSCP().getKnownSlotsCount();
+
+    for (uint32_t i = 0; i < NUM_FUTURE; ++i)
+    {
+        auto res = injectEnvelope(v1SecretKey, FAR_FUTURE_BASE + i);
+        REQUIRE(res == Herder::ENVELOPE_STATUS_READY);
+    }
+
+    // V0 should have NUM_FUTURE more slots now.
+    auto slotsAfterInject = herder0.getSCP().getKnownSlotsCount();
+    REQUIRE(slotsAfterInject >= slotsBefore + NUM_FUTURE);
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() >= FAR_FUTURE_BASE);
+
+    // Reconnect v0 to the validators so it can catch up
+    simulation.addConnection(v0NodeID, v1NodeID);
+
+    // Crank until v0 starts tracking the network again
+    simulation.crankUntil([&]() { return herder0.isTracking(); },
+                          60 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Check that far-future slots have been removed
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
 }

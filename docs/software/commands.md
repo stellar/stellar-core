@@ -252,6 +252,28 @@ Most commands return their results in JSON format.
 * **bans**
   List current active bans
 
+* **banaccounts**
+  Manages the persistent list of banned accounts. Banned accounts are stored in
+  the database and survive restarts. Any transaction whose source account,
+  operation source account, fee-bump fee source, or (for Soroban transactions)
+  write footprint account entry matches a banned address will be rejected from
+  the transaction queue.
+  * `banaccounts`<br>
+    Lists the currently banned account addresses as a JSON array.<br>
+  * `banaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
+    Adds the specified addresses to the persistent ban list. Existing bans are
+    preserved (additive).<br>
+
+  Note: The `FILTERED_G_ADDRESSES` configuration option is deprecated. Any
+  addresses configured there will be automatically migrated to the persistent
+  ban list on startup.
+
+* **unbanaccounts**
+  * `unbanaccounts`<br>
+    Clears all banned accounts.<br>
+  * `unbanaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
+    Removes the specified addresses from the persistent ban list.<br>
+
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 
@@ -336,6 +358,12 @@ Most commands return their results in JSON format.
         There is another transaction from same source account in PENDING state
         The network is under high load and the fee is too low.
     * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
+
+  Optional parameters:
+    * `force=true` - bypasses banned account filtering (see `banaccounts`),
+      allowing the transaction into the mempool even if its source account or
+      fee source is on the ban list. Other filtering (operation type, Soroban
+      key filtering) still applies. Example: `tx?blob=Base64&force=true`
 
 * **upgrades**
   * `upgrades?mode=get`<br>

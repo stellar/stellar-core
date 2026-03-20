@@ -127,6 +127,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool validateSorobanTxForFlooding(
         UnorderedSet<LedgerKey> const& keysToFilter) const override;
+    bool validateAccountFilterForFlooding(
+        std::set<AccountID> const& filteredAccounts) const override;
     bool validateSorobanMemo() const override;
     bool validateHostFn() const override;
 

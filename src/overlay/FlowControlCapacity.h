@@ -38,7 +38,8 @@ class FlowControlCapacity
     virtual void releaseOutboundCapacity(StellarMessage const& msg) = 0;
 
     void lockOutboundCapacity(StellarMessage const& msg);
-    bool lockLocalCapacity(StellarMessage const& msg);
+    void lockLocalCapacity(StellarMessage const& msg);
+    bool canLockLocalCapacity(StellarMessage const& msg) const;
     // Release capacity used by this message. Return how flood capacity was
     // freed
     uint64_t releaseLocalCapacity(StellarMessage const& msg);

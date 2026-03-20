@@ -317,14 +317,10 @@ pub(crate) mod rust_bridge {
         type SorobanModuleCache;
 
         fn new_module_cache() -> Result<Box<SorobanModuleCache>>;
-        fn compile(
-            self: &mut SorobanModuleCache,
-            ledger_protocol: u32,
-            source: &[u8],
-        ) -> Result<()>;
+        fn compile(self: &SorobanModuleCache, ledger_protocol: u32, source: &[u8]) -> Result<()>;
         fn shallow_clone(self: &SorobanModuleCache) -> Result<Box<SorobanModuleCache>>;
-        fn evict_contract_code(self: &mut SorobanModuleCache, key: &[u8]) -> Result<()>;
-        fn clear(self: &mut SorobanModuleCache) -> Result<()>;
+        fn evict_contract_code(self: &SorobanModuleCache, key: &[u8]) -> Result<()>;
+        fn clear(self: &SorobanModuleCache) -> Result<()>;
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
         fn get_mem_bytes_consumed(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
 
@@ -364,6 +360,13 @@ pub(crate) mod rust_bridge {
             resource_limit: &QuorumCheckerResource,
             resource_usage: &mut QuorumCheckerResource,
         ) -> Result<QuorumCheckerStatus>;
+
+        // The QI checker actually manages the memory limit using a global
+        // allocator, which winds up controlling _all_ memory allocation by
+        // rust code in the process. So we want to ensure that limit is unlimited
+        // when the process starts up -- the QI check call will limit it later,
+        // if and only if it's running as a QI-checking subprocess.
+        fn set_rust_global_memory_limit_to_unlimited();
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to

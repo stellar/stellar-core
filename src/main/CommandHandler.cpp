@@ -14,6 +14,7 @@
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/QueryServer.h"
 #include "overlay/BanManager.h"
@@ -42,6 +43,7 @@
 #include "test/TxTests.h"
 #endif
 #include <optional>
+#include <sstream>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -118,6 +120,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("banaccounts", &CommandHandler::banaccounts);
+    addRoute("unbanaccounts", &CommandHandler::unbanaccounts);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
@@ -678,6 +682,121 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 }
 
 void
+CommandHandler::banaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        // No accountids param at all: list current banned accounts.
+        // parseParams drops empty values, so also check the raw params to
+        // distinguish "not specified" from "empty value".
+        if (params.find("accountids") != std::string::npos)
+        {
+            retStr =
+                R"({"error": "accountids must not be empty; use 'unbanaccounts' to remove bans"})";
+            return;
+        }
+
+        auto accounts = persistor.getBannedAccountStrKeys();
+        Json::Value root;
+        root["bannedAccounts"] = Json::arrayValue;
+        for (auto const& addr : accounts)
+        {
+            root["bannedAccounts"].append(addr);
+        }
+        retStr = root.toStyledString();
+        return;
+    }
+
+    std::vector<std::string> addresses;
+    if (!parseAccountIds(it->second, addresses, retStr))
+    {
+        return;
+    }
+
+    auto beforeCount = persistor.getBannedAccountsCount();
+    persistor.addBannedAccounts(addresses);
+    auto updated = persistor.getBannedAccounts();
+    mApp.getHerder().setFilteredAccounts(updated);
+    auto actuallyAdded = updated.size() - beforeCount;
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "added": {}, "total": {}}})"),
+        actuallyAdded, updated.size());
+}
+
+bool
+CommandHandler::parseAccountIds(std::string const& value,
+                                std::vector<std::string>& addresses,
+                                std::string& retStr)
+{
+    std::istringstream iss(value);
+    std::string addr;
+    while (std::getline(iss, addr, ','))
+    {
+        if (addr.empty())
+        {
+            continue;
+        }
+        try
+        {
+            KeyUtils::fromStrKey<PublicKey>(addr);
+        }
+        catch (std::exception const&)
+        {
+            retStr = fmt::format(
+                FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
+            return false;
+        }
+        addresses.push_back(addr);
+    }
+    return true;
+}
+
+void
+CommandHandler::unbanaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        // No accountids param: clear all bans.
+        // parseParams drops empty values, so also check the raw params.
+        persistor.clearBannedAccounts();
+        mApp.getHerder().setFilteredAccounts({});
+        retStr = R"({"status": "banned accounts cleared"})";
+        return;
+    }
+
+    std::vector<std::string> addresses;
+    if (!parseAccountIds(it->second, addresses, retStr))
+    {
+        return;
+    }
+
+    auto beforeCount = persistor.getBannedAccountsCount();
+    persistor.removeBannedAccounts(addresses);
+    auto updated = persistor.getBannedAccounts();
+    mApp.getHerder().setFilteredAccounts(updated);
+    auto actuallyRemoved = beforeCount - updated.size();
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "removed": {}, "total": {}}})"),
+        actuallyRemoved, updated.size());
+}
+
+void
 CommandHandler::dumpProposedSettings(std::string const& params,
                                      std::string& retStr)
 {
@@ -1021,6 +1140,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> paramMap;
     http::server::server::parseParams(params, paramMap);
     std::string blob = paramMap["blob"];
+    bool force = paramMap["force"] == "true";
 
     if (!blob.empty())
     {
@@ -1044,7 +1164,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // Add it to our current set and make sure it is valid.
             auto addResult =
-                mApp.getHerder().recvTransaction(transaction, true);
+                mApp.getHerder().recvTransaction(transaction, true, force);
 
             root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
             if (addResult.code ==

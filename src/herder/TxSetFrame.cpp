@@ -217,7 +217,7 @@ computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
         protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION)
             ? Rounding::ROUND_DOWN
             : Rounding::ROUND_UP;
-    auto txOps = tx.getNumOperations();
+    auto txOps = std::max(tx.getNumOperations(), 1u);
     return bigDivideOrThrow(tx.getInclusionFee(), 1,
                             static_cast<int64_t>(txOps), rounding);
 }
@@ -1445,6 +1445,13 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 if (component.txsMaybeDiscountedFee().baseFee)
                 {
                     baseFee = *component.txsMaybeDiscountedFee().baseFee;
+                    if (*baseFee < 0)
+                    {
+                        CLOG_DEBUG(Herder,
+                                   "Got bad generalized txSet: component "
+                                   "has negative base fee");
+                        return std::nullopt;
+                    }
                 }
                 size_t prevSize = txList.size();
                 if (!addWireTxsToList(networkID,
@@ -1476,6 +1483,12 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
         if (xdrPhase.parallelTxsComponent().baseFee)
         {
             baseFee = *xdrPhase.parallelTxsComponent().baseFee;
+            if (*baseFee < 0)
+            {
+                CLOG_DEBUG(Herder, "Got bad generalized txSet: component "
+                                   "has negative base fee");
+                return std::nullopt;
+            }
         }
         TxStageFrameList stages;
         stages.reserve(xdrStages.size());

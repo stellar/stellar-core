@@ -95,24 +95,34 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
 }
 
 void
-ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
+ItemFetcher::stopFetchingOutsideRange(std::optional<uint64> minSlot,
+                                      std::optional<uint64> maxSlot,
+                                      uint64 slotToKeep)
 {
+    if (mTrackers.empty())
+    {
+        // Nothing to do. No need to post a cleanup task to the main thread.
+        return;
+    }
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
     mApp.postOnMainThread(
-        [this, slotIndex, slotToKeep]() {
-            stopFetchingBelowInternal(slotIndex, slotToKeep);
+        [this, minSlot, maxSlot, slotToKeep]() {
+            stopFetchingOutsideRangeInternal(minSlot, maxSlot, slotToKeep);
         },
-        "ItemFetcher: stopFetchingBelow");
+        "ItemFetcher: stopFetchingOutsideRange");
 }
 
 void
-ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
+ItemFetcher::stopFetchingOutsideRangeInternal(std::optional<uint64> minSlot,
+                                              std::optional<uint64> maxSlot,
+                                              uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
-        if (!iter->second->clearEnvelopesBelow(slotIndex, slotToKeep))
+        if (!iter->second->clearEnvelopesOutsideRange(minSlot, maxSlot,
+                                                      slotToKeep))
         {
             iter = mTrackers.erase(iter);
         }
