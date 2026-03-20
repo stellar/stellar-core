@@ -123,7 +123,7 @@ impl SorobanModuleCache {
             25 => bytes = bytes.max(self.p25_cache.get_wasm_bytes_input()?),
             26 => bytes = bytes.max(self.p26_cache.get_wasm_bytes_input()?),
             #[cfg(feature = "next")]
-            27 => bytes = bytes.max(self.p27_cache.get_mem_bytes_consumed()?),
+            27 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
             _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
         }
         Ok(bytes)

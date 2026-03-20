@@ -7673,6 +7673,20 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     int moduleCacheProtocolCount =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION -
         static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) + 1;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Note: depending on the state of vnext over in soroban_module_cache.rs, we
+    // sometimes direct the next protocol version to another copy of the current
+    // protocol (i.e. v27 just points to the v26 host). If this happens, this
+    // test will break, and you'll need to uncomment the following line of code
+    // to subtract an additional 1 to account for the fact that the next
+    // protocol version doesn't actually add to the module cache count.
+    //
+    // On the other hand, sometimes vnext is configured to point to an actual
+    // work-in-progress next host, in which case there _is_ a separate module
+    // cache and the following line of code should be commented-out.
+    //
+    // moduleCacheProtocolCount -= 1;
+#endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
                 .mModuleCacheNumEntries.count() ==
