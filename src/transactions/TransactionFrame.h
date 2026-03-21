@@ -56,6 +56,14 @@ class TransactionFrame : public TransactionFrameBase
     bool
     maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
 
+    MutableTxResultPtr checkValidImpl(AppConnector& app,
+                                      LedgerSnapshot const& ls,
+                                      SequenceNumber current,
+                                      uint64_t lowerBoundCloseTimeOffset,
+                                      uint64_t upperBoundCloseTimeOffset,
+                                      DiagnosticEventManager& diagnosticEvents,
+                                      bool isOverlayValidation) const;
+
   protected:
 #ifdef BUILD_TESTS
     mutable
@@ -244,12 +252,17 @@ class TransactionFrame : public TransactionFrameBase
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
         MutableTransactionResultBase& result,
-        DiagnosticEventManager& diagnosticEvents) const;
+        DiagnosticEventManager& diagnosticEvents,
+        bool isOverlayValidation) const;
     MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
                DiagnosticEventManager& diagnosticEvents) const override;
+    MutableTxResultPtr checkValidForOverlay(
+        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        DiagnosticEventManager& diagnosticEvents) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;
