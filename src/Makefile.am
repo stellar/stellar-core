@@ -208,6 +208,10 @@ define soroban_lib_dir
 $(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
 endef
 
+define soroban_git_state_stamp
+$(shell printf '%s/%s/target/git-state.txt' $(SOROBAN_BUILD_DIR) $(1))
+endef
+
 define soroban_rlib
 $(shell printf -- '%s/libsoroban_env_host.rlib' $(call soroban_lib_dir,$(1)))
 endef
@@ -221,8 +225,10 @@ $(shell printf -- '-L dependency=%s/deps' $(call soroban_lib_dir,$(1)))
 endef
 
 ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(proto)))
+ALL_SOROBAN_GIT_STATE_STAMPS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_git_state_stamp,$(proto)))
 ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
 ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
+SOROBAN_LIBS_STATE=$(shell cat $(SOROBAN_LIBS_STAMP) 2>/dev/null || echo no-soroban-libs)
 
 $(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
@@ -254,6 +260,17 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 		fi; \
 	done
 	touch $@
+
+# soroban-env-common embeds GIT_REVISION from submodule git state, so a pure
+# submodule commit move must invalidate the host build even when Cargo.lock and
+# tracked Rust sources are otherwise unchanged.
+$(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust/soroban/%/HEAD $(top_srcdir)/.git/modules/src/rust/soroban/%/index Makefile $(RUST_TOOLCHAIN_FILE)
+	mkdir -p $(@D)
+	@state=$$(cd $(abspath $(top_srcdir))/src/rust/soroban/$* \
+		&& git describe --always --exclude='*' --long --abbrev=1000 --dirty 2>/dev/null \
+		|| git rev-parse HEAD); \
+	printf '%s\n' "$$state" > $@.tmp; \
+	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 # The "unified" rust build is a special non-production mode that builds all of
 # the rust dependencies of librust_stellar_core.a through a single cargo
@@ -342,7 +359,7 @@ else # !UNIFIED_RUST
 # We also have to pass CXXSTDLIB to those build.rs files, because they are
 # sensitive to CXXFLAGS but also don't inspect them to see if they're setting
 # -stdlib=libc++ or -stdlib=libstdc++
-$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
+$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_STATE_STAMPS) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
@@ -372,7 +389,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			$$FEATURE_FLAGS \
 		|| exit 1; \
 	done
-	touch $@
+	@sha256sum $(ALL_SOROBAN_LIBS) | cut -d' ' -f1 | sha256sum | cut -d' ' -f1 > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 # This one is also a bit challenging, though it's _less_ weird. What we're doing
 # here is supplying multiple separate .rlibs -- one for each soroban linked into
@@ -390,10 +408,15 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
-$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
+# The .rlib files are side-effects of the SOROBAN_LIBS_STAMP recipe; this rule
+# tells make how to produce them so it doesn't fail on a clean tree.
+$(ALL_SOROBAN_LIBS): $(SOROBAN_LIBS_STAMP) ;
+
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_LIBS) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
+	RUSTFLAGS="$(RUSTFLAGS) -Cmetadata=$(SOROBAN_LIBS_STATE)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
