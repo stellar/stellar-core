@@ -33,30 +33,105 @@ setlocal EnableDelayedExpansion
 
 rem -- range to use for stable host envs
 set MIN_P=21
-set MAX_P=25
+set MAX_P=26
 rem -- version of the latest WIP protocol
 set LATEST_P=26
 
 rem ---- Accumulators for final rustc link flags ----
 set "EXTERNS="
 set "LPATHS="
+set "SOURCE_STAMP=.source-rev"
+set "any_changed="
 
-rem ---- Build historical protocols MIN_P..MAX_P (no %features%) ----
+rem ---- Build protocols MIN_P..MAX_P ----
+rem When "next" is passed and LATEST_P falls within this range, skip it here
+rem (it will be built once below with --features next).
 for /l %%P in (%MIN_P%,1,%MAX_P%) do (
-  %set_linker_flags% & pushd "%project_dir%\src\rust\soroban\p%%P" & (set RUSTFLAGS=-Cmetadata=p%%P) & cargo +%version% build %release_profile% --package soroban-env-host --locked --target-dir "%out_dir%\soroban-p%%P-target" & popd
+    set "proto_dir=%project_dir%\src\rust\soroban\p%%P"
+    set "proto_target=%out_dir%\soroban-p%%P-target"
+
+    rem -- Resolve current submodule rev --
+    set "current_rev="
+    for /f %%R in ('git -C "!proto_dir!" rev-parse HEAD 2^>nul') do set "current_rev=%%R"
+
+    rem -- Compare stamp to decide if cargo needs to run --
+    set "stamp_ok="
+    if not "!current_rev!"=="" (
+        if exist "!proto_target!\%SOURCE_STAMP%" (
+            set "saved_rev="
+            set /p saved_rev=<"!proto_target!\%SOURCE_STAMP%"
+            if /I "!saved_rev!"=="!current_rev!" set "stamp_ok=1"
+        )
+    )
+
+    rem -- Decide whether to skip building this protocol in the loop --
+    set "skip_build="
+    if defined features if %%P==%LATEST_P% set "skip_build=1"
+
+    if not defined skip_build (
+        if defined stamp_ok (
+            echo p%%P: up to date, skipping.
+        ) else (
+            echo p%%P: building soroban-env-host...
+            set "any_changed=1"
+            %set_linker_flags% & pushd "!proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%%P-!current_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked --target-dir "!proto_target!" & popd
+            if errorlevel 1 exit /b 1
+            if not "!current_rev!"=="" (
+                if not exist "!proto_target!" mkdir "!proto_target!"
+                >"!proto_target!\%SOURCE_STAMP%" echo(!current_rev!
+            )
+        )
+    )
 
   set "EXTERNS=!EXTERNS! --extern soroban_env_host_p%%P=%out_dir%\soroban-p%%P-target\%2\libsoroban_env_host.rlib"
   set "LPATHS=!LPATHS! -L dependency=%out_dir%\soroban-p%%P-target\%2\deps"
 )
 
-echo rem ---- Build latest protocol (passes --features) ----
-%set_linker_flags% & pushd %project_dir%\src\rust\soroban\p%LATEST_P% & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%) & cargo +%version% build %release_profile% --package soroban-env-host --locked %features% --target-dir %out_dir%\soroban-p%LATEST_P%-target & popd
+rem ---- Build LATEST_P with features (only when "next" is passed) ----
+if defined features (
+    set "latest_proto_dir=%project_dir%\src\rust\soroban\p%LATEST_P%"
+    set "latest_proto_target=%out_dir%\soroban-p%LATEST_P%-target"
 
-set "EXTERNS=%EXTERNS% --extern soroban_env_host_p%LATEST_P%=%out_dir%\soroban-p%LATEST_P%-target\%2\libsoroban_env_host.rlib"
-set "LPATHS=%LPATHS% -L dependency=%out_dir%\soroban-p%LATEST_P%-target\%2\deps"
+    set "latest_rev="
+    for /f %%R in ('git -C "!latest_proto_dir!" rev-parse HEAD 2^>nul') do set "latest_rev=%%R"
 
-rem ---- Final stellar-core compile linking all protocol libs ----
-cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
+    set "latest_stamp_ok="
+    if not "!latest_rev!"=="" (
+        if exist "!latest_proto_target!\%SOURCE_STAMP%" (
+            set "saved_latest_rev="
+            set /p saved_latest_rev=<"!latest_proto_target!\%SOURCE_STAMP%"
+            if /I "!saved_latest_rev!"=="!latest_rev!" set "latest_stamp_ok=1"
+        )
+    )
+
+    if defined latest_stamp_ok (
+        echo p%LATEST_P% ^(latest^): up to date, skipping.
+    ) else (
+        echo p%LATEST_P% ^(latest^): building soroban-env-host with %features%...
+        set "any_changed=1"
+        %set_linker_flags% & pushd "!latest_proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%-!latest_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked %features% --target-dir "!latest_proto_target!" & popd
+        if errorlevel 1 exit /b 1
+        if not "!latest_rev!"=="" (
+            if not exist "!latest_proto_target!" mkdir "!latest_proto_target!"
+            >"!latest_proto_target!\%SOURCE_STAMP%" echo(!latest_rev!
+        )
+    )
+
+    set "EXTERNS=!EXTERNS! --extern soroban_env_host_p%LATEST_P%=!latest_proto_target!\%2\libsoroban_env_host.rlib"
+    set "LPATHS=!LPATHS! -L dependency=!latest_proto_target!\%2\deps"
+)
+
+rem ---- Final stellar-core compile ----
+rem Skip if no protocol libraries changed and the output already exists.
+set "final_lib=%out_dir%\target\%2\rust_stellar_core.lib"
+if not exist "!final_lib!" set "any_changed=1"
+
+if defined any_changed (
+    echo Linking stellar-core Rust library...
+    cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
+) else (
+    echo stellar-core Rust library: up to date, skipping.
+)
 
 endlocal
 
