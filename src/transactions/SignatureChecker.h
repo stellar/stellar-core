@@ -22,10 +22,12 @@ class SignatureChecker
     // Construct a checker for validating `signatures` over `contentsHash`.
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        xdr::xvector<DecoratedSignature, 20> const& signatures,
+        bool isOverlayValidation = false);
 #ifdef BUILD_TESTS
     virtual bool checkSignature(std::vector<Signer> const& signersV,
-                                int32_t neededWeight);
+                                int32_t neededWeight,
+                                bool checkEd25519SignedPayload = true);
     virtual bool checkAllSignaturesUsed() const;
     virtual ~SignatureChecker() = default;
 
@@ -35,13 +37,16 @@ class SignatureChecker
     virtual void disableCacheMetricsTracking();
 #else
     bool checkSignature(std::vector<Signer> const& signersV,
-                        int32_t neededWeight);
+                        int32_t neededWeight,
+                        bool checkEd25519SignedPayload = true);
     bool checkAllSignaturesUsed() const;
 
     // Do not record signature cache metrics for this instance. This should be
     // called for background transaction signature checking.
     void disableCacheMetricsTracking();
 #endif // BUILD_TESTS
+
+    bool isOverlayValidation() const;
 
     // Reset and return the counts of signature checks performed as part of
     // transaction `checkValid` or apply flow. The first element of the pair is
@@ -54,6 +59,7 @@ class SignatureChecker
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
     bool mTrackCacheMetrics{true};
+    bool mIsOverlayValidation{false};
 
     std::vector<bool> mUsedSignatures;
 
@@ -76,13 +82,15 @@ class AlwaysValidSignatureChecker : public SignatureChecker
   public:
     AlwaysValidSignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures)
-        : SignatureChecker(protocolVersion, contentsHash, signatures)
+        xdr::xvector<DecoratedSignature, 20> const& signatures,
+        bool isOverlayValidation = false)
+        : SignatureChecker(protocolVersion, contentsHash, signatures,
+                           isOverlayValidation)
     {
     }
 
     bool
-    checkSignature(std::vector<Signer> const&, int32_t) override
+    checkSignature(std::vector<Signer> const&, int32_t, bool) override
     {
         return true;
     }

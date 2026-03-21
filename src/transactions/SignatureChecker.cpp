@@ -10,6 +10,7 @@
 #include "crypto/SignerKey.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algorithm.h"
+#include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
@@ -22,17 +23,26 @@ uint64_t SignatureChecker::gCheckValidOrApplyTxSigCacheLookups = 0;
 
 SignatureChecker::SignatureChecker(
     uint32_t protocolVersion, Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures)
+    xdr::xvector<DecoratedSignature, 20> const& signatures,
+    bool isOverlayValidation)
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}
+    , mIsOverlayValidation{isOverlayValidation}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
 
 bool
+SignatureChecker::isOverlayValidation() const
+{
+    return mIsOverlayValidation;
+}
+
+bool
 SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
-                                 int neededWeight)
+                                 int neededWeight,
+                                 bool checkEd25519SignedPayload)
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     return true;
@@ -127,17 +137,25 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
         return true;
     }
 
-    verified = verifyAll(
-        signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
-        [&](DecoratedSignature const& sig, Signer const& signerKey) {
-            auto [valid, cacheLookupRes] =
-                SignatureUtils::verifyEd25519SignedPayload(sig, signerKey.key);
-            updateTxSigCacheMetrics(cacheLookupRes);
-            return valid;
-        });
-    if (verified)
+    if (checkEd25519SignedPayload)
     {
-        return true;
+        verified = verifyAll(
+            signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
+            [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                auto [valid, cacheLookupRes] =
+                    SignatureUtils::verifyEd25519SignedPayload(sig,
+                                                               signerKey.key);
+                updateTxSigCacheMetrics(cacheLookupRes);
+                return valid;
+            });
+        if (verified)
+        {
+            return true;
+        }
+    }
+    else
+    {
+        releaseAssert(mIsOverlayValidation);
     }
 
     return false;

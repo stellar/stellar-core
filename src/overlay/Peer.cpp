@@ -84,7 +84,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
         SignatureChecker signatureChecker(
             ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-            signatures);
+            signatures, true);
 
         // Do not report signature cache metrics during background validation.
         // This allows us to more accurately measure the impact of background

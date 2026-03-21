@@ -478,7 +478,7 @@ TransactionQueue::canAdd(
     if (!isLoadgenTx)
 #endif
     {
-        auto validationResult = tx->checkValid(
+        auto validationResult = tx->checkValidForOverlay(
             mApp.getAppConnector(), ls, 0, 0,
             getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents);
         if (!validationResult->isSuccess())

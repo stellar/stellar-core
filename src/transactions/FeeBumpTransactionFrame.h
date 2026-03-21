@@ -61,6 +61,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
+    MutableTxResultPtr checkValidImpl(AppConnector& app,
+                                      LedgerSnapshot const& ls,
+                                      SequenceNumber current,
+                                      uint64_t lowerBoundCloseTimeOffset,
+                                      uint64_t upperBoundCloseTimeOffset,
+                                      DiagnosticEventManager& diagnosticEvents,
+                                      bool isOverlayValidation) const;
+
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope);
@@ -114,6 +122,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
                DiagnosticEventManager& diagnosticEvents) const override;
+    MutableTxResultPtr checkValidForOverlay(
+        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        DiagnosticEventManager& diagnosticEvents) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;

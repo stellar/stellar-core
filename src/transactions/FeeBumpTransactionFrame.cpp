@@ -240,7 +240,8 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     }
     signers.insert(signers.end(), acc.signers.begin(), acc.signers.end());
 
-    return signatureChecker.checkSignature(signers, neededWeight);
+    return signatureChecker.checkSignature(
+        signers, neededWeight, !signatureChecker.isOverlayValidation());
 }
 
 bool
@@ -269,10 +270,10 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
 }
 
 MutableTxResultPtr
-FeeBumpTransactionFrame::checkValid(
+FeeBumpTransactionFrame::checkValidImpl(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation) const
 {
     if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
     {
@@ -290,7 +291,8 @@ FeeBumpTransactionFrame::checkValid(
 
     auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
     SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
-                                      mEnvelope.feeBump().signatures};
+                                      mEnvelope.feeBump().signatures,
+                                      isOverlayValidation};
     if (commonValid(signatureChecker, ls, false, *txResult) !=
         ValidationType::kFullyValid)
     {
@@ -323,9 +325,29 @@ FeeBumpTransactionFrame::checkValid(
     mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents);
+        diagnosticEvents, isOverlayValidation);
 
     return txResult;
+}
+
+MutableTxResultPtr
+FeeBumpTransactionFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents) const
+{
+    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, false);
+}
+
+MutableTxResultPtr
+FeeBumpTransactionFrame::checkValidForOverlay(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents) const
+{
+    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, true);
 }
 
 bool
