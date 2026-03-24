@@ -28,7 +28,13 @@ jobs:
     if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
+    permissions:
+      contents: read
+      id-token: write
     steps:
+      - name: Install nsc and authenticate to namespace cloud
+        uses: namespacelabs/nscloud-setup@v0
+
       - uses: namespacelabs/nscloud-checkout-action@v7
         with:
           fetch-depth: 1
@@ -38,13 +44,14 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
+            ~/.rustup
             ~/.cargo
-            build-static-checks
+            ~/.last-tested-commit
 
       - name: Check if commit already tested
         id: check-last-tested-commit
         run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-static-checks/.last-tested-commit-sha"
+          LAST_TESTED_COMMIT_SHA_FILE="$HOME/.last-tested-commit/sha"
           if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
             echo "Commit ${{ github.sha }} already tested successfully, skipping build"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -58,7 +65,9 @@ jobs:
 
       - name: Update rustup
         if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: rustup update
+        run: |
+          rustup update
+          rustup show
 
       - name: Install rustfmt
         if: steps.check-last-tested-commit.outputs.skip != 'true'
@@ -95,13 +104,16 @@ jobs:
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
-          mkdir -p build-static-checks
-          echo "${{ github.sha }}" > "build-static-checks/.last-tested-commit-sha"
+          mkdir -p "$HOME/.last-tested-commit"
+          echo "${{ github.sha }}" > "$HOME/.last-tested-commit/sha"
 
   build-linux:
     if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -114,6 +126,9 @@ jobs:
         # using leading to random crashes: https://reviews.llvm.org/D148280
         run: sudo sysctl vm.mmap_rnd_bits=28
 
+      - name: Install nsc and authenticate to namespace cloud
+        uses: namespacelabs/nscloud-setup@v0
+
       - name: Checkout with Namespace Git mirrors cache
         uses: namespacelabs/nscloud-checkout-action@v7
         with:
@@ -124,13 +139,14 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
+            ~/.rustup
             ~/.cargo
-            build-${{matrix.toolchain}}-${{matrix.protocol}}
+            ~/.last-tested-commit
 
       - name: Check if commit already tested
         id: check-last-tested-commit
         run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
+          LAST_TESTED_COMMIT_SHA_FILE="$HOME/.last-tested-commit/sha"
           if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
             echo "Commit ${{ github.sha }} already tested successfully, skipping build"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -142,39 +158,23 @@ jobs:
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: ./install-rust.sh
 
+      - name: Update rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          rustup update
+          rustup show
+
       - name: Install rustup components
         if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: rustup component add rustfmt
-
-      - uses: stellar/binaries@v50
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        with:
-          name: cargo-cache
-          version: 0.8.3
-
-      - uses: stellar/binaries@v50
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        with:
-          name: cargo-sweep
-          version: 0.7.0
-
-      # Restore original modification time of files based on the date of the most
-      # recent commit that modified them as mtimes affect the Go test cache.
-      - name: Restore modification time of checkout files
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        shell: bash
         run: |
-          # Set a base, fixed modification time of all directories.
-          # git-restore-mtime doesn't set the mtime of all directories.
-          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
-          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
-          # Restore original modification time from git. git clone sets the
-          # modification time to the current time, but Go tests that access fixtures
-          # get invalidated if their modification times change.
-          #
-          # Note: git-restore-mtime needs to be baked into the image we're
-          # running on.
-          git restore-mtime
+          rustup component add rustfmt rustc cargo clippy rust-src rust-std
+
+
+      - uses: stellar/binaries@v55
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        with:
+          name: sccache
+          version: 0.14.0
 
       - name: Build
         if: steps.check-last-tested-commit.outputs.skip != 'true'
@@ -186,19 +186,27 @@ jobs:
             export CC='clang'
             export CXX='clang++'
           fi
+          export PATH=$HOME/.cargo/bin:$PATH
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
 
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
-          echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
+          mkdir -p "$HOME/.last-tested-commit"
+          echo "${{ github.sha }}" > "$HOME/.last-tested-commit/sha"
 
   build-mac:
     if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
+    permissions:
+      contents: read
+      id-token: write
     steps:
+
+      - name: Install nsc and authenticate to namespace cloud
+        uses: namespacelabs/nscloud-setup@v0
 
       - name: Checkout with Namespace Git mirrors cache
         uses: namespacelabs/nscloud-checkout-action@v7
@@ -210,13 +218,14 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
+            ~/.rustup
             ~/.cargo
-            build-clang-current
+            ~/.last-tested-commit
 
       - name: Check if commit already tested
         id: check-last-tested-commit
         run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-clang-current/.last-tested-commit-sha"
+          LAST_TESTED_COMMIT_SHA_FILE="$HOME/.last-tested-commit/sha"
           if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
             echo "Commit ${{ github.sha }} already tested successfully, skipping build"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -237,33 +246,11 @@ jobs:
           rustup-init -y
           rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
-      - uses: stellar/binaries@v50
+      - uses: stellar/binaries@v55
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         with:
-          name: cargo-cache
-          version: 0.8.3
-
-      - uses: stellar/binaries@v50
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        with:
-          name: cargo-sweep
-          version: 0.7.0
-
-      # Restore original modification time of files based on the date of the most
-      # recent commit that modified them as mtimes affect the Go test cache.
-      - name: Restore modification time of checkout files
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        shell: bash
-        run: |
-          # Set a base, fixed modification time of all directories.
-          # git-restore-mtime doesn't set the mtime of all directories.
-          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
-          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
-          # Restore original modification time from git. git clone sets the
-          # modification time to the current time, but Go tests that access fixtures
-          # get invalidated if their modification times change.
-          brew install git-tools
-          git restore-mtime
+          name: sccache
+          version: 0.14.0
 
       - name: Build
         if: steps.check-last-tested-commit.outputs.skip != 'true'
@@ -280,4 +267,5 @@ jobs:
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
-          echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"
+          mkdir -p "$HOME/.last-tested-commit"
+          echo "${{ github.sha }}" > "$HOME/.last-tested-commit/sha"

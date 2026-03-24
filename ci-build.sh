@@ -73,20 +73,6 @@ SRC_DIR=$(pwd)
 mkdir -p "build-${CC}-${PROTOCOL}"
 cd "build-${CC}-${PROTOCOL}"
 
-# Check to see if we _just_ tested this rev in
-# a merge queue, and if so don't bother doing
-# it again. Wastes billable CPU time.
-if [ -e prev-pass-rev ]
-then
-   PREV_REV=$(cat prev-pass-rev)
-   CURR_REV=$(git -C "${SRC_DIR}" rev-parse HEAD)
-   if [ "${PREV_REV}" = "${CURR_REV}" ]
-   then
-       exit 0
-   fi
-   rm -f prev-pass-rev
-fi
-
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir -p bin
 
@@ -118,7 +104,12 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+which cargo
+
+config_flags="--enable-asan --enable-extrachecks --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+if [ -n "${NAMESPACE_GITHUB_RUNTIME}" ] ; then
+    config_flags="${config_flags} --enable-nsc-sccache"
+fi
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
 # rust/gimli-backed backtrace system.
@@ -134,25 +125,15 @@ export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0
 
 echo "config_flags = $config_flags"
 
-#### ccache config
-export CCACHE_DIR=$(pwd)/.ccache
-export CCACHE_COMPRESS=true
-export CCACHE_COMPRESSLEVEL=9
-# cache size should be large enough for a full build
-export CCACHE_MAXSIZE=800M
-export CCACHE_CPP2=true
-
-# periodically check to see if caches are old and purge them if so
-if [ -d "$CCACHE_DIR" ] ; then
-    if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-        echo Purging old cache dirs $CCACHE_DIR ./target $HOME/.cargo/registry $HOME/.cargo/git
-        rm -rf $CCACHE_DIR ./target $HOME/.cargo/registry $HOME/.cargo/git
+# periodically check to see if cached cargo/rustup dir content is old and purge it if so
+if [ -d "$HOME/.cargo" ] ; then
+    if [ -n "$(find $HOME/.cargo/* $HOME/.rustup/* -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
+        echo Purging old cargo cache dir $HOME/.cargo
+        rm -rf $HOME/.cargo/*
+        echo Purging old rustup dir $HOME/.rustup
+        rm -rf $HOME/.rustup/*
     fi
 fi
-
-ccache -p
-ccache -s
-ccache -z
 date
 time (cd "${SRC_DIR}" && ./autogen.sh)
 time "${SRC_DIR}/configure" $config_flags
@@ -178,9 +159,7 @@ fi
 date
 time make -j$(($NPROCS - 1))
 
-ccache -s
-### incrementally purge old content from target directory
-(cd "${SRC_DIR}" && CARGO_TARGET_DIR="build-${CC}-${PROTOCOL}/target" cargo sweep --maxsize 800MB)
+sccache -s
 
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"
@@ -220,5 +199,4 @@ time make check
 echo All done
 date
 
-git -C "${SRC_DIR}" rev-parse HEAD >prev-pass-rev
 exit 0
