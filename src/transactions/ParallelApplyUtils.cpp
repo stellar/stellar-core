@@ -3,13 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ParallelApplyUtils.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
-#include "transactions/MutableTransactionResult.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
@@ -297,18 +295,19 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 // them are complete.
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
-    AppConnector& app, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
+    AppConnector& app, ApplyLedgerStateSnapshot snapshot,
+    AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mLCLSnapshot(std::move(snapshot))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
+    releaseAssertOrThrow(mLCLSnapshot.getLedgerSeq() ==
+                         mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         getSnapshotLedgerSeq() + 1);
+                         mLCLSnapshot.getLedgerSeq() + 1);
 
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
@@ -462,11 +461,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 uint32_t
 GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 GlobalParallelApplyEntryMap const&
@@ -616,11 +611,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    // TODO: find a way to clone these from parent rather than asking the
-    // snapshot manager again. That might have changed! NB taking a shared
-    // pointer copy is not safe, the snapshot objects are not threadsafe.
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mLCLSnapshot(global.mLCLSnapshot)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -737,7 +728,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mLiveSnapshot->load(key);
+        res = mLCLSnapshot.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -861,11 +852,7 @@ ThreadParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
 uint32_t
 ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 SorobanNetworkConfig const&
@@ -874,10 +861,10 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-SearchableHotArchiveSnapshotConstPtr const&
-ThreadParallelApplyLedgerState::getHotArchiveSnapshot() const
+ApplyLedgerStateSnapshot const&
+ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mHotArchiveSnapshot;
+    return mLCLSnapshot;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&

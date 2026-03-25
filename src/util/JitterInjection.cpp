@@ -90,7 +90,7 @@ JitterInjector::injectDelay(int32_t probability, uint64_t minUsec,
     probability = std::max(0, std::min(100, probability));
 
     // Generate random number in [0, 100)
-    int roll = rand_uniform(0, 100, gJitterRandEngine);
+    int roll = rand_uniform(0, 99, gJitterRandEngine);
 
     if (roll >= probability)
     {
