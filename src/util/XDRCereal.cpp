@@ -29,42 +29,8 @@ cereal_override(cereal::JSONOutputArchive& ar, stellar::SCAddress const& addr,
     case stellar::SC_ADDRESS_TYPE_ACCOUNT:
         xdr::archive(ar, stellar::KeyUtils::toStrKey(addr.accountId()), field);
         return;
-    case stellar::SC_ADDRESS_TYPE_MUXED_ACCOUNT:
-        ar.setNextName(field);
-        ar.startNode();
-        xdr::archive(ar, addr.muxedAccount().id, "id");
-        xdr::archive(ar,
-                     stellar::binToHex(stellar::ByteSlice(
-                         addr.muxedAccount().ed25519.data(),
-                         addr.muxedAccount().ed25519.size())),
-                     "ed25519");
-        ar.finishNode();
-        return;
-    case stellar::SC_ADDRESS_TYPE_CLAIMABLE_BALANCE:
-    {
-        auto const& cbID = addr.claimableBalanceId();
-        if (cbID.type() == stellar::CLAIMABLE_BALANCE_ID_TYPE_V0)
-        {
-            xdr::archive(ar,
-                         stellar::binToHex(stellar::ByteSlice(
-                             cbID.v0().data(), cbID.v0().size())),
-                         field);
-        }
-        return;
-    }
-    case stellar::SC_ADDRESS_TYPE_LIQUIDITY_POOL:
-        xdr::archive(
-            ar,
-            stellar::binToHex(stellar::ByteSlice(
-                addr.liquidityPoolId().data(), addr.liquidityPoolId().size())),
-            field);
-        return;
     default:
-        // Unknown address type - serialize as "Unknown(type_id)"
-        xdr::archive(ar,
-                     std::string("Unknown(") +
-                         std::to_string(static_cast<int>(addr.type())) + ")",
-                     field);
+        ar(cereal::make_nvp(field, addr));
         return;
     }
 }
@@ -112,13 +78,6 @@ cereal_override(cereal::JSONOutputArchive& ar,
 }
 
 void
-cerealPoolAsset(cereal::JSONOutputArchive& ar, stellar::Asset const& asset,
-                char const* field)
-{
-    xdr::archive(ar, std::string("INVALID"), field);
-}
-
-void
 cerealPoolAsset(cereal::JSONOutputArchive& ar,
                 stellar::TrustLineAsset const& asset, char const* field)
 {
@@ -140,3 +99,109 @@ cerealPoolAsset(cereal::JSONOutputArchive& ar,
     xdr::archive(ar, cp.fee, "fee");
     ar.finishNode();
 }
+
+#ifdef BUILD_TESTS
+void
+cereal_override(cereal::JSONInputArchive& ar, stellar::PublicKey& s,
+                const char* field)
+{
+    std::string strkey;
+    xdr::archive(ar, strkey, field);
+    s = stellar::KeyUtils::fromStrKey<stellar::PublicKey>(strkey);
+}
+
+void
+cereal_override(cereal::JSONInputArchive& ar, stellar::SCAddress& addr,
+                char const* field)
+{
+    try
+    {
+        std::string strkey;
+        xdr::archive(ar, strkey, field);
+        uint8_t version;
+        std::vector<uint8_t> decoded;
+        if (stellar::strKey::fromStrKey(strkey, version, decoded))
+        {
+            switch (version)
+            {
+            case stellar::strKey::STRKEY_CONTRACT:
+                addr.type(stellar::SC_ADDRESS_TYPE_CONTRACT);
+                if (addr.contractId().size() != decoded.size())
+                {
+                    break;
+                }
+                std::copy(decoded.begin(), decoded.end(),
+                          addr.contractId().begin());
+                return;
+            case stellar::strKey::STRKEY_PUBKEY_ED25519:
+                addr.type(stellar::SC_ADDRESS_TYPE_ACCOUNT);
+                addr.accountId().type(stellar::PUBLIC_KEY_TYPE_ED25519);
+                if (addr.accountId().ed25519().size() != decoded.size())
+                {
+                    break;
+                }
+                std::copy(decoded.begin(), decoded.end(),
+                          addr.accountId().ed25519().begin());
+                return;
+            }
+        }
+    }
+    catch (...)
+    {
+    }
+    ar(cereal::make_nvp(field, addr));
+}
+
+void
+cereal_override(cereal::JSONInputArchive& ar, stellar::ConfigUpgradeSetKey& key,
+                char const* field)
+{
+    ar.setNextName(field);
+    ar.startNode();
+
+    std::string id;
+    xdr::archive(ar, id, "contractID");
+    uint8_t version;
+    std::vector<uint8_t> decoded;
+    releaseAssertOrThrow(stellar::strKey::fromStrKey(id, version, decoded));
+    releaseAssertOrThrow(version == stellar::strKey::STRKEY_CONTRACT);
+    releaseAssertOrThrow(decoded.size() == key.contractID.size());
+    std::copy(decoded.begin(), decoded.end(), key.contractID.begin());
+
+    xdr::archive(ar, key.contentHash, "contentHash");
+
+    ar.finishNode();
+}
+
+void
+cereal_override(cereal::JSONInputArchive& ar,
+                stellar::MuxedAccount& muxedAccount, char const* field)
+{
+    try
+    {
+        std::string key;
+        xdr::archive(ar, key, field);
+        uint8_t version;
+        std::vector<uint8_t> decoded;
+        releaseAssertOrThrow(
+            stellar::strKey::fromStrKey(key, version, decoded));
+        releaseAssertOrThrow(version == stellar::strKey::STRKEY_PUBKEY_ED25519);
+        muxedAccount.type(stellar::KEY_TYPE_ED25519);
+        releaseAssertOrThrow(decoded.size() == muxedAccount.ed25519().size());
+        std::copy(decoded.begin(), decoded.end(),
+                  muxedAccount.ed25519().begin());
+    }
+    catch (const cereal::RapidJSONException&)
+    {
+        std::string key;
+        muxedAccount.type(stellar::KEY_TYPE_MUXED_ED25519);
+        xdr::archive(
+            ar,
+            std::make_tuple(cereal::make_nvp("id", muxedAccount.med25519().id),
+                            cereal::make_nvp("accountID", key)),
+            field);
+        muxedAccount.med25519().ed25519 =
+            stellar::KeyUtils::fromStrKey<stellar::AccountID>(key).ed25519();
+    }
+}
+#endif // BUILD_TESTS
