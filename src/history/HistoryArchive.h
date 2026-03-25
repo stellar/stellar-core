@@ -80,6 +80,19 @@ struct HistoryArchiveState
     static constexpr size_t MAX_HISTORY_ARCHIVE_BUCKET_SIZE =
         1024ull * 1024ull * 1024ull * 100ull; // 100 GB
 
+    // Maximum allowed size for a History Archive State (HAS) JSON
+    // file or string. This applies only to the HAS JSON document itself
+    // (stellar-history.json), not to bucket files or other archive
+    // contents. Checked before parsing to prevent OOM from crafted JSON
+    // with oversized arrays or strings. A valid HAS is typically under
+    // 50KB; 10MB is extremely generous.
+    static constexpr size_t MAX_HAS_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+    // Upper bound on currentLedger to prevent uint32_t overflow in
+    // downstream arithmetic.
+    static constexpr uint32_t MAX_CURRENT_LEDGER =
+        std::numeric_limits<uint32_t>::max() - 256;
+
     static inline unsigned const
         HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE = 1;
     static inline unsigned const
