@@ -1673,45 +1673,50 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
+    writeVersionInfo(std::cout);
+    return 0;
+}
+
+void
+writeVersionInfo(std::ostream& os)
+{
     rust::Vec<SorobanVersionInfo> rustVersions =
         rust_bridge::get_soroban_version_info(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-    std::cout << STELLAR_CORE_VERSION << std::endl;
-    std::cout << "ledger protocol version: "
-              << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
-    std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
-              << std::endl;
+    os << STELLAR_CORE_VERSION << std::endl;
+    os << "ledger protocol version: " << Config::CURRENT_LEDGER_PROTOCOL_VERSION
+       << std::endl;
+    os << "rust version: " << rust_bridge::get_rustc_version().c_str()
+       << std::endl;
 
-    std::cout << "soroban-env-host versions: " << std::endl;
+    os << "soroban-env-host versions: " << std::endl;
 
     size_t i = 0;
     for (auto& host : rustVersions)
     {
-        std::cout << "    host[" << i << "]:" << std::endl;
-        std::cout << "        package version: " << host.env_pkg_ver.c_str()
-                  << std::endl;
+        os << "    host[" << i << "]:" << std::endl;
+        os << "        package version: " << host.env_pkg_ver.c_str()
+           << std::endl;
 
-        std::cout << "        git version: " << host.env_git_rev.c_str()
-                  << std::endl;
+        os << "        git version: " << host.env_git_rev.c_str() << std::endl;
 
-        std::cout << "        ledger protocol version: " << host.env_max_proto
-                  << std::endl;
+        os << "        ledger protocol version: " << host.env_max_proto
+           << std::endl;
 
-        std::cout << "        pre-release version: " << host.env_pre_release_ver
-                  << std::endl;
+        os << "        pre-release version: " << host.env_pre_release_ver
+           << std::endl;
 
-        std::cout << "        rs-stellar-xdr:" << std::endl;
+        os << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout << "            package version: " << host.xdr_pkg_ver.c_str()
-                  << std::endl;
-        std::cout << "            git version: " << host.xdr_git_rev.c_str()
-                  << std::endl;
-        std::cout << "            base XDR git version: "
-                  << host.xdr_base_git_rev.c_str() << std::endl;
+        os << "            package version: " << host.xdr_pkg_ver.c_str()
+           << std::endl;
+        os << "            git version: " << host.xdr_git_rev.c_str()
+           << std::endl;
+        os << "            base XDR git version: "
+           << host.xdr_base_git_rev.c_str() << std::endl;
         ++i;
     }
-    return 0;
 }
 
 #ifdef BUILD_TESTS
@@ -1823,159 +1828,114 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
-ParserWithValidation
-applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
-{
-    auto validateMode = [&] {
-        if (iequals(modeArg, "ledger-limits"))
-        {
-            mode = ApplyLoadMode::LIMIT_BASED;
-            return "";
-        }
-        if (iequals(modeArg, "max-sac-tps"))
-        {
-            mode = ApplyLoadMode::MAX_SAC_TPS;
-            return "";
-        }
-        if (iequals(modeArg, "limits-for-model-tx"))
-        {
-            mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
-            return "";
-        }
-        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
-               "or 'max-sac-tps'.";
-    };
-
-    return {clara::Opt{modeArg, "MODE"}["--mode"](
-                "set the apply-load mode. Expected modes: ledger-limits, "
-                "max-sac-tps. Defaults to ledger-limits."),
-            validateMode};
-}
-
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
-    std::string modeArg = "ledger-limits";
 
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
-        [&] {
-            auto config = configOption.getConfig();
-            config.RUN_STANDALONE = true;
-            config.MANUAL_CLOSE = true;
-            config.USE_CONFIG_FOR_GENESIS = true;
-            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            config.LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            if (config.APPLY_LOAD_NUM_LEDGERS < 30)
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        auto mode = config.APPLY_LOAD_MODE;
+        // Common boilerplate configuration for apply load benchmarking.
+        // The goal of this config is to set up all the common parameters
+        // that don't affect benchmarking at once.
+        // Parameters that affect benchmarking should be set explicitly
+        // in the benchmarking config for the sake of reproducibility and
+        // clarity.
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.NODE_IS_VALIDATOR = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        config.NETWORK_PASSPHRASE = "Apply Load";
+        config.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(123);
+        config.QUORUM_SET.validators.push_back(config.NODE_SEED.getPublicKey());
+        config.QUORUM_SET.threshold = 1;
+        config.UNSAFE_QUORUM = true;
+        config.PARALLEL_LEDGER_APPLY = true;
+
+        // All modes besides limit-based don't need to worry about message
+        // limits.
+        if (mode != ApplyLoadMode::LIMIT_BASED)
+        {
+            config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+        }
+
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto appPtr = Application::create(clock, config);
+
+        auto& app = *appPtr;
+        {
+            app.start();
+
+            // Constructs and sets up the apply load benchmarking harness.
+            // The setup may take some time as it involves injecting the
+            // test entries into bucket list across multiple ledgers (
+            // depending on the configuration).
+            ApplyLoad al(app);
+
+            // In the limit-based mode, we may want publish the history
+            // checkpoint just before performing the benchmark. This way
+            // the 'checkpointed' bucket list could be used downstream in
+            // order to setup the test environment for meta ingestion
+            // benchmarking. Note, that the apply load test setup avoids
+            // using transactions in order to make it faster, so the
+            // injected test entries are only observable in the bucket
+            // list and not in the meta or transaction history.
+            if (mode == ApplyLoadMode::LIMIT_BASED &&
+                app.getHistoryArchiveManager().publishEnabled())
             {
-                throw std::runtime_error(
-                    "APPLY_LOAD_NUM_LEDGERS must be at least 30");
-            }
-            if (mode == ApplyLoadMode::MAX_SAC_TPS)
-            {
-                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >
-                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
+                                "history archive publication");
+                while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
+                    app.getLedgerManager().getLastClosedLedgerNum(),
+                    app.getConfig()))
                 {
-                    throw std::runtime_error(
-                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must not be greater "
-                        "than APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps "
-                        "mode");
+                    al.closeLedger({});
                 }
-
-                // For now, metrics are expensive at high, parallel load. We
-                // disable them so they don't bottleneck the test, but this
-                // should be addressed in the future.
-                config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
-                config.METADATA_OUTPUT_STREAM = "";
-                config.METADATA_DEBUG_LEDGERS = 0;
-
-                // Apply Load may exceed TX_SET byte size limits, so ignore them
-                config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
-
-                // Always use background ledger close for max-sac-tps
-                config.PARALLEL_LEDGER_APPLY = true;
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf,
+                          "Published final checkpoint before benchmark: "
+                          "ledger {} ({})",
+                          app.getLedgerManager().getLastClosedLedgerNum(),
+                          fmt::format(
+                              FMT_STRING("{:08x}"),
+                              app.getLedgerManager().getLastClosedLedgerNum()));
             }
 
-            VirtualClock clock(VirtualClock::REAL_TIME);
-            auto appPtr = Application::create(clock, config);
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
 
-            auto& app = *appPtr;
-            {
-                app.start();
+            auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+            cpuInsRatio.Clear();
 
-                // Constructs and sets up the apply load benchmarking harness.
-                // The setup may take some time as it involves injecting the
-                // test entries into bucket list across multiple ledgers (
-                // depending on the configuration).
-                ApplyLoad al(app, mode);
+            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op",
+                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+            cpuInsRatioExclVm.Clear();
 
-                // In the limit-based mode, we may want publish the history
-                // checkpoint just before performing the benchmark. This way
-                // the 'checkpointed' bucket list could be used downstream in
-                // order to setup the test environment for meta ingestion
-                // benchmarking. Note, that the apply load test setup avoids
-                // using transactions in order to make it faster, so the
-                // injected test entries are only observable in the bucket
-                // list and not in the meta or transaction history.
-                if (mode == ApplyLoadMode::LIMIT_BASED &&
-                    app.getHistoryArchiveManager().publishEnabled())
-                {
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
-                                    "history archive publication");
-                    while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        app.getConfig()))
-                    {
-                        al.closeLedger({});
-                    }
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(
-                        Perf,
-                        "Published final checkpoint before benchmark: "
-                        "ledger {} ({})",
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        fmt::format(
-                            FMT_STRING("{:08x}"),
-                            app.getLedgerManager().getLastClosedLedgerNum()));
-                }
+            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+            ledgerCpuInsRatio.Clear();
 
-                auto& ledgerClose =
-                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-                ledgerClose.Clear();
+            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+            ledgerCpuInsRatioExclVm.Clear();
 
-                auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio"});
-                cpuInsRatio.Clear();
+            auto& totalTxApplyTime = app.getMetrics().NewTimer(
+                {"ledger", "transaction", "total-apply"});
+            totalTxApplyTime.Clear();
 
-                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-                cpuInsRatioExclVm.Clear();
+            al.execute();
+        }
 
-                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-                ledgerCpuInsRatio.Clear();
-
-                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "ledger-cpu-insns-ratio-excl-vm"});
-                ledgerCpuInsRatioExclVm.Clear();
-
-                auto& totalTxApplyTime = app.getMetrics().NewTimer(
-                    {"ledger", "transaction", "total-apply"});
-                totalTxApplyTime.Clear();
-
-                al.execute();
-            }
-
-            return 0;
-        });
+        return 0;
+    });
 }
 
 int
