@@ -1522,8 +1522,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             auto const& ae = acc.current().data.account();
             root["name"] = accName->second;
             root["id"] = KeyUtils::toStrKey(ae.accountID);
-            root["balance"] = (Json::Int64)ae.balance;
-            root["seqnum"] = (Json::UInt64)ae.seqNum;
+            root["balance"] = static_cast<Json::Int64>(ae.balance);
+            root["seqnum"] = static_cast<Json::UInt64>(ae.seqNum);
         }
     }
     retStr = root.toStyledString();
@@ -1566,7 +1566,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_name"] = to->second;
         root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
-        root["amount"] = (Json::UInt64)paymentAmount;
+        root["amount"] = static_cast<Json::UInt64>(paymentAmount);
 
         TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
