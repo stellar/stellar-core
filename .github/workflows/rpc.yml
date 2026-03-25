@@ -13,7 +13,8 @@ concurrency:
 jobs:
   rpc:
     name: RPC integration tests
-    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@main
+    uses: stellar/stellar-rpc/.github/workflows/integration-tests.yml@fix-callable-tests
     with:
+      rpc_git_ref: protocol-next
       core_git_ref: ${{ github.sha }}
       protocol_version: '25'
