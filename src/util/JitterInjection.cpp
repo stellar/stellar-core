@@ -49,7 +49,7 @@ JitterInjector::resetStats()
 }
 
 void
-JitterInjector::configure(const Config& cfg)
+JitterInjector::configure(Config const& cfg)
 {
     gJitterConfig = cfg;
 }
