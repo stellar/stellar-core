@@ -25,7 +25,6 @@ jobs:
       run: exit 1
 
   static-checks:
-    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
     permissions:
@@ -37,6 +36,7 @@ jobs:
 
       - uses: namespacelabs/nscloud-checkout-action@v7
         with:
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
           fetch-depth: 1
           submodules: recursive
 
@@ -85,7 +85,7 @@ jobs:
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         # Prevent sudden announcement of a new advisory from failing ci:
         continue-on-error: true
-        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+        uses: EmbarkStudios/cargo-deny-action@3fd3802e88374d3fe9159b834c7714ec57d6c979
         with:
           command: check advisories
           # leave arguments empty so we don't test --all-features
@@ -94,7 +94,7 @@ jobs:
 
       - name: Check cargo-deny bans licenses sources
         if: steps.check-last-tested-commit.outputs.skip != 'true'
-        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+        uses: EmbarkStudios/cargo-deny-action@3fd3802e88374d3fe9159b834c7714ec57d6c979
         with:
           command: check bans licenses sources
           # leave arguments empty so we don't test --all-features
@@ -108,7 +108,6 @@ jobs:
           echo "${{ github.sha }}" > "$HOME/.last-tested-commit/sha"
 
   build-linux:
-    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
     permissions:
@@ -132,6 +131,7 @@ jobs:
       - name: Checkout with Namespace Git mirrors cache
         uses: namespacelabs/nscloud-checkout-action@v7
         with:
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
           fetch-depth: 1
           submodules: recursive
 
@@ -197,7 +197,6 @@ jobs:
           echo "${{ github.sha }}" > "$HOME/.last-tested-commit/sha"
 
   build-mac:
-    if: github.event.repository.visibility != 'private'
     runs-on:
       - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
     permissions:
@@ -211,6 +210,7 @@ jobs:
       - name: Checkout with Namespace Git mirrors cache
         uses: namespacelabs/nscloud-checkout-action@v7
         with:
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
           fetch-depth: 1
           submodules: recursive
 
