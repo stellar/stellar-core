@@ -44,8 +44,6 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
-            ~/.rustup
-            ~/.cargo
             ~/.last-tested-commit
 
       - name: Check if commit already tested
@@ -139,8 +137,6 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
-            ~/.rustup
-            ~/.cargo
             ~/.last-tested-commit
 
       - name: Check if commit already tested
@@ -218,8 +214,6 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
-            ~/.rustup
-            ~/.cargo
             ~/.last-tested-commit
 
       - name: Check if commit already tested
