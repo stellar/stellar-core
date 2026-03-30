@@ -104,7 +104,22 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-which cargo
+# periodically check to see if cached cargo/rustup dir content is old and purge it if so
+if [ -d "$HOME/.cargo" ] ; then
+    if [ -n "$(find $HOME/.cargo/* $HOME/.rustup/* -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
+        echo "Purging old cargo cache dir $HOME/.cargo"
+        rm -rf $HOME/.cargo/*
+        echo "Purging old rustup dir $HOME/.rustup"
+        rm -rf $HOME/.rustup/*
+        echo "Reinstalling rust"
+        ./scripts/install-rust.sh
+    fi
+fi
+
+which cargo rustup rustc
+rustup --version
+cargo --version
+rustc --version
 
 config_flags="--enable-asan --enable-extrachecks --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
 if [ -n "${NAMESPACE_GITHUB_RUNTIME}" ] ; then
@@ -125,15 +140,6 @@ export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0
 
 echo "config_flags = $config_flags"
 
-# periodically check to see if cached cargo/rustup dir content is old and purge it if so
-if [ -d "$HOME/.cargo" ] ; then
-    if [ -n "$(find $HOME/.cargo/* $HOME/.rustup/* -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-        echo Purging old cargo cache dir $HOME/.cargo
-        rm -rf $HOME/.cargo/*
-        echo Purging old rustup dir $HOME/.rustup
-        rm -rf $HOME/.rustup/*
-    fi
-fi
 date
 time (cd "${SRC_DIR}" && ./autogen.sh)
 time "${SRC_DIR}/configure" $config_flags
@@ -159,7 +165,9 @@ fi
 date
 time make -j$(($NPROCS - 1))
 
-sccache -s
+if command -v sccache >/dev/null 2>&1; then
+    sccache -s
+fi
 
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"
