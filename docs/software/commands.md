@@ -29,13 +29,17 @@ Command options can only by placed after command.
     synthetic ledger close metadata emitted during the benchmark, and then use
     it for benchmarking the meta consumers.
   * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`
-  * The command supports several modes:
-    - **--mode limit-based**: the default mode that measures the
+  * The mode is selected in the config file using `APPLY_LOAD_MODE`:
+    - `APPLY_LOAD_MODE="ledger-limits"`: the default mode that measures the
       ledger close time for applying transactions.
-    - **--mode max-sac-tps**: determines maximum TPS for the load consisting
-      only of fast SAC transfer
-    - **--mode limits-for-model-tx**: determines maximum ledger limits for the
-      load consisting only of a customizable 'model' transaction.
+    - `APPLY_LOAD_MODE="max-sac-tps"`: determines maximum TPS for the load
+      consisting only of fast SAC transfer.
+    - `APPLY_LOAD_MODE="limits-for-model-tx"`: determines maximum ledger
+      limits for the load consisting only of a customizable 'model'
+      transaction.
+    - `APPLY_LOAD_MODE="benchmark"`: benchmarks a fixed-size ledger of model
+      transactions. Use `APPLY_LOAD_MODEL_TX` to select the model transaction;
+      currently only `"sac"` is supported.
   * Load generation is configured in the Core config file. The relevant settings
     all begin with `APPLY_LOAD_`. See full example configurations with
     per-setting documentation in the `docs` directory
