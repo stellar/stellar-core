@@ -911,6 +911,11 @@ class Config : public std::enable_shared_from_this<Config>
 
 #endif
 
+    // When set, use local steady_clock elapsed time for ledger age reporting
+    // instead of the consensus closeTime. This avoids artificial clock drift
+    // from affecting the ledger.age metric and /info ledger age.
+    bool USE_LOCAL_TIME_FOR_REPORTING;
+
     // Returns ledger close time if an override value is currently set for
     // testing. Otherwise returns nullopt.
     std::optional<std::chrono::milliseconds>

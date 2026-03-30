@@ -1252,6 +1252,13 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
+    if (mApp.getConfig().USE_LOCAL_TIME_FOR_REPORTING)
+    {
+        auto now = mApp.getClock().now();
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::seconds>(now - mLastClose);
+        return elapsed.count() > 0 ? elapsed.count() : 0;
+    }
     uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
     if (ct == 0)
     {
