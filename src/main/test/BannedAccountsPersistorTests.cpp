@@ -45,12 +45,14 @@ TEST_CASE("BannedAccountsPersistor basic operations", "[banaccounts]")
         persistor.addBannedAccounts({addr1, addr2});
         REQUIRE(persistor.getBannedAccounts().size() == 2);
 
-        auto keys = persistor.getBannedAccountStrKeys();
+        auto keys = persistor.getBannedAccounts();
         REQUIRE(keys.size() == 2);
         // Keys are sorted
         REQUIRE(std::is_sorted(keys.begin(), keys.end()));
-        REQUIRE(std::find(keys.begin(), keys.end(), addr1) != keys.end());
-        REQUIRE(std::find(keys.begin(), keys.end(), addr2) != keys.end());
+        REQUIRE(std::find(keys.begin(), keys.end(), key1.getPublicKey()) !=
+                keys.end());
+        REQUIRE(std::find(keys.begin(), keys.end(), key2.getPublicKey()) !=
+                keys.end());
     }
 
     SECTION("add is idempotent")
