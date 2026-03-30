@@ -35,27 +35,32 @@ fi
 # do not pin to a specific version the checksums will fail for previously tagged
 # versions of core if the repository is cloned and this script is triggered
 # either manually or via one of the Docker image build processes.
-RUSTUP_VERSION=1.25.1
+RUSTUP_VERSION=1.29.0
 
 # This is the SHA256 if the rustup-init binary (which is the same as rustup --
 # it renames itself) and should be retrieved from a trusted source (eg. the rust
 # website and/or by running sha256sum on a local copy of rustup you believe to
-# be legitimate). The canonical URL for the SHA256 checksum provided here is:
+# be legitimate). The canonical URLs for the SHA256 checksums provided here are:
 #
-# https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init.sha256
-# https://static.rust-lang.org/rustup/dist/aarach64-unknown-linux-gnu/rustup-init.sha256
+# https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init.sha256
+# https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/aarch64-unknown-linux-gnu/rustup-init.sha256
+# https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/aarch64-apple-darwin/rustup-init.sha256
 #
 # Rustup is an installer, not the compiler, and the installer changes fairly
 # rarely, often a year between releases or more. This checksum will only need
 # to be updated when there's a new rustup (installer) release.
-case "$(uname -m)" in
-  "x86_64"*)
+case "$(uname -s)-$(uname -m)" in
+  "Linux-x86_64")
     HOST_TRIPLE=x86_64-unknown-linux-gnu
-    RUSTUP_SHA256=5cc9ffd1026e82e7fb2eec2121ad71f4b0f044e88bca39207b3f6b769aaa799c
+    RUSTUP_SHA256=4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10
   ;;
-  "aarch64"*)
+  "Linux-aarch64")
     HOST_TRIPLE=aarch64-unknown-linux-gnu
-    RUSTUP_SHA256=e189948e396d47254103a49c987e7fb0e5dd8e34b200aa4481ecc4b8e41fb929
+    RUSTUP_SHA256=9732d6c5e2a098d3521fca8145d826ae0aaa067ef2385ead08e6feac88fa5792
+  ;;
+  "Darwin-arm64")
+    HOST_TRIPLE=aarch64-apple-darwin
+    RUSTUP_SHA256=aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1
   ;;
   *) echo "Unrecognized operating system / architecture: $(uname)"; exit 1 ;;
 esac
@@ -69,6 +74,7 @@ esac
 # key is embedded in rustup).
 rm -f rustup-init
 curl --fail --output rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${HOST_TRIPLE}/rustup-init"
-echo "${RUSTUP_SHA256} rustup-init" | sha256sum --check
+echo "${RUSTUP_SHA256} rustup-init" | sha256sum --check -
 chmod 0755 rustup-init
-./rustup-init -y --verbose --profile default --default-host "${HOST_TRIPLE}" --default-toolchain "${RUST_VERSION}"
+export RUSTUP_LOG=rustup=debug
+./rustup-init -y --quiet --profile default --default-host "${HOST_TRIPLE}" --default-toolchain "${RUST_VERSION}"
