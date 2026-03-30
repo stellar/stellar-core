@@ -227,17 +227,25 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install prerequisites and uninstall brew rust, add rustup
+      - name: Install prerequisites and uninstall brew rust
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
           brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
           brew uninstall rust rustup
-          brew install rustup
+
+      - name: Install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: ./install-rust.sh
+
+      - name: Update rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          rustup update
+          rustup show
 
       - name: Install rustup components
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         run: |
-          rustup-init -y
           rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
       - uses: stellar/binaries@v55

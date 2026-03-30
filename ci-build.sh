@@ -112,7 +112,7 @@ if [ -d "$HOME/.cargo" ] ; then
         echo "Purging old rustup dir $HOME/.rustup"
         rm -rf $HOME/.rustup/*
         echo "Reinstalling rust"
-        "${SRC_DIR}/install-rust.sh"
+        (cd "${SRC_DIR}" && ./install-rust.sh)
     fi
 fi
 
