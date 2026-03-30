@@ -1435,6 +1435,9 @@
       <Filter>lib\tracy</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\FrozenLedgerKeysTests.cpp" />
+    <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2548,6 +2551,9 @@
     <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h" />
     <ClInclude Include="..\..\src\util\MetricsRegistry.h" />
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
+      <Filter>main</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
