@@ -96,4 +96,17 @@ FLAGS="--group"
 if [[ $INTERACTIVE -ne 0 ]]; then
     FLAGS="--progress --line-buffer"
 fi
-cat $TESTS | parallel -j $nparts -n $BATCHSIZE $FLAGS --tag-string '{%}' --halt-on-error 2 runpart '{%}' "{}"
+
+# run testsuite on /dev/shm if we have lots of free RAM, faster
+# than running on disk especially if it's a container overlay.
+PARALLEL_WORKDIR_ARG=""
+if [ -d /dev/shm ]; then
+    free_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+    free_per_shard_kb=$((free_kb / $nparts))
+    # require at least 500MB free per shard
+    if [ "$free_per_shard_kb" -gt $(($nparts * 500 * 1024)) ]; then
+        PARALLEL_WORKDIR_ARG="--workdir /dev/shm/stellar-{%}"
+    fi
+fi
+
+cat $TESTS | parallel -j $nparts -n $BATCHSIZE $FLAGS $PARALLEL_WORKDIR_ARG --tag-string '{%}' --halt-on-error 2 runpart '{%}' "{}"
