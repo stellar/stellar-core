@@ -9,7 +9,6 @@
 #include "crypto/ShortHash.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "lib/util/finally.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
@@ -23,6 +22,7 @@
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/GlobalChecks.h"
+#include "util/JitterInjection.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
@@ -1432,18 +1432,18 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
-SearchableSnapshotConstPtr&
+LedgerStateSnapshot&
 OverlayManagerImpl::getOverlayThreadSnapshot()
 {
     releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
+    JITTER_INJECT_DELAY();
     if (!mOverlayThreadSnapshot)
     {
         // Create a new snapshot
-        mOverlayThreadSnapshot = mApp.getBucketManager()
-                                     .getBucketSnapshotManager()
-                                     .copySearchableLiveBucketListSnapshot();
+        mOverlayThreadSnapshot =
+            mApp.getLedgerManager().copyLedgerStateSnapshot();
     }
-    return mOverlayThreadSnapshot;
+    return *mOverlayThreadSnapshot;
 }
 
 }

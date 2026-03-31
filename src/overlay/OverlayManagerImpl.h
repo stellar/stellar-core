@@ -9,6 +9,7 @@
 #include "PeerDoor.h"
 #include "PeerManager.h"
 #include "herder/TxSetFrame.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "overlay/Floodgate.h"
 #include "overlay/OverlayManager.h"
@@ -167,7 +168,7 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
-    SearchableSnapshotConstPtr& getOverlayThreadSnapshot() override;
+    LedgerStateSnapshot& getOverlayThreadSnapshot() override;
 
   private:
     struct ResolvedPeers
@@ -185,7 +186,7 @@ class OverlayManagerImpl : public OverlayManager
         mScheduledMessages;
 
     // Snapshot of ledger state for use ONLY by the overlay thread
-    SearchableSnapshotConstPtr mOverlayThreadSnapshot;
+    std::optional<LedgerStateSnapshot> mOverlayThreadSnapshot;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

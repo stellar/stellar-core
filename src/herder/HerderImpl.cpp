@@ -5,7 +5,6 @@
 #include "herder/HerderImpl.h"
 
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -29,10 +28,8 @@
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "overlay/OverlayManager.h"
-#include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
-#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
