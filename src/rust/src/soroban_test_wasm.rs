@@ -113,6 +113,12 @@ pub(crate) fn get_custom_account_wasm() -> Result<RustBuf, Box<dyn std::error::E
     })
 }
 
+pub(crate) fn get_apply_load_token_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/token.wasm").to_vec(),
+    })
+}
+
 pub(crate) fn get_invoke_contract_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::INVOKE_CONTRACT
