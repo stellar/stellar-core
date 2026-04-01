@@ -80,7 +80,8 @@ enum class ApplyLoadMode
 
 enum class ApplyLoadModelTx
 {
-    SAC
+    SAC,
+    CUSTOM_TOKEN
 };
 #endif
 

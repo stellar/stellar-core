@@ -811,6 +811,79 @@ TxGenerator::invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
     return std::make_pair(fromAccount, tx);
 }
 
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeTokenTransfer(uint32_t ledgerNum, uint64_t fromAccountId,
+                                 uint64_t toAccountId,
+                                 ContractInstance const& instance,
+                                 uint64_t amount,
+                                 std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    auto fromAccount = findAccount(fromAccountId, ledgerNum);
+    fromAccount->loadSequenceNumber();
+    auto toAccount = findAccount(toAccountId, ledgerNum);
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAccount->getPublicKey());
+
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = makeAccountAddress(toAccount->getPublicKey());
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = instance.contractID;
+    ihf.invokeContract().functionName = "transfer";
+
+    ihf.invokeContract().args = {fromVal, toVal, makeI128(amount)};
+
+    SorobanResources resources;
+    resources.writeBytes = 5000;
+    resources.diskReadBytes = 5000;
+    resources.instructions = CUSTOM_TOKEN_TX_INSTRUCTIONS;
+    resources.footprint.readOnly = instance.readOnlyKeys;
+
+    // From's balance entry in token contract
+    {
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = instance.contractID;
+        balanceKey.contractData().key =
+            makeVecSCVal({makeSymbolSCVal("Balance"), fromVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+        resources.footprint.readWrite.emplace_back(balanceKey);
+    }
+
+    // To's balance entry in token contract
+    {
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = instance.contractID;
+        balanceKey.contractData().key =
+            makeVecSCVal({makeSymbolSCVal("Balance"), toVal});
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+        resources.footprint.readWrite.emplace_back(balanceKey);
+    }
+
+    SorobanAuthorizedInvocation invocation;
+    invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    invocation.function.contractFn() =
+        op.body.invokeHostFunctionOp().hostFunction.invokeContract();
+
+    SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    op.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto resourceFee = sorobanResourceFee(mApp, resources, 1000, 200);
+    resourceFee += 5'000'000;
+
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *fromAccount,
+                                             {op}, {}, resources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
+    return std::make_pair(fromAccount, tx);
+}
+
 std::map<uint64_t, TxGenerator::TestAccountPtr> const&
 TxGenerator::getAccounts()
 {

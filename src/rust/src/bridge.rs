@@ -219,6 +219,7 @@ pub(crate) mod rust_bridge {
         fn get_test_contract_sac_transfer(protocol_version: u32) -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
         fn get_invoke_contract_wasm() -> Result<RustBuf>;
+        fn get_apply_load_token_wasm() -> Result<RustBuf>;
 
         fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 

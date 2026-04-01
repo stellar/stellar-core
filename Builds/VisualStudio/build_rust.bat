@@ -41,7 +41,6 @@ rem ---- Accumulators for final rustc link flags ----
 set "EXTERNS="
 set "LPATHS="
 set "SOURCE_STAMP=.source-rev"
-set "any_changed="
 
 rem ---- Build protocols MIN_P..MAX_P ----
 rem When "next" is passed and LATEST_P falls within this range, skip it here
@@ -73,7 +72,6 @@ for /l %%P in (%MIN_P%,1,%MAX_P%) do (
             echo p%%P: up to date, skipping.
         ) else (
             echo p%%P: building soroban-env-host...
-            set "any_changed=1"
             %set_linker_flags% & pushd "!proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%%P-!current_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked --target-dir "!proto_target!" & popd
             if errorlevel 1 exit /b 1
             if not "!current_rev!"=="" (
@@ -110,7 +108,6 @@ if defined features (
         echo p%LATEST_P% ^(latest^): up to date, skipping.
     ) else (
         echo p%LATEST_P% ^(latest^): building soroban-env-host with %features%...
-        set "any_changed=1"
         %set_linker_flags% & pushd "!latest_proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%-!latest_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked %features% --target-dir "!latest_proto_target!" & popd
         if errorlevel 1 exit /b 1
         if not "!latest_rev!"=="" (
@@ -124,16 +121,15 @@ if defined features (
 )
 
 rem ---- Final stellar-core compile ----
-rem Skip if no protocol libraries changed and the output already exists.
-set "final_lib=%out_dir%\target\%2\rust_stellar_core.lib"
-if not exist "!final_lib!" set "any_changed=1"
-
-if defined any_changed (
-    echo Linking stellar-core Rust library...
-    cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
-) else (
-    echo stellar-core Rust library: up to date, skipping.
-)
+rem Clear RUSTFLAGS so that metadata from soroban-protocol builds above does
+rem not leak into the stellar-core build and cause cargo to invalidate its
+rem fingerprints on the next run (where the soroban builds may be skipped).
+set "RUSTFLAGS="
+rem Always invoke cargo here: cargo's own incremental-build tracking will
+rem no-op quickly when nothing changed, and the submodule-stamp mechanism
+rem above does not detect changes to local Rust sources (src\rust\src\*.rs).
+echo Building stellar-core Rust library...
+%set_linker_flags% & cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
 
 endlocal
 
