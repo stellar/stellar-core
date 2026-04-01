@@ -16,6 +16,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
 
 #include <fmt/chrono.h>
@@ -1079,6 +1080,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
         std::vector<ValidatorEntry> validators;
         UnorderedMap<std::string, ValidatorQuality> domainQualityMap;
+        bool usedExternalSecrets = false;
 
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
@@ -1323,7 +1325,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"NODE_SEED",
                  [&]() {
                      PublicKey nodeID;
-                     parseNodeID(readString(item), nodeID, NODE_SEED, true);
+                     auto raw = readString(item);
+                     usedExternalSecrets = usedExternalSecrets ||
+                                           secretmanager::isExternalSecret(raw);
+                     parseNodeID(secretmanager::resolve(raw), nodeID, NODE_SEED,
+                                 true);
                  }},
                 {"NODE_IS_VALIDATOR",
                  [&]() { NODE_IS_VALIDATOR = readBool(item); }},
@@ -2076,6 +2082,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
+
+        if (gIsProductionNetwork && usedExternalSecrets)
+        {
+            throw std::invalid_argument(
+                "External secret references ($FILE:) are not supported on "
+                "the public network");
+        }
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
