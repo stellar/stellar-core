@@ -18,9 +18,6 @@
 #include "util/Logging.h"
 #include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
-#ifdef BUILD_TESTS
-#include "simulation/ApplyLoad.h"
-#endif
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -403,6 +400,45 @@ readString(ConfigItem const& item)
     }
     return item.second->as<std::string>()->get();
 }
+
+#ifdef BUILD_TESTS
+ApplyLoadMode
+parseApplyLoadMode(ConfigItem const& item)
+{
+    auto mode = readString(item);
+    if (mode == "ledger-limits")
+    {
+        return ApplyLoadMode::LIMIT_BASED;
+    }
+    if (mode == "max-sac-tps")
+    {
+        return ApplyLoadMode::MAX_SAC_TPS;
+    }
+    if (mode == "limits-for-model-tx")
+    {
+        return ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
+    }
+    if (mode == "benchmark")
+    {
+        return ApplyLoadMode::BENCHMARK_MODEL_TX;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODE', expected one of: ledger-limits, "
+        "max-sac-tps, limits-for-model-tx, benchmark");
+}
+
+ApplyLoadModelTx
+parseApplyLoadModelTx(ConfigItem const& item)
+{
+    auto modelTx = readString(item);
+    if (modelTx == "sac")
+    {
+        return ApplyLoadModelTx::SAC;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac");
+}
+#endif
 
 template <typename T>
 std::vector<T>
@@ -866,7 +902,21 @@ Config::load(std::istream& in)
     cpptoml::parser p(in);
     t = p.parse();
     processConfig(t);
+
+#ifdef BUILD_TESTS
+    std::ostringstream configToml;
+    configToml << *t;
+    mLoadedConfigToml = configToml.str();
+#endif
 }
+
+#ifdef BUILD_TESTS
+std::string const&
+Config::getLoadedConfigToml() const
+{
+    return mLoadedConfigToml;
+}
+#endif
 
 void
 Config::addSelfToValidators(
@@ -1607,6 +1657,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readIntArray<uint32_t>(item);
                  }},
 #ifdef BUILD_TESTS
+                {"APPLY_LOAD_MODE",
+                 [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
+                {"APPLY_LOAD_MODEL_TX",
+                 [&]() { APPLY_LOAD_MODEL_TX = parseApplyLoadModelTx(item); }},
                 {"APPLY_LOAD_DATA_ENTRY_SIZE",
                  [&]() {
                      APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
