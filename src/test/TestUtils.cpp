@@ -417,6 +417,8 @@ modifySorobanNetworkConfig(Application& app,
                                      {upgrade});
     app.getRoot()->loadSequenceNumber();
 
+    txtest::captureLastClosedLedgerLcm(app);
+
     // Check that the upgrade was actually applied.
     auto postUpgradeCfg =
         app.getLedgerManager().getLastClosedSorobanNetworkConfig();

@@ -231,7 +231,8 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         [&](int i) { return balances[i]; }, getVote, app);
 
     // perform actual inflation
-    applyTx(txFrame, app);
+    auto inflResult = closeLedger(app, {txFrame});
+    checkTx(0, inflResult, txSUCCESS);
 
     // verify ledger state
     REQUIRE(getTotalCoins() == expectedTotcoins);
@@ -239,7 +240,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     // verify balances
     InflationResult const& infResult =
-        getFirstResult(txFrame).tr().inflationResult();
+        inflResult.results[0].result.result.results()[0].tr().inflationResult();
     auto const& payouts = infResult.payouts();
     size_t actualChanges = 0;
 

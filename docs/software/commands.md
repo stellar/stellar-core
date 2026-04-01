@@ -205,11 +205,24 @@ Command options can only by placed after command.
       multiple times (default latest)
       * `--base-instance <N>` : run tests with instance numbers offset by N,
       used to run tests in parallel
+      * `--capture-lcm` : capture `LedgerCloseMeta` XDR from every
+      `closeLedger`/`closeLedgerOn` call during tests. Files are written
+      automatically at leaf-section boundaries (or test-case boundaries for
+      tests without sections) to `test-lcm/<TestFileBaseName>/`. Each file
+      is named after the test case and section path
+      (e.g. `test_name-section-subsection.xdr`) and contains
+      stream-framed `LedgerCloseMeta` entries that can be decoded with
+      `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
+      Meta is normalized (sorted) before writing so that output is
+      deterministic given a fixed `--rng-seed`.
+  * The network passphrase is set to `(V) (;,,;) (V)` for all captured meta.
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md)
     on possible options for test.
   * For example this will run just the tests tagged with `[tx]` using protocol
     versions 9 and 10 and stop after the first failure:
     `stellar-core test -a --version 9 --version 10 "[tx]"`
+  * To capture LCM for tests with a fixed seed:
+    `stellar-core test --capture-lcm --rng-seed 12345 "[soroban]"`
 * **upgrade-db**: Upgrades local database to current schema version. This is
   usually done automatically during stellar-core run or other command.
 * **verify-checkpoints**: Listens to the network until it observes a consensus

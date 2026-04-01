@@ -2877,11 +2877,9 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
         // Archive entry
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         REQUIRE(!test.isEntryLive({lk}, test.getLCLSeq()));
 
@@ -2909,11 +2907,9 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         failedExtendOp(lk);
 
         // Archive entry
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         REQUIRE(!test.isEntryLive({lk}, test.getLCLSeq()));
 
@@ -3122,11 +3118,9 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             uint32_t originalExpectedLiveUntilLedger =
                 test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
 
-            for (uint32_t i =
-                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
-                 i <= originalExpectedLiveUntilLedger + 1; ++i)
+            while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             // Contract instance and code should be expired
@@ -3270,11 +3264,9 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     expectedTempLiveUntilLedger);
 
             // Close ledgers until temp entry expires
-            uint32 nextLedgerSeq =
-                test.getApp().getLedgerManager().getLastClosedLedgerNum();
-            for (; nextLedgerSeq < expectedTempLiveUntilLedger; ++nextLedgerSeq)
+            while (test.getLCLSeq() < expectedTempLiveUntilLedger - 1)
             {
-                closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger - 1);
@@ -3311,7 +3303,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             SECTION("TTL enforcement")
             {
                 // Close one more ledger so temp entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedger(test.getApp());
                 REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger);
 
                 // Check that temp entry has expired in the current ledger, i.e.
@@ -3348,12 +3340,10 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                         1);
                 REQUIRE(isSuccess(
                     client.get("temp", ContractDataDurability::TEMPORARY, 42)));
-                nextLedgerSeq = test.getLCLSeq() + 1;
                 // Close ledgers until PERSISTENT entry liveUntilLedger
-                for (; nextLedgerSeq < expectedPersistentLiveUntilLedger;
-                     ++nextLedgerSeq)
+                while (test.getLCLSeq() < expectedPersistentLiveUntilLedger - 1)
                 {
-                    closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                    closeLedger(test.getApp());
                 }
 
                 SECTION(
@@ -3378,9 +3368,11 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                 }
 
                 // Close one more ledger so entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedger(test.getApp());
+                // The sections above can bump the lcl, which is why this check
+                // is >=
                 REQUIRE(
-                    test.getApp().getLedgerManager().getLastClosedLedgerNum() ==
+                    test.getApp().getLedgerManager().getLastClosedLedgerNum() >=
                     expectedPersistentLiveUntilLedger);
 
                 // Check that persistent entry has expired in the current ledger
@@ -3794,10 +3786,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
 
             // Advance ledgers to just before eviction
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger - 2;
-                 ++i)
+            while (test.getLCLSeq() < tempEntryEvictionLedger - 3)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
@@ -3816,7 +3807,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
 
             // Close one more ledger to trigger the eviction
-            closeLedgerOn(test.getApp(), tempEntryEvictionLedger, 2, 1, 2016);
+            closeLedger(test.getApp());
 
             // Verify the entry is deleted from eviction
             {
@@ -3834,10 +3825,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         {
             // Verify that we're on the ledger where the entry would get
             // evicted it wasn't recreated.
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger;
-                 ++i)
+            while (test.getLCLSeq() < tempEntryEvictionLedger - 1)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
@@ -4215,9 +4205,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             auto expirationLedger =
                 test.getLCLSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-            for (uint32_t i = test.getLCLSeq(); i <= expirationLedger; ++i)
+            while (test.getLCLSeq() < expirationLedger)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
             REQUIRE(!test.isEntryLive(persistentKey, test.getLCLSeq()));
 
@@ -4521,9 +4511,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             {
                 // Close ledgers until entry is evicted
                 auto evictionLedger = 33;
-                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+                while (test.getLCLSeq() < evictionLedger)
                 {
-                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                    closeLedger(test.getApp());
                 }
 
                 if (protocolVersionStartsFrom(
@@ -4597,11 +4587,9 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
 
     SECTION("restore operation")
     {
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= k2LiveUntilLedger; ++i)
+        while (test.getLCLSeq() < k2LiveUntilLedger)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         SorobanResources restoreResources;
         restoreResources.footprint.readWrite = dataKeys;
@@ -4756,10 +4744,9 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Close ledgers until entry is evicted
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq <= evictionLedger; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         auto lk = client.getContract().getDataKey(
@@ -5296,10 +5283,9 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
 
     // Close ledgers until ContractData entry, contract code, and instance are
     // all expired
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto lk = client.getContract().getDataKey(
@@ -5521,10 +5507,9 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
     // Close ledgers until ContractData entry, contract code, and instance
     // are all expired
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
@@ -5995,13 +5980,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
             ledgerUpgrade.newConfig() = upgradeSetKey;
 
-            auto const& lcl = lm.getLastClosedLedgerHeader();
-            auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-            auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-            app->getHerder().externalizeValue(
-                txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-                {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+            executeUpgrade(*app, ledgerUpgrade);
 
             checkSettings(updatedEntries);
         }
@@ -6038,13 +6017,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey2;
 
-        auto const& lcl = lm.getLastClosedLedgerHeader();
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         checkSettings(initialEntries);
     }
@@ -6071,12 +6044,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         // No upgrade due to expired entry
         checkSettings(initialEntries);
@@ -6094,12 +6062,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         // No upgrade due to tampered entry
         checkSettings(initialEntries);
@@ -7512,10 +7475,9 @@ TEST_CASE("multiple version of same key in a single eviction scan",
         auto evictionLedger =
             test.getLCLSeq() +
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq <= evictionLedger; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         auto hotArchive = test.getApp()
@@ -7584,10 +7546,9 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Close ledgers until one ledger before eviction
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq < evictionLedger - 1; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger - 2)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         // Update entry to currVal
@@ -7597,7 +7558,7 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         // Close one more ledger to trigger eviction. The newest version of
         // the entry is in level 0 of the BucketList, so only the outdated
         // version on level 1 will be scanned.
-        closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+        closeLedger(test.getApp());
 
         // Check the eviction results.
         // Entry should be archived and not in the live BucketList
@@ -7687,10 +7648,9 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     // modifySorobanNetworkConfig will close 4 ledgers before the upgrade will
     // take affect, so close enough ledgers here such that the persistent entry
     // would be evicted on the ledger immediately following the upgrade.
-    for (auto ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq < firstEvictionLedger - 4; ++ledgerSeq)
+    while (test.getLCLSeq() < firstEvictionLedger - 5)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     // Disable eviction scan by setting evictionScanSize to 0
@@ -7703,10 +7663,9 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
 
     // Close ledgers well beyond when the entries would have been evicted.
     auto closeLedgersUntil = test.getLCLSeq() + 20;
-    for (auto ledgerSeq = test.getLCLSeq() + 1; ledgerSeq <= closeLedgersUntil;
-         ++ledgerSeq)
+    while (test.getLCLSeq() < closeLedgersUntil)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
 
         // Verify iterator has not changed
         REQUIRE(initialIterator == test.getNetworkCfg().evictionIterator());
@@ -7777,7 +7736,7 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     }
 
     // Close one more ledger to evict the last remaining entry.
-    closeLedgerOn(test.getApp(), test.getLCLSeq() + 1, 2, 1, 2016);
+    closeLedger(test.getApp());
 
     // check that the iterator has advanced
     REQUIRE(!(initialIterator == test.getNetworkCfg().evictionIterator()));
@@ -8687,10 +8646,9 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
     }
     SECTION("restore")
     {
-        for (uint32_t i = test.getLCLSeq() + 1; i <= contractExpirationLedger;
-             ++i)
+        while (test.getLCLSeq() < contractExpirationLedger)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         auto const& contractKeys = client.getContract().getKeys();
@@ -9218,9 +9176,9 @@ TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
     auto expirationLedger =
         test.getLCLSeq() +
         test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-    for (uint32_t i = test.getLCLSeq() + 1; i <= expirationLedger; ++i)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto const& contractKeys = client.getContract().getKeys();
@@ -9339,9 +9297,9 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
     auto expirationLedger =
         test.getLCLSeq() +
         test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-    for (uint32_t i = test.getLCLSeq() + 1; i <= expirationLedger; ++i)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto persistentKey = client.getContract().getDataKey(
@@ -10139,10 +10097,9 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
     // Close ledgers until all entries are expired and evicted
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger + 1; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger + 1)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto lk1 = client1.getContract().getDataKey(
