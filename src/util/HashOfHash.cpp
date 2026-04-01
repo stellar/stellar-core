@@ -17,3 +17,13 @@ hash<stellar::uint256>::operator()(stellar::uint256 const& x) const noexcept
     return res;
 }
 }
+
+namespace stellar
+{
+
+size_t
+FullHash256::operator()(uint256 const& x) const noexcept
+{
+    return shortHash::computeHash(stellar::ByteSlice(x.data(), 32));
+}
+}
