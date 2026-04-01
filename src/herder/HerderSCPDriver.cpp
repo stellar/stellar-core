@@ -332,6 +332,62 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
     return res;
 }
 
+bool
+HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
+                                                    StellarValue& sv) const
+{
+    ZoneScoped;
+    try
+    {
+        ZoneNamedN(xdrZone, "XDR deserialize", true);
+        xdr::xdr_from_opaque(value, sv);
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    if (sv.ext.v() != STELLAR_VALUE_SIGNED)
+    {
+        return false;
+    }
+
+    {
+        ZoneNamedN(sigZone, "signature check", true);
+        if (!mHerder.verifyStellarValueSignature(sv))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void
+HerderSCPDriver::extractValidUpgrades(StellarValue& sv, bool nomination) const
+{
+    LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
+    LedgerUpgradeType thisUpgradeType;
+    bool first = true;
+    for (auto it = sv.upgrades.begin(); it != sv.upgrades.end();)
+    {
+        if (!mUpgrades.isValid(*it, thisUpgradeType, nomination, mApp))
+        {
+            it = sv.upgrades.erase(it);
+        }
+        else if (!first && lastUpgradeType >= thisUpgradeType)
+        {
+            it = sv.upgrades.erase(it);
+        }
+        else
+        {
+            lastUpgradeType = thisUpgradeType;
+            first = false;
+            it++;
+        }
+    }
+}
+
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
                                bool nomination)
@@ -340,64 +396,25 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     releaseAssert(threadIsMain());
 
     StellarValue b;
-    try
-    {
-        ZoneNamedN(xdrZone, "XDR deserialize", true);
-        xdr::xdr_from_opaque(value, b);
-    }
-    catch (...)
+    if (!deserializeAndValidateStellarValue(value, b))
     {
         mSCPMetrics.mValueInvalid.Mark();
         return SCPDriver::kInvalidValue;
-    }
-
-    if (b.ext.v() != STELLAR_VALUE_SIGNED)
-    {
-        CLOG_TRACE(Herder,
-                   "HerderSCPDriver::validateValue i: {} invalid value type - "
-                   "expected SIGNED",
-                   slotIndex);
-        return SCPDriver::kInvalidValue;
-    }
-
-    {
-        ZoneNamedN(sigZone, "signature check", true);
-        if (!mHerder.verifyStellarValueSignature(b))
-        {
-            return SCPDriver::kInvalidValue;
-        }
     }
 
     SCPDriver::ValidationLevel res =
         validateValueAgainstLocalState(slotIndex, b, nomination);
     if (res != SCPDriver::kInvalidValue)
     {
-        LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
-
-        // check upgrades
-        for (size_t i = 0;
-             i < b.upgrades.size() && res != SCPDriver::kInvalidValue; i++)
+        auto origSize = b.upgrades.size();
+        extractValidUpgrades(b, nomination);
+        if (b.upgrades.size() != origSize)
         {
-            LedgerUpgradeType thisUpgradeType;
-            if (!mUpgrades.isValid(b.upgrades[i], thisUpgradeType, nomination,
-                                   mApp))
-            {
-                CLOG_TRACE(Herder,
-                           "HerderSCPDriver::validateValue invalid step at "
-                           "index {}",
-                           i);
-                res = SCPDriver::kInvalidValue;
-            }
-            else if (i != 0 && (lastUpgradeType >= thisUpgradeType))
-            {
-                CLOG_TRACE(Herder,
-                           "HerderSCPDriver::validateValue out of "
-                           "order upgrade step at index {}",
-                           i);
-                res = SCPDriver::kInvalidValue;
-            }
-
-            lastUpgradeType = thisUpgradeType;
+            CLOG_TRACE(Herder,
+                       "HerderSCPDriver::validateValue i: {} rejected due to "
+                       "invalid or misordered upgrade steps",
+                       slotIndex);
+            res = SCPDriver::kInvalidValue;
         }
     }
 
@@ -417,32 +434,16 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
 {
     ZoneScoped;
     StellarValue b;
-    try
-    {
-        xdr::xdr_from_opaque(value, b);
-    }
-    catch (...)
+    if (!deserializeAndValidateStellarValue(value, b))
     {
         return nullptr;
     }
+
     ValueWrapperPtr res;
     if (validateValueAgainstLocalState(slotIndex, b, true) ==
         SCPDriver::kFullyValidatedValue)
     {
-        // remove the upgrade steps we don't like
-        LedgerUpgradeType thisUpgradeType;
-        for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
-        {
-            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp))
-            {
-                it = b.upgrades.erase(it);
-            }
-            else
-            {
-                it++;
-            }
-        }
-
+        extractValidUpgrades(b, true);
         res = wrapStellarValue(b);
     }
 
