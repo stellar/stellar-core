@@ -316,17 +316,6 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
             result.back().newFlags() = *mParams.mFlags;
         }
     }
-    if (mParams.mMaxSorobanTxSetSize)
-    {
-        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION) &&
-            readMaxSorobanTxSetSize(ls) != *mParams.mMaxSorobanTxSetSize)
-        {
-            result.emplace_back(LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE);
-            result.back().newMaxSorobanTxSetSize() =
-                *mParams.mMaxSorobanTxSetSize;
-        }
-    }
     auto key = mParams.mConfigUpgradeSetKey;
     if (key)
     {
@@ -337,6 +326,17 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
         {
             result.emplace_back(LEDGER_UPGRADE_CONFIG);
             result.back().newConfig() = cfgUpgrade->getKey();
+        }
+    }
+    if (mParams.mMaxSorobanTxSetSize)
+    {
+        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            readMaxSorobanTxSetSize(ls) != *mParams.mMaxSorobanTxSetSize)
+        {
+            result.emplace_back(LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE);
+            result.back().newMaxSorobanTxSetSize() =
+                *mParams.mMaxSorobanTxSetSize;
         }
     }
     return result;
