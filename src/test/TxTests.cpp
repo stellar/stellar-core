@@ -2122,7 +2122,7 @@ isSuccessResult(TransactionResult const& res)
 TestAccount
 getGenesisAccount(Application& app, uint32_t accountIndex)
 {
-    REQUIRE(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
+    releaseAssert(accountIndex < app.getConfig().GENESIS_TEST_ACCOUNT_COUNT);
     return TestAccount(
         app, getAccount("TestAccount-" + std::to_string(accountIndex)));
 }

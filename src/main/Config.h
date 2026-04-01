@@ -69,9 +69,23 @@ struct ValidatorWeightConfig
     UnorderedMap<ValidatorQuality, uint64> mQualityWeights;
 };
 
+#ifdef BUILD_TESTS
+enum class ApplyLoadMode
+{
+    LIMIT_BASED,
+    FIND_LIMITS_FOR_MODEL_TX,
+    MAX_SAC_TPS,
+    BENCHMARK_MODEL_TX
+};
+
+enum class ApplyLoadModelTx
+{
+    SAC
+};
+#endif
+
 class Config : public std::enable_shared_from_this<Config>
 {
-
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   uint32 level);
@@ -328,7 +342,11 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
+#ifdef BUILD_TESTS
     // apply-load-specific configuration parameters:
+    ApplyLoadMode APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
+    ApplyLoadModelTx APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+
     // Size of the synthetic contract data entries used in apply-load.
     // Currently we generate entries of the equal size for more precise
     // control over the modelled instructions.
@@ -426,6 +444,7 @@ class Config : public std::enable_shared_from_this<Config>
     // If set to true, database writes will count towards TPS calculation.
     // Otherwise, BucketList writes will not be counted.
     bool APPLY_LOAD_TIME_WRITES = true;
+#endif // BUILD_TESTS
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
@@ -928,6 +947,12 @@ class Config : public std::enable_shared_from_this<Config>
 
     void load(std::string const& filename);
     void load(std::istream& in);
+#ifdef BUILD_TESTS
+    // Returns the content of the loaded config file as a string.
+    // This exposes the node seed in the config, so make sure to only use in
+    // test workloads (such as apply-load).
+    std::string const& getLoadedConfigToml() const;
+#endif
 
     // fixes values of connection-relates settings
     void adjust();
@@ -960,5 +985,10 @@ class Config : public std::enable_shared_from_this<Config>
     void processOpApplySleepTimeForTestingConfigs();
 
     std::chrono::seconds HISTOGRAM_WINDOW_SIZE;
+
+  private:
+#ifdef BUILD_TESTS
+    std::string mLoadedConfigToml;
+#endif
 };
 }

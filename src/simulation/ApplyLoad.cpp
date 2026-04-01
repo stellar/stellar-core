@@ -3,31 +3,33 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <unordered_map>
-
-#include "bucket/test/BucketTestUtils.h"
-#include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
-#include "ledger/LedgerManagerImpl.h"
-#include "simulation/TxGenerator.h"
-#include "test/TxTests.h"
-#include "transactions/MutableTransactionResult.h"
-#include "transactions/TransactionUtils.h"
-#include "util/MetricsRegistry.h"
-#include "util/types.h"
-
-#include "herder/HerderImpl.h"
-
-#include "medida/metrics_registry.h"
 
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/test/BucketTestUtils.h"
+#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
+#include "ledger/InMemorySorobanState.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
+#include "main/Application.h"
+#include "main/CommandLine.h"
+#include "medida/metrics_registry.h"
+#include "simulation/TxGenerator.h"
+#include "test/TxTests.h"
+#include "transactions/MutableTransactionResult.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/MetricsRegistry.h"
 #include "util/XDRCereal.h"
+#include "util/types.h"
 #include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 
@@ -36,6 +38,37 @@ namespace stellar
 namespace
 {
 constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
+
+void
+logExecutionEnvironmentSnapshot(Config const& cfg)
+{
+    std::ostringstream versionInfo;
+    writeVersionInfo(versionInfo);
+
+    CLOG_INFO(Perf, "[Apply load] Core version info:\n{}", versionInfo.str());
+
+    auto const& configSnapshot = cfg.getLoadedConfigToml();
+    CLOG_INFO(Perf, "[Apply load] Loaded Core config snapshot:\n{}",
+              configSnapshot);
+}
+
+double
+interpolatePercentile(std::vector<double> const& sortedValues,
+                      double percentile)
+{
+    releaseAssert(!sortedValues.empty());
+    if (sortedValues.size() == 1)
+    {
+        return sortedValues.front();
+    }
+
+    releaseAssert(percentile >= 0.0 && percentile <= 100.0);
+    double rank = percentile / 100.0 * (sortedValues.size() - 1);
+    auto lo = static_cast<size_t>(std::floor(rank));
+    auto hi = static_cast<size_t>(std::ceil(rank));
+    double weight = rank - lo;
+    return sortedValues[lo] * (1.0 - weight) + sortedValues[hi] * weight;
+}
 
 SorobanUpgradeConfig
 getUpgradeConfig(Config const& cfg, bool validate = true)
@@ -377,6 +410,40 @@ ApplyLoad::calculateInstructionsPerTx() const
     return TxGenerator::SAC_TX_INSTRUCTIONS;
 }
 
+uint32_t
+ApplyLoad::calculateBenchmarkSacTxCount() const
+{
+    auto const& config = mApp.getConfig();
+    releaseAssertOrThrow(config.APPLY_LOAD_BATCH_SAC_COUNT > 0);
+
+    switch (mModelTx)
+    {
+    case ApplyLoadModelTx::SAC:
+        // In benchmark mode APPLY_LOAD_MAX_SOROBAN_TX_COUNT means modeled SAC
+        // transfers, while generation expects number of tx envelopes.
+        releaseAssertOrThrow(config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT %
+                                 config.APPLY_LOAD_BATCH_SAC_COUNT ==
+                             0);
+        {
+            auto benchmarkTxCount = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT /
+                                    config.APPLY_LOAD_BATCH_SAC_COUNT;
+            if (benchmarkTxCount <
+                config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS)
+            {
+                throw std::runtime_error(
+                    "For benchmark SAC mode, "
+                    "APPLY_LOAD_MAX_SOROBAN_TX_COUNT / "
+                    "APPLY_LOAD_BATCH_SAC_COUNT must be at least "
+                    "APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS to satisfy "
+                    "requested parallelism");
+            }
+            return benchmarkTxCount;
+        }
+    }
+    releaseAssertOrThrow(false);
+    return 0;
+}
+
 void
 ApplyLoad::upgradeSettingsForMaxTPS(uint32_t txsToGenerate)
 {
@@ -474,12 +541,12 @@ ApplyLoad::calculateRequiredHotArchiveEntries(ApplyLoadMode mode,
     return totalExpectedRestores * 1.5;
 }
 
-ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
+ApplyLoad::ApplyLoad(Application& app)
     : mApp(app)
-    , mMode(mode)
-    , mRoot(app.getRoot())
+    , mMode(app.getConfig().APPLY_LOAD_MODE)
+    , mModelTx(app.getConfig().APPLY_LOAD_MODEL_TX)
     , mTotalHotArchiveEntries(
-          calculateRequiredHotArchiveEntries(mode, app.getConfig()))
+          calculateRequiredHotArchiveEntries(mMode, app.getConfig()))
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "apply-load", "tx-count"}))
     , mInstructionUtilization(mApp.getMetrics().NewHistogram(
@@ -498,6 +565,57 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
 {
     auto const& config = mApp.getConfig();
 
+    // Basic input parameter validation - it's not comprehensive, but should
+    // catch some simple misconfiguration cases.
+    if (mMode == ApplyLoadMode::BENCHMARK_MODEL_TX)
+    {
+        if (mModelTx == ApplyLoadModelTx::SAC)
+        {
+            if (config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT %
+                    config.APPLY_LOAD_BATCH_SAC_COUNT !=
+                0)
+            {
+                throw std::runtime_error(
+                    "For benchmark APPLY_LOAD_MODEL_TX=sac, "
+                    "APPLY_LOAD_MAX_SOROBAN_TX_COUNT must be divisible by "
+                    "APPLY_LOAD_BATCH_SAC_COUNT");
+            }
+            auto benchmarkTxCount = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT /
+                                    config.APPLY_LOAD_BATCH_SAC_COUNT;
+            if (benchmarkTxCount <
+                config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS)
+            {
+                throw std::runtime_error(
+                    "For benchmark APPLY_LOAD_MODEL_TX=sac, "
+                    "APPLY_LOAD_MAX_SOROBAN_TX_COUNT / "
+                    "APPLY_LOAD_BATCH_SAC_COUNT must be at least "
+                    "APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS to satisfy "
+                    "requested parallelism");
+            }
+        }
+    }
+    // Noisy binary search-based modes require at least 30 ledgers to have
+    // enough samples for statistics to be meaningful.
+    if (mMode == ApplyLoadMode::MAX_SAC_TPS ||
+        mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
+    {
+
+        if (config.APPLY_LOAD_NUM_LEDGERS < 30)
+        {
+            throw std::runtime_error(
+                "APPLY_LOAD_NUM_LEDGERS must be at least 30");
+        }
+    }
+
+    if (mMode == ApplyLoadMode::MAX_SAC_TPS &&
+        config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >
+            config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+    {
+        throw std::runtime_error(
+            "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must not be greater than "
+            "APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps mode");
+    }
+
     switch (mMode)
     {
     case ApplyLoadMode::LIMIT_BASED:
@@ -513,6 +631,11 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
                        config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
                        config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0;
         break;
+    case ApplyLoadMode::BENCHMARK_MODEL_TX:
+        mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                       2;
+        break;
     }
     if (config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS == 0)
     {
@@ -525,7 +648,23 @@ ApplyLoad::ApplyLoad(Application& app, ApplyLoadMode mode)
 void
 ApplyLoad::setup()
 {
-    releaseAssert(mTxGenerator.loadAccount(mRoot));
+    auto const& cfg = mApp.getConfig();
+    if (cfg.GENESIS_TEST_ACCOUNT_COUNT < mNumAccounts)
+    {
+        throw std::runtime_error(
+            "GENESIS_TEST_ACCOUNT_COUNT (" +
+            std::to_string(cfg.GENESIS_TEST_ACCOUNT_COUNT) +
+            ") must be at least " + std::to_string(mNumAccounts) +
+            " for apply-load");
+    }
+
+    for (uint32_t i = 0; i < mNumAccounts; ++i)
+    {
+        auto acc =
+            std::make_shared<TestAccount>(txtest::getGenesisAccount(mApp, i));
+        releaseAssert(mTxGenerator.loadAccount(acc));
+        mTxGenerator.addAccount(i, acc);
+    }
 
     if (mApp.getLedgerManager()
             .getLastClosedLedgerHeader()
@@ -543,8 +682,6 @@ ApplyLoad::setup()
         closeLedger({}, upgrade);
     }
 
-    setupAccounts();
-
     setupUpgradeContract();
 
     switch (mMode)
@@ -555,6 +692,9 @@ ApplyLoad::setup()
         // upgrade again before each TPS run.
         upgradeSettingsForMaxTPS(100000);
         break;
+    case ApplyLoadMode::BENCHMARK_MODEL_TX:
+        upgradeSettingsForMaxTPS(calculateBenchmarkSacTxCount());
+        break;
     case ApplyLoadMode::LIMIT_BASED:
         upgradeSettings();
         break;
@@ -562,7 +702,8 @@ ApplyLoad::setup()
 
     setupLoadContract();
     setupXLMContract();
-    if (mMode == ApplyLoadMode::MAX_SAC_TPS &&
+    if ((mMode == ApplyLoadMode::MAX_SAC_TPS ||
+         mMode == ApplyLoadMode::BENCHMARK_MODEL_TX) &&
         mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
     {
         setupBatchTransferContracts();
@@ -627,6 +768,8 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 void
 ApplyLoad::execute()
 {
+    logExecutionEnvironmentSnapshot(mApp.getConfig());
+
     switch (mMode)
     {
     case ApplyLoadMode::LIMIT_BASED:
@@ -638,29 +781,9 @@ ApplyLoad::execute()
     case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         findMaxLimitsForModelTransaction();
         break;
-    }
-}
-
-void
-ApplyLoad::setupAccounts()
-{
-    auto const& lm = mApp.getLedgerManager();
-    // pass in false for initialAccounts so we fund new account with a lower
-    // balance, allowing the creation of more accounts.
-    std::vector<Operation> creationOps = mTxGenerator.createAccounts(
-        0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
-
-    for (size_t i = 0; i < creationOps.size(); i += MAX_OPS_PER_TX)
-    {
-        std::vector<TransactionFrameBaseConstPtr> txs;
-
-        size_t end_id = std::min(i + MAX_OPS_PER_TX, creationOps.size());
-        std::vector<Operation> currOps(creationOps.begin() + i,
-                                       creationOps.begin() + end_id);
-        txs.push_back(mTxGenerator.createTransactionFramePtr(mRoot, currOps,
-                                                             std::nullopt));
-
-        closeLedger(txs);
+    case ApplyLoadMode::BENCHMARK_MODEL_TX:
+        benchmarkModelTx();
+        break;
     }
 }
 
@@ -1314,11 +1437,12 @@ ApplyLoad::benchmarkLimits()
 double
 ApplyLoad::benchmarkLimitsIteration()
 {
-    releaseAssert(mMode != ApplyLoadMode::MAX_SAC_TPS);
-
     mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
     releaseAssert(
         mApp.getBucketManager().getLiveBucketList().futuresAllResolved());
+    mApp.getBucketManager().getHotArchiveBucketList().resolveAllFutures();
+    releaseAssert(
+        mApp.getBucketManager().getHotArchiveBucketList().futuresAllResolved());
 
     auto& lm = mApp.getLedgerManager();
     auto const& config = mApp.getConfig();
@@ -1422,12 +1546,14 @@ ApplyLoad::benchmarkLimitsIteration()
 
     auto& ledgerCloseTime =
         mApp.getMetrics().NewTimer({"ledger", "ledger", "close"});
+
     double timeBefore = ledgerCloseTime.sum();
-
     closeLedger(txs, {}, /* recordSorobanUtilization */ true);
-
     double timeAfter = ledgerCloseTime.sum();
-    return timeAfter - timeBefore;
+
+    double closeTime = timeAfter - timeBefore;
+    CLOG_INFO(Perf, "Limits benchmark time: {:.2f}ms", closeTime);
+    return closeTime;
 }
 
 void
@@ -1680,6 +1806,68 @@ ApplyLoad::findMaxSacTps()
     CLOG_WARNING(Perf, "================================================");
 }
 
+void
+ApplyLoad::benchmarkModelTx()
+{
+    releaseAssertOrThrow(mMode == ApplyLoadMode::BENCHMARK_MODEL_TX);
+
+    auto const& config = mApp.getConfig();
+    std::vector<double> closeTimes;
+    closeTimes.reserve(config.APPLY_LOAD_NUM_LEDGERS);
+
+    CLOG_WARNING(Perf,
+                 "Starting model transaction benchmark for {} ledgers with "
+                 "{} tx per ledger",
+                 config.APPLY_LOAD_NUM_LEDGERS,
+                 config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+
+    for (size_t i = 0; i < config.APPLY_LOAD_NUM_LEDGERS; ++i)
+    {
+        double closeTimeMs = 0.0;
+        switch (mModelTx)
+        {
+        case ApplyLoadModelTx::SAC:
+            closeTimeMs =
+                benchmarkSacTpsSingleLedger(calculateBenchmarkSacTxCount());
+            break;
+        }
+        closeTimes.emplace_back(closeTimeMs);
+    }
+
+    releaseAssert(!closeTimes.empty());
+
+    double avgCloseTimeMs =
+        std::accumulate(closeTimes.begin(), closeTimes.end(), 0.0) /
+        closeTimes.size();
+
+    double varianceMsSq = 0.0;
+    for (auto const& closeTime : closeTimes)
+    {
+        double delta = closeTime - avgCloseTimeMs;
+        varianceMsSq += delta * delta;
+    }
+    varianceMsSq /= closeTimes.size();
+
+    std::vector<double> sortedCloseTimes = closeTimes;
+    std::sort(sortedCloseTimes.begin(), sortedCloseTimes.end());
+
+    CLOG_WARNING(Perf, "================================================");
+    CLOG_WARNING(
+        Perf, "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
+        config.APPLY_LOAD_NUM_LEDGERS, config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+    CLOG_WARNING(Perf, "mean close time: {} ms", avgCloseTimeMs);
+    CLOG_WARNING(Perf, "p50 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 50.0));
+    CLOG_WARNING(Perf, "p75 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 75.0));
+    CLOG_WARNING(Perf, "p95 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 95.0));
+    CLOG_WARNING(Perf, "p99 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 99.0));
+    CLOG_WARNING(Perf, "close time stddev: {} ms", std::sqrt(varianceMsSq));
+    CLOG_WARNING(Perf, "================================================");
+}
+
 double
 ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 {
@@ -1703,10 +1891,16 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
     mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
     releaseAssert(
         mApp.getBucketManager().getLiveBucketList().futuresAllResolved());
-
+    mApp.getBucketManager().getHotArchiveBucketList().resolveAllFutures();
+    releaseAssert(
+        mApp.getBucketManager().getHotArchiveBucketList().futuresAllResolved());
     double timeBefore = totalTxApplyTimer.sum();
     closeLedger(txs);
     double timeAfter = totalTxApplyTimer.sum();
+
+    double closeTime = timeAfter - timeBefore;
+
+    CLOG_INFO(Perf, "SAC benchmark: {:.2f}ms", closeTime);
 
     // Check transaction success rate. We should never have any failures,
     // and all TXs should have been executed.
@@ -1727,7 +1921,7 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
     releaseAssert(maxClustersMetric.count() ==
                   mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
-    return timeAfter - timeBefore;
+    return closeTime;
 }
 
 void
@@ -1750,6 +1944,7 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
         // Calculate how many batch transfer transactions we need. Wrt to TPS,
         // here we consider one transfer a "transaction"
         uint32_t txsPerCluster = count / numClusters;
+        releaseAssertOrThrow(count % numClusters == 0);
 
         for (uint32_t clusterId = 0; clusterId < numClusters; ++clusterId)
         {
@@ -1804,6 +1999,20 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
 
             txs.push_back(tx.second);
         }
+    }
+    LedgerSnapshot ls(mApp);
+    auto diag = DiagnosticEventManager::createDisabled();
+    // Validate all the generated transactions. This serves 2 purposes:
+    // - ensure that the tx generator works as expected
+    // - prime the signature cache
+    // Signature cache priming may not be always desirable, but in reality we
+    // expect most of the signatures to be cached by the time we execute the
+    // transactions, so excluding the verification from the benchmark is likely
+    // more realistic than including it.
+    for (auto const& tx : txs)
+    {
+        releaseAssert(tx->checkValid(mApp.getAppConnector(), ls, 0, 0, 0, diag)
+                          ->isSuccess());
     }
 }
 } // namespace stellar
