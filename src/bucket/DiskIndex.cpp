@@ -255,36 +255,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     // Binary Fuse filter requires at least 2 elements
     if (keyHashes.size() > 1)
     {
-        // There is currently an access error that occurs very rarely
-        // for some random seed values. If this occurs, simply rotate
-        // the seed and try again.
-        for (int i = 0; i < 10; ++i)
-        {
-            try
-            {
-                mData.filter =
-                    std::make_unique<BinaryFuseFilter16>(keyHashes, seed);
-                break;
-            }
-            catch (std::out_of_range& e)
-            {
-                auto seedToStr = [](auto seed) {
-                    std::string result;
-                    for (auto b : seed)
-                    {
-                        fmt::format_to(std::back_inserter(result), "{:02x}", b);
-                    }
-                    return result;
-                };
-
-                CLOG_ERROR(Bucket,
-                           "Bad memory access in BinaryFuseFilter with "
-                           "seed {}, retrying",
-                           seedToStr(seed));
-                seed[0]++;
-            }
-        }
-
+        mData.filter = std::make_unique<BinaryFuseFilter16>(keyHashes, seed);
         // Population failure is probabilistic is very, very unlikely.
         releaseAssertOrThrow(mData.filter);
     }
