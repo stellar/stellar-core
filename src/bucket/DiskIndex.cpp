@@ -256,8 +256,6 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
     if (keyHashes.size() > 1)
     {
         mData.filter = std::make_unique<BinaryFuseFilter16>(keyHashes, seed);
-        // Population failure is probabilistic is very, very unlikely.
-        releaseAssertOrThrow(mData.filter);
     }
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mData.keysToOffset.size(),
