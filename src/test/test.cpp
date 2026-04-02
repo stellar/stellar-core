@@ -216,16 +216,12 @@ writeLcmToFile(std::string const& path, size_t startIndex)
     XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
     out.open(path);
 
-    size_t count = 0;
     for (size_t i = startIndex; i < allMetas.size(); ++i)
     {
-        out.writeOne(allMetas[i]);
-        ++count;
+        LedgerCloseMeta normalized = allMetas[i];
+        zeroNonDeterministicDiagnostics(normalized);
+        out.writeOne(normalized);
     }
-
-    LOG_INFO(DEFAULT_LOG,
-             "LCM auto-capture: wrote {} LedgerCloseMeta entries to '{}'",
-             count, path);
 }
 
 } // namespace
