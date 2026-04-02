@@ -641,21 +641,23 @@ ApplyLoad::ApplyLoad(Application& app)
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
         mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
-                       config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0;
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
+                           config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0 +
+                       config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
         if (mModelTx == ApplyLoadModelTx::CUSTOM_TOKEN)
         {
             // Need 2 unique accounts per transfer to avoid conflicts
-            mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT * 2;
+            mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT * 2 +
+                           config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         }
         else
         {
             mNumAccounts =
                 config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
                     config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-                2;
+                config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER + 2;
         }
         break;
     }
@@ -1511,10 +1513,18 @@ ApplyLoad::benchmarkLimitsIteration()
               maxResourcesToGenerate.toString());
     auto resourcesLeft = maxResourcesToGenerate;
 
+    // Generate classic payments using the first
+    // APPLY_LOAD_CLASSIC_TXS_PER_LEDGER accounts.
+    generateClassicPayments(txs, 0);
+
+    // Use remaining accounts (after classic) for soroban transactions
     auto const& accounts = mTxGenerator.getAccounts();
+    uint32_t sorobanStartIdx = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
     // Omit root account
-    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1);
-    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
+    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1 -
+                                           sorobanStartIdx);
+    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(),
+              sorobanStartIdx);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
 
@@ -1528,21 +1538,8 @@ ApplyLoad::benchmarkLimitsIteration()
         txs.emplace_back(tx);
     };
 
-    releaseAssert(shuffledAccounts.size() >=
-                  config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
-    for (size_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
-    {
-        auto it = accounts.find(shuffledAccounts[i]);
-        releaseAssert(it != accounts.end());
-        it->second->loadSequenceNumber();
-        auto [_, tx] = mTxGenerator.paymentTransaction(
-            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-            std::nullopt);
-        addTx(tx);
-    }
-
     bool sorobanLimitHit = false;
-    for (size_t i = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+    for (size_t i = 0;
          i < shuffledAccounts.size(); ++i)
     {
         auto it = accounts.find(shuffledAccounts[i]);
@@ -1934,10 +1931,16 @@ ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
 
     int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
 
-    // Generate exactly enough SAC payment transactions
+    // Generate classic payments using accounts at the end of the range,
+    // so they don't overlap with soroban accounts.
     std::vector<TransactionFrameBasePtr> txs;
-    txs.reserve(txsPerLedger);
+    txs.reserve(txsPerLedger +
+                mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+    uint32_t classicStartIdx =
+        mNumAccounts - mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+    generateClassicPayments(txs, classicStartIdx);
 
+    // Generate soroban model transactions
     switch (modelTx)
     {
     case ApplyLoadModelTx::SAC:
@@ -1947,7 +1950,9 @@ ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
         generateTokenTransfers(txs, txsPerLedger);
         break;
     }
-    releaseAssertOrThrow(txs.size() == txsPerLedger);
+    releaseAssertOrThrow(txs.size() ==
+                         txsPerLedger +
+                             mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
 
     mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
     releaseAssert(
@@ -1983,6 +1988,36 @@ ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
                   mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
     return closeTime;
+}
+
+void
+ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                   uint32_t startAccountIdx)
+{
+    auto const& config = mApp.getConfig();
+    auto const& accounts = mTxGenerator.getAccounts();
+    auto& lm = mApp.getLedgerManager();
+
+    releaseAssert(accounts.size() >=
+                  startAccountIdx + config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+
+    LedgerSnapshot ls(mApp);
+    auto appConnector = mApp.getAppConnector();
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+
+    for (uint32_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
+    {
+        uint64_t accountIdx = startAccountIdx + i;
+        auto it = accounts.find(accountIdx);
+        releaseAssert(it != accounts.end());
+        it->second->loadSequenceNumber();
+        auto [_, tx] = mTxGenerator.paymentTransaction(
+            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
+            std::nullopt);
+        auto res = tx->checkValid(appConnector, ls, 0, 0, 0, diagnostics);
+        releaseAssert(res && res->isSuccess());
+        txs.emplace_back(tx);
+    }
 }
 
 void
