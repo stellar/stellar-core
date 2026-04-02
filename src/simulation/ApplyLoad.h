@@ -54,6 +54,7 @@ class ApplyLoad
     void setupXLMContract();
     void setupBatchTransferContracts();
     void setupTokenContract();
+    void setupSoroswapContracts();
     void setupBucketList();
 
     // Runs for `execute() in `ApplyLoadMode::LIMIT_BASED` mode.
@@ -119,6 +120,11 @@ class ApplyLoad
     void generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
                                 uint32_t count);
 
+    // Generates the given number of Soroswap swap TXs across pairs with no
+    // conflicts.
+    void generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
+                               uint32_t count);
+
     // Calculate instructions per transaction based on batch size
     uint64_t calculateInstructionsPerTx() const;
 
@@ -181,6 +187,37 @@ class ApplyLoad
 
     // Used to generate custom token transfer transactions
     TxGenerator::ContractInstance mTokenInstance;
+
+    // Soroswap AMM benchmark state
+    struct SoroswapPairInfo
+    {
+        SCAddress pairContractID;
+        uint32_t tokenAIndex;
+        uint32_t tokenBIndex;
+    };
+
+    struct SoroswapState
+    {
+        SCAddress factoryContractID;
+        SCAddress routerContractID;
+
+        std::vector<SoroswapPairInfo> pairs;
+        std::vector<TxGenerator::ContractInstance> sacInstances;
+
+        LedgerKey routerCodeKey;
+        LedgerKey pairCodeKey;
+        LedgerKey factoryCodeKey;
+
+        LedgerKey routerInstanceKey;
+        LedgerKey factoryInstanceKey;
+
+        std::vector<Asset> assets;
+        uint32_t numTokens = 0;
+    };
+    SoroswapState mSoroswapState;
+
+    // Counter for alternating swap direction per pair
+    std::vector<uint32_t> mSoroswapSwapCounters;
 
     // Counter for generating unique destination addresses for SAC payments
     uint32_t mDestCounter = 0;

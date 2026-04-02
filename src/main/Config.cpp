@@ -439,8 +439,13 @@ parseApplyLoadModelTx(ConfigItem const& item)
     {
         return ApplyLoadModelTx::CUSTOM_TOKEN;
     }
+    if (modelTx == "soroswap")
+    {
+        return ApplyLoadModelTx::SOROSWAP;
+    }
     throw std::invalid_argument(
-        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token");
+        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
+        "soroswap");
 }
 #endif
 

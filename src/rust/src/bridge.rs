@@ -220,6 +220,9 @@ pub(crate) mod rust_bridge {
         fn get_write_bytes() -> Result<RustBuf>;
         fn get_invoke_contract_wasm() -> Result<RustBuf>;
         fn get_apply_load_token_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_factory_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_pool_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_router_wasm() -> Result<RustBuf>;
 
         fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 
