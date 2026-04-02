@@ -365,7 +365,8 @@ template <typename T> class binary_fuse_t
             }
             if (error)
             {
-                std::fill(reverseOrder.begin(), reverseOrder.end(), 0);
+                // Reset everything except the sentinel at reverseOrder[size]
+                std::fill_n(reverseOrder.begin(), size, 0);
                 std::fill(t2count.begin(), t2count.end(), 0);
                 std::fill(t2hash.begin(), t2hash.end(), 0);
 
