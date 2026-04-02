@@ -1145,6 +1145,38 @@ TEST_CASE("apply load benchmark custom token",
     REQUIRE(successCountMetric.count() > 0);
 }
 
+TEST_CASE("apply load benchmark soroswap",
+          "[loadgen][applyload][soroban][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SOROSWAP;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 1000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 4;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    al.execute();
+
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    REQUIRE(successCountMetric.count() > 0);
+}
+
 TEST_CASE("noisy binary search", "[applyload]")
 {
     std::mt19937 rng(12345); // Fixed seed for reproducibility

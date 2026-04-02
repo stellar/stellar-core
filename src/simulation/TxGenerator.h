@@ -102,6 +102,8 @@ class TxGenerator
     static constexpr uint64_t BATCH_TRANSFER_TX_INSTRUCTIONS = 500'000;
     // Instructions per custom token transfer transaction
     static constexpr uint64_t CUSTOM_TOKEN_TX_INSTRUCTIONS = 5'000'000;
+    // Instructions per Soroswap swap transaction
+    static constexpr uint64_t SOROSWAP_SWAP_TX_INSTRUCTIONS = 5'000'000;
     static constexpr uint32_t SOROBAN_LOAD_V2_EVENT_SIZE_BYTES = 80;
 
     // Special account ID to represent the root account
