@@ -1438,6 +1438,9 @@
     <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\SecretManager.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2553,6 +2556,9 @@
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
     <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SecretManager.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
