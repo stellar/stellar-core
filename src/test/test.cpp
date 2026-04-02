@@ -178,6 +178,48 @@ checkLcmSequenceContiguity(std::vector<LedgerCloseMeta> const& metas,
     }
 }
 
+// Read all LedgerCloseMeta entries from an existing XDR file.
+std::vector<LedgerCloseMeta>
+readLcmFromFile(std::string const& path)
+{
+    std::vector<LedgerCloseMeta> result;
+    XDRInputFileStream in;
+    in.open(path);
+    LedgerCloseMeta lcm;
+    while (in.readOne(lcm))
+    {
+        result.emplace_back(std::move(lcm));
+    }
+    return result;
+}
+
+// Compare two LCM vectors for semantic equality by normalizing copies of each
+// entry. This allows us to skip writing when the only differences are due to
+// non-deterministic ordering from unordered map iteration.
+bool
+lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
+                     std::vector<LedgerCloseMeta> const& b)
+{
+    if (a.size() != b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i)
+    {
+        LedgerCloseMeta na = a[i];
+        LedgerCloseMeta nb = b[i];
+        normalizeMeta(na);
+        normalizeMeta(nb);
+        zeroNonDeterministicDiagnostics(na);
+        zeroNonDeterministicDiagnostics(nb);
+        if (na != nb)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void
 writeLcmToFile(std::string const& path, size_t startIndex)
 {
@@ -192,6 +234,29 @@ writeLcmToFile(std::string const& path, size_t startIndex)
     }
 
     checkLcmSequenceContiguity(allMetas, startIndex, path);
+
+    // Build the new entries with zeroed diagnostics but without
+    // normalization: some restoration ledger-entry changes must remain in
+    // their original order for downstream consumers.
+    std::vector<LedgerCloseMeta> newEntries;
+    newEntries.reserve(allMetas.size() - startIndex);
+    for (size_t i = startIndex; i < allMetas.size(); ++i)
+    {
+        newEntries.push_back(allMetas[i]);
+        zeroNonDeterministicDiagnostics(newEntries.back());
+    }
+
+    // If an existing file is present, compare normalized versions. Skip the
+    // write if the entries are semantically identical — this avoids noisy
+    // diffs caused by non-deterministic unordered map iteration order.
+    if (std::filesystem::exists(path))
+    {
+        auto oldEntries = readLcmFromFile(path);
+        if (lcmSemanticallyEqual(oldEntries, newEntries))
+        {
+            return;
+        }
+    }
 
     // Ensure parent directory exists
     auto lastSlash = path.find_last_of('/');
@@ -218,9 +283,9 @@ writeLcmToFile(std::string const& path, size_t startIndex)
 
     for (size_t i = startIndex; i < allMetas.size(); ++i)
     {
-        LedgerCloseMeta normalized = allMetas[i];
-        zeroNonDeterministicDiagnostics(normalized);
-        out.writeOne(normalized);
+        LedgerCloseMeta meta = allMetas[i];
+        zeroNonDeterministicDiagnostics(meta);
+        out.writeOne(meta);
     }
 }
 
