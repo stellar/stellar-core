@@ -22,6 +22,16 @@
 
 typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> binary_fuse_seed_t;
 
+#ifdef BUILD_TESTS
+
+#include "test/CovMark.h"
+
+// Test-only flags: force specific rare paths in populate() so tests can
+// exercise them without needing pathological hash distributions.
+inline bool gBinaryFuseForcePopulateError = false;
+inline bool gBinaryFuseForcePeelingFailure = false;
+#endif
+
 #ifndef XOR_MAX_ITERATIONS
 #define XOR_MAX_ITERATIONS \
     1000000 // probability of success should always be > 0.5, so with this many
@@ -256,14 +266,14 @@ template <typename T> class binary_fuse_t
         return h;
     }
 
-    // Construct the filter, returns true on success, false on failure.
-    // The algorithm fails when there is insufficient memory.
+    // Construct the filter. Throws std::runtime_error if population fails
+    // after max iterations (practically impossible).
     // For best performance, the caller should ensure that there are not
     // too many duplicated keys.
-    // While highly improbable, it is possible that the population fails, at
-    // which point the seed must be rotated. keys will be sorted and duplicates
-    // removed if any duplicate keys exist
-    [[nodiscard]] bool
+    // While highly improbable, it is possible that an iteration fails, at
+    // which point the seed is rotated and retried. keys will be sorted and
+    // duplicates removed if any duplicate keys exist
+    void
     populate(std::vector<uint64_t>& keys, binary_fuse_seed_t rngSeed)
     {
         ZoneScoped;
@@ -295,6 +305,9 @@ template <typename T> class binary_fuse_t
         std::vector<uint32_t> startPos(block);
         std::vector<uint32_t> h012(5);
 
+        // Non-zero sentinel past the last valid slot. The placement loop
+        // treats 0 as empty; this prevents startPos from advancing past
+        // the end of the array.
         reverseOrder.at(size) = 1;
         for (int loop = 0; true; ++loop)
         {
@@ -303,7 +316,8 @@ template <typename T> class binary_fuse_t
                 // The probability of this happening is lower than the
                 // the cosmic-ray probability (i.e., a cosmic ray corrupts your
                 // system).
-                return false;
+                throw std::runtime_error(
+                    "BinaryFuseFilter failed to populate after max iterations");
             }
 
             for (uint32_t i = 0; i < block; i++)
@@ -363,9 +377,16 @@ template <typename T> class binary_fuse_t
                 error = (t2count.at(h1) < 4) ? 1 : error;
                 error = (t2count.at(h2) < 4) ? 1 : error;
             }
+#ifdef BUILD_TESTS
+            if (!error && gBinaryFuseForcePopulateError && loop == 0)
+            {
+                error = 1;
+                gBinaryFuseForcePopulateError = false;
+            }
+#endif
             if (error)
             {
-                // Reset everything except the sentinel at reverseOrder[size]
+                COVMARK_HIT(BINARY_FUSE_POPULATE_ERROR_RETRY);
                 std::fill_n(reverseOrder.begin(), size, 0);
                 std::fill(t2count.begin(), t2count.end(), 0);
                 std::fill(t2hash.begin(), t2hash.end(), 0);
@@ -420,6 +441,14 @@ template <typename T> class binary_fuse_t
                     t2hash.at(other_index2) ^= hash;
                 }
             }
+#ifdef BUILD_TESTS
+            if (gBinaryFuseForcePeelingFailure && loop == 0)
+            {
+                stacksize = 0;
+                duplicates = 0;
+                gBinaryFuseForcePeelingFailure = false;
+            }
+#endif
             if (stacksize + duplicates == size)
             {
                 // success
@@ -428,12 +457,18 @@ template <typename T> class binary_fuse_t
             }
             else if (duplicates > 0)
             {
+                COVMARK_HIT(BINARY_FUSE_DUPLICATE_REMOVAL);
                 // Sort keys and remove duplicates
                 std::sort(keys.begin(), keys.end());
                 keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
                 size = keys.size();
+
+                // Size may hav decreased, so make sure we write a new sentinel
+                // value.
+                reverseOrder.at(size) = 1;
             }
 
+            COVMARK_HIT(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
             // Reset everything except for the last entry in reverseOrder
             std::fill_n(reverseOrder.begin(), size, 0);
             std::fill(t2count.begin(), t2count.end(), 0);
@@ -458,8 +493,6 @@ template <typename T> class binary_fuse_t
             Fingerprints.at(h012.at(found)) = xor2 ^ Fingerprints.at(h012.at(found + 1)) ^
                                         Fingerprints.at(h012.at(found + 2));
         }
-
-        return true;
     }
 
   public:
@@ -498,10 +531,7 @@ template <typename T> class binary_fuse_t
         SegmentCountLength = SegmentCount * SegmentLength;
         Fingerprints.resize(ArrayLength);
 
-        if (!populate(keys, rngSeed))
-        {
-            throw std::runtime_error("BinaryFuseFilter failed to populate");
-        }
+        populate(keys, rngSeed);
     }
 
     explicit binary_fuse_t(stellar::SerializedBinaryFuseFilter const& xdrFilter)
