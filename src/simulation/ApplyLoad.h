@@ -53,6 +53,7 @@ class ApplyLoad
     void setupLoadContract();
     void setupXLMContract();
     void setupBatchTransferContracts();
+    void setupTokenContract();
     void setupBucketList();
 
     // Runs for `execute() in `ApplyLoadMode::LIMIT_BASED` mode.
@@ -90,7 +91,8 @@ class ApplyLoad
 
     // Run a single ledger benchmark at the given TPS. Returns the close time
     // in milliseconds for that ledger.
-    double benchmarkSacTpsSingleLedger(uint32_t txsPerLedger);
+    double benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
+                                           uint32_t txsPerLedger);
 
     // Run a single ledger benchmark for the model transaction mode. Returns
     // the close time in milliseconds for that ledger.
@@ -102,17 +104,27 @@ class ApplyLoad
     // parameters.
     double benchmarkLimitsIteration();
 
+    // Generates APPLY_LOAD_CLASSIC_TXS_PER_LEDGER classic payment TXs
+    // using accounts starting at startAccountIdx.
+    void generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                 uint32_t startAccountIdx);
+
     // Generates the given number of native asset SAC payment TXs with no
     // conflicts.
     void generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
                              uint32_t count);
+
+    // Generates the given number of custom token transfer TXs between genesis
+    // accounts with no conflicts.
+    void generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
+                                uint32_t count);
 
     // Calculate instructions per transaction based on batch size
     uint64_t calculateInstructionsPerTx() const;
 
     // Convert benchmark model SAC transfer count into number of tx envelopes
     // to execute, taking APPLY_LOAD_BATCH_SAC_COUNT into account.
-    uint32_t calculateBenchmarkSacTxCount() const;
+    uint32_t calculateBenchmarkModelTxCount() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
     // BucketListDB cache. Note that this should be run every time an account
@@ -166,6 +178,9 @@ class ApplyLoad
     std::vector<TxGenerator::ContractInstance> mBatchTransferInstances;
     size_t mDataEntryCount = 0;
     size_t mDataEntrySize = 0;
+
+    // Used to generate custom token transfer transactions
+    TxGenerator::ContractInstance mTokenInstance;
 
     // Counter for generating unique destination addresses for SAC payments
     uint32_t mDestCounter = 0;

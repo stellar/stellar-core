@@ -25,6 +25,7 @@
 #include "test/TxTests.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -401,17 +402,26 @@ noisyBinarySearch(std::function<double(uint32_t)> const& f, double targetA,
 uint64_t
 ApplyLoad::calculateInstructionsPerTx() const
 {
-    uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
-    if (batchSize > 1)
+    switch (mModelTx)
     {
-        // Conservative estimate: each transfer in batch costs same as SAC
-        return batchSize * TxGenerator::BATCH_TRANSFER_TX_INSTRUCTIONS;
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        return TxGenerator::CUSTOM_TOKEN_TX_INSTRUCTIONS;
+    case ApplyLoadModelTx::SAC:
+    {
+        uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+        if (batchSize > 1)
+        {
+            return batchSize * TxGenerator::BATCH_TRANSFER_TX_INSTRUCTIONS;
+        }
+        return TxGenerator::SAC_TX_INSTRUCTIONS;
     }
-    return TxGenerator::SAC_TX_INSTRUCTIONS;
+    }
+    releaseAssertOrThrow(false);
+    return 0;
 }
 
 uint32_t
-ApplyLoad::calculateBenchmarkSacTxCount() const
+ApplyLoad::calculateBenchmarkModelTxCount() const
 {
     auto const& config = mApp.getConfig();
     releaseAssertOrThrow(config.APPLY_LOAD_BATCH_SAC_COUNT > 0);
@@ -439,6 +449,9 @@ ApplyLoad::calculateBenchmarkSacTxCount() const
             }
             return benchmarkTxCount;
         }
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        // No batching for custom token, one transfer per tx envelope
+        return config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
     }
     releaseAssertOrThrow(false);
     return 0;
@@ -628,13 +641,24 @@ ApplyLoad::ApplyLoad(Application& app)
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
         mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
-                       config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0;
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
+                           config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0 +
+                       config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
-        mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
-                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-                       2;
+        if (mModelTx == ApplyLoadModelTx::CUSTOM_TOKEN)
+        {
+            // Need 2 unique accounts per transfer to avoid conflicts
+            mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT * 2 +
+                           config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+        }
+        else
+        {
+            mNumAccounts =
+                config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
+                    config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER + 2;
+        }
         break;
     }
     if (config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS == 0)
@@ -684,6 +708,35 @@ ApplyLoad::setup()
 
     setupUpgradeContract();
 
+    // Set large resources for initial setup
+    upgradeSettingsForMaxTPS(100000);
+
+    // Make setup based on mode.
+    switch (mMode)
+    {
+    case ApplyLoadMode::LIMIT_BASED:
+    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
+        setupLoadContract();
+        break;
+    case ApplyLoadMode::MAX_SAC_TPS:
+        setupXLMContract();
+        setupBatchTransferContracts();
+        break;
+    case ApplyLoadMode::BENCHMARK_MODEL_TX:
+        switch (mModelTx)
+        {
+        case ApplyLoadModelTx::SAC:
+            setupXLMContract();
+            setupBatchTransferContracts();
+            break;
+        case ApplyLoadModelTx::CUSTOM_TOKEN:
+            setupTokenContract();
+            break;
+        }
+        break;
+    }
+
+    // Upgrade to final settings.
     switch (mMode)
     {
     case ApplyLoadMode::MAX_SAC_TPS:
@@ -693,21 +746,14 @@ ApplyLoad::setup()
         upgradeSettingsForMaxTPS(100000);
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
-        upgradeSettingsForMaxTPS(calculateBenchmarkSacTxCount());
+        upgradeSettingsForMaxTPS(calculateBenchmarkModelTxCount());
         break;
     case ApplyLoadMode::LIMIT_BASED:
         upgradeSettings();
         break;
     }
 
-    setupLoadContract();
-    setupXLMContract();
-    if ((mMode == ApplyLoadMode::MAX_SAC_TPS ||
-         mMode == ApplyLoadMode::BENCHMARK_MODEL_TX) &&
-        mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
-    {
-        setupBatchTransferContracts();
-    }
+    // Setup initital bucket list for modes that support it.
     if (mMode == ApplyLoadMode::LIMIT_BASED ||
         mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
     {
@@ -1467,10 +1513,18 @@ ApplyLoad::benchmarkLimitsIteration()
               maxResourcesToGenerate.toString());
     auto resourcesLeft = maxResourcesToGenerate;
 
+    // Generate classic payments using the first
+    // APPLY_LOAD_CLASSIC_TXS_PER_LEDGER accounts.
+    generateClassicPayments(txs, 0);
+
+    // Use remaining accounts (after classic) for soroban transactions
     auto const& accounts = mTxGenerator.getAccounts();
+    uint32_t sorobanStartIdx = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
     // Omit root account
-    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1);
-    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
+    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1 -
+                                           sorobanStartIdx);
+    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(),
+              sorobanStartIdx);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
 
@@ -1484,21 +1538,8 @@ ApplyLoad::benchmarkLimitsIteration()
         txs.emplace_back(tx);
     };
 
-    releaseAssert(shuffledAccounts.size() >=
-                  config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
-    for (size_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
-    {
-        auto it = accounts.find(shuffledAccounts[i]);
-        releaseAssert(it != accounts.end());
-        it->second->loadSequenceNumber();
-        auto [_, tx] = mTxGenerator.paymentTransaction(
-            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-            std::nullopt);
-        addTx(tx);
-    }
-
     bool sorobanLimitHit = false;
-    for (size_t i = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+    for (size_t i = 0;
          i < shuffledAccounts.size(); ++i)
     {
         auto it = accounts.find(shuffledAccounts[i]);
@@ -1781,7 +1822,8 @@ ApplyLoad::findMaxSacTps()
         uint32_t testTxRate = numSteps * txsPerStep;
         uint32_t txsPerLedger =
             testTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
-        return benchmarkSacTpsSingleLedger(txsPerLedger);
+        return benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx::SAC,
+                                               txsPerLedger);
     };
 
     size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
@@ -1827,8 +1869,13 @@ ApplyLoad::benchmarkModelTx()
         switch (mModelTx)
         {
         case ApplyLoadModelTx::SAC:
-            closeTimeMs =
-                benchmarkSacTpsSingleLedger(calculateBenchmarkSacTxCount());
+            closeTimeMs = benchmarkModelTxTpsSingleLedger(
+                ApplyLoadModelTx::SAC, calculateBenchmarkModelTxCount());
+            break;
+        case ApplyLoadModelTx::CUSTOM_TOKEN:
+            closeTimeMs = benchmarkModelTxTpsSingleLedger(
+                ApplyLoadModelTx::CUSTOM_TOKEN,
+                calculateBenchmarkModelTxCount());
             break;
         }
         closeTimes.emplace_back(closeTimeMs);
@@ -1856,6 +1903,8 @@ ApplyLoad::benchmarkModelTx()
         Perf, "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
         config.APPLY_LOAD_NUM_LEDGERS, config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
     CLOG_WARNING(Perf, "mean close time: {} ms", avgCloseTimeMs);
+    CLOG_WARNING(Perf, "p25 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 25.0));
     CLOG_WARNING(Perf, "p50 close time:  {} ms",
                  interpolatePercentile(sortedCloseTimes, 50.0));
     CLOG_WARNING(Perf, "p75 close time:  {} ms",
@@ -1869,7 +1918,8 @@ ApplyLoad::benchmarkModelTx()
 }
 
 double
-ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
+ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
+                                           uint32_t txsPerLedger)
 {
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES
@@ -1881,12 +1931,28 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 
     int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
 
-    // Generate exactly enough SAC payment transactions
+    // Generate classic payments using accounts at the end of the range,
+    // so they don't overlap with soroban accounts.
     std::vector<TransactionFrameBasePtr> txs;
-    txs.reserve(txsPerLedger);
+    txs.reserve(txsPerLedger +
+                mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+    uint32_t classicStartIdx =
+        mNumAccounts - mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+    generateClassicPayments(txs, classicStartIdx);
 
-    generateSacPayments(txs, txsPerLedger);
-    releaseAssertOrThrow(txs.size() == txsPerLedger);
+    // Generate soroban model transactions
+    switch (modelTx)
+    {
+    case ApplyLoadModelTx::SAC:
+        generateSacPayments(txs, txsPerLedger);
+        break;
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        generateTokenTransfers(txs, txsPerLedger);
+        break;
+    }
+    releaseAssertOrThrow(txs.size() ==
+                         txsPerLedger +
+                             mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
 
     mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
     releaseAssert(
@@ -1900,7 +1966,7 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 
     double closeTime = timeAfter - timeBefore;
 
-    CLOG_INFO(Perf, "SAC benchmark: {:.2f}ms", closeTime);
+    CLOG_INFO(Perf, "Model tx benchmark: {:.2f}ms", closeTime);
 
     // Check transaction success rate. We should never have any failures,
     // and all TXs should have been executed.
@@ -1922,6 +1988,36 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
                   mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
     return closeTime;
+}
+
+void
+ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                   uint32_t startAccountIdx)
+{
+    auto const& config = mApp.getConfig();
+    auto const& accounts = mTxGenerator.getAccounts();
+    auto& lm = mApp.getLedgerManager();
+
+    releaseAssert(accounts.size() >=
+                  startAccountIdx + config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+
+    LedgerSnapshot ls(mApp);
+    auto appConnector = mApp.getAppConnector();
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+
+    for (uint32_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
+    {
+        uint64_t accountIdx = startAccountIdx + i;
+        auto it = accounts.find(accountIdx);
+        releaseAssert(it != accounts.end());
+        it->second->loadSequenceNumber();
+        auto [_, tx] = mTxGenerator.paymentTransaction(
+            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
+            std::nullopt);
+        auto res = tx->checkValid(appConnector, ls, 0, 0, 0, diagnostics);
+        releaseAssert(res && res->isSuccess());
+        txs.emplace_back(tx);
+    }
 }
 
 void
@@ -2015,4 +2111,198 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
                           ->isSuccess());
     }
 }
+void
+ApplyLoad::setupTokenContract()
+{
+    auto const& lm = mApp.getLedgerManager();
+    int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
+
+    auto wasm = rust_bridge::get_apply_load_token_wasm();
+    xdr::opaque_vec<> wasmBytes;
+    wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasmBytes);
+
+    SorobanResources uploadResources;
+    uploadResources.instructions = 50'000'000;
+    uploadResources.diskReadBytes = wasmBytes.size() + 500;
+    uploadResources.writeBytes = wasmBytes.size() + 500;
+
+    auto uploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        wasmBytes, contractCodeLedgerKey, std::nullopt, uploadResources);
+
+    closeLedger({uploadTx.second});
+
+    // Create the contract with constructor(owner).
+    // The owner is the root account.
+    auto rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                                lm.getLastClosedLedgerNum());
+    rootAccount->loadSequenceNumber();
+
+    auto salt = sha256("apply load token contract salt");
+    auto contractIDPreimage =
+        txtest::makeContractIDPreimage(*rootAccount, salt);
+
+    SorobanResources createResources;
+    createResources.instructions = 50'000'000;
+    createResources.diskReadBytes = wasmBytes.size() + 10000;
+    createResources.writeBytes = 50000;
+
+    // Constructor arg: owner address
+    SCVal ownerVal(SCV_ADDRESS);
+    ownerVal.address() = makeAccountAddress(rootAccount->getPublicKey());
+
+    txtest::ConstructorParams ctorParams;
+    ctorParams.constructorArgs = {ownerVal};
+
+    auto createTx = txtest::makeSorobanCreateContractTx(
+        mApp, *rootAccount, contractIDPreimage,
+        txtest::makeWasmExecutable(contractCodeLedgerKey.contractCode().hash),
+        createResources, mTxGenerator.generateFee(std::nullopt, /* opsCnt */ 1),
+        ctorParams);
+    closeLedger({createTx});
+
+    auto instanceKey = createTx->sorobanResources().footprint.readWrite.back();
+
+    mTokenInstance.readOnlyKeys.emplace_back(contractCodeLedgerKey);
+    mTokenInstance.readOnlyKeys.emplace_back(instanceKey);
+    mTokenInstance.contractID = instanceKey.contractData().contract;
+    mTokenInstance.contractEntriesSize =
+        footprintSize(mApp, mTokenInstance.readOnlyKeys);
+
+    // Now call multi_mint to mint tokens to all genesis accounts.
+    // Batch into chunks to keep transaction sizes manageable.
+    static constexpr uint32_t MINT_BATCH_SIZE = 500;
+    uint32_t totalAccounts = mNumAccounts;
+    for (uint32_t offset = 0; offset < totalAccounts; offset += MINT_BATCH_SIZE)
+    {
+        uint32_t batchEnd = std::min(offset + MINT_BATCH_SIZE, totalAccounts);
+
+        auto mintAccount = mTxGenerator.findAccount(
+            TxGenerator::ROOT_ACCOUNT_ID, lm.getLastClosedLedgerNum());
+        mintAccount->loadSequenceNumber();
+
+        // Build multi_mint invocation: multi_mint(accounts, amount)
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mTokenInstance.contractID;
+        ihf.invokeContract().functionName = "multi_mint";
+
+        // Build accounts vector
+        SCVal accountsVec(SCV_VEC);
+        accountsVec.vec().activate();
+        for (uint32_t i = offset; i < batchEnd; ++i)
+        {
+            auto acc = mTxGenerator.getAccount(i);
+            SCVal addrVal(SCV_ADDRESS);
+            addrVal.address() = makeAccountAddress(acc->getPublicKey());
+            accountsVec.vec()->push_back(addrVal);
+        }
+
+        ihf.invokeContract().args = {accountsVec,
+                                     txtest::makeI128(1'000'000'000)};
+
+        SorobanResources resources;
+        resources.instructions = 500'000'000;
+        resources.diskReadBytes = wasmBytes.size() + 100'000;
+        resources.writeBytes = (batchEnd - offset) * 500 + 10000;
+
+        resources.footprint.readOnly.push_back(
+            mTokenInstance.readOnlyKeys.at(0));
+        // Put instance into RW footprint as OZ token apparently modifies it
+        // on mint.
+        resources.footprint.readWrite.push_back(
+            mTokenInstance.readOnlyKeys.at(1));
+
+        // Source account
+        LedgerKey rootKey(ACCOUNT);
+        rootKey.account().accountID = mintAccount->getPublicKey();
+        resources.footprint.readWrite.emplace_back(rootKey);
+
+        // Balance entries for each account being minted to
+        for (uint32_t i = offset; i < batchEnd; ++i)
+        {
+            auto acc = mTxGenerator.getAccount(i);
+            SCVal addrVal(SCV_ADDRESS);
+            addrVal.address() = makeAccountAddress(acc->getPublicKey());
+
+            LedgerKey balanceKey(CONTRACT_DATA);
+            balanceKey.contractData().contract = mTokenInstance.contractID;
+            balanceKey.contractData().key =
+                txtest::makeVecSCVal({makeSymbolSCVal("Balance"), addrVal});
+            balanceKey.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readWrite.emplace_back(balanceKey);
+        }
+
+        // Auth: source account credentials for owner
+        SorobanAuthorizedInvocation invocation;
+        invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        invocation.function.contractFn() = ihf.invokeContract();
+
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         invocation);
+
+        auto resourceFee = txtest::sorobanResourceFee(
+            mApp, resources, 5000 + (batchEnd - offset) * 100, 200);
+        resourceFee += 500'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *mintAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+
+        closeLedger({tx});
+    }
+
+    int64_t totalSetupTxs =
+        mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
+    // upload + create + multi_mint batches
+    uint32_t expectedMintBatches =
+        (totalAccounts + MINT_BATCH_SIZE - 1) / MINT_BATCH_SIZE;
+    releaseAssert(totalSetupTxs ==
+                  static_cast<int64_t>(2 + expectedMintBatches));
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+
+    CLOG_INFO(Perf,
+              "Custom token contract setup complete: {} accounts minted in "
+              "{} batches",
+              totalAccounts, expectedMintBatches);
+}
+
+void
+ApplyLoad::generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
+                                  uint32_t count)
+{
+    auto& lm = mApp.getLedgerManager();
+
+    releaseAssert(mNumAccounts >= count * 2);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        // Use pairs of accounts: (2i, 2i+1) to avoid RW conflicts
+        uint32_t fromIdx = 2 * i;
+        uint32_t toIdx = 2 * i + 1;
+
+        auto tx = mTxGenerator.invokeTokenTransfer(
+            lm.getLastClosedLedgerNum() + 1, fromIdx, toIdx, mTokenInstance,
+            100, 1'000'000);
+
+        txs.push_back(tx.second);
+    }
+
+    LedgerSnapshot ls(mApp);
+    auto diag = DiagnosticEventManager::createDisabled();
+    for (auto const& tx : txs)
+    {
+        releaseAssert(tx->checkValid(mApp.getAppConnector(), ls, 0, 0, 0, diag)
+                          ->isSuccess());
+    }
+}
+
 } // namespace stellar
