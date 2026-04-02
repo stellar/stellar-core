@@ -119,6 +119,25 @@ pub(crate) fn get_apply_load_token_wasm() -> Result<RustBuf, Box<dyn std::error:
     })
 }
 
+pub(crate) fn get_apply_load_soroswap_factory_wasm() -> Result<RustBuf, Box<dyn std::error::Error>>
+{
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_factory.wasm").to_vec(),
+    })
+}
+
+pub(crate) fn get_apply_load_soroswap_pool_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_pool.wasm").to_vec(),
+    })
+}
+
+pub(crate) fn get_apply_load_soroswap_router_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_router.wasm").to_vec(),
+    })
+}
+
 pub(crate) fn get_invoke_contract_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::INVOKE_CONTRACT
