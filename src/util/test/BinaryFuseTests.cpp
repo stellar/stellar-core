@@ -4,6 +4,7 @@
 
 #include "crypto/ShortHash.h"
 #include "test/Catch2.h"
+#include "test/CovMark.h"
 #include "util/BinaryFuseFilter.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
@@ -133,5 +134,133 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
     {
         // The actual false positive rate is 1/ 4 billion
         testFilter<BinaryFuseFilter32>(0);
+    }
+}
+
+// During populate(), the t2count array can underflow when the hash distribution
+// is degenerate (many keys collide into the same filter positions). This sets
+// the error flag, which triggers a reset-and-retry with a rotated seed. This
+// test forces the error path and verifies the retry produces a correct filter.
+TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
+{
+    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
+
+    // Force the error path on the first populate iteration
+    gBinaryFuseForcePopulateError = true;
+
+    LedgerKeySet keys;
+    auto gen = autocheck::such_that(
+        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
+        autocheck::generator<LedgerKey>());
+
+    while (keys.size() < 100)
+    {
+        keys.insert(gen());
+    }
+
+    auto seed = shortHash::getShortHashInitKey();
+    std::vector<uint64_t> hashes;
+    hashes.reserve(keys.size());
+    for (auto const& k : keys)
+    {
+        auto keyBuf = xdr::xdr_to_opaque(k);
+        SipHash24 hasher(seed.data());
+        hasher.update(keyBuf.data(), keyBuf.size());
+        hashes.emplace_back(hasher.digest());
+    }
+
+    // Construction should succeed despite forced error on first attempt
+    BinaryFuseFilter8 filter(hashes, seed);
+
+    // All keys must still be found despite the error
+    for (auto const& k : keys)
+    {
+        REQUIRE(filter.contains(k));
+    }
+}
+
+// During populate(), the internal second-level hashing (sip_hash24 on the
+// pre-hashed keys) can produce collisions even when the input keys are unique.
+// To simulate this, we just duplicate all the input hashes, which guarantees
+// collisions.
+TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
+{
+    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_DUPLICATE_REMOVAL);
+
+    auto seed = shortHash::getShortHashInitKey();
+
+    // Generate some unique keys
+    LedgerKeySet keys;
+    auto gen = autocheck::such_that(
+        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
+        autocheck::generator<LedgerKey>());
+
+    while (keys.size() < 50)
+    {
+        keys.insert(gen());
+    }
+
+    std::vector<uint64_t> hashes;
+    for (auto const& k : keys)
+    {
+        auto keyBuf = xdr::xdr_to_opaque(k);
+        SipHash24 hasher(seed.data());
+        hasher.update(keyBuf.data(), keyBuf.size());
+        hashes.emplace_back(hasher.digest());
+    }
+
+    // Duplicate every hash to trigger the duplicate removal path
+    auto originalSize = hashes.size();
+    auto copy = hashes;
+    hashes.insert(hashes.end(), copy.begin(), copy.end());
+    REQUIRE(hashes.size() == originalSize * 2);
+
+    BinaryFuseFilter8 filter(hashes, seed);
+
+    for (auto const& k : keys)
+    {
+        REQUIRE(filter.contains(k));
+    }
+}
+
+// After placing keys and computing t2count, populate() runs a "peeling" phase
+// that iteratively removes positions with exactly one key, building the
+// fingerprint assignment order. When the hash structure has too many cycles,
+// peeling cannot remove all keys (stacksize + duplicates < size). populate()
+// then resets the working arrays, rotates the seed, and retries with a
+// different internal hash layout. This test forces a peeling failure on the
+// first iteration and verifies the retry produces a correct filter.
+TEST_CASE("binary fuse filter peeling failure retry", "[BinaryFuseFilter]")
+{
+    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+
+    gBinaryFuseForcePeelingFailure = true;
+
+    LedgerKeySet keys;
+    auto gen = autocheck::such_that(
+        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
+        autocheck::generator<LedgerKey>());
+
+    while (keys.size() < 100)
+    {
+        keys.insert(gen());
+    }
+
+    auto seed = shortHash::getShortHashInitKey();
+    std::vector<uint64_t> hashes;
+    hashes.reserve(keys.size());
+    for (auto const& k : keys)
+    {
+        auto keyBuf = xdr::xdr_to_opaque(k);
+        SipHash24 hasher(seed.data());
+        hasher.update(keyBuf.data(), keyBuf.size());
+        hashes.emplace_back(hasher.digest());
+    }
+
+    BinaryFuseFilter8 filter(hashes, seed);
+
+    for (auto const& k : keys)
+    {
+        REQUIRE(filter.contains(k));
     }
 }
