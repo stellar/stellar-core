@@ -1739,6 +1739,16 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         *ledgerData.getExpectedHash() !=
             appliedLedgerState->getLastClosedLedgerHeader().hash)
     {
+#ifdef BUILD_TESTS
+        if (ledgerCloseMeta)
+        {
+            ledgerCloseMeta->ledgerHeader() =
+                appliedLedgerState->getLastClosedLedgerHeader();
+            CLOG_ERROR(Ledger, "LedgerCloseMeta (base64): {}",
+                       decoder::encode_b64(
+                           xdr::xdr_to_opaque(ledgerCloseMeta->getXDR())));
+        }
+#endif
         throw std::runtime_error("Local node's ledger corrupted during close");
     }
 
