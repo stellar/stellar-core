@@ -435,8 +435,12 @@ parseApplyLoadModelTx(ConfigItem const& item)
     {
         return ApplyLoadModelTx::SAC;
     }
+    if (modelTx == "custom_token")
+    {
+        return ApplyLoadModelTx::CUSTOM_TOKEN;
+    }
     throw std::invalid_argument(
-        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac");
+        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token");
 }
 #endif
 
