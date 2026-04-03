@@ -2,10 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "crypto/ShortHash.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include <filesystem>
+#include <fstream>
 #include <json/json.h>
 #include <sstream>
 #define CATCH_CONFIG_RUNNER
@@ -127,12 +130,9 @@ sanitizeForFilename(std::string const& s)
 }
 
 std::string
-buildLcmOutputPath(Catch::TestCaseInfo const& tc,
-                   std::vector<SectionLcmState> const& sectionStack)
+buildLcmHumanName(Catch::TestCaseInfo const& tc,
+                  std::vector<SectionLcmState> const& sectionStack)
 {
-    std::filesystem::path file(tc.lineInfo.file);
-    std::string fileStem = file.filename().stem().string();
-
     std::string name = sanitizeForFilename(tc.name);
     // Skip the first section — Catch2 always creates an implicit root
     // section with the same name as the test case.
@@ -141,8 +141,14 @@ buildLcmOutputPath(Catch::TestCaseInfo const& tc,
         name += "-";
         name += sanitizeForFilename(sectionStack[i].info.name);
     }
+    return name;
+}
 
-    return "test-lcm/" + fileStem + "/" + name + ".xdr";
+std::string
+buildLcmOutputDir(Catch::TestCaseInfo const& tc)
+{
+    std::filesystem::path file(tc.lineInfo.file);
+    return "test-lcm/" + file.filename().stem().string();
 }
 
 int32_t
@@ -178,8 +184,71 @@ checkLcmSequenceContiguity(std::vector<LedgerCloseMeta> const& metas,
     }
 }
 
+// Read all LedgerCloseMeta entries from an existing XDR file.
+std::vector<LedgerCloseMeta>
+readLcmFromFile(std::string const& path)
+{
+    std::vector<LedgerCloseMeta> result;
+    XDRInputFileStream in;
+    in.open(path);
+    LedgerCloseMeta lcm;
+    while (in.readOne(lcm))
+    {
+        result.emplace_back(std::move(lcm));
+    }
+    return result;
+}
+
+// Compare two LCM vectors for semantic equality by normalizing copies of each
+// entry. This allows us to skip writing when the only differences are due to
+// non-deterministic ordering from unordered map iteration.
+bool
+lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
+                     std::vector<LedgerCloseMeta> const& b)
+{
+    if (a.size() != b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i)
+    {
+        LedgerCloseMeta na = a[i];
+        LedgerCloseMeta nb = b[i];
+        normalizeMeta(na);
+        normalizeMeta(nb);
+        zeroNonDeterministicDiagnostics(na);
+        zeroNonDeterministicDiagnostics(nb);
+        if (na != nb)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void
-writeLcmToFile(std::string const& path, size_t startIndex)
+updateLcmIndex(std::string const& dir, std::string const& hashHex,
+               std::string const& humanName)
+{
+    std::string indexPath = dir + "/index.json";
+    Json::Value root(Json::objectValue);
+    if (std::filesystem::exists(indexPath))
+    {
+        std::ifstream in(indexPath);
+        in >> root;
+    }
+    root[hashHex] = humanName;
+
+    // Json::Value keeps keys sorted, so output is deterministic.
+    Json::StyledWriter writer;
+    std::ofstream out(indexPath);
+    out << writer.write(root);
+}
+
+void
+writeLcmToFile(std::string const& path, std::string const& dir,
+               std::string const& hashHex, std::string const& humanName,
+               size_t startIndex)
 {
     auto const& allMetas = txtest::getAccumulatedLcm();
     if (startIndex >= allMetas.size())
@@ -193,14 +262,31 @@ writeLcmToFile(std::string const& path, size_t startIndex)
 
     checkLcmSequenceContiguity(allMetas, startIndex, path);
 
-    // Ensure parent directory exists
-    auto lastSlash = path.find_last_of('/');
-    if (lastSlash != std::string::npos)
+    // Build the new entries with zeroed diagnostics but without
+    // normalization: some restoration ledger-entry changes must remain in
+    // their original order for downstream consumers.
+    std::vector<LedgerCloseMeta> newEntries;
+    newEntries.reserve(allMetas.size() - startIndex);
+    for (size_t i = startIndex; i < allMetas.size(); ++i)
     {
-        auto parentDir = path.substr(0, lastSlash);
-        if (!parentDir.empty())
+        newEntries.push_back(allMetas[i]);
+        zeroNonDeterministicDiagnostics(newEntries.back());
+    }
+
+    // Always ensure directory exists and update the index so it stays in sync
+    // even when the XDR write is skipped.
+    fs::mkpath(dir);
+    updateLcmIndex(dir, hashHex, humanName);
+
+    // If an existing file is present, compare normalized versions. Skip the
+    // write if the entries are semantically identical — this avoids noisy
+    // diffs caused by non-deterministic unordered map iteration order.
+    if (std::filesystem::exists(path))
+    {
+        auto oldEntries = readLcmFromFile(path);
+        if (lcmSemanticallyEqual(oldEntries, newEntries))
         {
-            fs::mkpath(parentDir);
+            return;
         }
     }
 
@@ -216,16 +302,10 @@ writeLcmToFile(std::string const& path, size_t startIndex)
     XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
     out.open(path);
 
-    size_t count = 0;
-    for (size_t i = startIndex; i < allMetas.size(); ++i)
+    for (auto const& entry : newEntries)
     {
-        out.writeOne(allMetas[i]);
-        ++count;
+        out.writeOne(entry);
     }
-
-    LOG_INFO(DEFAULT_LOG,
-             "LCM auto-capture: wrote {} LedgerCloseMeta entries to '{}'",
-             count, path);
 }
 
 } // namespace
@@ -265,8 +345,13 @@ struct TestContextListener : Catch::TestEventListenerBase
         if (gLcmCaptureEnabled && !sTestCaseHasSection)
         {
             releaseAssert(sTestCtx.has_value());
-            auto path = buildLcmOutputPath(sTestCtx.value(), sLcmSectStack);
-            writeLcmToFile(path, sTestCaseStartIndex);
+            auto const& tc = sTestCtx.value();
+            auto humanName = buildLcmHumanName(tc, sLcmSectStack);
+            auto hash = sha256(humanName);
+            auto hashHex = binToHex(hash).substr(0, 16);
+            auto dir = buildLcmOutputDir(tc);
+            auto path = dir + "/" + hashHex + ".xdr";
+            writeLcmToFile(path, dir, hashHex, humanName, sTestCaseStartIndex);
         }
         if (needTestCtxTracking())
         {
@@ -306,13 +391,18 @@ struct TestContextListener : Catch::TestEventListenerBase
                 // Build path before popping so the leaf section name
                 // is included in sLcmSectStack.
                 releaseAssert(sTestCtx.has_value());
-                auto path = buildLcmOutputPath(sTestCtx.value(), sLcmSectStack);
+                auto const& tc = sTestCtx.value();
+                auto humanName = buildLcmHumanName(tc, sLcmSectStack);
+                auto hash = sha256(humanName);
+                auto hashHex = binToHex(hash).substr(0, 16);
+                auto dir = buildLcmOutputDir(tc);
+                auto path = dir + "/" + hashHex + ".xdr";
                 // Use the root section's startIndex so we capture all
                 // LCM for this test run, including setup code that
                 // ran before any SECTION was entered.
                 auto runStart = sLcmSectStack.front().startIndex;
                 sLcmSectStack.pop_back();
-                writeLcmToFile(path, runStart);
+                writeLcmToFile(path, dir, hashHex, humanName, runStart);
             }
             else
             {
