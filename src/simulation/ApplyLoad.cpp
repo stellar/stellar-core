@@ -25,6 +25,7 @@
 #include "test/TxTests.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -38,6 +39,26 @@ namespace stellar
 namespace
 {
 constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
+
+LedgerKey
+makeSACBalanceKey(SCAddress const& sacContract, SCVal const& holderAddrVal)
+{
+    LedgerKey key(CONTRACT_DATA);
+    key.contractData().contract = sacContract;
+    key.contractData().key =
+        txtest::makeVecSCVal({makeSymbolSCVal("Balance"), holderAddrVal});
+    key.contractData().durability = ContractDataDurability::PERSISTENT;
+    return key;
+}
+
+LedgerKey
+makeTrustlineKey(PublicKey const& accountID, Asset const& asset)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = assetToTrustLineAsset(asset);
+    return key;
+}
 
 void
 logExecutionEnvironmentSnapshot(Config const& cfg)
@@ -401,17 +422,28 @@ noisyBinarySearch(std::function<double(uint32_t)> const& f, double targetA,
 uint64_t
 ApplyLoad::calculateInstructionsPerTx() const
 {
-    uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
-    if (batchSize > 1)
+    switch (mModelTx)
     {
-        // Conservative estimate: each transfer in batch costs same as SAC
-        return batchSize * TxGenerator::BATCH_TRANSFER_TX_INSTRUCTIONS;
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        return TxGenerator::CUSTOM_TOKEN_TX_INSTRUCTIONS;
+    case ApplyLoadModelTx::SOROSWAP:
+        return TxGenerator::SOROSWAP_SWAP_TX_INSTRUCTIONS;
+    case ApplyLoadModelTx::SAC:
+    {
+        uint32_t batchSize = mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
+        if (batchSize > 1)
+        {
+            return batchSize * TxGenerator::BATCH_TRANSFER_TX_INSTRUCTIONS;
+        }
+        return TxGenerator::SAC_TX_INSTRUCTIONS;
     }
-    return TxGenerator::SAC_TX_INSTRUCTIONS;
+    }
+    releaseAssertOrThrow(false);
+    return 0;
 }
 
 uint32_t
-ApplyLoad::calculateBenchmarkSacTxCount() const
+ApplyLoad::calculateBenchmarkModelTxCount() const
 {
     auto const& config = mApp.getConfig();
     releaseAssertOrThrow(config.APPLY_LOAD_BATCH_SAC_COUNT > 0);
@@ -439,6 +471,12 @@ ApplyLoad::calculateBenchmarkSacTxCount() const
             }
             return benchmarkTxCount;
         }
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        // No batching for custom token, one transfer per tx envelope
+        return config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
+    case ApplyLoadModelTx::SOROSWAP:
+        // No batching for Soroswap, one swap per tx envelope
+        return config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
     }
     releaseAssertOrThrow(false);
     return 0;
@@ -628,13 +666,30 @@ ApplyLoad::ApplyLoad(Application& app)
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
         mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                       config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
-                       config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0;
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
+                           config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0 +
+                       config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
-        mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
-                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
-                       2;
+        if (mModelTx == ApplyLoadModelTx::CUSTOM_TOKEN)
+        {
+            // Need 2 unique accounts per transfer to avoid conflicts
+            mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT * 2 +
+                           config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+        }
+        else if (mModelTx == ApplyLoadModelTx::SOROSWAP)
+        {
+            // Need 1 unique account per swap + classic accounts + root
+            mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT + 1 +
+                           config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+        }
+        else
+        {
+            mNumAccounts =
+                config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
+                    config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER + 2;
+        }
         break;
     }
     if (config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS == 0)
@@ -684,6 +739,38 @@ ApplyLoad::setup()
 
     setupUpgradeContract();
 
+    // Set large resources for initial setup
+    upgradeSettingsForMaxTPS(100000);
+
+    // Make setup based on mode.
+    switch (mMode)
+    {
+    case ApplyLoadMode::LIMIT_BASED:
+    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
+        setupLoadContract();
+        break;
+    case ApplyLoadMode::MAX_SAC_TPS:
+        setupXLMContract();
+        setupBatchTransferContracts();
+        break;
+    case ApplyLoadMode::BENCHMARK_MODEL_TX:
+        switch (mModelTx)
+        {
+        case ApplyLoadModelTx::SAC:
+            setupXLMContract();
+            setupBatchTransferContracts();
+            break;
+        case ApplyLoadModelTx::CUSTOM_TOKEN:
+            setupTokenContract();
+            break;
+        case ApplyLoadModelTx::SOROSWAP:
+            setupSoroswapContracts();
+            break;
+        }
+        break;
+    }
+
+    // Upgrade to final settings.
     switch (mMode)
     {
     case ApplyLoadMode::MAX_SAC_TPS:
@@ -693,21 +780,14 @@ ApplyLoad::setup()
         upgradeSettingsForMaxTPS(100000);
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
-        upgradeSettingsForMaxTPS(calculateBenchmarkSacTxCount());
+        upgradeSettingsForMaxTPS(calculateBenchmarkModelTxCount());
         break;
     case ApplyLoadMode::LIMIT_BASED:
         upgradeSettings();
         break;
     }
 
-    setupLoadContract();
-    setupXLMContract();
-    if ((mMode == ApplyLoadMode::MAX_SAC_TPS ||
-         mMode == ApplyLoadMode::BENCHMARK_MODEL_TX) &&
-        mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT > 1)
-    {
-        setupBatchTransferContracts();
-    }
+    // Setup initital bucket list for modes that support it.
     if (mMode == ApplyLoadMode::LIMIT_BASED ||
         mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
     {
@@ -1081,7 +1161,7 @@ ApplyLoad::setupBatchTransferContracts()
 {
     auto const& lm = mApp.getLedgerManager();
 
-    // First, upload the batch_transfer contract WASM
+    // First, upload the batch_transfer contract Wasm
     auto wasm = rust_bridge::get_test_contract_sac_transfer(
         mApp.getConfig().LEDGER_PROTOCOL_VERSION);
     xdr::opaque_vec<> wasmBytes;
@@ -1467,10 +1547,18 @@ ApplyLoad::benchmarkLimitsIteration()
               maxResourcesToGenerate.toString());
     auto resourcesLeft = maxResourcesToGenerate;
 
+    // Generate classic payments using the first
+    // APPLY_LOAD_CLASSIC_TXS_PER_LEDGER accounts.
+    generateClassicPayments(txs, 0);
+
+    // Use remaining accounts (after classic) for soroban transactions
     auto const& accounts = mTxGenerator.getAccounts();
+    uint32_t sorobanStartIdx = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
     // Omit root account
-    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1);
-    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
+    std::vector<uint64_t> shuffledAccounts(accounts.size() - 1 -
+                                           sorobanStartIdx);
+    std::iota(shuffledAccounts.begin(), shuffledAccounts.end(),
+              sorobanStartIdx);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      getGlobalRandomEngine());
 
@@ -1484,22 +1572,8 @@ ApplyLoad::benchmarkLimitsIteration()
         txs.emplace_back(tx);
     };
 
-    releaseAssert(shuffledAccounts.size() >=
-                  config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
-    for (size_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
-    {
-        auto it = accounts.find(shuffledAccounts[i]);
-        releaseAssert(it != accounts.end());
-        it->second->loadSequenceNumber();
-        auto [_, tx] = mTxGenerator.paymentTransaction(
-            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-            std::nullopt);
-        addTx(tx);
-    }
-
     bool sorobanLimitHit = false;
-    for (size_t i = config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
-         i < shuffledAccounts.size(); ++i)
+    for (size_t i = 0; i < shuffledAccounts.size(); ++i)
     {
         auto it = accounts.find(shuffledAccounts[i]);
         releaseAssert(it != accounts.end());
@@ -1781,7 +1855,8 @@ ApplyLoad::findMaxSacTps()
         uint32_t testTxRate = numSteps * txsPerStep;
         uint32_t txsPerLedger =
             testTxRate / mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT;
-        return benchmarkSacTpsSingleLedger(txsPerLedger);
+        return benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx::SAC,
+                                               txsPerLedger);
     };
 
     size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
@@ -1827,8 +1902,17 @@ ApplyLoad::benchmarkModelTx()
         switch (mModelTx)
         {
         case ApplyLoadModelTx::SAC:
-            closeTimeMs =
-                benchmarkSacTpsSingleLedger(calculateBenchmarkSacTxCount());
+            closeTimeMs = benchmarkModelTxTpsSingleLedger(
+                ApplyLoadModelTx::SAC, calculateBenchmarkModelTxCount());
+            break;
+        case ApplyLoadModelTx::CUSTOM_TOKEN:
+            closeTimeMs = benchmarkModelTxTpsSingleLedger(
+                ApplyLoadModelTx::CUSTOM_TOKEN,
+                calculateBenchmarkModelTxCount());
+            break;
+        case ApplyLoadModelTx::SOROSWAP:
+            closeTimeMs = benchmarkModelTxTpsSingleLedger(
+                ApplyLoadModelTx::SOROSWAP, calculateBenchmarkModelTxCount());
             break;
         }
         closeTimes.emplace_back(closeTimeMs);
@@ -1856,6 +1940,8 @@ ApplyLoad::benchmarkModelTx()
         Perf, "Model tx benchmark stats ({} ledgers, {} tx per ledger):",
         config.APPLY_LOAD_NUM_LEDGERS, config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
     CLOG_WARNING(Perf, "mean close time: {} ms", avgCloseTimeMs);
+    CLOG_WARNING(Perf, "p25 close time:  {} ms",
+                 interpolatePercentile(sortedCloseTimes, 25.0));
     CLOG_WARNING(Perf, "p50 close time:  {} ms",
                  interpolatePercentile(sortedCloseTimes, 50.0));
     CLOG_WARNING(Perf, "p75 close time:  {} ms",
@@ -1869,7 +1955,8 @@ ApplyLoad::benchmarkModelTx()
 }
 
 double
-ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
+ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
+                                           uint32_t txsPerLedger)
 {
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES
@@ -1881,12 +1968,31 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 
     int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
 
-    // Generate exactly enough SAC payment transactions
+    // Generate classic payments using accounts at the end of the range,
+    // so they don't overlap with soroban accounts.
     std::vector<TransactionFrameBasePtr> txs;
-    txs.reserve(txsPerLedger);
+    txs.reserve(txsPerLedger +
+                mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+    uint32_t classicStartIdx =
+        mNumAccounts - mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
+    generateClassicPayments(txs, classicStartIdx);
 
-    generateSacPayments(txs, txsPerLedger);
-    releaseAssertOrThrow(txs.size() == txsPerLedger);
+    // Generate soroban model transactions
+    switch (modelTx)
+    {
+    case ApplyLoadModelTx::SAC:
+        generateSacPayments(txs, txsPerLedger);
+        break;
+    case ApplyLoadModelTx::CUSTOM_TOKEN:
+        generateTokenTransfers(txs, txsPerLedger);
+        break;
+    case ApplyLoadModelTx::SOROSWAP:
+        generateSoroswapSwaps(txs, txsPerLedger);
+        break;
+    }
+    releaseAssertOrThrow(
+        txs.size() ==
+        txsPerLedger + mApp.getConfig().APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
 
     mApp.getBucketManager().getLiveBucketList().resolveAllFutures();
     releaseAssert(
@@ -1900,7 +2006,7 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
 
     double closeTime = timeAfter - timeBefore;
 
-    CLOG_INFO(Perf, "SAC benchmark: {:.2f}ms", closeTime);
+    CLOG_INFO(Perf, "Model tx benchmark: {:.2f}ms", closeTime);
 
     // Check transaction success rate. We should never have any failures,
     // and all TXs should have been executed.
@@ -1922,6 +2028,36 @@ ApplyLoad::benchmarkSacTpsSingleLedger(uint32_t txsPerLedger)
                   mApp.getConfig().APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
 
     return closeTime;
+}
+
+void
+ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                   uint32_t startAccountIdx)
+{
+    auto const& config = mApp.getConfig();
+    auto const& accounts = mTxGenerator.getAccounts();
+    auto& lm = mApp.getLedgerManager();
+
+    releaseAssert(accounts.size() >=
+                  startAccountIdx + config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER);
+
+    LedgerSnapshot ls(mApp);
+    auto appConnector = mApp.getAppConnector();
+    auto diagnostics = DiagnosticEventManager::createDisabled();
+
+    for (uint32_t i = 0; i < config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER; ++i)
+    {
+        uint64_t accountIdx = startAccountIdx + i;
+        auto it = accounts.find(accountIdx);
+        releaseAssert(it != accounts.end());
+        it->second->loadSequenceNumber();
+        auto [_, tx] = mTxGenerator.paymentTransaction(
+            mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
+            std::nullopt);
+        auto res = tx->checkValid(appConnector, ls, 0, 0, 0, diagnostics);
+        releaseAssert(res && res->isSuccess());
+        txs.emplace_back(tx);
+    }
 }
 
 void
@@ -2015,4 +2151,1063 @@ ApplyLoad::generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
                           ->isSuccess());
     }
 }
+void
+ApplyLoad::setupTokenContract()
+{
+    auto const& lm = mApp.getLedgerManager();
+    int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
+
+    auto wasm = rust_bridge::get_apply_load_token_wasm();
+    xdr::opaque_vec<> wasmBytes;
+    wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasmBytes);
+
+    SorobanResources uploadResources;
+    uploadResources.instructions = 50'000'000;
+    uploadResources.diskReadBytes = wasmBytes.size() + 500;
+    uploadResources.writeBytes = wasmBytes.size() + 500;
+
+    auto uploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        wasmBytes, contractCodeLedgerKey, std::nullopt, uploadResources);
+
+    closeLedger({uploadTx.second});
+
+    // Create the contract with constructor(owner).
+    // The owner is the root account.
+    auto rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                                lm.getLastClosedLedgerNum());
+    rootAccount->loadSequenceNumber();
+
+    auto salt = sha256("apply load token contract salt");
+    auto contractIDPreimage =
+        txtest::makeContractIDPreimage(*rootAccount, salt);
+
+    SorobanResources createResources;
+    createResources.instructions = 50'000'000;
+    createResources.diskReadBytes = wasmBytes.size() + 10000;
+    createResources.writeBytes = 50000;
+
+    // Constructor arg: owner address
+    SCVal ownerVal(SCV_ADDRESS);
+    ownerVal.address() = makeAccountAddress(rootAccount->getPublicKey());
+
+    txtest::ConstructorParams ctorParams;
+    ctorParams.constructorArgs = {ownerVal};
+
+    auto createTx = txtest::makeSorobanCreateContractTx(
+        mApp, *rootAccount, contractIDPreimage,
+        txtest::makeWasmExecutable(contractCodeLedgerKey.contractCode().hash),
+        createResources, mTxGenerator.generateFee(std::nullopt, /* opsCnt */ 1),
+        ctorParams);
+    closeLedger({createTx});
+
+    auto instanceKey = createTx->sorobanResources().footprint.readWrite.back();
+
+    mTokenInstance.readOnlyKeys.emplace_back(contractCodeLedgerKey);
+    mTokenInstance.readOnlyKeys.emplace_back(instanceKey);
+    mTokenInstance.contractID = instanceKey.contractData().contract;
+    mTokenInstance.contractEntriesSize =
+        footprintSize(mApp, mTokenInstance.readOnlyKeys);
+
+    // Now call multi_mint to mint tokens to all genesis accounts.
+    // Batch into chunks to keep transaction sizes manageable.
+    static constexpr uint32_t MINT_BATCH_SIZE = 500;
+    uint32_t totalAccounts = mNumAccounts;
+    for (uint32_t offset = 0; offset < totalAccounts; offset += MINT_BATCH_SIZE)
+    {
+        uint32_t batchEnd = std::min(offset + MINT_BATCH_SIZE, totalAccounts);
+
+        auto mintAccount = mTxGenerator.findAccount(
+            TxGenerator::ROOT_ACCOUNT_ID, lm.getLastClosedLedgerNum());
+        mintAccount->loadSequenceNumber();
+
+        // Build multi_mint invocation: multi_mint(accounts, amount)
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mTokenInstance.contractID;
+        ihf.invokeContract().functionName = "multi_mint";
+
+        // Build accounts vector
+        SCVal accountsVec(SCV_VEC);
+        accountsVec.vec().activate();
+        for (uint32_t i = offset; i < batchEnd; ++i)
+        {
+            auto acc = mTxGenerator.getAccount(i);
+            SCVal addrVal(SCV_ADDRESS);
+            addrVal.address() = makeAccountAddress(acc->getPublicKey());
+            accountsVec.vec()->push_back(addrVal);
+        }
+
+        ihf.invokeContract().args = {accountsVec,
+                                     txtest::makeI128(1'000'000'000)};
+
+        SorobanResources resources;
+        resources.instructions = 500'000'000;
+        resources.diskReadBytes = wasmBytes.size() + 100'000;
+        resources.writeBytes = (batchEnd - offset) * 500 + 10000;
+
+        resources.footprint.readOnly.push_back(
+            mTokenInstance.readOnlyKeys.at(0));
+        // Put instance into RW footprint as OZ token apparently modifies it
+        // on mint.
+        resources.footprint.readWrite.push_back(
+            mTokenInstance.readOnlyKeys.at(1));
+
+        // Source account
+        LedgerKey rootKey(ACCOUNT);
+        rootKey.account().accountID = mintAccount->getPublicKey();
+        resources.footprint.readWrite.emplace_back(rootKey);
+
+        // Balance entries for each account being minted to
+        for (uint32_t i = offset; i < batchEnd; ++i)
+        {
+            auto acc = mTxGenerator.getAccount(i);
+            SCVal addrVal(SCV_ADDRESS);
+            addrVal.address() = makeAccountAddress(acc->getPublicKey());
+
+            LedgerKey balanceKey(CONTRACT_DATA);
+            balanceKey.contractData().contract = mTokenInstance.contractID;
+            balanceKey.contractData().key =
+                txtest::makeVecSCVal({makeSymbolSCVal("Balance"), addrVal});
+            balanceKey.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readWrite.emplace_back(balanceKey);
+        }
+
+        // Auth: source account credentials for owner
+        SorobanAuthorizedInvocation invocation;
+        invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        invocation.function.contractFn() = ihf.invokeContract();
+
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         invocation);
+
+        auto resourceFee = txtest::sorobanResourceFee(
+            mApp, resources, 5000 + (batchEnd - offset) * 100, 200);
+        resourceFee += 500'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *mintAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+
+        closeLedger({tx});
+    }
+
+    int64_t totalSetupTxs =
+        mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
+    // upload + create + multi_mint batches
+    uint32_t expectedMintBatches =
+        (totalAccounts + MINT_BATCH_SIZE - 1) / MINT_BATCH_SIZE;
+    releaseAssert(totalSetupTxs ==
+                  static_cast<int64_t>(2 + expectedMintBatches));
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+
+    CLOG_INFO(Perf,
+              "Custom token contract setup complete: {} accounts minted in "
+              "{} batches",
+              totalAccounts, expectedMintBatches);
+}
+
+void
+ApplyLoad::generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
+                                  uint32_t count)
+{
+    auto& lm = mApp.getLedgerManager();
+
+    releaseAssert(mNumAccounts >= count * 2);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        // Use pairs of accounts: (2i, 2i+1) to avoid RW conflicts
+        uint32_t fromIdx = 2 * i;
+        uint32_t toIdx = 2 * i + 1;
+
+        auto tx = mTxGenerator.invokeTokenTransfer(
+            lm.getLastClosedLedgerNum() + 1, fromIdx, toIdx, mTokenInstance,
+            100, 1'000'000);
+
+        txs.push_back(tx.second);
+    }
+
+    LedgerSnapshot ls(mApp);
+    auto diag = DiagnosticEventManager::createDisabled();
+    for (auto const& tx : txs)
+    {
+        releaseAssert(tx->checkValid(mApp.getAppConnector(), ls, 0, 0, 0, diag)
+                          ->isSuccess());
+    }
+}
+
+void
+ApplyLoad::setupSoroswapContracts()
+{
+    auto const& lm = mApp.getLedgerManager();
+    auto const& config = mApp.getConfig();
+    int64_t initialSuccessCount = mTxGenerator.getApplySorobanSuccess().count();
+
+    // Upgrade maxTxSetSize so we can batch up to 10000 classic ops per
+    // ledger during setup.
+    static constexpr uint32_t SETUP_MAX_TX_SET_SIZE = 10000;
+    {
+        auto upgrade = xdr::xvector<UpgradeType, 6>{};
+        LedgerUpgrade ledgerUpgrade;
+        ledgerUpgrade.type(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        ledgerUpgrade.newMaxTxSetSize() = SETUP_MAX_TX_SET_SIZE;
+        auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+        upgrade.push_back(UpgradeType{v.begin(), v.end()});
+        closeLedger({}, upgrade);
+    }
+
+    // Step 1: We create exactly APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS (C)
+    // token pairs (one per cluster/bin) so that the tx set builder can assign
+    // each pair's transactions to its own bin, achieving maximum parallelism.
+    // Using C+1 tokens in a chain gives exactly C pairs: (T0,T1), (T1,T2), ...,
+    // (T_{C-1},T_C).
+    uint32_t numPairs = config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS;
+    uint32_t numTokens = numPairs + 1;
+    mSoroswapState.numTokens = numTokens;
+
+    CLOG_INFO(Perf, "Soroswap setup: {} tokens, {} pairs for {} clusters",
+              numTokens, numPairs, numPairs);
+
+    // Step 2: Create N classic credit assets using root as issuer
+    auto rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                                lm.getLastClosedLedgerNum());
+    for (uint32_t i = 0; i < numTokens; ++i)
+    {
+        std::string code = "T" + std::to_string(i);
+        mSoroswapState.assets.push_back(
+            txtest::makeAsset(rootAccount->getSecretKey(), code));
+    }
+
+    // Step 3: Create trustlines for all accounts x all assets.
+    // Batch up to 10000 ChangeTrust txs per ledger close.
+    CLOG_INFO(Perf,
+              "Soroswap setup: creating trustlines for {} accounts x {} "
+              "assets",
+              mNumAccounts, numTokens);
+    for (uint32_t assetIdx = 0; assetIdx < numTokens; ++assetIdx)
+    {
+        std::vector<TransactionFrameBasePtr> trustlineTxs;
+        for (uint32_t accIdx = 1; accIdx < mNumAccounts; ++accIdx)
+        {
+            auto acc =
+                mTxGenerator.findAccount(accIdx, lm.getLastClosedLedgerNum());
+            acc->loadSequenceNumber();
+            auto op =
+                txtest::changeTrust(mSoroswapState.assets[assetIdx], INT64_MAX);
+            auto tx =
+                mTxGenerator.createTransactionFramePtr(acc, {op}, std::nullopt);
+            trustlineTxs.push_back(
+                std::const_pointer_cast<TransactionFrameBase>(tx));
+
+            // Close ledger in batches of SETUP_MAX_TX_SET_SIZE
+            if (trustlineTxs.size() >= SETUP_MAX_TX_SET_SIZE)
+            {
+                closeLedger(trustlineTxs);
+                trustlineTxs.clear();
+            }
+        }
+        if (!trustlineTxs.empty())
+        {
+            closeLedger(trustlineTxs);
+        }
+    }
+
+    // Step 4: Fund all accounts with each asset.
+    // Two-phase approach for efficiency:
+    //   Phase 1: Root mints to NUM_DISTRIBUTORS "distribution" accounts
+    //            (one multi-op tx per asset, closed in a single ledger).
+    //   Phase 2: Each distributor pays ~100 target accounts via a multi-op
+    //            tx. We batch up to 100 such txs per ledger close, giving
+    //            ~10000 ops per ledger.
+    static constexpr uint32_t NUM_DISTRIBUTORS = 100;
+    static constexpr uint32_t OPS_PER_TX = 100;
+    // Total amount each final account should receive.
+    static constexpr int64_t AMOUNT_PER_ACCOUNT = 1'000'000'000;
+
+    CLOG_INFO(Perf, "Soroswap setup: funding accounts ({} distributors)",
+              NUM_DISTRIBUTORS);
+
+    // Accounts [1 .. NUM_DISTRIBUTORS] are distributors.
+    // Accounts [NUM_DISTRIBUTORS+1 .. mNumAccounts-1] are targets.
+    uint32_t numTargets = mNumAccounts - 1 - NUM_DISTRIBUTORS;
+
+    for (uint32_t assetIdx = 0; assetIdx < numTokens; ++assetIdx)
+    {
+        // Phase 1: Root -> distributors (single multi-op tx per asset).
+        {
+            int64_t amountPerDistributor =
+                AMOUNT_PER_ACCOUNT *
+                static_cast<int64_t>((numTargets / NUM_DISTRIBUTORS) + 2);
+            std::vector<Operation> ops;
+            for (uint32_t d = 1; d <= NUM_DISTRIBUTORS; ++d)
+            {
+                ops.push_back(txtest::payment(
+                    mTxGenerator.getAccount(d)->getPublicKey(),
+                    mSoroswapState.assets[assetIdx], amountPerDistributor));
+            }
+            rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                                   lm.getLastClosedLedgerNum());
+            rootAccount->loadSequenceNumber();
+            auto tx = mTxGenerator.createTransactionFramePtr(rootAccount, ops,
+                                                             std::nullopt);
+            closeLedger({std::const_pointer_cast<TransactionFrameBase>(tx)});
+        }
+
+        // Phase 2: Distributors -> targets.
+        // Each distributor handles a slice of target accounts.
+        // Build one multi-op tx per distributor, batch up to 100 txs per
+        // ledger close (~10000 ops per ledger).
+        uint32_t firstTarget = NUM_DISTRIBUTORS + 1;
+
+        // Group targets by distributor (round-robin assignment).
+        std::vector<std::vector<uint32_t>> distTargets(NUM_DISTRIBUTORS);
+        for (uint32_t targetIdx = firstTarget; targetIdx < mNumAccounts;
+             ++targetIdx)
+        {
+            uint32_t distSlot = (targetIdx - firstTarget) % NUM_DISTRIBUTORS;
+            distTargets[distSlot].push_back(targetIdx);
+        }
+
+        // Build txs: one tx per OPS_PER_TX targets of a distributor.
+        std::vector<TransactionFrameBasePtr> batchTxs;
+        for (uint32_t d = 0; d < NUM_DISTRIBUTORS; ++d)
+        {
+            uint32_t distAccId = d + 1;
+            auto const& targets = distTargets[d];
+            std::vector<Operation> ops;
+            for (size_t t = 0; t < targets.size(); ++t)
+            {
+                ops.push_back(txtest::payment(
+                    mTxGenerator.getAccount(targets[t])->getPublicKey(),
+                    mSoroswapState.assets[assetIdx], AMOUNT_PER_ACCOUNT));
+
+                if (ops.size() >= OPS_PER_TX || t == targets.size() - 1)
+                {
+                    auto distAcc = mTxGenerator.findAccount(
+                        distAccId, lm.getLastClosedLedgerNum());
+                    distAcc->loadSequenceNumber();
+                    auto tx = mTxGenerator.createTransactionFramePtr(
+                        distAcc, ops, std::nullopt);
+                    batchTxs.push_back(
+                        std::const_pointer_cast<TransactionFrameBase>(tx));
+                    ops.clear();
+
+                    if (batchTxs.size() >= 100)
+                    {
+                        closeLedger(batchTxs);
+                        batchTxs.clear();
+                    }
+                }
+            }
+        }
+        if (!batchTxs.empty())
+        {
+            closeLedger(batchTxs);
+        }
+    }
+
+    // Step 5: Create N SAC contracts for each asset.
+    // We use higher resource limits than createSACTransaction's defaults
+    // because credit asset SAC initialization needs more than 1M
+    // instructions.
+    CLOG_INFO(Perf, "Soroswap setup: creating {} SAC contracts", numTokens);
+    mSoroswapState.sacInstances.resize(numTokens);
+    for (uint32_t i = 0; i < numTokens; ++i)
+    {
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        SorobanResources sacResources;
+        sacResources.instructions = 10'000'000;
+        sacResources.diskReadBytes = 1000;
+        sacResources.writeBytes = 1000;
+
+        auto contractIDPreimage =
+            txtest::makeContractIDPreimage(mSoroswapState.assets[i]);
+
+        auto createTx = txtest::makeSorobanCreateContractTx(
+            mApp, *rootAccount, contractIDPreimage,
+            txtest::makeAssetExecutable(mSoroswapState.assets[i]), sacResources,
+            mTxGenerator.generateFee(std::nullopt, /* opsCnt */ 1));
+        closeLedger({createTx});
+
+        auto instanceKey =
+            createTx->sorobanResources().footprint.readWrite.back();
+        mSoroswapState.sacInstances[i].readOnlyKeys.emplace_back(instanceKey);
+        mSoroswapState.sacInstances[i].contractID =
+            instanceKey.contractData().contract;
+    }
+
+    // Step 6: Upload 3 Soroswap Wasms (factory, pair, router)
+    CLOG_INFO(Perf, "Soroswap setup: uploading Wasms");
+
+    auto factoryWasm = rust_bridge::get_apply_load_soroswap_factory_wasm();
+    xdr::opaque_vec<> factoryWasmBytes;
+    factoryWasmBytes.assign(factoryWasm.data.begin(), factoryWasm.data.end());
+    LedgerKey factoryCodeKey;
+    factoryCodeKey.type(CONTRACT_CODE);
+    factoryCodeKey.contractCode().hash = sha256(factoryWasmBytes);
+    mSoroswapState.factoryCodeKey = factoryCodeKey;
+
+    SorobanResources factoryUploadRes;
+    factoryUploadRes.instructions = 50'000'000;
+    factoryUploadRes.diskReadBytes =
+        static_cast<uint32_t>(factoryWasmBytes.size()) + 500;
+    factoryUploadRes.writeBytes =
+        static_cast<uint32_t>(factoryWasmBytes.size()) + 500;
+    auto factoryUploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        factoryWasmBytes, factoryCodeKey, std::nullopt, factoryUploadRes);
+    closeLedger({factoryUploadTx.second});
+
+    auto pairWasm = rust_bridge::get_apply_load_soroswap_pool_wasm();
+    xdr::opaque_vec<> pairWasmBytes;
+    pairWasmBytes.assign(pairWasm.data.begin(), pairWasm.data.end());
+    LedgerKey pairCodeKey;
+    pairCodeKey.type(CONTRACT_CODE);
+    pairCodeKey.contractCode().hash = sha256(pairWasmBytes);
+    mSoroswapState.pairCodeKey = pairCodeKey;
+
+    SorobanResources pairUploadRes;
+    pairUploadRes.instructions = 50'000'000;
+    pairUploadRes.diskReadBytes =
+        static_cast<uint32_t>(pairWasmBytes.size()) + 500;
+    pairUploadRes.writeBytes =
+        static_cast<uint32_t>(pairWasmBytes.size()) + 500;
+    auto pairUploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        pairWasmBytes, pairCodeKey, std::nullopt, pairUploadRes);
+    closeLedger({pairUploadTx.second});
+
+    auto routerWasm = rust_bridge::get_apply_load_soroswap_router_wasm();
+    xdr::opaque_vec<> routerWasmBytes;
+    routerWasmBytes.assign(routerWasm.data.begin(), routerWasm.data.end());
+    LedgerKey routerCodeKey;
+    routerCodeKey.type(CONTRACT_CODE);
+    routerCodeKey.contractCode().hash = sha256(routerWasmBytes);
+    mSoroswapState.routerCodeKey = routerCodeKey;
+
+    SorobanResources routerUploadRes;
+    routerUploadRes.instructions = 50'000'000;
+    routerUploadRes.diskReadBytes =
+        static_cast<uint32_t>(routerWasmBytes.size()) + 500;
+    routerUploadRes.writeBytes =
+        static_cast<uint32_t>(routerWasmBytes.size()) + 500;
+    auto routerUploadTx = mTxGenerator.createUploadWasmTransaction(
+        lm.getLastClosedLedgerNum() + 1, TxGenerator::ROOT_ACCOUNT_ID,
+        routerWasmBytes, routerCodeKey, std::nullopt, routerUploadRes);
+    closeLedger({routerUploadTx.second});
+
+    // Step 7: Deploy factory contract and initialize it
+    CLOG_INFO(Perf, "Soroswap setup: deploying factory");
+    {
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        auto salt = sha256("soroswap factory salt");
+        auto contractIDPreimage =
+            txtest::makeContractIDPreimage(*rootAccount, salt);
+
+        SorobanResources createResources;
+        createResources.instructions = 50'000'000;
+        createResources.diskReadBytes =
+            static_cast<uint32_t>(factoryWasmBytes.size()) + 10000;
+        createResources.writeBytes = 50000;
+
+        auto createTx = txtest::makeSorobanCreateContractTx(
+            mApp, *rootAccount, contractIDPreimage,
+            txtest::makeWasmExecutable(factoryCodeKey.contractCode().hash),
+            createResources,
+            mTxGenerator.generateFee(std::nullopt, /* opsCnt */ 1));
+        closeLedger({createTx});
+
+        auto instanceKey =
+            createTx->sorobanResources().footprint.readWrite.back();
+        mSoroswapState.factoryInstanceKey = instanceKey;
+        mSoroswapState.factoryContractID = instanceKey.contractData().contract;
+    }
+
+    // Initialize factory: initialize(setter, pair_wasm_hash)
+    CLOG_INFO(Perf, "Soroswap setup: initializing factory");
+    {
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        auto setterVal =
+            makeAddressSCVal(makeAccountAddress(rootAccount->getPublicKey()));
+
+        SCVal pairWasmHashVal(SCV_BYTES);
+        pairWasmHashVal.bytes().assign(pairCodeKey.contractCode().hash.begin(),
+                                       pairCodeKey.contractCode().hash.end());
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mSoroswapState.factoryContractID;
+        ihf.invokeContract().functionName = "initialize";
+        ihf.invokeContract().args = {setterVal, pairWasmHashVal};
+
+        SorobanResources resources;
+        resources.instructions = 50'000'000;
+        resources.diskReadBytes =
+            static_cast<uint32_t>(factoryWasmBytes.size()) + 10000;
+        resources.writeBytes = 50000;
+        resources.footprint.readOnly.push_back(factoryCodeKey);
+        resources.footprint.readWrite.push_back(
+            mSoroswapState.factoryInstanceKey);
+
+        // PairWasmHash persistent data key (factory.initialize writes this)
+        {
+            LedgerKey pairWasmHashDataKey(CONTRACT_DATA);
+            pairWasmHashDataKey.contractData().contract =
+                mSoroswapState.factoryContractID;
+            pairWasmHashDataKey.contractData().key =
+                txtest::makeVecSCVal({makeSymbolSCVal("PairWasmHash")});
+            pairWasmHashDataKey.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readWrite.push_back(pairWasmHashDataKey);
+        }
+
+        // Source account for auth
+        SorobanAuthorizedInvocation invocation;
+        invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        invocation.function.contractFn() = ihf.invokeContract();
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         invocation);
+
+        auto resourceFee =
+            txtest::sorobanResourceFee(mApp, resources, 5000, 200);
+        resourceFee += 50'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *rootAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+        closeLedger({tx});
+    }
+
+    // Step 8: Deploy router contract and initialize it
+    CLOG_INFO(Perf, "Soroswap setup: deploying router");
+    {
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        auto salt = sha256("soroswap router salt");
+        auto contractIDPreimage =
+            txtest::makeContractIDPreimage(*rootAccount, salt);
+
+        SorobanResources createResources;
+        createResources.instructions = 50'000'000;
+        createResources.diskReadBytes =
+            static_cast<uint32_t>(routerWasmBytes.size()) + 10000;
+        createResources.writeBytes = 50000;
+
+        auto createTx = txtest::makeSorobanCreateContractTx(
+            mApp, *rootAccount, contractIDPreimage,
+            txtest::makeWasmExecutable(routerCodeKey.contractCode().hash),
+            createResources,
+            mTxGenerator.generateFee(std::nullopt, /* opsCnt */ 1));
+        closeLedger({createTx});
+
+        auto instanceKey =
+            createTx->sorobanResources().footprint.readWrite.back();
+        mSoroswapState.routerInstanceKey = instanceKey;
+        mSoroswapState.routerContractID = instanceKey.contractData().contract;
+    }
+
+    // Initialize router: initialize(factory_address)
+    CLOG_INFO(Perf, "Soroswap setup: initializing router");
+    {
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        auto factoryVal = makeAddressSCVal(mSoroswapState.factoryContractID);
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mSoroswapState.routerContractID;
+        ihf.invokeContract().functionName = "initialize";
+        ihf.invokeContract().args = {factoryVal};
+
+        SorobanResources resources;
+        resources.instructions = 50'000'000;
+        resources.diskReadBytes =
+            static_cast<uint32_t>(routerWasmBytes.size()) + 10000;
+        resources.writeBytes = 50000;
+        resources.footprint.readOnly.push_back(routerCodeKey);
+        resources.footprint.readWrite.push_back(
+            mSoroswapState.routerInstanceKey);
+
+        SorobanAuthorizedInvocation invocation;
+        invocation.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        invocation.function.contractFn() = ihf.invokeContract();
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         invocation);
+
+        auto resourceFee =
+            txtest::sorobanResourceFee(mApp, resources, 5000, 200);
+        resourceFee += 50'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *rootAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+        closeLedger({tx});
+    }
+
+    // Step 9: Create pairs explicitly via factory.create_pair().
+    // We compute each pair's contract address deterministically so we can
+    // build the correct footprint before submission.
+    CLOG_INFO(Perf, "Soroswap setup: creating {} pairs via factory", numPairs);
+    for (uint32_t pairNum = 0; pairNum < numPairs; ++pairNum)
+    {
+        // Chain: pair pairNum uses tokens (pairNum, pairNum+1)
+        uint32_t i = pairNum;
+        uint32_t j = pairNum + 1;
+
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        // Sort tokens as Soroswap factory does (token_0 < token_1)
+        SCAddress token0 = mSoroswapState.sacInstances[i].contractID;
+        SCAddress token1 = mSoroswapState.sacInstances[j].contractID;
+        if (token1 < token0)
+            std::swap(token0, token1);
+
+        // Compute pair salt: sha256(xdr(ScVal(token0)) ||
+        // xdr(ScVal(token1))). This matches Soroban SDK's
+        // Address::to_xdr() used in factory's pair.rs salt().
+        auto token0Val = makeAddressSCVal(token0);
+        auto token1Val = makeAddressSCVal(token1);
+        auto xdr0 = xdr::xdr_to_opaque(token0Val);
+        auto xdr1 = xdr::xdr_to_opaque(token1Val);
+        std::vector<uint8_t> saltInput(xdr0.begin(), xdr0.end());
+        saltInput.insert(saltInput.end(), xdr1.begin(), xdr1.end());
+        uint256 pairSalt =
+            sha256(ByteSlice(saltInput.data(), saltInput.size()));
+
+        // Derive pair contract address deterministically
+        ContractIDPreimage pairPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
+        pairPreimage.fromAddress().address = mSoroswapState.factoryContractID;
+        pairPreimage.fromAddress().salt = pairSalt;
+        auto fullPreimage = txtest::makeFullContractIdPreimage(
+            mApp.getNetworkID(), pairPreimage);
+        Hash pairContractHash = xdrSha256(fullPreimage);
+        SCAddress pairAddress = txtest::makeContractAddress(pairContractHash);
+        LedgerKey pairInstanceKey =
+            txtest::makeContractInstanceKey(pairAddress);
+
+        // Store pair info
+        SoroswapPairInfo pairInfo;
+        pairInfo.tokenAIndex = i;
+        pairInfo.tokenBIndex = j;
+        pairInfo.pairContractID = pairAddress;
+        mSoroswapState.pairs.push_back(pairInfo);
+        uint32_t pairIdx =
+            static_cast<uint32_t>(mSoroswapState.pairs.size() - 1);
+
+        // Build factory.create_pair(token_a, token_b) invocation
+        auto tokenAVal =
+            makeAddressSCVal(mSoroswapState.sacInstances[i].contractID);
+        auto tokenBVal =
+            makeAddressSCVal(mSoroswapState.sacInstances[j].contractID);
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mSoroswapState.factoryContractID;
+        ihf.invokeContract().functionName = "create_pair";
+        ihf.invokeContract().args = {tokenAVal, tokenBVal};
+
+        SorobanResources resources;
+        resources.instructions = 100'000'000;
+        resources.diskReadBytes = 100'000;
+        resources.writeBytes = 100'000;
+
+        // Read-only: factory code, pair Wasm code,
+        //            PairWasmHash (persistent, read during deploy),
+        //            SAC token instances (pair.initialize calls
+        //            token_0.symbol() and token_1.symbol())
+        resources.footprint.readOnly.push_back(factoryCodeKey);
+        resources.footprint.readOnly.push_back(pairCodeKey);
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[i].readOnlyKeys.at(0));
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[j].readOnlyKeys.at(0));
+        {
+            LedgerKey pairWasmHashKey(CONTRACT_DATA);
+            pairWasmHashKey.contractData().contract =
+                mSoroswapState.factoryContractID;
+            pairWasmHashKey.contractData().key =
+                txtest::makeVecSCVal({makeSymbolSCVal("PairWasmHash")});
+            pairWasmHashKey.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readOnly.push_back(pairWasmHashKey);
+        }
+
+        // Read-write: factory instance (TotalPairs update),
+        //             new pair instance (created),
+        //             PairAddressesByTokens (created),
+        //             PairAddressesNIndexed(n) (created)
+        resources.footprint.readWrite.push_back(
+            mSoroswapState.factoryInstanceKey);
+        resources.footprint.readWrite.push_back(pairInstanceKey);
+        {
+            LedgerKey pairByTokensLK(CONTRACT_DATA);
+            pairByTokensLK.contractData().contract =
+                mSoroswapState.factoryContractID;
+            pairByTokensLK.contractData().key = txtest::makeVecSCVal(
+                {makeSymbolSCVal("PairAddressesByTokens"),
+                 txtest::makeVecSCVal({token0Val, token1Val})});
+            pairByTokensLK.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readWrite.push_back(pairByTokensLK);
+        }
+        {
+            LedgerKey nIndexedLK(CONTRACT_DATA);
+            nIndexedLK.contractData().contract =
+                mSoroswapState.factoryContractID;
+            nIndexedLK.contractData().key =
+                txtest::makeVecSCVal({makeSymbolSCVal("PairAddressesNIndexed"),
+                                      txtest::makeU32(pairIdx)});
+            nIndexedLK.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readWrite.push_back(nIndexedLK);
+        }
+
+        // factory.create_pair doesn't call require_auth
+        auto resourceFee =
+            txtest::sorobanResourceFee(mApp, resources, 20000, 200);
+        resourceFee += 500'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *rootAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+        closeLedger({tx});
+    }
+
+    // Step 10: Add liquidity to all pairs via router.add_liquidity.
+    // Pairs already exist from step 9, so footprint is simpler.
+    CLOG_INFO(Perf, "Soroswap setup: adding liquidity to {} pairs", numPairs);
+    for (size_t pairIdx = 0; pairIdx < mSoroswapState.pairs.size(); ++pairIdx)
+    {
+        auto const& pair = mSoroswapState.pairs[pairIdx];
+        uint32_t ti = pair.tokenAIndex;
+        uint32_t tj = pair.tokenBIndex;
+
+        rootAccount = mTxGenerator.findAccount(TxGenerator::ROOT_ACCOUNT_ID,
+                                               lm.getLastClosedLedgerNum());
+        rootAccount->loadSequenceNumber();
+
+        auto tokenAVal =
+            makeAddressSCVal(mSoroswapState.sacInstances[ti].contractID);
+        auto tokenBVal =
+            makeAddressSCVal(mSoroswapState.sacInstances[tj].contractID);
+
+        int64_t desiredAmount = 100'000'000;
+        int64_t minAmount = 99'000'000;
+
+        auto toVal =
+            makeAddressSCVal(makeAccountAddress(rootAccount->getPublicKey()));
+
+        SCVal deadlineVal(SCV_U64);
+        deadlineVal.u64() = UINT64_MAX;
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mSoroswapState.routerContractID;
+        ihf.invokeContract().functionName = "add_liquidity";
+        ihf.invokeContract().args = {tokenAVal,
+                                     tokenBVal,
+                                     txtest::makeI128(desiredAmount),
+                                     txtest::makeI128(desiredAmount),
+                                     txtest::makeI128(minAmount),
+                                     txtest::makeI128(minAmount),
+                                     toVal,
+                                     deadlineVal};
+
+        SorobanResources resources;
+        resources.instructions = 100'000'000;
+        resources.diskReadBytes = 100'000;
+        resources.writeBytes = 100'000;
+
+        // Sort tokens for the factory PairAddressesByTokens lookup key
+        SCAddress sortedToken0 = mSoroswapState.sacInstances[ti].contractID;
+        SCAddress sortedToken1 = mSoroswapState.sacInstances[tj].contractID;
+        if (sortedToken1 < sortedToken0)
+            std::swap(sortedToken0, sortedToken1);
+        auto sortedToken0Val = makeAddressSCVal(sortedToken0);
+        auto sortedToken1Val = makeAddressSCVal(sortedToken1);
+
+        auto pairAddrVal = makeAddressSCVal(pair.pairContractID);
+
+        // Read-only: router code+instance, factory code+instance,
+        //            PairAddressesByTokens, token SAC instances, pair code
+        resources.footprint.readOnly.push_back(routerCodeKey);
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.routerInstanceKey);
+        resources.footprint.readOnly.push_back(factoryCodeKey);
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.factoryInstanceKey);
+        {
+            LedgerKey pairByTokensLK(CONTRACT_DATA);
+            pairByTokensLK.contractData().contract =
+                mSoroswapState.factoryContractID;
+            pairByTokensLK.contractData().key = txtest::makeVecSCVal(
+                {makeSymbolSCVal("PairAddressesByTokens"),
+                 txtest::makeVecSCVal({sortedToken0Val, sortedToken1Val})});
+            pairByTokensLK.contractData().durability =
+                ContractDataDurability::PERSISTENT;
+            resources.footprint.readOnly.push_back(pairByTokensLK);
+        }
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[ti].readOnlyKeys.at(0));
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[tj].readOnlyKeys.at(0));
+        resources.footprint.readOnly.push_back(pairCodeKey);
+
+        // Read-write: root account, trustlines, token balances,
+        //             pair instance, LP token balance
+        LedgerKey rootKey(ACCOUNT);
+        rootKey.account().accountID = rootAccount->getPublicKey();
+        resources.footprint.readWrite.emplace_back(rootKey);
+
+        // Note: root is the asset issuer, so no trustline entries are
+        // needed — issuers have unlimited supply and no trustlines.
+
+        // Token A Balance[pair]
+        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
+            mSoroswapState.sacInstances[ti].contractID, pairAddrVal));
+        // Token B Balance[pair]
+        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
+            mSoroswapState.sacInstances[tj].contractID, pairAddrVal));
+        // Pair contract instance (RW - modified during deposit)
+        resources.footprint.readWrite.emplace_back(
+            txtest::makeContractInstanceKey(pair.pairContractID));
+        // Pair LP token Balance[root] (minted during first deposit)
+        resources.footprint.readWrite.emplace_back(
+            makeSACBalanceKey(pair.pairContractID, toVal));
+        // Pair LP token Balance[pair_contract] (MINIMUM_LIQUIDITY minted
+        // to pair itself during first deposit)
+        resources.footprint.readWrite.emplace_back(
+            makeSACBalanceKey(pair.pairContractID, pairAddrVal));
+
+        // Auth: root authorizes add_liquidity which sub-invokes
+        // token_a.transfer and token_b.transfer
+        SorobanAuthorizedInvocation rootInvocation;
+        rootInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        rootInvocation.function.contractFn() = ihf.invokeContract();
+
+        // Sub-invocation: token_a.transfer(root, pair, amount)
+        SorobanAuthorizedInvocation transferAInvocation;
+        transferAInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        transferAInvocation.function.contractFn().contractAddress =
+            mSoroswapState.sacInstances[ti].contractID;
+        transferAInvocation.function.contractFn().functionName = "transfer";
+        transferAInvocation.function.contractFn().args = {
+            toVal, pairAddrVal, txtest::makeI128(desiredAmount)};
+
+        // Sub-invocation: token_b.transfer(root, pair, amount)
+        SorobanAuthorizedInvocation transferBInvocation;
+        transferBInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        transferBInvocation.function.contractFn().contractAddress =
+            mSoroswapState.sacInstances[tj].contractID;
+        transferBInvocation.function.contractFn().functionName = "transfer";
+        transferBInvocation.function.contractFn().args = {
+            toVal, pairAddrVal, txtest::makeI128(desiredAmount)};
+
+        rootInvocation.subInvocations.push_back(transferAInvocation);
+        rootInvocation.subInvocations.push_back(transferBInvocation);
+
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         rootInvocation);
+
+        auto resourceFee =
+            txtest::sorobanResourceFee(mApp, resources, 20000, 200);
+        resourceFee += 500'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *rootAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+        closeLedger({tx});
+    }
+
+    // Initialize swap counters for alternating direction
+    mSoroswapSwapCounters.resize(numPairs, 0);
+
+    int64_t totalSetupTxs =
+        mTxGenerator.getApplySorobanSuccess().count() - initialSuccessCount;
+    // N SAC creates + 3 Wasm uploads + factory create + factory init
+    // + router create + router init + numPairs create_pair
+    // + numPairs add_liquidity
+    int64_t expectedSorobanTxs = numTokens + 3 + 2 + 2 + 2 * numPairs;
+    CLOG_INFO(Perf,
+              "Soroswap setup complete: {} soroban txs (expected {}), {} "
+              "failures",
+              totalSetupTxs, expectedSorobanTxs,
+              mTxGenerator.getApplySorobanFailure().count());
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+}
+
+void
+ApplyLoad::generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
+                                 uint32_t count)
+{
+    auto& lm = mApp.getLedgerManager();
+    uint32_t numPairs = mSoroswapState.pairs.size();
+    releaseAssert(numPairs > 0);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        // Round-robin across pairs for parallelism
+        uint32_t pairIndex = i % numPairs;
+        auto const& pair = mSoroswapState.pairs[pairIndex];
+
+        // Unique account per tx (skip account 0 = root/issuer)
+        uint32_t accountIdx = i + 1;
+
+        // Alternate swap direction per pair to keep pools balanced
+        bool swapAForB = (mSoroswapSwapCounters[pairIndex] % 2 == 0);
+        mSoroswapSwapCounters[pairIndex]++;
+
+        uint32_t tokenInIdx = swapAForB ? pair.tokenAIndex : pair.tokenBIndex;
+        uint32_t tokenOutIdx = swapAForB ? pair.tokenBIndex : pair.tokenAIndex;
+
+        auto fromAccount =
+            mTxGenerator.findAccount(accountIdx, lm.getLastClosedLedgerNum());
+        fromAccount->loadSequenceNumber();
+
+        auto fromVal =
+            makeAddressSCVal(makeAccountAddress(fromAccount->getPublicKey()));
+
+        // Build path: [token_in, token_out]
+        auto tokenInVal = makeAddressSCVal(
+            mSoroswapState.sacInstances[tokenInIdx].contractID);
+        auto tokenOutVal = makeAddressSCVal(
+            mSoroswapState.sacInstances[tokenOutIdx].contractID);
+
+        SCVal pathVec(SCV_VEC);
+        pathVec.vec().activate();
+        pathVec.vec()->push_back(tokenInVal);
+        pathVec.vec()->push_back(tokenOutVal);
+
+        int64_t swapAmount = 100;
+        SCVal deadlineVal(SCV_U64);
+        deadlineVal.u64() = UINT64_MAX;
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mSoroswapState.routerContractID;
+        ihf.invokeContract().functionName = "swap_exact_tokens_for_tokens";
+        ihf.invokeContract().args = {
+            txtest::makeI128(swapAmount), // amount_in
+            txtest::makeI128(0),          // amount_out_min
+            pathVec,                      // path
+            fromVal,                      // to
+            deadlineVal                   // deadline
+        };
+
+        // Footprint
+        SorobanResources resources;
+        resources.instructions = TxGenerator::SOROSWAP_SWAP_TX_INSTRUCTIONS;
+        resources.diskReadBytes = 5000;
+        resources.writeBytes = 5000;
+
+        // Read-only: router instance, token_in SAC instance,
+        //            token_out SAC instance, router code, pair code
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.routerInstanceKey);
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[tokenInIdx].readOnlyKeys.at(0));
+        resources.footprint.readOnly.push_back(
+            mSoroswapState.sacInstances[tokenOutIdx].readOnlyKeys.at(0));
+        resources.footprint.readOnly.push_back(mSoroswapState.routerCodeKey);
+        resources.footprint.readOnly.push_back(mSoroswapState.pairCodeKey);
+
+        // Read-write: user trustline(A), user trustline(B),
+        //             Balance[pair] for token_in, Balance[pair] for
+        //             token_out, pair instance
+        resources.footprint.readWrite.emplace_back(makeTrustlineKey(
+            fromAccount->getPublicKey(), mSoroswapState.assets[tokenInIdx]));
+        resources.footprint.readWrite.emplace_back(makeTrustlineKey(
+            fromAccount->getPublicKey(), mSoroswapState.assets[tokenOutIdx]));
+
+        auto pairAddrVal = makeAddressSCVal(pair.pairContractID);
+        // Balance[pair] for token_in
+        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
+            mSoroswapState.sacInstances[tokenInIdx].contractID, pairAddrVal));
+        // Balance[pair] for token_out
+        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
+            mSoroswapState.sacInstances[tokenOutIdx].contractID, pairAddrVal));
+        // Pair contract instance (RW - modified during swap)
+        resources.footprint.readWrite.emplace_back(
+            txtest::makeContractInstanceKey(pair.pairContractID));
+
+        // Auth: source_account authorizes swap_exact_tokens_for_tokens
+        // which sub-invokes token_in.transfer(user, pair, amount)
+        SorobanAuthorizedInvocation rootInvocation;
+        rootInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        rootInvocation.function.contractFn() = ihf.invokeContract();
+
+        SorobanAuthorizedInvocation transferInvocation;
+        transferInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        transferInvocation.function.contractFn().contractAddress =
+            mSoroswapState.sacInstances[tokenInIdx].contractID;
+        transferInvocation.function.contractFn().functionName = "transfer";
+        transferInvocation.function.contractFn().args = {
+            fromVal, pairAddrVal, txtest::makeI128(swapAmount)};
+        rootInvocation.subInvocations.push_back(transferInvocation);
+
+        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
+                                                         rootInvocation);
+
+        auto resourceFee =
+            txtest::sorobanResourceFee(mApp, resources, 1000, 200);
+        resourceFee += 5'000'000;
+
+        auto tx = txtest::sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *fromAccount, {op}, {}, resources,
+            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
+        txs.push_back(tx);
+    }
+
+    LedgerSnapshot ls(mApp);
+    auto diag = DiagnosticEventManager::createDisabled();
+    for (auto const& tx : txs)
+    {
+        releaseAssert(tx->checkValid(mApp.getAppConnector(), ls, 0, 0, 0, diag)
+                          ->isSuccess());
+    }
+}
+
 } // namespace stellar
