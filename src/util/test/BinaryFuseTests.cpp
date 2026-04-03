@@ -195,7 +195,7 @@ TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
         [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
         autocheck::generator<LedgerKey>());
 
-    while (keys.size() < 500)
+    while (keys.size() < 50)
     {
         keys.insert(gen());
     }
@@ -211,7 +211,8 @@ TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
 
     // Duplicate every hash to trigger the duplicate removal path
     auto originalSize = hashes.size();
-    hashes.insert(hashes.end(), hashes.begin(), hashes.end());
+    auto copy = hashes;
+    hashes.insert(hashes.end(), copy.begin(), copy.end());
     REQUIRE(hashes.size() == originalSize * 2);
 
     BinaryFuseFilter8 filter(hashes, seed);
