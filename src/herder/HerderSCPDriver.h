@@ -279,5 +279,9 @@ class HerderSCPDriver : public SCPDriver
     bool checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                  LedgerHeaderHistoryEntry const& lcl,
                                  uint64_t closeTimeOffset) const;
+
+    bool deserializeAndValidateStellarValue(Value const& value,
+                                            StellarValue& sv) const;
+    void extractValidUpgrades(StellarValue& sv, bool nomination) const;
 };
 }
