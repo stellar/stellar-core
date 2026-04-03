@@ -302,11 +302,9 @@ writeLcmToFile(std::string const& path, std::string const& dir,
     XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
     out.open(path);
 
-    for (size_t i = startIndex; i < allMetas.size(); ++i)
+    for (auto const& entry : newEntries)
     {
-        LedgerCloseMeta meta = allMetas[i];
-        zeroNonDeterministicDiagnostics(meta);
-        out.writeOne(meta);
+        out.writeOne(entry);
     }
 }
 
