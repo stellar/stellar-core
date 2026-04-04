@@ -20,6 +20,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
@@ -31,7 +32,6 @@ use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::PeerId;
 use libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
-    StellarOverlay,
 };
 
 /// Command-line arguments
@@ -154,6 +154,183 @@ fn extract_txset_hashes_from_scp(envelope: &[u8]) -> Vec<[u8; 32]> {
     hashes
 }
 
+/// Resolve a peer address string to a SocketAddr.
+///
+/// Accepts either:
+/// - `IP:port` (e.g. "10.0.0.1:11625") — parsed directly
+/// - DNS hostname (e.g. "pod-0.svc.cluster.local") — resolved via DNS, using `default_port`
+/// - DNS hostname with port (e.g. "pod-0.svc.cluster.local:11625") — resolved via DNS
+async fn resolve_peer_addr(addr_str: &str, default_port: u16) -> Result<SocketAddr, String> {
+    // Try direct SocketAddr parse first (handles "IP:port")
+    if let Ok(addr) = addr_str.parse::<SocketAddr>() {
+        return Ok(addr);
+    }
+
+    // It's a hostname — append default port if none present
+    let host_port = if addr_str.contains(':') {
+        addr_str.to_string()
+    } else {
+        format!("{}:{}", addr_str, default_port)
+    };
+
+    // DNS resolution via tokio (async, non-blocking)
+    let mut addrs = tokio::net::lookup_host(&host_port)
+        .await
+        .map_err(|e| format!("failed to resolve '{}': {}", host_port, e))?;
+
+    addrs
+        .next()
+        .ok_or_else(|| format!("DNS returned no addresses for '{}'", host_port))
+}
+
+/// Resolve a peer and dial it. Returns the address string if resolution failed
+/// (for retry), or None on success.
+async fn resolve_and_dial(
+    addr_str: &str,
+    default_port: u16,
+    local_addrs: &RwLock<HashSet<SocketAddr>>,
+    handle: &LibP2pOverlayHandle,
+) -> Option<String> {
+    match resolve_peer_addr(addr_str, default_port).await {
+        Ok(addr) => {
+            let libp2p_port = addr.port() + 1000;
+            let libp2p_sock = SocketAddr::new(addr.ip(), libp2p_port);
+
+            if local_addrs.read().await.contains(&libp2p_sock) {
+                debug!("Skipping self-dial for {} (resolved to local {})", addr_str, addr);
+                return None;
+            }
+
+            let libp2p_addr: libp2p::Multiaddr =
+                format!("/ip4/{}/udp/{}/quic-v1", addr.ip(), libp2p_port)
+                    .parse()
+                    .unwrap();
+
+            info!("Resolved peer {} -> {}, dialing {}", addr_str, addr, libp2p_addr);
+            handle.dial(libp2p_addr).await;
+            None
+        }
+        Err(e) => {
+            warn!("Failed to resolve peer {}: {}", addr_str, e);
+            Some(addr_str.to_string())
+        }
+    }
+}
+
+/// Spawn a background task that retries DNS resolution for unresolved peers
+/// with exponential backoff.
+fn spawn_peer_retry_task(
+    unresolved: Vec<String>,
+    default_port: u16,
+    local_addrs: Arc<RwLock<HashSet<SocketAddr>>>,
+    handle: LibP2pOverlayHandle,
+) {
+    if unresolved.is_empty() {
+        return;
+    }
+
+    info!(
+        "Scheduling DNS retry for {} unresolved peer(s): {:?}",
+        unresolved.len(),
+        unresolved
+    );
+
+    tokio::spawn(async move {
+        let mut pending = unresolved;
+        let mut delay = Duration::from_secs(2);
+        let max_delay = Duration::from_secs(30);
+        let max_attempts = 10;
+
+        for attempt in 1..=max_attempts {
+            tokio::time::sleep(delay).await;
+
+            info!(
+                "DNS retry attempt {}/{} for {} peer(s)",
+                attempt,
+                max_attempts,
+                pending.len()
+            );
+
+            let mut still_pending = Vec::new();
+            for addr_str in &pending {
+                if let Some(failed) =
+                    resolve_and_dial(addr_str, default_port, &local_addrs, &handle).await
+                {
+                    still_pending.push(failed);
+                }
+            }
+
+            if still_pending.is_empty() {
+                info!("All peers resolved successfully after {} retries", attempt);
+                return;
+            }
+
+            pending = still_pending;
+            delay = (delay * 2).min(max_delay);
+        }
+
+        warn!(
+            "Gave up resolving {} peer(s) after {} attempts: {:?}",
+            pending.len(),
+            max_attempts,
+            pending
+        );
+    });
+}
+
+/// Collect local IP addresses for self-dial detection.
+/// Returns a set of SocketAddrs at the libp2p port (peer_port + 1000).
+/// Starts with instantly-available addresses; DNS resolution runs in background.
+fn collect_local_addrs(libp2p_port: u16) -> Arc<RwLock<HashSet<SocketAddr>>> {
+    let mut addrs = HashSet::new();
+
+    // Always include loopback
+    addrs.insert(SocketAddr::new(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        libp2p_port,
+    ));
+
+    // Probe for our primary local IP by connecting a UDP socket.
+    // This doesn't send traffic — it just lets the OS pick the outbound interface.
+    if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(local) = socket.local_addr() {
+                addrs.insert(SocketAddr::new(local.ip(), libp2p_port));
+            }
+        }
+    }
+
+    let local_addrs = Arc::new(RwLock::new(addrs));
+
+    // Spawn background DNS resolution of our own hostname (for K8s pod IP detection).
+    // This runs concurrently with app startup — doesn't block event loop.
+    let addrs_ref = local_addrs.clone();
+    tokio::spawn(async move {
+        if let Ok(hostname) = hostname::get() {
+            if let Ok(hostname_str) = hostname.into_string() {
+                let lookup = format!("{}:{}", hostname_str, libp2p_port);
+                match tokio::net::lookup_host(lookup).await {
+                    Ok(resolved) => {
+                        let resolved: Vec<_> = resolved.collect();
+                        if !resolved.is_empty() {
+                            let mut addrs = addrs_ref.write().await;
+                            for addr in &resolved {
+                                addrs.insert(*addr);
+                            }
+                            debug!("DNS self-detection resolved hostname to {:?}", resolved);
+                        }
+                    }
+                    Err(e) => {
+                        debug!("Hostname DNS resolution for self-dial detection failed: {}", e);
+                    }
+                }
+            }
+        }
+    });
+
+    local_addrs
+}
+
 /// Application state
 struct App {
     #[allow(dead_code)]
@@ -179,6 +356,8 @@ struct App {
     pending_scp_state_requests: Arc<RwLock<HashMap<u64, PeerId>>>,
     /// Counter for generating unique SCP state request IDs
     next_scp_request_id: Arc<AtomicU64>,
+    /// Local addresses for self-dial detection (populated at startup + async DNS)
+    local_addrs: Arc<RwLock<HashSet<SocketAddr>>>,
 }
 
 impl App {
@@ -214,6 +393,9 @@ impl App {
         let libp2p_port = config.peer_port + 1000;
         let libp2p_listen_ip = config.libp2p_listen_ip.clone();
 
+        // Compute local addresses for self-dial detection (instant + async DNS in background)
+        let local_addrs = collect_local_addrs(libp2p_port);
+
         // Spawn libp2p overlay task
         tokio::spawn(async move {
             libp2p_overlay.run(&libp2p_listen_ip, libp2p_port).await;
@@ -237,6 +419,7 @@ impl App {
             pending_core_txset_requests: Arc::new(RwLock::new(HashSet::new())),
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
+            local_addrs,
         })
     }
 
@@ -811,35 +994,37 @@ impl App {
                             known, preferred, listen_port
                         );
 
-                        // Connect libp2p QUIC to all known/preferred peers
+                        // Resolve and dial all known/preferred peers
                         let all_peers: Vec<_> =
                             known.into_iter().chain(preferred.into_iter()).collect();
-                        let peer_count = all_peers.len();
 
-                        for addr_str in all_peers {
-                            if let Ok(addr) = addr_str.parse::<SocketAddr>() {
-                                // QUIC uses UDP, port + 1000
-                                let libp2p_port = addr.port() + 1000;
-                                let libp2p_addr: libp2p::Multiaddr =
-                                    format!("/ip4/{}/udp/{}/quic-v1", addr.ip(), libp2p_port)
-                                        .parse()
-                                        .unwrap();
+                        let handle = self.libp2p_handle.clone();
+                        let local_addrs = self.local_addrs.clone();
 
-                                let handle = self.libp2p_handle.clone();
-                                tokio::spawn(async move {
-                                    handle.dial(libp2p_addr).await;
-                                });
+                        tokio::spawn(async move {
+                            let mut unresolved = Vec::new();
+                            for addr_str in &all_peers {
+                                if let Some(failed) =
+                                    resolve_and_dial(addr_str, listen_port, &local_addrs, &handle)
+                                        .await
+                                {
+                                    unresolved.push(failed);
+                                }
                             }
-                        }
+
+                            // Retry any peers that failed DNS resolution
+                            spawn_peer_retry_task(
+                                unresolved,
+                                listen_port,
+                                local_addrs,
+                                handle,
+                            );
+                        });
 
                         // Kademlia bootstrap is now triggered automatically when the first peer
                         // is identified (in handle_identify_event). This ensures the routing
                         // table has at least one peer before attempting bootstrap, avoiding
                         // "No known peers" errors in slow network environments like k8s.
-
-                        // TODO: Consider adding periodic re-bootstrap for network maintenance
-                        // Kademlia routing tables become stale as peers join/leave
-                        // Re-bootstrapping every 5-10 minutes keeps routing fresh
                     }
                 }
             }
