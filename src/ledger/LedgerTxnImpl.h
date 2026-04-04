@@ -646,7 +646,7 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
     std::deque<LedgerEntry>::const_iterator
-    loadOffers(StatementContext& prep, std::deque<LedgerEntry>& offers) const;
+    loadOffers(soci::statement& prep, std::deque<LedgerEntry>& offers) const;
     std::deque<LedgerEntry>::const_iterator
     loadBestOffers(std::deque<LedgerEntry>& offers, Asset const& buying,
                    Asset const& selling, size_t numOffers) const;
@@ -657,7 +657,7 @@ class LedgerTxnRoot::Impl
     std::vector<LedgerEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;
-    std::vector<LedgerEntry> loadOffers(StatementContext& prep) const;
+    std::vector<LedgerEntry> loadOffers(soci::statement& prep) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
