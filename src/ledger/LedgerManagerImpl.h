@@ -120,8 +120,8 @@ class LedgerManagerImpl : public LedgerManager
         // During the ledger close process, the apply state goes through these
         // phases:
         // - SETTING_UP_STATE: LedgerManager is waiting for or setting up
-        //   ApplyState. This occurs on startup and after BucketApply during
-        //   catchup.
+        //   ApplyState. This occurs on startup, after BucketApply during
+        //   catchup, and any time the module cache has to be rebuilt.
         // - READY_TO_APPLY: Apply State is ready but not actively executing
         //   transactions or committing ledger state. ApplyState is immutable.
         // - APPLYING: ApplyState is actively executing transactions.
@@ -135,14 +135,23 @@ class LedgerManagerImpl : public LedgerManager
         //   commits state to disk, and advances the ledger header.
         //
         //  Phase transitions:
-        //  SETTING_UP_STATE -> READY_TO_APPLY  -> SETTING_UP_STATE
-        //                |
-        //                -> APPLYING -> COMMITTING -> READY_TO_APPLY
+        //
+        //  SETTING_UP_STATE <-------(rebuild cache)----+
+        //       |    ^                                 |
+        //       |    | (catchup)                       |
+        //       v    |                                 |
+        //  READY_TO_APPLY <----(no rebuild cache)---- COMMITTING
+        //       |                                      ^
+        //       v                                      |
+        //    APPLYING ---------------------------------+
         //
         //  SETTING_UP_STATE is the initial phase on startup. ApplyState may
         //  also transition from READY_TO_APPLY -> SETTING_UP_STATE if a node
         //  falls out of sync and must enter catchup, which requires re-entering
-        //  the SETTING_UP_STATE phase to reset lcl state.
+        //  the SETTING_UP_STATE phase to reset lcl state. After COMMITTING,
+        //  the state returns to SETTING_UP_STATE if a module cache rebuild
+        //  is needed, or directly to READY_TO_APPLY otherwise. In both cases
+        //  READY_TO_APPLY is always reached before entering APPLYING.
         //
         //  APPLYING is the only phase in which Soroban execution
         //  threads are active.
