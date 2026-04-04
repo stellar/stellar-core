@@ -176,6 +176,8 @@ class HerderSCPDriver : public SCPDriver
 
     // Get the number of nomination timeouts that occurred for a given slot
     std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
+    // Get the number of prepare (ballot) timeouts that occurred for a given slot
+    std::optional<int64_t> getPrepareTimeouts(uint64_t slotIndex) const;
 #endif
 
   private:

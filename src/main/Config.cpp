@@ -356,7 +356,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
     SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = false;
+    EXPERIMENTAL_TRIGGER_TIMER = false;
 #endif
+    USE_LOCAL_TIME_FOR_REPORTING = false;
 
 #ifdef BEST_OFFER_DEBUGGING
     BEST_OFFER_DEBUGGING_ENABLED = false;
@@ -1184,6 +1186,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
+
+#ifdef BUILD_TESTS
+                {"EXPERIMENTAL_TRIGGER_TIMER",
+                 [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
+#endif
+                {"USE_LOCAL_TIME_FOR_REPORTING",
+                 [&]() { USE_LOCAL_TIME_FOR_REPORTING = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
