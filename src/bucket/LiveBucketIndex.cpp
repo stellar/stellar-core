@@ -202,7 +202,7 @@ LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
 {
     if (shouldUseCache() && isCachedType(k))
     {
-        SharedLockShared lock(mCacheMutex);
+        SharedLockExclusive lock(mCacheMutex);
         auto cachePtr = mCache->maybeGet(k);
         if (cachePtr)
         {
