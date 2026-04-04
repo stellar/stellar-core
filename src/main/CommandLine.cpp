@@ -57,6 +57,7 @@
 #include <iostream>
 #include <lib/clara.hpp>
 #include <optional>
+#include <thread>
 
 namespace stellar
 {
@@ -1560,6 +1561,121 @@ runReportLastHistoryCheckpoint(CommandLineArgs const& args)
         });
 }
 
+namespace
+{
+// Before starting the application, we want to check that the host machine meets
+// the minimum system requirements we document (16 GiB RAM, 8 vCPUs). To make
+// the check meaningful, we prevent the node from starting when it fails
+// (instead of, e.g., writing a log message that may go unread). In the case
+// that we aren't able to automatically determine the relevant system
+// information, we allow the operator to set config values with their system
+// information. Note: we intentionally have these as integer values instead of
+// booleans so that there isn't a silent failure if we bump the minimum
+// requirements. If the auto-detected (or operator-provided, in the case of
+// auto-detection failure) system information doesn't meet the minimum
+// requirements, we require the operator to set an additional config value to
+// explicitly acknowledge that they are ignoring the warning.
+
+// We want to make the flag value annoying enough to set that the operators have
+// to make an intentional and continuous decision to ignore the warning. We use
+// the version to make sure that every time they upgrade the package, they have
+// to make a new decision to ignore the warning, and we use the public key to
+// make sure that the value is unique per node. Notably, we don't use something
+// that depends on the current time so that restarts after crashes are handled
+// gracefully (assuming the package wasn't upgraded in between).
+bool
+validateSystemInfo(Config const& cfg)
+{
+    std::string annoyingValue =
+        fmt::format(FMT_STRING("{}-{}"), STELLAR_CORE_VERSION,
+                    KeyUtils::toStrKey(cfg.NODE_SEED.getPublicKey()));
+
+    uint64_t memory = rust_bridge::get_host_total_memory();
+    if (memory == 0)
+    {
+        if (!cfg.SYSCHECK_UNKNOWN_MEMORY_DEFAULT)
+        {
+            LOG_ERROR(DEFAULT_LOG,
+                      "Unable to determine total memory of the host; please "
+                      "ensure that the system has at least 16 GiB of RAM. Once "
+                      "confirmed, set SYSCHECK_UNKNOWN_MEMORY_DEFAULT to the "
+                      "size of RAM in KiB.");
+            return false;
+        }
+
+        LOG_WARNING(DEFAULT_LOG,
+                    "Unable to determine total memory of the host; using "
+                    "SYSCHECK_UNKNOWN_MEMORY_DEFAULT value of {} KiB for "
+                    "checks. Please ensure this is still the correct value.",
+                    cfg.SYSCHECK_UNKNOWN_MEMORY_DEFAULT);
+
+        memory = cfg.SYSCHECK_UNKNOWN_MEMORY_DEFAULT;
+    }
+
+    if (memory < static_cast<uint32_t>(16) * 1024 * 1024)
+    {
+        if (cfg.SYSCHECK_FORCE_IGNORE_MEMORY != annoyingValue)
+        {
+            LOG_ERROR(
+                DEFAULT_LOG,
+                "Host only has {} KiB of RAM; stellar-core may not function "
+                "properly under heavy load; please ensure that the system has "
+                "at least 16 GiB of RAM. To force ignore this warning, set "
+                "SYSCHECK_FORCE_IGNORE_MEMORY to \"{}\". Note that this value "
+                "differs for every node and version.",
+                memory, annoyingValue);
+            return false;
+        }
+        LOG_WARNING(
+            DEFAULT_LOG,
+            "Host only has {} KiB of RAM; the recommended minimum is 16 GiB",
+            memory);
+    }
+
+    unsigned int cpus = std::thread::hardware_concurrency();
+    if (cpus == 0)
+    {
+        if (!cfg.SYSCHECK_UNKNOWN_CPU_DEFAULT)
+        {
+            LOG_ERROR(
+                DEFAULT_LOG,
+                "Unable to determine number of vCPUs of the host; please "
+                "ensure that the system has at least 8 vCPUs. Once confirmed, "
+                "set SYSCHECK_UNKNOWN_CPU_DEFAULT to the number of vCPUs.");
+            return false;
+        }
+
+        LOG_WARNING(DEFAULT_LOG,
+                    "Unable to determine number of vCPUs of the host; using "
+                    "SYSCHECK_UNKNOWN_CPU_DEFAULT value of {} for checks. "
+                    "Please ensure this is still the correct value.",
+                    cfg.SYSCHECK_UNKNOWN_CPU_DEFAULT);
+
+        cpus = cfg.SYSCHECK_UNKNOWN_CPU_DEFAULT;
+    }
+
+    if (cpus < 8)
+    {
+        if (cfg.SYSCHECK_FORCE_IGNORE_CPU != annoyingValue)
+        {
+            LOG_ERROR(DEFAULT_LOG,
+                      "Host only has {} vCPUs; stellar-core may not function "
+                      "properly under heavy load; please ensure that the "
+                      "system has at least 8 vCPUs. To force ignore this "
+                      "warning, set SYSCHECK_FORCE_IGNORE_CPU to \"{}\". Note "
+                      "that value differs for every node and version.",
+                      cpus, annoyingValue);
+            return false;
+        }
+        LOG_WARNING(DEFAULT_LOG,
+                    "Host only has {} vCPUs; the recommended minimum is 8",
+                    cpus);
+    }
+
+    return true;
+}
+} // namespace
+
 int
 run(CommandLineArgs const& args)
 {
@@ -1614,6 +1730,16 @@ run(CommandLineArgs const& args)
                 {
                     LOG_WARNING(DEFAULT_LOG, "Artificial acceleration of time "
                                              "enabled (for testing only)");
+                }
+
+                if (gIsProductionNetwork && cfg.NODE_IS_VALIDATOR &&
+                    !validateSystemInfo(cfg))
+                {
+                    LOG_ERROR(
+                        DEFAULT_LOG,
+                        "Host system does not meet the minimum requirements "
+                        "for running stellar-core. Exiting.");
+                    return 1;
                 }
 
                 // Second, setup the app with the final configuration.
