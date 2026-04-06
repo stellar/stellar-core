@@ -24,7 +24,7 @@ toml = "0.8"
 
 # libp2p for networking
 # QUIC transport only - provides encryption (TLS 1.3), multiplexing, and stream independence
-libp2p = { version = "0.54", features = ["tokio", "macros", "kad", "identify", "quic"] }
+libp2p = { version = "0.54", features = ["tokio", "macros", "identify", "quic"] }
 libp2p-stream = "0.2.0-alpha"
 futures = "0.3"
 
@@ -45,6 +45,7 @@ rand = "0.8"
 
 [dev-dependencies]
 tempfile = "3.10"
+tokio = { version = "1.36", features = ["test-util"] }
 
 [features]
 default = []

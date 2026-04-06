@@ -19,10 +19,6 @@ use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
     identity::Keypair,
-    kad::{
-        store::MemoryStore, Behaviour as Kademlia, Config as KademliaConfig,
-        Event as KademliaEvent, Mode as KademliaMode,
-    },
     swarm::{NetworkBehaviour, SwarmEvent},
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
@@ -88,8 +84,6 @@ pub enum OverlayCommand {
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
     /// Connect to a peer
     Dial(Multiaddr),
-    /// Bootstrap Kademlia DHT for peer discovery
-    BootstrapKademlia,
     /// Request SCP state from all peers
     RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
@@ -118,31 +112,23 @@ impl PeerOutboundStreams {
     }
 }
 
-/// Network behaviour combining streams, Kademlia, and Identify
+/// Network behaviour combining streams and Identify
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "StellarBehaviourEvent")]
 struct StellarBehaviour {
     stream: StreamBehaviour,
-    kademlia: Kademlia<MemoryStore>,
     identify: Identify,
 }
 
 #[derive(Debug)]
 enum StellarBehaviourEvent {
     Stream(()), // StreamBehaviour emits () - no events
-    Kademlia(KademliaEvent),
     Identify(IdentifyEvent),
 }
 
 impl From<()> for StellarBehaviourEvent {
     fn from(_event: ()) -> Self {
         StellarBehaviourEvent::Stream(())
-    }
-}
-
-impl From<KademliaEvent> for StellarBehaviourEvent {
-    fn from(event: KademliaEvent) -> Self {
-        StellarBehaviourEvent::Kademlia(event)
     }
 }
 
@@ -160,48 +146,62 @@ pub struct OverlayHandle {
 
 impl OverlayHandle {
     pub async fn broadcast_scp(&self, envelope: Vec<u8>) {
-        let _ = self
+        if let Err(e) = self
             .cmd_tx
             .send(OverlayCommand::BroadcastScp(envelope))
-            .await;
+            .await
+        {
+            warn!("Overlay command channel closed, failed to send BroadcastScp: {}", e);
+        }
     }
 
     pub async fn broadcast_tx(&self, tx: Vec<u8>) {
-        let _ = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await;
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await {
+            warn!("Overlay command channel closed, failed to send BroadcastTx: {}", e);
+        }
     }
 
     pub async fn fetch_txset(&self, hash: [u8; 32]) {
-        let _ = self.cmd_tx.send(OverlayCommand::FetchTxSet { hash }).await;
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::FetchTxSet { hash }).await {
+            warn!("Overlay command channel closed, failed to send FetchTxSet: {}", e);
+        }
     }
 
     pub async fn send_txset(&self, hash: [u8; 32], data: Vec<u8>, to: PeerId) {
-        let _ = self
+        if let Err(e) = self
             .cmd_tx
             .send(OverlayCommand::SendTxSet { hash, data, to })
-            .await;
+            .await
+        {
+            warn!("Overlay command channel closed, failed to send SendTxSet: {}", e);
+        }
     }
 
     /// Record that a peer has a specific TX set (call when receiving SCP with txSetHash)
     pub async fn record_txset_source(&self, hash: [u8; 32], peer: PeerId) {
-        let _ = self
+        if let Err(e) = self
             .cmd_tx
             .send(OverlayCommand::RecordTxSetSource { hash, peer })
-            .await;
+            .await
+        {
+            warn!("Overlay command channel closed, failed to send RecordTxSetSource: {}", e);
+        }
     }
 
     pub async fn dial(&self, addr: Multiaddr) {
-        let _ = self.cmd_tx.send(OverlayCommand::Dial(addr)).await;
-    }
-
-    pub async fn bootstrap_kademlia(&self) {
-        let _ = self.cmd_tx.send(OverlayCommand::BootstrapKademlia).await;
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::Dial(addr)).await {
+            warn!("Overlay command channel closed, failed to send Dial: {}", e);
+        }
     }
 
     pub async fn request_scp_state_from_all_peers(&self, ledger_seq: u32) {
-        let _ = self
+        if let Err(e) = self
             .cmd_tx
             .send(OverlayCommand::RequestScpState { ledger_seq })
-            .await;
+            .await
+        {
+            warn!("Overlay command channel closed, failed to send RequestScpState: {}", e);
+        }
     }
 
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
@@ -216,7 +216,9 @@ impl OverlayHandle {
     }
 
     pub async fn shutdown(&self) {
-        let _ = self.cmd_tx.send(OverlayCommand::Shutdown).await;
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::Shutdown).await {
+            warn!("Overlay command channel closed, failed to send Shutdown: {}", e);
+        }
     }
 
     /// Ping the event loop and wait for response - for testing responsiveness
@@ -307,8 +309,6 @@ pub struct StellarOverlay {
     control: Control,
     state: Arc<SharedState>,
     cmd_rx: mpsc::Receiver<OverlayCommand>,
-    /// Track whether Kademlia bootstrap has been triggered (only do it once)
-    kademlia_bootstrap_triggered: bool,
 }
 
 /// Create the overlay and return handle + event receivers
@@ -347,19 +347,6 @@ pub fn create_overlay(
         .with_behaviour(|key| {
             let stream = StreamBehaviour::new();
 
-            // Configure Kademlia for active DHT participation
-            // - Server mode: respond to DHT queries (required for peer discovery)
-            // - Default periodic bootstrap: 5 minutes
-            let kad_config = KademliaConfig::default();
-            // Note: We'll set server mode after swarm creation since set_mode is on Behaviour
-
-            #[allow(deprecated)]
-            let kademlia = Kademlia::with_config(
-                key.public().to_peer_id(),
-                MemoryStore::new(key.public().to_peer_id()),
-                kad_config,
-            );
-
             let identify = Identify::new(IdentifyConfig::new(
                 "/stellar/1.0.0".to_string(),
                 key.public(),
@@ -367,25 +354,11 @@ pub fn create_overlay(
 
             StellarBehaviour {
                 stream,
-                kademlia,
                 identify,
             }
         })?
         .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(300)))
         .build();
-
-    // CRITICAL: Set Kademlia to Server mode immediately
-    // By default, Kademlia starts in Client mode and only switches to Server
-    // when an external address is confirmed. In test networks with localhost
-    // addresses, this never happens, so nodes don't respond to DHT queries
-    // and peer discovery fails completely.
-    // Server mode = respond to DHT queries = enable peer discovery
-    let mut swarm = swarm;
-    swarm
-        .behaviour_mut()
-        .kademlia
-        .set_mode(Some(KademliaMode::Server));
-    info!("Kademlia: Set to Server mode for DHT query handling");
 
     let control = swarm.behaviour().stream.new_control();
 
@@ -402,123 +375,8 @@ pub fn create_overlay(
         control,
         state,
         cmd_rx,
-        kademlia_bootstrap_triggered: false,
     };
 
-    let handle = OverlayHandle { cmd_tx };
-
-    Ok((handle, event_rx, tx_event_rx, overlay))
-}
-
-/// Create overlay (default: Kademlia enabled)
-#[cfg(test)]
-pub fn create_overlay_with_kademlia(
-    keypair: Keypair,
-) -> Result<
-    (
-        OverlayHandle,
-        mpsc::UnboundedReceiver<OverlayEvent>,
-        mpsc::Receiver<OverlayEvent>,
-        StellarOverlay,
-    ),
-    Box<dyn std::error::Error + Send + Sync>,
-> {
-    create_test_overlay(keypair, true)
-}
-
-/// Create overlay with no Kademlia (for topology-controlled tests)
-#[cfg(test)]
-pub fn create_overlay_no_kademlia(
-    keypair: Keypair,
-) -> Result<
-    (
-        OverlayHandle,
-        mpsc::UnboundedReceiver<OverlayEvent>,
-        mpsc::Receiver<OverlayEvent>,
-        StellarOverlay,
-    ),
-    Box<dyn std::error::Error + Send + Sync>,
-> {
-    create_test_overlay(keypair, false)
-}
-
-/// Create test overlay with configurable options
-#[cfg(test)]
-fn create_test_overlay(
-    keypair: Keypair,
-    enable_kademlia: bool,
-) -> Result<
-    (
-        OverlayHandle,
-        mpsc::UnboundedReceiver<OverlayEvent>,
-        mpsc::Receiver<OverlayEvent>,
-        StellarOverlay,
-    ),
-    Box<dyn std::error::Error + Send + Sync>,
-> {
-    let peer_id = keypair.public().to_peer_id();
-    info!(
-        "Creating test StellarOverlay peer_id={} (kademlia={})",
-        peer_id, enable_kademlia
-    );
-
-    let mut quic_config = libp2p::quic::Config::new(&keypair);
-    quic_config.keep_alive_interval = Duration::from_secs(15);
-    quic_config.max_idle_timeout = 60_000;
-
-    let swarm = SwarmBuilder::with_existing_identity(keypair.clone())
-        .with_tokio()
-        .with_quic_config(|_| quic_config)
-        .with_behaviour(|key| {
-            let stream = StreamBehaviour::new();
-            let kad_config = KademliaConfig::default();
-            #[allow(deprecated)]
-            let kademlia = Kademlia::with_config(
-                key.public().to_peer_id(),
-                MemoryStore::new(key.public().to_peer_id()),
-                kad_config,
-            );
-            let identify = Identify::new(IdentifyConfig::new(
-                "/stellar/1.0.0".to_string(),
-                key.public(),
-            ));
-            StellarBehaviour {
-                stream,
-                kademlia,
-                identify,
-            }
-        })?
-        .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(300)))
-        .build();
-
-    let mut swarm = swarm;
-    if enable_kademlia {
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .set_mode(Some(KademliaMode::Server));
-    } else {
-        // Client mode = don't respond to DHT queries = no peer discovery
-        swarm
-            .behaviour_mut()
-            .kademlia
-            .set_mode(Some(KademliaMode::Client));
-    }
-
-    let control = swarm.behaviour().stream.new_control();
-    let (cmd_tx, cmd_rx) = mpsc::channel(256);
-    let (event_tx, event_rx) = mpsc::unbounded_channel();
-    let (tx_event_tx, tx_event_rx) = mpsc::channel(TX_EVENT_CHANNEL_CAPACITY);
-
-    let state = Arc::new(SharedState::new(event_tx, tx_event_tx, control.clone()));
-
-    let overlay = StellarOverlay {
-        swarm,
-        control,
-        state,
-        cmd_rx,
-        kademlia_bootstrap_triggered: false,
-    };
     let handle = OverlayHandle { cmd_tx };
 
     Ok((handle, event_rx, tx_event_rx, overlay))
@@ -543,9 +401,27 @@ impl StellarOverlay {
         info!("Listening on QUIC port {}", listen_port);
 
         // Accept incoming streams for each protocol
-        let scp_incoming = self.control.accept(SCP_PROTOCOL).unwrap();
-        let tx_incoming = self.control.accept(TX_PROTOCOL).unwrap();
-        let txset_incoming = self.control.accept(TXSET_PROTOCOL).unwrap();
+        let scp_incoming = match self.control.accept(SCP_PROTOCOL) {
+            Ok(incoming) => incoming,
+            Err(e) => {
+                error!("Failed to accept SCP protocol streams: {:?}. Overlay cannot function.", e);
+                return;
+            }
+        };
+        let tx_incoming = match self.control.accept(TX_PROTOCOL) {
+            Ok(incoming) => incoming,
+            Err(e) => {
+                error!("Failed to accept TX protocol streams: {:?}. Overlay cannot function.", e);
+                return;
+            }
+        };
+        let txset_incoming = match self.control.accept(TXSET_PROTOCOL) {
+            Ok(incoming) => incoming,
+            Err(e) => {
+                error!("Failed to accept TxSet protocol streams: {:?}. Overlay cannot function.", e);
+                return;
+            }
+        };
 
         // Spawn inbound stream handlers
         let state = self.state.clone();
@@ -582,16 +458,9 @@ impl StellarOverlay {
                             debug!("Recorded peer {} as source for TX set {:02x?}...", peer, &hash[..4]);
                         }
                         OverlayCommand::Dial(addr) => {
+                            info!("Dialing peer at {}", addr);
                             if let Err(e) = self.swarm.dial(addr.clone()) {
                                 warn!("Failed to dial {}: {}", addr, e);
-                            }
-                        }
-                        OverlayCommand::BootstrapKademlia => {
-                            info!("Kademlia: Starting bootstrap");
-                            if let Err(e) = self.swarm.behaviour_mut().kademlia.bootstrap() {
-                                warn!("Kademlia: Bootstrap failed to start: {:?}", e);
-                            } else {
-                                info!("Kademlia: Bootstrap initiated successfully");
                             }
                         }
                         OverlayCommand::RequestScpState { ledger_seq } => {
@@ -650,24 +519,24 @@ impl StellarOverlay {
                     pending.retain(|_hash, p| p != &peer_id);
                     let removed = before_len - pending.len();
                     if removed > 0 {
-                        debug!(
+                        info!(
                             "Removed {} pending txset requests for disconnected peer {}",
                             removed, peer_id
                         );
                     }
                 }
                 // Notify main loop to clean up any pending requests for this peer
-                let _ = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
+                if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
                     peer_id: peer_id.clone(),
-                });
+                }) {
+                    warn!("Failed to send PeerDisconnected event for {}: {}", peer_id, e);
+                }
             }
 
             SwarmEvent::Behaviour(StellarBehaviourEvent::Identify(event)) => {
-                self.handle_identify_event(event);
-            }
-
-            SwarmEvent::Behaviour(StellarBehaviourEvent::Kademlia(event)) => {
-                self.handle_kademlia_event(event);
+                if let IdentifyEvent::Received { peer_id, info, .. } = event {
+                    debug!("Identified peer {}: {:?}", peer_id, info.listen_addrs);
+                }
             }
 
             SwarmEvent::Behaviour(StellarBehaviourEvent::Stream(_)) => {
@@ -679,102 +548,6 @@ impl StellarOverlay {
             }
 
             _ => {}
-        }
-    }
-
-    fn handle_identify_event(&mut self, event: IdentifyEvent) {
-        if let IdentifyEvent::Received { peer_id, info, .. } = event {
-            debug!("Identified peer {}: {:?}", peer_id, info.listen_addrs);
-
-            for addr in info.listen_addrs {
-                self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, addr.clone());
-
-                // If not already connected, dial this Kademlia-discovered peer
-                // to add to GossipSub mesh for SCP message routing
-                if !self.swarm.is_connected(&peer_id) {
-                    info!(
-                        "Auto-dialing Kademlia-discovered peer {} at {}",
-                        peer_id, addr
-                    );
-                    if let Err(e) = self.swarm.dial(addr) {
-                        warn!("Failed to dial discovered peer {}: {:?}", peer_id, e);
-                    }
-                    break; // Only dial once with first address
-                }
-            }
-
-            // Trigger Kademlia bootstrap on first identified peer
-            // This ensures the routing table has at least one peer before bootstrapping
-            if !self.kademlia_bootstrap_triggered {
-                self.kademlia_bootstrap_triggered = true;
-                info!("Kademlia: First peer identified, initiating bootstrap");
-                if let Err(e) = self.swarm.behaviour_mut().kademlia.bootstrap() {
-                    warn!("Kademlia: Bootstrap failed to start: {:?}", e);
-                } else {
-                    info!("Kademlia: Bootstrap initiated successfully");
-                }
-            }
-        }
-    }
-
-    fn handle_kademlia_event(&mut self, event: KademliaEvent) {
-        match event {
-            KademliaEvent::RoutingUpdated { peer, .. } => {
-                debug!("Kademlia: Routing table updated for peer {}", peer);
-            }
-            KademliaEvent::OutboundQueryProgressed { result, .. } => {
-                use libp2p::kad::QueryResult;
-                match result {
-                    QueryResult::Bootstrap(Ok(bootstrap_result)) => {
-                        info!(
-                            "Kademlia: Bootstrap completed, {} peers in routing table",
-                            bootstrap_result.num_remaining
-                        );
-
-                        // After bootstrap, count discovered peers for logging
-                        let mut total_peers = 0;
-                        for kbucket in self.swarm.behaviour_mut().kademlia.kbuckets() {
-                            total_peers += kbucket.iter().count();
-                        }
-
-                        if total_peers > 0 {
-                            info!("Kademlia: Routing table has {} total peers", total_peers);
-                        }
-                    }
-                    QueryResult::Bootstrap(Err(e)) => {
-                        warn!("Kademlia: Bootstrap failed: {:?}", e);
-                    }
-                    QueryResult::GetClosestPeers(Ok(get_closest_result)) => {
-                        info!(
-                            "Kademlia: Found {} closest peers",
-                            get_closest_result.peers.len()
-                        );
-
-                        // Discovered new peers - they're already added to routing table
-                        // When Identify protocol runs, addresses will be added and we can dial them
-                        // TODO: Auto-dial discovered peers once we have their addresses
-                        // This would add them to GossipSub mesh for SCP message routing
-                        for peer in &get_closest_result.peers {
-                            debug!("Kademlia: Discovered peer {:?}", peer);
-                        }
-                    }
-                    QueryResult::GetClosestPeers(Err(e)) => {
-                        debug!("Kademlia: GetClosestPeers query failed: {:?}", e);
-                    }
-                    _ => {
-                        trace!("Kademlia: Query progressed: {:?}", result);
-                    }
-                }
-            }
-            KademliaEvent::InboundRequest { request } => {
-                debug!("Kademlia: Received inbound request: {:?}", request);
-            }
-            _ => {
-                trace!("Kademlia event: {:?}", event);
-            }
         }
     }
 
@@ -855,7 +628,7 @@ impl StellarOverlay {
         )
         .await
         {
-            debug!("Failed to request SCP state from peer {}: {:?}", peer_id, e);
+            info!("Failed to request SCP state from newly connected peer {}: {:?}", peer_id, e);
         }
     }
 
@@ -1413,11 +1186,12 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         );
 
                         // Forward to Core
-                        let envelope_clone = envelope.clone();
-                        let _ = state.event_tx.send(OverlayEvent::ScpReceived {
+                        if let Err(e) = state.event_tx.send(OverlayEvent::ScpReceived {
                             envelope,
                             from: peer_id.clone(),
-                        });
+                        }) {
+                            warn!("Failed to forward SCP event from {}: {}", peer_id, e);
+                        }
                     }
                     Err(e) => {
                         warn!(
@@ -1446,7 +1220,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                         handle_tx_stream_message(&state, &peer_id, &data, &mut stream).await;
                     }
                     Err(e) => {
-                        debug!("TX stream from {} closed: {}", peer_id, e);
+                        info!("TX stream from {} closed: {}", peer_id, e);
                         break;
                     }
                 }
@@ -1709,10 +1483,12 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             );
 
                             // Emit event so main.rs can look up cache and respond
-                            let _ = state.event_tx.send(OverlayEvent::TxSetRequested {
+                            if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
                                 hash,
                                 from: peer_id,
-                            });
+                            }) {
+                                warn!("Failed to forward TxSetRequested event from {}: {}", peer_id, e);
+                            }
                         } else if data.len() > 32 {
                             // This is a TX_SET response to our request
                             let mut hash = [0u8; 32];
@@ -1732,15 +1508,17 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 peer_id,
                                 was_pending
                             );
-                            let _ = state.event_tx.send(OverlayEvent::TxSetReceived {
+                            if let Err(e) = state.event_tx.send(OverlayEvent::TxSetReceived {
                                 hash,
                                 data: txset_data,
                                 from: peer_id,
-                            });
+                            }) {
+                                warn!("Failed to forward TxSetReceived event from {}: {}", peer_id, e);
+                            }
                         }
                     }
                     Err(e) => {
-                        debug!("TxSet stream from {} closed: {}", peer_id, e);
+                        info!("TxSet stream from {} closed: {}", peer_id, e);
                         break;
                     }
                 }
@@ -1819,7 +1597,7 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                     try_send_to_existing_stream(&state, peer.clone(), StreamType::Tx, &encoded)
                         .await
                 {
-                    debug!("Failed to send GETDATA retry to {}: {:?}", peer, e);
+                    warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
                 }
             } else {
                 // No more peers to try
@@ -3775,9 +3553,9 @@ async fn test_inv_getdata_tx_propagation() {
 
     // Create overlays with INV/GETDATA enabled
     let (handle1, _events1, mut tx_events1, overlay1) =
-        create_overlay_with_kademlia(keypair1.clone()).unwrap();
+        create_overlay(keypair1.clone()).unwrap();
     let (handle2, _events2, mut tx_events2, overlay2) =
-        create_overlay_with_kademlia(keypair2).unwrap();
+        create_overlay(keypair2).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
 
@@ -3852,13 +3630,13 @@ async fn test_inv_getdata_three_node_relay() {
     let keypair2 = Keypair::generate_ed25519();
     let keypair3 = Keypair::generate_ed25519();
 
-    // Create overlays with INV/GETDATA enabled but NO Kademlia (controlled topology)
+    // Create overlays with INV/GETDATA enabled (controlled topology)
     let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay_no_kademlia(keypair1.clone()).unwrap();
+        create_overlay(keypair1.clone()).unwrap();
     let (handle2, _events2, mut tx_events2, overlay2) =
-        create_overlay_no_kademlia(keypair2.clone()).unwrap();
+        create_overlay(keypair2.clone()).unwrap();
     let (handle3, _events3, mut tx_events3, overlay3) =
-        create_overlay_no_kademlia(keypair3).unwrap();
+        create_overlay(keypair3).unwrap();
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
     let peer2_id = PeerId::from_public_key(&keypair2.public());

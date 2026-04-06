@@ -31,7 +31,7 @@ pub struct Config {
     /// Preferred peer addresses (always connect)
     pub preferred_peers: Vec<SocketAddr>,
 
-    /// Known peer addresses (initial bootstrap)
+    /// Known peer addresses (connect on startup)
     pub known_peers: Vec<SocketAddr>,
 
     /// Number of peers to push transactions to (push-k strategy)

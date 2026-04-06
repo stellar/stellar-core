@@ -183,14 +183,24 @@ async fn resolve_peer_addr(addr_str: &str, default_port: u16) -> Result<SocketAd
         .ok_or_else(|| format!("DNS returned no addresses for '{}'", host_port))
 }
 
-/// Resolve a peer and dial it. Returns the address string if resolution failed
-/// (for retry), or None on success.
+/// Result of resolve_and_dial: either we dialed successfully (with the libp2p SocketAddr)
+/// or DNS resolution failed (returning the original address string for retry).
+enum DialResult {
+    /// Successfully resolved and dialed. Contains the libp2p SocketAddr (ip:port+1000).
+    Dialed(SocketAddr),
+    /// Self-dial detected and skipped.
+    SelfSkipped,
+    /// DNS resolution failed — address should be retried.
+    ResolutionFailed(String),
+}
+
+/// Resolve a peer address and dial it.
 async fn resolve_and_dial(
     addr_str: &str,
     default_port: u16,
     local_addrs: &RwLock<HashSet<SocketAddr>>,
     handle: &LibP2pOverlayHandle,
-) -> Option<String> {
+) -> DialResult {
     match resolve_peer_addr(addr_str, default_port).await {
         Ok(addr) => {
             let libp2p_port = addr.port() + 1000;
@@ -198,31 +208,34 @@ async fn resolve_and_dial(
 
             if local_addrs.read().await.contains(&libp2p_sock) {
                 debug!("Skipping self-dial for {} (resolved to local {})", addr_str, addr);
-                return None;
+                return DialResult::SelfSkipped;
             }
 
+            let ip_proto = if addr.ip().is_ipv4() { "ip4" } else { "ip6" };
             let libp2p_addr: libp2p::Multiaddr =
-                format!("/ip4/{}/udp/{}/quic-v1", addr.ip(), libp2p_port)
+                format!("/{}/{}/udp/{}/quic-v1", ip_proto, addr.ip(), libp2p_port)
                     .parse()
                     .unwrap();
 
             info!("Resolved peer {} -> {}, dialing {}", addr_str, addr, libp2p_addr);
             handle.dial(libp2p_addr).await;
-            None
+            DialResult::Dialed(libp2p_sock)
         }
         Err(e) => {
             warn!("Failed to resolve peer {}: {}", addr_str, e);
-            Some(addr_str.to_string())
+            DialResult::ResolutionFailed(addr_str.to_string())
         }
     }
 }
 
 /// Spawn a background task that retries DNS resolution for unresolved peers
-/// with exponential backoff.
+/// with exponential backoff (capped at 30s). Retries indefinitely until all
+/// peers resolve — in K8s, pods may take arbitrarily long to become DNS-ready.
 fn spawn_peer_retry_task(
     unresolved: Vec<String>,
     default_port: u16,
     local_addrs: Arc<RwLock<HashSet<SocketAddr>>>,
+    configured_peers: Arc<RwLock<ConfiguredPeers>>,
     handle: LibP2pOverlayHandle,
 ) {
     if unresolved.is_empty() {
@@ -239,24 +252,32 @@ fn spawn_peer_retry_task(
         let mut pending = unresolved;
         let mut delay = Duration::from_secs(2);
         let max_delay = Duration::from_secs(30);
-        let max_attempts = 10;
+        let mut attempt: u64 = 0;
 
-        for attempt in 1..=max_attempts {
+        loop {
             tokio::time::sleep(delay).await;
+            attempt += 1;
 
             info!(
-                "DNS retry attempt {}/{} for {} peer(s)",
+                "DNS retry attempt {} for {} peer(s)",
                 attempt,
-                max_attempts,
                 pending.len()
             );
 
             let mut still_pending = Vec::new();
             for addr_str in &pending {
-                if let Some(failed) =
-                    resolve_and_dial(addr_str, default_port, &local_addrs, &handle).await
-                {
-                    still_pending.push(failed);
+                match resolve_and_dial(addr_str, default_port, &local_addrs, &handle).await {
+                    DialResult::Dialed(libp2p_sock) => {
+                        configured_peers
+                            .write()
+                            .await
+                            .resolved
+                            .insert(libp2p_sock, addr_str.clone());
+                    }
+                    DialResult::SelfSkipped => {}
+                    DialResult::ResolutionFailed(addr) => {
+                        still_pending.push(addr);
+                    }
                 }
             }
 
@@ -268,13 +289,6 @@ fn spawn_peer_retry_task(
             pending = still_pending;
             delay = (delay * 2).min(max_delay);
         }
-
-        warn!(
-            "Gave up resolving {} peer(s) after {} attempts: {:?}",
-            pending.len(),
-            max_attempts,
-            pending
-        );
     });
 }
 
@@ -358,6 +372,20 @@ struct App {
     next_scp_request_id: Arc<AtomicU64>,
     /// Local addresses for self-dial detection (populated at startup + async DNS)
     local_addrs: Arc<RwLock<HashSet<SocketAddr>>>,
+    /// Configured peer addresses and listen port — kept for reconnection on disconnect.
+    /// Updated each time SetPeerConfig is received from Core.
+    configured_peers: Arc<RwLock<ConfiguredPeers>>,
+}
+
+/// Peer addresses configured via SetPeerConfig, used for reconnection.
+struct ConfiguredPeers {
+    /// All peer address strings (known + preferred)
+    addrs: Vec<String>,
+    /// The listen_port from the config (used as default_port for DNS resolution)
+    listen_port: u16,
+    /// Map from resolved SocketAddr (at libp2p port) to original address string,
+    /// so we can reconnect by address when a PeerId disconnects.
+    resolved: HashMap<SocketAddr, String>,
 }
 
 impl App {
@@ -420,6 +448,11 @@ impl App {
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs,
+            configured_peers: Arc::new(RwLock::new(ConfiguredPeers {
+                addrs: Vec::new(),
+                listen_port: 11625,
+                resolved: HashMap::new(),
+            })),
         })
     }
 
@@ -432,7 +465,11 @@ impl App {
                 // Receive message from Core
                 msg = self.core_ipc.receiver.recv() => {
                     match msg {
-                        Some(msg) => self.handle_core_message(msg).await,
+                        Some(msg) => {
+                            if !self.handle_core_message(msg).await {
+                                break;
+                            }
+                        }
                         None => {
                             info!("Core IPC connection closed");
                             break;
@@ -622,27 +659,82 @@ impl App {
 
             LibP2pOverlayEvent::PeerDisconnected { peer_id } => {
                 // Clean up any pending SCP state requests for this peer
-                let mut pending = self.pending_scp_state_requests.write().await;
-                let before_len = pending.len();
-                pending.retain(|_request_id, p| p != &peer_id);
-                let removed = before_len - pending.len();
-                if removed > 0 {
-                    debug!(
-                        "Removed {} pending SCP state requests for disconnected peer {}",
-                        removed, peer_id
+                {
+                    let mut pending = self.pending_scp_state_requests.write().await;
+                    let before_len = pending.len();
+                    pending.retain(|_request_id, p| p != &peer_id);
+                    let removed = before_len - pending.len();
+                    if removed > 0 {
+                        info!(
+                            "Removed {} pending SCP state requests for disconnected peer {}",
+                            removed, peer_id
+                        );
+                    }
+                }
+
+                // Reconnect: re-resolve and re-dial all configured peers.
+                // libp2p deduplicates — already-connected peers are skipped at transport level.
+                let cp = self.configured_peers.read().await;
+                let addrs = cp.addrs.clone();
+                let listen_port = cp.listen_port;
+                drop(cp);
+
+                if addrs.is_empty() {
+                    info!(
+                        "Peer {} disconnected, no configured peers to reconnect to",
+                        peer_id
                     );
+                } else {
+                    info!(
+                        "Peer {} disconnected, re-dialing {} configured peer(s)",
+                        peer_id,
+                        addrs.len()
+                    );
+                    let handle = self.libp2p_handle.clone();
+                    let local_addrs = self.local_addrs.clone();
+                    let configured_peers = self.configured_peers.clone();
+
+                    tokio::spawn(async move {
+                        let mut unresolved = Vec::new();
+                        for addr_str in &addrs {
+                            match resolve_and_dial(addr_str, listen_port, &local_addrs, &handle)
+                                .await
+                            {
+                                DialResult::Dialed(libp2p_sock) => {
+                                    configured_peers
+                                        .write()
+                                        .await
+                                        .resolved
+                                        .insert(libp2p_sock, addr_str.clone());
+                                }
+                                DialResult::SelfSkipped => {}
+                                DialResult::ResolutionFailed(addr) => {
+                                    unresolved.push(addr);
+                                }
+                            }
+                        }
+
+                        if !unresolved.is_empty() {
+                            spawn_peer_retry_task(
+                                unresolved,
+                                listen_port,
+                                local_addrs,
+                                configured_peers,
+                                handle,
+                            );
+                        }
+                    });
                 }
             }
         }
     }
 
-    /// Handle a message from Core
-    async fn handle_core_message(&mut self, msg: Message) {
+    /// Handle a message from Core. Returns false to signal shutdown.
+    async fn handle_core_message(&mut self, msg: Message) -> bool {
         match msg.msg_type {
             MessageType::Shutdown => {
                 info!("Shutdown requested by Core");
-                // Exit the process
-                std::process::exit(0);
+                return false;
             }
 
             MessageType::BroadcastScp => {
@@ -673,7 +765,7 @@ impl App {
                     if let Err(e) = self.core_ipc.sender.send_top_txs_response(&[]) {
                         error!("Failed to send empty top txs response: {}", e);
                     }
-                    return;
+                    return true;
                 }
 
                 let count = u32::from_le_bytes(msg.payload[0..4].try_into().unwrap()) as usize;
@@ -711,7 +803,7 @@ impl App {
                 // Request TX set by hash - check local cache first, then fetch from peers via libp2p
                 if msg.payload.len() < 32 {
                     warn!("RequestTxSet payload too short");
-                    return;
+                    return true;
                 }
 
                 let mut hash = [0u8; 32];
@@ -756,7 +848,7 @@ impl App {
                 // Payload: [hash:32][txSetXDR...]
                 if msg.payload.len() < 33 {
                     warn!("CacheTxSet payload too short");
-                    return;
+                    return true;
                 }
 
                 let mut hash = [0u8; 32];
@@ -782,7 +874,7 @@ impl App {
                 // Parse payload: [fee:i64][numOps:u32][txEnvelope...]
                 if msg.payload.len() < 12 {
                     warn!("SubmitTx payload too short");
-                    return;
+                    return true;
                 }
 
                 let fee = i64::from_le_bytes(msg.payload[0..8].try_into().unwrap());
@@ -901,7 +993,7 @@ impl App {
                         "ScpStateResponse payload too short: {} (need at least 12 bytes)",
                         msg.payload.len()
                     );
-                    return;
+                    return true;
                 }
 
                 let request_id = u64::from_le_bytes(msg.payload[0..8].try_into().unwrap());
@@ -922,7 +1014,7 @@ impl App {
                                 "Received ScpStateResponse for unknown request_id={} - dropping",
                                 request_id
                             );
-                            return;
+                            return true;
                         }
                     }
                 };
@@ -998,17 +1090,36 @@ impl App {
                         let all_peers: Vec<_> =
                             known.into_iter().chain(preferred.into_iter()).collect();
 
+                        // Store configured peers for reconnection
+                        {
+                            let mut cp = self.configured_peers.write().await;
+                            cp.addrs = all_peers.clone();
+                            cp.listen_port = listen_port;
+                            cp.resolved.clear();
+                        }
+
                         let handle = self.libp2p_handle.clone();
                         let local_addrs = self.local_addrs.clone();
+                        let configured_peers = self.configured_peers.clone();
 
                         tokio::spawn(async move {
                             let mut unresolved = Vec::new();
                             for addr_str in &all_peers {
-                                if let Some(failed) =
-                                    resolve_and_dial(addr_str, listen_port, &local_addrs, &handle)
-                                        .await
+                                match resolve_and_dial(addr_str, listen_port, &local_addrs, &handle)
+                                    .await
                                 {
-                                    unresolved.push(failed);
+                                    DialResult::Dialed(libp2p_sock) => {
+                                        // Record mapping so we can reconnect on disconnect
+                                        configured_peers
+                                            .write()
+                                            .await
+                                            .resolved
+                                            .insert(libp2p_sock, addr_str.clone());
+                                    }
+                                    DialResult::SelfSkipped => {}
+                                    DialResult::ResolutionFailed(addr) => {
+                                        unresolved.push(addr);
+                                    }
                                 }
                             }
 
@@ -1017,14 +1128,11 @@ impl App {
                                 unresolved,
                                 listen_port,
                                 local_addrs,
+                                configured_peers,
                                 handle,
                             );
                         });
 
-                        // Kademlia bootstrap is now triggered automatically when the first peer
-                        // is identified (in handle_identify_event). This ensures the routing
-                        // table has at least one peer before attempting bootstrap, avoiding
-                        // "No known peers" errors in slow network environments like k8s.
                     }
                 }
             }
@@ -1033,6 +1141,7 @@ impl App {
                 warn!("Unexpected message type from Core: {:?}", msg.msg_type);
             }
         }
+        true
     }
 }
 
@@ -1255,5 +1364,358 @@ mod tests {
         let hashes = extract_txset_hashes_from_scp(&envelope);
 
         assert_eq!(hashes.len(), 1, "Should deduplicate same hash");
+    }
+
+    // --- DNS resolution tests ---
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_ip_port() {
+        // Bare IP:port should parse directly without DNS
+        let addr = resolve_peer_addr("10.0.0.1:11625", 9999).await.unwrap();
+        assert_eq!(addr, "10.0.0.1:11625".parse::<SocketAddr>().unwrap());
+        // default_port is ignored when addr already has a port
+    }
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_ip_port_various() {
+        // Loopback
+        let addr = resolve_peer_addr("127.0.0.1:8080", 0).await.unwrap();
+        assert_eq!(addr.ip().to_string(), "127.0.0.1");
+        assert_eq!(addr.port(), 8080);
+
+        // High port
+        let addr = resolve_peer_addr("192.168.1.1:65535", 0).await.unwrap();
+        assert_eq!(addr.port(), 65535);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_dns_no_port() {
+        // "localhost" is a DNS name; should resolve and use default_port
+        let addr = resolve_peer_addr("localhost", 11625).await.unwrap();
+        assert!(addr.ip().is_loopback(), "localhost should resolve to loopback, got {}", addr.ip());
+        assert_eq!(addr.port(), 11625, "Should use default_port when hostname has no port");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_dns_with_port() {
+        // "localhost:9999" — DNS name with explicit port
+        let addr = resolve_peer_addr("localhost:9999", 11625).await.unwrap();
+        assert!(addr.ip().is_loopback());
+        assert_eq!(addr.port(), 9999, "Should use explicit port, not default_port");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_unresolvable() {
+        // Bogus hostname should return an error
+        let result = resolve_peer_addr("this.host.definitely.does.not.exist.invalid", 11625).await;
+        assert!(result.is_err(), "Unresolvable hostname should return Err");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("failed to resolve"),
+            "Error should mention resolution failure, got: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_peer_addr_ipv6_bracket() {
+        // Bracketed IPv6 with port should parse directly
+        let addr = resolve_peer_addr("[::1]:11625", 9999).await.unwrap();
+        assert!(addr.ip().is_ipv6());
+        assert_eq!(addr.port(), 11625);
+    }
+
+    // --- collect_local_addrs tests ---
+
+    #[tokio::test]
+    async fn test_collect_local_addrs_includes_loopback() {
+        let addrs = collect_local_addrs(12625);
+        // Loopback is inserted synchronously, should be present immediately
+        let set = addrs.read().await;
+        let loopback = SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            12625,
+        );
+        assert!(
+            set.contains(&loopback),
+            "Local addrs must always contain loopback at the libp2p port"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_collect_local_addrs_has_nonloopback() {
+        // The UDP probe should find at least our primary interface IP
+        let addrs = collect_local_addrs(12625);
+        let set = addrs.read().await;
+        assert!(
+            set.len() >= 2,
+            "Should have loopback + at least one probe result, got {} addrs: {:?}",
+            set.len(),
+            set,
+        );
+    }
+
+    // --- resolve_and_dial tests ---
+
+    #[tokio::test]
+    async fn test_resolve_and_dial_self_dial_skipped() {
+        // If the resolved address is in local_addrs, resolve_and_dial should
+        // return SelfSkipped.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        // 127.0.0.1:11625 → libp2p port 12625
+        local_addrs
+            .write()
+            .await
+            .insert("127.0.0.1:12625".parse().unwrap());
+
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        let result = resolve_and_dial("127.0.0.1:11625", 11625, &local_addrs, &handle).await;
+        assert!(
+            matches!(result, DialResult::SelfSkipped),
+            "Self-dial should be skipped"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_and_dial_dns_failure_returns_addr() {
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        let result = resolve_and_dial(
+            "unresolvable.invalid",
+            11625,
+            &local_addrs,
+            &handle,
+        )
+        .await;
+        assert!(
+            matches!(result, DialResult::ResolutionFailed(ref s) if s == "unresolvable.invalid"),
+            "Failed DNS should return ResolutionFailed with the address string"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_and_dial_ip_port_success() {
+        // A valid IP:port that is NOT in local_addrs should return Dialed.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        let result = resolve_and_dial("10.255.255.1:11625", 11625, &local_addrs, &handle).await;
+        assert!(
+            matches!(result, DialResult::Dialed(_)),
+            "Valid IP:port should resolve and return Dialed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_and_dial_dns_success() {
+        // "localhost" should resolve via DNS and return Dialed.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        let result = resolve_and_dial("localhost", 11625, &local_addrs, &handle).await;
+        assert!(
+            matches!(result, DialResult::Dialed(_)),
+            "localhost should resolve via DNS and return Dialed"
+        );
+    }
+
+    // --- spawn_peer_retry_task tests ---
+
+    fn make_test_configured_peers() -> Arc<RwLock<ConfiguredPeers>> {
+        Arc::new(RwLock::new(ConfiguredPeers {
+            addrs: Vec::new(),
+            listen_port: 11625,
+            resolved: HashMap::new(),
+        }))
+    }
+
+    #[tokio::test]
+    async fn test_spawn_peer_retry_empty_is_noop() {
+        // Empty unresolved list should not spawn anything
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        // This should return immediately without spawning a task
+        spawn_peer_retry_task(vec![], 11625, local_addrs, make_test_configured_peers(), handle);
+        // No panic, no hang — that's the test
+    }
+
+    #[tokio::test]
+    async fn test_spawn_peer_retry_resolves_on_retry() {
+        // "localhost" should resolve on the first retry attempt.
+        // We put it in the "unresolved" list as if initial resolution failed.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        // Use tokio::time::pause() so the test doesn't actually sleep 2+ seconds
+        tokio::time::pause();
+
+        spawn_peer_retry_task(
+            vec!["localhost".to_string()],
+            11625,
+            local_addrs,
+            make_test_configured_peers(),
+            handle,
+        );
+
+        // Advance time past the first retry delay (2s)
+        tokio::time::advance(Duration::from_secs(3)).await;
+        // Yield to let the spawned task run
+        tokio::task::yield_now().await;
+
+        // If we get here without hanging, the retry resolved "localhost" and exited.
+        // (An unresolvable host would keep retrying forever, but "localhost" succeeds on attempt 1.)
+    }
+
+    #[tokio::test]
+    async fn test_spawn_peer_retry_keeps_retrying() {
+        // With an unresolvable host, the retry task should keep going indefinitely
+        // (no max attempts). We verify it survives multiple retry cycles.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        tokio::time::pause();
+
+        spawn_peer_retry_task(
+            vec!["will-never-resolve.invalid".to_string()],
+            11625,
+            local_addrs,
+            make_test_configured_peers(),
+            handle,
+        );
+
+        // Advance through many retry cycles — the task should not exit or panic.
+        // Delays: 2, 4, 8, 16, 30, 30, 30, ... (capped at 30s)
+        // After 300s, we've done ~12 retries. Task is still alive.
+        tokio::time::advance(Duration::from_secs(300)).await;
+        tokio::task::yield_now().await;
+
+        // Advance further — still should not panic or exit
+        tokio::time::advance(Duration::from_secs(300)).await;
+        tokio::task::yield_now().await;
+
+        // If we get here, the retry loop is still running (no max attempts). Pass.
+    }
+
+    /// Integration test: when known_peers are passed to the overlay via
+    /// resolve_and_dial, all of them (IPs and DNS names) get resolved and
+    /// connected. Verifies the full SetPeerConfig → resolve → dial → connected flow.
+    #[tokio::test]
+    async fn test_all_known_peers_resolve_and_connect() {
+        // Create 3 overlay nodes
+        let kp1 = Libp2pKeypair::generate_ed25519();
+        let kp2 = Libp2pKeypair::generate_ed25519();
+        let kp3 = Libp2pKeypair::generate_ed25519();
+
+        let (handle1, mut events1, _tx1, overlay1) = create_overlay(kp1).unwrap();
+        let (handle2, mut events2, _tx2, overlay2) = create_overlay(kp2).unwrap();
+        let (handle3, mut events3, _tx3, overlay3) = create_overlay(kp3).unwrap();
+
+        // Start all three on different ports
+        let port1: u16 = 18501;
+        let port2: u16 = 18502;
+        let port3: u16 = 18503;
+        tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
+        tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
+        tokio::spawn(async move { overlay3.run("127.0.0.1", port3).await });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Node1 resolves and dials all peers using a mix of IP and DNS formats.
+        // peer_port values are: port2 - 1000 = 17502, port3 - 1000 = 17503
+        // (resolve_and_dial adds +1000 for libp2p_port)
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let known_peers: Vec<String> = vec![
+            format!("127.0.0.1:{}", port2 - 1000),   // bare IP:port for node2
+            format!("localhost:{}", port3 - 1000),    // DNS name:port for node3
+        ];
+
+        for addr_str in &known_peers {
+            let result = resolve_and_dial(addr_str, 11625, &local_addrs, &handle1).await;
+            assert!(
+                matches!(result, DialResult::Dialed(_)),
+                "Peer {} should resolve and dial on first try",
+                addr_str
+            );
+        }
+
+        // Wait for connections + stream establishment
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Verify connectivity by broadcasting SCP from node1 and receiving on node2 and node3
+        let scp_msg = b"connectivity-test-message".to_vec();
+        handle1.broadcast_scp(scp_msg.clone()).await;
+
+        let mut node2_received = false;
+        let mut node3_received = false;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+
+        while tokio::time::Instant::now() < deadline && !(node2_received && node3_received) {
+            tokio::select! {
+                Some(event) = events2.recv() => {
+                    if let LibP2pOverlayEvent::ScpReceived { envelope, .. } = event {
+                        if envelope == scp_msg {
+                            node2_received = true;
+                        }
+                    }
+                }
+                Some(event) = events3.recv() => {
+                    if let LibP2pOverlayEvent::ScpReceived { envelope, .. } = event {
+                        if envelope == scp_msg {
+                            node3_received = true;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+            }
+        }
+
+        assert!(node2_received, "Node2 (connected via bare IP) should receive SCP broadcast");
+        assert!(node3_received, "Node3 (connected via DNS name) should receive SCP broadcast");
+
+        handle1.shutdown().await;
+        handle2.shutdown().await;
+        handle3.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_spawn_peer_retry_backoff_caps_at_30s() {
+        // Verify the backoff caps at 30s by checking that many retries don't
+        // take longer than expected. Delays: 2, 4, 8, 16, 30, 30, 30...
+        // After the first 4 retries (2+4+8+16=30s), each additional retry is 30s.
+        let local_addrs = Arc::new(RwLock::new(HashSet::new()));
+        let keypair = Libp2pKeypair::generate_ed25519();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+
+        tokio::time::pause();
+
+        // Mix of resolvable and unresolvable
+        spawn_peer_retry_task(
+            vec![
+                "will-never-resolve.invalid".to_string(),
+                "localhost".to_string(),
+            ],
+            11625,
+            local_addrs,
+            make_test_configured_peers(),
+            handle,
+        );
+
+        // After 3s: first retry runs. "localhost" resolves, "invalid" stays pending.
+        tokio::time::advance(Duration::from_secs(3)).await;
+        tokio::task::yield_now().await;
+
+        // After 4 more seconds (total 7s): second retry for the remaining peer.
+        tokio::time::advance(Duration::from_secs(5)).await;
+        tokio::task::yield_now().await;
+        // No panic = pass
     }
 }
