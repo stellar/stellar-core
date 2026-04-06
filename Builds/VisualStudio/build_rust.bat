@@ -40,6 +40,7 @@ set LATEST_P=26
 rem ---- Accumulators for final rustc link flags ----
 set "EXTERNS="
 set "LPATHS="
+set "ALL_REVS="
 set "SOURCE_STAMP=.source-rev"
 
 rem ---- Build protocols MIN_P..MAX_P ----
@@ -52,6 +53,7 @@ for /l %%P in (%MIN_P%,1,%MAX_P%) do (
     rem -- Resolve current submodule rev --
     set "current_rev="
     for /f %%R in ('git -C "!proto_dir!" rev-parse HEAD 2^>nul') do set "current_rev=%%R"
+    set "ALL_REVS=!ALL_REVS!p%%P-!current_rev:~0,12!_"
 
     rem -- Compare stamp to decide if cargo needs to run --
     set "stamp_ok="
@@ -125,9 +127,25 @@ rem Clear RUSTFLAGS so that metadata from soroban-protocol builds above does
 rem not leak into the stellar-core build and cause cargo to invalidate its
 rem fingerprints on the next run (where the soroban builds may be skipped).
 set "RUSTFLAGS="
+
+rem Write submodule revisions to a file that build.rs watches via
+rem cargo:rerun-if-changed.  Only update the file when content actually
+rem changes so that the mtime (which cargo uses for freshness) stays
+rem stable across no-op builds.
+set "REVS_FILE=%project_dir%\src\rust\.soroban-revs"
+set "revs_changed="
+if exist "!REVS_FILE!" (
+    set "saved_revs="
+    set /p saved_revs=<"!REVS_FILE!"
+    if not "!saved_revs!"=="!ALL_REVS!" set "revs_changed=1"
+) else (
+    set "revs_changed=1"
+)
+if defined revs_changed >"!REVS_FILE!" echo(!ALL_REVS!
+
 rem Always invoke cargo here: cargo's own incremental-build tracking will
-rem no-op quickly when nothing changed, and the submodule-stamp mechanism
-rem above does not detect changes to local Rust sources (src\rust\src\*.rs).
+rem no-op quickly when nothing changed, and the .soroban-revs file
+rem (tracked via build.rs) forces a rebuild when submodules change.
 echo Building stellar-core Rust library...
 %set_linker_flags% & cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
 
