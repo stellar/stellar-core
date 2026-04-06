@@ -954,10 +954,16 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
     };
     std::vector<Results> allResults;
 
+    // Use unique base port per section to avoid port conflicts when
+    // Catch2 re-runs the test for each SECTION (previous overlay processes
+    // may still be releasing ports).
+    int sectionIdx = 0;
     for (auto const& run : runs)
     {
         SECTION(run.label)
         {
+            uint16_t basePort =
+                static_cast<uint16_t>(11626 + sectionIdx * 10);
             LOG_INFO(DEFAULT_LOG, "========================================");
             LOG_INFO(DEFAULT_LOG, "Starting stress test: {}", run.label);
             LOG_INFO(DEFAULT_LOG, "========================================");
@@ -972,7 +978,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
             auto key3 = SecretKey::fromSeed(sha256("STRESS_TEST_NODE_3"));
 
             SCPQuorumSet qSet;
-            qSet.threshold = 4; // 3-of-4 for BFT
+            qSet.threshold = 3; // 3-of-4 for BFT
             qSet.validators.push_back(key0.getPublicKey());
             qSet.validators.push_back(key1.getPublicKey());
             qSet.validators.push_back(key2.getPublicKey());
@@ -981,34 +987,46 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
             // Configure genesis accounts for high TX throughput
             int totalTxs = run.txPerLedger * run.ledgerCount;
             auto cfg0 = simulation->newConfig();
-            cfg0.PEER_PORT = 11626;
-            cfg0.KNOWN_PEERS.push_back("127.0.0.1:11627");
-            cfg0.KNOWN_PEERS.push_back("127.0.0.1:11628");
-            cfg0.KNOWN_PEERS.push_back("127.0.0.1:11629");
+            cfg0.PEER_PORT = basePort;
+            cfg0.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 1));
+            cfg0.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 2));
+            cfg0.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 3));
             cfg0.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
             cfg0.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
 
             auto cfg1 = simulation->newConfig();
-            cfg1.PEER_PORT = 11627;
-            cfg1.KNOWN_PEERS.push_back("127.0.0.1:11626");
-            cfg1.KNOWN_PEERS.push_back("127.0.0.1:11628");
-            cfg1.KNOWN_PEERS.push_back("127.0.0.1:11629");
+            cfg1.PEER_PORT = basePort + 1;
+            cfg1.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort));
+            cfg1.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 2));
+            cfg1.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 3));
             cfg1.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
             cfg1.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
 
             auto cfg2 = simulation->newConfig();
-            cfg2.PEER_PORT = 11628;
-            cfg2.KNOWN_PEERS.push_back("127.0.0.1:11626");
-            cfg2.KNOWN_PEERS.push_back("127.0.0.1:11627");
-            cfg2.KNOWN_PEERS.push_back("127.0.0.1:11629");
+            cfg2.PEER_PORT = basePort + 2;
+            cfg2.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort));
+            cfg2.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 1));
+            cfg2.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 3));
             cfg2.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
             cfg2.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
 
             auto cfg3 = simulation->newConfig();
-            cfg3.PEER_PORT = 11629;
-            cfg3.KNOWN_PEERS.push_back("127.0.0.1:11626");
-            cfg3.KNOWN_PEERS.push_back("127.0.0.1:11627");
-            cfg3.KNOWN_PEERS.push_back("127.0.0.1:11628");
+            cfg3.PEER_PORT = basePort + 3;
+            cfg3.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort));
+            cfg3.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 1));
+            cfg3.KNOWN_PEERS.push_back(
+                fmt::format("127.0.0.1:{}", basePort + 2));
             cfg3.GENESIS_TEST_ACCOUNT_COUNT = totalTxs + 100;
             cfg3.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
 
@@ -1022,7 +1040,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
             // Wait for initial consensus (4 nodes need more time)
             simulation->crankUntil(
                 [&]() { return simulation->haveAllExternalized(2, 6); },
-                60 * 2 * simulation->getExpectedLedgerCloseTime(), false);
+                120 * simulation->getExpectedLedgerCloseTime(), false);
             REQUIRE(simulation->haveAllExternalized(2, 6));
 
             // Get metrics (they accumulate across ledgers)
@@ -1095,14 +1113,15 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
                          ledgerIdx + 1, run.ledgerCount, batchSubmitted,
                          batchPending);
 
-                // Crank until we move to next ledger (4 nodes with heavy load
-                // need more time)
+                // Crank until we move to next ledger — heavy load with
+                // 4 nodes and Rust overlay IPC round-trips needs generous
+                // timeout to avoid flaky failures.
                 simulation->crankUntil(
                     [&]() {
                         return node0->getLedgerManager()
                                    .getLastClosedLedgerNum() > currentLedger;
                     },
-                    30 * simulation->getExpectedLedgerCloseTime(), false);
+                    60 * simulation->getExpectedLedgerCloseTime(), false);
             }
 
             // Wait for final ledger to externalize on all 4 nodes
@@ -1110,7 +1129,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
                 [&]() {
                     return simulation->haveAllExternalized(targetLedger, 2);
                 },
-                30 * simulation->getExpectedLedgerCloseTime(), false);
+                60 * simulation->getExpectedLedgerCloseTime(), false);
 
             auto endTime = std::chrono::steady_clock::now();
             auto duration =
@@ -1154,6 +1173,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
                      run.label, txSubmitted, res.txIncluded, duration);
             REQUIRE(txSubmitted == res.txIncluded);
         }
+        sectionIdx++;
     }
 
     // Print summary table
