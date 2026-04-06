@@ -1275,9 +1275,6 @@
     <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
@@ -1437,6 +1434,9 @@
     <ClCompile Include="..\..\src\transactions\test\FrozenLedgerKeysTests.cpp" />
     <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
       <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\SecretManager.cpp">
+      <Filter>util</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2388,9 +2388,6 @@
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxAdverts.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2553,6 +2550,9 @@
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
     <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SecretManager.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

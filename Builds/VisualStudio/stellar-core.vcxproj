@@ -464,7 +464,6 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\BucketManager.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp" />
-    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketUtils.cpp" />
     <ClCompile Include="..\..\src\bucket\DiskIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
@@ -762,6 +761,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\MetricsRegistry.cpp" />
     <ClCompile Include="..\..\src\util\RandHasher.cpp" />
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
+    <ClCompile Include="..\..\src\util\SecretManager.cpp" />
     <ClCompile Include="..\..\src\util\SimpleTimer.cpp" />
     <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
@@ -942,7 +942,6 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\BucketManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketMergeMap.h" />
     <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h" />
-    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketUtils.h" />
     <ClInclude Include="..\..\src\bucket\DiskIndex.h" />
     <ClInclude Include="..\..\src\bucket\FutureBucket.h" />
@@ -1181,6 +1180,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\numeric128.h" />
     <ClInclude Include="..\..\src\util\RandHasher.h" />
     <ClInclude Include="..\..\src\util\Scheduler.h" />
+    <ClInclude Include="..\..\src\util\SecretManager.h" />
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
     <ClInclude Include="..\..\src\util\TxResource.h" />
     <ClInclude Include="..\..\src\util\UnorderedMap.h" />
