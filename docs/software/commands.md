@@ -222,8 +222,8 @@ Command options can only by placed after command.
   * For example this will run just the tests tagged with `[tx]` using protocol
     versions 9 and 10 and stop after the first failure:
     `stellar-core test -a --version 9 --version 10 "[tx]"`
-  * To capture LCM for tests with a fixed seed:
-    `stellar-core test --capture-lcm --rng-seed 12345 "[soroban]"`
+  * The checked-in files under `test-lcm/` were generated with:
+    `stellar-core test --rng-seed 12345 '[tx]' --capture-lcm`
 * **upgrade-db**: Upgrades local database to current schema version. This is
   usually done automatically during stellar-core run or other command.
 * **verify-checkpoints**: Listens to the network until it observes a consensus
