@@ -37,7 +37,7 @@ pub enum CoreCommand {
         reply: mpsc::Sender<Vec<([u8; 32], Vec<u8>)>>,
     },
 
-    /// Configure bootstrap peers for Kademlia
+    /// Configure peer connections
     SetPeerConfig {
         known_peers: Vec<String>,
         preferred_peers: Vec<String>,
