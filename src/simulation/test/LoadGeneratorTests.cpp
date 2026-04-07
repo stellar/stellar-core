@@ -1058,6 +1058,7 @@ TEST_CASE("apply load find max SAC TPS",
     cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 1500;
     cfg.APPLY_LOAD_NUM_LEDGERS = 30;
     cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
@@ -1095,6 +1096,7 @@ TEST_CASE("apply load benchmark model tx",
     cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 500;
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
     cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
@@ -1127,6 +1129,7 @@ TEST_CASE("apply load benchmark custom token",
     cfg.APPLY_LOAD_NUM_LEDGERS = 10;
     cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 500;
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);

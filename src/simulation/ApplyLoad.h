@@ -104,6 +104,11 @@ class ApplyLoad
     // parameters.
     double benchmarkLimitsIteration();
 
+    // Generates APPLY_LOAD_CLASSIC_TXS_PER_LEDGER classic payment TXs
+    // using accounts starting at startAccountIdx.
+    void generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                 uint32_t startAccountIdx);
+
     // Generates the given number of native asset SAC payment TXs with no
     // conflicts.
     void generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
