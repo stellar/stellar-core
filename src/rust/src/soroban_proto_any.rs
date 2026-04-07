@@ -201,41 +201,17 @@ pub const fn get_max_proto() -> u32 {
 
 pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
     let env_max_proto = get_max_proto();
-    let xdr_base_git_rev = match VERSION.xdr.xdr {
-        "curr" => VERSION.xdr.xdr_curr.to_string(),
-        "next" | "curr,next" => {
-            if !cfg!(feature = "next") {
-                warn!(
-                    "soroban version {} XDR module built with 'next' feature,
-                       but core built without 'vnext' feature",
-                    VERSION.pkg
-                );
-            }
-            if core_max_proto != env_max_proto {
-                warn!(
-                    "soroban version {} XDR module for env version {} built with 'next' feature, \
-                       even though this is not the newest core protocol ({})",
-                    VERSION.pkg, env_max_proto, core_max_proto
-                );
-                warn!(
-                    "this can happen if multiple soroban crates depend on the \
-                       same XDR crate which then gets feature-unified"
-                )
-            }
-            VERSION.xdr.xdr_next.to_string()
-        }
-        other => format!("unknown XDR module configuration: '{other}'"),
-    };
 
     SorobanVersionInfo {
         env_max_proto,
         env_pkg_ver: VERSION.pkg.to_string(),
         env_git_rev: VERSION.rev.to_string(),
         env_pre_release_ver: super::get_version_pre_release(&VERSION),
-        xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
-        xdr_git_rev: VERSION.xdr.rev.to_string(),
-        xdr_base_git_rev,
+        xdr_pkg_ver: super::get_xdr_pkg_ver(),
+        xdr_git_rev: super::get_xdr_git_rev(),
+        xdr_base_git_rev: super::get_xdr_base_git_rev(),
         xdr_file_hashes: get_xdr_hashes(),
+        xdr_features: super::get_xdr_features(),
     }
 }
 

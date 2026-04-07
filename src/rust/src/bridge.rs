@@ -96,6 +96,7 @@ pub(crate) mod rust_bridge {
         pub xdr_git_rev: String,
         pub xdr_base_git_rev: String,
         pub xdr_file_hashes: Vec<XDRFileHash>,
+        pub xdr_features: Vec<String>,
     }
 
     struct CxxTransactionResources {

@@ -549,6 +549,24 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AC_ARG_ENABLE(cap-0071,
+    AS_HELP_STRING([--enable-cap-0071],
+        [Enable CAP-0071 XDR types and implementation]))
+AM_CONDITIONAL(ENABLE_CAP_0071,
+    [test x$enable_cap_0071 = xyes -o x$enable_next_protocol_version_unsafe_for_production = xyes])
+
+AC_ARG_ENABLE(test-feature,
+    AS_HELP_STRING([--enable-test-feature],
+        [Enable TEST_FEATURE XDR types (testing only)]))
+AM_CONDITIONAL(ENABLE_TEST_FEATURE,
+    [test x$enable_test_feature = xyes -o x$enable_next_protocol_version_unsafe_for_production = xyes])
+
+# Derived conditional: true if any next-protocol feature is enabled.
+# Add new next-protocol feature flags to this condition.
+# Note: TEST_FEATURE is excluded as it is a test fixture, not a protocol feature.
+AM_CONDITIONAL(BUILDING_NEXT_PROTOCOL,
+    [test x$enable_next_protocol_version_unsafe_for_production = xyes -o x$enable_cap_0071 = xyes])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])

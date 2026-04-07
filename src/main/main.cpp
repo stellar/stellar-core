@@ -227,6 +227,44 @@ checkXDRFileIdentity()
                         "Rust. C++ size = {} and Rust size = {}.",
                         stellar::XDR_FILES_SHA256.size(), rustHashes.size()));
     }
+
+    // Verify that C++ and Rust have the same XDR feature flags enabled.
+    std::vector<std::string> cppFeatures;
+#ifdef CAP_0071
+    cppFeatures.emplace_back("cap_0071");
+#endif
+#ifdef TEST_FEATURE
+    cppFeatures.emplace_back("test_feature");
+#endif
+
+    rust::Vec<rust::String> const& rustFeatures =
+        rustVersions.back().xdr_features;
+
+    if (cppFeatures.size() != rustFeatures.size())
+    {
+        throw std::runtime_error(fmt::format(
+            "XDR feature count mismatch: C++ has {} features, Rust has {}",
+            cppFeatures.size(), rustFeatures.size()));
+    }
+    for (auto const& cppFeat : cppFeatures)
+    {
+        bool found = false;
+        for (auto const& rustFeat : rustFeatures)
+        {
+            if (cppFeat == std::string(rustFeat.begin(), rustFeat.end()))
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            throw std::runtime_error(fmt::format(
+                "XDR feature mismatch: C++ has feature '{}' but Rust "
+                "does not",
+                cppFeat));
+        }
+    }
 }
 
 void
@@ -369,10 +407,16 @@ main(int argc, char* const* argv)
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-        // Disable XDR hash checking in vnext builds
-#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        checkXDRFileIdentity();
-#endif
+        //  The p26 rs-stellar-xdr crate uses raw file
+        //  hashes, which can't match the ifdef-stripped hashes used here.
+        //  The easiest thing to do was to just skip the check for p26. Which
+        //  should be fine as the xdr on the rust side shouldn't change, and the
+        //  xdr on the core should always be backwards compatible. This is
+        //  temporary until we bump to p27.
+        if (Config::CURRENT_LEDGER_PROTOCOL_VERSION != 26)
+        {
+            checkXDRFileIdentity();
+        }
     }
     catch (...)
     {
