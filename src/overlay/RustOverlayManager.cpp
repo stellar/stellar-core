@@ -391,6 +391,64 @@ RustOverlayManager::syncOverlayMetrics()
         mLastSyncedValues["flood_tx_batch_size_count"] = count;
     }
 
+    // ── Fetch TxSet timer ──
+    if (root.isMember("fetch_txset_sum_us") &&
+        root.isMember("fetch_txset_count"))
+    {
+        auto sum =
+            static_cast<int64_t>(root["fetch_txset_sum_us"].asUInt64());
+        auto count =
+            static_cast<int64_t>(root["fetch_txset_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["fetch_txset_sum_us"];
+        auto lastCount = mLastSyncedValues["fetch_txset_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mFetchTxSetTimer.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["fetch_txset_sum_us"] = sum;
+        mLastSyncedValues["fetch_txset_count"] = count;
+    }
+
+    // ── Flood TX pull latency timer ──
+    if (root.isMember("flood_tx_pull_latency_sum_us") &&
+        root.isMember("flood_tx_pull_latency_count"))
+    {
+        auto sum = static_cast<int64_t>(
+            root["flood_tx_pull_latency_sum_us"].asUInt64());
+        auto count = static_cast<int64_t>(
+            root["flood_tx_pull_latency_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["flood_tx_pull_latency_sum_us"];
+        auto lastCount = mLastSyncedValues["flood_tx_pull_latency_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mTxPullLatency.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["flood_tx_pull_latency_sum_us"] = sum;
+        mLastSyncedValues["flood_tx_pull_latency_count"] = count;
+    }
+
+    // ── Memory gauge ──
+    if (root.isMember("memory_flood_known"))
+    {
+        // This is informational — exposed via the metrics snapshot
+        // but doesn't have a dedicated C++ medida metric yet.
+        // Could be added as a Counter if needed.
+    }
+
     CLOG_TRACE(Overlay, "Synced overlay metrics from Rust overlay");
 }
 
