@@ -4,8 +4,10 @@
 
 #pragma once
 
-// This structure just exists to cache frequently-accessed, overlay-wide
-// (non-peer-specific) metrics.
+// Overlay-wide (non-peer-specific) metrics synced from the Rust overlay
+// process.  Legacy per-message-type recv/send timers and C++-only queue
+// metrics have been removed — the Rust overlay uses different stream
+// protocols and doesn't have the old per-message framing.
 
 #include "util/SimpleTimer.h"
 namespace medida
@@ -25,110 +27,46 @@ class Application;
 struct OverlayMetrics
 {
     OverlayMetrics(Application& app);
+
+    // ── Byte / message throughput ──
     medida::Meter& mMessageRead;
     medida::Meter& mMessageWrite;
     medida::Meter& mMessageDrop;
-    medida::Meter& mAsyncRead;
-    medida::Meter& mAsyncWrite;
     medida::Meter& mByteRead;
     medida::Meter& mByteWrite;
     medida::Meter& mErrorRead;
     medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutIdle;
-    medida::Meter& mTimeoutStraggler;
-    medida::Timer& mConnectionLatencyTimer;
-    medida::Timer& mConnectionReadThrottle;
-    medida::Timer& mConnectionFloodThrottle;
 
-    medida::Meter& mItemFetcherNextPeer;
-
-    medida::Timer& mRecvErrorTimer;
-    medida::Timer& mRecvHelloTimer;
-    medida::Timer& mRecvAuthTimer;
-    medida::Timer& mRecvDontHaveTimer;
-    medida::Timer& mRecvPeersTimer;
-    medida::Timer& mRecvGetTxSetTimer;
-    medida::Timer& mRecvTxSetTimer;
-
-    // For frequently occurring events, using medida timers can be very
-    // expensive, as we are constantly compressing and copying data to maintain
-    // histograms. So, we use a `SimpleTimer` of microseconds instead.
+    // ── Recv timers (aggregate) ──
+    // SimpleTimer: high-frequency TX recv path
     SimpleTimer& mRecvTransactionTimer;
-
-    medida::Timer& mRecvGetSCPQuorumSetTimer;
-    medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
-    medida::Timer& mRecvGetSCPStateTimer;
-    medida::Timer& mRecvSendMoreTimer;
 
-    medida::Timer& mRecvSCPPrepareTimer;
-    medida::Timer& mRecvSCPConfirmTimer;
-    medida::Timer& mRecvSCPNominateTimer;
-    medida::Timer& mRecvSCPExternalizeTimer;
-
-    medida::Timer& mRecvSurveyRequestTimer;
-    medida::Timer& mRecvSurveyResponseTimer;
-    medida::Timer& mRecvStartSurveyCollectingTimer;
-    medida::Timer& mRecvStopSurveyCollectingTimer;
-
-    medida::Timer& mRecvFloodAdvertTimer;
-    medida::Timer& mRecvFloodDemandTimer;
-    medida::Timer& mRecvTxBatchTimer;
-
-    medida::Timer& mMessageDelayInWriteQueueTimer;
-    medida::Timer& mMessageDelayInAsyncWriteTimer;
-
-    medida::Timer& mOutboundQueueDelaySCP;
-    medida::Timer& mOutboundQueueDelayTxs;
-    medida::Timer& mOutboundQueueDelayAdvert;
-    medida::Timer& mOutboundQueueDelayDemand;
-    medida::Meter& mOutboundQueueDropSCP;
-    medida::Meter& mOutboundQueueDropTxs;
-    medida::Meter& mOutboundQueueDropAdvert;
-    medida::Meter& mOutboundQueueDropDemand;
-
-    medida::Meter& mSendErrorMeter;
-    medida::Meter& mSendHelloMeter;
-    medida::Meter& mSendAuthMeter;
-    medida::Meter& mSendDontHaveMeter;
-    medida::Meter& mSendPeersMeter;
-    medida::Meter& mSendGetTxSetMeter;
+    // ── Send meters (per logical message type) ──
+    medida::Meter& mSendSCPMessageSetMeter;
     medida::Meter& mSendTransactionMeter;
     medida::Meter& mSendTxSetMeter;
-    medida::Meter& mSendGetSCPQuorumSetMeter;
-    medida::Meter& mSendSCPQuorumSetMeter;
-    medida::Meter& mSendSCPMessageSetMeter;
-    medida::Meter& mSendGetSCPStateMeter;
-    medida::Meter& mSendSendMoreMeter;
-
-    medida::Meter& mSendSurveyRequestMeter;
-    medida::Meter& mSendSurveyResponseMeter;
-    medida::Meter& mSendStartSurveyCollectingMeter;
-    medida::Meter& mSendStopSurveyCollectingMeter;
-
     medida::Meter& mSendFloodAdvertMeter;
-    medida::Meter& mSendFloodDemandMeter;
+
+    // ── Flood / demand metrics ──
     medida::Meter& mMessagesDemanded;
     medida::Meter& mMessagesFulfilledMeter;
-    medida::Meter& mBannedMessageUnfulfilledMeter;
     medida::Meter& mUnknownMessageUnfulfilledMeter;
     medida::Timer& mTxPullLatency;
-    medida::Timer& mPeerTxPullLatency;
-
     medida::Meter& mDemandTimeouts;
-    medida::Meter& mPulledRelevantTxs;
-    medida::Meter& mPulledIrrelevantTxs;
-
     medida::Meter& mAbandonedDemandMeter;
 
+    // ── Broadcast / dedup ──
     medida::Meter& mMessagesBroadcast;
+    medida::Meter& mUniqueFloodBytesRecv;
+    medida::Meter& mDuplicateFloodBytesRecv;
+    medida::Histogram& mTxBatchSizeHistogram;
+
+    // ── Connection gauges ──
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
 
-    medida::Meter& mUniqueFloodBytesRecv;
-    medida::Meter& mDuplicateFloodBytesRecv;
-    medida::Meter& mUniqueFetchBytesRecv;
-    medida::Meter& mDuplicateFetchBytesRecv;
-    medida::Histogram& mTxBatchSizeHistogram;
+    // ── TxSet fetch latency ──
+    medida::Timer& mFetchTxSetTimer;
 };
 }
