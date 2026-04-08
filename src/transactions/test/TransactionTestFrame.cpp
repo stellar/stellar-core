@@ -95,26 +95,27 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset) const
+TransactionTestFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     auto diagnostics = DiagnosticEventManager::createDisabled();
     return checkValid(app, ls, current, lowerBoundCloseTimeOffset,
-                      upperBoundCloseTimeOffset, diagnostics);
+                      upperBoundCloseTimeOffset, diagnostics,
+                      validationLedgerSeq);
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset,
-                                 DiagnosticEventManager& diagnosticEvents) const
+TransactionTestFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
         app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        diagnosticEvents);
+        diagnosticEvents, validationLedgerSeq);
     return mTransactionTxResult->clone();
 }
 

@@ -72,23 +72,10 @@ LedgerHeaderWrapper::LedgerHeaderWrapper(LedgerTxnHeader&& header)
 {
 }
 
-LedgerHeaderWrapper::LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header)
-    : mHeader(header)
+LedgerHeaderWrapper::LedgerHeaderWrapper(
+    std::shared_ptr<LedgerHeader const> header)
+    : mHeader(std::move(header))
 {
-}
-
-LedgerHeader&
-LedgerHeaderWrapper::currentToModify()
-{
-    switch (mHeader.index())
-    {
-    case 0:
-        return std::get<0>(mHeader).current();
-    case 1:
-        return *std::get<1>(mHeader);
-    default:
-        throw std::runtime_error("Invalid LedgerHeaderWrapper index");
-    }
 }
 
 LedgerHeader const&
@@ -171,13 +158,15 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
 
 BucketSnapshotState::BucketSnapshotState(LedgerStateSnapshot const& snap)
     : mLiveSnap(snap.mLiveSnapshot)
-    , mLedgerHeader(std::make_shared<LedgerHeader>(snap.getLedgerHeader()))
+    , mLedgerHeader(
+          std::make_shared<LedgerHeader const>(snap.getLedgerHeader()))
 {
 }
 
 BucketSnapshotState::BucketSnapshotState(ApplyLedgerStateSnapshot const& snap)
     : mLiveSnap(static_cast<LedgerStateSnapshot const&>(snap).mLiveSnapshot)
-    , mLedgerHeader(std::make_shared<LedgerHeader>(snap.getLedgerHeader()))
+    , mLedgerHeader(
+          std::make_shared<LedgerHeader const>(snap.getLedgerHeader()))
 {
 }
 
@@ -186,7 +175,7 @@ BucketSnapshotState::BucketSnapshotState(
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
     LedgerHeader const& header)
     : mLiveSnap(metrics, std::move(liveData), {}, header.ledgerSeq)
-    , mLedgerHeader(std::make_shared<LedgerHeader>(header))
+    , mLedgerHeader(std::make_shared<LedgerHeader const>(header))
 {
 }
 
