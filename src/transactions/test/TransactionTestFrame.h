@@ -68,15 +68,17 @@ class TransactionTestFrame : public TransactionFrameBase
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset) const;
+    MutableTxResultPtr checkValid(
+        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
     MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
-                                  uint64_t upperBoundCloseTimeOffset) const;
-    MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const override;
+                                  uint64_t upperBoundCloseTimeOffset,
+                                  DiagnosticEventManager& diagnosticEvents,
+                                  std::optional<uint32_t> validationLedgerSeq =
+                                      std::nullopt) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;

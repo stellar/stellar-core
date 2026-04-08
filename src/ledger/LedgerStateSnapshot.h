@@ -60,12 +60,11 @@ class LedgerEntryWrapper
 // cosmetic for BucketList snapshots, since those are immutable.
 class LedgerHeaderWrapper
 {
-    std::variant<LedgerTxnHeader, std::shared_ptr<LedgerHeader>> mHeader;
+    std::variant<LedgerTxnHeader, std::shared_ptr<LedgerHeader const>> mHeader;
 
   public:
     explicit LedgerHeaderWrapper(LedgerTxnHeader&& header);
-    explicit LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header);
-    LedgerHeader& currentToModify();
+    explicit LedgerHeaderWrapper(std::shared_ptr<LedgerHeader const> header);
     LedgerHeader const& current() const;
     LedgerTxnHeader const&
     getLedgerTxnHeader() const
@@ -207,9 +206,7 @@ class ApplyLedgerStateSnapshot : private LedgerStateSnapshot
 class BucketSnapshotState : public AbstractLedgerStateSnapshot
 {
     SearchableLiveBucketListSnapshot mLiveSnap;
-    // Store a copy of the header. This is needed for validation flow where
-    // for certain validation scenarios the header needs to be modified.
-    std::shared_ptr<LedgerHeader> mLedgerHeader;
+    std::shared_ptr<LedgerHeader const> mLedgerHeader;
 
   public:
     explicit BucketSnapshotState(LedgerStateSnapshot const& snap);

@@ -272,7 +272,8 @@ MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
     {
@@ -323,7 +324,7 @@ FeeBumpTransactionFrame::checkValid(
     mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents);
+        diagnosticEvents, validationLedgerSeq);
 
     return txResult;
 }
