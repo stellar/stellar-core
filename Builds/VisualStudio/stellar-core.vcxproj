@@ -1299,7 +1299,6 @@ exit /b 0
     <None Include="..\..\.github\ISSUE_TEMPLATE\feature-request.md" />
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\autogen.sh" />
-    <None Include="..\..\ChangeLog" />
     <None Include="..\..\CONTRIBUTING.md" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\architecture.md" />

@@ -2563,7 +2563,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
-    <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\lib\xdrpp\tests\xdrtest.x">
