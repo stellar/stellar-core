@@ -581,11 +581,12 @@ impl App {
                 // This ensures the TxSet is available when SCP processing resumes
                 // and Core subsequently broadcasts the SCP to other peers
                 {
+                    let current_seq = *self.current_ledger_seq.read().await;
                     let mut cache = self.tx_set_cache.write().await;
                     cache.insert(CachedTxSet {
                         hash,
                         xdr: data.clone(),
-                        ledger_seq: 0,
+                        ledger_seq: current_seq,
                         tx_hashes: vec![],
                     });
                 }
@@ -867,11 +868,12 @@ impl App {
                     xdr.len()
                 );
 
+                let current_seq = *self.current_ledger_seq.read().await;
                 let mut cache = self.tx_set_cache.write().await;
                 cache.insert(CachedTxSet {
                     hash,
                     xdr,
-                    ledger_seq: 0,
+                    ledger_seq: current_seq,
                     tx_hashes: vec![],
                 });
             }
@@ -942,7 +944,7 @@ impl App {
                         cache
                             .write()
                             .await
-                            .evict_before(ledger_seq.saturating_sub(5));
+                            .evict_before(ledger_seq.saturating_sub(12));
                     });
                 }
             }
