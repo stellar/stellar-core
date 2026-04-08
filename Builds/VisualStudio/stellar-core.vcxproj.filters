@@ -1275,6 +1275,9 @@
     <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
@@ -2388,6 +2391,9 @@
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxAdverts.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2557,7 +2563,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
-    <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\lib\xdrpp\tests\xdrtest.x">
