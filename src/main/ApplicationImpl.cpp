@@ -503,8 +503,12 @@ ApplicationImpl::getJsonInfo(bool verbose)
         }
     }
 
-    // Note: peer count not available from Rust overlay (Kademlia manages peers)
-    info["peers"]["note"] = "Rust overlay uses Kademlia for peer discovery";
+    // Peer counts from Rust overlay metrics (synced via mAuthenticatedPeersSize/mPendingPeersSize)
+    auto& overlayMetrics = getOverlayManager().getOverlayMetrics();
+    info["peers"]["authenticated_count"] =
+        static_cast<int>(overlayMetrics.mAuthenticatedPeersSize.count());
+    info["peers"]["pending_count"] =
+        static_cast<int>(overlayMetrics.mPendingPeersSize.count());
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
     auto& statusMessages = getStatusManager();

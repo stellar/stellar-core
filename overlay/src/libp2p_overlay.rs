@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, trace, warn};
 
@@ -245,8 +245,8 @@ struct SharedState {
     tx_sent_to: RwLock<lru::LruCache<[u8; 32], std::collections::HashSet<PeerId>>>,
     /// TX set sources: which peer has which TX set (learned from SCP messages)
     txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
-    /// Pending TX set requests: hash -> peer we sent the request to (to avoid duplicate fetches)
-    pending_txset_requests: RwLock<HashMap<[u8; 32], PeerId>>,
+    /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
+    pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant)>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -465,7 +465,10 @@ impl StellarOverlay {
                         }
                         OverlayCommand::Dial(addr) => {
                             info!("Dialing peer at {}", addr);
+                            self.state.metrics.connection_pending.fetch_add(1, Ordering::Relaxed);
+                            self.state.metrics.outbound_attempt.fetch_add(1, Ordering::Relaxed);
                             if let Err(e) = self.swarm.dial(addr.clone()) {
+                                self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
                                 warn!("Failed to dial {}: {}", addr, e);
                             }
                         }
@@ -501,6 +504,7 @@ impl StellarOverlay {
 
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 info!("Connected to peer {}", peer_id);
+                self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
                 self.state.metrics.connection_authenticated.fetch_add(1, Ordering::Relaxed);
                 self.state.metrics.outbound_establish.fetch_add(1, Ordering::Relaxed);
 
@@ -526,7 +530,7 @@ impl StellarOverlay {
                 {
                     let mut pending = self.state.pending_txset_requests.write().await;
                     let before_len = pending.len();
-                    pending.retain(|_hash, p| p != &peer_id);
+                    pending.retain(|_hash, (p, _)| p != &peer_id);
                     let removed = before_len - pending.len();
                     if removed > 0 {
                         info!(
@@ -556,6 +560,11 @@ impl StellarOverlay {
             SwarmEvent::IncomingConnection { .. } => {
                 trace!("Incoming connection");
                 self.state.metrics.inbound_attempt.fetch_add(1, Ordering::Relaxed);
+            }
+
+            SwarmEvent::OutgoingConnectionError { .. } => {
+                // Dial failed — clear pending gauge
+                self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
             }
 
             _ => {}
@@ -722,6 +731,7 @@ impl StellarOverlay {
                 return;
             }
             seen.put(hash, ());
+            self.state.metrics.memory_flood_known.store(seen.len() as i64, Ordering::Relaxed);
         }
 
         // Store TX in buffer for GETDATA responses
@@ -770,7 +780,7 @@ impl StellarOverlay {
         // Check if we're already fetching this TxSet from a connected peer (dedup)
         {
             let pending = self.state.pending_txset_requests.read().await;
-            if let Some(pending_peer) = pending.get(&hash) {
+            if let Some((pending_peer, _)) = pending.get(&hash) {
                 // Check if that peer is still connected
                 let streams = self.state.peer_streams.read().await;
                 if streams.contains_key(pending_peer) {
@@ -839,12 +849,12 @@ impl StellarOverlay {
             }
         };
 
-        // Record this pending request
+        // Record this pending request with timestamp for latency tracking
         self.state
             .pending_txset_requests
             .write()
             .await
-            .insert(hash, peer.clone());
+            .insert(hash, (peer.clone(), Instant::now()));
 
         // Send request on TxSet stream (just the 32-byte hash)
         match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &hash).await {
@@ -884,18 +894,26 @@ impl StellarOverlay {
         response.extend_from_slice(&data);
 
         match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &response).await {
-            Ok(_) => info!(
-                "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
-                &hash[..4],
-                response.len(),
-                peer
-            ),
-            Err(e) => warn!(
-                "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
-                &hash[..4],
-                peer,
-                e
-            ),
+            Ok(_) => {
+                self.state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                self.state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                self.state.metrics.byte_write.fetch_add(response.len() as u64, Ordering::Relaxed);
+                info!(
+                    "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
+                    &hash[..4],
+                    response.len(),
+                    peer
+                );
+            }
+            Err(e) => {
+                self.state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                warn!(
+                    "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
+                    &hash[..4],
+                    peer,
+                    e
+                );
+            }
         }
     }
 
@@ -1157,6 +1175,7 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
     while let Some((peer_id, mut stream)) = incoming.next().await {
         info!("SCP_STREAM: Accepted inbound SCP stream from {}", peer_id);
         state.metrics.inbound_establish.fetch_add(1, Ordering::Relaxed);
+        state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
         tokio::spawn(async move {
@@ -1227,6 +1246,7 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
+                        state.metrics.inbound_live.fetch_sub(1, Ordering::Relaxed);
                         warn!(
                             "SCP_STREAM_CLOSED: SCP stream from {} closed: {}",
                             peer_id, e
@@ -1243,6 +1263,7 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
 async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         info!("TX_STREAM: Accepted inbound TX stream from {}", peer_id);
+        state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
         tokio::spawn(async move {
@@ -1256,6 +1277,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
+                        state.metrics.inbound_live.fetch_sub(1, Ordering::Relaxed);
                         info!("TX stream from {} closed: {}", peer_id, e);
                         break;
                     }
@@ -1426,13 +1448,18 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
             return;
         }
         seen.put(hash, ());
+        state.metrics.memory_flood_known.store(seen.len() as i64, Ordering::Relaxed);
     }
     state.metrics.flood_unique_recv.fetch_add(tx_len, Ordering::Relaxed);
 
-    // Remove from pending requests
+    // Remove from pending requests and measure pull latency
     {
         let mut pending = state.pending_getdata.write().await;
-        pending.remove(&hash);
+        if let Some(req) = pending.remove(&hash) {
+            let pull_us = req.first_sent_at.elapsed().as_micros() as u64;
+            state.metrics.flood_tx_pull_latency_sum_us.fetch_add(pull_us, Ordering::Relaxed);
+            state.metrics.flood_tx_pull_latency_count.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     // Store in buffer for responding to others' GETDATA
@@ -1517,6 +1544,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
 async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         debug!("Accepted inbound TxSet stream from {}", peer_id);
+        state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
         tokio::spawn(async move {
@@ -1550,10 +1578,17 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                             hash.copy_from_slice(&data[..32]);
                             let txset_data = data[32..].to_vec();
 
-                            // Clear pending request flag
+                            // Clear pending request flag and measure fetch latency
                             let was_pending = {
                                 let mut pending = state.pending_txset_requests.write().await;
-                                pending.remove(&hash).is_some()
+                                if let Some((_, request_time)) = pending.remove(&hash) {
+                                    let fetch_us = request_time.elapsed().as_micros() as u64;
+                                    state.metrics.fetch_txset_sum_us.fetch_add(fetch_us, Ordering::Relaxed);
+                                    state.metrics.fetch_txset_count.fetch_add(1, Ordering::Relaxed);
+                                    true
+                                } else {
+                                    false
+                                }
                             };
 
                             info!(
@@ -1574,6 +1609,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                     }
                     Err(e) => {
                         state.metrics.error_read.fetch_add(1, Ordering::Relaxed);
+                        state.metrics.inbound_live.fetch_sub(1, Ordering::Relaxed);
                         info!("TxSet stream from {} closed: {}", peer_id, e);
                         break;
                     }
