@@ -8,6 +8,7 @@
 #include "overlay/OverlayIPC.h"
 #include "overlay/OverlayMetrics.h"
 #include <optional>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -62,6 +63,11 @@ class RustOverlayManager
     // Metrics and managers
     OverlayMetrics& getOverlayMetrics();
 
+    /// Fetch the latest metrics snapshot from the Rust overlay and update
+    /// the libmedida-backed OverlayMetrics counters/timers so they appear
+    /// on the /metrics HTTP endpoint.
+    void syncOverlayMetrics();
+
     // Access to IPC (for Herder to set callbacks)
     OverlayIPC&
     getOverlayIPC()
@@ -75,6 +81,10 @@ class RustOverlayManager
     std::atomic<bool> mShuttingDown{false};
 
     OverlayMetrics mOverlayMetrics;
+
+    // For computing deltas on monotonic counters between syncs.
+    // Key: metric name, Value: last synced value.
+    std::unordered_map<std::string, int64_t> mLastSyncedValues;
 };
 
 } // namespace stellar

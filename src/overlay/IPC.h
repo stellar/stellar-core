@@ -71,6 +71,10 @@ enum class IPCMessageType : uint32_t
     /// Payload: [hash:32][txSetXDR...]
     CACHE_TX_SET = 12,
 
+    /// Request overlay metrics snapshot (empty payload)
+    /// Response: OVERLAY_METRICS_RESPONSE with JSON payload
+    REQUEST_OVERLAY_METRICS = 13,
+
     // ═══ Overlay → Core (Critical Path) ═══
 
     /// Received SCP envelope from network
@@ -91,6 +95,10 @@ enum class IPCMessageType : uint32_t
 
     /// Here's a quorum set referenced in SCP
     QUORUM_SET_AVAILABLE = 104,
+
+    /// Overlay metrics snapshot (JSON payload)
+    /// Response to REQUEST_OVERLAY_METRICS
+    OVERLAY_METRICS_RESPONSE = 105,
 };
 
 /**

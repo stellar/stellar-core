@@ -1356,6 +1356,13 @@ ApplicationImpl::syncAllMetrics()
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
     mLedgerApplyManager->syncMetrics();
+
+    // Sync overlay metrics from the Rust overlay process
+    if (mOverlayManager)
+    {
+        mOverlayManager->syncOverlayMetrics();
+    }
+
     // Update simple timer metrics. This both updates the current value of the
     // "max" metrics to be the max for the current period and starts a new
     // period.
