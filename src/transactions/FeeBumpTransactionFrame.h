@@ -61,13 +61,11 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
-    MutableTxResultPtr checkValidImpl(AppConnector& app,
-                                      LedgerSnapshot const& ls,
-                                      SequenceNumber current,
-                                      uint64_t lowerBoundCloseTimeOffset,
-                                      uint64_t upperBoundCloseTimeOffset,
-                                      DiagnosticEventManager& diagnosticEvents,
-                                      bool isOverlayValidation) const;
+    MutableTxResultPtr checkValidImpl(
+        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
+        std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
@@ -121,11 +119,15 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const override;
+               DiagnosticEventManager& diagnosticEvents,
+               std::optional<uint32_t> validationLedgerSeq =
+                   std::nullopt) const override;
     MutableTxResultPtr checkValidForOverlay(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventManager& diagnosticEvents) const override;
+        DiagnosticEventManager& diagnosticEvents,
+        std::optional<uint32_t> validationLedgerSeq =
+            std::nullopt) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;

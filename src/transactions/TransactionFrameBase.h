@@ -172,15 +172,24 @@ class TransactionFrameBase
         SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
         TxEffects& effects) const = 0;
 
+    // When validationLedgerSeq is set, ledger sequence precondition
+    // checks use this value instead of the
+    // ledgerSeq from the snapshot header. This is used for pre-consensus
+    // validation where the snapshot reflects LCL but checks must evaluate
+    // against the next ledger.
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const = 0;
+               DiagnosticEventManager& diagnosticEvents,
+               std::optional<uint32_t> validationLedgerSeq =
+                   std::nullopt) const = 0;
     virtual MutableTxResultPtr checkValidForOverlay(
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        DiagnosticEventManager& diagnosticEvents) const = 0;
+        DiagnosticEventManager& diagnosticEvents,
+        std::optional<uint32_t> validationLedgerSeq =
+            std::nullopt) const = 0;
     virtual bool
     checkSorobanResources(SorobanNetworkConfig const& cfg,
                           uint32_t ledgerVersion,

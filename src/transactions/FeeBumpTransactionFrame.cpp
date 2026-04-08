@@ -273,7 +273,8 @@ MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidImpl(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation) const
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
     {
@@ -325,7 +326,7 @@ FeeBumpTransactionFrame::checkValidImpl(
     mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents, isOverlayValidation);
+        diagnosticEvents, isOverlayValidation, validationLedgerSeq);
 
     return txResult;
 }
@@ -334,20 +335,24 @@ MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, false);
+                          upperBoundCloseTimeOffset, diagnosticEvents, false,
+                          validationLedgerSeq);
 }
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidForOverlay(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, true);
+                          upperBoundCloseTimeOffset, diagnosticEvents, true,
+                          validationLedgerSeq);
 }
 
 bool
