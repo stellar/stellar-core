@@ -44,4 +44,5 @@ case "${skip_submodules}" in
 esac
 
 ./make-mks
+touch AUTHORS ChangeLog
 autoreconf -i

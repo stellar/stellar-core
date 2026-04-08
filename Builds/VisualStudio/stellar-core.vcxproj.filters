@@ -2562,7 +2562,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\AUTHORS" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\lib\xdrpp\tests\xdrtest.x">

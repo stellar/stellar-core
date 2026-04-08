@@ -43,7 +43,9 @@ compile_commands.json
 .deps
 .dirstamp
 
+/AUTHORS
 /INSTALL
+/ChangeLog
 
 /src/archtmp-*
 /src/main/StellarCoreVersion.cpp
