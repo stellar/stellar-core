@@ -975,7 +975,8 @@ LedgerManagerImpl::ApplyState::handleUpgradeAffectingSorobanInMemoryStateSize(
 void
 LedgerManagerImpl::ApplyState::finishPendingCompilation()
 {
-    assertWritablePhase();
+    threadInvariant();
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE);
     releaseAssert(mCompiler);
     auto newCache = mCompiler->wait();
     getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.set_count(
@@ -1032,7 +1033,14 @@ void
 LedgerManagerImpl::ApplyState::markEndOfCommitting()
 {
     assertCommittingPhase();
-    mPhase = Phase::READY_TO_APPLY;
+    if (isCompilationRunning())
+    {
+        mPhase = Phase::SETTING_UP_STATE;
+    }
+    else
+    {
+        mPhase = Phase::READY_TO_APPLY;
+    }
 }
 
 void
@@ -1106,51 +1114,34 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
     // unbounded growth.
     //
     // Unfortunately we do not know exactly how much memory is used by each byte
-    // of contract we compile, and the size estimates from the cost model have
-    // to assume a worst case which is almost a factor of _40_ larger than the
-    // byte-size of the contracts. So for example if we assume 100MB of
-    // contracts, the cost model says we ought to budget for 4GB of memory, just
-    // in case _all 100MB of contracts_ are "the worst case contract" that's
-    // just a continuous stream of function definitions.
+    // of contract we compile. But we do know how much wasm we fed _into_ the
+    // compiler, and we can assume that the network's cost model is already
+    // serving to roughly bound the live set of contracts in the BL.
     //
-    // So: we take this multiplier, times the size of the contracts we _last_
-    // drew from the BL when doing a full recompile, times two, as a cap on the
-    // _current_ (post-rebuild, currently-growing) cache's budget-tracked
-    // memory. This should avoid rebuilding spuriously, while still treating
-    // events that double the size of the contract-set in the live BL as an
-    // event that warrants a rebuild.
+    // So: we take the input size of the contracts we _last_ drew from the BL
+    // when doing a full recompile (which we always do on startup at least), and
+    // multiply it by two, and use that as a cap on the _current_ (post-rebuild,
+    // currently-growing) cache's wasm input bytes. This should avoid rebuilding
+    // spuriously, while still treating events that double the size of the
+    // contract-set in the live BL as an event that warrants a rebuild.
 
-    // We try to fish the current cost multiplier out of the soroban network
-    // config's memory cost model, but fall back to a conservative default in
-    // case there is no mem cost param for VmInstantiation (This should never
-    // happen but just in case).
-    uint64_t linearTerm = 5000;
-
-    // linearTerm is in 1/128ths in the cost model, to reduce rounding error.
-    uint64_t scale = 128;
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snap);
-    auto const& memParams = sorobanConfig.memCostParams();
-    if (memParams.size() > (size_t)stellar::VmInstantiation)
-    {
-        auto const& param = memParams[(size_t)stellar::VmInstantiation];
-        linearTerm = param.linearTerm;
-    }
-    auto lastBytesCompiled =
+    int64_t lastCompiledWasmBytesCount =
         getMetrics().mSorobanMetrics.mModuleCacheRebuildBytes.count();
-    uint64_t limit = 2 * lastBytesCompiled * linearTerm / scale;
-
+    uint64_t lastCompiledWasmBytes =
+        lastCompiledWasmBytesCount < 0
+            ? 0
+            : static_cast<uint64_t>(lastCompiledWasmBytesCount);
+    uint64_t currCompiledWasmBytes = 0;
     for (auto const& v : mModuleCacheProtocols)
     {
-        auto bytesConsumed = mModuleCache->get_mem_bytes_consumed(v);
-        if (bytesConsumed > limit)
-        {
-            CLOG_DEBUG(Ledger,
-                       "Rebuilding module cache: worst-case estimate {} "
-                       "model-bytes consumed of {} limit",
-                       bytesConsumed, limit);
-            startCompilingAllContracts(snap, minLedgerVersion);
-            break;
-        }
+        currCompiledWasmBytes += mModuleCache->get_wasm_bytes_input(v);
+    }
+    if (currCompiledWasmBytes > (2 * lastCompiledWasmBytes))
+    {
+        CLOG_DEBUG(Ledger,
+                   "Rebuilding module cache after {} wasm bytes compiled",
+                   currCompiledWasmBytes);
+        startCompilingAllContracts(snap, minLedgerVersion);
     }
 }
 
@@ -1458,6 +1449,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     if (mApplyState.isCompilationRunning())
     {
         mApplyState.finishPendingCompilation();
+        mApplyState.markEndOfSetupPhase();
     }
 
 #ifdef BUILD_TESTS
@@ -3077,21 +3069,31 @@ LedgerManagerImpl::ApplyState::addAnyContractsToModuleCache(
     {
         if (e.data.type() == CONTRACT_CODE)
         {
+            using rslice = ::rust::Slice<uint8_t const>;
+            auto const& key = e.data.contractCode().hash;
+            auto const& wasm = e.data.contractCode().code;
+            rslice const keySlice{key.data(), key.size()};
+            rslice const wasmSlice{wasm.data(), wasm.size()};
             for (auto const& v : mModuleCacheProtocols)
             {
                 if (v >= ledgerVersion)
                 {
-                    auto const& wasm = e.data.contractCode().code;
+                    if (mModuleCache->contains_module(v, keySlice))
+                    {
+                        CLOG_DEBUG(Ledger,
+                                   "module cache already contains wasm {} "
+                                   "for protocol {}",
+                                   binToHex(key), v);
+                        continue;
+                    }
                     CLOG_DEBUG(Ledger,
                                "compiling wasm {} for protocol {} module cache",
-                               binToHex(sha256(wasm)), v);
-                    auto slice =
-                        rust::Slice<uint8_t const>(wasm.data(), wasm.size());
-                    getMetrics().mSorobanMetrics.mModuleCacheNumEntries.inc();
+                               binToHex(key), v);
                     auto timer =
                         getMetrics()
                             .mSorobanMetrics.mModuleCompilationTime.TimeScope();
-                    mModuleCache->compile(v, slice);
+                    mModuleCache->compile(v, wasmSlice);
+                    getMetrics().mSorobanMetrics.mModuleCacheNumEntries.inc();
                 }
             }
         }

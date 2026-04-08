@@ -705,8 +705,9 @@ pub(crate) struct ProtocolSpecificModuleCache {
     // `CompilationContext` is _not_  threadsafe (specifically its `Budget` is
     // not) and so rather than reuse a single `CompilationContext` across
     // threads, we make a throwaway `CompilationContext` on each `compile` call,
-    // and _copy out_ the memory usage (which we want to publish back to core).
-    pub(crate) mem_bytes_consumed: std::sync::atomic::AtomicU64,
+    // and track only a single _input_ value (which we want to publish back to
+    // core).
+    pub(crate) wasm_bytes_input: std::sync::atomic::AtomicU64,
 }
 
 #[allow(dead_code)]
@@ -716,7 +717,7 @@ impl ProtocolSpecificModuleCache {
         let module_cache = ModuleCache::new(&compilation_context)?;
         Ok(ProtocolSpecificModuleCache {
             module_cache,
-            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+            wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
@@ -727,12 +728,8 @@ impl ProtocolSpecificModuleCache {
             get_max_proto(),
             wasm,
         );
-        self.mem_bytes_consumed.fetch_add(
-            compilation_context
-                .unlimited_budget
-                .get_mem_bytes_consumed()?,
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        self.wasm_bytes_input
+            .fetch_add(wasm.len() as u64, std::sync::atomic::Ordering::SeqCst);
         Ok(res?)
     }
 
@@ -742,7 +739,12 @@ impl ProtocolSpecificModuleCache {
     }
 
     pub(crate) fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.module_cache.clear()?)
+        let res = self.module_cache.clear();
+        if res.is_ok() {
+            self.wasm_bytes_input
+                .store(0, std::sync::atomic::Ordering::SeqCst);
+        }
+        Ok(res?)
     }
 
     pub(crate) fn contains_module(
@@ -752,9 +754,9 @@ impl ProtocolSpecificModuleCache {
         Ok(self.module_cache.contains_module(&key.clone().into())?)
     }
 
-    pub(crate) fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub(crate) fn get_wasm_bytes_input(&self) -> Result<u64, Box<dyn std::error::Error>> {
         Ok(self
-            .mem_bytes_consumed
+            .wasm_bytes_input
             .load(std::sync::atomic::Ordering::SeqCst))
     }
 
@@ -771,7 +773,7 @@ impl ProtocolSpecificModuleCache {
         let module_cache = self.module_cache.clone();
         Ok(ProtocolSpecificModuleCache {
             module_cache,
-            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+            wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
         })
     }
 }
