@@ -222,6 +222,15 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
         break;
     }
 
+    case IPCMessageType::OVERLAY_METRICS_RESPONSE:
+    {
+        // Response to requestMetrics - wake up waiting thread
+        std::lock_guard<std::mutex> lock(mMetricsMutex);
+        mPendingMetricsResponse = msg;
+        mMetricsCv.notify_one();
+        break;
+    }
+
     case IPCMessageType::TX_SET_AVAILABLE:
     {
         // TX set received from peers (async fetch response)
@@ -630,6 +639,50 @@ OverlayIPC::sendScpStateResponse(uint64_t requestId,
                count, requestId);
     std::lock_guard<std::mutex> lock(mSendMutex);
     mChannel->send(msg);
+}
+
+std::string
+OverlayIPC::requestMetrics(int timeoutMs)
+{
+    if (!mChannel || !mChannel->isConnected())
+    {
+        return {};
+    }
+
+    // Send empty request
+    IPCMessage req;
+    req.type = IPCMessageType::REQUEST_OVERLAY_METRICS;
+
+    {
+        std::lock_guard<std::mutex> lock(mSendMutex);
+        if (!mChannel->send(req))
+        {
+            return {};
+        }
+    }
+
+    // Wait for response on separate CV
+    std::unique_lock<std::mutex> lock(mMetricsMutex);
+    mPendingMetricsResponse.reset();
+
+    bool gotResponse = mMetricsCv.wait_for(
+        lock, std::chrono::milliseconds(timeoutMs),
+        [this] { return mPendingMetricsResponse.has_value(); });
+
+    if (!gotResponse)
+    {
+        CLOG_WARNING(Overlay, "Timeout waiting for overlay metrics");
+        return {};
+    }
+
+    auto& response = *mPendingMetricsResponse;
+    if (response.type != IPCMessageType::OVERLAY_METRICS_RESPONSE)
+    {
+        CLOG_WARNING(Overlay, "Unexpected response type for requestMetrics");
+        return {};
+    }
+
+    return std::string(response.payload.begin(), response.payload.end());
 }
 
 bool

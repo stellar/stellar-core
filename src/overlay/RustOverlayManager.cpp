@@ -5,10 +5,15 @@
 #include "overlay/RustOverlayManager.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "lib/json/json.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-overlay.h"
 #include <fmt/format.h>
+#include <medida/counter.h>
+#include <medida/histogram.h>
+#include <medida/meter.h>
+#include <medida/timer.h>
 
 namespace stellar
 {
@@ -47,6 +52,15 @@ RustOverlayManager::~RustOverlayManager()
 void
 RustOverlayManager::start()
 {
+    auto const& cfg = mApp.getConfig();
+
+    if (cfg.RUN_STANDALONE)
+    {
+        CLOG_INFO(Overlay,
+                  "Skipping RustOverlayManager start in standalone mode");
+        return;
+    }
+
     CLOG_INFO(Overlay, "Starting RustOverlayManager");
 
     mOverlayIPC->setOnSCPReceived([this](SCPEnvelope const& env) {
@@ -77,7 +91,6 @@ RustOverlayManager::start()
         throw std::runtime_error("Failed to start Rust overlay");
     }
 
-    auto const& cfg = mApp.getConfig();
     mOverlayIPC->setPeerConfig(cfg.KNOWN_PEERS, cfg.PREFERRED_PEERS,
                                cfg.PEER_PORT);
 
@@ -198,6 +211,187 @@ OverlayMetrics&
 RustOverlayManager::getOverlayMetrics()
 {
     return mOverlayMetrics;
+}
+
+// Helper: compute delta between current and last-synced value for a monotonic
+// counter, update last-synced, and mark the medida Meter. Returns the delta.
+static int64_t
+markMeterDelta(medida::Meter& meter, int64_t currentValue,
+               std::unordered_map<std::string, int64_t>& lastSynced,
+               std::string const& key)
+{
+    int64_t last = 0;
+    auto it = lastSynced.find(key);
+    if (it != lastSynced.end())
+    {
+        last = it->second;
+    }
+    int64_t delta = currentValue - last;
+    if (delta > 0)
+    {
+        meter.Mark(delta);
+    }
+    lastSynced[key] = currentValue;
+    return delta;
+}
+
+void
+RustOverlayManager::syncOverlayMetrics()
+{
+    if (!mOverlayIPC || !mOverlayIPC->isConnected() || mShuttingDown)
+    {
+        return;
+    }
+
+    auto jsonStr = mOverlayIPC->requestMetrics(/* timeoutMs */ 500);
+    if (jsonStr.empty())
+    {
+        CLOG_DEBUG(Overlay, "No overlay metrics received (timeout or error)");
+        return;
+    }
+
+    Json::Value root;
+    Json::Reader reader;
+    if (!reader.parse(jsonStr, root))
+    {
+        CLOG_WARNING(Overlay, "Failed to parse overlay metrics JSON");
+        return;
+    }
+
+    auto& m = mOverlayMetrics;
+
+    // ── Gauges (set counter value directly) ──
+    if (root.isMember("connection_authenticated"))
+    {
+        auto val = root["connection_authenticated"].asInt64();
+        // Counter has set_count in medida — use increment approach:
+        // Counter is a gauge, so reset and set.
+        auto current = m.mAuthenticatedPeersSize.count();
+        m.mAuthenticatedPeersSize.inc(val - current);
+    }
+    if (root.isMember("connection_pending"))
+    {
+        auto val = root["connection_pending"].asInt64();
+        auto current = m.mPendingPeersSize.count();
+        m.mPendingPeersSize.inc(val - current);
+    }
+
+    // ── recv-transaction SimpleTimer ──
+    // SimpleTimer only supports Update(duration) — compute deltas and
+    // issue individual updates with average duration.
+    if (root.isMember("recv_transaction_sum_us") &&
+        root.isMember("recv_transaction_count"))
+    {
+        auto sum =
+            static_cast<int64_t>(root["recv_transaction_sum_us"].asUInt64());
+        auto count =
+            static_cast<int64_t>(root["recv_transaction_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["recv_transaction_sum_us"];
+        auto lastCount = mLastSyncedValues["recv_transaction_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mRecvTransactionTimer.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["recv_transaction_sum_us"] = sum;
+        mLastSyncedValues["recv_transaction_count"] = count;
+    }
+
+    // ── Monotonic counters → Meter deltas ──
+
+    auto markDelta = [&](medida::Meter& meter, std::string const& jsonField) {
+        if (root.isMember(jsonField))
+        {
+            markMeterDelta(meter, root[jsonField].asInt64(),
+                           mLastSyncedValues, jsonField);
+        }
+    };
+
+    markDelta(m.mByteRead, "byte_read");
+    markDelta(m.mByteWrite, "byte_write");
+    markDelta(m.mMessageRead, "message_read");
+    markDelta(m.mMessageWrite, "message_write");
+    markDelta(m.mMessagesBroadcast, "message_broadcast");
+    markDelta(m.mMessageDrop, "message_drop");
+    markDelta(m.mErrorRead, "error_read");
+    markDelta(m.mErrorWrite, "error_write");
+
+    // Flood metrics
+    markDelta(m.mSendFloodAdvertMeter, "flood_advertised");
+    markDelta(m.mMessagesDemanded, "flood_demanded");
+    markDelta(m.mMessagesFulfilledMeter, "flood_fulfilled");
+    markDelta(m.mUnknownMessageUnfulfilledMeter, "flood_unfulfilled_unknown");
+    markDelta(m.mUniqueFloodBytesRecv, "flood_unique_recv");
+    markDelta(m.mDuplicateFloodBytesRecv, "flood_duplicate_recv");
+    markDelta(m.mAbandonedDemandMeter, "flood_abandoned_demands");
+    markDelta(m.mDemandTimeouts, "demand_timeout");
+
+    // Send meters per message type
+    markDelta(m.mSendSCPMessageSetMeter, "send_scp_message");
+    markDelta(m.mSendTransactionMeter, "send_transaction");
+    markDelta(m.mSendTxSetMeter, "send_txset");
+
+    // Connection lifecycle — these aren't registered as medida meters on
+    // the C++ side yet, so they'll just be tracked by the existing counters.
+    // The inbound/outbound attempt/establish/drop are already covered
+    // by the send/recv metrics or connection gauges above.
+
+    // ── Timer summaries ──
+    // For recv SCP timer, we compute the average duration per call
+    // and update the medida Timer accordingly.
+    if (root.isMember("recv_scp_sum_us") && root.isMember("recv_scp_count"))
+    {
+        auto sum = static_cast<int64_t>(root["recv_scp_sum_us"].asUInt64());
+        auto count =
+            static_cast<int64_t>(root["recv_scp_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["recv_scp_sum_us"];
+        auto lastCount = mLastSyncedValues["recv_scp_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mRecvSCPMessageTimer.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["recv_scp_sum_us"] = sum;
+        mLastSyncedValues["recv_scp_count"] = count;
+    }
+
+    // TX batch size histogram
+    if (root.isMember("flood_tx_batch_size_sum") &&
+        root.isMember("flood_tx_batch_size_count"))
+    {
+        auto sum =
+            static_cast<int64_t>(root["flood_tx_batch_size_sum"].asUInt64());
+        auto count = static_cast<int64_t>(
+            root["flood_tx_batch_size_count"].asUInt64());
+        auto lastSum = mLastSyncedValues["flood_tx_batch_size_sum"];
+        auto lastCount = mLastSyncedValues["flood_tx_batch_size_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avg = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mTxBatchSizeHistogram.Update(avg);
+            }
+        }
+        mLastSyncedValues["flood_tx_batch_size_sum"] = sum;
+        mLastSyncedValues["flood_tx_batch_size_count"] = count;
+    }
+
+    CLOG_TRACE(Overlay, "Synced overlay metrics from Rust overlay");
 }
 
 } // namespace stellar

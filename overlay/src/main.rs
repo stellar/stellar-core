@@ -14,6 +14,7 @@ mod http;
 pub mod integrated;
 mod ipc;
 pub mod libp2p_overlay;
+mod metrics;
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
@@ -33,6 +34,7 @@ use libp2p::PeerId;
 use libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
+use metrics::OverlayMetrics;
 
 /// Command-line arguments
 struct Args {
@@ -375,6 +377,8 @@ struct App {
     /// Configured peer addresses and listen port — kept for reconnection on disconnect.
     /// Updated each time SetPeerConfig is received from Core.
     configured_peers: Arc<RwLock<ConfiguredPeers>>,
+    /// Shared metrics counters for the overlay
+    metrics: Arc<OverlayMetrics>,
 }
 
 /// Peer addresses configured via SetPeerConfig, used for reconnection.
@@ -413,8 +417,9 @@ impl App {
 
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
+        let metrics = Arc::new(OverlayMetrics::new());
         let (libp2p_handle, libp2p_event_rx, tx_event_rx, libp2p_overlay) =
-            create_overlay(libp2p_keypair)
+            create_overlay(libp2p_keypair, Arc::clone(&metrics))
                 .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
@@ -453,6 +458,7 @@ impl App {
                 listen_port: 11625,
                 resolved: HashMap::new(),
             })),
+            metrics,
         })
     }
 
@@ -1137,6 +1143,22 @@ impl App {
                 }
             }
 
+            MessageType::RequestOverlayMetrics => {
+                // Snapshot metrics and send back as JSON
+                let snapshot = self.metrics.snapshot();
+                match serde_json::to_vec(&snapshot) {
+                    Ok(json_bytes) => {
+                        let resp = Message::new(MessageType::OverlayMetricsResponse, json_bytes);
+                        if let Err(e) = self.core_ipc.sender.send(resp) {
+                            error!("Failed to send metrics response: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to serialize metrics snapshot: {}", e);
+                    }
+                }
+            }
+
             _ => {
                 warn!("Unexpected message type from Core: {:?}", msg.msg_type);
             }
@@ -1469,7 +1491,7 @@ mod tests {
             .insert("127.0.0.1:12625".parse().unwrap());
 
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("127.0.0.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1482,7 +1504,7 @@ mod tests {
     async fn test_resolve_and_dial_dns_failure_returns_addr() {
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial(
             "unresolvable.invalid",
@@ -1502,7 +1524,7 @@ mod tests {
         // A valid IP:port that is NOT in local_addrs should return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("10.255.255.1:11625", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1516,7 +1538,7 @@ mod tests {
         // "localhost" should resolve via DNS and return Dialed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let result = resolve_and_dial("localhost", 11625, &local_addrs, &handle).await;
         assert!(
@@ -1540,7 +1562,7 @@ mod tests {
         // Empty unresolved list should not spawn anything
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // This should return immediately without spawning a task
         spawn_peer_retry_task(vec![], 11625, local_addrs, make_test_configured_peers(), handle);
@@ -1553,7 +1575,7 @@ mod tests {
         // We put it in the "unresolved" list as if initial resolution failed.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Use tokio::time::pause() so the test doesn't actually sleep 2+ seconds
         tokio::time::pause();
@@ -1581,7 +1603,7 @@ mod tests {
         // (no max attempts). We verify it survives multiple retry cycles.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 
@@ -1616,9 +1638,9 @@ mod tests {
         let kp2 = Libp2pKeypair::generate_ed25519();
         let kp3 = Libp2pKeypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx1, overlay1) = create_overlay(kp1).unwrap();
-        let (handle2, mut events2, _tx2, overlay2) = create_overlay(kp2).unwrap();
-        let (handle3, mut events3, _tx3, overlay3) = create_overlay(kp3).unwrap();
+        let (handle1, mut events1, _tx1, overlay1) = create_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _tx2, overlay2) = create_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle3, mut events3, _tx3, overlay3) = create_overlay(kp3, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all three on different ports
         let port1: u16 = 18501;
@@ -1693,7 +1715,7 @@ mod tests {
         // After the first 4 retries (2+4+8+16=30s), each additional retry is 30s.
         let local_addrs = Arc::new(RwLock::new(HashSet::new()));
         let keypair = Libp2pKeypair::generate_ed25519();
-        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair).unwrap();
+        let (handle, _evt_rx, _tx_rx, _overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::time::pause();
 

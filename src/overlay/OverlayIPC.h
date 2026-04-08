@@ -170,6 +170,17 @@ class OverlayIPC
     /// Set callback for TX set received from peers (async fetch)
     void setOnTxSetReceived(TxSetReceivedCallback cb);
 
+    /**
+     * Request overlay metrics snapshot from Rust overlay.
+     *
+     * Synchronous call — blocks until the Rust overlay responds with
+     * a JSON-serialized metrics snapshot, or timeout.
+     *
+     * @param timeoutMs Timeout in milliseconds
+     * @return JSON string with the overlay metrics, empty on timeout/error
+     */
+    std::string requestMetrics(int timeoutMs = 1000);
+
     /// Check if connected to overlay
     bool isConnected() const;
 
@@ -208,10 +219,15 @@ class OverlayIPC
     ScpStateRequestCallback mOnScpStateRequest;
     TxSetReceivedCallback mOnTxSetReceived;
 
-    // For synchronous request/response
+    // For synchronous request/response (getTopTransactions)
     std::mutex mRequestMutex;
     std::condition_variable mRequestCv;
     std::optional<IPCMessage> mPendingResponse;
+
+    // For synchronous metrics request/response
+    std::mutex mMetricsMutex;
+    std::condition_variable mMetricsCv;
+    std::optional<IPCMessage> mPendingMetricsResponse;
 
     // Protects mChannel->send() - channel is not thread-safe
     mutable std::mutex mSendMutex;

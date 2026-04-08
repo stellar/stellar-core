@@ -53,6 +53,9 @@ pub enum MessageType {
     /// Payload: [hash:32][txSetXDR...]
     CacheTxSet = 12,
 
+    /// Request overlay metrics snapshot (empty payload)
+    RequestOverlayMetrics = 13,
+
     // ═══ Overlay → Core (Critical Path) ═══
     /// Received SCP envelope from network
     ScpReceived = 100,
@@ -71,6 +74,9 @@ pub enum MessageType {
 
     /// Here's a quorum set referenced in SCP
     QuorumSetAvailable = 104,
+
+    /// Overlay metrics snapshot response (JSON payload)
+    OverlayMetricsResponse = 105,
 }
 
 impl MessageType {
@@ -101,11 +107,13 @@ impl TryFrom<u32> for MessageType {
             10 => Ok(MessageType::SubmitTx),
             11 => Ok(MessageType::RequestTxSet),
             12 => Ok(MessageType::CacheTxSet),
+            13 => Ok(MessageType::RequestOverlayMetrics),
             100 => Ok(MessageType::ScpReceived),
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
             103 => Ok(MessageType::TxSetAvailable),
             104 => Ok(MessageType::QuorumSetAvailable),
+            105 => Ok(MessageType::OverlayMetricsResponse),
             _ => Err(InvalidMessageType(value)),
         }
     }
@@ -325,11 +333,14 @@ mod tests {
             MessageType::SetPeerConfig,
             MessageType::SubmitTx,
             MessageType::RequestTxSet,
+            MessageType::CacheTxSet,
+            MessageType::RequestOverlayMetrics,
             MessageType::ScpReceived,
             MessageType::TopTxsResponse,
             MessageType::PeerRequestsScpState,
             MessageType::TxSetAvailable,
             MessageType::QuorumSetAvailable,
+            MessageType::OverlayMetricsResponse,
         ];
 
         for msg_type in types {
@@ -391,6 +402,14 @@ mod tests {
             MessageType::RequestTxSet
         );
         assert_eq!(
+            MessageType::try_from(12).unwrap(),
+            MessageType::CacheTxSet
+        );
+        assert_eq!(
+            MessageType::try_from(13).unwrap(),
+            MessageType::RequestOverlayMetrics
+        );
+        assert_eq!(
             MessageType::try_from(100).unwrap(),
             MessageType::ScpReceived
         );
@@ -410,6 +429,10 @@ mod tests {
             MessageType::try_from(104).unwrap(),
             MessageType::QuorumSetAvailable
         );
+        assert_eq!(
+            MessageType::try_from(105).unwrap(),
+            MessageType::OverlayMetricsResponse
+        );
     }
 
     #[test]
@@ -417,7 +440,7 @@ mod tests {
         assert!(MessageType::try_from(0).is_err());
         assert!(MessageType::try_from(9).is_err()); // gap between 8 and 10
         assert!(MessageType::try_from(99).is_err());
-        assert!(MessageType::try_from(105).is_err());
+        assert!(MessageType::try_from(106).is_err());
         assert!(MessageType::try_from(u32::MAX).is_err());
     }
 }
