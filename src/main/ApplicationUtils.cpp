@@ -25,7 +25,6 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
-#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -36,7 +35,6 @@
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
-#include <locale>
 #include <map>
 #include <optional>
 #include <regex>
@@ -732,8 +730,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
     auto& lm = app->getLedgerManager();
 
     lm.partiallyLoadLastKnownLedgerForUtils();
-    auto liveSnapshot =
-        app->getAppConnector().copySearchableLiveBucketListSnapshot();
+    auto liveSnapshot = app->getAppConnector().copyLedgerStateSnapshot();
     auto ttlGetter = [&liveSnapshot, includeAllStates,
                       dumpHotArchive](LedgerKey const& key) -> uint32_t {
         if (includeAllStates || dumpHotArchive)
@@ -742,7 +739,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 "TTL is undefined when `--include-all-states` or "
                 "`--hot-archive` flag is set.");
         }
-        auto entry = liveSnapshot->load(key);
+        auto entry = liveSnapshot.loadLiveEntry(key);
         if (!entry)
         {
             throw std::runtime_error("No TTL entry found for key: " +
@@ -872,12 +869,10 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
                  filename);
     };
-    auto snap = app->getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copySearchableLiveBucketListSnapshot();
+    auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
     if (hash == "ALL")
     {
-        snap->scanForEntriesOfType(
+        snap.scanLiveEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
                 {
@@ -893,7 +888,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LedgerKey key;
         key.type(LedgerEntryType::CONTRACT_CODE);
         key.contractCode().hash = hexToBin256(hash);
-        auto entry = snap->load(key);
+        auto entry = snap.loadLiveEntry(key);
         if (entry && entry->data.type() == LedgerEntryType::CONTRACT_CODE)
         {
             auto const& codeEntry = entry->data.contractCode();

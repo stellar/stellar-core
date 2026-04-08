@@ -7,6 +7,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/test/InvariantTestUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -19,7 +20,6 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include <numeric>
-#include <random>
 #include <xdrpp/autocheck.h>
 
 using namespace stellar;
@@ -337,15 +337,12 @@ TEST_CASE(
 
     // Verify the snapshot invariant passes
     {
-        auto ledgerState =
-            app.getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto snap = app.getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app.getInvariantManager().runStateSnapshotInvariant(
-            ledgerState->getBucketSnapshot(),
-            ledgerState->getHotArchiveSnapshot(), inMemoryState,
-            []() { return false; }));
+            snap, inMemoryState, []() { return false; }));
     }
 
     // Now, manually modify totalCoins to be inconsistent. The invariant should
@@ -359,18 +356,15 @@ TEST_CASE(
 
         closeLedger(test.getApp());
 
-        auto ledgerState =
-            app.getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto snap = app.getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app.getLedgerManager().getInMemorySorobanStateForTesting();
 
         Asset native(ASSET_TYPE_NATIVE);
         auto lumenInfo = getAssetContractInfo(native, app.getNetworkID());
         ConservationOfLumens invariant(lumenInfo);
-        auto result =
-            invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
-                                    ledgerState->getHotArchiveSnapshot(),
-                                    inMemoryState, []() { return false; });
+        auto result = invariant.checkSnapshot(snap, inMemoryState,
+                                              []() { return false; });
         REQUIRE_FALSE(result.empty());
         REQUIRE(result.find("Total native asset supply mismatch") !=
                 std::string::npos);
@@ -430,15 +424,12 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
-        auto ledgerState =
-            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState->getBucketSnapshot(),
-            ledgerState->getHotArchiveSnapshot(), inMemoryState,
-            []() { return false; }));
+            snap, inMemoryState, []() { return false; }));
     }
 
     SECTION("Invariant fails when bucket balance doesn't match totalCoins")
@@ -466,18 +457,15 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         BucketTestUtils::closeLedger(*app);
 
-        auto ledgerState =
-            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         Asset native(ASSET_TYPE_NATIVE);
         auto lumenInfo = getAssetContractInfo(native, app->getNetworkID());
         ConservationOfLumens invariant(lumenInfo);
-        auto result =
-            invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
-                                    ledgerState->getHotArchiveSnapshot(),
-                                    inMemoryState, []() { return false; });
+        auto result = invariant.checkSnapshot(snap, inMemoryState,
+                                              []() { return false; });
         REQUIRE_FALSE(result.empty());
         REQUIRE(result.find("Total native asset supply mismatch") !=
                 std::string::npos);
@@ -529,15 +517,12 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
 
         app->getInvariantManager().enableInvariant("ConservationOfLumens");
 
-        auto ledgerState =
-            app->getLedgerManager().getLastClosedLedgerStateForTesting();
+        auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
         auto& inMemoryState =
             app->getLedgerManager().getInMemorySorobanStateForTesting();
 
         REQUIRE_NOTHROW(app->getInvariantManager().runStateSnapshotInvariant(
-            ledgerState->getBucketSnapshot(),
-            ledgerState->getHotArchiveSnapshot(), inMemoryState,
-            []() { return false; }));
+            snap, inMemoryState, []() { return false; }));
     }
 
     SECTION("Invariant detects corrupted native balance in hot archive")
@@ -588,16 +573,13 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         BucketTestUtils::closeLedger(*app);
 
         {
-            auto ledgerState =
-                app->getLedgerManager().getLastClosedLedgerStateForTesting();
+            auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
             auto& inMemoryState =
                 app->getLedgerManager().getInMemorySorobanStateForTesting();
 
             REQUIRE_NOTHROW(
                 app->getInvariantManager().runStateSnapshotInvariant(
-                    ledgerState->getBucketSnapshot(),
-                    ledgerState->getHotArchiveSnapshot(), inMemoryState,
-                    []() { return false; }));
+                    snap, inMemoryState, []() { return false; }));
         }
 
         // Corrupt the other live balance by adding 123 stroops to the balance
@@ -611,18 +593,15 @@ TEST_CASE("ConservationOfLumens snapshot invariant detects bucket corruption",
         BucketTestUtils::closeLedger(*app);
 
         {
-            auto ledgerState =
-                app->getLedgerManager().getLastClosedLedgerStateForTesting();
+            auto snap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
             auto& inMemoryState =
                 app->getLedgerManager().getInMemorySorobanStateForTesting();
 
             Asset native(ASSET_TYPE_NATIVE);
             auto lumenInfo = getAssetContractInfo(native, app->getNetworkID());
             ConservationOfLumens invariant(lumenInfo);
-            auto result =
-                invariant.checkSnapshot(ledgerState->getBucketSnapshot(),
-                                        ledgerState->getHotArchiveSnapshot(),
-                                        inMemoryState, []() { return false; });
+            auto result = invariant.checkSnapshot(snap, inMemoryState,
+                                                  []() { return false; });
             REQUIRE_FALSE(result.empty());
             REQUIRE(result.find("Total native asset supply mismatch") !=
                     std::string::npos);

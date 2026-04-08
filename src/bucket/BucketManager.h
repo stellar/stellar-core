@@ -6,6 +6,7 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "history/HistoryArchive.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/ThreadAnnotations.h"
@@ -19,7 +20,6 @@
 #include <filesystem>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <set>
 #include <string>
 
@@ -39,7 +39,6 @@ class AppConnector;
 class Bucket;
 class LiveBucketList;
 class HotArchiveBucketList;
-class BucketSnapshotManager;
 class SearchableLiveBucketListSnapshot;
 struct BucketEntryCounters;
 enum class LedgerEntryTypeAndDurability : uint32_t;
@@ -83,7 +82,6 @@ class BucketManager : NonMovableOrCopyable
     AppConnector& mAppConnector;
     std::unique_ptr<LiveBucketList> mLiveBucketList;
     std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
-    std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     BucketMapT<LiveBucket> mSharedLiveBuckets;
@@ -233,7 +231,6 @@ class BucketManager : NonMovableOrCopyable
     std::string const& getBucketDir() const;
     LiveBucketList& getLiveBucketList();
     HotArchiveBucketList& getHotArchiveBucketList();
-    BucketSnapshotManager& getBucketSnapshotManager() const;
     bool renameBucketDirFile(std::filesystem::path const& src,
                              std::filesystem::path const& dst);
 
@@ -341,7 +338,7 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Evicts until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    void startBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+    void startBackgroundEvictionScan(ApplyLedgerStateSnapshot lclSnapshot,
                                      SorobanNetworkConfig const& networkConfig);
 
     // Returns a pair of vectors representing entries evicted this ledger, where
@@ -350,7 +347,7 @@ class BucketManager : NonMovableOrCopyable
     // ContractCode). Note that when an entry is archived, its TTL key will be
     // included in the deleted keys vector.
     EvictedStateVectors
-    resolveBackgroundEvictionScan(SearchableSnapshotConstPtr lclSnapshot,
+    resolveBackgroundEvictionScan(ApplyLedgerStateSnapshot const& lclSnapshot,
                                   AbstractLedgerTxn& ltx,
                                   LedgerKeySet const& modifiedKeys);
 

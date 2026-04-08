@@ -17,7 +17,6 @@ class Counter;
 
 namespace stellar
 {
-class MetricsRegistry;
 
 class InvariantManagerImpl : public InvariantManager
 {
@@ -62,8 +61,7 @@ class InvariantManagerImpl : public InvariantManager
         std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
     virtual void checkOnLedgerCommit(
-        SearchableSnapshotConstPtr lclLiveState,
-        SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+        ApplyLedgerStateSnapshot const& lclSnapshot,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -82,11 +80,9 @@ class InvariantManagerImpl : public InvariantManager
     bool shouldRunInvariantSnapshot() const override;
     void markStartOfInvariantSnapshot() override;
 
-    void runStateSnapshotInvariant(
-        SearchableSnapshotConstPtr liveSnapshot,
-        SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
-        InMemorySorobanState const& inMemorySnapshot,
-        std::function<bool()> isStopping) override;
+    void runStateSnapshotInvariant(ApplyLedgerStateSnapshot const& snapshot,
+                                   InMemorySorobanState const& inMemorySnapshot,
+                                   std::function<bool()> isStopping) override;
 
 #ifdef BUILD_TESTS
     void snapshotForFuzzer() override;
