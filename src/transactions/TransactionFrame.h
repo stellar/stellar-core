@@ -88,12 +88,15 @@ class TransactionFrame : public TransactionFrameBase
         kMaybeValid
     };
 
-    virtual bool isTooEarly(LedgerHeaderWrapper const& header,
+    virtual bool isTooEarly(uint32_t ledgerVersion, uint64_t closeTime,
+                            uint32_t ledgerSeq,
                             uint64_t lowerBoundCloseTimeOffset) const;
-    virtual bool isTooLate(LedgerHeaderWrapper const& header,
+    virtual bool isTooLate(uint32_t ledgerVersion, uint64_t closeTime,
+                           uint32_t ledgerSeq,
                            uint64_t upperBoundCloseTimeOffset) const;
 
-    bool isTooEarlyForAccount(LedgerHeaderWrapper const& header,
+    bool isTooEarlyForAccount(uint32_t ledgerVersion, uint64_t closeTime,
+                              uint32_t ledgerSeq,
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;
 
@@ -106,22 +109,23 @@ class TransactionFrame : public TransactionFrameBase
                          Hash const& envelopeContentsHash,
                          std::optional<FeePair> sorobanResourceFee,
                          MutableTransactionResultBase& txResult,
-                         DiagnosticEventManager& diagnosticEvents) const;
+                         DiagnosticEventManager& diagnosticEvents,
+                         std::optional<uint32_t> validationLedgerSeq) const;
 
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
 
-    ValidationType commonValid(AppConnector& app,
-                               SorobanNetworkConfig const* cfg,
-                               SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, SequenceNumber current,
-                               bool applying, bool chargeFee,
-                               uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset,
-                               Hash const& envelopeContentsHash,
-                               std::optional<FeePair> sorobanResourceFee,
-                               MutableTransactionResultBase& txResult,
-                               DiagnosticEventManager& diagnosticEvents) const;
+    ValidationType
+    commonValid(AppConnector& app, SorobanNetworkConfig const* cfg,
+                SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+                SequenceNumber current, bool applying, bool chargeFee,
+                uint64_t lowerBoundCloseTimeOffset,
+                uint64_t upperBoundCloseTimeOffset,
+                Hash const& envelopeContentsHash,
+                std::optional<FeePair> sorobanResourceFee,
+                MutableTransactionResultBase& txResult,
+                DiagnosticEventManager& diagnosticEvents,
+                std::optional<uint32_t> validationLedgerSeq) const;
 
     void removeOneTimeSignerFromAllSourceAccounts(AbstractLedgerTxn& ltx) const;
 
@@ -244,12 +248,15 @@ class TransactionFrame : public TransactionFrameBase
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
         MutableTransactionResultBase& result,
-        DiagnosticEventManager& diagnosticEvents) const;
-    MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const override;
+        DiagnosticEventManager& diagnosticEvents,
+        std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset,
+                                  DiagnosticEventManager& diagnosticEvents,
+                                  std::optional<uint32_t> validationLedgerSeq =
+                                      std::nullopt) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;

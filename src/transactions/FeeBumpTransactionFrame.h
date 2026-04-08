@@ -109,11 +109,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                MutableTransactionResultBase& txResult,
                                TxEventManager& txEventManager) const override;
 
-    MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const override;
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset,
+                                  DiagnosticEventManager& diagnosticEvents,
+                                  std::optional<uint32_t> validationLedgerSeq =
+                                      std::nullopt) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;
