@@ -148,10 +148,12 @@ Command options can only by placed after command.
 * **load-xdr <FILE-NAME>**:  Load an XDR bucket file, for testing.
 * **new-db**: Clears the local database and resets it to the genesis ledger. If
   you connect to the network after that it will catch up from scratch.
-* **new-hist <HISTORY-LABEL> ...**:  Initialize the named history archives
-  HISTORY-LABEL. HISTORY-LABEL should be one of the history archives you have
-  specified in the stellar-core.cfg. This will write a
-  `.well-known/stellar-history.json` file in the archive root.
+* **new-hist [--idempotent] <HISTORY-LABEL> ...**:  Initialize the named
+  history archives HISTORY-LABEL. HISTORY-LABEL should be one of the history
+  archives you have specified in the stellar-core.cfg. This will write a
+  `.well-known/stellar-history.json` file in the archive root. With
+  **--idempotent**, the command succeeds even if the archive is already
+  initialized.
 * **offline-info**: Returns an output similar to `--c info` for an offline
   instance, but written directly to standard output (ignoring log levels).
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
