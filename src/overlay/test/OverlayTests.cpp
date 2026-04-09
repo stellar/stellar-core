@@ -3419,10 +3419,10 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(!isValid);
 
         // Verify it fails with bad auth, not other reasons
-        auto ls = LedgerSnapshot(ltx);
+        auto lrv = LedgerReadView(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                            diagnostics);
+        auto result = paymentTx->checkValid(app->getAppConnector(), lrv, 0, 0,
+                                            0, diagnostics);
         REQUIRE(result->getResultCode() == txBAD_AUTH);
 
         // We expect a single cache miss at this point from the application of

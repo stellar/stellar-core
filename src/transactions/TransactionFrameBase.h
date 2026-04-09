@@ -178,7 +178,7 @@ class TransactionFrameBase
     // validation where the snapshot reflects LCL but checks must evaluate
     // against the next ledger.
     virtual MutableTxResultPtr checkValid(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const = 0;
@@ -203,7 +203,7 @@ class TransactionFrameBase
     // populating signature cache in the background).
     virtual bool
     checkOperationSignatures(SignatureChecker& signatureChecker,
-                             LedgerSnapshot const& ls,
+                             LedgerReadView const& lrv,
                              MutableTransactionResultBase* txResult) const = 0;
 
     // Validate all transaction-level signatures

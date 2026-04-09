@@ -103,7 +103,7 @@ class TransactionFrame : public TransactionFrameBase
     // If check passes, returns the source account. Otherwise returns nullopt.
     std::optional<LedgerEntryWrapper>
     commonValidPreSeqNum(AppConnector& app, SorobanNetworkConfig const* cfg,
-                         LedgerSnapshot const& ls, bool chargeFee,
+                         LedgerReadView const& lrv, bool chargeFee,
                          uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
                          Hash const& envelopeContentsHash,
@@ -117,7 +117,7 @@ class TransactionFrame : public TransactionFrameBase
 
     ValidationType
     commonValid(AppConnector& app, SorobanNetworkConfig const* cfg,
-                SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+                SignatureChecker& signatureChecker, LedgerReadView const& lrv,
                 SequenceNumber current, bool applying, bool chargeFee,
                 uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset,
@@ -240,17 +240,17 @@ class TransactionFrame : public TransactionFrameBase
                                        uint32_t ledgerVersion) const override;
 
     bool checkOperationSignatures(
-        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        SignatureChecker& signatureChecker, LedgerReadView const& lrv,
         MutableTransactionResultBase* txResult) const override;
 
     void checkValidWithOptionallyChargedFee(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
         MutableTransactionResultBase& result,
         DiagnosticEventManager& diagnosticEvents,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
-    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerReadView const& lrv,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset,
