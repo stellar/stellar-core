@@ -318,7 +318,7 @@ ConservationOfLumens::checkSnapshot(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::seconds(90));
 
-    auto const& header = snapshot.getLedgerHeader();
+    auto const& header = snapshot.getLedgerHeader().current();
 
     // This invariant can fail prior to v24 due to bugs
     if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_24))

@@ -43,7 +43,7 @@ BucketListStateConsistency::checkSnapshot(
     LogSlowExecution logSlow("BucketListStateConsistency::checkSnapshot",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::minutes(2));
-    auto const& header = snapshot.getLedgerHeader();
+    auto const& header = snapshot.getLedgerHeader().current();
 
     if (protocolVersionIsBefore(header.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -66,8 +66,7 @@ BucketListStateConsistency::checkSnapshot(
     std::string errorMsg;
 
     // Property 7: Track total entry sizes for validation
-    LedgerSnapshot lsForConfig(snapshot);
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(lsForConfig);
+    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snapshot);
     uint64_t expectedSorobanSize = 0;
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,

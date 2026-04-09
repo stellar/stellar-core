@@ -122,7 +122,7 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
 // CompleteConstLedgerState. Each instance maintains its own file stream cache
 // for bucket I/O. Multiple LedgerStateSnapshot instances can safely wrap the
 // same CompleteConstLedgerState.
-class LedgerStateSnapshot
+class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
 {
     std::shared_ptr<CompleteConstLedgerState const> mState;
     SearchableLiveBucketListSnapshot mLiveSnapshot;
@@ -130,7 +130,6 @@ class LedgerStateSnapshot
     std::reference_wrapper<MetricsRegistry> mMetrics;
 
     friend class CompleteConstLedgerState;
-    friend class BucketSnapshotState;
 
   public:
     // Construct from CompleteConstLedgerState
@@ -138,8 +137,19 @@ class LedgerStateSnapshot
                                  MetricsRegistry& metrics);
 
     CompleteConstLedgerState const& getState() const;
-    LedgerHeader const& getLedgerHeader() const;
+    LedgerHeaderWrapper getLedgerHeader() const override;
     uint32_t getLedgerSeq() const;
+
+    // === AbstractLedgerStateSnapshot overrides ===
+    LedgerEntryWrapper getAccount(AccountID const& account) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& AccountID) const override;
+    LedgerEntryWrapper load(LedgerKey const& key) const override;
+    void executeWithMaybeInnerSnapshot(
+        std::function<void(LedgerSnapshot const&)> f) const override;
 
     // === Live BucketList methods ===
     std::shared_ptr<LedgerEntry const> loadLiveEntry(LedgerKey const& k) const;
@@ -178,17 +188,19 @@ class LedgerStateSnapshot
 // during apply time. This is identical to LedgerStateSnapshot in practice, but
 // is a distinct type to prevent accidental interchange between apply-time
 // snapshots and other snapshots (e.g., from mLastClosedLedgerState).
-class ApplyLedgerStateSnapshot : private LedgerStateSnapshot
+class ApplyLedgerStateSnapshot : private LedgerStateSnapshot,
+                                 public virtual AbstractLedgerStateSnapshot
 {
-    friend class BucketSnapshotState;
-
   public:
     explicit ApplyLedgerStateSnapshot(CompleteConstLedgerStatePtr state,
                                       MetricsRegistry& metrics);
 
+    using LedgerStateSnapshot::executeWithMaybeInnerSnapshot;
+    using LedgerStateSnapshot::getAccount;
     using LedgerStateSnapshot::getLedgerHeader;
     using LedgerStateSnapshot::getLedgerSeq;
     using LedgerStateSnapshot::getState;
+    using LedgerStateSnapshot::load;
     using LedgerStateSnapshot::loadArchiveEntry;
     using LedgerStateSnapshot::loadArchiveKeys;
     using LedgerStateSnapshot::loadArchiveKeysFromLedger;
@@ -200,33 +212,6 @@ class ApplyLedgerStateSnapshot : private LedgerStateSnapshot
     using LedgerStateSnapshot::scanAllArchiveEntries;
     using LedgerStateSnapshot::scanForEviction;
     using LedgerStateSnapshot::scanLiveEntriesOfType;
-};
-
-// A concrete implementation of read-only BucketList snapshot wrapper
-class BucketSnapshotState : public AbstractLedgerStateSnapshot
-{
-    SearchableLiveBucketListSnapshot mLiveSnap;
-    std::shared_ptr<LedgerHeader const> mLedgerHeader;
-
-  public:
-    explicit BucketSnapshotState(LedgerStateSnapshot const& snap);
-    explicit BucketSnapshotState(ApplyLedgerStateSnapshot const& snap);
-    BucketSnapshotState(
-        MetricsRegistry& metrics,
-        std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
-        LedgerHeader const& header);
-    ~BucketSnapshotState() override;
-
-    LedgerHeaderWrapper getLedgerHeader() const override;
-    LedgerEntryWrapper getAccount(AccountID const& account) const override;
-    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
-                                  TransactionFrame const& tx) const override;
-    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
-                                  TransactionFrame const& tx,
-                                  AccountID const& AccountID) const override;
-    LedgerEntryWrapper load(LedgerKey const& key) const override;
-    void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
 };
 
 // A helper class to create and query read-only snapshots
@@ -245,13 +230,6 @@ class LedgerSnapshot : public NonMovableOrCopyable
     LedgerSnapshot(AbstractLedgerTxn& ltx);
     LedgerSnapshot(Application& app);
     explicit LedgerSnapshot(LedgerStateSnapshot const& snap);
-    explicit LedgerSnapshot(ApplyLedgerStateSnapshot const& snap);
-    // Construct from a lightweight live bucket snapshot + header,
-    // without requiring a full CompleteConstLedgerState.
-    LedgerSnapshot(
-        MetricsRegistry& metrics,
-        std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
-        LedgerHeader const& header);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
@@ -327,6 +305,14 @@ class CompleteConstLedgerState : public NonMovableOrCopyable
                              std::optional<SorobanNetworkConfig> sorobanConfig,
                              CompleteConstLedgerStatePtr prevState,
                              uint32_t numHistoricalSnapshots);
+
+    // Factory: constructs a CompleteConstLedgerState, auto-loading the
+    // SorobanNetworkConfig from the bucket list when the protocol requires it.
+    static CompleteConstLedgerStatePtr createAndMaybeLoadConfig(
+        LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
+        LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
+        MetricsRegistry& metrics, CompleteConstLedgerStatePtr prevState,
+        uint32_t numHistoricalSnapshots);
 
     SorobanNetworkConfig const& getSorobanConfig() const;
     bool hasSorobanConfig() const;

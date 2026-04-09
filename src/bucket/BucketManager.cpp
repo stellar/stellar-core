@@ -1156,7 +1156,7 @@ BucketManager::startBackgroundEvictionScan(ApplyLedgerStateSnapshot lclSnapshot,
 
     // Start the eviction scan for then _next_ ledger
     auto ledgerSeq = lclSnapshot.getLedgerSeq() + 1;
-    auto ledgerVers = lclSnapshot.getLedgerHeader().ledgerVersion;
+    auto ledgerVers = lclSnapshot.getLedgerHeader().current().ledgerVersion;
 
     auto const& sas = cfg.stateArchivalSettings();
 
@@ -1185,10 +1185,10 @@ BucketManager::resolveBackgroundEvictionScan(
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
     auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
-    auto ls = LedgerSnapshot(ltx);
-    auto ledgerSeq = ls.getLedgerHeader().current().ledgerSeq;
-    auto ledgerVers = ls.getLedgerHeader().current().ledgerVersion;
-    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ls);
+    LedgerTxnReadOnly ltxSnap(ltx);
+    auto ledgerSeq = ltxSnap.getLedgerHeader().current().ledgerSeq;
+    auto ledgerVers = ltxSnap.getLedgerHeader().current().ledgerVersion;
+    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ltxSnap);
     releaseAssert(ledgerSeq == lclSnapshot.getLedgerSeq() + 1);
 
     if (!mEvictionFuture.valid())
