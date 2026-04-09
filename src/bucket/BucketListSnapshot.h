@@ -234,7 +234,6 @@ class SearchableLiveBucketListSnapshot
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
-    friend class BucketSnapshotState;
     friend class CompleteConstLedgerState;
     friend class LedgerStateSnapshot;
 };

@@ -1751,7 +1751,7 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
 }
 
 SorobanNetworkConfig
-SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFromLedger(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     SorobanNetworkConfig config;
@@ -1791,8 +1791,8 @@ SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
 SorobanNetworkConfig
 SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
 {
-    LedgerSnapshot ls(ltx);
-    return SorobanNetworkConfig::loadFromLedger(ls);
+    LedgerTxnReadOnly snap(ltx);
+    return SorobanNetworkConfig::loadFromLedger(snap);
 }
 
 #ifdef BUILD_TESTS
@@ -1804,7 +1804,7 @@ SorobanNetworkConfig::emptyConfig()
 #endif
 
 void
-SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1818,7 +1818,8 @@ SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractDataKeySize(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1833,7 +1834,8 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractDataEntrySize(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1848,7 +1850,7 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadComputeSettings(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1867,7 +1869,8 @@ SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLedgerAccessSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1914,7 +1917,8 @@ SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadHistoricalSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1930,7 +1934,8 @@ SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadContractEventsSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1946,7 +1951,8 @@ SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadBandwidthSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1963,7 +1969,7 @@ SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1977,7 +1983,7 @@ SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMemCostParams(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -1991,7 +1997,8 @@ SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadExecutionLanesSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -2007,7 +2014,8 @@ SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -2037,7 +2045,8 @@ SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadEvictionIterator(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -2050,7 +2059,8 @@ SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadParallelComputeConfig(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2065,7 +2075,8 @@ SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLedgerCostExtConfig(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2080,7 +2091,7 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadSCPTimingConfig(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2121,7 +2132,8 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 }
 
 void
-SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadStateArchivalSettings(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
 
@@ -2529,7 +2541,8 @@ SorobanNetworkConfig::isFreezeBypassTx(Hash const& txHash) const
 }
 
 void
-SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFrozenLedgerKeys(
+    AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     mFrozenLedgerKeys.clear();
@@ -2550,7 +2563,7 @@ SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadFreezeBypassTxs(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFreezeBypassTxs(AbstractLedgerStateSnapshot const& ls)
 {
     ZoneScoped;
     mFreezeBypassTxs.clear();

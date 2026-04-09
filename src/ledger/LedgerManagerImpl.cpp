@@ -1134,8 +1134,7 @@ LedgerManagerImpl::ApplyState::maybeRebuildModuleCache(
 
     // linearTerm is in 1/128ths in the cost model, to reduce rounding error.
     uint64_t scale = 128;
-    LedgerSnapshot lsForConfig(snap);
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(lsForConfig);
+    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snap);
     auto const& memParams = sorobanConfig.memCostParams();
     if (memParams.size() > (size_t)stellar::VmInstantiation)
     {
@@ -2110,25 +2109,23 @@ LedgerManagerImpl::buildLedgerState(
     mApplyState.threadInvariant();
     auto& bm = mApp.getBucketManager();
 
-    // If the caller didn't provide a SorobanNetworkConfig, load it from the
-    // BucketList (at this point the BucketList must have already been updated).
-    if (!sorobanConfig && protocolVersionStartsFrom(header.ledgerVersion,
-                                                    SOROBAN_PROTOCOL_VERSION))
-    {
-        auto liveData = std::make_shared<BucketListSnapshotData<LiveBucket>>(
-            bm.getLiveBucketList());
-        LedgerSnapshot ls(mApp.getMetrics(), std::move(liveData), header);
-        sorobanConfig = SorobanNetworkConfig::loadFromLedger(ls);
-    }
-
     LedgerHeaderHistoryEntry lcl;
     lcl.header = header;
     lcl.hash = xdrSha256(header);
 
-    return std::make_shared<CompleteConstLedgerState>(
+    if (sorobanConfig)
+    {
+        // Caller already loaded config (e.g. from LTX during ledger close)
+        return std::make_shared<CompleteConstLedgerState>(
+            bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
+            std::move(sorobanConfig), std::move(prevState),
+            mNumHistoricalSnapshots);
+    }
+
+    // Auto-load SorobanNetworkConfig from the BucketList
+    return CompleteConstLedgerState::createAndMaybeLoadConfig(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-        std::move(sorobanConfig), std::move(prevState),
-        mNumHistoricalSnapshots);
+        mApp.getMetrics(), std::move(prevState), mNumHistoricalSnapshots);
 }
 
 CompleteConstLedgerStatePtr

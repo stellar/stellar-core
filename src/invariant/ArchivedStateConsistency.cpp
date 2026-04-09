@@ -49,7 +49,7 @@ ArchivedStateConsistency::checkOnLedgerCommit(
                              std::chrono::milliseconds(1));
 
     auto ledgerSeq = lclSnapshot.getLedgerSeq() + 1;
-    auto ledgerVers = lclSnapshot.getLedgerHeader().ledgerVersion;
+    auto ledgerVers = lclSnapshot.getLedgerHeader().current().ledgerVersion;
 
     if (protocolVersionIsBefore(
             ledgerVers,
