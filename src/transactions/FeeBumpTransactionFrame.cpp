@@ -245,7 +245,7 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 FeeBumpTransactionFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SignatureChecker& signatureChecker, LedgerReadView const& lrv,
     MutableTransactionResultBase* txResult) const
 {
     // Fee bumps do not contain explicit operations, so this check trivially
@@ -270,7 +270,7 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
     std::optional<uint32_t> validationLedgerSeq) const
@@ -284,15 +284,16 @@ FeeBumpTransactionFrame::checkValid(
     // the fees that would end up being applied. However, this is what Core
     // used to return for a while, and some users may rely on this, so we
     // maintain this logic for the time being.
-    int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
-    auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
+    int64_t minBaseFee = lrv.getLedgerHeader().current().baseFee;
+    auto feeCharged =
+        getFee(lrv.getLedgerHeader().current(), minBaseFee, false);
     auto txResult = FeeBumpMutableTransactionResult::createSuccess(
         *mInnerTx, feeCharged, 0);
 
-    auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    auto ledgerVersion = lrv.getLedgerHeader().current().ledgerVersion;
     SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ls, false, *txResult) !=
+    if (commonValid(signatureChecker, lrv, false, *txResult) !=
         ValidationType::kFullyValid)
     {
         return txResult;
@@ -322,7 +323,7 @@ FeeBumpTransactionFrame::checkValid(
     }
 
     mInnerTx->checkValidWithOptionallyChargedFee(
-        app, ls, current, false, lowerBoundCloseTimeOffset,
+        app, lrv, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
         diagnosticEvents, validationLedgerSeq);
 
@@ -340,12 +341,12 @@ FeeBumpTransactionFrame::checkSorobanResources(
 
 std::optional<LedgerEntryWrapper>
 FeeBumpTransactionFrame::commonValidPreSeqNum(
-    LedgerSnapshot const& ls, MutableTransactionResultBase& txResult) const
+    LedgerReadView const& lrv, MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    auto header = ls.getLedgerHeader();
+    auto header = lrv.getLedgerHeader();
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_13))
     {
@@ -406,7 +407,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
         }
     }
 
-    auto feeSource = ls.getAccount(getFeeSourceID());
+    auto feeSource = lrv.getAccount(getFeeSourceID());
     if (!feeSource)
     {
         txResult.setError(txNO_ACCOUNT);
@@ -418,14 +419,14 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls, bool applying,
-    MutableTransactionResultBase& txResult) const
+    SignatureChecker& signatureChecker, LedgerReadView const& lrv,
+    bool applying, MutableTransactionResultBase& txResult) const
 {
     ValidationType res = ValidationType::kInvalid;
 
     // Get the fee source account during commonValidPreSeqNum to avoid redundant
     // account loading
-    auto feeSource = commonValidPreSeqNum(ls, txResult);
+    auto feeSource = commonValidPreSeqNum(lrv, txResult);
     if (!feeSource)
     {
         return res;
@@ -433,7 +434,7 @@ FeeBumpTransactionFrame::commonValid(
 
     if (!checkAllTransactionSignatures(
             signatureChecker, *feeSource,
-            ls.getLedgerHeader().current().ledgerVersion))
+            lrv.getLedgerHeader().current().ledgerVersion))
     {
         txResult.setError(txBAD_AUTH);
         return res;
@@ -441,7 +442,7 @@ FeeBumpTransactionFrame::commonValid(
 
     res = ValidationType::kInvalidPostAuth;
 
-    auto header = ls.getLedgerHeader();
+    auto header = lrv.getLedgerHeader();
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance

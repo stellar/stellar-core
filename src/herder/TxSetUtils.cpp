@@ -171,11 +171,11 @@ TxSetUtils::getInvalidTxListWithErrors(
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    LedgerSnapshot ls(app);
+    LedgerReadView lrv(app);
     // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
     // which is what will be used at apply time.
     std::optional<uint32_t> validationLedgerSeq;
-    if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
+    if (protocolVersionStartsFrom(lrv.getLedgerHeader().current().ledgerVersion,
                                   ProtocolVersion::V_19))
     {
         validationLedgerSeq =
@@ -192,7 +192,7 @@ TxSetUtils::getInvalidTxListWithErrors(
     for (auto const& tx : txs)
     {
         auto txResult = tx->checkValid(
-            app.getAppConnector(), ls, 0, lowerBoundCloseTimeOffset,
+            app.getAppConnector(), lrv, 0, lowerBoundCloseTimeOffset,
             upperBoundCloseTimeOffset, diagnostics, validationLedgerSeq);
         if (!txResult->isSuccess())
         {
@@ -214,7 +214,7 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
     }
 
-    auto header = ls.getLedgerHeader().current();
+    auto header = lrv.getLedgerHeader().current();
     for (auto const& tx : txs)
     {
         // Already added invalid tx
@@ -224,7 +224,7 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
 
         auto feeSourceID = tx->getFeeSourceID();
-        auto feeSource = ls.getAccount(feeSourceID);
+        auto feeSource = lrv.getAccount(feeSourceID);
         // feeSource should exist since we've already run checkValid, log
         // internal bug
         if (!feeSource)

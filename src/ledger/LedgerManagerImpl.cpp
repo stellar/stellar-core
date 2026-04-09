@@ -1663,9 +1663,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
-        LedgerSnapshot ls(ltx);
+        LedgerReadView lrv(ltx);
         auto valid =
-            Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp, ls);
+            Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp, lrv);
         switch (valid)
         {
         case Upgrades::UpgradeValidity::VALID:

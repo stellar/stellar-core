@@ -150,19 +150,19 @@ LedgerTxnReadOnly::load(LedgerKey const& key) const
 
 void
 LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+    std::function<void(LedgerReadView const& lrv)> f) const
 {
     LedgerTxn inner(mLedgerTxn);
-    LedgerSnapshot lsg(inner);
-    return f(lsg);
+    LedgerReadView lrv(inner);
+    return f(lrv);
 }
 
-LedgerSnapshot::LedgerSnapshot(AbstractLedgerTxn& ltx)
+LedgerReadView::LedgerReadView(AbstractLedgerTxn& ltx)
     : mGetter(std::make_unique<LedgerTxnReadOnly>(ltx))
 {
 }
 
-LedgerSnapshot::LedgerSnapshot(Application& app)
+LedgerReadView::LedgerReadView(Application& app)
 {
     releaseAssert(threadIsMain());
 #ifdef BUILD_TESTS
@@ -182,32 +182,32 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     }
 }
 
-LedgerSnapshot::LedgerSnapshot(LedgerStateSnapshot const& snap)
+LedgerReadView::LedgerReadView(LedgerStateSnapshot const& snap)
     : mGetter(std::make_unique<LedgerStateSnapshot>(snap))
 {
 }
 
 LedgerHeaderWrapper
-LedgerSnapshot::getLedgerHeader() const
+LedgerReadView::getLedgerHeader() const
 {
     return mGetter->getLedgerHeader();
 }
 
 LedgerEntryWrapper
-LedgerSnapshot::getAccount(AccountID const& account) const
+LedgerReadView::getAccount(AccountID const& account) const
 {
     return mGetter->getAccount(account);
 }
 
 LedgerEntryWrapper
-LedgerSnapshot::load(LedgerKey const& key) const
+LedgerReadView::load(LedgerKey const& key) const
 {
     return mGetter->load(key);
 }
 
 void
-LedgerSnapshot::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+LedgerReadView::executeWithMaybeInnerSnapshot(
+    std::function<void(LedgerReadView const& lrv)> f) const
 {
     return mGetter->executeWithMaybeInnerSnapshot(f);
 }
@@ -395,7 +395,7 @@ LedgerStateSnapshot::load(LedgerKey const& key) const
 
 void
 LedgerStateSnapshot::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+    std::function<void(LedgerReadView const& lrv)> f) const
 {
     throw std::runtime_error(
         "LedgerStateSnapshot::executeWithMaybeInnerSnapshot is illegal: "

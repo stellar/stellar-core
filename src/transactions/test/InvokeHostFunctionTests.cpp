@@ -2210,10 +2210,10 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
                      txEnvelope.v1());
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             test.getApp().getNetworkID(), txEnvelope);
-        LedgerSnapshot ls(test.getApp());
+        LedgerReadView lrv(test.getApp());
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto innerCheckValidResult = tx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), lrv, 0, 0, 0, diagnostics);
 
         int64_t feeBumpFullFee = resourceFee + inclusionFee;
         auto feeBumpTx = feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
@@ -2222,7 +2222,7 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
         REQUIRE(feeBumpTx->getInclusionFee() == inclusionFee);
 
         auto checkValidResult = feeBumpTx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), lrv, 0, 0, 0, diagnostics);
         if (!checkValidResult->isSuccess())
         {
             return checkValidResult->getResultCode();
@@ -8725,8 +8725,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            LedgerReadView lrv(test.getApp());
+            REQUIRE(!lrv.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8757,8 +8757,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            LedgerReadView lrv(test.getApp());
+            REQUIRE(!lrv.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8794,8 +8794,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txNO_ACCOUNT);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            LedgerReadView lrv(test.getApp());
+            REQUIRE(!lrv.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus the soroban
             // transactions fee which a1 paid before it was merged).
@@ -9057,7 +9057,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
     {
         std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
         auto resources = lm.maxLedgerResources(true);
-        LedgerSnapshot ls(app);
+        LedgerReadView lrv(app);
         for (int txId = 0; txId < MAX_TRANSACTIONS_PER_LEDGER; ++txId)
         {
             auto account = txtest::getGenesisAccount(app, accountId++);
@@ -9098,7 +9098,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
             auto tx = invocation.withExactNonRefundableResourceFee().createTx(
                 &account);
 
-            REQUIRE(tx->checkValid(app.getAppConnector(), ls, 0, 0, 0)
+            REQUIRE(tx->checkValid(app.getAppConnector(), lrv, 0, 0, 0)
                         ->isSuccess());
             if (!anyGreater(tx->getResources(false, test.getLedgerVersion()),
                             resources))
@@ -9488,8 +9488,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
         {
             auto ledgerKey = client.getContract().getDataKey(
                 makeSymbolSCVal(key), durability);
-            LedgerSnapshot ls(test.getApp());
-            auto le = ls.load(ledgerKey);
+            LedgerReadView lrv(test.getApp());
+            auto le = lrv.load(ledgerKey);
             if (le)
             {
                 // We only deal with the data entries here, so no need to use
@@ -9700,9 +9700,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        LedgerReadView lrv(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = lrv.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9749,9 +9749,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        LedgerReadView lrv(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = lrv.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9803,9 +9803,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        LedgerReadView lrv(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = lrv.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -10192,8 +10192,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         REQUIRE(innerRes.result.code() == txNO_ACCOUNT);
 
         // Verify that innerAccount no longer exists after the merge
-        LedgerSnapshot ls(test.getApp());
-        REQUIRE(!ls.getAccount(innerAccount.getPublicKey()));
+        LedgerReadView lrv(test.getApp());
+        REQUIRE(!lrv.getAccount(innerAccount.getPublicKey()));
 
         auto expectedDestinationBalance = startingBalance + startingBalance;
         REQUIRE(destination.getBalance() == expectedDestinationBalance);

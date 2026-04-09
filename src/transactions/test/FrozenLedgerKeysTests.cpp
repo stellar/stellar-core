@@ -97,9 +97,9 @@ bypassAndUnbypassTxHashes(Application& app, std::vector<Hash> const& toBypass,
 UnorderedSet<LedgerKey>
 loadFrozenKeysFromLedger(Application& app)
 {
-    LedgerSnapshot ls(app);
+    LedgerReadView lrv(app);
     auto configKey = configSettingKey(CONFIG_SETTING_FROZEN_LEDGER_KEYS);
-    auto entry = ls.load(configKey);
+    auto entry = lrv.load(configKey);
     REQUIRE(entry);
 
     auto const& frozenKeys =
@@ -122,9 +122,9 @@ loadFrozenKeysFromLedger(Application& app)
 UnorderedSet<Hash>
 loadFreezeBypassTxsFromLedger(Application& app)
 {
-    LedgerSnapshot ls(app);
+    LedgerReadView lrv(app);
     auto configKey = configSettingKey(CONFIG_SETTING_FREEZE_BYPASS_TXS);
-    auto entry = ls.load(configKey);
+    auto entry = lrv.load(configKey);
     REQUIRE(entry);
 
     auto const& bypassTxs =
@@ -152,9 +152,9 @@ TEST_CASE("frozen ledger keys config setting does not exist prior to p26",
         static_cast<uint32_t>(ProtocolVersion::V_25);
     auto app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
-    LedgerSnapshot ls(*app);
+    LedgerReadView lrv(*app);
     auto configKey = configSettingKey(CONFIG_SETTING_FROZEN_LEDGER_KEYS);
-    auto entry = ls.load(configKey);
+    auto entry = lrv.load(configKey);
     REQUIRE(!entry);
 }
 
@@ -168,9 +168,9 @@ TEST_CASE("freeze bypass txs config setting does not exist prior to p26",
         static_cast<uint32_t>(ProtocolVersion::V_25);
     auto app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
-    LedgerSnapshot ls(*app);
+    LedgerReadView lrv(*app);
     auto configKey = configSettingKey(CONFIG_SETTING_FREEZE_BYPASS_TXS);
-    auto entry = ls.load(configKey);
+    auto entry = lrv.load(configKey);
     REQUIRE(!entry);
 }
 
@@ -539,8 +539,8 @@ TEST_CASE("freeze bypass tx hash allows frozen key access at validation time",
 
     auto checkFrozen = [&](TransactionTestFramePtr& tx,
                            bool expectInnerFrozenResult) {
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(!result->isSuccess());
         if (expectInnerFrozenResult)
         {
@@ -556,8 +556,8 @@ TEST_CASE("freeze bypass tx hash allows frozen key access at validation time",
     };
 
     auto checkValid = [&](TransactionTestFramePtr& tx) {
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(result->isSuccess());
     };
 
@@ -709,8 +709,8 @@ TEST_CASE("frozen ledger keys in Soroban footprint",
         auto tx = createUploadWasmTx(*app, a1, 1000, DEFAULT_TEST_RESOURCE_FEE,
                                      resources);
 
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(!result->isSuccess());
         REQUIRE(result->getResultCode() == txFROZEN_KEY_ACCESSED);
 
@@ -732,8 +732,8 @@ TEST_CASE("source account frozen", "[frozenledgerkeys][tx]")
         root->create("A2", lm.getLastMinBalance(10) + 10 * lm.getLastTxFee());
 
     auto checkTx = [&](TransactionTestFramePtr& tx) {
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(!result->isSuccess());
         REQUIRE(result->getResultCode() == txFROZEN_KEY_ACCESSED);
     };
@@ -867,8 +867,8 @@ TEST_CASE("source account frozen", "[frozenledgerkeys][tx]")
 
         unfreezeKey(*app, a1Key);
 
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(result->isSuccess());
     }
 }
@@ -903,8 +903,8 @@ TEST_CASE("source trustline frozen", "[frozenledgerkeys][tx]")
     auto checkAccessesFrozenKey = [&](Operation const& op) {
         auto tx = transactionFromOperations(*app, a1.getSecretKey(),
                                             a1.nextSequenceNumber(), {op});
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(!result->isSuccess());
         REQUIRE(result->getResultCode() == txFROZEN_KEY_ACCESSED);
     };
@@ -1018,8 +1018,8 @@ TEST_CASE("operation destination frozen", "[frozenledgerkeys][tx]")
         auto tx =
             transactionFromOperations(*app, sourceAccount.getSecretKey(),
                                       sourceAccount.nextSequenceNumber(), {op});
-        LedgerSnapshot ls(*app);
-        auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+        LedgerReadView lrv(*app);
+        auto result = tx->checkValid(app->getAppConnector(), lrv, 0, 0, 0);
         REQUIRE(!result->isSuccess());
         REQUIRE(result->getResultCode() == txFROZEN_KEY_ACCESSED);
     };
@@ -2227,9 +2227,9 @@ TEST_CASE("frozen offers are transparent to DEX matching - randomized",
                     tx->addSignature(taker.getSecretKey());
 
                     {
-                        LedgerSnapshot ls(*app);
-                        auto result =
-                            tx->checkValid(app->getAppConnector(), ls, 0, 0, 0);
+                        LedgerReadView lrv(*app);
+                        auto result = tx->checkValid(app->getAppConnector(),
+                                                     lrv, 0, 0, 0);
                         REQUIRE(result->isSuccess());
                     }
 

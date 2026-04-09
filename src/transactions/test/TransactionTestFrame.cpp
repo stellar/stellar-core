@@ -86,35 +86,35 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     LedgerTxn ltx(ltxOuter);
-    auto ls = LedgerSnapshot(ltx);
+    auto lrv = LedgerReadView(ltx);
     auto diagnostics = DiagnosticEventManager::createDisabled();
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        app, lrv, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
         diagnostics);
     return mTransactionTxResult->clone();
 }
 
 MutableTxResultPtr
 TransactionTestFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<uint32_t> validationLedgerSeq) const
 {
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    return checkValid(app, ls, current, lowerBoundCloseTimeOffset,
+    return checkValid(app, lrv, current, lowerBoundCloseTimeOffset,
                       upperBoundCloseTimeOffset, diagnostics,
                       validationLedgerSeq);
 }
 
 MutableTxResultPtr
 TransactionTestFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     DiagnosticEventManager& diagnosticEvents,
     std::optional<uint32_t> validationLedgerSeq) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        app, lrv, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
         diagnosticEvents, validationLedgerSeq);
     return mTransactionTxResult->clone();
 }
@@ -239,10 +239,10 @@ TransactionTestFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 TransactionTestFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SignatureChecker& signatureChecker, LedgerReadView const& lrv,
     MutableTransactionResultBase* txResult) const
 {
-    return mTransactionFrame->checkOperationSignatures(signatureChecker, ls,
+    return mTransactionFrame->checkOperationSignatures(signatureChecker, lrv,
                                                        txResult);
 }
 

@@ -17,7 +17,7 @@ namespace stellar
 
 class Application;
 class TransactionFrame;
-class LedgerSnapshot;
+class LedgerReadView;
 class ApplyLedgerStateSnapshot;
 class CompleteConstLedgerState;
 class EvictionStatistics;
@@ -92,7 +92,7 @@ class AbstractLedgerStateSnapshot
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     virtual void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const = 0;
+        std::function<void(LedgerReadView const&)> f) const = 0;
 };
 
 // A concrete implementation of read-only SQL snapshot wrapper
@@ -115,7 +115,7 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(LedgerReadView const&)> f) const override;
 };
 
 // A copyable value type that provides searchable access to a
@@ -149,7 +149,7 @@ class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(LedgerReadView const&)> f) const override;
 
     // === Live BucketList methods ===
     std::shared_ptr<LedgerEntry const> loadLiveEntry(LedgerKey const& k) const;
@@ -217,19 +217,19 @@ class ApplyLedgerStateSnapshot : private LedgerStateSnapshot,
 // A helper class to create and query read-only snapshots
 // Automatically decides whether to create a BucketList (recommended), or SQL
 // snapshot (deprecated, but currently supported)
-// NOTE: LedgerSnapshot is meant to be short-lived, and should not be persisted
+// NOTE: LedgerReadView is meant to be short-lived, and should not be persisted
 // across _different_ ledgers, as the state under the hood might change. Users
-// are expected to construct a new LedgerSnapshot each time they want to query
+// are expected to construct a new LedgerReadView each time they want to query
 // ledger state.
-class LedgerSnapshot : public NonMovableOrCopyable
+class LedgerReadView : public NonMovableOrCopyable
 {
     std::unique_ptr<AbstractLedgerStateSnapshot const> mGetter;
     std::unique_ptr<LedgerTxn> mLegacyLedgerTxn;
 
   public:
-    LedgerSnapshot(AbstractLedgerTxn& ltx);
-    LedgerSnapshot(Application& app);
-    explicit LedgerSnapshot(LedgerStateSnapshot const& snap);
+    LedgerReadView(AbstractLedgerTxn& ltx);
+    LedgerReadView(Application& app);
+    explicit LedgerReadView(LedgerStateSnapshot const& snap);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
@@ -250,7 +250,7 @@ class LedgerSnapshot : public NonMovableOrCopyable
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const;
+        std::function<void(LedgerReadView const&)> f) const;
 };
 
 // Immutable wrapper for a complete ledger state snapshot.
