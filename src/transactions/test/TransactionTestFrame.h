@@ -69,10 +69,10 @@ class TransactionTestFrame : public TransactionFrameBase
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr checkValid(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        AppConnector& app, LedgerReadView const& lrv, SequenceNumber current,
         uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
-    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerReadView const& lrv,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset,
@@ -115,7 +115,7 @@ class TransactionTestFrame : public TransactionFrameBase
                         int32_t neededWeight) const override;
 
     bool checkOperationSignatures(
-        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        SignatureChecker& signatureChecker, LedgerReadView const& lrv,
         MutableTransactionResultBase* txResult) const override;
 
     bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,

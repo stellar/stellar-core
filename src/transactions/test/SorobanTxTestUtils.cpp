@@ -1369,10 +1369,10 @@ SorobanTest::createRestoreTx(SorobanResources const& resources,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
-    LedgerSnapshot ls(getApp());
+    LedgerReadView lrv(getApp());
     auto diagnostics = DiagnosticEventManager::createDisabled();
     auto ret =
-        tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+        tx->checkValid(getApp().getAppConnector(), lrv, 0, 0, 0, diagnostics);
     return ret->isSuccess();
 }
 
@@ -1381,10 +1381,10 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerSnapshot ls(getApp());
-        REQUIRE(
-            tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics)
-                ->isSuccess());
+        LedgerReadView lrv(getApp());
+        REQUIRE(tx->checkValid(getApp().getAppConnector(), lrv, 0, 0, 0,
+                               diagnostics)
+                    ->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});
@@ -1435,10 +1435,10 @@ ExpirationStatus
 SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
 {
     auto ttlKey = getTTLKey(key);
-    LedgerSnapshot ls(getApp());
-    if (auto lse = ls.load(ttlKey))
+    LedgerReadView lrv(getApp());
+    if (auto le = lrv.load(ttlKey))
     {
-        if (lse.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
+        if (le.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
         {
             return ExpirationStatus::EXPIRED_IN_LIVE_STATE;
         }

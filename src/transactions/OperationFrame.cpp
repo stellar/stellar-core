@@ -148,7 +148,7 @@ OperationFrame::apply(
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
 
-    LedgerSnapshot ltxState(ltx);
+    LedgerReadView ltxState(ltx);
     bool applyRes = checkValid(
         app, signatureChecker, sorobanConfig ? &sorobanConfig.value() : nullptr,
         ltxState, true, res, opMeta.getDiagnosticEventManager());
@@ -215,12 +215,12 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, OperationResult* res,
+                               LedgerReadView const& lrv, OperationResult* res,
                                bool forApply) const
 {
     ZoneScoped;
-    auto header = ls.getLedgerHeader();
-    auto sourceAccount = ls.getAccount(header, mParentTx, getSourceID());
+    auto header = lrv.getLedgerHeader();
+    auto sourceAccount = lrv.getAccount(header, mParentTx, getSourceID());
     if (sourceAccount)
     {
         auto neededThreshold =
@@ -282,7 +282,7 @@ bool
 OperationFrame::checkValid(AppConnector& app,
                            SignatureChecker& signatureChecker,
                            SorobanNetworkConfig const* cfg,
-                           LedgerSnapshot const& ls, bool forApply,
+                           LedgerReadView const& lrv, bool forApply,
                            OperationResult& res,
                            DiagnosticEventManager& diagnosticEvents) const
 {
@@ -290,19 +290,19 @@ OperationFrame::checkValid(AppConnector& app,
     bool validationResult = false;
     auto validate = [this, &res, forApply, &signatureChecker, &app,
                      &diagnosticEvents, &validationResult,
-                     &cfg](LedgerSnapshot const& ls) {
-        if (!isOpSupported(ls.getLedgerHeader().current()))
+                     &cfg](LedgerReadView const& lrv) {
+        if (!isOpSupported(lrv.getLedgerHeader().current()))
         {
             res.code(opNOT_SUPPORTED);
             validationResult = false;
             return;
         }
 
-        auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+        auto ledgerVersion = lrv.getLedgerHeader().current().ledgerVersion;
         if (!forApply ||
             protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
         {
-            if (!checkSignature(signatureChecker, ls, &res, forApply))
+            if (!checkSignature(signatureChecker, lrv, &res, forApply))
             {
                 validationResult = false;
                 return;
@@ -319,7 +319,8 @@ OperationFrame::checkValid(AppConnector& app,
             // If we're applying, it's possible an earlier op modified the TX
             // source, so we need to check again.
             if ((mOperation.sourceAccount || forApply) &&
-                !ls.getAccount(ls.getLedgerHeader(), mParentTx, getSourceID()))
+                !lrv.getAccount(lrv.getLedgerHeader(), mParentTx,
+                                getSourceID()))
             {
                 res.code(opNO_ACCOUNT);
                 validationResult = false;
@@ -343,16 +344,16 @@ OperationFrame::checkValid(AppConnector& app,
 
     // Older protocol versions contain buggy account loading code,
     // so preserve nested LedgerTxn to avoid writing to the ledger
-    if (protocolVersionIsBefore(ls.getLedgerHeader().current().ledgerVersion,
+    if (protocolVersionIsBefore(lrv.getLedgerHeader().current().ledgerVersion,
                                 ProtocolVersion::V_8) &&
         forApply)
     {
-        ls.executeWithMaybeInnerSnapshot(validate);
+        lrv.executeWithMaybeInnerSnapshot(validate);
     }
     else
     {
         // Validate using read-only snapshot
-        validate(ls);
+        validate(lrv);
     }
 
     return validationResult;

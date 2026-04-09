@@ -1112,15 +1112,15 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
             LedgerKey stateArchivalKey(CONFIG_SETTING);
             stateArchivalKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-            LedgerSnapshot ls(*app);
-            auto stateArchivalEntry = ls.load(stateArchivalKey).current();
+            LedgerReadView lrv(*app);
+            auto stateArchivalEntry = lrv.load(stateArchivalKey).current();
             modifyStateArchivalFn(stateArchivalEntry.data.configSetting()
                                       .stateArchivalSettings());
 
             LedgerKey evictionIterKey(CONFIG_SETTING);
             evictionIterKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-            auto evictionIterEntry = ls.load(evictionIterKey).current();
+            auto evictionIterEntry = lrv.load(evictionIterKey).current();
             modifyEvictionIteratorFn(
                 evictionIterEntry.data.configSetting().evictionIterator());
 

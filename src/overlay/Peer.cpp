@@ -72,19 +72,17 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
     auto& snapshot = app.getOverlayThreadSnapshot();
     app.maybeUpdateLedgerStateSnapshot(snapshot);
-    LedgerSnapshot ledgerSnapshot(snapshot);
+    LedgerReadView lrv(snapshot);
 
-    // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to
+    // Use lrv to check all transactions in `tx`. We use a lambda to
     // simplify checking of both outer and inner transactions in the case of fee
     // bumps.
-    auto const checkTxSignatures = [&ledgerSnapshot](
-                                       TransactionFrameBaseConstPtr tx) {
+    auto const checkTxSignatures = [&lrv](TransactionFrameBaseConstPtr tx) {
         auto const& hash = tx->getContentsHash();
         auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
 
         SignatureChecker signatureChecker(
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-            signatures);
+            lrv.getLedgerHeader().current().ledgerVersion, hash, signatures);
 
         // Do not report signature cache metrics during background validation.
         // This allows us to more accurately measure the impact of background
@@ -94,8 +92,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
         // NOTE: Use getFeeSourceID so that this works for both TransactionFrame
         // and FeeBumpTransactionFrame
-        auto const sourceAccount =
-            ledgerSnapshot.getAccount(tx->getFeeSourceID());
+        auto const sourceAccount = lrv.getAccount(tx->getFeeSourceID());
 
         if (!sourceAccount)
         {
@@ -116,10 +113,10 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
         // Check all transaction signatures
         tx->checkAllTransactionSignatures(
             signatureChecker, sourceAccount,
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+            lrv.getLedgerHeader().current().ledgerVersion);
 
         // Check all operation signatures.
-        tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+        tx->checkOperationSignatures(signatureChecker, lrv, nullptr);
     };
 
     checkTxSignatures(tx);
