@@ -20,7 +20,7 @@ use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
     identity::Keypair,
-    swarm::{NetworkBehaviour, SwarmEvent},
+    swarm::{dial_opts::{DialOpts, PeerCondition}, NetworkBehaviour, SwarmEvent},
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
@@ -62,6 +62,8 @@ pub enum OverlayEvent {
     TxSetRequested { hash: [u8; 32], from: PeerId },
     /// Peer is requesting SCP state
     ScpStateRequested { peer_id: PeerId, ledger_seq: u32 },
+    /// Peer connected — includes the remote address for PeerId mapping
+    PeerConnected { peer_id: PeerId, addr: Multiaddr },
     /// Peer disconnected - clean up any pending requests
     PeerDisconnected { peer_id: PeerId },
 }
@@ -83,8 +85,10 @@ pub enum OverlayCommand {
     },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
-    /// Connect to a peer
+    /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
+    /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
+    DialPeer { peer_id: PeerId, addr: Multiaddr },
     /// Request SCP state from all peers
     RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
@@ -194,6 +198,13 @@ impl OverlayHandle {
     pub async fn dial(&self, addr: Multiaddr) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::Dial(addr)).await {
             warn!("Overlay command channel closed, failed to send Dial: {}", e);
+        }
+    }
+
+    /// Dial a known peer by PeerId. libp2p will skip the dial if already connected.
+    pub async fn dial_peer(&self, peer_id: PeerId, addr: Multiaddr) {
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::DialPeer { peer_id, addr }).await {
+            warn!("Overlay command channel closed, failed to send DialPeer: {}", e);
         }
     }
 
@@ -484,6 +495,23 @@ impl StellarOverlay {
                                 warn!("Failed to dial {}: {}", addr, e);
                             }
                         }
+                        OverlayCommand::DialPeer { peer_id, addr } => {
+                            let opts = DialOpts::peer_id(peer_id)
+                                .condition(PeerCondition::Disconnected)
+                                .addresses(vec![addr.clone()])
+                                .build();
+                            self.state.metrics.outbound_attempt.fetch_add(1, Ordering::Relaxed);
+                            match self.swarm.dial(opts) {
+                                Ok(_) => {
+                                    self.state.metrics.connection_pending.fetch_add(1, Ordering::Relaxed);
+                                    debug!("Dialing known peer {} at {}", peer_id, addr);
+                                }
+                                Err(e) => {
+                                    // DialError::NoAddresses means already connected — not an error
+                                    debug!("DialPeer {} skipped or failed: {}", peer_id, e);
+                                }
+                            }
+                        }
                         OverlayCommand::RequestScpState { ledger_seq } => {
                             info!("Requesting SCP state (ledger >= {}) from all peers", ledger_seq);
                             self.request_scp_state_from_all_peers(ledger_seq).await;
@@ -518,53 +546,97 @@ impl StellarOverlay {
                 info!("Listening on {}", address);
             }
 
-            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                info!("Connected to peer {}", peer_id);
-                self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
-                self.state.metrics.connection_authenticated.fetch_add(1, Ordering::Relaxed);
-                self.state.metrics.outbound_establish.fetch_add(1, Ordering::Relaxed);
-
-                // Create peer streams entry
-                {
-                    let mut streams = self.state.peer_streams.write().await;
-                    streams.insert(peer_id, Arc::new(PeerOutboundStreams::new()));
+            SwarmEvent::ConnectionEstablished {
+                peer_id,
+                num_established,
+                endpoint,
+                ..
+            } => {
+                // Only decrement connection_pending for outbound dials we initiated
+                if endpoint.is_dialer() {
+                    self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
+                    self.state.metrics.outbound_establish.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.state.metrics.inbound_establish.fetch_add(1, Ordering::Relaxed);
                 }
 
-                // Spawn stream opening as a background task to avoid blocking
-                // the swarm event loop. control.open_stream() needs the swarm
-                // to be polled to process the request — awaiting inline would
-                // deadlock because we're inside the swarm event handler.
-                let control = self.control.clone();
-                let state = self.state.clone();
-                tokio::spawn(open_streams_to_peer(control, state, peer_id));
+                // Only open streams on the first connection to a peer.
+                // When both sides dial simultaneously, two ConnectionEstablished
+                // events fire for the same peer. Opening streams on each would
+                // overwrite the first set, dropping those streams and causing
+                // "unexpected end of file" on the remote's inbound handlers.
+                if num_established.get() == 1 {
+                    info!("Connected to peer {}", peer_id);
+                    self.state.metrics.connection_authenticated.fetch_add(1, Ordering::Relaxed);
+                    {
+                        let mut streams = self.state.peer_streams.write().await;
+                        streams.insert(peer_id, Arc::new(PeerOutboundStreams::new()));
+                    }
+
+                    // Notify application so it can record the PeerId ↔ address mapping.
+                    // Extract the remote address from the endpoint for reconnection.
+                    let remote_addr = match &endpoint {
+                        libp2p::core::ConnectedPoint::Dialer { address, .. } => address.clone(),
+                        libp2p::core::ConnectedPoint::Listener { send_back_addr, .. } => send_back_addr.clone(),
+                    };
+                    let _ = self.state.event_tx.send(OverlayEvent::PeerConnected {
+                        peer_id: peer_id.clone(),
+                        addr: remote_addr,
+                    });
+
+                    // Spawn stream opening as a background task so the swarm
+                    // event loop stays free to poll — control.open_stream()
+                    // needs the swarm to process the request.
+                    let control = self.control.clone();
+                    let state = self.state.clone();
+                    tokio::spawn(open_streams_to_peer(control, state, peer_id));
+                } else {
+                    debug!(
+                        "Duplicate connection to {} (now {}), skipping stream setup",
+                        peer_id, num_established
+                    );
+                }
             }
 
-            SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                info!("Disconnected from peer {}", peer_id);
-                self.state.metrics.connection_authenticated.fetch_sub(1, Ordering::Relaxed);
-                self.state.metrics.outbound_drop.fetch_add(1, Ordering::Relaxed);
-                {
-                    let mut streams = self.state.peer_streams.write().await;
-                    streams.remove(&peer_id);
-                }
-                // Clean up pending txset requests for this peer so they can be retried from another peer
-                {
-                    let mut pending = self.state.pending_txset_requests.write().await;
-                    let before_len = pending.len();
-                    pending.retain(|_hash, (p, _)| p != &peer_id);
-                    let removed = before_len - pending.len();
-                    if removed > 0 {
-                        info!(
-                            "Removed {} pending txset requests for disconnected peer {}",
-                            removed, peer_id
-                        );
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                num_established,
+                ..
+            } => {
+                // Only clean up when the LAST connection to this peer closes.
+                // Duplicate connections closing shouldn't tear down working streams.
+                if num_established == 0 {
+                    info!("Disconnected from peer {}", peer_id);
+                    self.state.metrics.connection_authenticated.fetch_sub(1, Ordering::Relaxed);
+                    self.state.metrics.outbound_drop.fetch_add(1, Ordering::Relaxed);
+                    {
+                        let mut streams = self.state.peer_streams.write().await;
+                        streams.remove(&peer_id);
                     }
-                }
-                // Notify main loop to clean up any pending requests for this peer
-                if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
-                    peer_id: peer_id.clone(),
-                }) {
-                    warn!("Failed to send PeerDisconnected event for {}: {}", peer_id, e);
+                    // Clean up pending txset requests for this peer
+                    {
+                        let mut pending = self.state.pending_txset_requests.write().await;
+                        let before_len = pending.len();
+                        pending.retain(|_hash, (p, _)| p != &peer_id);
+                        let removed = before_len - pending.len();
+                        if removed > 0 {
+                            info!(
+                                "Removed {} pending txset requests for disconnected peer {}",
+                                removed, peer_id
+                            );
+                        }
+                    }
+                    // Notify main loop to clean up any pending requests for this peer
+                    if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
+                        peer_id: peer_id.clone(),
+                    }) {
+                        warn!("Failed to send PeerDisconnected event for {}: {}", peer_id, e);
+                    }
+                } else {
+                    debug!(
+                        "Duplicate connection to {} closed ({} remaining)",
+                        peer_id, num_established
+                    );
                 }
             }
 
@@ -1711,33 +1783,34 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
             );
         }
 
-        // Retry to next peer for timed-out requests
+        // Retry timed-out requests: group by next peer, send batched GETDATA
         if !to_retry.is_empty() {
             state.metrics.demand_timeout.fetch_add(to_retry.len() as u64, Ordering::Relaxed);
-        }
-        for hash in to_retry {
-            let next_peer = {
+
+            // Resolve next peer for each hash and group by peer
+            let mut per_peer: HashMap<PeerId, Vec<[u8; 32]>> = HashMap::new();
+            {
                 let mut tracker = state.inv_tracker.write().await;
-                tracker.get_next_peer(&hash)
-            };
-
-            if let Some(peer) = next_peer {
-                debug!(
-                    "GETDATA_RETRY: Retrying TX {:02x?}... to peer {}",
-                    &hash[..4],
-                    peer
-                );
-
-                // Update pending request with new peer
-                {
-                    let mut pending = state.pending_getdata.write().await;
-                    if let Some(req) = pending.get_mut(&hash) {
-                        req.retry(peer.clone());
+                let mut pending = state.pending_getdata.write().await;
+                for hash in to_retry {
+                    if let Some(peer) = tracker.get_next_peer(&hash) {
+                        if let Some(req) = pending.get_mut(&hash) {
+                            req.retry(peer.clone());
+                        }
+                        per_peer.entry(peer).or_default().push(hash);
+                    } else {
+                        debug!("GETDATA_RETRY: No more peers for TX {:02x?}...", &hash[..4]);
                     }
                 }
+            }
 
-                // Send GETDATA
-                let getdata = GetData { hashes: vec![hash] };
+            // Send one batched GETDATA per peer
+            for (peer, hashes) in per_peer {
+                debug!(
+                    "GETDATA_RETRY: Retrying {} TXs to peer {}",
+                    hashes.len(), peer
+                );
+                let getdata = GetData { hashes };
                 let msg = TxStreamMessage::GetData(getdata);
                 let encoded = msg.encode();
 
@@ -1747,9 +1820,6 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                 {
                     warn!("Failed to send GETDATA retry to {}: {:?}", peer, e);
                 }
-            } else {
-                // No more peers to try
-                debug!("GETDATA_RETRY: No more peers for TX {:02x?}...", &hash[..4]);
             }
         }
     }
@@ -3588,9 +3658,9 @@ async fn test_pending_txset_cleanup_on_disconnect() {
     let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
     let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
-    // Start both overlays
-    let listen_port1 = 22001;
-    let listen_port2 = 22002;
+    // Start both overlays (ports must not collide with test_20_node_full_mesh 22000-22019)
+    let listen_port1 = 22501;
+    let listen_port2 = 22502;
 
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port1).await });
     tokio::spawn(async move { overlay2.run("127.0.0.1", listen_port2).await });
@@ -4182,6 +4252,387 @@ async fn test_20_node_full_mesh() {
     }
 
     // Shutdown all overlays
+    for handle in &handles {
+        handle.shutdown().await;
+    }
+    for task in tasks {
+        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
+    }
+}
+
+/// Test that simultaneous dials between two peers result in exactly one
+/// logical connection (num_established check prevents double stream setup).
+#[tokio::test]
+async fn test_simultaneous_dial_dedup() {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+
+    let m1 = Arc::new(OverlayMetrics::new());
+    let m2 = Arc::new(OverlayMetrics::new());
+    let (handle1, mut events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
+    let (handle2, mut events2, _tx2, overlay2) = create_overlay(keypair2, Arc::clone(&m2)).unwrap();
+
+    let port1 = 23100;
+    let port2 = 23101;
+    tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Both sides dial each other simultaneously
+    let addr1: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port1).parse().unwrap();
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    handle1.dial(addr2).await;
+    handle2.dial(addr1).await;
+
+    // Wait for connections to settle
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Each side should see exactly 1 connected peer (not 2)
+    let count1 = handle1.connected_peer_count().await;
+    let count2 = handle2.connected_peer_count().await;
+    assert_eq!(count1, 1, "Node1 should have 1 peer, got {}", count1);
+    assert_eq!(count2, 1, "Node2 should have 1 peer, got {}", count2);
+
+    // connection_authenticated metric should also be 1 on each side
+    let auth1 = m1.connection_authenticated.load(Ordering::Relaxed);
+    let auth2 = m2.connection_authenticated.load(Ordering::Relaxed);
+    assert_eq!(auth1, 1, "Node1 connection_authenticated should be 1, got {}", auth1);
+    assert_eq!(auth2, 1, "Node2 connection_authenticated should be 1, got {}", auth2);
+
+    // Verify SCP messages flow correctly (streams not corrupted by duplicate)
+    handle1.broadcast_scp(b"test_scp_msg".to_vec()).await;
+    let received = tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if let Some(event) = events2.recv().await {
+                if let OverlayEvent::ScpReceived { envelope, .. } = event {
+                    return envelope;
+                }
+            }
+        }
+    }).await;
+    assert!(received.is_ok(), "Node2 should receive SCP message through deduped connection");
+
+    handle1.shutdown().await;
+    handle2.shutdown().await;
+}
+
+/// Test that DialPeer (PeerId-based) skips dialing when already connected.
+#[tokio::test]
+async fn test_dial_peer_skips_when_connected() {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+    let peer_id2 = keypair2.public().to_peer_id();
+
+    let m1 = Arc::new(OverlayMetrics::new());
+    let (handle1, _events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
+    let (handle2, _events2, _tx2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+
+    let port1 = 23200;
+    let port2 = 23201;
+    tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // First connection: address-based dial (bootstrap)
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    handle1.dial(addr2.clone()).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert_eq!(handle1.connected_peer_count().await, 1);
+
+    // Record outbound_attempt before the PeerId-based dial
+    let attempts_before = m1.outbound_attempt.load(Ordering::Relaxed);
+
+    // PeerId-based dial should be a no-op (already connected)
+    handle1.dial_peer(peer_id2, addr2.clone()).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // Should still have exactly 1 connection
+    assert_eq!(handle1.connected_peer_count().await, 1);
+    // outbound_attempt increments (we submitted the command), but connection_pending
+    // should NOT have changed (DialPeer was rejected by libp2p before handshake)
+    let attempts_after = m1.outbound_attempt.load(Ordering::Relaxed);
+    assert_eq!(
+        attempts_after,
+        attempts_before + 1,
+        "outbound_attempt should increment by 1"
+    );
+
+    handle1.shutdown().await;
+    handle2.shutdown().await;
+}
+
+/// Test that PeerConnected event is emitted with the correct address
+/// and that PeerDisconnected triggers reconnection.
+#[tokio::test]
+async fn test_peer_connected_event_emitted() {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+
+    let (handle1, mut events1, _tx1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _tx2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+
+    let port1 = 23300;
+    let port2 = 23301;
+    tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
+    tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    handle1.dial(addr2).await;
+
+    // Should receive PeerConnected event
+    let connected_event = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if let Some(event) = events1.recv().await {
+                if let OverlayEvent::PeerConnected { peer_id, addr } = event {
+                    return (peer_id, addr);
+                }
+            }
+        }
+    }).await;
+
+    assert!(connected_event.is_ok(), "Should receive PeerConnected event");
+    let (peer_id, addr) = connected_event.unwrap();
+    // The address should contain 127.0.0.1 and port2
+    let addr_str = addr.to_string();
+    assert!(
+        addr_str.contains("127.0.0.1") && addr_str.contains(&port2.to_string()),
+        "PeerConnected addr should contain the peer's address, got: {}",
+        addr_str
+    );
+
+    // Shutdown node2 → node1 should receive PeerDisconnected
+    handle2.shutdown().await;
+    let disconnect_event = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(event) = events1.recv().await {
+                if let OverlayEvent::PeerDisconnected { peer_id: pid } = event {
+                    return pid;
+                }
+            }
+        }
+    }).await;
+    assert!(disconnect_event.is_ok(), "Should receive PeerDisconnected event");
+    assert_eq!(disconnect_event.unwrap(), peer_id);
+
+    handle1.shutdown().await;
+}
+
+/// Test that the 20-node mesh works with the new connectivity algorithm.
+/// Audits metrics to verify no reconnection storms or duplicate connections.
+#[tokio::test]
+async fn test_20_node_mesh_with_dedup() {
+    const N: usize = 20;
+    const BASE_PORT: u16 = 24000;
+
+    let mut handles = Vec::with_capacity(N);
+    let mut event_rxs = Vec::with_capacity(N);
+    let mut metrics = Vec::with_capacity(N);
+    let mut tasks = Vec::with_capacity(N);
+
+    for i in 0..N {
+        let keypair = Keypair::generate_ed25519();
+        let m = Arc::new(OverlayMetrics::new());
+        let (handle, events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::clone(&m)).unwrap();
+
+        let port = BASE_PORT + i as u16;
+        tasks.push(tokio::spawn(async move {
+            overlay.run("127.0.0.1", port).await;
+        }));
+        handles.push(handle);
+        event_rxs.push(events);
+        metrics.push(m);
+    }
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let dial_start = tokio::time::Instant::now();
+
+    // Every node dials every other node simultaneously
+    for i in 0..N {
+        for j in 0..N {
+            if i == j {
+                continue;
+            }
+            let port = BASE_PORT + j as u16;
+            let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port)
+                .parse()
+                .unwrap();
+            handles[i].dial(addr).await;
+        }
+    }
+
+    // ── Convergence timeline: sample every 100ms ──
+    eprintln!("\n=== Convergence timeline (20 nodes) ===");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut prev_total_peers = 0usize;
+    let mut converge_time = Duration::ZERO;
+    let mut converged = false;
+    loop {
+        let elapsed = dial_start.elapsed();
+        let mut min_peers = usize::MAX;
+        let mut max_peers = 0usize;
+        let mut total_peers = 0usize;
+        let mut total_out_est = 0u64;
+        let mut total_in_est = 0u64;
+        for i in 0..N {
+            let count = handles[i].connected_peer_count().await;
+            total_out_est += metrics[i].outbound_establish.load(Ordering::Relaxed);
+            total_in_est += metrics[i].inbound_establish.load(Ordering::Relaxed);
+            min_peers = min_peers.min(count);
+            max_peers = max_peers.max(count);
+            total_peers += count;
+        }
+        // Only print when something changed
+        if total_peers != prev_total_peers || !converged {
+            eprintln!(
+                "  t={:5.0?}ms  min_peers={:2}  max_peers={:2}  total_conns={:4}  out_est={:4}  in_est={:4}",
+                elapsed.as_millis(), min_peers, max_peers, total_peers, total_out_est, total_in_est
+            );
+            prev_total_peers = total_peers;
+        }
+        if min_peers >= N - 1 && !converged {
+            converge_time = elapsed;
+            converged = true;
+            eprintln!("  *** CONVERGED at t={:.0?}ms ***", converge_time.as_millis());
+            break;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            for i in 0..N {
+                let count = handles[i].connected_peer_count().await;
+                let auth = metrics[i].connection_authenticated.load(Ordering::Relaxed);
+                eprintln!("Node {}: peers={}, auth={}", i, count, auth);
+            }
+            panic!("Timed out: not all {} nodes have {} peers", N, N - 1);
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    // ── Post-convergence stability: sample every 500ms for 3s ──
+    eprintln!("\n=== Post-convergence stability (3s hold) ===");
+    let mut prev_out: Vec<u64> = (0..N).map(|i| metrics[i].outbound_establish.load(Ordering::Relaxed)).collect();
+    let mut prev_in: Vec<u64> = (0..N).map(|i| metrics[i].inbound_establish.load(Ordering::Relaxed)).collect();
+    let mut prev_drop: Vec<u64> = (0..N).map(|i| metrics[i].outbound_drop.load(Ordering::Relaxed)).collect();
+
+    for tick in 1..=6 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        let mut delta_out = 0u64;
+        let mut delta_in = 0u64;
+        let mut delta_drop = 0u64;
+        let mut peer_counts_changed = false;
+        for i in 0..N {
+            let out = metrics[i].outbound_establish.load(Ordering::Relaxed);
+            let inp = metrics[i].inbound_establish.load(Ordering::Relaxed);
+            let drp = metrics[i].outbound_drop.load(Ordering::Relaxed);
+            delta_out += out - prev_out[i];
+            delta_in += inp - prev_in[i];
+            delta_drop += drp - prev_drop[i];
+            prev_out[i] = out;
+            prev_in[i] = inp;
+            prev_drop[i] = drp;
+
+            let count = handles[i].connected_peer_count().await;
+            if count != N - 1 {
+                peer_counts_changed = true;
+            }
+        }
+        eprintln!(
+            "  t=+{:.1}s  new_out_est={:3}  new_in_est={:3}  new_drops={}  peer_counts_stable={}",
+            tick as f64 * 0.5, delta_out, delta_in, delta_drop, !peer_counts_changed
+        );
+
+        assert_eq!(delta_drop, 0, "Drops at t=+{:.1}s", tick as f64 * 0.5);
+        assert!(!peer_counts_changed, "Peer counts changed at t=+{:.1}s", tick as f64 * 0.5);
+    }
+
+    eprintln!("\n=== Final per-node metrics ===\n");
+
+    // ── Detailed per-node audit ──
+    let expected_dials = (N - 1) as u64;  // each node dials N-1 others
+    let mut total_outbound_establish = 0u64;
+    let mut total_inbound_establish = 0u64;
+    let mut total_outbound_drop = 0u64;
+    let mut any_reconnect = false;
+    let mut total_duplicate_conns = 0u64;
+
+    for i in 0..N {
+        let count = handles[i].connected_peer_count().await;
+        let auth = metrics[i].connection_authenticated.load(Ordering::Relaxed);
+        let out_attempt = metrics[i].outbound_attempt.load(Ordering::Relaxed);
+        let out_establish = metrics[i].outbound_establish.load(Ordering::Relaxed);
+        let in_establish = metrics[i].inbound_establish.load(Ordering::Relaxed);
+        let out_drop = metrics[i].outbound_drop.load(Ordering::Relaxed);
+        let pending = metrics[i].connection_pending.load(Ordering::Relaxed);
+        // Duplicate connections = total transport connections - unique peers
+        // auth == unique peers, (out_establish + in_establish) == total transport connections on this node
+        let duplicates = (out_establish + in_establish) as i64 - auth;
+
+        total_outbound_establish += out_establish;
+        total_inbound_establish += in_establish;
+        total_outbound_drop += out_drop;
+        if duplicates > 0 {
+            total_duplicate_conns += duplicates as u64;
+        }
+
+        eprintln!(
+            "Node {:2}: peers={:2} auth={:2} out_attempt={:3} out_est={:2} in_est={:2} drops={} pending={} dupes={}",
+            i, count, auth, out_attempt, out_establish, in_establish, out_drop, pending, duplicates
+        );
+
+        assert_eq!(count, N - 1, "Node {} peer count", i);
+        assert_eq!(auth, (N - 1) as i64, "Node {} auth metric", i);
+        assert_eq!(out_attempt, expected_dials, "Node {} should have dialed exactly {} peers", i, expected_dials);
+        assert_eq!(out_drop, 0, "Node {} should have 0 drops (no reconnects)", i);
+        assert_eq!(pending, 0, "Node {} should have 0 pending connections", i);
+
+        if out_drop > 0 {
+            any_reconnect = true;
+        }
+    }
+
+    eprintln!(
+        "\nTotals: out_establish={} in_establish={} drops={} duplicate_transport_conns={}",
+        total_outbound_establish, total_inbound_establish, total_outbound_drop, total_duplicate_conns
+    );
+    eprintln!("Convergence time: {:.0?}ms", converge_time.as_millis());
+    eprintln!(
+        "Unique peer pairs: {} (expected C({},2) = {})",
+        total_outbound_establish / 2,  // rough: each pair has ~2 outbound establishes
+        N, N * (N - 1) / 2
+    );
+
+    assert!(!any_reconnect, "No node should have experienced a reconnect/drop");
+
+    // Verify SCP still flows: node 0 broadcasts, all others receive
+    handles[0].broadcast_scp(b"mesh_test_scp".to_vec()).await;
+    let mut received_count = 0u32;
+    for i in 1..N {
+        let result = tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if let Some(event) = event_rxs[i].recv().await {
+                    match event {
+                        OverlayEvent::ScpReceived { .. } => return true,
+                        OverlayEvent::PeerConnected { .. } => continue,
+                        _ => continue,
+                    }
+                }
+            }
+        }).await;
+        if result.is_ok() {
+            received_count += 1;
+        }
+    }
+    assert_eq!(
+        received_count,
+        (N - 1) as u32,
+        "All {} peers should receive SCP, got {}",
+        N - 1,
+        received_count
+    );
+
     for handle in &handles {
         handle.shutdown().await;
     }

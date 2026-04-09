@@ -30,7 +30,7 @@ use flood::{build_tx_set_xdr, hash_tx_set, CachedTxSet, Hash256, TxSetCache};
 use integrated::{CoreCommand, Overlay, OverlayHandle};
 use ipc::{CoreIpc, Message, MessageType};
 use libp2p::identity::Keypair as Libp2pKeypair;
-use libp2p::PeerId;
+use libp2p::{Multiaddr, PeerId};
 use libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
@@ -100,6 +100,45 @@ impl Args {
         }
 
         args
+    }
+}
+
+/// Strip the `/p2p/<peer_id>` suffix from a Multiaddr if present.
+/// DialOpts::peer_id() supplies the PeerId separately, so the address should be bare.
+fn strip_p2p_suffix(addr: &Multiaddr) -> Multiaddr {
+    let mut out = Multiaddr::empty();
+    for proto in addr.iter() {
+        if matches!(proto, libp2p::multiaddr::Protocol::P2p(_)) {
+            break;
+        }
+        out.push(proto);
+    }
+    out
+}
+
+/// Convert a libp2p SocketAddr to a QUIC Multiaddr.
+fn socket_addr_to_multiaddr(sock: &SocketAddr) -> Multiaddr {
+    let ip_proto = if sock.ip().is_ipv4() { "ip4" } else { "ip6" };
+    format!("/{}/{}/udp/{}/quic-v1", ip_proto, sock.ip(), sock.port())
+        .parse()
+        .unwrap()
+}
+
+/// Extract IP and UDP port from a Multiaddr like /ip4/1.2.3.4/udp/12625/quic-v1.
+fn multiaddr_to_socket_addr(addr: &Multiaddr) -> Option<SocketAddr> {
+    let mut ip = None;
+    let mut port = None;
+    for proto in addr.iter() {
+        match proto {
+            libp2p::multiaddr::Protocol::Ip4(a) => ip = Some(std::net::IpAddr::V4(a)),
+            libp2p::multiaddr::Protocol::Ip6(a) => ip = Some(std::net::IpAddr::V6(a)),
+            libp2p::multiaddr::Protocol::Udp(p) => port = Some(p),
+            _ => {}
+        }
+    }
+    match (ip, port) {
+        (Some(ip), Some(port)) => Some(SocketAddr::new(ip, port)),
+        _ => None,
     }
 }
 
@@ -190,10 +229,38 @@ async fn resolve_peer_addr(addr_str: &str, default_port: u16) -> Result<SocketAd
 enum DialResult {
     /// Successfully resolved and dialed. Contains the libp2p SocketAddr (ip:port+1000).
     Dialed(SocketAddr),
+    /// Successfully resolved but not yet dialed. For resolve-then-check-then-dial flows.
+    Resolved(SocketAddr),
     /// Self-dial detected and skipped.
     SelfSkipped,
     /// DNS resolution failed — address should be retried.
     ResolutionFailed(String),
+}
+
+/// Resolve a peer address to a libp2p SocketAddr and Multiaddr, without dialing.
+/// Returns the libp2p SocketAddr (port+1000) on success.
+async fn resolve_peer_to_libp2p(
+    addr_str: &str,
+    default_port: u16,
+    local_addrs: &RwLock<HashSet<SocketAddr>>,
+) -> DialResult {
+    match resolve_peer_addr(addr_str, default_port).await {
+        Ok(addr) => {
+            let libp2p_port = addr.port() + 1000;
+            let libp2p_sock = SocketAddr::new(addr.ip(), libp2p_port);
+
+            if local_addrs.read().await.contains(&libp2p_sock) {
+                debug!("Skipping self-dial for {} (resolved to local {})", addr_str, addr);
+                return DialResult::SelfSkipped;
+            }
+
+            DialResult::Resolved(libp2p_sock)
+        }
+        Err(e) => {
+            warn!("Failed to resolve peer {}: {}", addr_str, e);
+            DialResult::ResolutionFailed(addr_str.to_string())
+        }
+    }
 }
 
 /// Resolve a peer address and dial it.
@@ -276,7 +343,7 @@ fn spawn_peer_retry_task(
                             .resolved
                             .insert(libp2p_sock, addr_str.clone());
                     }
-                    DialResult::SelfSkipped => {}
+                    DialResult::Resolved(_) | DialResult::SelfSkipped => {}
                     DialResult::ResolutionFailed(addr) => {
                         still_pending.push(addr);
                     }
@@ -377,6 +444,12 @@ struct App {
     /// Configured peer addresses and listen port — kept for reconnection on disconnect.
     /// Updated each time SetPeerConfig is received from Core.
     configured_peers: Arc<RwLock<ConfiguredPeers>>,
+    /// Known peers: PeerId → Multiaddr, learned from ConnectionEstablished events.
+    /// Used for PeerId-based reconnection (libp2p can deduplicate).
+    known_peers: Arc<RwLock<HashMap<PeerId, Multiaddr>>>,
+    /// PeerId → configured hostname, so targeted reconnect can re-resolve DNS
+    /// after a pod restart changes the peer's IP address.
+    peer_hostnames: Arc<RwLock<HashMap<PeerId, String>>>,
     /// Shared metrics counters for the overlay
     metrics: Arc<OverlayMetrics>,
 }
@@ -458,6 +531,8 @@ impl App {
                 listen_port: 11625,
                 resolved: HashMap::new(),
             })),
+            known_peers: Arc::new(RwLock::new(HashMap::new())),
+            peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
             metrics,
         })
     }
@@ -466,10 +541,11 @@ impl App {
     async fn run(mut self) {
         info!("Overlay started, processing Core messages");
 
-        // Periodic reconnect timer: re-dial all configured peers every 2s.
-        // libp2p deduplicates — already-connected peers are skipped at transport level,
-        // so this is cheap and ensures QUIC handshake failures are retried.
-        let mut reconnect_interval = tokio::time::interval(Duration::from_secs(2));
+        // Safety-net reconnect timer: re-dial all configured peers every 30s.
+        // Uses PeerId-based dials for known peers (libp2p skips if already connected).
+        // Falls back to address-based dials for peers we haven't connected to yet.
+        // This is a fallback — targeted reconnection on disconnect handles the fast path.
+        let mut reconnect_interval = tokio::time::interval(Duration::from_secs(30));
         reconnect_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         loop {
@@ -499,50 +575,104 @@ impl App {
                     self.handle_libp2p_event(event).await;
                 }
 
-                // Periodic peer reconnect: re-dial configured peers to recover
-                // from QUIC handshake failures during initial bootstrap burst.
+                // Safety-net reconnect: PeerId-based dials for known peers,
+                // address-based ONLY for peers we've never learned a PeerId for.
                 _ = reconnect_interval.tick() => {
                     let cp = self.configured_peers.read().await;
                     let addrs = cp.addrs.clone();
                     let listen_port = cp.listen_port;
                     let expected_peers = addrs.len().saturating_sub(1); // exclude self
+                    // Build set of hostnames that have a known PeerId — these
+                    // are handled by PeerId-based dials and must NOT be raw-dialed.
+                    let hostnames_with_known_peer: HashSet<String> = {
+                        let hostnames = self.peer_hostnames.read().await;
+                        hostnames.values().cloned().collect()
+                    };
+                    // Also collect resolved SocketAddrs that map to known peers
+                    let known_addrs: HashSet<SocketAddr> = {
+                        let known = self.known_peers.read().await;
+                        known.values()
+                            .filter_map(|maddr| multiaddr_to_socket_addr(maddr))
+                            .collect()
+                    };
                     drop(cp);
 
                     if !addrs.is_empty() {
                         let connected = self.libp2p_handle.connected_peer_count().await;
                         if connected < expected_peers {
                             info!(
-                                "Reconnect check: {}/{} peers connected, re-dialing",
+                                "Safety-net reconnect: {}/{} peers connected",
                                 connected, expected_peers
                             );
-                            let handle = self.libp2p_handle.clone();
-                            let local_addrs = self.local_addrs.clone();
-                            let configured_peers = self.configured_peers.clone();
 
-                            tokio::spawn(async move {
-                                for addr_str in &addrs {
-                                    match resolve_and_dial(
-                                        addr_str,
-                                        listen_port,
-                                        &local_addrs,
-                                        &handle,
-                                    )
-                                    .await
-                                    {
-                                        DialResult::Dialed(libp2p_sock) => {
-                                            configured_peers
-                                                .write()
-                                                .await
-                                                .resolved
-                                                .insert(libp2p_sock, addr_str.clone());
-                                        }
-                                        DialResult::SelfSkipped => {}
-                                        DialResult::ResolutionFailed(_) => {
-                                            // DNS retry task handles these separately
+                            // PeerId-based dials for configured peers we've seen before.
+                            // Only peers with a hostname entry are configured — this
+                            // prevents re-dialing unconfigured inbound-only peers.
+                            let hostnames = self.peer_hostnames.read().await;
+                            let configured_peer_ids: Vec<PeerId> = hostnames.keys().cloned().collect();
+                            drop(hostnames);
+
+                            let known = self.known_peers.read().await;
+                            let known_snapshot: Vec<_> = configured_peer_ids.iter()
+                                .filter_map(|pid| known.get(pid).map(|addr| (*pid, addr.clone())))
+                                .collect();
+                            drop(known);
+
+                            let handle = self.libp2p_handle.clone();
+                            for (peer_id, addr) in &known_snapshot {
+                                handle.dial_peer(*peer_id, addr.clone()).await;
+                            }
+
+                            // Raw address dials ONLY for configured peers we've never
+                            // learned a PeerId for. Resolve DNS first, then check the
+                            // resolved address against known peers BEFORE dialing —
+                            // a raw dial cannot be deduplicated by libp2p.
+                            let unknown_addrs: Vec<_> = addrs.iter()
+                                .filter(|a| !hostnames_with_known_peer.contains(*a))
+                                .cloned()
+                                .collect();
+
+                            if !unknown_addrs.is_empty() {
+                                info!(
+                                    "Safety-net: resolving {} unknown peer(s)",
+                                    unknown_addrs.len()
+                                );
+                                let handle = self.libp2p_handle.clone();
+                                let local_addrs = self.local_addrs.clone();
+                                let configured_peers = self.configured_peers.clone();
+
+                                tokio::spawn(async move {
+                                    for addr_str in &unknown_addrs {
+                                        // Step 1: resolve DNS only (no dial)
+                                        match resolve_peer_to_libp2p(
+                                            addr_str, listen_port, &local_addrs,
+                                        ).await {
+                                            DialResult::Resolved(libp2p_sock) => {
+                                                // Step 2: check if resolved addr is already known
+                                                if known_addrs.contains(&libp2p_sock) {
+                                                    debug!(
+                                                        "Safety-net: {} resolved to known addr {}, skipping dial",
+                                                        addr_str, libp2p_sock
+                                                    );
+                                                    continue;
+                                                }
+                                                // Step 3: truly unknown — dial
+                                                let maddr = socket_addr_to_multiaddr(&libp2p_sock);
+                                                info!("Safety-net: dialing unknown peer {} at {}", addr_str, maddr);
+                                                handle.dial(maddr).await;
+                                                configured_peers
+                                                    .write()
+                                                    .await
+                                                    .resolved
+                                                    .insert(libp2p_sock, addr_str.clone());
+                                            }
+                                            DialResult::SelfSkipped => {}
+                                            DialResult::ResolutionFailed(_) => {}
+                                            DialResult::Dialed(_) => unreachable!(),
                                         }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
                     }
                 }
@@ -718,6 +848,27 @@ impl App {
                 }
             }
 
+            LibP2pOverlayEvent::PeerConnected { peer_id, addr } => {
+                // Only record the mapping if this peer's address matches a configured peer.
+                // Inbound connections from unconfigured peers must NOT be reconnect-eligible.
+                let clean_addr = strip_p2p_suffix(&addr);
+                let cp = self.configured_peers.read().await;
+                let hostname = multiaddr_to_socket_addr(&clean_addr)
+                    .and_then(|sock| cp.resolved.get(&sock).cloned());
+                drop(cp);
+
+                if let Some(host) = hostname {
+                    info!("Learned configured peer {} at {} (hostname: {})", peer_id, clean_addr, host);
+                    self.known_peers.write().await.insert(peer_id, clean_addr);
+                    self.peer_hostnames.write().await.insert(peer_id, host);
+                } else {
+                    debug!(
+                        "Peer {} at {} is not a configured peer, not tracking for reconnect",
+                        peer_id, clean_addr
+                    );
+                }
+            }
+
             LibP2pOverlayEvent::PeerDisconnected { peer_id } => {
                 // Clean up any pending SCP state requests for this peer
                 {
@@ -733,58 +884,67 @@ impl App {
                     }
                 }
 
-                // Reconnect: re-resolve and re-dial all configured peers.
-                // libp2p deduplicates — already-connected peers are skipped at transport level.
-                let cp = self.configured_peers.read().await;
-                let addrs = cp.addrs.clone();
-                let listen_port = cp.listen_port;
-                drop(cp);
-
-                if addrs.is_empty() {
+                // Targeted reconnect: only for configured peers (those with a hostname).
+                // Unconfigured inbound-only peers are not re-dialed.
+                let hostname = self.peer_hostnames.read().await.get(&peer_id).cloned();
+                let known_addr = self.known_peers.read().await.get(&peer_id).cloned();
+                if let Some(hostname) = hostname {
                     info!(
-                        "Peer {} disconnected, no configured peers to reconnect to",
-                        peer_id
-                    );
-                } else {
-                    info!(
-                        "Peer {} disconnected, re-dialing {} configured peer(s)",
-                        peer_id,
-                        addrs.len()
+                        "Peer {} disconnected, scheduling targeted reconnect (host={}, addr={:?})",
+                        peer_id, hostname, known_addr
                     );
                     let handle = self.libp2p_handle.clone();
                     let local_addrs = self.local_addrs.clone();
+                    let known_peers = self.known_peers.clone();
                     let configured_peers = self.configured_peers.clone();
-
                     tokio::spawn(async move {
-                        let mut unresolved = Vec::new();
-                        for addr_str in &addrs {
-                            match resolve_and_dial(addr_str, listen_port, &local_addrs, &handle)
-                                .await
-                            {
-                                DialResult::Dialed(libp2p_sock) => {
-                                    configured_peers
-                                        .write()
-                                        .await
-                                        .resolved
-                                        .insert(libp2p_sock, addr_str.clone());
+                        let mut delay = Duration::from_secs(1);
+                        let max_delay = Duration::from_secs(30);
+                        // First 3 attempts: use cached Multiaddr (fast path).
+                        // Remaining attempts: re-resolve DNS in case IP changed.
+                        for attempt in 1u32..=10 {
+                            tokio::time::sleep(delay).await;
+
+                            if attempt <= 3 {
+                                if let Some(ref addr) = known_addr {
+                                    debug!(
+                                        "Reconnect attempt {} for {} via cached addr {}",
+                                        attempt, peer_id, addr
+                                    );
+                                    handle.dial_peer(peer_id, addr.clone()).await;
                                 }
-                                DialResult::SelfSkipped => {}
-                                DialResult::ResolutionFailed(addr) => {
-                                    unresolved.push(addr);
+                            } else {
+                                // Re-resolve DNS (handles K8s pod restart / IP change)
+                                let cp = configured_peers.read().await;
+                                let listen_port = cp.listen_port;
+                                drop(cp);
+                                debug!(
+                                    "Reconnect attempt {} for {} via DNS re-resolve of {}",
+                                    attempt, peer_id, hostname
+                                );
+                                match resolve_and_dial(
+                                    &hostname, listen_port, &local_addrs, &handle,
+                                ).await {
+                                    DialResult::Dialed(libp2p_sock) => {
+                                        let new_addr = socket_addr_to_multiaddr(&libp2p_sock);
+                                        known_peers.write().await.insert(peer_id, new_addr);
+                                        configured_peers.write().await
+                                            .resolved.insert(libp2p_sock, hostname.clone());
+                                    }
+                                    DialResult::SelfSkipped => break,
+                                    DialResult::ResolutionFailed(_) => {}
+                                    DialResult::Resolved(_) => unreachable!(),
                                 }
                             }
-                        }
 
-                        if !unresolved.is_empty() {
-                            spawn_peer_retry_task(
-                                unresolved,
-                                listen_port,
-                                local_addrs,
-                                configured_peers,
-                                handle,
-                            );
+                            delay = (delay * 2).min(max_delay);
                         }
                     });
+                } else {
+                    debug!(
+                        "Peer {} disconnected (not a configured peer), not reconnecting",
+                        peer_id
+                    );
                 }
             }
         }
@@ -1160,6 +1320,28 @@ impl App {
                             cp.resolved.clear();
                         }
 
+                        // Prune known_peers and peer_hostnames for peers whose
+                        // hostnames are no longer in the config. Prevents stale
+                        // entries from re-dialing removed peers.
+                        {
+                            let new_hosts: HashSet<&str> = all_peers.iter().map(|s| s.as_str()).collect();
+                            let hostnames = self.peer_hostnames.read().await;
+                            let stale_peers: Vec<PeerId> = hostnames.iter()
+                                .filter(|(_pid, host)| !new_hosts.contains(host.as_str()))
+                                .map(|(pid, _)| *pid)
+                                .collect();
+                            drop(hostnames);
+                            if !stale_peers.is_empty() {
+                                info!("Pruning {} peers removed from config", stale_peers.len());
+                                let mut known = self.known_peers.write().await;
+                                let mut hosts = self.peer_hostnames.write().await;
+                                for pid in &stale_peers {
+                                    known.remove(pid);
+                                    hosts.remove(pid);
+                                }
+                            }
+                        }
+
                         let handle = self.libp2p_handle.clone();
                         let local_addrs = self.local_addrs.clone();
                         let configured_peers = self.configured_peers.clone();
@@ -1178,7 +1360,7 @@ impl App {
                                             .resolved
                                             .insert(libp2p_sock, addr_str.clone());
                                     }
-                                    DialResult::SelfSkipped => {}
+                                    DialResult::Resolved(_) | DialResult::SelfSkipped => {}
                                     DialResult::ResolutionFailed(addr) => {
                                         unresolved.push(addr);
                                     }
@@ -1795,5 +1977,24 @@ mod tests {
         tokio::time::advance(Duration::from_secs(5)).await;
         tokio::task::yield_now().await;
         // No panic = pass
+    }
+
+    #[test]
+    fn test_strip_p2p_suffix() {
+        // Address with /p2p suffix
+        let addr_with_p2p: Multiaddr = format!(
+            "/ip4/127.0.0.1/udp/12625/quic-v1/p2p/{}",
+            PeerId::random()
+        ).parse().unwrap();
+        let stripped = strip_p2p_suffix(&addr_with_p2p);
+        assert_eq!(
+            stripped.to_string(),
+            "/ip4/127.0.0.1/udp/12625/quic-v1"
+        );
+
+        // Address without /p2p suffix — should be unchanged
+        let bare: Multiaddr = "/ip4/10.0.0.1/udp/9000/quic-v1".parse().unwrap();
+        let stripped = strip_p2p_suffix(&bare);
+        assert_eq!(stripped, bare);
     }
 }
