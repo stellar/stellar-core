@@ -466,6 +466,12 @@ impl App {
     async fn run(mut self) {
         info!("Overlay started, processing Core messages");
 
+        // Periodic reconnect timer: re-dial all configured peers every 2s.
+        // libp2p deduplicates — already-connected peers are skipped at transport level,
+        // so this is cheap and ensures QUIC handshake failures are retried.
+        let mut reconnect_interval = tokio::time::interval(Duration::from_secs(2));
+        reconnect_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
         loop {
             tokio::select! {
                 // Receive message from Core
@@ -491,6 +497,54 @@ impl App {
                 // Receive TX events from libp2p (bounded channel, may drop under backpressure)
                 Some(event) = self.tx_events.recv() => {
                     self.handle_libp2p_event(event).await;
+                }
+
+                // Periodic peer reconnect: re-dial configured peers to recover
+                // from QUIC handshake failures during initial bootstrap burst.
+                _ = reconnect_interval.tick() => {
+                    let cp = self.configured_peers.read().await;
+                    let addrs = cp.addrs.clone();
+                    let listen_port = cp.listen_port;
+                    let expected_peers = addrs.len().saturating_sub(1); // exclude self
+                    drop(cp);
+
+                    if !addrs.is_empty() {
+                        let connected = self.libp2p_handle.connected_peer_count().await;
+                        if connected < expected_peers {
+                            info!(
+                                "Reconnect check: {}/{} peers connected, re-dialing",
+                                connected, expected_peers
+                            );
+                            let handle = self.libp2p_handle.clone();
+                            let local_addrs = self.local_addrs.clone();
+                            let configured_peers = self.configured_peers.clone();
+
+                            tokio::spawn(async move {
+                                for addr_str in &addrs {
+                                    match resolve_and_dial(
+                                        addr_str,
+                                        listen_port,
+                                        &local_addrs,
+                                        &handle,
+                                    )
+                                    .await
+                                    {
+                                        DialResult::Dialed(libp2p_sock) => {
+                                            configured_peers
+                                                .write()
+                                                .await
+                                                .resolved
+                                                .insert(libp2p_sock, addr_str.clone());
+                                        }
+                                        DialResult::SelfSkipped => {}
+                                        DialResult::ResolutionFailed(_) => {
+                                            // DNS retry task handles these separately
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
                 }
             }
         }

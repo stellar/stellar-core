@@ -24,7 +24,7 @@ use libp2p::{
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -91,6 +91,8 @@ pub enum OverlayCommand {
     SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
     /// Shutdown
     Shutdown,
+    /// Query the number of connected peers (responds via oneshot)
+    GetConnectedPeerCount(tokio::sync::oneshot::Sender<usize>),
     /// Ping - responds immediately via oneshot channel (for testing event loop responsiveness)
     Ping(tokio::sync::oneshot::Sender<()>),
 }
@@ -222,6 +224,16 @@ impl OverlayHandle {
         }
     }
 
+    /// Query the number of currently connected peers
+    pub async fn connected_peer_count(&self) -> usize {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = self
+            .cmd_tx
+            .send(OverlayCommand::GetConnectedPeerCount(tx))
+            .await;
+        rx.await.unwrap_or(0)
+    }
+
     /// Ping the event loop and wait for response - for testing responsiveness
     #[cfg(test)]
     pub async fn ping(&self) -> Result<(), tokio::sync::oneshot::error::RecvError> {
@@ -240,9 +252,9 @@ struct SharedState {
     /// TX messages seen (for dedup)
     tx_seen: RwLock<lru::LruCache<[u8; 32], ()>>,
     /// Track which peers we've sent each SCP message to (prevent duplicate sends)
-    scp_sent_to: RwLock<lru::LruCache<[u8; 32], std::collections::HashSet<PeerId>>>,
+    scp_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
     /// Track which peers we've sent each TX to (prevent duplicate sends) - LEGACY
-    tx_sent_to: RwLock<lru::LruCache<[u8; 32], std::collections::HashSet<PeerId>>>,
+    tx_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
     /// TX set sources: which peer has which TX set (learned from SCP messages)
     txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
     /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
@@ -487,6 +499,10 @@ impl StellarOverlay {
                             info!("Overlay shutting down");
                             break;
                         }
+                        OverlayCommand::GetConnectedPeerCount(responder) => {
+                            let count = self.state.peer_streams.read().await.len();
+                            let _ = responder.send(count);
+                        }
                         OverlayCommand::Ping(responder) => {
                             let _ = responder.send(());
                         }
@@ -514,8 +530,13 @@ impl StellarOverlay {
                     streams.insert(peer_id, Arc::new(PeerOutboundStreams::new()));
                 }
 
-                // Open outbound streams to peer
-                self.open_streams_to_peer(peer_id).await;
+                // Spawn stream opening as a background task to avoid blocking
+                // the swarm event loop. control.open_stream() needs the swarm
+                // to be polled to process the request — awaiting inline would
+                // deadlock because we're inside the swarm event handler.
+                let control = self.control.clone();
+                let state = self.state.clone();
+                tokio::spawn(open_streams_to_peer(control, state, peer_id));
             }
 
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
@@ -562,8 +583,13 @@ impl StellarOverlay {
                 self.state.metrics.inbound_attempt.fetch_add(1, Ordering::Relaxed);
             }
 
-            SwarmEvent::OutgoingConnectionError { .. } => {
-                // Dial failed — clear pending gauge
+            SwarmEvent::OutgoingConnectionError {
+                peer_id, error, ..
+            } => {
+                warn!(
+                    "Outgoing connection failed to {:?}: {}",
+                    peer_id, error
+                );
                 self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
             }
 
@@ -571,124 +597,57 @@ impl StellarOverlay {
         }
     }
 
-    /// Open SCP, TX, and TxSet streams to a peer
-    async fn open_streams_to_peer(&mut self, peer_id: PeerId) {
-        debug!("Opening streams to peer {}", peer_id);
-
-        // Open all streams in parallel for faster connection setup
-        let mut control = self.control.clone();
-        let mut control2 = self.control.clone();
-        let mut control3 = self.control.clone();
-
-        let scp_fut = async { control.open_stream(peer_id, SCP_PROTOCOL).await };
-        let tx_fut = async { control2.open_stream(peer_id, TX_PROTOCOL).await };
-        let txset_fut = async { control3.open_stream(peer_id, TXSET_PROTOCOL).await };
-
-        let (scp_result, tx_result, txset_result) = tokio::join!(scp_fut, tx_fut, txset_fut);
-
-        let scp_stream = match scp_result {
-            Ok(s) => {
-                debug!("Opened SCP stream to {}", peer_id);
-                Some(s)
-            }
-            Err(e) => {
-                warn!("Failed to open SCP stream to {}: {:?}", peer_id, e);
-                None
-            }
-        };
-
-        let tx_stream = match tx_result {
-            Ok(s) => {
-                debug!("Opened TX stream to {}", peer_id);
-                Some(s)
-            }
-            Err(e) => {
-                warn!("Failed to open TX stream to {}: {:?}", peer_id, e);
-                None
-            }
-        };
-
-        let txset_stream = match txset_result {
-            Ok(s) => {
-                debug!("Opened TxSet stream to {}", peer_id);
-                Some(s)
-            }
-            Err(e) => {
-                warn!("Failed to open TxSet stream to {}: {:?}", peer_id, e);
-                None
-            }
-        };
-
-        // Store streams - each stream has its own mutex, lock individually
-        {
-            let streams = self.state.peer_streams.read().await;
-            if let Some(peer_streams) = streams.get(&peer_id) {
-                // Lock each stream independently to store the opened streams
-                if let Some(stream) = scp_stream {
-                    *peer_streams.scp.lock().await = Some(stream);
-                }
-                if let Some(stream) = tx_stream {
-                    *peer_streams.tx.lock().await = Some(stream);
-                }
-                if let Some(stream) = txset_stream {
-                    *peer_streams.txset.lock().await = Some(stream);
-                }
-            }
-        }
-
-        // Request SCP state from newly connected peer synchronously
-        // No spawned task, no sleep - streams are open, send immediately
-        info!("Peer {} connected, sending SCP state request", peer_id);
-        let ledger_seq: u32 = 0; // Request all recent state
-        if let Err(e) = send_to_peer_stream(
-            &self.state,
-            peer_id.clone(),
-            StreamType::Scp,
-            &ledger_seq.to_le_bytes(),
-        )
-        .await
-        {
-            info!("Failed to request SCP state from newly connected peer {}: {:?}", peer_id, e);
-        }
-    }
-
     /// Broadcast SCP envelope to all connected peers
     async fn broadcast_scp(&mut self, envelope: &[u8]) {
         let hash = blake2b_hash(envelope);
 
-        // Dedup check
+        // Mark as seen for inbound dedup (if we later receive this from a peer, skip it)
         {
             let mut seen = self.state.scp_seen.write().await;
-            if seen.contains(&hash) {
+            seen.put(hash, ());
+        }
+
+        // Determine which peers still need this message
+        let streams = self.state.peer_streams.read().await;
+        let all_peers: Vec<_> = streams.keys().cloned().collect();
+        drop(streams);
+
+        let peers_to_send: Vec<PeerId>;
+        {
+            let mut sent_to = self.state.scp_sent_to.write().await;
+            let already_sent: HashSet<PeerId> = sent_to.peek(&hash)
+                .cloned()
+                .unwrap_or_default();
+
+            peers_to_send = all_peers
+                .into_iter()
+                .filter(|p| !already_sent.contains(p))
+                .collect();
+
+            if peers_to_send.is_empty() {
                 trace!(
-                    "SCP_BROADCAST_SKIP: SCP {:02x?}... already seen, skipping",
+                    "SCP_BROADCAST_SKIP: SCP {:02x?}... already sent to all connected peers",
                     &hash[..4]
                 );
                 return;
             }
-            seen.put(hash, ());
-        }
 
-        let streams = self.state.peer_streams.read().await;
-        let peers: Vec<_> = streams.keys().cloned().collect();
-        drop(streams);
+            // Update sent_to with the peers we're about to send to
+            let mut new_sent = already_sent;
+            new_sent.extend(peers_to_send.iter().cloned());
+            sent_to.put(hash, new_sent);
+        }
 
         info!(
             "SCP_BROADCAST: Broadcasting SCP {:02x?}... ({} bytes) to {} peers",
             &hash[..4],
             envelope.len(),
-            peers.len()
+            peers_to_send.len()
         );
         self.state.metrics.message_broadcast.fetch_add(1, Ordering::Relaxed);
 
-        // Track which peers we're sending to
-        {
-            let mut sent_to = self.state.scp_sent_to.write().await;
-            sent_to.put(hash, peers.iter().cloned().collect());
-        }
-
         // Spawn parallel send tasks - don't block event loop waiting for each peer
-        for peer_id in peers {
+        for peer_id in peers_to_send {
             let state = Arc::clone(&self.state);
             let envelope = envelope.to_vec();
             tokio::spawn(async move {
@@ -943,6 +902,85 @@ impl StellarOverlay {
     /// Send SCP envelope to a specific peer
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
         send_to_peer_stream(&self.state, peer_id, StreamType::Scp, envelope).await
+    }
+}
+
+/// Open SCP, TX, and TxSet streams to a peer.
+/// Spawned as a background task so the swarm event loop stays unblocked —
+/// `control.open_stream()` needs the swarm to be polled to complete.
+async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, peer_id: PeerId) {
+    debug!("Opening streams to peer {}", peer_id);
+
+    let mut control2 = control.clone();
+    let mut control3 = control.clone();
+
+    let scp_fut = async { control.open_stream(peer_id, SCP_PROTOCOL).await };
+    let tx_fut = async { control2.open_stream(peer_id, TX_PROTOCOL).await };
+    let txset_fut = async { control3.open_stream(peer_id, TXSET_PROTOCOL).await };
+
+    let (scp_result, tx_result, txset_result) = tokio::join!(scp_fut, tx_fut, txset_fut);
+
+    let scp_stream = match scp_result {
+        Ok(s) => {
+            debug!("Opened SCP stream to {}", peer_id);
+            Some(s)
+        }
+        Err(e) => {
+            warn!("Failed to open SCP stream to {}: {:?}", peer_id, e);
+            None
+        }
+    };
+
+    let tx_stream = match tx_result {
+        Ok(s) => {
+            debug!("Opened TX stream to {}", peer_id);
+            Some(s)
+        }
+        Err(e) => {
+            warn!("Failed to open TX stream to {}: {:?}", peer_id, e);
+            None
+        }
+    };
+
+    let txset_stream = match txset_result {
+        Ok(s) => {
+            debug!("Opened TxSet stream to {}", peer_id);
+            Some(s)
+        }
+        Err(e) => {
+            warn!("Failed to open TxSet stream to {}: {:?}", peer_id, e);
+            None
+        }
+    };
+
+    // Store streams
+    {
+        let streams = state.peer_streams.read().await;
+        if let Some(peer_streams) = streams.get(&peer_id) {
+            if let Some(stream) = scp_stream {
+                *peer_streams.scp.lock().await = Some(stream);
+            }
+            if let Some(stream) = tx_stream {
+                *peer_streams.tx.lock().await = Some(stream);
+            }
+            if let Some(stream) = txset_stream {
+                *peer_streams.txset.lock().await = Some(stream);
+            }
+        }
+    }
+
+    // Request SCP state from newly connected peer
+    info!("Peer {} streams opened, sending SCP state request", peer_id);
+    let ledger_seq: u32 = 0;
+    if let Err(e) = send_to_peer_stream(
+        &state,
+        peer_id.clone(),
+        StreamType::Scp,
+        &ledger_seq.to_le_bytes(),
+    )
+    .await
+    {
+        info!("Failed to request SCP state from newly connected peer {}: {:?}", peer_id, e);
     }
 }
 
@@ -1215,6 +1253,18 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                                 false
                             }
                         };
+
+                        // Record sender in scp_sent_to so we don't echo the message back
+                        {
+                            let mut sent_to = state.scp_sent_to.write().await;
+                            if let Some(peers) = sent_to.get_mut(&hash) {
+                                peers.insert(peer_id.clone());
+                            } else {
+                                let mut set = HashSet::new();
+                                set.insert(peer_id.clone());
+                                sent_to.put(hash, set);
+                            }
+                        }
 
                         if is_dup {
                             debug!(
@@ -1497,7 +1547,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
         let tracker = state.inv_tracker.read().await;
 
         // Get peers who already know about this TX (INV'd us)
-        let known_sources: std::collections::HashSet<PeerId> = tracker
+        let known_sources: HashSet<PeerId> = tracker
             .peek_sources(&hash)
             .map(|v| v.iter().cloned().collect())
             .unwrap_or_default();
@@ -3832,4 +3882,310 @@ async fn test_inv_getdata_three_node_relay() {
     let _ = tokio::time::timeout(Duration::from_secs(1), overlay1_task).await;
     let _ = tokio::time::timeout(Duration::from_secs(1), overlay2_task).await;
     let _ = tokio::time::timeout(Duration::from_secs(1), overlay3_task).await;
+}
+
+/// Test SCP relay through 3 nodes: A→B→C (the bug that was fixed)
+///
+/// Topology: Node1 ←→ Node2 ←→ Node3 (Node1 NOT connected to Node3)
+/// Node1 broadcasts SCP. Node2 receives it and relays (re-broadcasts) it.
+/// Node3 must receive it via Node2's relay.
+///
+/// Before the fix, Node2's relay request was silently dropped because
+/// the message was already in `scp_seen` from the initial receive.
+#[tokio::test]
+async fn test_scp_relay_three_nodes() {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+    let keypair3 = Keypair::generate_ed25519();
+
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle3, mut events3, _tx_events3, overlay3) =
+        create_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
+
+    let peer1_id = PeerId::from_public_key(&keypair1.public());
+    let peer2_id = PeerId::from_public_key(&keypair2.public());
+
+    let base_port = 19361;
+
+    let overlay1_task = tokio::spawn(async move {
+        overlay1.run("127.0.0.1", base_port).await;
+    });
+
+    let overlay2_task = tokio::spawn(async move {
+        overlay2.run("127.0.0.1", base_port + 1).await;
+    });
+
+    let overlay3_task = tokio::spawn(async move {
+        overlay3.run("127.0.0.1", base_port + 2).await;
+    });
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // Node2 dials Node1
+    let addr1: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}", base_port, peer1_id)
+        .parse()
+        .unwrap();
+    handle2.dial(addr1).await;
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Node3 dials Node2 (NOT Node1 - ensuring no direct A↔C path)
+    let addr2: Multiaddr = format!(
+        "/ip4/127.0.0.1/udp/{}/quic-v1/p2p/{}",
+        base_port + 1,
+        peer2_id
+    )
+    .parse()
+    .unwrap();
+    handle3.dial(addr2).await;
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Drain connection events
+    while events2.try_recv().is_ok() {}
+    while events3.try_recv().is_ok() {}
+
+    // Node1 broadcasts SCP
+    let scp_msg = b"SCP relay test envelope".to_vec();
+    handle1.broadcast_scp(scp_msg.clone()).await;
+
+    // Node2 should receive it from Node1
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut node2_received = false;
+    while tokio::time::Instant::now() < deadline && !node2_received {
+        tokio::select! {
+            Some(event) = events2.recv() => {
+                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                    if envelope == scp_msg && from == peer1_id {
+                        node2_received = true;
+                    }
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    assert!(node2_received, "Node2 should receive SCP from Node1");
+
+    // Node2 relays (re-broadcasts) the same SCP message - this is what C++ core does
+    handle2.broadcast_scp(scp_msg.clone()).await;
+
+    // Node3 should receive it via Node2's relay
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut node3_received = false;
+    while tokio::time::Instant::now() < deadline && !node3_received {
+        tokio::select! {
+            Some(event) = events3.recv() => {
+                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                    if envelope == scp_msg && from == peer2_id {
+                        node3_received = true;
+                    }
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    assert!(
+        node3_received,
+        "Node3 should receive SCP relayed through Node2"
+    );
+
+    handle1.shutdown().await;
+    handle2.shutdown().await;
+    handle3.shutdown().await;
+
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay1_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay2_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay3_task).await;
+}
+
+/// Test that SCP relay doesn't echo back to the sender
+///
+/// Topology: Node1 ←→ Node2
+/// Node1 broadcasts SCP. Node2 receives it and relays (re-broadcasts).
+/// Node1 must NOT receive it again (no echo).
+#[tokio::test]
+async fn test_scp_relay_no_echo_to_sender() {
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2.clone(), Arc::new(OverlayMetrics::new())).unwrap();
+
+    let peer1_id = PeerId::from_public_key(&keypair1.public());
+
+    let base_port = 19461;
+
+    let overlay1_task = tokio::spawn(async move {
+        overlay1.run("127.0.0.1", base_port).await;
+    });
+
+    let overlay2_task = tokio::spawn(async move {
+        overlay2.run("127.0.0.1", base_port + 1).await;
+    });
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let addr1: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", base_port)
+        .parse()
+        .unwrap();
+    handle2.dial(addr1).await;
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Drain connection events
+    while events1.try_recv().is_ok() {}
+    while events2.try_recv().is_ok() {}
+
+    // Node1 broadcasts SCP
+    let scp_msg = b"no echo test".to_vec();
+    handle1.broadcast_scp(scp_msg.clone()).await;
+
+    // Node2 receives it
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut node2_received = false;
+    while tokio::time::Instant::now() < deadline && !node2_received {
+        tokio::select! {
+            Some(event) = events2.recv() => {
+                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                    if envelope == scp_msg && from == peer1_id {
+                        node2_received = true;
+                    }
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        }
+    }
+    assert!(node2_received, "Node2 should receive SCP from Node1");
+
+    // Node2 relays - this should NOT send back to Node1 (already in scp_sent_to)
+    handle2.broadcast_scp(scp_msg.clone()).await;
+
+    // Wait and verify Node1 does NOT receive an echo
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let mut echo_count = 0;
+    while let Ok(event) = events1.try_recv() {
+        if let OverlayEvent::ScpReceived { envelope, .. } = event {
+            if envelope == scp_msg {
+                echo_count += 1;
+            }
+        }
+    }
+    assert_eq!(echo_count, 0, "Node1 should NOT receive echo of its own SCP message");
+
+    handle1.shutdown().await;
+    handle2.shutdown().await;
+
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay1_task).await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), overlay2_task).await;
+}
+
+/// Test that 20 overlays can form a fully-connected mesh when dialing
+/// simultaneously. This validates the fix for the stream-open deadlock:
+/// `open_streams_to_peer` must be spawned (not awaited inline) so the
+/// swarm event loop stays free to process incoming stream-open requests.
+///
+/// Without the fix, most `control.open_stream()` calls would time out
+/// because the swarm couldn't be polled while awaiting inside the
+/// `ConnectionEstablished` handler.
+#[tokio::test]
+async fn test_20_node_full_mesh() {
+    const N: usize = 20;
+    const BASE_PORT: u16 = 22000;
+
+    // Create all overlays
+    let mut handles = Vec::with_capacity(N);
+    let mut metrics = Vec::with_capacity(N);
+    let mut tasks = Vec::with_capacity(N);
+
+    for i in 0..N {
+        let keypair = Keypair::generate_ed25519();
+        let m = Arc::new(OverlayMetrics::new());
+        let (handle, _events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::clone(&m)).unwrap();
+
+        let port = BASE_PORT + i as u16;
+        tasks.push(tokio::spawn(async move {
+            overlay.run("127.0.0.1", port).await;
+        }));
+        handles.push(handle);
+        metrics.push(m);
+    }
+
+    // Brief pause for listeners to bind
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // Every node dials every other node simultaneously — the thundering-herd
+    // scenario that triggers the deadlock on unfixed code.
+    for i in 0..N {
+        for j in 0..N {
+            if i == j {
+                continue;
+            }
+            let port = BASE_PORT + j as u16;
+            let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port)
+                .parse()
+                .unwrap();
+            handles[i].dial(addr).await;
+        }
+    }
+
+    // Wait for all connections and streams to establish.
+    // With the deadlock fix, this should converge well within 5 seconds.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let mut all_connected = true;
+        for i in 0..N {
+            let count = handles[i].connected_peer_count().await;
+            if count < N - 1 {
+                all_connected = false;
+                break;
+            }
+        }
+        if all_connected {
+            break;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            // Print diagnostics before failing
+            for i in 0..N {
+                let count = handles[i].connected_peer_count().await;
+                let auth = metrics[i]
+                    .connection_authenticated
+                    .load(Ordering::Relaxed);
+                eprintln!("Node {}: connected_peer_count={}, connection_authenticated={}", i, count, auth);
+            }
+            panic!(
+                "Timed out waiting for full mesh: not all {} nodes have {} peers",
+                N,
+                N - 1
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    // Final assertion: every node has exactly N-1 authenticated peers
+    for i in 0..N {
+        let count = handles[i].connected_peer_count().await;
+        assert_eq!(
+            count,
+            N - 1,
+            "Node {} should have {} peers, got {}",
+            i,
+            N - 1,
+            count
+        );
+    }
+
+    // Shutdown all overlays
+    for handle in &handles {
+        handle.shutdown().await;
+    }
+    for task in tasks {
+        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
+    }
 }
