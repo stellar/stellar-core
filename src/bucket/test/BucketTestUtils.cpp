@@ -174,7 +174,7 @@ template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 std::optional<SorobanNetworkConfig>
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
-    ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
+    ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
 {
@@ -220,7 +220,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
 
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        lclSnapshot, ltx, keys);
+                        lclApplyView, ltx, keys);
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
@@ -318,7 +318,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
             HistoryArchiveState tempHas;
             tempHas.currentLedger = lh.ledgerSeq;
             auto& bm = mApp.getBucketManager();
-            auto tempState = CompleteConstLedgerState::createAndMaybeLoadConfig(
+            auto tempState = ImmutableLedgerData::createAndMaybeLoadConfig(
                 bm.getLiveBucketList(), bm.getHotArchiveBucketList(), tempLcl,
                 tempHas, mApp.getMetrics(), nullptr, 0);
             finalSorobanConfig = tempState->getSorobanConfig();
@@ -341,7 +341,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
     else
     {
         return LedgerManagerImpl::finalizeLedgerTxnChanges(
-            lclSnapshot, ltx, ledgerCloseMeta, lh, initialLedgerVers);
+            lclApplyView, ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
 

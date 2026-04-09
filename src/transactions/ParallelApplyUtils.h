@@ -4,9 +4,9 @@
 
 #pragma once
 
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerEntryScope.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
@@ -71,9 +71,9 @@ class ParallelLedgerInfo
 class ThreadParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
-    // Copy of the LCL state snapshot from the global state, with fresh
+    // Copy of the LCL state applyView from the global state, with fresh
     // file caches for thread safety.
-    ApplyLedgerStateSnapshot mLCLSnapshot;
+    ApplyLedgerView mLCLApplyView;
 
     // Reference to the live in-memory Soroban state. For Soroban entries
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
@@ -168,13 +168,13 @@ class ThreadParallelApplyLedgerState
     void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                        TxBundle const& txBundle);
 
-    // The snapshot ledger sequence number is one less than the
+    // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
 
     SorobanNetworkConfig const& getSorobanConfig() const;
 
-    ApplyLedgerStateSnapshot const& getSnapshot() const;
+    ApplyLedgerView const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
 };
@@ -182,13 +182,13 @@ class ThreadParallelApplyLedgerState
 class GlobalParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::GlobalParApply>
 {
-    // Contains the full LCL state snapshot from the start of the ledger
+    // Contains the full LCL state applyView from the start of the ledger
     // close, providing access to both the live bucket list and the hot archive
     // bucket list. Note that this does not reflect changes from the classic
-    // apply phase, but is a snapshot of the start of the ledger.
-    ApplyLedgerStateSnapshot mLCLSnapshot;
+    // apply phase, but is a applyView of the start of the ledger.
+    ApplyLedgerView mLCLApplyView;
 
-    // Contains an exact one-to-one in-memory mapping of the live snapshot for
+    // Contains an exact one-to-one in-memory mapping of the live applyView for
     // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,
     // only mInMemorySorobanState should be queried. If the in-memory state
     // returns null for a key, it does NOT indicate a "cache miss," rather the
@@ -242,8 +242,7 @@ class GlobalParallelApplyLedgerState
                             std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
-    GlobalParallelApplyLedgerState(AppConnector& app,
-                                   ApplyLedgerStateSnapshot snapshot,
+    GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
                                    AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
                                    InMemorySorobanState const& inMemoryState,
@@ -260,7 +259,7 @@ class GlobalParallelApplyLedgerState
 
     void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
 
-    // The snapshot ledger sequence number is one less than the
+    // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
 
@@ -295,11 +294,11 @@ class TxParallelApplyLedgerState
     // _deleted_ in this tx.
     //
     // Deletions will only be added if there was a previously-existing entry to
-    // delete in the parent (thread or live snapshot) maps. A stray delete here
+    // delete in the parent (thread or live applyView) maps. A stray delete here
     // (eg. a std::nullptr entry) not-related to a previous live LE is a bug.
     //
     // Any entry in this map is implicitly dirty. Merely loading data from the
-    // thread map or the live snapshot does not add an entry to this map.
+    // thread map or the live applyView does not add an entry to this map.
     TxModifiedEntryMap mTxEntryMap;
 
   public:

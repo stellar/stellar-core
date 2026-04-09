@@ -1153,8 +1153,8 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                         1)},
                     2000);
             }
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1314,8 +1314,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1681,8 +1681,8 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // tx1 is valid on its own
         {
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
         }
 
@@ -1714,10 +1714,10 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // Both txs individually are valid
         {
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
-            REQUIRE(tx2->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            REQUIRE(tx2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
         }
 
@@ -1815,8 +1815,8 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         }
         if (validateTx)
         {
-            REQUIRE(tx->checkValid(app->getAppConnector(), LedgerSnapshot(*app),
-                                   0, 0, 0)
+            REQUIRE(tx->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0)
                         ->isSuccess());
         }
         return tx;
@@ -2023,7 +2023,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 300);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     LedgerSnapshot(*app), 0, 0, 0)
+                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2062,7 +2062,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             auto feeBumpTx = feeBump(*app, *root, tx, 200);
             REQUIRE(feeBumpTx
                         ->checkValid(app->getAppConnector(),
-                                     LedgerSnapshot(*app), 0, 0, 0)
+                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
                         ->isSuccess());
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
@@ -2557,9 +2557,9 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         // its resources.
         auto tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
                                      resources);
-        LedgerSnapshot ls(*app);
-        REQUIRE(
-            tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)->isSuccess());
+        CheckValidLedgerViewWrapper ledgerView(*app);
+        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+                    ->isSuccess());
 
         return tx;
     };

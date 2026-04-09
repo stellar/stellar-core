@@ -73,7 +73,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
 
   protected:
     std::optional<SorobanNetworkConfig> finalizeLedgerTxnChanges(
-        ApplyLedgerStateSnapshot const& lclSnapshot, AbstractLedgerTxn& ltx,
+        ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers) override;
 

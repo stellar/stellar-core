@@ -10,7 +10,7 @@
 
 #include <limits>
 
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -1052,17 +1052,17 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     auto allTxs = classicTxs;
     allTxs.insert(allTxs.end(), sorobanTxs.begin(), sorobanTxs.end());
     {
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto diag = DiagnosticEventManager::createDisabled();
         for (auto const& tx : allTxs)
         {
-            bool isValid = tx->checkValid(test.getApp().getAppConnector(), ls,
-                                          0, 0, 0, diag)
+            bool isValid = tx->checkValid(test.getApp().getAppConnector(),
+                                          ledgerView, 0, 0, 0, diag)
                                ->isSuccess();
             if (!isValid)
             {
-                tx->checkValid(test.getApp().getAppConnector(), ls, 0, 0, 0,
-                               diag);
+                tx->checkValid(test.getApp().getAppConnector(), ledgerView, 0,
+                               0, 0, diag);
             }
             REQUIRE(isValid);
         }
@@ -1120,14 +1120,14 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     std::vector<std::pair<LedgerKey, std::pair<std::optional<LedgerEntry>,
                                                std::optional<LedgerEntry>>>>
         finalEntries;
-    LedgerSnapshot ls(test.getApp());
+    CheckValidLedgerViewWrapper ledgerView(test.getApp());
     auto archiveSnap =
-        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
     for (auto const& k : allKeys)
     {
         std::optional<LedgerEntry> liveEntry;
         std::optional<LedgerEntry> archivedEntry;
-        if (auto e = ls.load(k))
+        if (auto e = ledgerView.load(k))
         {
             liveEntry = e.current();
             // All the entries that were in the live state and were
@@ -1154,7 +1154,7 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         {
             LedgerKey ttlKey = getTTLKey(k);
             std::optional<LedgerEntry> liveTtlEntry;
-            if (auto e = ls.load(ttlKey))
+            if (auto e = ledgerView.load(ttlKey))
             {
                 liveTtlEntry = e.current();
             }

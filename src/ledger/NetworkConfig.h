@@ -14,7 +14,7 @@
 namespace stellar
 {
 
-class AbstractLedgerStateSnapshot;
+class AbstractLedgerView;
 class Application;
 
 // Defines the minimum values allowed for the network configuration
@@ -261,8 +261,7 @@ class SorobanNetworkConfig
 {
   public:
     // Static factory function to create a SorobanNetworkConfig from ledger
-    static SorobanNetworkConfig
-    loadFromLedger(AbstractLedgerStateSnapshot const& snap);
+    static SorobanNetworkConfig loadFromLedger(AbstractLedgerView const& snap);
     static SorobanNetworkConfig loadFromLedger(AbstractLedgerTxn& ltx);
 
 #ifdef BUILD_TESTS
@@ -479,25 +478,25 @@ class SorobanNetworkConfig
   private:
     SorobanNetworkConfig() = default;
 
-    void loadMaxContractSize(AbstractLedgerStateSnapshot const& ls);
-    void loadMaxContractDataKeySize(AbstractLedgerStateSnapshot const& ls);
-    void loadMaxContractDataEntrySize(AbstractLedgerStateSnapshot const& ls);
-    void loadComputeSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadLedgerAccessSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadHistoricalSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadContractEventsSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadBandwidthSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadCpuCostParams(AbstractLedgerStateSnapshot const& ls);
-    void loadMemCostParams(AbstractLedgerStateSnapshot const& ls);
-    void loadStateArchivalSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadExecutionLanesSettings(AbstractLedgerStateSnapshot const& ls);
-    void loadLiveSorobanStateSizeWindow(AbstractLedgerStateSnapshot const& ls);
-    void loadEvictionIterator(AbstractLedgerStateSnapshot const& ls);
-    void loadParallelComputeConfig(AbstractLedgerStateSnapshot const& ls);
-    void loadLedgerCostExtConfig(AbstractLedgerStateSnapshot const& ls);
-    void loadSCPTimingConfig(AbstractLedgerStateSnapshot const& ls);
-    void loadFrozenLedgerKeys(AbstractLedgerStateSnapshot const& ls);
-    void loadFreezeBypassTxs(AbstractLedgerStateSnapshot const& ls);
+    void loadMaxContractSize(AbstractLedgerView const& ls);
+    void loadMaxContractDataKeySize(AbstractLedgerView const& ls);
+    void loadMaxContractDataEntrySize(AbstractLedgerView const& ls);
+    void loadComputeSettings(AbstractLedgerView const& ls);
+    void loadLedgerAccessSettings(AbstractLedgerView const& ls);
+    void loadHistoricalSettings(AbstractLedgerView const& ls);
+    void loadContractEventsSettings(AbstractLedgerView const& ls);
+    void loadBandwidthSettings(AbstractLedgerView const& ls);
+    void loadCpuCostParams(AbstractLedgerView const& ls);
+    void loadMemCostParams(AbstractLedgerView const& ls);
+    void loadStateArchivalSettings(AbstractLedgerView const& ls);
+    void loadExecutionLanesSettings(AbstractLedgerView const& ls);
+    void loadLiveSorobanStateSizeWindow(AbstractLedgerView const& ls);
+    void loadEvictionIterator(AbstractLedgerView const& ls);
+    void loadParallelComputeConfig(AbstractLedgerView const& ls);
+    void loadLedgerCostExtConfig(AbstractLedgerView const& ls);
+    void loadSCPTimingConfig(AbstractLedgerView const& ls);
+    void loadFrozenLedgerKeys(AbstractLedgerView const& ls);
+    void loadFreezeBypassTxs(AbstractLedgerView const& ls);
     void computeRentWriteFee(uint32_t protocolVersion);
 
 #ifdef BUILD_TESTS

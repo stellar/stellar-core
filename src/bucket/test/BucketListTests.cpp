@@ -15,7 +15,7 @@
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
@@ -1112,15 +1112,16 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
             LedgerKey stateArchivalKey(CONFIG_SETTING);
             stateArchivalKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-            LedgerSnapshot ls(*app);
-            auto stateArchivalEntry = ls.load(stateArchivalKey).current();
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            auto stateArchivalEntry =
+                ledgerView.load(stateArchivalKey).current();
             modifyStateArchivalFn(stateArchivalEntry.data.configSetting()
                                       .stateArchivalSettings());
 
             LedgerKey evictionIterKey(CONFIG_SETTING);
             evictionIterKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-            auto evictionIterEntry = ls.load(evictionIterKey).current();
+            auto evictionIterEntry = ledgerView.load(evictionIterKey).current();
             modifyEvictionIteratorFn(
                 evictionIterEntry.data.configSetting().evictionIterator());
 
@@ -1209,14 +1210,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
         auto checkArchivedBucketList = [&] {
             if (!tempOnly)
             {
-                auto archiveSnap =
-                    app->getLedgerManager().copyLedgerStateSnapshot();
+                auto archiveView =
+                    app->getLedgerManager().copyImmutableLedgerView();
 
                 // Check that persisted entries have been inserted into
                 // HotArchive
                 for (auto const& k : persistentEntries)
                 {
-                    auto archivedEntry = archiveSnap.loadArchiveEntry(k);
+                    auto archivedEntry = archiveView.loadArchiveEntry(k);
                     REQUIRE(archivedEntry);
 
                     auto seen = false;
@@ -1232,14 +1233,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
 
                     // Make sure TTL keys are not archived
                     auto ttl = getTTLKey(k);
-                    auto archivedTTL = archiveSnap.loadArchiveEntry(ttl);
+                    auto archivedTTL = archiveView.loadArchiveEntry(ttl);
                     REQUIRE(!archivedTTL);
                 }
 
                 // Temp entries should not be archived
                 for (auto const& k : tempEntries)
                 {
-                    auto archivedEntry = archiveSnap.loadArchiveEntry(k);
+                    auto archivedEntry = archiveView.loadArchiveEntry(k);
                     REQUIRE(!archivedEntry);
                 }
             }
@@ -1722,10 +1723,10 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
-        auto blSnap = app->getLedgerManager().copyLedgerStateSnapshot();
+        auto blLedgerView = app->getLedgerManager().copyImmutableLedgerView();
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = blSnap.loadLiveEntry(LedgerEntryKey(entry));
+        auto loadedEntry = blLedgerView.loadLiveEntry(LedgerEntryKey(entry));
         REQUIRE((loadedEntry && *loadedEntry == entry));
     }
 }

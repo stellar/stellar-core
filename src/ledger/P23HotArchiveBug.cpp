@@ -9,7 +9,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "main/Application.h"
@@ -34,9 +34,8 @@ using namespace internal;
 
 void
 addHotArchiveBatchWithP23HotArchiveFix(
-    AbstractLedgerTxn& ltx, Application& app,
-    ApplyLedgerStateSnapshot const& snapshot, LedgerHeader header,
-    std::vector<LedgerEntry> const& archivedEntries,
+    AbstractLedgerTxn& ltx, Application& app, ApplyLedgerView const& applyView,
+    LedgerHeader header, std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries)
 {
     LedgerKeySet currentBatchKeys;
@@ -65,7 +64,7 @@ addHotArchiveBatchWithP23HotArchiveFix(
         // Hot Archive that match our expectations for the corrupted entries.
 
         // Ensure that the entry exists in Hot Archive.
-        auto hotArchiveEntry = snapshot.loadArchiveEntry(corruptedEntryKey);
+        auto hotArchiveEntry = applyView.loadArchiveEntry(corruptedEntryKey);
         if (!hotArchiveEntry)
         {
             CLOG_WARNING(
@@ -334,9 +333,8 @@ Protocol23CorruptionDataVerifier::verifyRestorationOfCorruptedEntry(
 
 void
 Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
-    EvictedStateVectors const& evictedState,
-    ApplyLedgerStateSnapshot const& snapshot, uint32_t ledgerSeq,
-    uint32_t protocolVersion)
+    EvictedStateVectors const& evictedState, ApplyLedgerView const& applyView,
+    uint32_t ledgerSeq, uint32_t protocolVersion)
 {
     if (!protocolVersionEquals(protocolVersion, ProtocolVersion::V_23))
     {
@@ -359,7 +357,7 @@ Protocol23CorruptionDataVerifier::verifyArchivalOfCorruptedEntry(
     {
         // Load the correct value from the live database.
         auto evictedLedgerKey = LedgerEntryKey(evictedEntry);
-        auto databaseEntry = snapshot.loadLiveEntry(evictedLedgerKey);
+        auto databaseEntry = applyView.loadLiveEntry(evictedLedgerKey);
         releaseAssert(databaseEntry != nullptr);
 
         // If there was a corruption

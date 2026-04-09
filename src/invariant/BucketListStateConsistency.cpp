@@ -7,8 +7,8 @@
 #include "bucket/LiveBucket.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Application.h"
@@ -23,7 +23,7 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 {
 }
 
-// This checks for consistency between the in-memory snapshot and live
+// This checks for consistency between the in-memory applyView and live
 // BucketList, along with other important properties. We check these properties:
 // 1. Every live entry in the BL is reflected in the in-memory cache
 // 2. No entry exists in the cache, but not the BL
@@ -36,14 +36,14 @@ BucketListStateConsistency::BucketListStateConsistency() : Invariant(true)
 // 7. The cached total entry sizes match the sum of actual entry sizes
 std::string
 BucketListStateConsistency::checkSnapshot(
-    ApplyLedgerStateSnapshot const& snapshot,
+    ApplyLedgerView const& applyView,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
     LogSlowExecution logSlow("BucketListStateConsistency::checkSnapshot",
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::minutes(2));
-    auto const& header = snapshot.getLedgerHeader().current();
+    auto const& header = applyView.getLedgerHeader().current();
 
     if (protocolVersionIsBefore(header.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -66,11 +66,11 @@ BucketListStateConsistency::checkSnapshot(
     std::string errorMsg;
 
     // Property 7: Track total entry sizes for validation
-    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snapshot);
+    auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
     uint64_t expectedSorobanSize = 0;
 
     auto checkLiveEntry = [&seenLiveNonTTLKeys, &seenDeadKeys, &errorMsg,
-                           &inMemorySnapshot, &snapshot, checkHotArchive,
+                           &inMemorySnapshot, &applyView, checkHotArchive,
                            &isStopping, &expectedSorobanSize, &header,
                            &sorobanConfig](BucketEntry const& be) {
         if (isStopping())
@@ -90,7 +90,7 @@ BucketListStateConsistency::checkSnapshot(
             }
 
             // This is the newest version of this entry, check that it exists in
-            // the in-memory snapshot
+            // the in-memory applyView
             auto inMemoryEntry = inMemorySnapshot.get(lk);
             if (!inMemoryEntry)
             {
@@ -116,7 +116,7 @@ BucketListStateConsistency::checkSnapshot(
             }
 
             // Check property 5: live entry should not exist in hot archive
-            if (checkHotArchive && snapshot.loadArchiveEntry(lk))
+            if (checkHotArchive && applyView.loadArchiveEntry(lk))
             {
                 errorMsg = fmt::format(
                     FMT_STRING("BucketListStateConsistency invariant failed: "
@@ -158,7 +158,7 @@ BucketListStateConsistency::checkSnapshot(
     };
 
     // First check contract data entries.
-    snapshot.scanLiveEntriesOfType(CONTRACT_DATA, checkLiveEntry);
+    applyView.scanLiveEntriesOfType(CONTRACT_DATA, checkLiveEntry);
 
     // Note: All BucketList scans will exit early if isStopping() is true or if
     // there is an error, so we need to call shouldAbortInvariantScan after each
@@ -175,7 +175,7 @@ BucketListStateConsistency::checkSnapshot(
     // keys since we will need them when checking TTL entries.
     seenDeadKeys.clear();
 
-    snapshot.scanLiveEntriesOfType(CONTRACT_CODE, checkLiveEntry);
+    applyView.scanLiveEntriesOfType(CONTRACT_CODE, checkLiveEntry);
     if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
@@ -258,7 +258,7 @@ BucketListStateConsistency::checkSnapshot(
                 return Loop::COMPLETE;
             }
 
-            // Check that the TTL exists in the in-memory snapshot
+            // Check that the TTL exists in the in-memory applyView
             auto inMemoryTTL = inMemorySnapshot.get(ttlKey);
             if (!inMemoryTTL)
             {
@@ -304,7 +304,7 @@ BucketListStateConsistency::checkSnapshot(
     };
 
     seenDeadKeys.clear();
-    snapshot.scanLiveEntriesOfType(TTL, checkTTLEntry);
+    applyView.scanLiveEntriesOfType(TTL, checkTTLEntry);
     if (shouldAbortInvariantScan(errorMsg, isStopping))
     {
         return errorMsg;
@@ -376,7 +376,7 @@ BucketListStateConsistency::checkSnapshot(
             return Loop::INCOMPLETE;
         };
 
-        snapshot.scanAllArchiveEntries(checkHotArchiveEntry);
+        applyView.scanAllArchiveEntries(checkHotArchiveEntry);
         if (shouldAbortInvariantScan(errorMsg, isStopping))
         {
             return errorMsg;

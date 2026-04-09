@@ -6,7 +6,7 @@
 
 #include "lib/httpthreaded/server.hpp"
 
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include <atomic>
 #include <functional>
 #include <string>
@@ -26,7 +26,7 @@ class QueryServer
 
     httpThreaded::server::server mServer;
 
-    std::unordered_map<std::thread::id, LedgerStateSnapshot> mSnapshots;
+    std::unordered_map<std::thread::id, ImmutableLedgerView> mLedgerViews;
 
     AppConnector& mAppConnector;
 

@@ -17,9 +17,9 @@ namespace stellar
 
 class Application;
 class TransactionFrame;
-class LedgerSnapshot;
-class ApplyLedgerStateSnapshot;
-class CompleteConstLedgerState;
+class CheckValidLedgerViewWrapper;
+class ApplyLedgerView;
+class ImmutableLedgerData;
 class EvictionStatistics;
 struct EvictionMetrics;
 struct EvictionResultCandidates;
@@ -31,8 +31,7 @@ class HotArchiveBucketList;
 // NB: we can't use unique_ptr here, because this object gets passed to a
 // lambda, and std::function requires its callable to be copyable (C++23 fixes
 // this with std::move_only_function, but we're not there yet).
-using CompleteConstLedgerStatePtr =
-    std::shared_ptr<CompleteConstLedgerState const>;
+using ImmutableLedgerDataPtr = std::shared_ptr<ImmutableLedgerData const>;
 
 // A unified ledger entry interface that supports LedgerEntry representations
 // for both legacy SQL and BucketList snapshots. When working with LedgerTxn,
@@ -76,10 +75,10 @@ class LedgerHeaderWrapper
 
 // A unified interface for read-only ledger state snapshot.
 // Supports SQL (via read-only LedgerTxn), as well as BucketList snapshots.
-class AbstractLedgerStateSnapshot
+class AbstractLedgerView
 {
   public:
-    virtual ~AbstractLedgerStateSnapshot() = default;
+    virtual ~AbstractLedgerView() = default;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
@@ -92,11 +91,11 @@ class AbstractLedgerStateSnapshot
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     virtual void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const = 0;
+        std::function<void(CheckValidLedgerViewWrapper const&)> f) const = 0;
 };
 
 // A concrete implementation of read-only SQL snapshot wrapper
-class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
+class LedgerTxnReadOnly : public AbstractLedgerView
 {
     // Callers are expected to manage `AbstractLedgerTxn` themselves.
     // LedgerTxnReadOnly guarantees that LedgerTxn, LedgerTxnHeader and
@@ -115,32 +114,33 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
 };
 
 // A copyable value type that provides searchable access to a
-// CompleteConstLedgerState. Each instance maintains its own file stream cache
-// for bucket I/O. Multiple LedgerStateSnapshot instances can safely wrap the
-// same CompleteConstLedgerState.
-class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
+// ImmutableLedgerData. Each instance maintains its own file stream cache
+// for bucket I/O. Multiple ImmutableLedgerView instances can safely wrap the
+// same ImmutableLedgerData.
+class ImmutableLedgerView : public virtual AbstractLedgerView
 {
-    std::shared_ptr<CompleteConstLedgerState const> mState;
+    std::shared_ptr<ImmutableLedgerData const> mState;
     SearchableLiveBucketListSnapshot mLiveSnapshot;
     SearchableHotArchiveBucketListSnapshot mHotArchiveSnapshot;
     std::reference_wrapper<MetricsRegistry> mMetrics;
 
-    friend class CompleteConstLedgerState;
+    friend class ImmutableLedgerData;
 
   public:
-    // Construct from CompleteConstLedgerState
-    explicit LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
+    // Construct from ImmutableLedgerData
+    explicit ImmutableLedgerView(ImmutableLedgerDataPtr state,
                                  MetricsRegistry& metrics);
 
-    CompleteConstLedgerState const& getState() const;
+    ImmutableLedgerData const& getState() const;
     LedgerHeaderWrapper getLedgerHeader() const override;
     uint32_t getLedgerSeq() const;
 
-    // === AbstractLedgerStateSnapshot overrides ===
+    // === AbstractLedgerView overrides ===
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -149,7 +149,8 @@ class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
                                   AccountID const& AccountID) const override;
     LedgerEntryWrapper load(LedgerKey const& key) const override;
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const override;
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
 
     // === Live BucketList methods ===
     std::shared_ptr<LedgerEntry const> loadLiveEntry(LedgerKey const& k) const;
@@ -184,52 +185,52 @@ class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 };
 
-// A strong typedef for LedgerStateSnapshot that represents a snapshot used
-// during apply time. This is identical to LedgerStateSnapshot in practice, but
+// A strong typedef for ImmutableLedgerView that represents a snapshot used
+// during apply time. This is identical to ImmutableLedgerView in practice, but
 // is a distinct type to prevent accidental interchange between apply-time
 // snapshots and other snapshots (e.g., from mLastClosedLedgerState).
-class ApplyLedgerStateSnapshot : private LedgerStateSnapshot,
-                                 public virtual AbstractLedgerStateSnapshot
+class ApplyLedgerView : private ImmutableLedgerView,
+                        public virtual AbstractLedgerView
 {
   public:
-    explicit ApplyLedgerStateSnapshot(CompleteConstLedgerStatePtr state,
-                                      MetricsRegistry& metrics);
+    explicit ApplyLedgerView(ImmutableLedgerDataPtr state,
+                             MetricsRegistry& metrics);
 
-    using LedgerStateSnapshot::executeWithMaybeInnerSnapshot;
-    using LedgerStateSnapshot::getAccount;
-    using LedgerStateSnapshot::getLedgerHeader;
-    using LedgerStateSnapshot::getLedgerSeq;
-    using LedgerStateSnapshot::getState;
-    using LedgerStateSnapshot::load;
-    using LedgerStateSnapshot::loadArchiveEntry;
-    using LedgerStateSnapshot::loadArchiveKeys;
-    using LedgerStateSnapshot::loadArchiveKeysFromLedger;
-    using LedgerStateSnapshot::loadInflationWinners;
-    using LedgerStateSnapshot::loadLiveEntry;
-    using LedgerStateSnapshot::loadLiveKeys;
-    using LedgerStateSnapshot::loadLiveKeysFromLedger;
-    using LedgerStateSnapshot::loadPoolShareTrustLinesByAccountAndAsset;
-    using LedgerStateSnapshot::scanAllArchiveEntries;
-    using LedgerStateSnapshot::scanForEviction;
-    using LedgerStateSnapshot::scanLiveEntriesOfType;
+    using ImmutableLedgerView::executeWithMaybeInnerSnapshot;
+    using ImmutableLedgerView::getAccount;
+    using ImmutableLedgerView::getLedgerHeader;
+    using ImmutableLedgerView::getLedgerSeq;
+    using ImmutableLedgerView::getState;
+    using ImmutableLedgerView::load;
+    using ImmutableLedgerView::loadArchiveEntry;
+    using ImmutableLedgerView::loadArchiveKeys;
+    using ImmutableLedgerView::loadArchiveKeysFromLedger;
+    using ImmutableLedgerView::loadInflationWinners;
+    using ImmutableLedgerView::loadLiveEntry;
+    using ImmutableLedgerView::loadLiveKeys;
+    using ImmutableLedgerView::loadLiveKeysFromLedger;
+    using ImmutableLedgerView::loadPoolShareTrustLinesByAccountAndAsset;
+    using ImmutableLedgerView::scanAllArchiveEntries;
+    using ImmutableLedgerView::scanForEviction;
+    using ImmutableLedgerView::scanLiveEntriesOfType;
 };
 
 // A helper class to create and query read-only snapshots
 // Automatically decides whether to create a BucketList (recommended), or SQL
 // snapshot (deprecated, but currently supported)
-// NOTE: LedgerSnapshot is meant to be short-lived, and should not be persisted
-// across _different_ ledgers, as the state under the hood might change. Users
-// are expected to construct a new LedgerSnapshot each time they want to query
-// ledger state.
-class LedgerSnapshot : public NonMovableOrCopyable
+// NOTE: CheckValidLedgerViewWrapper is meant to be short-lived, and should not
+// be persisted across _different_ ledgers, as the state under the hood might
+// change. Users are expected to construct a new CheckValidLedgerViewWrapper
+// each time they want to query ledger state.
+class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
 {
-    std::unique_ptr<AbstractLedgerStateSnapshot const> mGetter;
+    std::unique_ptr<AbstractLedgerView const> mGetter;
     std::unique_ptr<LedgerTxn> mLegacyLedgerTxn;
 
   public:
-    LedgerSnapshot(AbstractLedgerTxn& ltx);
-    LedgerSnapshot(Application& app);
-    explicit LedgerSnapshot(LedgerStateSnapshot const& snap);
+    CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
+    CheckValidLedgerViewWrapper(Application& app);
+    explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
@@ -250,7 +251,7 @@ class LedgerSnapshot : public NonMovableOrCopyable
     // to support the replay of old buggy protocols (<8), see
     // `TransactionFrame::loadSourceAccount`
     void executeWithMaybeInnerSnapshot(
-        std::function<void(LedgerSnapshot const&)> f) const;
+        std::function<void(CheckValidLedgerViewWrapper const&)> f) const;
 };
 
 // Immutable wrapper for a complete ledger state snapshot.
@@ -268,8 +269,8 @@ class LedgerSnapshot : public NonMovableOrCopyable
 // All member objects are immutable. Getters return const references;
 // however, these references should not be assumed to have long lifetimes.
 // A new ledger closure may cause LedgerManager to replace the current
-// CompleteConstLedgerState instance.
-class CompleteConstLedgerState : public NonMovableOrCopyable
+// ImmutableLedgerData instance.
+class ImmutableLedgerData : public NonMovableOrCopyable
 {
   private:
     // Raw immutable bucket data for the live and hot archive bucket lists
@@ -291,27 +292,27 @@ class CompleteConstLedgerState : public NonMovableOrCopyable
 
     void checkInvariant() const;
 
-    friend class LedgerStateSnapshot;
+    friend class ImmutableLedgerView;
 
   public:
     // Construct a new ledger state, rotating historical snapshots from
     // prevState. If prevState is null, history maps will be empty.
     // sorobanConfig is nullopt for pre-Soroban protocol versions, or when
     // building the empty initial state at startup.
-    CompleteConstLedgerState(LiveBucketList const& liveBL,
-                             HotArchiveBucketList const& hotArchiveBL,
-                             LedgerHeaderHistoryEntry const& lcl,
-                             HistoryArchiveState const& has,
-                             std::optional<SorobanNetworkConfig> sorobanConfig,
-                             CompleteConstLedgerStatePtr prevState,
-                             uint32_t numHistoricalSnapshots);
+    ImmutableLedgerData(LiveBucketList const& liveBL,
+                        HotArchiveBucketList const& hotArchiveBL,
+                        LedgerHeaderHistoryEntry const& lcl,
+                        HistoryArchiveState const& has,
+                        std::optional<SorobanNetworkConfig> sorobanConfig,
+                        ImmutableLedgerDataPtr prevState,
+                        uint32_t numHistoricalSnapshots);
 
-    // Factory: constructs a CompleteConstLedgerState, auto-loading the
+    // Factory: constructs a ImmutableLedgerData, auto-loading the
     // SorobanNetworkConfig from the bucket list when the protocol requires it.
-    static CompleteConstLedgerStatePtr createAndMaybeLoadConfig(
+    static ImmutableLedgerDataPtr createAndMaybeLoadConfig(
         LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
         LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-        MetricsRegistry& metrics, CompleteConstLedgerStatePtr prevState,
+        MetricsRegistry& metrics, ImmutableLedgerDataPtr prevState,
         uint32_t numHistoricalSnapshots);
 
     SorobanNetworkConfig const& getSorobanConfig() const;

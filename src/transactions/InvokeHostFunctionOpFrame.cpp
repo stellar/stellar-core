@@ -272,7 +272,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
-    ApplyLedgerStateSnapshot mStateSnapshot;
+    ApplyLedgerView mApplyLedgerView;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
@@ -285,8 +285,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig,
-        ApplyLedgerStateSnapshot stateSnapshot,
+        SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
@@ -299,7 +298,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics(),
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        , mStateSnapshot(std::move(stateSnapshot))
+        , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
@@ -426,7 +425,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         continue;
                     }
 
-                    auto archiveEntry = mStateSnapshot.loadArchiveEntry(lk);
+                    auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
                     if (archiveEntry)
                     {
                         releaseAssertOrThrow(
@@ -991,8 +990,7 @@ class InvokeHostFunctionPreV23ApplyHelper
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, sorobanConfig, app.copyApplyLedgerStateSnapshot(),
-              moduleCache)
+              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }

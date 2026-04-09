@@ -34,7 +34,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                         int32_t neededWeight) const override;
 
     bool checkOperationSignatures(
-        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        SignatureChecker& signatureChecker,
+        CheckValidLedgerViewWrapper const& ledgerView,
         MutableTransactionResultBase* txResult) const override;
 
     bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
@@ -44,7 +45,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     // If check passes, returns the fee source account. Otherwise returns
     // nullopt.
     std::optional<LedgerEntryWrapper>
-    commonValidPreSeqNum(LedgerSnapshot const& ls,
+    commonValidPreSeqNum(CheckValidLedgerViewWrapper const& ledgerView,
                          MutableTransactionResultBase& txResult) const;
 
     enum ValidationType
@@ -56,14 +57,16 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     };
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, bool applying,
+                               CheckValidLedgerViewWrapper const& ledgerView,
+                               bool applying,
                                MutableTransactionResultBase& txResult) const;
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
     MutableTxResultPtr checkValidImpl(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
 
@@ -115,16 +118,18 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                MutableTransactionResultBase& txResult,
                                TxEventManager& txEventManager) const override;
 
-    MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents,
-               std::optional<uint32_t> validationLedgerSeq =
-                   std::nullopt) const override;
+    MutableTxResultPtr checkValid(AppConnector& app,
+                                  CheckValidLedgerViewWrapper const& ledgerView,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset,
+                                  DiagnosticEventManager& diagnosticEvents,
+                                  std::optional<uint32_t> validationLedgerSeq =
+                                      std::nullopt) const override;
     MutableTxResultPtr checkValidForOverlay(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
         std::optional<uint32_t> validationLedgerSeq =
             std::nullopt) const override;

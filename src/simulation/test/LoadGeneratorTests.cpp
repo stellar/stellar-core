@@ -5,8 +5,8 @@
 #include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "main/Config.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
@@ -958,14 +958,14 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
 
-    auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
+    auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
 
     for (auto idx : sampleIndices)
     {
         sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
     }
 
-    auto sampleEntries = snap.loadArchiveKeys(sampleKeys);
+    auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys);
     REQUIRE(sampleEntries.size() == sampleKeys.size());
 
     al.execute();

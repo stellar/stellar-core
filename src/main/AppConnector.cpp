@@ -169,25 +169,25 @@ AppConnector::threadIsType(Application::ThreadType type) const
     return mApp.threadIsType(type);
 }
 
-LedgerStateSnapshot
-AppConnector::copyLedgerStateSnapshot()
+ImmutableLedgerView
+AppConnector::copyImmutableLedgerView()
 {
-    return mApp.getLedgerManager().copyLedgerStateSnapshot();
+    return mApp.getLedgerManager().copyImmutableLedgerView();
 }
 
-ApplyLedgerStateSnapshot
-AppConnector::copyApplyLedgerStateSnapshot()
+ApplyLedgerView
+AppConnector::copyApplyLedgerView()
 {
-    return mApp.getLedgerManager().copyApplyLedgerStateSnapshot();
+    return mApp.getLedgerManager().copyApplyLedgerView();
 }
 
 void
-AppConnector::maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot)
+AppConnector::maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView)
 {
-    mApp.getLedgerManager().maybeUpdateLedgerStateSnapshot(snapshot);
+    mApp.getLedgerManager().maybeUpdateImmutableLedgerView(ledgerView);
 }
 
-LedgerStateSnapshot&
+ImmutableLedgerView&
 AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();

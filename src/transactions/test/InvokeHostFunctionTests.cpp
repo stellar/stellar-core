@@ -17,8 +17,8 @@
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -2210,10 +2210,10 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
                      txEnvelope.v1());
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             test.getApp().getNetworkID(), txEnvelope);
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto innerCheckValidResult = tx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
 
         int64_t feeBumpFullFee = resourceFee + inclusionFee;
         auto feeBumpTx = feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
@@ -2222,7 +2222,7 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
         REQUIRE(feeBumpTx->getInclusionFee() == inclusionFee);
 
         auto checkValidResult = feeBumpTx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
         if (!checkValidResult->isSuccess())
         {
             return checkValidResult->getResultCode();
@@ -4750,12 +4750,13 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         auto lk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto snap = test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+        auto ledgerView =
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
 
         if (evict)
         {
-            REQUIRE(snap.loadArchiveEntry(lk));
-            REQUIRE(!snap.loadArchiveEntry(getTTLKey(lk)));
+            REQUIRE(ledgerView.loadArchiveEntry(lk));
+            REQUIRE(!ledgerView.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(lk));
@@ -4764,8 +4765,8 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         }
         else
         {
-            REQUIRE(!snap.loadArchiveEntry(lk));
-            REQUIRE(!snap.loadArchiveEntry(getTTLKey(lk)));
+            REQUIRE(!ledgerView.loadArchiveEntry(lk));
+            REQUIRE(!ledgerView.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(ltx.load(lk));
@@ -4829,7 +4830,7 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
                 client.get("key", ContractDataDurability::PERSISTENT, 123);
 
                 auto restoredSnap =
-                    test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+                    test.getApp().getLedgerManager().copyImmutableLedgerView();
 
                 // Restored entries are deleted from Hot Archive
                 REQUIRE(!restoredSnap.loadArchiveEntry(lk));
@@ -7473,7 +7474,7 @@ TEST_CASE("multiple version of same key in a single eviction scan",
         }
 
         auto evictSnap =
-            test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
         REQUIRE(evictSnap.loadArchiveEntry(lk));
     };
 
@@ -7485,9 +7486,9 @@ TEST_CASE("multiple version of same key in a single eviction scan",
     // levels of the BucketList.
     test.invokeRestoreOp({lk}, 20166);
 
-    auto restoreSnap =
-        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
-    auto loadRes = restoreSnap.loadLiveEntry(lk);
+    auto restoreView =
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
+    auto loadRes = restoreView.loadLiveEntry(lk);
     REQUIRE(loadRes);
 
     // Evict the entry again. If we "double evict" we'll throw during ledger
@@ -7549,10 +7550,10 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
 
         // Check the eviction results.
         // Entry should be archived and not in the live BucketList
-        auto evictionSnap = snapshotManager.copyLedgerStateSnapshot();
-        REQUIRE(!evictionSnap.loadLiveEntry(lk));
+        auto evictionView = snapshotManager.copyImmutableLedgerView();
+        REQUIRE(!evictionView.loadLiveEntry(lk));
 
-        auto hotLoad = evictionSnap.loadArchiveEntry(lk);
+        auto hotLoad = evictionView.loadArchiveEntry(lk);
         REQUIRE(hotLoad);
         REQUIRE(hotLoad->type() == HOT_ARCHIVE_ARCHIVED);
 
@@ -7573,12 +7574,12 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         // Restore entry and make sure the correct value is restored
         test.invokeRestoreOp({lk}, 20166);
 
-        auto restoreSnap = snapshotManager.copyLedgerStateSnapshot();
-        auto hotLoadAfterRestore = restoreSnap.loadArchiveEntry(lk);
+        auto restoreView = snapshotManager.copyImmutableLedgerView();
+        auto hotLoadAfterRestore = restoreView.loadArchiveEntry(lk);
         REQUIRE(!hotLoadAfterRestore);
 
         // Check that restored value matches what was archived
-        auto liveLoadAfterRestore = restoreSnap.loadLiveEntry(lk);
+        auto liveLoadAfterRestore = restoreView.loadLiveEntry(lk);
         REQUIRE(liveLoadAfterRestore);
 
         if (protocolVersionIsBefore(test.getLedgerVersion(),
@@ -7652,23 +7653,23 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
         REQUIRE(initialIterator == test.getNetworkCfg().evictionIterator());
     }
 
-    auto snap = snapshotManager.copyLedgerStateSnapshot();
+    auto ledgerView = snapshotManager.copyImmutableLedgerView();
     auto assertTemp = [&](bool isLive) {
-        snap = snapshotManager.copyLedgerStateSnapshot();
-        auto tempLiveLoad = snap.loadLiveEntry(temporaryKey);
+        ledgerView = snapshotManager.copyImmutableLedgerView();
+        auto tempLiveLoad = ledgerView.loadLiveEntry(temporaryKey);
         REQUIRE(static_cast<bool>(tempLiveLoad) == isLive);
 
         // Temp entries are never archived
-        REQUIRE(!snap.loadArchiveEntry(temporaryKey));
+        REQUIRE(!ledgerView.loadArchiveEntry(temporaryKey));
     };
 
     auto assertPersistent = [&](bool isLive) {
-        snap = snapshotManager.copyLedgerStateSnapshot();
+        ledgerView = snapshotManager.copyImmutableLedgerView();
 
-        auto persistentLiveLoad = snap.loadLiveEntry(persistentKey);
+        auto persistentLiveLoad = ledgerView.loadLiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(persistentLiveLoad) == isLive);
 
-        auto hotArchiveLoad = snap.loadArchiveEntry(persistentKey);
+        auto hotArchiveLoad = ledgerView.loadArchiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(hotArchiveLoad) != isLive);
     };
 
@@ -7692,9 +7693,9 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     initialIterator = iteratorAfterUpgrade;
 
     // Check that exactly one entry has been evicted
-    snap = snapshotManager.copyLedgerStateSnapshot();
+    ledgerView = snapshotManager.copyImmutableLedgerView();
 
-    auto persistentLiveLoad = snap.loadLiveEntry(persistentKey);
+    auto persistentLiveLoad = ledgerView.loadLiveEntry(persistentKey);
     if (persistentLiveLoad)
     {
         // If perstent entry is live, assert that the temp entry is evicted.
@@ -8725,8 +8726,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8757,8 +8758,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8794,8 +8795,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txNO_ACCOUNT);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus the soroban
             // transactions fee which a1 paid before it was merged).
@@ -9057,7 +9058,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
     {
         std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
         auto resources = lm.maxLedgerResources(true);
-        LedgerSnapshot ls(app);
+        CheckValidLedgerViewWrapper ledgerView(app);
         for (int txId = 0; txId < MAX_TRANSACTIONS_PER_LEDGER; ++txId)
         {
             auto account = txtest::getGenesisAccount(app, accountId++);
@@ -9098,7 +9099,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
             auto tx = invocation.withExactNonRefundableResourceFee().createTx(
                 &account);
 
-            REQUIRE(tx->checkValid(app.getAppConnector(), ls, 0, 0, 0)
+            REQUIRE(tx->checkValid(app.getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             if (!anyGreater(tx->getResources(false, test.getLedgerVersion()),
                             resources))
@@ -9488,8 +9489,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
         {
             auto ledgerKey = client.getContract().getDataKey(
                 makeSymbolSCVal(key), durability);
-            LedgerSnapshot ls(test.getApp());
-            auto le = ls.load(ledgerKey);
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            auto le = ledgerView.load(ledgerKey);
             if (le)
             {
                 // We only deal with the data entries here, so no need to use
@@ -9700,9 +9701,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9749,9 +9750,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9803,9 +9804,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -10087,7 +10088,7 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
                         std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
     auto archivedSnap =
-        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
 
     REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}).size() == 2);
     REQUIRE(archivedSnap.loadLiveKeys({lk1, lk2}, "load").size() == 0);
@@ -10116,7 +10117,7 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
 
     auto restoredSnap =
-        test.getApp().getLedgerManager().copyLedgerStateSnapshot();
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
 
     REQUIRE(restoredSnap.loadLiveKeys({lk1, lk2}, "load").size() == 2);
     REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}).size() == 0);
@@ -10192,8 +10193,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         REQUIRE(innerRes.result.code() == txNO_ACCOUNT);
 
         // Verify that innerAccount no longer exists after the merge
-        LedgerSnapshot ls(test.getApp());
-        REQUIRE(!ls.getAccount(innerAccount.getPublicKey()));
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        REQUIRE(!ledgerView.getAccount(innerAccount.getPublicKey()));
 
         auto expectedDestinationBalance = startingBalance + startingBalance;
         REQUIRE(destination.getBalance() == expectedDestinationBalance);

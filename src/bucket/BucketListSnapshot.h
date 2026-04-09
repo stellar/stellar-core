@@ -41,8 +41,8 @@ struct StateArchivalSettings;
 class EvictionStatistics;
 template <class BucketT> class BucketListBase;
 template <class BucketT> class BucketLevel;
-class CompleteConstLedgerState;
-class LedgerStateSnapshot;
+class ImmutableLedgerData;
+class ImmutableLedgerView;
 
 // BucketListSnapshotData holds the immutable bucket references that can be
 // safely shared across threads. It contains only bucket pointers and no
@@ -86,7 +86,7 @@ template <class BucketT> class SearchableBucketListSnapshot
 
     // Ledger sequence number for this snapshot, used internally to route
     // queries between current and historical data. Not exposed publicly;
-    // callers should get ledger metadata from CompleteConstLedgerState.
+    // callers should get ledger metadata from ImmutableLedgerData.
     uint32_t mLedgerSeq;
 
     // Per-snapshot mutable stream cache
@@ -234,8 +234,8 @@ class SearchableLiveBucketListSnapshot
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
-    friend class CompleteConstLedgerState;
-    friend class LedgerStateSnapshot;
+    friend class ImmutableLedgerData;
+    friend class ImmutableLedgerView;
 };
 
 // Hot archive bucket list snapshot
@@ -262,7 +262,7 @@ class SearchableHotArchiveBucketListSnapshot
     void scanAllEntries(
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 
-    friend class LedgerStateSnapshot;
+    friend class ImmutableLedgerView;
 };
 
 extern template struct BucketListSnapshotData<LiveBucket>;

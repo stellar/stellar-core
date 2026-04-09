@@ -12,8 +12,8 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
@@ -368,25 +368,26 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
         }
 
         // Make sure the entries have not been evicted
-        auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
-        REQUIRE(snap.loadLiveEntry(LedgerEntryKey(tempEntry)));
-        REQUIRE(snap.loadLiveEntry(LedgerEntryKey(persistentEntry)));
-        REQUIRE(snap.loadLiveEntry(getTTLKey(tempEntry)));
-        REQUIRE(snap.loadLiveEntry(getTTLKey(persistentEntry)));
-        REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(tempEntry)));
-        REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
+        auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+        REQUIRE(ledgerView.loadLiveEntry(LedgerEntryKey(tempEntry)));
+        REQUIRE(ledgerView.loadLiveEntry(LedgerEntryKey(persistentEntry)));
+        REQUIRE(ledgerView.loadLiveEntry(getTTLKey(tempEntry)));
+        REQUIRE(ledgerView.loadLiveEntry(getTTLKey(persistentEntry)));
+        REQUIRE(!ledgerView.loadArchiveEntry(LedgerEntryKey(tempEntry)));
+        REQUIRE(!ledgerView.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
 
         SECTION("Entries properly evicted")
         {
             closeLedger(*app);
 
-            snap = app->getLedgerManager().copyLedgerStateSnapshot();
-            REQUIRE(!snap.loadLiveEntry(LedgerEntryKey(tempEntry)));
-            REQUIRE(!snap.loadLiveEntry(LedgerEntryKey(persistentEntry)));
-            REQUIRE(!snap.loadLiveEntry(getTTLKey(tempEntry)));
-            REQUIRE(!snap.loadLiveEntry(getTTLKey(persistentEntry)));
-            REQUIRE(!snap.loadArchiveEntry(LedgerEntryKey(tempEntry)));
-            REQUIRE(snap.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
+            ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+            REQUIRE(!ledgerView.loadLiveEntry(LedgerEntryKey(tempEntry)));
+            REQUIRE(!ledgerView.loadLiveEntry(LedgerEntryKey(persistentEntry)));
+            REQUIRE(!ledgerView.loadLiveEntry(getTTLKey(tempEntry)));
+            REQUIRE(!ledgerView.loadLiveEntry(getTTLKey(persistentEntry)));
+            REQUIRE(!ledgerView.loadArchiveEntry(LedgerEntryKey(tempEntry)));
+            REQUIRE(
+                ledgerView.loadArchiveEntry(LedgerEntryKey(persistentEntry)));
         }
 
         SECTION("invariant check")
@@ -397,17 +398,16 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
             auto ledgerVersion =
                 lm.getLastClosedLedgerHeader().header.ledgerVersion;
 
-            auto applySnap =
-                app->getLedgerManager().copyApplyLedgerStateSnapshot();
+            auto applyView = app->getLedgerManager().copyApplyLedgerView();
 
             // Manually trigger eviction so we can test the invariant directly
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().ledgerSeq++;
             auto evictedState =
-                app->getBucketManager().resolveBackgroundEvictionScan(applySnap,
+                app->getBucketManager().resolveBackgroundEvictionScan(applyView,
                                                                       ltx, {});
 
-            applySnap = app->getLedgerManager().copyApplyLedgerStateSnapshot();
+            applyView = app->getLedgerManager().copyApplyLedgerView();
 
             // Persistent entry
             REQUIRE(evictedState.archivedEntries.size() == 1);
@@ -431,7 +431,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -449,7 +449,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -464,7 +464,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -484,7 +484,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -499,7 +499,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -519,7 +519,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
 
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -538,7 +538,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 {
                     REQUIRE_THROWS_AS(
                         app->getInvariantManager().checkOnLedgerCommit(
-                            applySnap, evictedState.archivedEntries,
+                            applyView, evictedState.archivedEntries,
                             evictedState.deletedKeys, emptyMap, emptyMap),
                         InvariantDoesNotHold);
                 }
@@ -546,7 +546,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 {
                     REQUIRE_NOTHROW(
                         app->getInvariantManager().checkOnLedgerCommit(
-                            applySnap, evictedState.archivedEntries,
+                            applyView, evictedState.archivedEntries,
                             evictedState.deletedKeys, emptyMap, emptyMap));
                 }
             }
@@ -557,7 +557,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 evictedState.deletedKeys.push_back(getTTLKey(liveTempEntry));
                 REQUIRE_THROWS_AS(
                     app->getInvariantManager().checkOnLedgerCommit(
-                        applySnap, evictedState.archivedEntries,
+                        applyView, evictedState.archivedEntries,
                         evictedState.deletedKeys, emptyMap, emptyMap),
                     InvariantDoesNotHold);
             }
@@ -567,7 +567,7 @@ TEST_CASE_VERSIONS("State archival eviction invariant", "[invariant][archival]")
                 // Valid eviction should always pass
                 UnorderedMap<LedgerKey, LedgerEntry> emptyMap;
                 REQUIRE_NOTHROW(app->getInvariantManager().checkOnLedgerCommit(
-                    applySnap, evictedState.archivedEntries,
+                    applyView, evictedState.archivedEntries,
                     evictedState.deletedKeys, emptyMap, emptyMap));
             }
         }
@@ -597,7 +597,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
     closeLedger(*app);
 
     auto makeSnap = [&]() {
-        return app->getLedgerManager().copyApplyLedgerStateSnapshot();
+        return app->getLedgerManager().copyApplyLedgerView();
     };
 
     auto noopIsStopping = []() { return false; };

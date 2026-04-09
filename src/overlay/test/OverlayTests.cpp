@@ -3417,7 +3417,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         // Now call checkValid (normal path), which DOES check payload
         // signers. Since the cache was not populated, we should see a miss.
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ls = LedgerSnapshot(ltx);
+        auto ls = CheckValidLedgerViewWrapper(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto result =
             payTx->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics);
@@ -3486,10 +3486,10 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(!isValid);
 
         // Verify it fails with bad auth, not other reasons
-        auto ls = LedgerSnapshot(ltx);
+        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                            diagnostics);
+        auto result = paymentTx->checkValid(app->getAppConnector(), ledgerView,
+                                            0, 0, 0, diagnostics);
         REQUIRE(result->getResultCode() == txBAD_AUTH);
 
         // We expect a single cache miss at this point from the application of

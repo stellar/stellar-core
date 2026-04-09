@@ -69,10 +69,12 @@ class TransactionTestFrame : public TransactionFrameBase
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr checkValid(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset,
         std::optional<uint32_t> validationLedgerSeq = std::nullopt) const;
-    MutableTxResultPtr checkValid(AppConnector& app, LedgerSnapshot const& ls,
+    MutableTxResultPtr checkValid(AppConnector& app,
+                                  CheckValidLedgerViewWrapper const& ledgerView,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset,
@@ -80,8 +82,9 @@ class TransactionTestFrame : public TransactionFrameBase
                                   std::optional<uint32_t> validationLedgerSeq =
                                       std::nullopt) const override;
     MutableTxResultPtr checkValidForOverlay(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+        SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset,
         DiagnosticEventManager& diagnosticEvents,
         std::optional<uint32_t> validationLedgerSeq =
             std::nullopt) const override;
@@ -121,7 +124,8 @@ class TransactionTestFrame : public TransactionFrameBase
                         int32_t neededWeight) const override;
 
     bool checkOperationSignatures(
-        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        SignatureChecker& signatureChecker,
+        CheckValidLedgerViewWrapper const& ledgerView,
         MutableTransactionResultBase* txResult) const override;
 
     bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,

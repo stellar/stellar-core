@@ -174,12 +174,12 @@ namespace stellar
 namespace
 {
 uint32_t
-readMaxSorobanTxSetSize(LedgerSnapshot const& ls)
+readMaxSorobanTxSetSize(CheckValidLedgerViewWrapper const& ledgerView)
 {
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    return ls.load(key)
+    return ledgerView.load(key)
         .current()
         .data.configSetting()
         .contractExecutionLanes()
@@ -211,7 +211,8 @@ Upgrades::UpgradeParameters::toJson() const
 }
 
 std::string
-Upgrades::UpgradeParameters::toDebugJson(LedgerSnapshot const& ls) const
+Upgrades::UpgradeParameters::toDebugJson(
+    CheckValidLedgerViewWrapper const& ledgerView) const
 {
     Json::Value upgradesJson;
     Json::Reader reader;
@@ -225,8 +226,8 @@ Upgrades::UpgradeParameters::toDebugJson(LedgerSnapshot const& ls) const
             upgradesJson["configupgradesetkey"];
         upgradesJson.removeMember("configupgradesetkey");
 
-        auto upgradeSetPtr =
-            ConfigUpgradeSetFrame::makeFromKey(ls, *mConfigUpgradeSetKey);
+        auto upgradeSetPtr = ConfigUpgradeSetFrame::makeFromKey(
+            ledgerView, *mConfigUpgradeSetKey);
         if (upgradeSetPtr)
         {
             Json::Value configUpgradeSetJson;
@@ -277,7 +278,7 @@ Upgrades::getParameters() const
 
 std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
-                            LedgerSnapshot const& ls) const
+                            CheckValidLedgerViewWrapper const& ledgerView) const
 {
     auto result = std::vector<LedgerUpgrade>{};
     if (!timeForUpgrade(lclHeader.scpValue.closeTime))
@@ -319,10 +320,10 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     auto key = mParams.mConfigUpgradeSetKey;
     if (key)
     {
-        auto cfgUpgrade = ConfigUpgradeSetFrame::makeFromKey(ls, *key);
+        auto cfgUpgrade = ConfigUpgradeSetFrame::makeFromKey(ledgerView, *key);
         if (cfgUpgrade != nullptr &&
             cfgUpgrade->isValidForApply() == UpgradeValidity::VALID &&
-            cfgUpgrade->upgradeNeeded(ls))
+            cfgUpgrade->upgradeNeeded(ledgerView))
         {
             result.emplace_back(LEDGER_UPGRADE_CONFIG);
             result.back().newConfig() = cfgUpgrade->getKey();
@@ -332,7 +333,8 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     {
         if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION) &&
-            readMaxSorobanTxSetSize(ls) != *mParams.mMaxSorobanTxSetSize)
+            readMaxSorobanTxSetSize(ledgerView) !=
+                *mParams.mMaxSorobanTxSetSize)
         {
             result.emplace_back(LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE);
             result.back().newMaxSorobanTxSetSize() =
@@ -365,7 +367,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         break;
     case LEDGER_UPGRADE_CONFIG:
     {
-        LedgerSnapshot ltxState(ltx);
+        CheckValidLedgerViewWrapper ltxState(ltx);
         auto cfgUpgrade =
             ConfigUpgradeSetFrame::makeFromKey(ltxState, upgrade.newConfig());
         if (!cfgUpgrade)
@@ -564,7 +566,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 Upgrades::UpgradeValidity
 Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
                           LedgerUpgrade& upgrade, Application& app,
-                          LedgerSnapshot const& ls)
+                          CheckValidLedgerViewWrapper const& ledgerView)
 {
     try
     {
@@ -576,7 +578,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
     }
 
     bool res = true;
-    auto version = ls.getLedgerHeader().current().ledgerVersion;
+    auto version = ledgerView.getLedgerHeader().current().ledgerVersion;
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
@@ -609,7 +611,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
             return UpgradeValidity::INVALID;
         }
         auto cfgUpgrade =
-            ConfigUpgradeSetFrame::makeFromKey(ls, upgrade.newConfig());
+            ConfigUpgradeSetFrame::makeFromKey(ledgerView, upgrade.newConfig());
         if (!cfgUpgrade)
         {
             return UpgradeValidity::INVALID;
@@ -637,10 +639,12 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
 }
 
 bool
-Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
-                               LedgerSnapshot const& ls) const
+Upgrades::isValidForNomination(
+    LedgerUpgrade const& upgrade,
+    CheckValidLedgerViewWrapper const& ledgerView) const
 {
-    if (!timeForUpgrade(ls.getLedgerHeader().current().scpValue.closeTime))
+    if (!timeForUpgrade(
+            ledgerView.getLedgerHeader().current().scpValue.closeTime))
     {
         return false;
     }
@@ -668,10 +672,10 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
         }
 
         auto cfgUpgrade =
-            ConfigUpgradeSetFrame::makeFromKey(ls, upgrade.newConfig());
+            ConfigUpgradeSetFrame::makeFromKey(ledgerView, upgrade.newConfig());
         return cfgUpgrade &&
                cfgUpgrade->isConsistentWith(ConfigUpgradeSetFrame::makeFromKey(
-                   ls, *mParams.mConfigUpgradeSetKey));
+                   ledgerView, *mParams.mConfigUpgradeSetKey));
     }
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
         return mParams.mMaxSorobanTxSetSize &&
@@ -687,13 +691,13 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
                   bool nomination, Application& app) const
 {
     LedgerUpgrade lupgrade;
-    auto ls = LedgerSnapshot(app);
-    bool res =
-        isValidForApply(upgrade, lupgrade, app, ls) == UpgradeValidity::VALID;
+    auto ledgerView = CheckValidLedgerViewWrapper(app);
+    bool res = isValidForApply(upgrade, lupgrade, app, ledgerView) ==
+               UpgradeValidity::VALID;
 
     if (nomination)
     {
-        res = res && isValidForNomination(lupgrade, ls);
+        res = res && isValidForNomination(lupgrade, ledgerView);
     }
 
     if (res)
@@ -1290,19 +1294,21 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
 }
 
 ConfigUpgradeSetFrameConstPtr
-ConfigUpgradeSetFrame::makeFromKey(LedgerSnapshot const& ls,
-                                   ConfigUpgradeSetKey const& key)
+ConfigUpgradeSetFrame::makeFromKey(
+    CheckValidLedgerViewWrapper const& ledgerView,
+    ConfigUpgradeSetKey const& key)
 {
     auto lk = ConfigUpgradeSetFrame::getLedgerKey(key);
-    auto ltxe = ls.load(lk);
+    auto ltxe = ledgerView.load(lk);
     if (!ltxe)
     {
         return nullptr;
     }
 
-    auto ttlLtxe = ls.load(getTTLKey(lk));
+    auto ttlLtxe = ledgerView.load(getTTLKey(lk));
     releaseAssert(ttlLtxe);
-    if (!isLive(ttlLtxe.current(), ls.getLedgerHeader().current().ledgerSeq))
+    if (!isLive(ttlLtxe.current(),
+                ledgerView.getLedgerHeader().current().ledgerSeq))
     {
         return nullptr;
     }
@@ -1326,7 +1332,7 @@ ConfigUpgradeSetFrame::makeFromKey(LedgerSnapshot const& ls,
     }
 
     return std::shared_ptr<ConfigUpgradeSetFrame>(new ConfigUpgradeSetFrame(
-        upgradeSet, key, ls.getLedgerHeader().current().ledgerVersion));
+        upgradeSet, key, ledgerView.getLedgerHeader().current().ledgerVersion));
 }
 
 ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(
@@ -1414,10 +1420,12 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
 }
 
 bool
-ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
+ConfigUpgradeSetFrame::upgradeNeeded(
+    CheckValidLedgerViewWrapper const& ledgerView) const
 {
-    if (protocolVersionIsBefore(ls.getLedgerHeader().current().ledgerVersion,
-                                SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionIsBefore(
+            ledgerView.getLedgerHeader().current().ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
     {
         return false;
     }
@@ -1436,7 +1444,7 @@ ConfigUpgradeSetFrame::upgradeNeeded(LedgerSnapshot const& ls) const
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
         bool isSame =
-            ls.load(key).current().data.configSetting() == updatedEntry;
+            ledgerView.load(key).current().data.configSetting() == updatedEntry;
         if (!isSame)
         {
             return true;
