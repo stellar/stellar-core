@@ -291,6 +291,27 @@ LedgerStateSnapshot::LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
 {
 }
 
+// LedgerStateSnapshot load functions are not thread safe and should only be
+// called by a singled thread. We cached the initial caller PID and assert
+// following calls are from the same thread. Note: This only applies to
+// functions that load from Buckets, ledger header and other const state queries
+// are thread safe.
+void
+LedgerStateSnapshot::threadInvariant() const
+{
+#ifdef BUILD_TESTS
+    auto current = std::this_thread::get_id();
+    if (mThreadId == std::thread::id{})
+    {
+        mThreadId = current;
+    }
+    else
+    {
+        releaseAssert(mThreadId == current);
+    }
+#endif
+}
+
 CompleteConstLedgerState const&
 LedgerStateSnapshot::getState() const
 {
@@ -315,6 +336,7 @@ LedgerStateSnapshot::getLedgerSeq() const
 LedgerEntryWrapper
 LedgerStateSnapshot::getAccount(AccountID const& account) const
 {
+    threadInvariant();
     return LedgerEntryWrapper(loadLiveEntry(accountKey(account)));
 }
 
@@ -322,6 +344,7 @@ LedgerEntryWrapper
 LedgerStateSnapshot::getAccount(LedgerHeaderWrapper const& header,
                                 TransactionFrame const& tx) const
 {
+    threadInvariant();
     return getAccount(tx.getSourceID());
 }
 
@@ -330,12 +353,14 @@ LedgerStateSnapshot::getAccount(LedgerHeaderWrapper const& header,
                                 TransactionFrame const& tx,
                                 AccountID const& AccountID) const
 {
+    threadInvariant();
     return getAccount(AccountID);
 }
 
 LedgerEntryWrapper
 LedgerStateSnapshot::load(LedgerKey const& key) const
 {
+    threadInvariant();
     return LedgerEntryWrapper(loadLiveEntry(key));
 }
 
@@ -353,6 +378,7 @@ LedgerStateSnapshot::executeWithMaybeInnerSnapshot(
 std::shared_ptr<LedgerEntry const>
 LedgerStateSnapshot::loadLiveEntry(LedgerKey const& k) const
 {
+    threadInvariant();
     return mLiveSnapshot.load(k);
 }
 
@@ -361,6 +387,7 @@ LedgerStateSnapshot::loadLiveKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {
+    threadInvariant();
     return mLiveSnapshot.loadKeys(inKeys, label);
 }
 
@@ -368,6 +395,7 @@ std::vector<LedgerEntry>
 LedgerStateSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset) const
 {
+    threadInvariant();
     return mLiveSnapshot.loadPoolShareTrustLinesByAccountAndAsset(accountID,
                                                                   asset);
 }
@@ -376,6 +404,7 @@ std::vector<InflationWinner>
 LedgerStateSnapshot::loadInflationWinners(size_t maxWinners,
                                           int64_t minBalance) const
 {
+    threadInvariant();
     return mLiveSnapshot.loadInflationWinners(maxWinners, minBalance);
 }
 
@@ -387,6 +416,7 @@ LedgerStateSnapshot::scanForEviction(uint32_t ledgerSeq,
                                      StateArchivalSettings const& sas,
                                      uint32_t ledgerVers) const
 {
+    threadInvariant();
     return mLiveSnapshot.scanForEviction(ledgerSeq, metrics, std::move(iter),
                                          std::move(stats), sas, ledgerVers);
 }
@@ -396,6 +426,7 @@ LedgerStateSnapshot::scanLiveEntriesOfType(
     LedgerEntryType type,
     std::function<Loop(BucketEntry const&)> callback) const
 {
+    threadInvariant();
     mLiveSnapshot.scanForEntriesOfType(type, std::move(callback));
 }
 
@@ -404,6 +435,7 @@ LedgerStateSnapshot::scanLiveEntriesOfType(
 std::shared_ptr<HotArchiveBucketEntry const>
 LedgerStateSnapshot::loadArchiveEntry(LedgerKey const& k) const
 {
+    threadInvariant();
     return mHotArchiveSnapshot.load(k);
 }
 
@@ -411,6 +443,7 @@ std::vector<HotArchiveBucketEntry>
 LedgerStateSnapshot::loadArchiveKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
+    threadInvariant();
     return mHotArchiveSnapshot.loadKeys(inKeys);
 }
 
@@ -418,6 +451,7 @@ void
 LedgerStateSnapshot::scanAllArchiveEntries(
     std::function<Loop(HotArchiveBucketEntry const&)> callback) const
 {
+    threadInvariant();
     mHotArchiveSnapshot.scanAllEntries(std::move(callback));
 }
 

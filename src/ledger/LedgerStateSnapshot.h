@@ -10,6 +10,7 @@
 #include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
 #include <functional>
+#include <thread>
 #include <variant>
 
 namespace stellar
@@ -128,6 +129,12 @@ class LedgerStateSnapshot : public virtual AbstractLedgerStateSnapshot
     SearchableLiveBucketListSnapshot mLiveSnapshot;
     SearchableHotArchiveBucketListSnapshot mHotArchiveSnapshot;
     std::reference_wrapper<MetricsRegistry> mMetrics;
+
+#ifdef BUILD_TESTS
+    mutable std::thread::id mThreadId{};
+#endif
+
+    void threadInvariant() const;
 
     friend class CompleteConstLedgerState;
 
