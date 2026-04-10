@@ -161,6 +161,26 @@ CommandHandler::setReady()
 }
 
 void
+CommandHandler::addSnapshot(ImmutableLedgerDataPtr state)
+{
+    if (mQueryServer)
+    {
+        mQueryServer->addSnapshot(std::move(state));
+    }
+}
+
+#ifdef BUILD_TESTS
+void
+CommandHandler::initQueryServerForTesting()
+{
+    releaseAssert(!mQueryServer);
+    mQueryServer = std::make_unique<QueryServer>("127.0.0.1", 0, 1, 1,
+                                                 mApp.getAppConnector(), true);
+    mQueryServer->setReady();
+}
+#endif
+
+void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
 

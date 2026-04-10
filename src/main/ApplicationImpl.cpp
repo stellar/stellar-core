@@ -322,6 +322,12 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 
     enableInvariantsFromConfig();
 
+    // Create CommandHandler before newDB/ledger loading so that
+    // advanceLastClosedLedgerState can push snapshots to the QueryServer.
+    // This is safe because endpoints are blocked until we call setReady() after
+    // ledger loading is complete.
+    mCommandHandler = std::make_unique<CommandHandler>(*this);
+
     if (initNewDB)
     {
         newDB();
@@ -339,9 +345,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // Initialize banned accounts persistence and migrate any deprecated
     // FILTERED_G_ADDRESSES config entries into the persistent table.
     mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
-
-    // After everything is initialized, start accepting HTTP commands
-    mCommandHandler = std::make_unique<CommandHandler>(*this);
 
     LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }

@@ -9,6 +9,7 @@
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "main/QueryServer.h"
 #include "test/TestUtils.h"
@@ -41,10 +42,8 @@ TEST_CASE("getledgerentry", "[queryserver]")
     // Query Server is disabled by default in cfg. Instead of enabling it, we're
     // going to manage a version here manually so we can directly call functions
     // and avoid sending network requests.
-    auto qServer = std::make_unique<QueryServer>("127.0.0.1", 0,
-                                                 1, // maxClient
-                                                 2, // threadPoolSize
-                                                 app->getAppConnector(), true);
+    app->getCommandHandler().initQueryServerForTesting();
+    auto& qServer = app->getCommandHandler().getQueryServer();
 
     std::unordered_map<LedgerKey, LedgerEntry> liveEntryMap;
 
@@ -247,7 +246,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         auto reqBody = buildRequestBody(std::nullopt, keysToSearch);
         std::string retStr;
         std::string empty;
-        REQUIRE(qServer->getLedgerEntry(empty, reqBody, retStr));
+        REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
 
         auto ledgerSeq = lm.getLastClosedLedgerNum();
 
@@ -380,7 +379,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
             auto reqBody = buildRequestBody(newLedger, keysToSearch);
             std::string retStr;
             std::string empty;
-            REQUIRE(qServer->getLedgerEntry(empty, reqBody, retStr));
+            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
 
             Json::Value root;
             Json::Reader reader;
@@ -415,7 +414,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
             auto reqBody = buildRequestBody(oldLedger, keysToSearch);
             std::string retStr;
             std::string empty;
-            REQUIRE(qServer->getLedgerEntry(empty, reqBody, retStr));
+            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
 
             Json::Value root;
             Json::Reader reader;
@@ -453,7 +452,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         std::string retStr;
         std::string empty;
         auto body = "ledgerSeq=10"; // No keys provided
-        REQUIRE(!qServer->getLedgerEntry(empty, body, retStr));
+        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
         REQUIRE(retStr ==
                 "Must specify key in POST body: key=<LedgerKey in base64 "
                 "XDR format>\n");
@@ -467,7 +466,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         auto body = buildRequestBody(std::nullopt, {ttlKey});
         std::string retStr;
         std::string empty;
-        REQUIRE(!qServer->getLedgerEntry(empty, body, retStr));
+        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
         REQUIRE(retStr == "TTL keys are not allowed\n");
     }
 
@@ -478,7 +477,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         auto body = buildRequestBody(currentLedger + 1000, {liveEntry});
         std::string retStr;
         std::string empty;
-        REQUIRE(!qServer->getLedgerEntry(empty, body, retStr));
+        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
         REQUIRE(retStr == "Ledger not found\n");
     }
 
@@ -488,7 +487,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
         auto body = buildRequestBody(std::nullopt, {liveEntry, liveEntry});
         std::string retStr;
         std::string empty;
-        REQUIRE(!qServer->getLedgerEntry(empty, body, retStr));
+        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
         REQUIRE(retStr == "Duplicate keys\n");
     }
 
@@ -517,7 +516,7 @@ TEST_CASE("getledgerentry", "[queryserver]")
             auto reqBody = buildRequestBody(std::nullopt, keyOrder);
             std::string retStr;
             std::string empty;
-            REQUIRE(qServer->getLedgerEntry(empty, reqBody, retStr));
+            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
 
             Json::Value root;
             Json::Reader reader;
