@@ -3199,7 +3199,7 @@ ApplyLoad::generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
         txs.push_back(tx);
     }
 
-    LedgerSnapshot ls(mApp);
+    LedgerReadView ls(mApp);
     auto diag = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {

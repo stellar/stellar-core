@@ -136,7 +136,9 @@ QueryServer::addSnapshot(CompleteConstLedgerStatePtr state)
 LedgerStateSnapshot*
 QueryServer::getSnapshotForLedger(std::optional<uint32_t> ledgerSeq)
 {
-    auto& cache = mPerThreadSnapshots[std::this_thread::get_id()];
+    auto it = mPerThreadSnapshots.find(std::this_thread::get_id());
+    releaseAssert(it != mPerThreadSnapshots.end());
+    auto& cache = it->second;
 
     // If a specific ledger was requested, check thread-local cache first
     if (ledgerSeq)

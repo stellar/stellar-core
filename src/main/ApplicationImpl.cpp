@@ -809,6 +809,17 @@ ApplicationImpl::start()
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
+#ifdef BUILD_TESTS
+    // In tests, newDB() and loadLastKnownLedger() both run in the same
+    // process, causing advanceLastClosedLedgerState to push the same LCL
+    // seq to the QueryServer twice. Clear the QS state so
+    // loadLastKnownLedger starts fresh.
+    if (getConfig().QUERY_SERVER_FOR_TESTING)
+    {
+        mCommandHandler->getQueryServer().resetForTesting();
+    }
+#endif
+
     mLedgerManager->loadLastKnownLedger();
 
     // LCL is now loaded; unblock HTTP endpoints that were gated during boot.

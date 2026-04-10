@@ -29,20 +29,59 @@
 
 using namespace stellar;
 
+namespace
+{
+
+std::string
+buildRequestBody(std::optional<uint32_t> ledgerSeq,
+                 std::vector<LedgerKey> const& keys)
+{
+    std::string body;
+    if (ledgerSeq)
+    {
+        body = "ledgerSeq=" + std::to_string(*ledgerSeq);
+    }
+    for (auto const& key : keys)
+    {
+        body += (body.empty() ? "" : "&") + std::string("key=") +
+                toOpaqueBase64(key);
+    }
+    return body;
+}
+
+// Performs a query and parses the JSON response. Returns true if the query
+// succeeded, populating root with the parsed JSON. On failure, retStr contains
+// the error message.
+bool
+queryAndParse(QueryServer& qServer, std::optional<uint32_t> ledgerSeq,
+              std::vector<LedgerKey> const& keys, Json::Value& root,
+              std::string& retStr)
+{
+    auto reqBody = buildRequestBody(ledgerSeq, keys);
+    std::string empty;
+    retStr.clear();
+    if (!qServer.getLedgerEntry(empty, reqBody, retStr))
+    {
+        return false;
+    }
+
+    Json::Reader reader;
+    REQUIRE(reader.parse(retStr, root));
+    return true;
+}
+
+} // namespace
+
 TEST_CASE("getledgerentry", "[queryserver]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.QUERY_SNAPSHOT_LEDGERS = 5;
+    cfg.QUERY_SERVER_FOR_TESTING = true;
 
     auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
         clock, cfg);
     auto& lm = app->getLedgerManager();
-
-    // Query Server is disabled by default in cfg. Instead of enabling it, we're
-    // going to manage a version here manually so we can directly call functions
-    // and avoid sending network requests.
-    app->getCommandHandler().initQueryServerForTesting();
     auto& qServer = app->getCommandHandler().getQueryServer();
 
     std::unordered_map<LedgerKey, LedgerEntry> liveEntryMap;
@@ -104,24 +143,6 @@ TEST_CASE("getledgerentry", "[queryserver]")
         lm.setNextArchiveBatchForBucketTesting(archivedEntries, {});
         closeLedger(*app);
     }
-
-    // Build HTTP request string body
-    auto buildRequestBody =
-        [](std::optional<uint32_t> ledgerSeq,
-           std::vector<LedgerKey> const& keys) -> std::string {
-        std::string body;
-        if (ledgerSeq)
-        {
-            body = "ledgerSeq=" + std::to_string(*ledgerSeq);
-        }
-
-        for (auto const& key : keys)
-        {
-            body += (body.empty() ? "" : "&") + std::string("key=") +
-                    toOpaqueBase64(key);
-        }
-        return body;
-    };
 
     // Check response for entries that exist from returned JSON string
     auto checkEntry = [](auto const& entries, LedgerEntry const& le,
@@ -243,16 +264,12 @@ TEST_CASE("getledgerentry", "[queryserver]")
             keysToSearch.push_back(key);
         }
 
-        auto reqBody = buildRequestBody(std::nullopt, keysToSearch);
-        std::string retStr;
-        std::string empty;
-        REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
-
         auto ledgerSeq = lm.getLastClosedLedgerNum();
 
         Json::Value root;
-        Json::Reader reader;
-        REQUIRE(reader.parse(retStr, root));
+        std::string retStr;
+        REQUIRE(queryAndParse(qServer, std::nullopt, keysToSearch, root,
+                              retStr));
         REQUIRE(root.isMember("entries"));
         REQUIRE(root.isMember("ledgerSeq"));
         REQUIRE(root["ledgerSeq"].asUInt() == ledgerSeq);
@@ -376,14 +393,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
         SECTION("current values")
         {
-            auto reqBody = buildRequestBody(newLedger, keysToSearch);
-            std::string retStr;
-            std::string empty;
-            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
-
             Json::Value root;
-            Json::Reader reader;
-            REQUIRE(reader.parse(retStr, root));
+            std::string retStr;
+            REQUIRE(
+                queryAndParse(qServer, newLedger, keysToSearch, root, retStr));
             REQUIRE(root.isMember("entries"));
             REQUIRE(root.isMember("ledgerSeq"));
             REQUIRE(root["ledgerSeq"].asUInt() == newLedger);
@@ -411,14 +424,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
         SECTION("snapshot values")
         {
-            auto reqBody = buildRequestBody(oldLedger, keysToSearch);
-            std::string retStr;
-            std::string empty;
-            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
-
             Json::Value root;
-            Json::Reader reader;
-            REQUIRE(reader.parse(retStr, root));
+            std::string retStr;
+            REQUIRE(
+                queryAndParse(qServer, oldLedger, keysToSearch, root, retStr));
             REQUIRE(root.isMember("entries"));
             REQUIRE(root.isMember("ledgerSeq"));
             REQUIRE(root["ledgerSeq"].asUInt() == oldLedger);
@@ -449,10 +458,9 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
     SECTION("empty keys")
     {
+        Json::Value root;
         std::string retStr;
-        std::string empty;
-        auto body = "ledgerSeq=10"; // No keys provided
-        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
+        REQUIRE(!queryAndParse(qServer, 10, {}, root, retStr));
         REQUIRE(retStr ==
                 "Must specify key in POST body: key=<LedgerKey in base64 "
                 "XDR format>\n");
@@ -463,10 +471,9 @@ TEST_CASE("getledgerentry", "[queryserver]")
         LedgerKey ttlKey = LedgerEntryKey(
             LedgerTestUtils::generateValidLedgerEntryOfType(TTL));
 
-        auto body = buildRequestBody(std::nullopt, {ttlKey});
+        Json::Value root;
         std::string retStr;
-        std::string empty;
-        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
+        REQUIRE(!queryAndParse(qServer, std::nullopt, {ttlKey}, root, retStr));
         REQUIRE(retStr == "TTL keys are not allowed\n");
     }
 
@@ -474,20 +481,22 @@ TEST_CASE("getledgerentry", "[queryserver]")
     {
         auto liveEntry = liveEntryMap.begin()->first;
         auto currentLedger = lm.getLastClosedLedgerNum();
-        auto body = buildRequestBody(currentLedger + 1000, {liveEntry});
+
+        Json::Value root;
         std::string retStr;
-        std::string empty;
-        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
+        REQUIRE(!queryAndParse(qServer, currentLedger + 1000, {liveEntry}, root,
+                               retStr));
         REQUIRE(retStr == "Ledger not found\n");
     }
 
     SECTION("duplicate keys")
     {
         auto liveEntry = liveEntryMap.begin()->first;
-        auto body = buildRequestBody(std::nullopt, {liveEntry, liveEntry});
+
+        Json::Value root;
         std::string retStr;
-        std::string empty;
-        REQUIRE(!qServer.getLedgerEntry(empty, body, retStr));
+        REQUIRE(!queryAndParse(qServer, std::nullopt,
+                               {liveEntry, liveEntry}, root, retStr));
         REQUIRE(retStr == "Duplicate keys\n");
     }
 
@@ -513,14 +522,10 @@ TEST_CASE("getledgerentry", "[queryserver]")
 
         auto testKeyOrder = [&](std::vector<LedgerKey> const& keyOrder,
                                 bool liveFirst) {
-            auto reqBody = buildRequestBody(std::nullopt, keyOrder);
-            std::string retStr;
-            std::string empty;
-            REQUIRE(qServer.getLedgerEntry(empty, reqBody, retStr));
-
             Json::Value root;
-            Json::Reader reader;
-            REQUIRE(reader.parse(retStr, root));
+            std::string retStr;
+            REQUIRE(queryAndParse(qServer, std::nullopt, keyOrder, root,
+                                  retStr));
             REQUIRE(root.isMember("entries"));
 
             auto entries = root["entries"];
@@ -553,5 +558,155 @@ TEST_CASE("getledgerentry", "[queryserver]")
         // Test both orderings
         testKeyOrder({liveKey, newKey}, true);
         testKeyOrder({newKey, liveKey}, false);
+    }
+}
+
+TEST_CASE("query server with zero snapshot ledgers", "[queryserver]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.QUERY_SNAPSHOT_LEDGERS = 0;
+    cfg.QUERY_SERVER_FOR_TESTING = true;
+
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+    auto& lm = app->getLedgerManager();
+    auto& qServer = app->getCommandHandler().getQueryServer();
+
+    // Insert some entries and close a few ledgers
+    auto entries = LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+        {ACCOUNT}, 5);
+    std::vector<LedgerKey> keys;
+    for (auto const& le : entries)
+    {
+        keys.push_back(LedgerEntryKey(le));
+    }
+
+    lm.setNextLedgerEntryBatchForBucketTesting(entries, {}, {});
+    closeLedger(*app);
+
+    auto currentLedger = lm.getLastClosedLedgerNum();
+
+    SECTION("current ledger query works")
+    {
+        // Query without specifying ledgerSeq — should return LCL data
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(queryAndParse(qServer, std::nullopt, keys, root, retStr));
+        REQUIRE(root["ledgerSeq"].asUInt() == currentLedger);
+        REQUIRE(root["entries"].size() == keys.size());
+    }
+
+    SECTION("explicit current ledger query works")
+    {
+        // Query with explicit current ledgerSeq
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(queryAndParse(qServer, currentLedger, keys, root, retStr));
+        REQUIRE(root["ledgerSeq"].asUInt() == currentLedger);
+        REQUIRE(root["entries"].size() == keys.size());
+    }
+
+    SECTION("historical query fails")
+    {
+        // Close another ledger so the previous one becomes historical
+        lm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+        closeLedger(*app);
+
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(!queryAndParse(qServer, currentLedger, keys, root, retStr));
+        REQUIRE(retStr == "Ledger not found\n");
+    }
+}
+
+TEST_CASE("query server historical snapshots", "[queryserver]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.QUERY_SNAPSHOT_LEDGERS = 5;
+    cfg.QUERY_SERVER_FOR_TESTING = true;
+
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+    auto& lm = app->getLedgerManager();
+    auto& qServer = app->getCommandHandler().getQueryServer();
+
+    // Create a single account entry that we modify each ledger
+    auto entry = LedgerTestUtils::generateValidLedgerEntryOfType(ACCOUNT);
+    auto key = LedgerEntryKey(entry);
+
+    lm.setNextLedgerEntryBatchForBucketTesting({entry}, {}, {});
+    closeLedger(*app);
+    uint32_t firstLedger = lm.getLastClosedLedgerNum();
+
+    // Close several more ledgers, modifying the entry each time
+    uint32_t const additionalLedgers = 8;
+    for (uint32_t i = 0; i < additionalLedgers; ++i)
+    {
+        entry.lastModifiedLedgerSeq = lm.getLastClosedLedgerNum();
+        lm.setNextLedgerEntryBatchForBucketTesting({}, {entry}, {});
+        closeLedger(*app);
+    }
+
+    uint32_t currentLedger = lm.getLastClosedLedgerNum();
+
+    SECTION("current ledger returns data")
+    {
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(queryAndParse(qServer, currentLedger, {key}, root, retStr));
+        REQUIRE(root["ledgerSeq"].asUInt() == currentLedger);
+        REQUIRE(root["entries"].size() == 1);
+        REQUIRE(root["entries"][0]["state"].asString() == "live");
+    }
+
+    SECTION("recent historical ledgers return data")
+    {
+        // Query each ledger in the historical window
+        for (uint32_t seq = currentLedger - 1;
+             seq >= currentLedger - cfg.QUERY_SNAPSHOT_LEDGERS + 1; --seq)
+        {
+            Json::Value root;
+            std::string retStr;
+            REQUIRE(queryAndParse(qServer, seq, {key}, root, retStr));
+            REQUIRE(root["ledgerSeq"].asUInt() == seq);
+            REQUIRE(root["entries"].size() == 1);
+        }
+    }
+
+    SECTION("ledger outside window returns not found")
+    {
+        // Query a ledger that has been evicted from the window
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(!queryAndParse(qServer, firstLedger, {key}, root, retStr));
+        REQUIRE(retStr == "Ledger not found\n");
+    }
+
+    SECTION("future ledger returns not found")
+    {
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(
+            !queryAndParse(qServer, currentLedger + 100, {key}, root, retStr));
+        REQUIRE(retStr == "Ledger not found\n");
+    }
+
+    SECTION("default query returns latest after advancing")
+    {
+        // Close one more ledger
+        entry.lastModifiedLedgerSeq = lm.getLastClosedLedgerNum();
+        lm.setNextLedgerEntryBatchForBucketTesting({}, {entry}, {});
+        closeLedger(*app);
+
+        uint32_t newLedger = lm.getLastClosedLedgerNum();
+        REQUIRE(newLedger == currentLedger + 1);
+
+        // Query without ledgerSeq should return the new latest
+        Json::Value root;
+        std::string retStr;
+        REQUIRE(queryAndParse(qServer, std::nullopt, {key}, root, retStr));
+        REQUIRE(root["ledgerSeq"].asUInt() == newLedger);
     }
 }
