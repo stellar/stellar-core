@@ -279,8 +279,8 @@ ImmutableLedgerData::createAndMaybeLoadConfig(
         ImmutableLedgerView tempView(tempState, metrics);
         sorobanConfig = SorobanNetworkConfig::loadFromLedger(tempView);
     }
-    return std::make_shared<ImmutableLedgerData>(
-        liveBL, hotArchiveBL, lcl, has, std::move(sorobanConfig));
+    return std::make_shared<ImmutableLedgerData>(liveBL, hotArchiveBL, lcl, has,
+                                                 std::move(sorobanConfig));
 }
 
 ImmutableLedgerView::ImmutableLedgerView(ImmutableLedgerDataPtr state,
