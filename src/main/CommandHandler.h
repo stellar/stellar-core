@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ledger/ImmutableLedgerView.h"
 #include "lib/http/server.hpp"
 #include "main/QueryServer.h"
 #include "util/ProtocolVersion.h"
@@ -52,6 +53,10 @@ class CommandHandler
     // "core is booting" response for every request.
     void setReady();
 
+    // Forward new ledger state to QueryServer (no-op if query server is
+    // not enabled).
+    void addSnapshot(ImmutableLedgerDataPtr state);
+
     std::string manualCmd(std::string const& cmd);
 
     void fileNotFound(std::string const& params, std::string& retStr);
@@ -97,6 +102,17 @@ class CommandHandler
     void testAcc(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);
     void toggleOverlayOnlyMode(std::string const& params, std::string& retStr);
+
+    // Create a QueryServer for direct function-call testing (no network I/O).
+    // Uses the main thread's ID for snapshot lookup.
+    void initQueryServerForTesting();
+
+    QueryServer&
+    getQueryServer()
+    {
+        releaseAssert(mQueryServer);
+        return *mQueryServer;
+    }
 #endif
 };
 }

@@ -157,9 +157,6 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
     std::vector<LedgerEntry>
     loadLiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                  std::string const& label) const;
-    std::optional<std::vector<LedgerEntry>>
-    loadLiveKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                           uint32_t ledgerSeq) const;
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                              Asset const& asset) const;
@@ -178,9 +175,6 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
     loadArchiveEntry(LedgerKey const& k) const;
     std::vector<HotArchiveBucketEntry>
     loadArchiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
-    std::optional<std::vector<HotArchiveBucketEntry>> loadArchiveKeysFromLedger(
-        std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-        uint32_t ledgerSeq) const;
     void scanAllArchiveEntries(
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 };
@@ -204,11 +198,9 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::load;
     using ImmutableLedgerView::loadArchiveEntry;
     using ImmutableLedgerView::loadArchiveKeys;
-    using ImmutableLedgerView::loadArchiveKeysFromLedger;
     using ImmutableLedgerView::loadInflationWinners;
     using ImmutableLedgerView::loadLiveEntry;
     using ImmutableLedgerView::loadLiveKeys;
-    using ImmutableLedgerView::loadLiveKeysFromLedger;
     using ImmutableLedgerView::loadPoolShareTrustLinesByAccountAndAsset;
     using ImmutableLedgerView::scanAllArchiveEntries;
     using ImmutableLedgerView::scanForEviction;
@@ -283,15 +275,8 @@ class ImmutableLedgerData : public NonMovableOrCopyable
     // Raw immutable bucket data for the live and hot archive bucket lists
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> const
         mLiveBucketData;
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>> const
-        mLiveHistoricalSnapshots;
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> const
         mHotArchiveBucketData;
-    std::map<
-        uint32_t,
-        std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>> const
-        mHotArchiveHistoricalSnapshots;
 
     std::optional<SorobanNetworkConfig const> const mSorobanConfig;
     LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
@@ -302,25 +287,21 @@ class ImmutableLedgerData : public NonMovableOrCopyable
     friend class ImmutableLedgerView;
 
   public:
-    // Construct a new ledger state, rotating historical snapshots from
-    // prevState. If prevState is null, history maps will be empty.
+    // Construct a new immutable ledger state snapshot.
     // sorobanConfig is nullopt for pre-Soroban protocol versions, or when
     // building the empty initial state at startup.
     ImmutableLedgerData(LiveBucketList const& liveBL,
                         HotArchiveBucketList const& hotArchiveBL,
                         LedgerHeaderHistoryEntry const& lcl,
                         HistoryArchiveState const& has,
-                        std::optional<SorobanNetworkConfig> sorobanConfig,
-                        ImmutableLedgerDataPtr prevState,
-                        uint32_t numHistoricalSnapshots);
+                        std::optional<SorobanNetworkConfig> sorobanConfig);
 
     // Factory: constructs a ImmutableLedgerData, auto-loading the
     // SorobanNetworkConfig from the bucket list when the protocol requires it.
     static ImmutableLedgerDataPtr createAndMaybeLoadConfig(
         LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
         LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-        MetricsRegistry& metrics, ImmutableLedgerDataPtr prevState,
-        uint32_t numHistoricalSnapshots);
+        MetricsRegistry& metrics);
 
     SorobanNetworkConfig const& getSorobanConfig() const;
     bool hasSorobanConfig() const;

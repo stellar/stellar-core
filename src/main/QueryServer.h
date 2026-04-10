@@ -7,8 +7,11 @@
 #include "lib/httpthreaded/server.hpp"
 
 #include "ledger/ImmutableLedgerView.h"
+#include "util/ThreadAnnotations.h"
 #include <atomic>
 #include <functional>
+#include <map>
+#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -26,11 +29,31 @@ class QueryServer
 
     httpThreaded::server::server mServer;
 
-    std::unordered_map<std::thread::id, ImmutableLedgerView> mLedgerViews;
+    // Per-thread cache of ImmutableLedgerView objects. Each thread owns its
+    // cache exclusively, so no synchronization is needed for access. Entries
+    // are created lazily from mStates and garbage-collected when no longer
+    // present in the shared map.
+    std::unordered_map<std::thread::id, std::map<uint32_t, ImmutableLedgerView>>
+        mPerThreadSnapshots;
 
     AppConnector& mAppConnector;
 
     std::atomic<bool> mIsReady{false};
+
+    // Ledger states for query lookups, containing both the current and recent
+    // historical states. Protected by a shared mutex so that worker threads
+    // can read concurrently while the main thread writes on ledger close.
+    mutable ANNOTATED_SHARED_MUTEX(mMutex);
+    std::map<uint32_t, ImmutableLedgerDataPtr> mStates GUARDED_BY(mMutex);
+    uint32_t const mMaxSnapshots;
+
+    // Returns a cached ImmutableLedgerView for the given ledger seq, or
+    // the latest available snapshot if ledgerSeq is nullopt. The pointer
+    // is into the per-thread cache and remains valid until the next call
+    // to getSnapshotForLedger on the same thread. Returns nullptr if no
+    // snapshot is found.
+    ImmutableLedgerView*
+    getSnapshotForLedger(std::optional<uint32_t> ledgerSeq);
 
     bool safeRouter(HandlerRoute route, std::string const& params,
                     std::string const& body, std::string& retStr);
@@ -64,5 +87,10 @@ class QueryServer
 
     // Called by CommandHandler::setReady() to unblock query endpoints.
     void setReady();
+
+    // Called from main thread when a new ledger state is published. The state
+    // is added to the snapshot map so query workers can serve current and
+    // historical ledger lookups.
+    void addSnapshot(ImmutableLedgerDataPtr state);
 };
 }
