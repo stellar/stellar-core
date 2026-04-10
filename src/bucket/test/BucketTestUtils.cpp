@@ -320,7 +320,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
             auto& bm = mApp.getBucketManager();
             auto tempState = CompleteConstLedgerState::createAndMaybeLoadConfig(
                 bm.getLiveBucketList(), bm.getHotArchiveBucketList(), tempLcl,
-                tempHas, mApp.getMetrics(), nullptr, 0);
+                tempHas, mApp.getMetrics());
             finalSorobanConfig = tempState->getSorobanConfig();
         }
 

@@ -67,6 +67,8 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
                          )
     : mServer(address, port, maxClient, threadPoolSize)
     , mAppConnector(appConnector)
+    // Always keep the LCL snapshot plus any additional historical snapshots.
+    , mMaxSnapshots(appConnector.getConfig().QUERY_SNAPSHOT_LEDGERS + 1)
 {
     LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for Query requests", address,
              port);
@@ -78,8 +80,8 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
 #ifdef BUILD_TESTS
     if (useMainThreadForTesting)
     {
-        mSnapshots.emplace(std::this_thread::get_id(),
-                           mAppConnector.copyLedgerStateSnapshot());
+        // Register the main thread for per-thread snapshot cache
+        mPerThreadSnapshots[std::this_thread::get_id()];
     }
     else
 #endif
@@ -87,7 +89,7 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
         auto workerPids = mServer.start();
         for (auto pid : workerPids)
         {
-            mSnapshots.emplace(pid, mAppConnector.copyLedgerStateSnapshot());
+            mPerThreadSnapshots[pid];
         }
     }
 }
@@ -102,6 +104,94 @@ void
 QueryServer::setReady()
 {
     mIsReady = true;
+}
+
+void
+QueryServer::addSnapshot(CompleteConstLedgerStatePtr state)
+{
+    releaseAssert(state);
+    if (mMaxSnapshots == 0)
+    {
+        return;
+    }
+
+    SharedLockExclusive guard(mMutex);
+    auto seq = state->getLastClosedLedgerHeader().header.ledgerSeq;
+
+    // Make sure we don't have gaps in our snapshots.
+    if (!mStates.empty())
+    {
+        releaseAssert(mStates.rbegin()->first == seq - 1);
+    }
+
+    mStates.emplace(seq, std::move(state));
+
+    // Clean up outdated snapshots
+    while (mStates.size() > mMaxSnapshots)
+    {
+        mStates.erase(mStates.begin());
+    }
+}
+
+LedgerStateSnapshot*
+QueryServer::getSnapshotForLedger(std::optional<uint32_t> ledgerSeq)
+{
+    auto& cache = mPerThreadSnapshots[std::this_thread::get_id()];
+
+    // If a specific ledger was requested, check thread-local cache first
+    if (ledgerSeq)
+    {
+        auto cacheIt = cache.find(*ledgerSeq);
+        if (cacheIt != cache.end())
+        {
+            return &cacheIt->second;
+        }
+    }
+
+    // Look up in the main snapshot map under read lock. If no ledgerSeq
+    // was specified, resolve to the latest available.
+    CompleteConstLedgerStatePtr state;
+    uint32_t oldestValid = 0;
+    {
+        SharedLockShared guard(mMutex);
+        if (mStates.empty())
+        {
+            return nullptr;
+        }
+
+        if (ledgerSeq)
+        {
+            auto it = mStates.find(*ledgerSeq);
+            if (it == mStates.end())
+            {
+                return nullptr;
+            }
+            state = it->second;
+        }
+        else
+        {
+            // Check cache for latest snapshot and return it if found
+            auto latestLedgerSeq = mStates.rbegin()->first;
+            auto cacheIt = cache.find(latestLedgerSeq);
+            if (cacheIt != cache.end())
+            {
+                return &cacheIt->second;
+            }
+
+            state = mStates.rbegin()->second;
+        }
+
+        oldestValid = mStates.begin()->first;
+    }
+
+    // GC outdated snapshots from the local thread cache.
+    cache.erase(cache.begin(), cache.lower_bound(oldestValid));
+
+    // Create a thread local snapshot.
+    auto seq = state->getLastClosedLedgerHeader().header.ledgerSeq;
+    auto [inserted, _] = cache.emplace(
+        seq, LedgerStateSnapshot(state, mAppConnector.getMetrics()));
+    return &inserted->second;
 }
 
 bool
@@ -171,8 +261,13 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
     if (!keys.empty())
     {
-        auto& snapshot = mSnapshots.at(std::this_thread::get_id());
-        mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
+        auto* snapshotPtr = getSnapshotForLedger(snapshotLedger);
+        if (!snapshotPtr)
+        {
+            retStr = "Ledger not found\n";
+            return false;
+        }
+        root["ledgerSeq"] = snapshotPtr->getLedgerSeq();
 
         LedgerKeySet orderedKeys;
         for (auto const& key : keys)
@@ -182,31 +277,7 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
             orderedKeys.emplace(k);
         }
 
-        std::vector<LedgerEntry> loadedKeys;
-
-        // If a snapshot ledger is specified, use it to get the ledger entry
-        if (snapshotLedger)
-        {
-            root["ledgerSeq"] = *snapshotLedger;
-
-            auto loadedKeysOp =
-                snapshot.loadLiveKeysFromLedger(orderedKeys, *snapshotLedger);
-
-            // Return 404 if ledgerSeq not found
-            if (!loadedKeysOp)
-            {
-                retStr = "Ledger not found\n";
-                return false;
-            }
-
-            loadedKeys = std::move(*loadedKeysOp);
-        }
-        // Otherwise default to current ledger
-        else
-        {
-            loadedKeys = snapshot.loadLiveKeys(orderedKeys, "query");
-            root["ledgerSeq"] = snapshot.getLedgerSeq();
-        }
+        auto loadedKeys = snapshotPtr->loadLiveKeys(orderedKeys, "query");
 
         for (auto const& le : loadedKeys)
         {
@@ -253,8 +324,6 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         return false;
     }
 
-    auto& snapshot = mSnapshots.at(std::this_thread::get_id());
-    mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
     LedgerKeySet keysToSearch;
 
     // Keep track of keys in their original order for response ordering
@@ -280,23 +349,19 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         inputOrderedKeys.push_back(k);
     }
 
-    std::vector<LedgerEntry> liveEntries;
-    std::vector<HotArchiveBucketEntry> archivedEntries;
-    uint32_t ledgerSeq =
-        snapshotLedger ? *snapshotLedger : snapshot.getLedgerSeq();
-    root["ledgerSeq"] = ledgerSeq;
-
-    auto liveEntriesOp =
-        snapshot.loadLiveKeysFromLedger(keysToSearch, ledgerSeq);
-
-    // Return 404 if ledgerSeq not found
-    if (!liveEntriesOp)
+    auto* snapshotPtr = getSnapshotForLedger(snapshotLedger);
+    if (!snapshotPtr)
     {
         retStr = "Ledger not found\n";
         return false;
     }
+    uint32_t ledgerSeq = snapshotPtr->getLedgerSeq();
+    root["ledgerSeq"] = ledgerSeq;
 
-    liveEntries = std::move(*liveEntriesOp);
+    std::vector<LedgerEntry> liveEntries;
+    std::vector<HotArchiveBucketEntry> archivedEntries;
+
+    liveEntries = snapshotPtr->loadLiveKeys(keysToSearch, "query");
 
     // Remove keys found in live bucketList from subsequent searches
     for (auto const& le : liveEntries)
@@ -316,14 +381,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     // Only query archive for soroban keys we didn't find in the live bucketList
     if (!hotArchiveKeysToSearch.empty())
     {
-        auto archivedEntriesOp = snapshot.loadArchiveKeysFromLedger(
-            hotArchiveKeysToSearch, ledgerSeq);
-        if (!archivedEntriesOp)
-        {
-            retStr = "Ledger not found\n";
-            return false;
-        }
-        archivedEntries = std::move(*archivedEntriesOp);
+        archivedEntries = snapshotPtr->loadArchiveKeys(hotArchiveKeysToSearch);
     }
 
     // Collect TTL keys for Soroban entries in the live BucketList
@@ -339,10 +397,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::vector<LedgerEntry> ttlEntries;
     if (!ttlKeys.empty())
     {
-        // We haven't updated the live snapshot so we know the have a snapshot
-        // available for ledgerSeq
-        ttlEntries = std::move(
-            snapshot.loadLiveKeysFromLedger(ttlKeys, ledgerSeq).value());
+        ttlEntries = snapshotPtr->loadLiveKeys(ttlKeys, "query");
     }
 
     std::unordered_map<LedgerKey, LedgerEntry> ttlMap;

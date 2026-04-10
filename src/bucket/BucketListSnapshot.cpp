@@ -60,13 +60,8 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
 template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
-    std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
+    std::shared_ptr<BucketListSnapshotData<BucketT> const> data)
     : mData(std::move(data))
-    , mHistoricalSnapshots(std::move(historicalSnapshots))
-    , mLedgerSeq(ledgerSeq)
     , mMetrics(metrics)
     , mBulkLoadMeter(
           metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
@@ -85,8 +80,6 @@ template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     SearchableBucketListSnapshot const& other)
     : mData(other.mData)
-    , mHistoricalSnapshots(other.mHistoricalSnapshots)
-    , mLedgerSeq(other.mLedgerSeq)
     // mStreams intentionally left empty — each copy gets its own stream cache
     , mMetrics(other.mMetrics)
     , mPointTimers(other.mPointTimers)
@@ -103,8 +96,6 @@ SearchableBucketListSnapshot<BucketT>::operator=(
     if (this != &other)
     {
         mData = other.mData;
-        mHistoricalSnapshots = other.mHistoricalSnapshots;
-        mLedgerSeq = other.mLedgerSeq;
         mStreams.clear();
         mMetrics = other.mMetrics;
         mPointTimers = other.mPointTimers;
@@ -346,51 +337,6 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 }
 
 template <class BucketT>
-std::optional<std::vector<typename BucketT::LoadT>>
-SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    std::optional<uint32_t> ledgerSeq) const
-{
-    ZoneScoped;
-    releaseAssert(mData);
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    std::vector<typename BucketT::LoadT> entries;
-
-    auto loadKeysLoop = [&](std::shared_ptr<BucketT const> const& bucket) {
-        loadKeysFromBucket(bucket, keys, entries);
-        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
-    };
-
-    if (!ledgerSeq || *ledgerSeq == mLedgerSeq)
-    {
-        loopAllBuckets(loadKeysLoop, *mData);
-    }
-    else
-    {
-        auto iter = mHistoricalSnapshots.find(*ledgerSeq);
-        if (iter == mHistoricalSnapshots.end())
-        {
-            return std::nullopt;
-        }
-        releaseAssert(iter->second);
-        loopAllBuckets(loadKeysLoop, *iter->second);
-    }
-
-    return entries;
-}
-
-template <class BucketT>
-std::optional<std::vector<typename BucketT::LoadT>>
-SearchableBucketListSnapshot<BucketT>::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    uint32_t ledgerSeq) const
-{
-    return loadKeysInternal(inKeys, ledgerSeq);
-}
-
-template <class BucketT>
 medida::Timer&
 SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     std::string const& label, size_t numEntries) const
@@ -418,27 +364,14 @@ SearchableBucketListSnapshot<BucketT>::getSnapshotData() const
     return mData;
 }
 
-template <class BucketT>
-std::map<uint32_t,
-         std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
-SearchableBucketListSnapshot<BucketT>::getHistoricalSnapshots() const
-{
-    return mHistoricalSnapshots;
-}
-
 //
 // SearchableLiveBucketListSnapshot
 //
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
-    : SearchableBucketListSnapshot<LiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data)
+    : SearchableBucketListSnapshot<LiveBucket>(metrics, std::move(data))
 {
 }
 
@@ -447,10 +380,18 @@ SearchableLiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {
+    ZoneScoped;
+    releaseAssert(mData);
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
-    auto op = loadKeysInternal(inKeys, std::nullopt);
-    releaseAssertOrThrow(op);
-    return std::move(*op);
+
+    auto keys = inKeys;
+    std::vector<LedgerEntry> entries;
+    auto loadKeysLoop = [&](std::shared_ptr<LiveBucket const> const& bucket) {
+        loadKeysFromBucket(bucket, keys, entries);
+        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
+    };
+    loopAllBuckets(loadKeysLoop, *mData);
+    return entries;
 }
 
 // This query has two steps:
@@ -864,13 +805,8 @@ SearchableLiveBucketListSnapshot::scanForEvictionInBucket(
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
-    : SearchableBucketListSnapshot<HotArchiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
+    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data)
+    : SearchableBucketListSnapshot<HotArchiveBucket>(metrics, std::move(data))
 {
 }
 
@@ -878,9 +814,18 @@ std::vector<HotArchiveBucketEntry>
 SearchableHotArchiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
-    auto op = loadKeysInternal(inKeys, std::nullopt);
-    releaseAssertOrThrow(op);
-    return std::move(*op);
+    ZoneScoped;
+    releaseAssert(mData);
+
+    auto keys = inKeys;
+    std::vector<HotArchiveBucketEntry> entries;
+    auto loadKeysLoop =
+        [&](std::shared_ptr<HotArchiveBucket const> const& bucket) {
+            loadKeysFromBucket(bucket, keys, entries);
+            return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
+        };
+    loopAllBuckets(loadKeysLoop, *mData);
+    return entries;
 }
 
 void
