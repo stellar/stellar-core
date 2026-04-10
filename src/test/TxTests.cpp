@@ -711,14 +711,14 @@ loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k, bool mustExist)
 bool
 doesAccountExist(Application& app, PublicKey const& k)
 {
-    LedgerSnapshot lss(app);
+    LedgerReadView lss(app);
     return (bool)lss.getAccount(k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    LedgerSnapshot lss(app);
+    LedgerReadView lss(app);
     auto account = lss.getAccount(k);
     return account.current().data.account().signers;
 }
@@ -2048,8 +2048,8 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
     ltx.create(InternalLedgerEntry(ttl));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
-    LedgerSnapshot lsg(ltx);
-    return ConfigUpgradeSetFrame::makeFromKey(lsg, upgradeKey);
+    LedgerReadView lrv(ltx);
+    return ConfigUpgradeSetFrame::makeFromKey(lrv, upgradeKey);
 }
 
 LedgerUpgrade

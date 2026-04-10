@@ -310,12 +310,18 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         if (protocolVersionStartsFrom(lh.ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION))
         {
-            auto liveData =
-                std::make_shared<BucketListSnapshotData<LiveBucket>>(
-                    mApp.getBucketManager().getLiveBucketList());
-            LedgerSnapshot ls(mApp.getMetrics(), std::move(liveData), lh);
-            finalSorobanConfig =
-                std::make_optional(SorobanNetworkConfig::loadFromLedger(ls));
+            // Tests may inject config upgrades directly into the BucketList, so
+            // we need to construct a temp dummy snapshot to load the injected
+            // config.
+            LedgerHeaderHistoryEntry tempLcl;
+            tempLcl.header = lh;
+            HistoryArchiveState tempHas;
+            tempHas.currentLedger = lh.ledgerSeq;
+            auto& bm = mApp.getBucketManager();
+            auto tempState = CompleteConstLedgerState::createAndMaybeLoadConfig(
+                bm.getLiveBucketList(), bm.getHotArchiveBucketList(), tempLcl,
+                tempHas, mApp.getMetrics());
+            finalSorobanConfig = tempState->getSorobanConfig();
         }
 
         mApplyState.updateInMemorySorobanState(

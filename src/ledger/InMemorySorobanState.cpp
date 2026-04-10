@@ -451,12 +451,11 @@ InMemorySorobanState::initializeStateFromSnapshot(
     releaseAssertOrThrow(mContractCodeEntries.empty());
     releaseAssertOrThrow(mPendingTTLs.empty());
 
-    auto const& lclHeader = snap.getLedgerHeader();
+    auto const& lclHeader = snap.getLedgerHeader().current();
     auto ledgerVersion = lclHeader.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        LedgerSnapshot ls(snap);
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ls);
+        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(snap);
         // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise,
         // check if the entry is shadowed by a DEADENTRY.
         std::unordered_set<LedgerKey> deletedKeys;

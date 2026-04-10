@@ -16,9 +16,7 @@
 
 #include <functional>
 #include <list>
-#include <map>
 #include <memory>
-#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -81,13 +79,6 @@ template <class BucketT> class SearchableBucketListSnapshot
   protected:
     // Shared immutable snapshot data
     std::shared_ptr<BucketListSnapshotData<BucketT> const> mData;
-    std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        mHistoricalSnapshots;
-
-    // Ledger sequence number for this snapshot, used internally to route
-    // queries between current and historical data. Not exposed publicly;
-    // callers should get ledger metadata from CompleteConstLedgerState.
-    uint32_t mLedgerSeq;
 
     // Per-snapshot mutable stream cache
     mutable UnorderedMap<BucketT const*, std::unique_ptr<XDRInputFileStream>>
@@ -133,17 +124,11 @@ template <class BucketT> class SearchableBucketListSnapshot
                             std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                             std::vector<typename BucketT::LoadT>& result) const;
 
-    std::optional<std::vector<typename BucketT::LoadT>>
-    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     std::optional<uint32_t> ledgerSeq) const;
-
     medida::Timer& getBulkLoadTimer(std::string const& label,
                                     size_t numEntries) const;
 
     // Iterate over all buckets in a snapshot in order, calling f on each
     // non-empty bucket. Exits early if function returns Loop::COMPLETE.
-    // The first overload operates on an explicit snapshot (used for historical
-    // queries).
     template <typename Func>
     void loopAllBuckets(Func&& f,
                         BucketListSnapshotData<BucketT> const& snapshot) const;
@@ -151,11 +136,7 @@ template <class BucketT> class SearchableBucketListSnapshot
 
     SearchableBucketListSnapshot(
         MetricsRegistry& metrics,
-        std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
-        std::map<uint32_t,
-                 std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-            historicalSnapshots,
-        uint32_t ledgerSeq);
+        std::shared_ptr<BucketListSnapshotData<BucketT> const> data);
 
   public:
     // Copy: copies all state except mStreams, which is reset to empty.
@@ -171,23 +152,9 @@ template <class BucketT> class SearchableBucketListSnapshot
     std::shared_ptr<typename BucketT::LoadT const>
     load(LedgerKey const& k) const;
 
-    // Loads inKeys from the specified historical snapshot. Returns
-    // load_result_vec if the snapshot for the given ledger is
-    // available, std::nullopt otherwise. Note that ledgerSeq is defined
-    // as the state of the BucketList at the beginning of the ledger. This means
-    // that for ledger N, the maximum lastModifiedLedgerSeq of any LedgerEntry
-    // in the BucketList is N - 1.
-    std::optional<std::vector<typename BucketT::LoadT>>
-    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       uint32_t ledgerSeq) const;
-
     // Access to underlying data (for copying/refreshing)
     std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
     getSnapshotData() const;
-
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
-    getHistoricalSnapshots() const;
 };
 
 // Live bucket list snapshot with additional query methods
@@ -196,11 +163,7 @@ class SearchableLiveBucketListSnapshot
 {
     SearchableLiveBucketListSnapshot(
         MetricsRegistry& metrics,
-        std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
-        std::map<uint32_t,
-                 std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
-            historicalSnapshots,
-        uint32_t ledgerSeq);
+        std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data);
 
     Loop scanForEvictionInBucket(
         std::shared_ptr<LiveBucket const> const& bucket, EvictionIterator& iter,
@@ -234,7 +197,6 @@ class SearchableLiveBucketListSnapshot
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
-    friend class BucketSnapshotState;
     friend class CompleteConstLedgerState;
     friend class LedgerStateSnapshot;
 };
@@ -245,11 +207,7 @@ class SearchableHotArchiveBucketListSnapshot
 {
     SearchableHotArchiveBucketListSnapshot(
         MetricsRegistry& metrics,
-        std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
-        std::map<uint32_t, std::shared_ptr<
-                               BucketListSnapshotData<HotArchiveBucket> const>>
-            historicalSnapshots,
-        uint32_t ledgerSeq);
+        std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data);
 
   public:
     SearchableHotArchiveBucketListSnapshot(

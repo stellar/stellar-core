@@ -33,8 +33,8 @@ TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        LedgerSnapshot lsg(mApp);
-        auto const entry = lsg.load(accountKey(getPublicKey()));
+        LedgerReadView lrv(mApp);
+        auto const entry = lrv.load(accountKey(getPublicKey()));
         if (entry)
         {
             mSn = entry.current().data.account().seqNum;
@@ -45,8 +45,8 @@ TestAccount::updateSequenceNumber()
 uint32_t
 TestAccount::getTrustlineFlags(Asset const& asset) const
 {
-    LedgerSnapshot lsg(mApp);
-    auto const trust = lsg.load(trustlineKey(getPublicKey(), asset));
+    LedgerReadView lrv(mApp);
+    auto const trust = lrv.load(trustlineKey(getPublicKey(), asset));
     REQUIRE(trust);
     return trust.current().data.trustLine().flags;
 }
@@ -63,10 +63,10 @@ TestAccount::getTrustlineBalance(Asset const& asset) const
 int64_t
 TestAccount::getTrustlineBalance(PoolID const& poolID) const
 {
-    LedgerSnapshot lsg(mApp);
+    LedgerReadView lrv(mApp);
     TrustLineAsset asset(ASSET_TYPE_POOL_SHARE);
     asset.liquidityPoolID() = poolID;
-    auto const trustLine = lsg.load(trustlineKey(getPublicKey(), asset));
+    auto const trustLine = lrv.load(trustlineKey(getPublicKey(), asset));
     REQUIRE(trustLine);
     return trustLine.current().data.trustLine().balance;
 }
@@ -74,25 +74,25 @@ TestAccount::getTrustlineBalance(PoolID const& poolID) const
 int64_t
 TestAccount::getBalance() const
 {
-    LedgerSnapshot lsg(mApp);
-    auto const entry = lsg.getAccount(getPublicKey());
+    LedgerReadView lrv(mApp);
+    auto const entry = lrv.getAccount(getPublicKey());
     return entry.current().data.account().balance;
 }
 
 int64_t
 TestAccount::getAvailableBalance() const
 {
-    LedgerSnapshot lsg(mApp);
-    auto const entry = lsg.getAccount(getPublicKey());
-    return stellar::getAvailableBalance(lsg.getLedgerHeader().current(),
+    LedgerReadView lrv(mApp);
+    auto const entry = lrv.getAccount(getPublicKey());
+    return stellar::getAvailableBalance(lrv.getLedgerHeader().current(),
                                         entry.current());
 }
 
 uint32_t
 TestAccount::getNumSubEntries() const
 {
-    LedgerSnapshot lsg(mApp);
-    auto const entry = lsg.getAccount(getPublicKey());
+    LedgerReadView lrv(mApp);
+    auto const entry = lrv.getAccount(getPublicKey());
     return entry.current().data.account().numSubEntries;
 }
 
@@ -146,8 +146,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 
     std::unique_ptr<LedgerEntry> destBefore;
     {
-        LedgerSnapshot lsg(mApp);
-        auto const entry = lsg.getAccount(publicKey);
+        LedgerReadView lrv(mApp);
+        auto const entry = lrv.getAccount(publicKey);
         if (entry)
         {
             destBefore = std::make_unique<LedgerEntry>(entry.current());
@@ -160,8 +160,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        LedgerSnapshot lsg(mApp);
-        auto const destAfter = lsg.getAccount(publicKey);
+        LedgerReadView lrv(mApp);
+        auto const destAfter = lrv.getAccount(publicKey);
         // check that the target account didn't change
         REQUIRE(!!destBefore == !!destAfter);
         if (destBefore && destAfter)
@@ -172,8 +172,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
 
     {
-        LedgerSnapshot lsg(mApp);
-        REQUIRE(lsg.getAccount(publicKey));
+        LedgerReadView lrv(mApp);
+        REQUIRE(lrv.getAccount(publicKey));
     }
     return TestAccount{mApp, secretKey};
 }
@@ -190,10 +190,10 @@ TestAccount::createBatch(std::vector<SecretKey> const& secretKeys,
     }
     applyOpsBatch(ops);
     std::vector<TestAccount> accounts;
-    LedgerSnapshot ls(mApp);
+    LedgerReadView lrv(mApp);
     for (auto const& secretKey : secretKeys)
     {
-        REQUIRE(ls.getAccount(secretKey.getPublicKey()));
+        REQUIRE(lrv.getAccount(secretKey.getPublicKey()));
         accounts.emplace_back(mApp, secretKey);
     }
     return accounts;
@@ -222,9 +222,9 @@ TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
-    LedgerSnapshot lsg(mApp);
-    REQUIRE(lsg.getAccount(into));
-    REQUIRE(!lsg.getAccount(getPublicKey()));
+    LedgerReadView lrv(mApp);
+    REQUIRE(lrv.getAccount(into));
+    REQUIRE(!lrv.getAccount(getPublicKey()));
 }
 
 void
@@ -339,11 +339,11 @@ TestAccount::loadTrustLine(Asset const& asset) const
 TrustLineEntry
 TestAccount::loadTrustLine(TrustLineAsset const& asset) const
 {
-    LedgerSnapshot lsg(mApp);
+    LedgerReadView lrv(mApp);
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return lsg.load(key).current().data.trustLine();
+    return lrv.load(key).current().data.trustLine();
 }
 
 bool
@@ -355,11 +355,11 @@ TestAccount::hasTrustLine(Asset const& asset) const
 bool
 TestAccount::hasTrustLine(TrustLineAsset const& asset) const
 {
-    LedgerSnapshot lsg(mApp);
+    LedgerReadView lrv(mApp);
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return static_cast<bool>(lsg.load(key));
+    return static_cast<bool>(lrv.load(key));
 }
 
 void
@@ -373,8 +373,8 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
-    LedgerTxn ls(mApp.getLedgerTxnRoot());
-    auto data = stellar::loadData(ls, getPublicKey(), name);
+    LedgerTxn lrv(mApp.getLedgerTxnRoot());
+    auto data = stellar::loadData(lrv, getPublicKey(), name);
     if (value)
     {
         REQUIRE(data);
@@ -391,18 +391,18 @@ TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 
-    LedgerSnapshot lsg(mApp);
-    if (protocolVersionStartsFrom(lsg.getLedgerHeader().current().ledgerVersion,
+    LedgerReadView lrv(mApp);
+    if (protocolVersionStartsFrom(lrv.getLedgerHeader().current().ledgerVersion,
                                   ProtocolVersion::V_19))
     {
-        auto const account = lsg.getAccount(getPublicKey());
+        auto const account = lrv.getAccount(getPublicKey());
         REQUIRE(account);
 
         auto const& v3 =
             getAccountEntryExtensionV3(account.current().data.account());
-        REQUIRE(v3.seqLedger == lsg.getLedgerHeader().current().ledgerSeq);
+        REQUIRE(v3.seqLedger == lrv.getLedgerHeader().current().ledgerSeq);
         REQUIRE(v3.seqTime ==
-                lsg.getLedgerHeader().current().scpValue.closeTime);
+                lrv.getLedgerHeader().current().scpValue.closeTime);
     }
 }
 
@@ -502,8 +502,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     std::unique_ptr<LedgerEntry> toAccount;
     {
-        LedgerSnapshot lsg(mApp);
-        auto const toAccountEntry = lsg.getAccount(destination);
+        LedgerReadView lrv(mApp);
+        auto const toAccountEntry = lrv.getAccount(destination);
         toAccount =
             toAccountEntry
                 ? std::make_unique<LedgerEntry>(toAccountEntry.current())
@@ -514,7 +514,7 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         }
         else
         {
-            REQUIRE(lsg.getAccount(getPublicKey()));
+            REQUIRE(lrv.getAccount(getPublicKey()));
         }
     }
 
@@ -526,8 +526,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     }
     catch (...)
     {
-        LedgerSnapshot lsg(mApp);
-        auto const toAccountAfter = lsg.getAccount(destination);
+        LedgerReadView lrv(mApp);
+        auto const toAccountAfter = lrv.getAccount(destination);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter &&
@@ -539,8 +539,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         throw;
     }
 
-    LedgerSnapshot lsg(mApp);
-    auto const toAccountAfter = lsg.getAccount(destination);
+    LedgerReadView lrv(mApp);
+    auto const toAccountAfter = lrv.getAccount(destination);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
 }

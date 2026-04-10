@@ -1052,16 +1052,16 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     auto allTxs = classicTxs;
     allTxs.insert(allTxs.end(), sorobanTxs.begin(), sorobanTxs.end());
     {
-        LedgerSnapshot ls(test.getApp());
+        LedgerReadView lrv(test.getApp());
         auto diag = DiagnosticEventManager::createDisabled();
         for (auto const& tx : allTxs)
         {
-            bool isValid = tx->checkValid(test.getApp().getAppConnector(), ls,
+            bool isValid = tx->checkValid(test.getApp().getAppConnector(), lrv,
                                           0, 0, 0, diag)
                                ->isSuccess();
             if (!isValid)
             {
-                tx->checkValid(test.getApp().getAppConnector(), ls, 0, 0, 0,
+                tx->checkValid(test.getApp().getAppConnector(), lrv, 0, 0, 0,
                                diag);
             }
             REQUIRE(isValid);
@@ -1120,14 +1120,14 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
     std::vector<std::pair<LedgerKey, std::pair<std::optional<LedgerEntry>,
                                                std::optional<LedgerEntry>>>>
         finalEntries;
-    LedgerSnapshot ls(test.getApp());
+    LedgerReadView lrv(test.getApp());
     auto archiveSnap =
         test.getApp().getLedgerManager().copyLedgerStateSnapshot();
     for (auto const& k : allKeys)
     {
         std::optional<LedgerEntry> liveEntry;
         std::optional<LedgerEntry> archivedEntry;
-        if (auto e = ls.load(k))
+        if (auto e = lrv.load(k))
         {
             liveEntry = e.current();
             // All the entries that were in the live state and were
@@ -1154,7 +1154,7 @@ applyTestTransactions(TestConfig const& testConfig, uint32_t protocolVersion,
         {
             LedgerKey ttlKey = getTTLKey(k);
             std::optional<LedgerEntry> liveTtlEntry;
-            if (auto e = ls.load(ttlKey))
+            if (auto e = lrv.load(ttlKey))
             {
                 liveTtlEntry = e.current();
             }

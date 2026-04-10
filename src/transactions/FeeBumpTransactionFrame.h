@@ -34,7 +34,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                         int32_t neededWeight) const override;
 
     bool checkOperationSignatures(
-        SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+        SignatureChecker& signatureChecker, LedgerReadView const& lrv,
         MutableTransactionResultBase* txResult) const override;
 
     bool checkAllTransactionSignatures(SignatureChecker& signatureChecker,
@@ -44,7 +44,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     // If check passes, returns the fee source account. Otherwise returns
     // nullopt.
     std::optional<LedgerEntryWrapper>
-    commonValidPreSeqNum(LedgerSnapshot const& ls,
+    commonValidPreSeqNum(LedgerReadView const& lrv,
                          MutableTransactionResultBase& txResult) const;
 
     enum ValidationType
@@ -56,7 +56,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     };
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, bool applying,
+                               LedgerReadView const& lrv, bool applying,
                                MutableTransactionResultBase& txResult) const;
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
@@ -109,11 +109,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                MutableTransactionResultBase& txResult,
                                TxEventManager& txEventManager) const override;
 
-    MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-               uint64_t upperBoundCloseTimeOffset,
-               DiagnosticEventManager& diagnosticEvents) const override;
+    MutableTxResultPtr checkValid(AppConnector& app, LedgerReadView const& lrv,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset,
+                                  DiagnosticEventManager& diagnosticEvents,
+                                  std::optional<uint32_t> validationLedgerSeq =
+                                      std::nullopt) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;

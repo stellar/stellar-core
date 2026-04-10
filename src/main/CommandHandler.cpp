@@ -80,6 +80,14 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
                 mApp.getAppConnector());
         }
+#ifdef BUILD_TESTS
+        else if (mApp.getConfig().QUERY_SERVER_FOR_TESTING)
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                "127.0.0.1", 0, 1, 1, mApp.getAppConnector(), true);
+            mQueryServer->setReady();
+        }
+#endif
     }
 
     if (!mApp.getConfig().HTTP_PORT)
@@ -159,6 +167,16 @@ CommandHandler::setReady()
         mQueryServer->setReady();
     }
 }
+
+void
+CommandHandler::addSnapshot(CompleteConstLedgerStatePtr state)
+{
+    if (mQueryServer)
+    {
+        mQueryServer->addSnapshot(std::move(state));
+    }
+}
+
 
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
@@ -641,9 +659,9 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            auto ls = LedgerSnapshot(mApp);
+            auto lrv = LedgerReadView(mApp);
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(lrv, key);
 
             if (!ptr ||
                 ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
@@ -810,9 +828,9 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        auto ls = LedgerSnapshot(mApp);
+        auto lrv = LedgerReadView(mApp);
 
-        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(lrv, key);
 
         if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
         {
@@ -1041,12 +1059,12 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "detailed")
         {
-            LedgerSnapshot lsg(mApp);
+            LedgerReadView lrv(mApp);
             xdr::xvector<ConfigSettingEntry> entries;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
                 auto entry =
-                    lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                    lrv.load(configSettingKey(static_cast<ConfigSettingID>(c)));
                 if (!entry)
                 {
                     continue;
@@ -1058,7 +1076,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "upgrade_xdr")
         {
-            LedgerSnapshot lsg(mApp);
+            LedgerReadView lrv(mApp);
 
             ConfigUpgradeSet upgradeSet;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
@@ -1069,7 +1087,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 {
                     continue;
                 }
-                auto entry = lsg.load(configSettingKey(configSettingID));
+                auto entry = lrv.load(configSettingKey(configSettingID));
                 if (!entry)
                 {
                     continue;
@@ -1513,8 +1531,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerSnapshot lsg(mApp);
-        auto acc = lsg.load(accountKey(key.getPublicKey()));
+        LedgerReadView lrv(mApp);
+        auto acc = lrv.load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();
