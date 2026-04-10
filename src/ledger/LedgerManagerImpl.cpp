@@ -2226,15 +2226,20 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
 
-    JITTER_INJECT_DELAY();
-    SharedLockExclusive lock(mLastClosedLedgerStateMutex);
-    JITTER_INJECT_DELAY();
+    ImmutableLedgerDataPtr state;
+    {
+        JITTER_INJECT_DELAY();
+        SharedLockExclusive lock(mLastClosedLedgerStateMutex);
+        JITTER_INJECT_DELAY();
 
-    auto state = buildLedgerState(header, has, /*sorobanConfig=*/std::nullopt);
+        state = buildLedgerState(header, has, /*sorobanConfig=*/std::nullopt);
 
-    mApplyState.setLedgerStateForTesting(state);
+        mApplyState.setLedgerStateForTesting(state);
 
-    mLastClosedLedgerState = state;
+        mLastClosedLedgerState = state;
+    }
+
+    mApp.getCommandHandler().addSnapshot(state);
 }
 #endif
 }
