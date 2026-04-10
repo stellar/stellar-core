@@ -1598,8 +1598,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     }
 
 #ifdef BUILD_TESTS
-    // We always store the ledgerCloseMeta in tests so we can inspect it.
-    if (!ledgerCloseMeta)
+    // We always store the ledgerCloseMeta in tests so we can inspect it,
+    // unless explicitly disabled for benchmarking.
+    if (!ledgerCloseMeta && !mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
     {
         ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
             header.current().ledgerVersion);
@@ -2605,7 +2606,10 @@ LedgerManagerImpl::processResultAndMeta(
     {
         auto metaXDR = txMetaBuilder.finalize(result.isSuccess());
 #ifdef BUILD_TESTS
-        mLastLedgerTxMeta.emplace_back(metaXDR);
+        if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+        {
+            mLastLedgerTxMeta.emplace_back(metaXDR);
+        }
 #endif
 
         ledgerCloseMeta->setTxProcessingMetaAndResultPair(
@@ -2614,8 +2618,11 @@ LedgerManagerImpl::processResultAndMeta(
     else
     {
 #ifdef BUILD_TESTS
-        mLastLedgerTxMeta.emplace_back(
-            txMetaBuilder.finalize(result.isSuccess()));
+        if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+        {
+            mLastLedgerTxMeta.emplace_back(
+                txMetaBuilder.finalize(result.isSuccess()));
+        }
 #endif
     }
 }
@@ -2661,8 +2668,11 @@ LedgerManagerImpl::applyTransactions(
     bool enableTxMeta = ledgerCloseMeta != nullptr;
 #ifdef BUILD_TESTS
     // In tests we want to always enable tx meta because we store it in
-    // mLastLedgerTxMeta.
-    enableTxMeta = true;
+    // mLastLedgerTxMeta, unless explicitly disabled for benchmarking.
+    if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+    {
+        enableTxMeta = true;
+    }
 #endif
     std::optional<SorobanNetworkConfig> sorobanConfig;
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
