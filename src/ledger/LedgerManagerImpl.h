@@ -308,9 +308,6 @@ class LedgerManagerImpl : public LedgerManager
     CompleteConstLedgerStatePtr
         mLastClosedLedgerState GUARDED_BY(mLedgerStateSnapshotMutex);
 
-    // Max number of historical snapshots to maintain.
-    uint32_t const mNumHistoricalSnapshots;
-
     VirtualClock::time_point mLastClose;
 
     // Use mutex to guard ledger state during apply
@@ -465,7 +462,6 @@ class LedgerManagerImpl : public LedgerManager
     // snapshot when the protocol requires it.
     CompleteConstLedgerStatePtr
     buildLedgerState(LedgerHeader const& header, HistoryArchiveState const& has,
-                     CompleteConstLedgerStatePtr prevState,
                      std::optional<SorobanNetworkConfig> sorobanConfig);
 
     // Build a new ledger state and advance ApplyState snapshot to it. This does

@@ -221,62 +221,15 @@ CompleteConstLedgerState::checkInvariant() const
     releaseAssert(mHotArchiveBucketData);
 }
 
-namespace
-{
-// Build the next historical snapshot map by copying the previous map,
-// evicting the oldest entry if at capacity, and inserting the previous
-// state's current snapshot keyed by its ledger sequence number.
-template <class BucketT>
-auto
-rotateHistorical(
-    std::shared_ptr<BucketListSnapshotData<BucketT> const> const& prevData,
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
-        prevHistorical,
-    uint32_t prevLedgerSeq, uint32_t numHistorical)
-{
-    std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        result;
-    if (numHistorical == 0 || !prevData)
-    {
-        return result;
-    }
-    result = prevHistorical;
-    if (result.size() == numHistorical)
-    {
-        result.erase(result.begin());
-    }
-    result.emplace(prevLedgerSeq, prevData);
-    return result;
-}
-} // anonymous namespace
-
 CompleteConstLedgerState::CompleteConstLedgerState(
     LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
     LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-    std::optional<SorobanNetworkConfig> sorobanConfig,
-    CompleteConstLedgerStatePtr prevState, uint32_t numHistorical)
+    std::optional<SorobanNetworkConfig> sorobanConfig)
     : mLiveBucketData(
           std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL))
-    , mLiveHistoricalSnapshots(
-          prevState ? rotateHistorical<LiveBucket>(
-                          prevState->mLiveBucketData,
-                          prevState->mLiveHistoricalSnapshots,
-                          prevState->mLastClosedLedgerHeader.header.ledgerSeq,
-                          numHistorical)
-                    : std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<
-                                             LiveBucket> const>>{})
     , mHotArchiveBucketData(
           std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(
               hotArchiveBL))
-    , mHotArchiveHistoricalSnapshots(
-          prevState ? rotateHistorical<HotArchiveBucket>(
-                          prevState->mHotArchiveBucketData,
-                          prevState->mHotArchiveHistoricalSnapshots,
-                          prevState->mLastClosedLedgerHeader.header.ledgerSeq,
-                          numHistorical)
-                    : std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<
-                                             HotArchiveBucket> const>>{})
     , mSorobanConfig(std::move(sorobanConfig))
     , mLastClosedLedgerHeader(lcl)
     , mLastClosedHistoryArchiveState(has)
@@ -312,35 +265,28 @@ CompleteConstLedgerStatePtr
 CompleteConstLedgerState::createAndMaybeLoadConfig(
     LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
     LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-    MetricsRegistry& metrics, CompleteConstLedgerStatePtr prevState,
-    uint32_t numHistoricalSnapshots)
+    MetricsRegistry& metrics)
 {
     std::optional<SorobanNetworkConfig> sorobanConfig;
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        // Bootstrap: build a lightweight temporary state (no historical
-        // snapshots) just to load config from the current live bucket list.
+        // Bootstrap: build a lightweight temporary state just to load config
+        // from the current live bucket list.
         auto tempState = std::make_shared<CompleteConstLedgerState>(
-            liveBL, hotArchiveBL, lcl, has, /*sorobanConfig*/ std::nullopt,
-            /*prevState*/ nullptr, /*numHistoricalSnapshots*/ 0);
+            liveBL, hotArchiveBL, lcl, has, /*sorobanConfig*/ std::nullopt);
         LedgerStateSnapshot tempSnap(tempState, metrics);
         sorobanConfig = SorobanNetworkConfig::loadFromLedger(tempSnap);
     }
     return std::make_shared<CompleteConstLedgerState>(
-        liveBL, hotArchiveBL, lcl, has, std::move(sorobanConfig),
-        std::move(prevState), numHistoricalSnapshots);
+        liveBL, hotArchiveBL, lcl, has, std::move(sorobanConfig));
 }
 
 LedgerStateSnapshot::LedgerStateSnapshot(CompleteConstLedgerStatePtr state,
                                          MetricsRegistry& metrics)
     : mState(state)
-    , mLiveSnapshot(metrics, state->mLiveBucketData,
-                    state->mLiveHistoricalSnapshots,
-                    state->mLastClosedLedgerHeader.header.ledgerSeq)
-    , mHotArchiveSnapshot(metrics, state->mHotArchiveBucketData,
-                          state->mHotArchiveHistoricalSnapshots,
-                          state->mLastClosedLedgerHeader.header.ledgerSeq)
+    , mLiveSnapshot(metrics, state->mLiveBucketData)
+    , mHotArchiveSnapshot(metrics, state->mHotArchiveBucketData)
     , mMetrics(metrics)
 {
 }
@@ -418,14 +364,6 @@ LedgerStateSnapshot::loadLiveKeys(
     return mLiveSnapshot.loadKeys(inKeys, label);
 }
 
-std::optional<std::vector<LedgerEntry>>
-LedgerStateSnapshot::loadLiveKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    uint32_t ledgerSeq) const
-{
-    return mLiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
-}
-
 std::vector<LedgerEntry>
 LedgerStateSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset) const
@@ -474,14 +412,6 @@ LedgerStateSnapshot::loadArchiveKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     return mHotArchiveSnapshot.loadKeys(inKeys);
-}
-
-std::optional<std::vector<HotArchiveBucketEntry>>
-LedgerStateSnapshot::loadArchiveKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    uint32_t ledgerSeq) const
-{
-    return mHotArchiveSnapshot.loadKeysFromLedger(inKeys, ledgerSeq);
 }
 
 void

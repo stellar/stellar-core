@@ -30,6 +30,7 @@
 #include "ledger/P23HotArchiveBug.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "rust/RustBridge.h"
@@ -338,7 +339,6 @@ LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mApplyState(app)
-    , mNumHistoricalSnapshots(app.getConfig().QUERY_SNAPSHOT_LEDGERS)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -354,8 +354,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 
     auto initialState = std::make_shared<CompleteConstLedgerState>(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), emptyLcl,
-        emptyHas, /*sorobanConfig*/ std::nullopt, /*prevState*/ nullptr,
-        mNumHistoricalSnapshots);
+        emptyHas, /*sorobanConfig*/ std::nullopt);
 
     mApplyState.setLedgerState(initialState);
     {
@@ -2085,24 +2084,30 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
     releaseAssert(threadIsMain());
     releaseAssert(newLedgerState);
 
-    JITTER_INJECT_DELAY();
-    SharedLockExclusive lock(mLedgerStateSnapshotMutex);
-    JITTER_INJECT_DELAY();
-    if (mLastClosedLedgerState)
     {
-        CLOG_DEBUG(
-            Ledger, "Advancing LCL: {} -> {}",
-            ledgerAbbrev(
-                mLastClosedLedgerState->getLastClosedLedgerHeader().header),
-            ledgerAbbrev(newLedgerState->getLastClosedLedgerHeader().header));
+        JITTER_INJECT_DELAY();
+        SharedLockExclusive lock(mLedgerStateSnapshotMutex);
+        JITTER_INJECT_DELAY();
+        if (mLastClosedLedgerState)
+        {
+            CLOG_DEBUG(
+                Ledger, "Advancing LCL: {} -> {}",
+                ledgerAbbrev(
+                    mLastClosedLedgerState->getLastClosedLedgerHeader().header),
+                ledgerAbbrev(
+                    newLedgerState->getLastClosedLedgerHeader().header));
+        }
+        mLastClosedLedgerState = newLedgerState;
     }
-    mLastClosedLedgerState = newLedgerState;
+
+    // Push new state to QueryServer (after releasing
+    // mLedgerStateSnapshotMutex to avoid nested lock acquisition).
+    mApp.getCommandHandler().addSnapshot(newLedgerState);
 }
 
 CompleteConstLedgerStatePtr
 LedgerManagerImpl::buildLedgerState(
     LedgerHeader const& header, HistoryArchiveState const& has,
-    CompleteConstLedgerStatePtr prevState,
     std::optional<SorobanNetworkConfig> sorobanConfig)
 {
     mApplyState.threadInvariant();
@@ -2117,14 +2122,13 @@ LedgerManagerImpl::buildLedgerState(
         // Caller already loaded config (e.g. from LTX during ledger close)
         return std::make_shared<CompleteConstLedgerState>(
             bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-            std::move(sorobanConfig), std::move(prevState),
-            mNumHistoricalSnapshots);
+            std::move(sorobanConfig));
     }
 
     // Auto-load SorobanNetworkConfig from the BucketList
     return CompleteConstLedgerState::createAndMaybeLoadConfig(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-        mApp.getMetrics(), std::move(prevState), mNumHistoricalSnapshots);
+        mApp.getMetrics());
 }
 
 CompleteConstLedgerStatePtr
@@ -2132,8 +2136,7 @@ LedgerManagerImpl::advanceApplySnapshotAndMakeLedgerState(
     LedgerHeader const& header, HistoryArchiveState const& has,
     std::optional<SorobanNetworkConfig> sorobanConfig)
 {
-    auto state = buildLedgerState(header, has, mApplyState.getLedgerState(),
-                                  std::move(sorobanConfig));
+    auto state = buildLedgerState(header, has, std::move(sorobanConfig));
     mApplyState.setLedgerState(state);
     return state;
 }
@@ -2211,8 +2214,7 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     SharedLockExclusive lock(mLedgerStateSnapshotMutex);
     JITTER_INJECT_DELAY();
 
-    auto state =
-        buildLedgerState(header, has, mLastClosedLedgerState, std::nullopt);
+    auto state = buildLedgerState(header, has, /*sorobanConfig=*/std::nullopt);
 
     mApplyState.setLedgerStateForTesting(state);
 
