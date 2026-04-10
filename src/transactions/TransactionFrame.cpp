@@ -1898,25 +1898,19 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
-    SorobanNetworkConfig const* sorobanConfig = nullptr;
-    if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION) &&
-        isSoroban())
-    {
-        sorobanConfig =
-            &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
-    }
     checkValidWithOptionallyChargedFee(app, ls, current, chargeFee,
                                        lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset, txResult,
-                                       diagnosticEvents, sorobanConfig);
+                                       upperBoundCloseTimeOffset,
+                                       envelopeContentsHash, txResult,
+                                       diagnosticEvents, nullptr);
 }
 
 void
 TransactionFrame::checkValidWithOptionallyChargedFee(
     AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset, MutableTransactionResultBase& txResult,
+    uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
+    MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents,
     SorobanNetworkConfig const* sorobanConfig) const
 {
@@ -1928,21 +1922,25 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         getSignatures(mEnvelope)};
 
     std::optional<FeePair> sorobanResourceFee;
-    SorobanNetworkConfig const* sorobanConfig = nullptr;
+    auto effectiveSorobanConfig = sorobanConfig;
     auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
     // Load sorobanConfig for all transactions at protocol >= V20.
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        sorobanConfig =
-            &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        if (!effectiveSorobanConfig)
+        {
+            effectiveSorobanConfig =
+                &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        }
         if (isSoroban())
         {
-        sorobanResourceFee = computePreApplySorobanResourceFee(
-                ledgerVersion, *sorobanConfig, app.getConfig());
+            sorobanResourceFee = computePreApplySorobanResourceFee(
+                ledgerVersion, *effectiveSorobanConfig, app.getConfig());
         }
     }
-    if (commonValid(app, sorobanConfig, signatureChecker, ls, current, false,
-                    chargeFee, lowerBoundCloseTimeOffset,
+    if (commonValid(app, effectiveSorobanConfig, signatureChecker, ls,
+                    current, false, chargeFee,
+                    lowerBoundCloseTimeOffset,
                     upperBoundCloseTimeOffset, envelopeContentsHash,
                     sorobanResourceFee, txResult,
                     diagnosticEvents) != ValidationType::kMaybeValid)
@@ -1955,8 +1953,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         auto const& op = mOperations[i];
         auto& opResult = txResult.getOpResultAt(i);
 
-        if (!op->checkValid(app, signatureChecker, sorobanConfig, ls, false,
-                            opResult, diagnosticEvents))
+        if (!op->checkValid(app, signatureChecker, effectiveSorobanConfig, ls,
+                            false, opResult, diagnosticEvents))
         {
             // it's OK to just fast fail here and not try to call
             // checkValid on all operations as the resulting object
@@ -1978,6 +1976,18 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset,
                              DiagnosticEventManager& diagnosticEvents) const
+{
+    return checkValid(app, ls, current, lowerBoundCloseTimeOffset,
+                      upperBoundCloseTimeOffset, diagnosticEvents, nullptr);
+}
+
+MutableTxResultPtr
+TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                             SequenceNumber current,
+                             uint64_t lowerBoundCloseTimeOffset,
+                             uint64_t upperBoundCloseTimeOffset,
+                             DiagnosticEventManager& diagnosticEvents,
+                             SorobanNetworkConfig const* sorobanConfig) const
 {
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
@@ -2010,7 +2020,7 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     checkValidWithOptionallyChargedFee(
         app, ls, current, true, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents);
+        diagnosticEvents, sorobanConfig);
     return txResult;
 }
 

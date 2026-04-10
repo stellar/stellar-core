@@ -362,7 +362,8 @@ FeeBumpTransactionFrame::checkValid(
 
     mInnerTx->checkValidWithOptionallyChargedFee(
         app, ls, current, false, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset, *txResult, diagnosticEvents, sorobanConfig);
+        upperBoundCloseTimeOffset, getContentsHash(), *txResult,
+        diagnosticEvents, sorobanConfig);
 
     return txResult;
 }

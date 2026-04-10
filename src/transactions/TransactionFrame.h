@@ -249,6 +249,7 @@ class TransactionFrame : public TransactionFrameBase
         AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset,
+        Hash const& envelopeContentsHash,
         MutableTransactionResultBase& result,
         DiagnosticEventManager& diagnosticEvents,
         SorobanNetworkConfig const* sorobanConfig) const;
@@ -257,6 +258,12 @@ class TransactionFrame : public TransactionFrameBase
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset,
                DiagnosticEventManager& diagnosticEvents) const override;
+    MutableTxResultPtr
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset,
+               DiagnosticEventManager& diagnosticEvents,
+               SorobanNetworkConfig const* sorobanConfig) const override;
     bool checkSorobanResources(
         SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
         DiagnosticEventManager& diagnosticEvents) const override;
