@@ -65,7 +65,35 @@ class QueryServer
 
 #ifdef BUILD_TESTS
   public:
+    // Register the calling thread for per-thread snapshot caching. Must be
+    // called before any query methods are called from that thread.
+    void
+    registerThread()
+    {
+        SharedLockExclusive guard(mMutex);
+        mPerThreadSnapshots[std::this_thread::get_id()];
+    }
+
+    LedgerStateSnapshot*
+    getSnapshotForLedgerForTesting(std::optional<uint32_t> ledgerSeq)
+    {
+        return getSnapshotForLedger(ledgerSeq);
+    }
+
+    // Clear all snapshot state. Used between newDB() and start() in tests
+    // to avoid the duplicate-seq assertion when both paths push the same LCL.
+    void
+    resetForTesting()
+    {
+        SharedLockExclusive guard(mMutex);
+        mStates.clear();
+        for (auto& [tid, cache] : mPerThreadSnapshots)
+        {
+            cache.clear();
+        }
+    }
 #endif
+
     // Returns raw LedgerKeys for the given keys from the Live BucketList. Does
     // not query other BucketLists or reason about archival.
     bool getLedgerEntryRaw(std::string const& params, std::string const& body,

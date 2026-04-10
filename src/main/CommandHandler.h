@@ -103,10 +103,6 @@ class CommandHandler
     void testTx(std::string const& params, std::string& retStr);
     void toggleOverlayOnlyMode(std::string const& params, std::string& retStr);
 
-    // Create a QueryServer for direct function-call testing (no network I/O).
-    // Uses the main thread's ID for snapshot lookup.
-    void initQueryServerForTesting();
-
     QueryServer&
     getQueryServer()
     {

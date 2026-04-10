@@ -80,6 +80,14 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
                 mApp.getAppConnector());
         }
+#ifdef BUILD_TESTS
+        else if (mApp.getConfig().QUERY_SERVER_FOR_TESTING)
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                "127.0.0.1", 0, 1, 1, mApp.getAppConnector(), true);
+            mQueryServer->setReady();
+        }
+#endif
     }
 
     if (!mApp.getConfig().HTTP_PORT)
@@ -168,17 +176,6 @@ CommandHandler::addSnapshot(CompleteConstLedgerStatePtr state)
         mQueryServer->addSnapshot(std::move(state));
     }
 }
-
-#ifdef BUILD_TESTS
-void
-CommandHandler::initQueryServerForTesting()
-{
-    releaseAssert(!mQueryServer);
-    mQueryServer = std::make_unique<QueryServer>("127.0.0.1", 0, 1, 1,
-                                                 mApp.getAppConnector(), true);
-    mQueryServer->setReady();
-}
-#endif
 
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
