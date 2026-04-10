@@ -1510,11 +1510,11 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
 
             // Since a1 has a trustline, and there is only 1 trustline, we know
             // that gateway has no trustlines.
-            LedgerSnapshot lsg(*app);
+            LedgerReadView lrv(*app);
             LedgerKey trustKey(TRUSTLINE);
             trustKey.trustLine().accountID = gateway.getPublicKey();
             trustKey.trustLine().asset = assetToTrustLineAsset(idr);
-            REQUIRE(!lsg.load(trustKey));
+            REQUIRE(!lrv.load(trustKey));
         });
     }
     SECTION("authorize flag")

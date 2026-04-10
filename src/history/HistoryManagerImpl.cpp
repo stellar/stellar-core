@@ -8,8 +8,6 @@
 #include "util/asio.h"
 
 #include "bucket/BucketManager.h"
-#include "bucket/LiveBucket.h"
-#include "bucket/LiveBucketList.h"
 #include "herder/HerderImpl.h"
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
@@ -24,7 +22,7 @@
 #include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
@@ -285,9 +283,10 @@ HistoryManager::getMaxLedgerQueuedToPublish(Config const& cfg)
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
-                                                uint32_t ledgerVers)
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(
+    CompleteConstLedgerStatePtr ledgerState)
 {
+    auto lcl = ledgerState->getLastClosedLedgerHeader().header.ledgerSeq;
     if (!publishCheckpointOnLedgerClose(lcl, mApp.getConfig()))
     {
         return false;
@@ -308,36 +307,19 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint(uint32_t lcl,
         return false;
     }
 
-    queueCurrentHistory(lcl, ledgerVers);
+    queueCurrentHistory(std::move(ledgerState));
     return true;
 }
 
 void
-HistoryManagerImpl::queueCurrentHistory(uint32_t ledger, uint32_t ledgerVers)
+HistoryManagerImpl::queueCurrentHistory(CompleteConstLedgerStatePtr ledgerState)
 {
     ZoneScoped;
 
-    // Only one thread can modify the bucketlist, access BL from the _same_
-    // thread
-    LiveBucketList bl = mApp.getBucketManager().getLiveBucketList();
-
-    HistoryArchiveState has;
-    if (protocolVersionStartsFrom(
-            ledgerVers,
-            LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-    {
-        auto hotBl = mApp.getBucketManager().getHotArchiveBucketList();
-        has = HistoryArchiveState(ledger, bl, hotBl,
-                                  mApp.getConfig().NETWORK_PASSPHRASE);
-    }
-    else
-    {
-        has = HistoryArchiveState(ledger, bl,
-                                  mApp.getConfig().NETWORK_PASSPHRASE);
-    }
-
-    CLOG_INFO(History, "Queueing publish state for ledger {}", ledger);
-    mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
+    auto const& has = ledgerState->getLastClosedHistoryArchiveState();
+    CLOG_INFO(History, "Queueing publish state for ledger {}",
+              has.currentLedger);
+    mEnqueueTimes.emplace(has.currentLedger, std::chrono::steady_clock::now());
 
     // We queue history inside ledger commit, so do not finalize the file yet
     writeCheckpointFile(mApp, has, /* finalize */ false);

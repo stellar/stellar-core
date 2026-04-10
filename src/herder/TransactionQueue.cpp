@@ -439,7 +439,7 @@ TransactionQueue::canAdd(
         }
     }
 
-    LedgerSnapshot ls(mApp);
+    LedgerReadView lrv(mApp);
     // Subtle: transactions are rejected based on the source account limit
     // prior to this point. This is safe because we can't evict transactions
     // from the same source account, so a newer transaction won't replace an
@@ -464,11 +464,12 @@ TransactionQueue::canAdd(
     auto closeTime = mApp.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.scpValue.closeTime;
+    // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
+    // which is what will be used at apply time.
+    std::optional<uint32_t> validationLedgerSeq;
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19))
     {
-        // This is done so minSeqLedgerGap is validated against the next
-        // ledgerSeq, which is what will be used at apply time
-        ls.getLedgerHeader().currentToModify().ledgerSeq =
+        validationLedgerSeq =
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
@@ -478,9 +479,10 @@ TransactionQueue::canAdd(
     if (!isLoadgenTx)
 #endif
     {
-        auto validationResult = tx->checkValid(
-            mApp.getAppConnector(), ls, 0, 0,
-            getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents);
+        auto validationResult =
+            tx->checkValid(mApp.getAppConnector(), lrv, 0, 0,
+                           getUpperBoundCloseTimeOffset(mApp, closeTime),
+                           diagnosticEvents, validationLedgerSeq);
         if (!validationResult->isSuccess())
         {
             return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
@@ -497,12 +499,12 @@ TransactionQueue::canAdd(
     if (!isLoadgenTx && !mApp.getRunInOverlayOnlyMode())
 #endif
     {
-        auto const feeSource = ls.getAccount(tx->getFeeSourceID());
+        auto const feeSource = lrv.getAccount(tx->getFeeSourceID());
         auto feeStateIter = mAccountStates.find(tx->getFeeSourceID());
         int64_t totalFees = feeStateIter == mAccountStates.end()
                                 ? 0
                                 : feeStateIter->second.mTotalFees;
-        if (getAvailableBalance(ls.getLedgerHeader().current(),
+        if (getAvailableBalance(lrv.getLedgerHeader().current(),
                                 feeSource.current()) -
                 newFullFee <
             totalFees)

@@ -97,14 +97,14 @@ class OperationFrame
     // to `nullptr` if they do not directly need the result of signature
     // validation (such as in the case of background signature validation).
     bool checkSignature(SignatureChecker& signatureChecker,
-                        LedgerSnapshot const& ls, OperationResult* res,
+                        LedgerReadView const& lrv, OperationResult* res,
                         bool forApply) const;
 
     AccountID getSourceID() const;
     MuxedAccount getSourceAccount() const;
 
     bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
-                    SorobanNetworkConfig const* cfg, LedgerSnapshot const& ls,
+                    SorobanNetworkConfig const* cfg, LedgerReadView const& lrv,
                     bool forApply, OperationResult& res,
                     DiagnosticEventManager& diagnosticEvents) const;
 
