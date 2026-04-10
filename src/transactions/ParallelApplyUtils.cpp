@@ -412,7 +412,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             }
             else
             {
-                originallyExisted = mLiveSnapshot->load(key) != nullptr;
+                originallyExisted = mLCLSnapshot.loadLiveEntry(key) != nullptr;
             }
         }
 
@@ -431,12 +431,12 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
         {
             if (originallyExisted)
             {
-            auto ltxe = ltxInner.load(key);
-            if (ltxe)
-            {
-                ltxInner.erase(key);
+                auto ltxe = ltxInner.load(key);
+                if (ltxe)
+                {
+                    ltxInner.erase(key);
+                }
             }
-        }
     }
     }
 
