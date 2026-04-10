@@ -1534,7 +1534,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      }
                  }},
                 {"DATABASE",
-                 [&]() { DATABASE = SecretValue{readString(item)}; }},
+                 [&]() {
+                     auto raw = readString(item);
+                     usedExternalSecrets = usedExternalSecrets ||
+                                           secretmanager::isExternalSecret(raw);
+                     DATABASE = SecretValue{secretmanager::resolve(raw)};
+                 }},
                 {"NETWORK_PASSPHRASE",
                  [&]() { NETWORK_PASSPHRASE = readString(item); }},
                 {"INVARIANT_CHECKS",

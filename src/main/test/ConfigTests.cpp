@@ -793,7 +793,7 @@ TEST_CASE("secret resolution", "[config]")
         }
         stdfs::permissions(tmpPath, stdfs::perms::owner_read |
                                         stdfs::perms::owner_write);
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED="$FILE:)" + tmpPath +
                                 R"("
@@ -811,7 +811,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
 
     SECTION("backward compatibility - inline NODE_SEED")
     {
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED=")" + testSeed + R"( self"
 UNSAFE_QUORUM=true
@@ -834,7 +834,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
         }
         stdfs::permissions(tmpPath, stdfs::perms::owner_read |
                                         stdfs::perms::owner_write);
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED="$FILE:)" + tmpPath +
                                 R"("
@@ -849,5 +849,52 @@ VALIDATORS=[")" + otherKey + R"( A"]
         REQUIRE_THROWS_WITH(c.load(ss),
                             Catch::Contains("not supported on the public"));
         std::remove(tmpPath.c_str());
+    }
+
+    SECTION("DATABASE from file in config")
+    {
+        std::string tmpPath = "/tmp/stellar_test_db_conn";
+        std::string dbConn =
+            "postgresql://dbname=stellar user=stellar password=secret "
+            "host=127.0.0.1";
+        {
+            std::ofstream ofs(tmpPath);
+            ofs << dbConn << "\n";
+        }
+        stdfs::permissions(tmpPath, stdfs::perms::owner_read |
+                                        stdfs::perms::owner_write);
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
+        std::string configStr = R"(
+DATABASE="$FILE:)" + tmpPath +
+                                R"("
+NODE_SEED=")" + testSeed +
+                                R"( self"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        c.load(ss);
+        REQUIRE(c.DATABASE.value == dbConn);
+        std::remove(tmpPath.c_str());
+    }
+
+    SECTION("backward compatibility - inline DATABASE")
+    {
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
+        std::string configStr = R"(
+DATABASE="sqlite3://test.db"
+NODE_SEED=")" + testSeed + R"( self"
+UNSAFE_QUORUM=true
+[QUORUM_SET]
+THRESHOLD_PERCENT=100
+VALIDATORS=[")" + otherKey + R"( A"]
+)";
+        Config c;
+        std::stringstream ss(configStr);
+        c.load(ss);
+        REQUIRE(c.DATABASE.value == "sqlite3://test.db");
     }
 }
