@@ -301,17 +301,51 @@ class TransactionFrame : public TransactionFrameBase
                    SorobanNetworkConfig const* sorobanConfig,
                    Hash const& envelopeContentsHash) const;
 
+    std::unique_ptr<SignatureChecker> commonParallelPreApplyReadOnly(
+        bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const* sorobanConfig,
+        Hash const& envelopeContentsHash,
+        ParallelPreApplyInfo& info) const;
+
+    bool processSignaturesReadOnly(ValidationType cv,
+                                   SignatureChecker& signatureChecker,
+                                   LedgerSnapshot const& ls,
+                                   MutableTransactionResultBase& txResult,
+                                   ParallelPreApplyInfo& info) const;
+
     void preParallelApply(bool chargeFee, AppConnector& app,
                           AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
                           MutableTransactionResultBase& txResult,
                           SorobanNetworkConfig const& sorobanConfig,
                           Hash const& envelopeContentsHash) const;
 
+    void preParallelApplyReadOnly(bool chargeFee, AppConnector& app,
+                                  LedgerSnapshot const& ls,
+                                  TransactionMetaBuilder& meta,
+                                  MutableTransactionResultBase& txResult,
+                                  SorobanNetworkConfig const& sorobanConfig,
+                                  Hash const& envelopeContentsHash,
+                                  ParallelPreApplyInfo& info) const;
+
     void
     preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult,
                      SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void
+    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+                             TransactionMetaBuilder& meta,
+                             MutableTransactionResultBase& txResult,
+                             SorobanNetworkConfig const& sorobanConfig,
+                             ParallelPreApplyInfo& info) const override;
+
+    void
+    preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          ParallelPreApplyInfo const& info) const override;
 
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,

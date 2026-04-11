@@ -228,6 +228,17 @@ class GlobalParallelApplyLedgerState
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages);
 
+    void readOnlyPreParallelApply(
+        AppConnector& app,
+        std::vector<TxBundle const*> const& txBundles);
+
+    void commitBufferedPreParallelApplyWrites(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        std::vector<TxBundle const*> const& txBundles);
+
+    void collectModifiedClassicEntries(AbstractLedgerTxn& ltx,
+                                       std::vector<ApplyStage> const& stages);
+
     bool
     maybeMergeRoTTLBumps(LedgerKey const& key,
                          GlobalParallelApplyEntry const& newEntry,

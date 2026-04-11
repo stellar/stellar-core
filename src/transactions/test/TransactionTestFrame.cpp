@@ -377,6 +377,26 @@ TransactionTestFrame::preParallelApply(
                                         sorobanConfig);
 }
 
+void
+TransactionTestFrame::preParallelApplyReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& resPayload,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
+    mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
+                                                sorobanConfig, info);
+}
+
+void
+TransactionTestFrame::preParallelApplyWrite(AppConnector& app,
+                                            AbstractLedgerTxn& ltx,
+                                            TransactionMetaBuilder& meta,
+                                            ParallelPreApplyInfo const& info) const
+{
+    mTransactionFrame->preParallelApplyWrite(app, ltx, meta, info);
+}
+
 std::optional<ParallelTxSuccessVal>
 TransactionTestFrame::parallelApply(
     AppConnector& app, ThreadParallelApplyLedgerState const& threadState,

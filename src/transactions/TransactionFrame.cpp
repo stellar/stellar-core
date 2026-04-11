@@ -2144,6 +2144,112 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
     }
 }
 
+std::unique_ptr<SignatureChecker>
+TransactionFrame::commonParallelPreApplyReadOnly(
+    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const* sorobanConfig,
+    Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
+{
+    mCachedAccountPreProtocol8.reset();
+    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    std::unique_ptr<SignatureChecker> signatureChecker;
+#ifdef BUILD_TESTS
+    if (txResult.hasReplayTransactionResult())
+    {
+        signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+    }
+    else
+    {
+#endif // BUILD_TESTS
+        signatureChecker = std::make_unique<SignatureChecker>(
+            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+#ifdef BUILD_TESTS
+    }
+#endif // BUILD_TESTS
+
+    std::optional<FeePair> sorobanResourceFee;
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
+    {
+        sorobanResourceFee = computePreApplySorobanResourceFee(
+            ledgerVersion, *sorobanConfig, app.getConfig());
+
+        meta.setNonRefundableResourceFee(
+            sorobanResourceFee->non_refundable_fee);
+        int64_t initialFeeRefund = declaredSorobanResourceFee() -
+                                   sorobanResourceFee->non_refundable_fee;
+        txResult.initializeRefundableFeeTracker(initialFeeRefund);
+    }
+
+    auto cv = commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
+                          chargeFee, 0, 0, envelopeContentsHash,
+                          sorobanResourceFee, txResult,
+                          meta.getDiagnosticEventManager());
+    info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
+
+    bool signaturesValid =
+        processSignaturesReadOnly(cv, *signatureChecker, ls, txResult, info);
+
+    if (signaturesValid && cv == ValidationType::kMaybeValid)
+    {
+        return signatureChecker;
+    }
+    return nullptr;
+}
+
+bool
+TransactionFrame::processSignaturesReadOnly(ValidationType cv,
+                                            SignatureChecker& signatureChecker,
+                                            LedgerSnapshot const& ls,
+                                            MutableTransactionResultBase& txResult,
+                                            ParallelPreApplyInfo& info) const
+{
+    ZoneScoped;
+    bool maybeValid = (cv == ValidationType::kMaybeValid);
+    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
+    {
+        return maybeValid;
+    }
+
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13) &&
+        !maybeValid)
+    {
+        info.mRemoveOneTimeSigners = true;
+        return false;
+    }
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
+        cv < ValidationType::kInvalidPostAuth)
+    {
+        return false;
+    }
+
+    bool allOpsValid = true;
+    if (auto code = txResult.getInnermostResultCode();
+        code == txSUCCESS || code == txFAILED)
+    {
+        allOpsValid = checkOperationSignatures(signatureChecker, ls, &txResult);
+    }
+
+    info.mRemoveOneTimeSigners = true;
+
+    if (!allOpsValid)
+    {
+        txResult.setInnermostError(txFAILED);
+        return false;
+    }
+
+    if (!signatureChecker.checkAllSignaturesUsed())
+    {
+        txResult.setInnermostError(txBAD_AUTH_EXTRA);
+        return false;
+    }
+
+    return maybeValid;
+}
+
 void
 TransactionFrame::preParallelApply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
@@ -2152,6 +2258,98 @@ TransactionFrame::preParallelApply(
 {
     preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig,
                      getContentsHash());
+}
+
+void
+TransactionFrame::preParallelApplyReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
+    preParallelApplyReadOnly(true, app, ls, meta, txResult, sorobanConfig,
+                             getContentsHash(), info);
+}
+
+void
+TransactionFrame::preParallelApplyReadOnly(
+    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
+{
+    ZoneScoped;
+    try
+    {
+        releaseAssertOrThrow(isSoroban());
+
+        auto signatureChecker = commonParallelPreApplyReadOnly(
+            chargeFee, app, ls, meta, txResult, &sorobanConfig,
+            envelopeContentsHash, info);
+        bool ok = signatureChecker != nullptr;
+        if (ok)
+        {
+            info.mUpdateSorobanMetrics = true;
+
+            auto& opResult = txResult.getOpResultAt(0);
+            ok = mOperations.front()->checkValid(
+                app, *signatureChecker, &sorobanConfig, ls, true, opResult,
+                meta.getDiagnosticEventManager());
+            if (!ok)
+            {
+                txResult.setInnermostError(txFAILED);
+            }
+        }
+
+        releaseAssertOrThrow(ok == txResult.isSuccess());
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception during read-only preParallelApply: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort(
+            "Unknown exception during read-only preParallelApply");
+    }
+}
+
+void
+TransactionFrame::preParallelApplyWrite(AppConnector& app,
+                                        AbstractLedgerTxn& ltx,
+                                        TransactionMetaBuilder& meta,
+                                        ParallelPreApplyInfo const& info) const
+{
+    ZoneScoped;
+    try
+    {
+        LedgerTxn ltxTx(ltx);
+        if (info.mUpdateSeqNum)
+        {
+            processSeqNum(ltxTx);
+        }
+        if (info.mRemoveOneTimeSigners)
+        {
+            removeOneTimeSignerFromAllSourceAccounts(ltxTx);
+        }
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+
+        if (info.mUpdateSorobanMetrics)
+        {
+            updateSorobanMetrics(app);
+        }
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception during preParallelApply writes: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception during preParallelApply writes");
+    }
 }
 
 void
@@ -2169,32 +2367,12 @@ TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
     {
         releaseAssertOrThrow(isSoroban());
 
-        auto signatureChecker =
-            commonPreApply(chargeFee, app, ltx, meta, txResult, &sorobanConfig,
-                           envelopeContentsHash);
-        bool ok = signatureChecker != nullptr;
-        if (ok)
-        {
-            updateSorobanMetrics(app);
+        ParallelPreApplyInfo info;
+        LedgerSnapshot ls(ltx);
+        preParallelApplyReadOnly(chargeFee, app, ls, meta, txResult,
+                                 sorobanConfig, envelopeContentsHash, info);
+        preParallelApplyWrite(app, ltx, meta, info);
 
-            auto& opResult = txResult.getOpResultAt(0);
-
-            // Pre parallel soroban, OperationFrame::checkValid is called
-            // right before OperationFrame::doApply, but we do it here
-            // instead to avoid making OperationFrame::checkValid thread
-            // safe.
-            ok = mOperations.front()->checkValid(
-                app, *signatureChecker, &sorobanConfig, ltx, true, opResult,
-                meta.getDiagnosticEventManager());
-            if (!ok)
-            {
-                txResult.setInnermostError(txFAILED);
-            }
-        }
-
-        // If validation fails, we check the result code in the parallel
-        // step to make sure we don't apply the transaction.
-        releaseAssertOrThrow(ok == txResult.isSuccess());
     }
     catch (std::exception& e)
     {

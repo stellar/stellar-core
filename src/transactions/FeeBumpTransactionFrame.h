@@ -87,6 +87,18 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                      MutableTransactionResultBase& txResult,
                      SorobanNetworkConfig const& sorobanConfig) const override;
 
+    void
+    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+                             TransactionMetaBuilder& meta,
+                             MutableTransactionResultBase& txResult,
+                             SorobanNetworkConfig const& sorobanConfig,
+                             ParallelPreApplyInfo& info) const override;
+
+    void
+    preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          ParallelPreApplyInfo const& info) const override;
+
     std::optional<ParallelTxSuccessVal> parallelApply(
         AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
         Config const& config, ParallelLedgerInfo const& ledgerInfo,

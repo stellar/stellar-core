@@ -8,13 +8,18 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
+#include "transactions/OperationFrame.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
+#include <algorithm>
 #include <fmt/core.h>
 #include <fmt/std.h>
+#include <future>
 #include <thread>
 
 namespace
@@ -115,6 +120,81 @@ getReadWriteKeysForStage(ApplyStage const& stage)
         }
     }
     return res;
+}
+
+void
+readOnlyPreParallelApplyRange(
+    AppConnector& app, ApplyLedgerStateSnapshot const& snapshot,
+    std::vector<TxBundle const*> const& txBundles, size_t begin, size_t end,
+    SorobanNetworkConfig const& sorobanConfig)
+{
+    LedgerSnapshot ls(snapshot);
+    for (size_t i = begin; i < end; ++i)
+    {
+        auto const& txBundle = *txBundles.at(i);
+        txBundle.getTx()->preParallelApplyReadOnly(
+            app, ls, txBundle.getEffects().getMeta(),
+            txBundle.getResPayload(), sorobanConfig,
+            txBundle.getEffects().getParallelPreApplyInfo());
+    }
+}
+
+bool
+isModifiedClassicKey(LedgerSnapshot const& current,
+                     LedgerSnapshot const& previous, LedgerKey const& key)
+{
+    if (isSorobanEntry(key))
+    {
+        return false;
+    }
+
+    auto currentEntry = current.load(key);
+    auto previousEntry = previous.load(key);
+    if (static_cast<bool>(currentEntry) != static_cast<bool>(previousEntry))
+    {
+        return true;
+    }
+
+    return currentEntry && currentEntry.current() != previousEntry.current();
+}
+
+bool
+requiresSequentialPreParallelApply(LedgerSnapshot const& current,
+                                   LedgerSnapshot const& previous,
+                                   TransactionFrameBase const& tx)
+{
+    if (isModifiedClassicKey(current, previous, accountKey(tx.getSourceID())) ||
+        isModifiedClassicKey(current, previous, accountKey(tx.getFeeSourceID())))
+    {
+        return true;
+    }
+
+    for (auto const& op : tx.getOperationFrames())
+    {
+        if (isModifiedClassicKey(current, previous,
+                                accountKey(op->getSourceID())))
+        {
+            return true;
+        }
+    }
+
+    auto const& footprint = tx.sorobanResources().footprint;
+    for (auto const& key : footprint.readOnly)
+    {
+        if (isModifiedClassicKey(current, previous, key))
+        {
+            return true;
+        }
+    }
+    for (auto const& key : footprint.readWrite)
+    {
+        if (isModifiedClassicKey(current, previous, key))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 inline uint32_t&
@@ -330,6 +410,36 @@ GlobalParallelApplyLedgerState::
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_26))
+    {
+        std::vector<TxBundle const*> txBundles;
+        LedgerSnapshot current(ltx);
+        LedgerSnapshot previous(mLCLSnapshot);
+        for (auto const& stage : stages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                if (requiresSequentialPreParallelApply(current, previous,
+                                                       *txBundle.getTx()))
+                {
+                    txBundle.getTx()->preParallelApply(
+                        app, ltx, txBundle.getEffects().getMeta(),
+                        txBundle.getResPayload(), mSorobanConfig);
+                }
+                else
+                {
+                    txBundles.emplace_back(&txBundle);
+                }
+            }
+        }
+
+        readOnlyPreParallelApply(app, txBundles);
+        commitBufferedPreParallelApplyWrites(app, ltx, txBundles);
+        collectModifiedClassicEntries(ltx, stages);
+        return;
+    }
+
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
             for (auto const& lk : keys)
@@ -383,6 +493,131 @@ GlobalParallelApplyLedgerState::
             fetchInMemoryClassicEntries(footprint.readWrite);
             fetchInMemoryClassicEntries(footprint.readOnly);
         }
+    }
+}
+
+void
+GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
+    AppConnector& app, std::vector<TxBundle const*> const& txBundles)
+{
+    ZoneScoped;
+
+    if (txBundles.empty())
+    {
+        return;
+    }
+
+    size_t workerCount = 1;
+    if (auto hardwareConcurrency = std::thread::hardware_concurrency();
+        hardwareConcurrency > 1)
+    {
+        workerCount = hardwareConcurrency - 1;
+    }
+    workerCount = std::min(workerCount, txBundles.size());
+
+    if (workerCount == 1)
+    {
+        readOnlyPreParallelApplyRange(app, mLCLSnapshot, txBundles, 0,
+                                      txBundles.size(), mSorobanConfig);
+        return;
+    }
+
+    std::vector<std::future<void>> futures;
+    futures.reserve(workerCount);
+
+    size_t begin = 0;
+    auto const baseChunkSize = txBundles.size() / workerCount;
+    auto const remainder = txBundles.size() % workerCount;
+    for (size_t workerIndex = 0; workerIndex < workerCount; ++workerIndex)
+    {
+        auto const chunkSize =
+            baseChunkSize + (workerIndex < remainder ? 1u : 0u);
+        auto const end = begin + chunkSize;
+        futures.emplace_back(std::async(
+            std::launch::async, readOnlyPreParallelApplyRange,
+            std::ref(app), std::cref(mLCLSnapshot), std::cref(txBundles),
+            begin, end, std::cref(mSorobanConfig)));
+        begin = end;
+    }
+
+    for (auto& future : futures)
+    {
+        releaseAssert(future.valid());
+        try
+        {
+            future.get();
+        }
+        catch (std::exception const& e)
+        {
+            printErrorAndAbort("Exception during read-only preParallelApply: ",
+                               e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort(
+                "Unknown exception during read-only preParallelApply");
+        }
+    }
+}
+
+void
+GlobalParallelApplyLedgerState::commitBufferedPreParallelApplyWrites(
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::vector<TxBundle const*> const& txBundles)
+{
+    ZoneScoped;
+
+    for (auto const* txBundle : txBundles)
+    {
+        txBundle->getTx()->preParallelApplyWrite(
+            app, ltx, txBundle->getEffects().getMeta(),
+            txBundle->getEffects().getParallelPreApplyInfo());
+    }
+}
+
+void
+GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
+    AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages)
+{
+    ZoneScoped;
+
+    std::unordered_set<LedgerKey> classicKeys;
+    for (auto const& stage : stages)
+    {
+        for (auto const& txBundle : stage)
+        {
+            auto const& footprint = txBundle.getTx()->sorobanResources().footprint;
+            for (auto const& key : footprint.readWrite)
+            {
+                if (!isSorobanEntry(key))
+                {
+                    classicKeys.emplace(key);
+                }
+            }
+            for (auto const& key : footprint.readOnly)
+            {
+                if (!isSorobanEntry(key))
+                {
+                    classicKeys.emplace(key);
+                }
+            }
+        }
+    }
+
+    for (auto const& lk : classicKeys)
+    {
+        auto entryPair = ltx.getNewestVersionBelowRoot(lk);
+        if (!entryPair.first)
+        {
+            continue;
+        }
+
+        GlobalParApplyLedgerEntryOpt entry = scopeAdoptEntryOpt(
+            entryPair.second ? std::make_optional(entryPair.second->ledgerEntry())
+                             : std::nullopt);
+
+        mGlobalEntryMap.emplace(lk, GlobalParallelApplyEntry{entry, false});
+        mOriginalLedgerTxnKeys.emplace(lk);
     }
 }
 

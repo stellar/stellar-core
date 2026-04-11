@@ -54,6 +54,21 @@ namespace
 {
 
 void
+installOneTimeSigner(Application& app, TestAccount& sponsor,
+                     TestAccount& account, SignerKey const& signerKey)
+{
+    auto signerOp = setOptions(setSigner(Signer{signerKey, 1}));
+    signerOp.sourceAccount.activate() = toMuxedAccount(account);
+
+    auto signerTx = sponsor.tx({signerOp});
+    signerTx->addSignature(account.getSecretKey());
+
+    auto resultSet = closeLedger(app, {signerTx});
+    REQUIRE(resultSet.results.size() == 1);
+    REQUIRE(isSuccessResult(resultSet.results.front().result));
+}
+
+void
 checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
 {
     int successCounter = 0;
@@ -7899,6 +7914,128 @@ TEST_CASE_VERSIONS("non-fee source account is recipient of payment in both "
         // Make sure both payments are reflected in the balance
         REQUIRE(b1.getBalance() == startingBalance + 10 + 50);
     });
+}
+
+TEST_CASE("protocol 26 parallel apply removes soroban pre-auth signer",
+          "[tx][soroban][parallelapply]")
+{
+    auto cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(ProtocolVersion::V_26);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(ProtocolVersion::V_26);
+
+    SorobanTest test(cfg, true);
+
+    auto ledgerVersion = getLclProtocolVersion(test.getApp());
+    auto startingBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(50);
+
+    auto source = test.getRoot().create("source", startingBalance);
+    auto sourceStartingSeq = source.loadSequenceNumber();
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources =
+        defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), source, wasm, resources,
+                                      1000);
+    tx->getMutableEnvelope().v1().signatures.clear();
+
+    SignerKey txSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+    txSigner.preAuthTx() = tx->getContentsHash();
+    installOneTimeSigner(test.getApp(), test.getRoot(), source, txSigner);
+
+    {
+        LedgerSnapshot ls(test.getApp());
+        auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
+        REQUIRE(sourceAccount);
+        REQUIRE(sourceAccount.current().data.account().seqNum ==
+                sourceStartingSeq);
+        REQUIRE(sourceAccount.current().data.account().signers.size() == 1);
+    }
+
+    auto r = closeLedger(test.getApp(), {tx});
+    REQUIRE(r.results.size() == 1);
+    checkTx(0, r, txSUCCESS);
+
+    LedgerSnapshot ls(test.getApp());
+    auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
+    REQUIRE(sourceAccount);
+    REQUIRE(sourceAccount.current().data.account().seqNum ==
+            sourceStartingSeq + 1);
+    REQUIRE(sourceAccount.current().data.account().signers.empty());
+}
+
+TEST_CASE("protocol 26 parallel apply removes soroban fee bump pre-auth "
+          "signers",
+          "[tx][soroban][parallelapply][feebump]")
+{
+    auto cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(ProtocolVersion::V_26);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(ProtocolVersion::V_26);
+
+    SorobanTest test(cfg, true);
+
+    auto ledgerVersion = getLclProtocolVersion(test.getApp());
+    auto startingBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(50);
+
+    auto source = test.getRoot().create("source", startingBalance);
+    auto feeBumper = test.getRoot().create("feeBumper", startingBalance);
+    auto sourceStartingSeq = source.loadSequenceNumber();
+    auto feeBumperStartingSeq = feeBumper.loadSequenceNumber();
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources =
+        defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
+    auto innerTx = makeSorobanWasmUploadTx(test.getApp(), source, wasm,
+                                           resources, 1000);
+    innerTx->getMutableEnvelope().v1().signatures.clear();
+
+    auto feeBumpTx = feeBump(
+        test.getApp(), feeBumper, innerTx,
+        innerTx->getEnvelope().v1().tx.fee * 5,
+        /*useInclusionAsFullFee=*/true);
+    feeBumpTx->getMutableEnvelope().feeBump().signatures.clear();
+
+    SignerKey innerSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+    innerSigner.preAuthTx() = innerTx->getContentsHash();
+    installOneTimeSigner(test.getApp(), test.getRoot(), source, innerSigner);
+
+    SignerKey feeBumpSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+    feeBumpSigner.preAuthTx() = feeBumpTx->getContentsHash();
+    installOneTimeSigner(test.getApp(), test.getRoot(), feeBumper,
+                         feeBumpSigner);
+
+    {
+        LedgerSnapshot ls(test.getApp());
+        auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
+        auto feeBumpAccount = ls.load(accountKey(feeBumper.getPublicKey()));
+        REQUIRE(sourceAccount);
+        REQUIRE(feeBumpAccount);
+        REQUIRE(sourceAccount.current().data.account().seqNum ==
+                sourceStartingSeq);
+        REQUIRE(feeBumpAccount.current().data.account().seqNum ==
+                feeBumperStartingSeq);
+        REQUIRE(sourceAccount.current().data.account().signers.size() == 1);
+        REQUIRE(feeBumpAccount.current().data.account().signers.size() == 1);
+    }
+
+    auto r = closeLedger(test.getApp(), {feeBumpTx});
+    REQUIRE(r.results.size() == 1);
+    checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
+
+    LedgerSnapshot ls(test.getApp());
+    auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
+    auto feeBumpAccount = ls.load(accountKey(feeBumper.getPublicKey()));
+    REQUIRE(sourceAccount);
+    REQUIRE(feeBumpAccount);
+    REQUIRE(sourceAccount.current().data.account().seqNum ==
+            sourceStartingSeq + 1);
+    REQUIRE(feeBumpAccount.current().data.account().seqNum ==
+            feeBumperStartingSeq);
+    REQUIRE(sourceAccount.current().data.account().signers.empty());
+    REQUIRE(feeBumpAccount.current().data.account().signers.empty());
 }
 
 TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
