@@ -976,6 +976,45 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
     REQUIRE(invalidTxs.size() == 3);
 }
 
+TEST_CASE("getInvalidTxListWithErrors reduces fee maps")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+    auto root = app->getRoot();
+
+    TxFrameList txs;
+    txs.reserve(33);
+
+    int64_t expectedAddedFee = 0;
+    auto feeSource = root->create("fee-src", minBalance2 + 100'000);
+    auto unrelatedAccount = root->create("other", minBalance2);
+    for (size_t i = 0; i < 33; ++i)
+    {
+        auto source = root->create(fmt::format("src-{}", i), minBalance2);
+        auto innerTx = transactionFromOperations(
+            *app, source, source.getLastSequenceNumber() + 1,
+            {payment(source.getPublicKey(), 1)}, 100);
+        auto feeBumpTx = feeBump(*app, feeSource, innerTx, 200);
+        expectedAddedFee += feeBumpTx->getFullFee();
+        txs.emplace_back(feeBumpTx);
+    }
+
+    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    accountFeeMap[feeSource.getPublicKey()] = 123;
+    accountFeeMap[unrelatedAccount.getPublicKey()] = 456;
+
+    auto [invalidTxs, result] =
+        TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0);
+
+    REQUIRE(result == TxSetValidationResult::VALID);
+    REQUIRE(invalidTxs.empty());
+    REQUIRE(accountFeeMap[feeSource.getPublicKey()] == 123 + expectedAddedFee);
+    REQUIRE(accountFeeMap[unrelatedAccount.getPublicKey()] == 456);
+}
+
 TEST_CASE("txset", "[herder][txset]")
 {
     SECTION("generalized tx set protocol")
