@@ -90,10 +90,11 @@ FeeBumpTransactionFrame::preParallelApply(
 {
     try
     {
-        LedgerTxn ltxTx(ltx);
-        removeOneTimeSignerKeyFromFeeSource(ltxTx);
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
+        ParallelPreApplyInfo info;
+        LedgerSnapshot ls(ltx);
+        preParallelApplyReadOnly(app, ls, meta, txResult, sorobanConfig,
+                                 info);
+        preParallelApplyWrite(app, ltx, meta, info);
     }
     catch (std::exception& e)
     {
@@ -103,19 +104,55 @@ FeeBumpTransactionFrame::preParallelApply(
     {
         printErrorAndAbort("Unknown exception in preParallelApply");
     }
+}
 
+void
+FeeBumpTransactionFrame::preParallelApplyReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
     try
     {
-        mInnerTx->preParallelApply(/*chargeFee=*/false, app, ltx, meta,
-                                   txResult, sorobanConfig, getContentsHash());
+        mInnerTx->preParallelApplyReadOnly(/*chargeFee=*/false, app, ls, meta,
+                                           txResult, sorobanConfig,
+                                           getContentsHash(), info);
     }
     catch (std::exception& e)
     {
-        printErrorAndAbort("Exception during preParallelApply: ", e.what());
+        printErrorAndAbort("Exception during read-only preParallelApply: ",
+                           e.what());
     }
     catch (...)
     {
-        printErrorAndAbort("Unknown exception during preParallelApply");
+        printErrorAndAbort(
+            "Unknown exception during read-only preParallelApply");
+    }
+}
+
+void
+FeeBumpTransactionFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    ParallelPreApplyInfo const& info) const
+{
+    try
+    {
+        LedgerTxn ltxTx(ltx);
+        removeOneTimeSignerKeyFromFeeSource(ltxTx);
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+
+        mInnerTx->preParallelApplyWrite(app, ltx, meta, info);
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception during preParallelApply writes: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception during preParallelApply writes");
     }
 }
 

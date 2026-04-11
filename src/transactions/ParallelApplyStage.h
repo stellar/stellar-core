@@ -36,6 +36,18 @@ class TxEffects
         return mDelta;
     }
 
+    ParallelPreApplyInfo&
+    getParallelPreApplyInfo()
+    {
+      return mParallelPreApplyInfo;
+    }
+
+    ParallelPreApplyInfo const&
+    getParallelPreApplyInfo() const
+    {
+      return mParallelPreApplyInfo;
+    }
+
     void
     setDeltaEntry(LedgerKey const& key, LedgerTxnDelta::EntryDelta const& delta)
     {
@@ -53,6 +65,7 @@ class TxEffects
   private:
     TransactionMetaBuilder mMeta;
     LedgerTxnDelta mDelta;
+    ParallelPreApplyInfo mParallelPreApplyInfo;
 };
 
 // TxBundle contains a transaction, its associated result payload, and its

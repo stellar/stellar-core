@@ -51,6 +51,13 @@ using TxParApplyLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TxParApply>;
 using TxModifiedEntryMap = UnorderedMap<LedgerKey, TxParApplyLedgerEntryOpt>;
 
+struct ParallelPreApplyInfo
+{
+    bool mUpdateSeqNum = false;
+    bool mRemoveOneTimeSigners = false;
+    bool mUpdateSorobanMetrics = false;
+};
+
 // Used to track the current state of an entry during parallel apply phases. Can
 // be updated by successful transactions.
 template <StaticLedgerEntryScope S> struct ParallelApplyEntry
@@ -161,6 +168,18 @@ class TransactionFrameBase
                      TransactionMetaBuilder& meta,
                      MutableTransactionResultBase& txResult,
                      SorobanNetworkConfig const& sorobanConfig) const = 0;
+
+    virtual void
+    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+                             TransactionMetaBuilder& meta,
+                             MutableTransactionResultBase& txResult,
+                             SorobanNetworkConfig const& sorobanConfig,
+                             ParallelPreApplyInfo& info) const = 0;
+
+    virtual void
+    preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaBuilder& meta,
+                          ParallelPreApplyInfo const& info) const = 0;
 
     // If the transaction fails during parallel apply, returns std::nullopt.
     // Otherwise returns a ParallelTxSuccessVal containing the modified entries
