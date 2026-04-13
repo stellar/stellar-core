@@ -793,7 +793,7 @@ TEST_CASE("secret resolution", "[config]")
         }
         stdfs::permissions(tmpPath, stdfs::perms::owner_read |
                                         stdfs::perms::owner_write);
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED="$FILE:)" + tmpPath +
                                 R"("
@@ -811,7 +811,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
 
     SECTION("backward compatibility - inline NODE_SEED")
     {
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED=")" + testSeed + R"( self"
 UNSAFE_QUORUM=true
@@ -834,7 +834,7 @@ VALIDATORS=[")" + otherKey + R"( A"]
         }
         stdfs::permissions(tmpPath, stdfs::perms::owner_read |
                                         stdfs::perms::owner_write);
-        auto otherKey = SecretKey::random().getStrKeyPublic();
+        auto otherKey = SecretKey::pseudoRandomForTesting().getStrKeyPublic();
         std::string configStr = R"(
 NODE_SEED="$FILE:)" + tmpPath +
                                 R"("
