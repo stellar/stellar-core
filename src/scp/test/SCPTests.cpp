@@ -3479,8 +3479,6 @@ TEST_CASE("nomination can self-generate invalid prepare after awaiting value"
     REQUIRE(ballot.value == scp.makeSkipLedgerValueFromValue(xValue));
 }
 
-// TODO(36): This needs to be fixed. This test demonstrates `p` being set to an
-// invalid value, which causes the node to crash.
 TEST_CASE("ballot protocol can self-generate invalid prepare after"
           " awaiting value turns invalid",
           "[scp][ballotprotocol]")
@@ -3699,5 +3697,268 @@ TEST_CASE("skip ledger on download timeout", "[scp][ballotprotocol]")
         SCPBallot xB2(2, xValue);
         verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, xB2);
     }
+}
+
+TEST_CASE("setConfirmPrepared stalls on kAwaitingDownload value",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+    SECTION("commit gate stalls mCommit but mHighBallot is set")
+    {
+        // v0 enters ballot protocol with xValue fully validated
+        REQUIRE(scp.bumpState(0, xValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+        SCPBallot xB1(1, xValue);
+
+        // Switch xValue to kAwaitingDownload
+        scp.startDownload(xValue, std::chrono::milliseconds(1000));
+
+        // v1 and v2 send PREPAREs with prepared — quorum confirms prepared
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, xB1, &xB1)));
+
+        // setConfirmPrepared sets mHighBallot (nH > 0) but the commit gate
+        // stalls mCommit (nC == 0) because xValue is kAwaitingDownload.
+        // Check the latest emitted PREPARE.
+        REQUIRE(scp.mEnvs.size() >= 2);
+        auto const& lastPrep =
+            scp.mEnvs.back().statement.pledges.prepare();
+        REQUIRE(lastPrep.nH == 1);
+        REQUIRE(lastPrep.nC == 0);
+    }
+
+    SECTION("proceeds after value becomes validated")
+    {
+        // Same setup as above — commit gate stalls mCommit
+        REQUIRE(scp.bumpState(0, xValue));
+        SCPBallot xB1(1, xValue);
+
+        scp.startDownload(xValue, std::chrono::milliseconds(1000));
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, xB1, &xB1)));
+        auto envsBeforeClear = scp.mEnvs.size();
+
+        // Simulate tx set arrival — value becomes fully validated
+        scp.clearDownload(xValue);
+
+        // Trigger advanceSlot with envelopes that confirm-prepare at a
+        // higher counter, so attemptConfirmPrepared finds newH > mHighBallot.
+        // This causes setConfirmPrepared to be called with the now-validated
+        // value, setting mCommit.
+        SCPBallot xB2(2, xValue);
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, xB2, &xB2)));
+        REQUIRE_NOTHROW(scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, xB2, &xB2)));
+
+        // setConfirmPrepared should now succeed — mCommit set, node
+        // progresses. Expect at least one new envelope with nC > 0 or a
+        // CONFIRM/EXTERNALIZE.
+        REQUIRE(scp.mEnvs.size() > envsBeforeClear);
+        bool foundC = false;
+        for (size_t i = envsBeforeClear; i < scp.mEnvs.size(); i++)
+        {
+            auto const& st = scp.mEnvs[i].statement;
+            if (st.pledges.type() == SCP_ST_PREPARE)
+            {
+                if (st.pledges.prepare().nC > 0)
+                {
+                    foundC = true;
+                    break;
+                }
+            }
+            else
+            {
+                // CONFIRM or EXTERNALIZE also proves we got past the stall
+                foundC = true;
+                break;
+            }
+        }
+        REQUIRE(foundC);
+    }
+}
+
+TEST_CASE("incoming PREPARE with invalid prepared value is accepted",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    // v0 enters ballot protocol with yValue
+    REQUIRE(scp.bumpState(0, yValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+
+    // Set xValue to kInvalidValue
+    scp.mValidateValueOverride =
+        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+        if (value == xValue)
+        {
+            return SCPDriver::kInvalidValue;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    // v1 sends PREPARE with valid ballot value but invalid prepared value.
+    // With relaxed PREPARE validation, this should be accepted.
+    SCPBallot yB1(1, yValue);
+    SCPBallot xB1(1, xValue);
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v1SecretKey, qSetHash, 0, yB1, &xB1)));
+}
+
+TEST_CASE("self-envelope with invalid mPrepared does not crash",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    // v0 enters ballot protocol with xValue (kAwaitingDownload, not timed out)
+    scp.startDownload(xValue, std::chrono::milliseconds(1000));
+    REQUIRE(scp.bumpState(0, xValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+    SCPBallot xB1(1, xValue);
+
+    // Quorum accepts-prepared xValue — sets mPrepared=(1, xValue)
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
+    REQUIRE(scp.mEnvs.size() == 2);
+    // Verify mPrepared is set in the emitted envelope
+    REQUIRE(scp.mEnvs[1].statement.pledges.prepare().prepared);
+    REQUIRE(*scp.mEnvs[1].statement.pledges.prepare().prepared == xB1);
+
+    // xValue transitions to kInvalidValue
+    scp.mValidateValueOverride =
+        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+        if (value == xValue)
+        {
+            return SCPDriver::kInvalidValue;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    // v1 and v2 send PREPAREs at higher counter to trigger v-blocking bump.
+    // This causes bumpState, which replaces xValue with skip via
+    // maybeReplaceValueWithSkip. emitCurrentStateStatement then creates a
+    // self-PREPARE with ballot=skip but prepared=(1,xValue) which is invalid.
+    // With relaxed PREPARE validation, no crash occurs.
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v1SecretKey, qSetHash, 0, SCPBallot(2, yValue))));
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v2SecretKey, qSetHash, 0, SCPBallot(2, yValue))));
+
+    // Verify: new envelope emitted with skip ballot value
+    REQUIRE(scp.mEnvs.size() >= 3);
+    auto const& lastBallot =
+        scp.mEnvs.back().statement.pledges.prepare().ballot;
+    REQUIRE(scp.isSkipLedgerValue(lastBallot.value));
+}
+
+TEST_CASE("self-envelope with invalid mCurrentBallot does not crash",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    // v0 enters ballot protocol with xValue (fully validated)
+    REQUIRE(scp.bumpState(0, xValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+
+    // xValue transitions to kInvalidValue — mCurrentBallot now holds an
+    // invalid value
+    scp.mValidateValueOverride =
+        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+        if (value == xValue)
+        {
+            return SCPDriver::kInvalidValue;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    // v1 and v2 send PREPAREs with yValue and prepared=(1,yValue).
+    // When the quorum {v1,v2} accepts-prepared yValue, v0 calls
+    // setAcceptPrepared which calls emitCurrentStateStatement. The
+    // self-envelope contains ballot=(1,xValue) which is kInvalidValue.
+    // With relaxed PREPARE validation, no crash occurs.
+    SCPBallot yB1(1, yValue);
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v1SecretKey, qSetHash, 0, yB1, &yB1)));
+    REQUIRE_NOTHROW(scp.receiveEnvelope(
+        makePrepare(v2SecretKey, qSetHash, 0, yB1, &yB1)));
+
+    // Verify: v0 accepted-prepared yValue (new envelope emitted despite
+    // mCurrentBallot having an invalid value)
+    REQUIRE(scp.mEnvs.size() >= 2);
+    bool foundYPrepared = false;
+    for (size_t i = 1; i < scp.mEnvs.size(); i++)
+    {
+        auto const& st = scp.mEnvs[i].statement;
+        if (st.pledges.type() == SCP_ST_PREPARE &&
+            st.pledges.prepare().prepared &&
+            st.pledges.prepare().prepared->value == yValue)
+        {
+            foundYPrepared = true;
+            break;
+        }
+    }
+    REQUIRE(foundYPrepared);
 }
 }
