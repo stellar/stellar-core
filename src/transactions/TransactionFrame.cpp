@@ -511,7 +511,8 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     }
     signers.insert(signers.end(), acc.signers.begin(), acc.signers.end());
 
-    return signatureChecker.checkSignature(signers, neededWeight);
+    return signatureChecker.checkSignature(
+        signers, neededWeight, !signatureChecker.isOverlayValidation());
 }
 
 bool
@@ -546,7 +547,7 @@ TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
         // we assign a weight of 1 to each key, and set the neededWeight to the
         // number of extraSigners
         return signatureChecker.checkSignature(
-            signers, static_cast<int32_t>(signers.size()));
+            signers, static_cast<int32_t>(signers.size()), true);
     }
     return true;
 }
@@ -1896,14 +1897,14 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
     MutableTransactionResultBase& txResult,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation) const
 {
     ZoneScoped;
     mCachedAccountPreProtocol8.reset();
 
     SignatureChecker signatureChecker{
         ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
-        getSignatures(mEnvelope)};
+        getSignatures(mEnvelope), isOverlayValidation};
 
     std::optional<FeePair> sorobanResourceFee;
     SorobanNetworkConfig const* sorobanConfig = nullptr;
@@ -1951,11 +1952,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 }
 
 MutableTxResultPtr
-TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                             SequenceNumber current,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset,
-                             DiagnosticEventManager& diagnosticEvents) const
+TransactionFrame::checkValidImpl(AppConnector& app, LedgerSnapshot const& ls,
+                                 SequenceNumber current,
+                                 uint64_t lowerBoundCloseTimeOffset,
+                                 uint64_t upperBoundCloseTimeOffset,
+                                 DiagnosticEventManager& diagnosticEvents,
+                                 bool isOverlayValidation) const
 {
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
@@ -1988,8 +1990,29 @@ TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
     checkValidWithOptionallyChargedFee(
         app, ls, current, true, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents);
+        diagnosticEvents, isOverlayValidation);
     return txResult;
+}
+
+MutableTxResultPtr
+TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+                             SequenceNumber current,
+                             uint64_t lowerBoundCloseTimeOffset,
+                             uint64_t upperBoundCloseTimeOffset,
+                             DiagnosticEventManager& diagnosticEvents) const
+{
+    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, false);
+}
+
+MutableTxResultPtr
+TransactionFrame::checkValidForOverlay(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents) const
+{
+    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, true);
 }
 
 void

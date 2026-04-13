@@ -228,6 +228,32 @@ class NominationTestHandler : public NominationProtocol
     }
 };
 
+// A test SCPDriver that allows specification of nodes with 0 weight.
+class ZeroWeightTestNominationSCP : public TestNominationSCP
+{
+  public:
+    std::set<NodeID> mZeroWeightNodes;
+
+    ZeroWeightTestNominationSCP(NodeID const& nodeID,
+                                SCPQuorumSet const& qSetLocal,
+                                std::set<NodeID> const& zeroWeightNodes)
+        : TestNominationSCP(nodeID, qSetLocal)
+        , mZeroWeightNodes(zeroWeightNodes)
+    {
+    }
+
+    uint64
+    getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
+                  bool isLocalNode) const override
+    {
+        if (mZeroWeightNodes.count(nodeID))
+        {
+            return 0;
+        }
+        return TestNominationSCP::getNodeWeight(nodeID, qset, isLocalNode);
+    }
+};
+
 static SCPQuorumSet
 makeQSet(std::vector<NodeID> const& nodeIDs, int threshold, int total,
          int offset)
@@ -239,6 +265,63 @@ makeQSet(std::vector<NodeID> const& nodeIDs, int threshold, int total,
         qSet.validators.push_back(nodeIDs[i + offset]);
     }
     return qSet;
+}
+
+TEST_CASE("updateRoundLeaders handles zero weight nodes", "[scp]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    // 3 nodes total: v0 (local), v1 (normal weight), v2 (zero weight).
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    auto runScenario = [&](std::set<NodeID> const& zeroWeightNodes) {
+        ZeroWeightTestNominationSCP nomSCP(v0NodeID, qSet, zeroWeightNodes);
+
+        Slot slot(0, nomSCP.mSCP);
+        NominationTestHandler nom(slot);
+
+        Value v;
+        v.emplace_back(uint8_t(42));
+        nom.setPreviousValue(v);
+
+        // Ensure that even with many more rounds than validators,
+        // `updateRoundLeaders` always terminates and never picks a zero-weight
+        // node as leader.
+        int const maxRounds = 20;
+        for (int i = 0; i < maxRounds; i++)
+        {
+            nom.setRoundNumber(i);
+            nom.updateRoundLeaders();
+        }
+
+        return nom.getRoundLeaders();
+    };
+
+    SECTION("non-local zero-weight validator is excluded from round leaders")
+    {
+        // v2 simulates a LOW-quality validator with zero weight, mimicking
+        // HerderSCPDriver::getNodeWeight behavior for LOW-quality nodes.
+        auto const& leaders = runScenario({v2NodeID});
+        REQUIRE(leaders.count(v0NodeID) == 1);
+        REQUIRE(leaders.count(v1NodeID) == 1);
+        REQUIRE(leaders.count(v2NodeID) == 0);
+        REQUIRE(leaders.size() == 2);
+    }
+
+    SECTION("local zero-weight validator is excluded from round leaders")
+    {
+        auto const& leaders = runScenario({v0NodeID});
+        REQUIRE(leaders.count(v0NodeID) == 0);
+        REQUIRE(leaders.count(v1NodeID) == 1);
+        REQUIRE(leaders.count(v2NodeID) == 1);
+        REQUIRE(leaders.size() == 2);
+    }
 }
 
 // this test case display statistical information on the priority function used

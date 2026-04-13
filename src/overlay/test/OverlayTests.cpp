@@ -26,6 +26,8 @@
 #include "herder/HerderImpl.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include "test/TxTests.h"
+#include "transactions/EventManager.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include <fmt/format.h>
@@ -3367,6 +3369,71 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         // outer transaction
         REQUIRE(finalHits == 0);
         REQUIRE(finalMisses == 0);
+    }
+
+    SECTION("Ed25519 signed payload signer skipped in overlay validation")
+    {
+        // Add an ed25519 signed payload signer to testAccount and remove the
+        // master key, so the account can only be authorized via the payload
+        // signer.
+        SignerKey signerKey;
+        signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        signerKey.ed25519SignedPayload().ed25519 =
+            testAccountSk.getPublicKey().ed25519();
+        signerKey.ed25519SignedPayload().payload = {'t', 'e', 's', 't'};
+
+        auto setOptionsTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(Signer{signerKey, 1}) |
+            txtest::setMasterWeight(0) | txtest::setLowThreshold(1) |
+            txtest::setMedThreshold(1) | txtest::setHighThreshold(1))});
+        txtest::applyTx(setOptionsTx, *app);
+
+        // Create a payment tx signed only with the payload signer
+        auto payTx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto& sigs = txbridge::getSignatures(payTx);
+        sigs.clear();
+
+        DecoratedSignature sig;
+        sig.signature =
+            testAccountSk.sign(signerKey.ed25519SignedPayload().payload);
+        sig.hint = SignatureUtils::getSignedPayloadHint(
+            signerKey.ed25519SignedPayload());
+        payTx->addSignature(sig);
+
+        resetCache();
+
+        // populateSignatureCache runs with isOverlayValidation=true, which
+        // skips ed25519 signed payload signers. So no cache entries should
+        // be produced.
+        invokePopulateSignatureCache(payTx);
+
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(hits == 0);
+        REQUIRE(misses == 0);
+
+        // Now call checkValid (normal path), which DOES check payload
+        // signers. Since the cache was not populated, we should see a miss.
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ls = LedgerSnapshot(ltx);
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto result =
+            payTx->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+        REQUIRE(result->isSuccess());
+
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        // The payload signer was not cached by populateSignatureCache, so
+        // checkValid must produce a cache miss for the payload signature.
+        // This contrasts with the "Normal transaction" test where
+        // populateSignatureCache caches the ed25519 signature and
+        // checkValid sees only cache hits (misses == 0).
+        REQUIRE(misses == 1);
+        // checkValid verifies the payload signature at the transaction
+        // level (cache miss, added to cache) and again at the operation
+        // level (cache hit from the first check within the same call).
+        REQUIRE(hits == 1);
     }
 
     SECTION("Signature cache invalidation after signer removal")
