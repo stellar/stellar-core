@@ -5252,6 +5252,177 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
     }
 }
 
+TEST_CASE("processing of next slot happens after apply", "[herder]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto const APPLY_DELAY = std::chrono::milliseconds(500);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.PARALLEL_LEDGER_APPLY = true;
+            cfg.RUN_STANDALONE = false;
+            // Only slow down C (the third node added, i == 2). A and B
+            // still close at normal speed so they can supply externalize
+            // messages for C.
+            if (i == 3)
+            {
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = APPLY_DELAY;
+            }
+            return cfg;
+        });
+
+    auto keyA = SecretKey::fromSeed(sha256("validator-A"));
+    auto keyB = SecretKey::fromSeed(sha256("validator-B"));
+    auto keyC = SecretKey::fromSeed(sha256("validator-C"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators.push_back(keyA.getPublicKey());
+    qset.validators.push_back(keyB.getPublicKey());
+    qset.validators.push_back(keyC.getPublicKey());
+    Hash qsetHash = sha256(xdr::xdr_to_opaque(qset));
+
+    auto A = simulation->addNode(keyA, qset);
+    auto B = simulation->addNode(keyB, qset);
+    auto C = simulation->addNode(keyC, qset);
+    simulation->addPendingConnection(keyA.getPublicKey(), keyC.getPublicKey());
+    simulation->addPendingConnection(keyA.getPublicKey(), keyB.getPublicKey());
+    simulation->startAllNodes();
+    simulation->stopOverlayTick();
+
+    // Close a handful of ledgers to establish normal state.
+    simulation->crankUntil(
+        [&] { return simulation->haveAllExternalized(4, 2); },
+        std::chrono::seconds(30), false);
+
+    // Partition C so it stops receiving envelopes from the network. We
+    // drive its externalize explicitly via A/B's captured messages.
+    simulation->dropConnection(keyA.getPublicKey(), keyC.getPublicKey());
+    // Flush any in-flight events so C's LCL settles before we pin `target`.
+    simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto& herderC = static_cast<HerderImpl&>(C->getHerder());
+    auto& lmC = static_cast<LedgerManagerImpl&>(C->getLedgerManager());
+
+    uint32_t target = C->getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    // Let A and B advance a couple of ledgers past `target` so their SCP
+    // state contains EXTERNALIZE messages for `target` we can replay. C
+    // has no peers at this point and stays put.
+    simulation->crankUntil(
+        [&] {
+            return A->getLedgerManager().getLastClosedLedgerNum() >= target + 2;
+        },
+        std::chrono::seconds(20), false);
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
+
+    // Capture EXTERNALIZE envelopes for slot `target` from A and B.
+    auto captureExternalize =
+        [&](Application& app,
+            uint32_t seq) -> std::pair<SCPEnvelope, StellarMessage> {
+        auto& herder = static_cast<HerderImpl&>(app.getHerder());
+        for (auto const& env : herder.getSCP().getLatestMessagesSend(seq))
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                toStellarValue(env.statement.pledges.externalize().commit.value,
+                               sv);
+                auto txSet =
+                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash);
+                REQUIRE(txSet);
+                return std::make_pair(env, txSet->toStellarMessage());
+            }
+        }
+        throw std::runtime_error("no EXTERNALIZE envelope for requested slot");
+    };
+    auto envA = captureExternalize(*A, target);
+    auto envB = captureExternalize(*B, target);
+
+    uint32_t invalidSlot = target + 1;
+
+    // Build a "invalid" tx set for slot target+1 whose previousLedgerHash
+    // is random garbage. The XDR is well-formed so C will happily cache it
+    // when we hand-deliver below, but validateValue — once slot target+1 is
+    // validated against the freshly-closed LCL — will reject it because
+    // the tx set doesn't match the real previous ledger hash.
+    LedgerHeaderHistoryEntry bogusLcl;
+    bogusLcl.header = C->getLedgerManager().getLastClosedLedgerHeader().header;
+    bogusLcl.hash = sha256("invalid-previous-ledger-hash");
+    auto invalidTxSet = TxSetXDRFrame::makeEmpty(bogusLcl);
+    auto invalidTxSetHash = invalidTxSet->getContentsHash();
+
+    uint64_t cLastCloseTime = C->getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header.scpValue.closeTime;
+    // Pick a close time slightly above both C's LCL close time and C's
+    // current virtual clock, so the envelope passes the Herder close-time
+    // filter (must be > lastCloseTime and within MAX_TIME_SLIP_SECONDS of
+    // now).
+    uint64_t invalidCloseTime = std::max(cLastCloseTime, C->timeNow()) + 1;
+    StellarValue invalidValue = herderC.makeStellarValue(
+        invalidTxSetHash, invalidCloseTime, emptyUpgradeSteps, keyA);
+
+    SCPEnvelope invalidEnv{};
+    invalidEnv.statement.slotIndex = invalidSlot;
+    invalidEnv.statement.pledges.type(SCP_ST_PREPARE);
+    invalidEnv.statement.pledges.prepare().ballot.counter = 1;
+    invalidEnv.statement.pledges.prepare().ballot.value =
+        xdr::xdr_to_opaque(invalidValue);
+    invalidEnv.statement.pledges.prepare().quorumSetHash = qsetHash;
+    invalidEnv.statement.nodeID = keyA.getPublicKey();
+    herderC.signEnvelope(keyA, invalidEnv);
+
+    auto scpHasEnvelopeFromAForinvalidSlot = [&] {
+        bool found = false;
+        herderC.getSCP().processCurrentState(
+            invalidSlot,
+            [&](SCPEnvelope const& e) {
+                if (e.statement.nodeID == keyA.getPublicKey())
+                {
+                    found = true;
+                }
+                return true;
+            },
+            /*forceSelf=*/true);
+        return found;
+    };
+
+    // Feed A's EXTERNALIZE. Not enough to externalize `target`.
+    REQUIRE(herderC.recvSCPEnvelope(envA.first, qset, envA.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(herderC.trackingConsensusLedgerIndex() == target - 1);
+
+    // Inject future invalid PREPARE for slot target+1. Herder should accept.
+    REQUIRE(herderC.recvSCPEnvelope(invalidEnv) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+
+    // Feed B's EXTERNALIZE. C can now externalize `target`.
+    REQUIRE(herderC.recvSCPEnvelope(envB.first, qset, envB.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(lmC.isApplying());
+    REQUIRE(herderC.trackingConsensusLedgerIndex() == target);
+
+    // While C is applying, make invalid envelope ready
+    REQUIRE(herderC.recvTxSet(invalidTxSetHash, invalidTxSet));
+    REQUIRE_FALSE(scpHasEnvelopeFromAForinvalidSlot());
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
+
+    // Wait for apply to finish. When it does, ledgerCloseComplete runs on
+    // the main thread, LCL advances to `target`, and
+    // Herder::lastClosedLedgerIncreased -> purgeOldSlotsAndProcessSCPQueue
+    // finally drains the SCP queue for slot target+1. At that point the
+    // LCL is fresh, so validateValue fully validates the tx-set against
+    // the real previousLedgerHash and returns kInvalidValue (the bogus
+    // tx-set doesn't match), which makes SCP drop the envelope without
+    // recording it.
+    simulation->crankUntil([&] { return !lmC.isApplying(); },
+                           std::chrono::seconds(10), false);
+
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target);
+    REQUIRE_FALSE(scpHasEnvelopeFromAForinvalidSlot());
+}
+
 TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
 {
     auto mode = Simulation::OVER_LOOPBACK;
