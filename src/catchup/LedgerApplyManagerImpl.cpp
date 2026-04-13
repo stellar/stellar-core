@@ -494,8 +494,8 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    auto const parallelLedgerClose = mApp.getConfig().parallelLedgerClose();
     uint32_t nextToApply = *mLastQueuedToApply + 1;
-    auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     // We can apply multiple ledgers here, which might be slow. This is a rare
     // occurrence so we should be fine.
@@ -512,18 +512,18 @@ LedgerApplyManagerImpl::tryApplySyncingLedgers()
 
         // If we have too many ledgers queued to apply, just stop scheduling
         // more and let the node gracefully go into catchup.
-        releaseAssert(mLastQueuedToApply >= lcl);
-        if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
+        if (parallelLedgerClose)
         {
-            CLOG_INFO(History,
-                      "Next ledger to apply is {}, but LCL {} is too far "
-                      "behind, waiting",
-                      nextToApply, lcl);
-            break;
-        }
-
-        if (mApp.getConfig().parallelLedgerClose())
-        {
+            auto const lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+            releaseAssert(mLastQueuedToApply >= lcl);
+            if (nextToApply - lcl >= MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT)
+            {
+                CLOG_INFO(History,
+                          "Next ledger to apply is {}, but LCL {} is too far "
+                          "behind, waiting",
+                          nextToApply, lcl);
+                break;
+            }
             // Notify LM that application has started
             mApp.getLedgerManager().beginApply();
             mApp.postOnLedgerCloseThread(
