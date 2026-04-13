@@ -308,11 +308,11 @@ checkStellarCoreMajorVersionProtocolIdentity()
         stellar::getStellarCoreMajorReleaseVersion(STELLAR_CORE_VERSION);
     if (major_release_version)
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        // In a vNext build, we expect the major release version to be one less
-        // than the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
-        // developing v21.X.Y and we enable vNext, then
-        // CURRENT_LEDGER_PROTOCOL_VERSION should be 22.
+#ifdef BUILDING_NEXT_PROTOCOL
+        // In a next-protocol build (either via --enable-next-protocol-version-
+        // unsafe-for-production or per-feature flags like --enable-cap-0071),
+        // we expect the major release version to be one less than
+        // CURRENT_LEDGER_PROTOCOL_VERSION.
         if (*major_release_version + 1 !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
@@ -324,10 +324,8 @@ checkStellarCoreMajorVersionProtocolIdentity()
                             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
         }
 #else
-        // In a non-vNext build, we expect the major release version to be the
-        // same as the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
-        // developing v21.X.Y and we are not enabling vNext, then
-        // CURRENT_LEDGER_PROTOCOL_VERSION should be 21.
+        // In a non-next build, we expect the major release version to be the
+        // same as the CURRENT_LEDGER_PROTOCOL_VERSION.
         if (*major_release_version !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
