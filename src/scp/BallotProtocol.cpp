@@ -1178,11 +1178,26 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
                     mSlot.getSlotIndex(), newC.counter,
                     mSlot.getSCP().getDriver().getValueString(newC.value),
                     waitingTime.value().count());
-
+            }
+            else if (validationLevel == SCPDriver::kInvalidValue)
+            {
+                // With parallel downloading, a confirmed-prepared value
+                // can become kInvalidValue if the tx set was downloaded
+                // and found invalid. Do not vote to commit it.
+                // TODO(37): Should ensure that the validator who proposed this
+                // value is included in this log message, as it's very likely
+                // the validator is misbehaving. Should also do this at
+                // `maybeReplaceValueWithSkip`.
+                CLOG_WARNING(
+                    Proto,
+                    "BallotProtocol::setConfirmPrepared slot:{} "
+                    "commit gate rejecting kInvalidValue - "
+                    "ballot counter:{} value:{}",
+                    mSlot.getSlotIndex(), newC.counter,
+                    mSlot.getSCP().getDriver().getValueString(newC.value));
             }
             else
             {
-                releaseAssert(validationLevel != SCPDriver::kInvalidValue);
                 dbgAssert(!mCommit);
 
                 // Measure and record how long balloting was blocked on this
@@ -2089,17 +2104,31 @@ SCPDriver::ValidationLevel
 BallotProtocol::validateValues(SCPStatement const& st)
 {
     ZoneScoped;
+
+    if (st.pledges.type() == SCPStatementType::SCP_ST_PREPARE)
+    {
+        // Don't validate any values in PREPARE statements. With parallel
+        // downloading, ballot.value may be kAwaitingDownload that later
+        // becomes kInvalidValue, and prepared/preparedPrime are protocol
+        // facts (accepted-prepared ballots) that cannot be unilaterally
+        // changed. Incoming PREPAREs with invalid ballot values must be
+        // accepted so that checkHeardFromQuorum can see a quorum and arm
+        // the ballot timer. The commit gate in setConfirmPrepared
+        // independently validates values before voting to commit.
+        return SCPDriver::kFullyValidatedValue;
+    }
+
     std::set<Value> values;
 
     values = getStatementValues(st);
 
     if (values.empty())
     {
+        // This shouldn't happen
         CLOG_DEBUG(Proto,
                    "BallotProtocol::validateValues slot:{} "
                    "found empty value set in statement",
                    mSlot.getSlotIndex());
-        // This shouldn't happen
         return SCPDriver::kInvalidValue;
     }
 
