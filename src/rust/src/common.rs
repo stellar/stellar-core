@@ -1,5 +1,8 @@
 use crate::{BridgeError, CxxBuf, RustBuf};
 
+#[cfg(feature = "testutils")]
+use crate::CxxLedgerInfo;
+
 impl From<Vec<u8>> for RustBuf {
     fn from(value: Vec<u8>) -> Self {
         Self { data: value }
@@ -28,6 +31,41 @@ impl CxxBuf {
             self.data.pin_mut().push(*byte);
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "testutils")]
+impl Clone for CxxBuf {
+    fn clone(&self) -> Self {
+        if self.data.is_null() {
+            return Self {
+                data: cxx::UniquePtr::null(),
+            };
+        }
+
+        let bytes = self.as_ref();
+        Self {
+            data: unsafe { crate::rust_bridge::shim_copyU8Vector(bytes.as_ptr(), bytes.len()) },
+        }
+    }
+}
+
+#[cfg(feature = "testutils")]
+impl Clone for CxxLedgerInfo {
+    fn clone(&self) -> Self {
+        Self {
+            protocol_version: self.protocol_version,
+            sequence_number: self.sequence_number,
+            timestamp: self.timestamp,
+            network_id: self.network_id.clone(),
+            base_reserve: self.base_reserve,
+            memory_limit: self.memory_limit,
+            min_temp_entry_ttl: self.min_temp_entry_ttl,
+            min_persistent_entry_ttl: self.min_persistent_entry_ttl,
+            max_entry_ttl: self.max_entry_ttl,
+            cpu_cost_params: self.cpu_cost_params.clone(),
+            mem_cost_params: self.mem_cost_params.clone(),
+        }
     }
 }
 

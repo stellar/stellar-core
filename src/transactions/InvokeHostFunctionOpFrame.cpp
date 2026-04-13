@@ -40,9 +40,10 @@ namespace stellar
 namespace
 {
 CxxLedgerInfo
-getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
-              uint32_t ledgerSeq, uint32_t baseReserve, TimePoint closeTime,
-              Hash const& networkID)
+buildLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
+                uint32_t ledgerVersion, uint32_t ledgerSeq,
+                uint32_t baseReserve, TimePoint closeTime,
+                Hash const& networkID)
 {
     CxxLedgerInfo info{};
     info.base_reserve = baseReserve;
@@ -68,6 +69,27 @@ getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
         info.network_id.emplace_back(static_cast<unsigned char>(c));
     }
     return info;
+}
+
+CxxLedgerInfo const&
+getCachedLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
+                    uint32_t ledgerVersion, uint32_t ledgerSeq,
+                    uint32_t baseReserve, TimePoint closeTime,
+                    Hash const& networkID)
+{
+    thread_local std::optional<uint32_t> cachedLedgerSeq;
+    thread_local std::optional<CxxLedgerInfo> cachedLedgerInfo;
+
+    if (!cachedLedgerSeq || *cachedLedgerSeq != ledgerSeq)
+    {
+        cachedLedgerSeq = ledgerSeq;
+        cachedLedgerInfo = buildLedgerInfo(sorobanConfig, ledgerVersion,
+                                           ledgerSeq, baseReserve, closeTime,
+                                           networkID);
+    }
+
+    releaseAssertOrThrow(cachedLedgerInfo);
+    return cachedLedgerInfo.value();
 }
 
 DiagnosticEvent
@@ -314,7 +336,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         mTtlEntryCxxBufs.reserve(footprintLength);
     }
 
-    virtual CxxLedgerInfo getLedgerInfo() = 0;
+    virtual CxxLedgerInfo const& getLedgerInfo() = 0;
 
     // Helper called on all archived keys in the footprint. Returns false if
     // the operation should fail and populates result code and diagnostic
@@ -1007,12 +1029,12 @@ class InvokeHostFunctionPreV23ApplyHelper
         return false;
     }
 
-    CxxLedgerInfo
+    CxxLedgerInfo const&
     getLedgerInfo() override
     {
         auto hdr = mLtx.loadHeader();
         auto const& lh = hdr.current();
-        return stellar::getLedgerInfo(
+        return getCachedLedgerInfo(
             mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
             lh.scpValue.closeTime, mApp.getNetworkID());
     }
@@ -1194,10 +1216,10 @@ class InvokeHostFunctionParallelApplyHelper
         return mAutorestoredEntries.at(index);
     }
 
-    CxxLedgerInfo
+    CxxLedgerInfo const&
     getLedgerInfo() override
     {
-        return stellar::getLedgerInfo(
+        return getCachedLedgerInfo(
             mSorobanConfig, mLedgerInfo.getLedgerVersion(),
             mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
             mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());

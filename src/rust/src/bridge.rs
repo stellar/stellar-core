@@ -199,7 +199,7 @@ pub(crate) mod rust_bridge {
             restored_rw_entry_indices: &Vec<u32>,
             source_account: &CxxBuf,
             auth_entries: &Vec<CxxBuf>,
-            ledger_info: CxxLedgerInfo,
+            ledger_info: &CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
             ttl_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
@@ -390,6 +390,7 @@ pub(crate) mod rust_bridge {
             level: LogLevel,
             msg: &CxxString,
         ) -> Result<()>;
+        unsafe fn shim_copyU8Vector(data: *const u8, len: usize) -> UniquePtr<CxxVector<u8>>;
     }
 }
 

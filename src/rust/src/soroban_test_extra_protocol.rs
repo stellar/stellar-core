@@ -25,7 +25,7 @@ pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
     restored_rw_entry_indices: &Vec<u32>,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    mut ledger_info: CxxLedgerInfo,
+    ledger_info: &CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
@@ -36,6 +36,7 @@ pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
         if let Ok(proto) = u32::from_str(&extra) {
             info!(target: TX, "comparing soroban host for protocol {} with {}", ledger_info.protocol_version, proto);
             if let Ok(hm2) = get_host_module_for_protocol(proto, proto) {
+                let mut ledger_info = ledger_info.clone();
                 if let Err(e) = modify_ledger_info_for_extra_test_execution(&mut ledger_info, proto)
                 {
                     warn!(target: TX, "modifying ledger info for protocol {} re-execution failed: {:?}", proto, e);
