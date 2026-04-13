@@ -164,6 +164,25 @@ extern std::vector<std::pair<std::filesystem::path, std::string>> const
 
 namespace
 {
+// XDR identity is verified in two parts:
+//
+// 1. Hash check: Both C++ (hash-xdrs.sh) and Rust (rs-stellar-xdr xdrgen)
+//    hash .x files after stripping #ifdef/#else/#endif blocks and removing
+//    all whitespace. This produces a canonical hash of the base XDR types
+//    that is stable regardless of which feature ifdefs are present or how
+//    the files are formatted. Content between #ifdef and #else (the
+//    feature-on branch) is stripped, while content between #else and #endif
+//    (the feature-off branch) is kept, since it represents the base types.
+//    Note: this does not validate feature-gated XDR content.
+//
+// 2. Feature flag check: C++ reports which XDR feature flags are enabled
+//    (e.g., CAP_0071) via preprocessor defines, and the Rust side reports
+//    its enabled features via the VERSION.features field in rs-stellar-xdr.
+//    These are compared to ensure both sides compiled the same set of
+//    feature-gated types. Together with the hash check, this is enough to be
+//    confident that the Rust and C++ sides are using the same XDR definitions.
+//    The xdr behind the feature gates could technically differ between Rust and C++,
+//    but our releases shouldn't be built with feature flags, so we should be fine.
 void
 checkXDRFileIdentity()
 {
@@ -177,8 +196,7 @@ checkXDRFileIdentity()
 
     // This will panic if soroban does not support the current ledger protocol
     // version. It should even work if configured with "next": the next feature
-    // should enable the next feature on the most recent soroban host, and to
-    // select the next xdr module from the xdr crate linked to that host.
+    // should enable the next feature on the most recent soroban host.
     rust::Vec<SorobanVersionInfo> rustVersions = get_soroban_version_info(
         stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     rust::Vec<XDRFileHash> const& rustHashes =
