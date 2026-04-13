@@ -1365,7 +1365,7 @@ pub(crate) fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersio
 
     let infos: Vec<SorobanVersionInfo> = HOST_MODULES
         .iter()
-        .map(|f| (f.get_soroban_version_info)(core_max_proto))
+        .map(|f| (f.get_soroban_version_info)())
         .collect();
     // This check should be safe to keep. The feature soroban-vnext is passed
     // through to soroban-env-host-p{NN}/next and so should enable protocol
@@ -1397,7 +1397,7 @@ pub(crate) struct HostModule {
     // dispatch. The struct returned from `get_version_info` contains a bunch of
     // dynamic strings, which is necessary due to cxx limitations.
     pub(crate) max_proto: u32,
-    pub(crate) get_soroban_version_info: fn(u32) -> SorobanVersionInfo,
+    pub(crate) get_soroban_version_info: fn() -> SorobanVersionInfo,
     pub(crate) invoke_host_function:
         fn(
             enable_diagnostics: bool,

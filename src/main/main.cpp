@@ -181,8 +181,9 @@ namespace
 //    These are compared to ensure both sides compiled the same set of
 //    feature-gated types. Together with the hash check, this is enough to be
 //    confident that the Rust and C++ sides are using the same XDR definitions.
-//    The xdr behind the feature gates could technically differ between Rust and C++,
-//    but our releases shouldn't be built with feature flags, so we should be fine.
+//    The xdr behind the feature gates could technically differ between Rust and
+//    C++, but our releases shouldn't be built with feature flags, so we should
+//    be fine.
 void
 checkXDRFileIdentity()
 {
@@ -253,6 +254,16 @@ checkXDRFileIdentity()
 #endif
 #ifdef TEST_FEATURE
     cppFeatures.emplace_back("test_feature");
+#endif
+
+#ifndef BUILDING_NEXT_PROTOCOL
+    // If we're not building for the next protocol, no XDR feature flags
+    // should be enabled. If any are, it's a build misconfiguration.
+    if (!cppFeatures.empty())
+    {
+        throw std::runtime_error(
+            "XDR feature flags are enabled without BUILDING_NEXT_PROTOCOL");
+    }
 #endif
 
     rust::Vec<rust::String> const& rustFeatures =

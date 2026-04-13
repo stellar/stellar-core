@@ -199,7 +199,7 @@ pub const fn get_max_proto() -> u32 {
     super::get_version_protocol(&VERSION)
 }
 
-pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+pub fn get_soroban_version_info() -> SorobanVersionInfo {
     let env_max_proto = get_max_proto();
 
     SorobanVersionInfo {
