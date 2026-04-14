@@ -1242,7 +1242,8 @@ TxSetXDRFrame::prepareForApply(Application& app,
 #endif
     ZoneScoped;
 
-    size_t maxThreads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()) - 1);
+    auto const maxThreads =
+        static_cast<size_t>(app.getConfig().LEDGER_CLOSE_WORKER_THREADS);
 
     std::vector<TxSetPhaseFrame> phaseFrames;
     if (isGeneralizedTxSet())
