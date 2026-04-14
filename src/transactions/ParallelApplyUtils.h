@@ -155,6 +155,7 @@ class ThreadParallelApplyLedgerState
     void flushRemainingRoTTLBumps();
 
     ParallelApplyEntryMap<staticScope> const& getEntryMap() const;
+    ParallelApplyEntryMap<staticScope>& getEntryMap();
 
     RestoredEntries const& getRestoredEntries() const;
 
@@ -248,12 +249,12 @@ class GlobalParallelApplyLedgerState
     void
     commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
                            LedgerKey const& key,
-                           ThreadParallelApplyEntry const& parEntry,
+                           ThreadParallelApplyEntry&& parEntry,
                            std::unordered_set<LedgerKey> const& readWriteSet);
 
     void
     commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState const& thread,
+                            ThreadParallelApplyLedgerState& thread,
                             std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:

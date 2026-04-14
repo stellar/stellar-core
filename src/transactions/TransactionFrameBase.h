@@ -78,10 +78,20 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     }
     template <StaticLedgerEntryScope S2>
     ParallelApplyEntry<S2>
-    rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) const
+    rescope(LedgerEntryScope<S> const& s1,
+            LedgerEntryScope<S2> const& s2) const&
     {
         auto adoptedEntry = s2.scopeAdoptEntryOptFrom(mLedgerEntry, s1);
         return ParallelApplyEntry<S2>{adoptedEntry, mIsDirty};
+    }
+    template <StaticLedgerEntryScope S2>
+    ParallelApplyEntry<S2>
+    rescope(LedgerEntryScope<S> const& s1,
+            LedgerEntryScope<S2> const& s2) &&
+    {
+        auto adoptedEntry =
+            s2.scopeAdoptEntryOptFrom(std::move(mLedgerEntry), s1);
+        return ParallelApplyEntry<S2>{std::move(adoptedEntry), mIsDirty};
     }
 };
 using GlobalParallelApplyEntry =

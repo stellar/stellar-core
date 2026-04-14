@@ -757,35 +757,39 @@ GlobalParallelApplyLedgerState::maybeMergeRoTTLBumps(
 void
 GlobalParallelApplyLedgerState::commitChangeFromThread(
     ThreadParallelApplyLedgerState const& thread, LedgerKey const& key,
-    ThreadParallelApplyEntry const& parEntry,
+    ThreadParallelApplyEntry&& parEntry,
     std::unordered_set<LedgerKey> const& readWriteSet)
 {
     if (!parEntry.mIsDirty)
     {
         return;
     }
-    auto rescopedParEntry = parEntry.rescope(thread, *this);
-    auto [it, inserted] = mGlobalEntryMap.emplace(key, rescopedParEntry);
-    if (!inserted)
+    auto rescopedParEntry = std::move(parEntry).rescope(thread, *this);
+    auto it = mGlobalEntryMap.find(key);
+    if (it == mGlobalEntryMap.end())
+    {
+        mGlobalEntryMap.emplace(key, std::move(rescopedParEntry));
+    }
+    else
     {
         if (!maybeMergeRoTTLBumps(key, rescopedParEntry, it->second,
                                   readWriteSet))
         {
-            it->second = rescopedParEntry;
+            it->second = std::move(rescopedParEntry);
         }
     }
 }
 
 void
 GlobalParallelApplyLedgerState::commitChangesFromThread(
-    AppConnector& app, ThreadParallelApplyLedgerState const& thread,
+    AppConnector& app, ThreadParallelApplyLedgerState& thread,
     std::unordered_set<LedgerKey> const& readWriteSet)
 {
     ZoneScoped;
     thread.scopeDeactivate();
-    for (auto const& [key, entry] : thread.getEntryMap())
+    for (auto& [key, entry] : thread.getEntryMap())
     {
-        commitChangeFromThread(thread, key, entry, readWriteSet);
+        commitChangeFromThread(thread, key, std::move(entry), readWriteSet);
     }
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
 }
@@ -935,6 +939,12 @@ ThreadParallelApplyLedgerState::flushRemainingRoTTLBumps()
 
 ThreadParallelApplyEntryMap const&
 ThreadParallelApplyLedgerState::getEntryMap() const
+{
+    return mThreadEntryMap;
+}
+
+ThreadParallelApplyEntryMap&
+ThreadParallelApplyLedgerState::getEntryMap()
 {
     return mThreadEntryMap;
 }
