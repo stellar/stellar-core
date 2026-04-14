@@ -753,6 +753,9 @@ class Config : public std::enable_shared_from_this<Config>
     // thread-management config
     int WORKER_THREADS;
 
+    // Number of threads to use during ledger close parallelism
+    int LEDGER_CLOSE_WORKER_THREADS;
+
     // Number of threads to serve query commands
     int QUERY_THREAD_POOL_SIZE;
 

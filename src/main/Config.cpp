@@ -26,6 +26,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <unordered_set>
 
@@ -80,6 +81,14 @@ static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
 
 namespace
 {
+int
+defaultLedgerCloseWorkerThreads()
+{
+    auto const hardwareThreads =
+        static_cast<int>(std::thread::hardware_concurrency());
+    return std::max(1, hardwareThreads - 2);
+}
+
 // compute a default threshold for qset:
 // if thresholdLevel is SIMPLE_MAJORITY there are no inner sets, only
 // require majority
@@ -289,6 +298,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     //
     // Worst case = 10 concurrent merges + 1 quorum intersection calculation.
     WORKER_THREADS = 11;
+
+    // Leave headroom for the main thread and one additional thread while still
+    // scaling ledger close parallelism with the host.
+    LEDGER_CLOSE_WORKER_THREADS = defaultLedgerCloseWorkerThreads();
 
     // Compilation is a short process that runs at startup and is CPU limited.
     // Empirically it tends to peak and start getting slower around 6 threads
@@ -1459,6 +1472,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { COMMANDS = readArray<std::string>(item); }},
                 {"WORKER_THREADS",
                  [&]() { WORKER_THREADS = readInt<int>(item, 2, 1000); }},
+                {"LEDGER_CLOSE_WORKER_THREADS",
+                 [&]() {
+                     LEDGER_CLOSE_WORKER_THREADS =
+                         readInt<int>(item, 1, 100);
+                 }},
                 {"QUERY_THREAD_POOL_SIZE",
                  [&]() {
                      QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);

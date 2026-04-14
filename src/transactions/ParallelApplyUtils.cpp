@@ -507,13 +507,9 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
         return;
     }
 
-    size_t workerCount = 1;
-    if (auto hardwareConcurrency = std::thread::hardware_concurrency();
-        hardwareConcurrency > 1)
-    {
-        workerCount = hardwareConcurrency - 1;
-    }
-    workerCount = std::min(workerCount, txBundles.size());
+    auto workerCount = std::min(
+        static_cast<size_t>(app.getConfig().LEDGER_CLOSE_WORKER_THREADS),
+        txBundles.size());
 
     if (workerCount == 1)
     {

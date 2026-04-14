@@ -87,16 +87,15 @@ mergeAccountFeeMaps(UnorderedMap<AccountID, int64_t>& destination,
 }
 
 size_t
-getValidationThreadCount(size_t txCount)
+getValidationThreadCount(size_t txCount, Config const& config)
 {
     if (txCount == 0)
     {
         return 0;
     }
 
-    auto const hardwareThreads = std::thread::hardware_concurrency();
     auto const targetThreadCount =
-        hardwareThreads > 1 ? static_cast<size_t>(hardwareThreads - 1) : 1;
+        static_cast<size_t>(config.LEDGER_CLOSE_WORKER_THREADS);
     return std::min(txCount, targetThreadCount);
 }
 
@@ -315,7 +314,8 @@ TxSetUtils::getInvalidTxListWithErrors(
                                                .getLastClosedSorobanNetworkConfig()
                                         : nullptr;
 
-        auto const numThreads = getValidationThreadCount(txList.size());
+        auto const numThreads =
+            getValidationThreadCount(txList.size(), app.getConfig());
         if (numThreads != 0)
         {
             std::vector<ValidationChunkResult> validationResults(numThreads);
