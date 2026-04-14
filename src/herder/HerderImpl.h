@@ -210,7 +210,7 @@ class HerderImpl : public Herder
     virtual StellarValue
     makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
-                     SecretKey const& s) override;
+                     SecretKey const& s, uint64_t actualCloseTime = 0) override;
 
     void startTxSetGCTimer();
 

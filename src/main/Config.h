@@ -925,17 +925,16 @@ class Config : public std::enable_shared_from_this<Config>
     // testing.
     bool EXPERIMENTAL_TRIGGER_TIMER;
 
+    // Injects a signed wall-clock offset into the node's system clock for
+    // testing. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
     generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
 
 #endif
-
-    // When set, use local steady_clock elapsed time for ledger age reporting
-    // instead of the consensus closeTime. This avoids artificial clock drift
-    // from affecting the ledger.age metric and /info ledger age.
-    bool USE_LOCAL_TIME_FOR_REPORTING;
 
     // Returns ledger close time if an override value is currently set for
     // testing. Otherwise returns nullopt.

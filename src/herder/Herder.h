@@ -223,7 +223,7 @@ class Herder
     virtual StellarValue
     makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
-                     SecretKey const& s) = 0;
+                     SecretKey const& s, uint64_t actualCloseTime = 0) = 0;
 
     virtual ~Herder()
     {

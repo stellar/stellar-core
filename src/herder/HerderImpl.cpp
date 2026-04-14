@@ -954,8 +954,8 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
 {
     getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
     auto sk = skToSignValue ? *skToSignValue : mApp.getConfig().NODE_SEED;
-    StellarValue sv =
-        makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
+    StellarValue sv = makeStellarValue(txSet->getContentsHash(), closeTime,
+                                       upgrades, sk, closeTime);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
     while (mApp.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
     {
@@ -1538,8 +1538,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime =
-        VirtualClock::to_time_t(mApp.getClock().system_now());
+    auto [actualSystemNow, driftedSystemNow] =
+        mApp.getClock().actual_and_fake_system_now();
+    uint64_t actualCloseTime = VirtualClock::to_time_t(actualSystemNow);
+    uint64_t nextCloseTime = VirtualClock::to_time_t(driftedSystemNow);
     if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
     {
         auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
@@ -1669,8 +1671,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-    StellarValue newProposedValue = makeStellarValue(
-        txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
+    StellarValue newProposedValue =
+        makeStellarValue(txSetHash, nextCloseTime, newUpgrades,
+                         mApp.getConfig().NODE_SEED, actualCloseTime);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
 }
@@ -2746,13 +2749,14 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 StellarValue
 HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
-                             SecretKey const& s)
+                             SecretKey const& s, uint64_t actualCloseTime)
 {
     ZoneScoped;
     StellarValue sv;
     sv.ext.v(STELLAR_VALUE_SIGNED);
     sv.txSetHash = txSetHash;
     sv.closeTime = closeTime;
+    sv.actualCloseTime = actualCloseTime;
     sv.upgrades = upgrades;
     sv.ext.lcValueSignature().nodeID = s.getPublicKey();
     sv.ext.lcValueSignature().signature =

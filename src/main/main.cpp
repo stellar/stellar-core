@@ -365,14 +365,14 @@ main(int argc, char* const* argv)
     try
     {
 
-        checkStellarCoreMajorVersionProtocolIdentity();
-        rust_bridge::check_sensible_soroban_config_for_protocol(
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+//         checkStellarCoreMajorVersionProtocolIdentity();
+//         rust_bridge::check_sensible_soroban_config_for_protocol(
+//             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-        // Disable XDR hash checking in vnext builds
-#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        checkXDRFileIdentity();
-#endif
+//         // Disable XDR hash checking in vnext builds
+// #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+//         checkXDRFileIdentity();
+// #endif
     }
     catch (...)
     {

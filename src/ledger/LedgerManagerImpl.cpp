@@ -1259,14 +1259,15 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
-    if (mApp.getConfig().USE_LOCAL_TIME_FOR_REPORTING)
+    auto const& scpValue = getLastClosedLedgerHeader().header.scpValue;
+    uint64_t ct = scpValue.actualCloseTime;
+    if (ct != 0)
     {
-        auto now = mApp.getClock().now();
-        auto elapsed =
-            std::chrono::duration_cast<std::chrono::seconds>(now - mLastClose);
-        return elapsed.count() > 0 ? elapsed.count() : 0;
+        uint64_t now =
+            VirtualClock::to_time_t(mApp.getClock().actual_system_now());
+        return (now > ct) ? (now - ct) : 0;
     }
-    uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    ct = scpValue.closeTime;
     if (ct == 0)
     {
         return 0;

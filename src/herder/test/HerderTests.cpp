@@ -2836,7 +2836,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 SECTION("basic value")
                 {
                     auto basicVal =
-                        StellarValue(txSet0->getContentsHash(), ct,
+                        StellarValue(txSet0->getContentsHash(), ct, ct,
                                      emptyUpgradeSteps, STELLAR_VALUE_BASIC);
                     checkInvalid(basicVal, isNomination);
                 }

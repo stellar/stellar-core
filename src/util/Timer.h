@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <queue>
+#include <utility>
 
 namespace stellar
 {
@@ -240,6 +241,14 @@ class VirtualClock
     // plus the steady time offset, i.e. "some time early in 1970" (unless
     // someone has set the time forward using setCurrentVirtualTime below).
     system_time_point system_now() const noexcept;
+
+    // Like system_now(), but without any artificial test drift applied.
+    system_time_point actual_system_now() const noexcept;
+
+    // Returns both the unshifted and drifted system time samples captured from
+    // the same underlying timestamp source.
+    std::pair<system_time_point, system_time_point>
+    actual_and_fake_system_now() const noexcept;
 
     void enqueue(std::shared_ptr<VirtualClockEvent> ve);
     void flushCancelledEvents();

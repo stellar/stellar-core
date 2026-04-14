@@ -23,6 +23,7 @@ isValid(LedgerHeader const& lh)
     bool res = (lh.ledgerSeq <= INT32_MAX);
 
     res = res && (lh.scpValue.closeTime <= INT64_MAX);
+    res = res && (lh.scpValue.actualCloseTime <= INT64_MAX);
     res = res && (lh.feePool >= 0);
     res = res && (lh.idPool <= INT64_MAX);
     return res;

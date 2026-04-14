@@ -357,9 +357,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_USES_IN_MEMORY_LEDGER = false;
     SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = false;
     EXPERIMENTAL_TRIGGER_TIMER = false;
+    ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+        std::chrono::milliseconds::zero();
 #endif
-    USE_LOCAL_TIME_FOR_REPORTING = false;
-
 #ifdef BEST_OFFER_DEBUGGING
     BEST_OFFER_DEBUGGING_ENABLED = false;
 #endif
@@ -1195,12 +1195,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 #ifdef BUILD_TESTS
                 {"EXPERIMENTAL_TRIGGER_TIMER",
                  [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
+                {"ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                         std::chrono::milliseconds(readInt<int64_t>(item));
+                 }},
 #endif
-                {"USE_LOCAL_TIME_FOR_REPORTING",
-                 [&]() { USE_LOCAL_TIME_FOR_REPORTING = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
-                     ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
                          std::chrono::milliseconds(readInt<uint32_t>(item));
                  }},
                 // https://github.com/stellar/stellar-core/issues/4581
