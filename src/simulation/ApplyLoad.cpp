@@ -88,6 +88,199 @@ interpolatePercentile(std::vector<double> const& sortedValues,
     return sortedValues[lo] * (1.0 - weight) + sortedValues[hi] * weight;
 }
 
+struct PhaseStats
+{
+    double mean = 0;
+    double stddev = 0;
+    double p25 = 0;
+    double median = 0;
+    double p75 = 0;
+    double p95 = 0;
+    double p99 = 0;
+};
+
+PhaseStats
+computePhaseStats(std::vector<double>& values)
+{
+    PhaseStats s;
+    if (values.empty())
+    {
+        return s;
+    }
+    double sum = std::accumulate(values.begin(), values.end(), 0.0);
+    s.mean = sum / values.size();
+    double varianceSum = 0.0;
+    for (auto v : values)
+    {
+        double d = v - s.mean;
+        varianceSum += d * d;
+    }
+    s.stddev = std::sqrt(varianceSum / values.size());
+    std::sort(values.begin(), values.end());
+    s.p25 = interpolatePercentile(values, 25.0);
+    s.median = interpolatePercentile(values, 50.0);
+    s.p75 = interpolatePercentile(values, 75.0);
+    s.p95 = interpolatePercentile(values, 95.0);
+    s.p99 = interpolatePercentile(values, 99.0);
+    return s;
+}
+
+void
+logPhaseTimingsTable(
+    std::vector<LedgerManagerImpl::LedgerClosePhaseTimings> const& allTimings)
+{
+    if (allTimings.empty())
+    {
+        return;
+    }
+    // Extract per-phase vectors.
+    size_t n = allTimings.size();
+
+    // Helper to extract a field into a vector.
+    auto extract = [&](auto field) {
+        std::vector<double> v(n);
+        for (size_t i = 0; i < n; ++i)
+        {
+            v[i] = allTimings[i].*field;
+        }
+        return v;
+    };
+
+    auto prepareTxSet =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::prepareTxSetMs);
+    auto prefetchSrc = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::prefetchSourceAccountsMs);
+    auto feesSeqNums = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::processFeesSeqNumsMs);
+    auto applyTxs = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::applyTransactionsMs);
+    auto applyTxSetup =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyTxSetupMs);
+    auto prefetchTxData =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::prefetchTxDataMs);
+    auto applyTxMidSetup =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyTxMidSetupMs);
+    auto loadSorobanConfig = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::loadSorobanConfigMs);
+    auto buildTxBundles =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::buildTxBundlesMs);
+    auto sorobanSetupGlobal = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupGlobalMs);
+    auto sorobanParallel = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanParallelApplyMs);
+    auto sorobanCheckInvariants = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanCheckInvariantsMs);
+    auto sorobanCommitThreads =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanCommitFromThreadsMs);
+    auto sorobanDestroyThreads =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanDestroyThreadStatesMs);
+    auto sorobanCommitLtx = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanCommitToLtxMs);
+    auto sorobanDestroyGlobal =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanDestroyGlobalStateMs);
+    auto parTotal = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::applyParallelPhaseTotalMs);
+    auto applySeqClassic =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applySeqClassicMs);
+    auto postTxSetApply =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::postTxSetApplyMs);
+    auto applyTxTail =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyTxTailMs);
+    auto destroyApplyStages = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::destroyApplyStagesMs);
+    auto upgrades =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyUpgradesMs);
+    auto sealBucket =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sealAndBucketMs);
+    auto sqlCommit =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sqlCommitMs);
+    auto postCommit =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::postCommitMs);
+
+    // Compute per-ledger gap inside parallel_total:
+    //   parallel_total - sum(all sub-phases including destructors)
+    std::vector<double> parGap(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        parGap[i] = parTotal[i] - buildTxBundles[i] - sorobanSetupGlobal[i] -
+                    sorobanParallel[i] - sorobanCheckInvariants[i] -
+                    sorobanCommitThreads[i] - sorobanDestroyThreads[i] -
+                    sorobanCommitLtx[i] - sorobanDestroyGlobal[i];
+    }
+    // Compute per-ledger gap inside apply_transactions:
+    //   apply_transactions - sum(all sub-phases including destructors)
+    std::vector<double> txGap(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        txGap[i] = applyTxs[i] - applyTxSetup[i] - prefetchTxData[i] -
+                   applyTxMidSetup[i] - loadSorobanConfig[i] - parTotal[i] -
+                   applySeqClassic[i] - postTxSetApply[i] - applyTxTail[i] -
+                   destroyApplyStages[i];
+    }
+
+    struct PhaseRow
+    {
+        std::string name;
+        PhaseStats stats;
+    };
+
+    // Hierarchical layout:
+    //   Level 0: top-level phases (no indent)
+    //   Level 1: children of apply_transactions (2-space indent)
+    //   Level 2: children of parallel_total (4-space indent)
+    std::vector<PhaseRow> rows = {
+        {"prepare_txset", computePhaseStats(prepareTxSet)},
+        {"prefetch_src_accts", computePhaseStats(prefetchSrc)},
+        {"process_fees_seqnums", computePhaseStats(feesSeqNums)},
+        {"apply_transactions", computePhaseStats(applyTxs)},
+        {"| setup", computePhaseStats(applyTxSetup)},
+        {"| prefetch_tx_data", computePhaseStats(prefetchTxData)},
+        {"| mid_setup", computePhaseStats(applyTxMidSetup)},
+        {"| load_soroban_config", computePhaseStats(loadSorobanConfig)},
+        {"| parallel_total", computePhaseStats(parTotal)},
+        {"|   build_tx_bundles", computePhaseStats(buildTxBundles)},
+        {"|   soroban_setup_glbl", computePhaseStats(sorobanSetupGlobal)},
+        {"|   soroban_parallel", computePhaseStats(sorobanParallel)},
+        {"|   soroban_invariants", computePhaseStats(sorobanCheckInvariants)},
+        {"|   commit_from_thrds", computePhaseStats(sorobanCommitThreads)},
+        {"|   ~thread_states", computePhaseStats(sorobanDestroyThreads)},
+        {"|   commit_to_ltx", computePhaseStats(sorobanCommitLtx)},
+        {"|   ~global_par_state", computePhaseStats(sorobanDestroyGlobal)},
+        {"|   *** par gap ***", computePhaseStats(parGap)},
+        {"| apply_seq_classic", computePhaseStats(applySeqClassic)},
+        {"| post_tx_set_apply", computePhaseStats(postTxSetApply)},
+        {"| tail", computePhaseStats(applyTxTail)},
+        {"| ~apply_stages", computePhaseStats(destroyApplyStages)},
+        {"| *** tx gap ***", computePhaseStats(txGap)},
+        {"apply_upgrades", computePhaseStats(upgrades)},
+        {"seal_and_bucket", computePhaseStats(sealBucket)},
+        {"sql_commit", computePhaseStats(sqlCommit)},
+        {"post_commit", computePhaseStats(postCommit)},
+    };
+
+    // Log the table header and rows.
+    CLOG_WARNING(Perf,
+                 "Phase timing breakdown ({} ledgers, all values in ms):", n);
+    CLOG_WARNING(
+        Perf, "{:<24s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}",
+        "phase", "mean", "stddev", "median", "p25", "p75", "p95", "p99");
+    CLOG_WARNING(
+        Perf,
+        "{:-<24s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s}", "",
+        "", "", "", "", "", "", "");
+    for (auto const& r : rows)
+    {
+        CLOG_WARNING(Perf,
+                     "{:<24s} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} "
+                     "{:>8.2f} {:>8.2f}",
+                     r.name, r.stats.mean, r.stats.stddev, r.stats.median,
+                     r.stats.p25, r.stats.p75, r.stats.p95, r.stats.p99);
+    }
+}
+
 SorobanUpgradeConfig
 getUpgradeConfig(Config const& cfg, bool validate = true)
 {
@@ -1887,11 +2080,18 @@ ApplyLoad::benchmarkModelTx()
     std::vector<double> closeTimes;
     closeTimes.reserve(config.APPLY_LOAD_NUM_LEDGERS);
 
+    // Per-phase timing vectors
+    using Timings = LedgerManagerImpl::LedgerClosePhaseTimings;
+    std::vector<Timings> allPhaseTimings;
+    allPhaseTimings.reserve(config.APPLY_LOAD_NUM_LEDGERS);
+
     CLOG_WARNING(Perf,
                  "Starting model transaction benchmark for {} ledgers with "
                  "{} tx per ledger",
                  config.APPLY_LOAD_NUM_LEDGERS,
                  config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
+
+    auto& lm = static_cast<LedgerManagerImpl&>(mApp.getLedgerManager());
 
     for (size_t i = 0; i < config.APPLY_LOAD_NUM_LEDGERS; ++i)
     {
@@ -1913,6 +2113,7 @@ ApplyLoad::benchmarkModelTx()
             break;
         }
         closeTimes.emplace_back(closeTimeMs);
+        allPhaseTimings.emplace_back(lm.getLastPhaseTimings());
     }
 
     releaseAssert(!closeTimes.empty());
@@ -1949,6 +2150,9 @@ ApplyLoad::benchmarkModelTx()
                  interpolatePercentile(sortedCloseTimes, 99.0));
     CLOG_WARNING(Perf, "close time stddev: {} ms", std::sqrt(varianceMsSq));
     CLOG_WARNING(Perf, "================================================");
+
+    // Compute and output per-phase statistics table.
+    logPhaseTimingsTable(allPhaseTimings);
 }
 
 double
