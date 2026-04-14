@@ -259,12 +259,6 @@ TxSetUtils::getInvalidTxListWithErrors(
     auto txList = TxFrameList(txs.begin(), txs.end());
     auto const nextLedgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
-    auto const ledgerStateSnapshot =
-        app.getLedgerManager().copyLedgerStateSnapshot();
-    LedgerSnapshot ls(ledgerStateSnapshot);
-    // This is done so minSeqLedgerGap is validated against the next
-    // ledgerSeq, which is what will be used at apply time
-    ls.getLedgerHeader().currentToModify().ledgerSeq = nextLedgerSeq;
 
     TxFrameListWithErrors invalidTxsWithError;
     auto& invalidTxs = invalidTxsWithError.first;
@@ -272,126 +266,189 @@ TxSetUtils::getInvalidTxListWithErrors(
     errorCode = TxSetValidationResult::VALID;
 
     std::unordered_set<Hash> seenInvalidTxs;
-    auto const* sorobanConfig =
-        protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION)
-            ? &app.getLedgerManager().getLastClosedSorobanNetworkConfig()
-            : nullptr;
 
-    auto const numThreads = getValidationThreadCount(txList.size());
-    if (numThreads != 0)
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
-        std::vector<ValidationChunkResult> validationResults(numThreads);
-        auto const baseChunkSize = txList.size() / numThreads;
-        auto const extraTxs = txList.size() % numThreads;
-        if (numThreads == 1)
+        LedgerSnapshot ls(app);
+        ls.getLedgerHeader().currentToModify().ledgerSeq = nextLedgerSeq;
+        auto const* sorobanConfig = protocolVersionStartsFrom(
+                                        ls.getLedgerHeader()
+                                            .current()
+                                            .ledgerVersion,
+                                        SOROBAN_PROTOCOL_VERSION)
+                                        ? &app.getLedgerManager()
+                                               .getLastClosedSorobanNetworkConfig()
+                                        : nullptr;
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        for (auto const& tx : txList)
         {
-            validateTxChunk(txList, 0, txList.size(), app.getAppConnector(),
-                            ledgerStateSnapshot, nextLedgerSeq,
-                            lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset, sorobanConfig,
-                            validationResults[0]);
-        }
-        else
-        {
-            std::vector<std::exception_ptr> validationExceptions(numThreads);
-            std::vector<std::thread> threads;
-            threads.reserve(numThreads);
-
-            size_t chunkBegin = 0;
-            for (size_t threadIndex = 0; threadIndex < numThreads;
-                 ++threadIndex)
+            auto txResult = tx->checkValid(
+                app.getAppConnector(), ls, 0, lowerBoundCloseTimeOffset,
+                upperBoundCloseTimeOffset, diagnostics, sorobanConfig);
+            if (!txResult->isSuccess())
             {
-                auto const chunkSize =
-                    baseChunkSize + (threadIndex < extraTxs ? 1u : 0u);
-                auto const chunkEnd = chunkBegin + chunkSize;
-                threads.emplace_back([&, threadIndex, chunkBegin, chunkEnd]() {
-                    try
-                    {
-                        validateTxChunk(
-                            txList, chunkBegin, chunkEnd,
-                            app.getAppConnector(), ledgerStateSnapshot,
-                            nextLedgerSeq, lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset, sorobanConfig,
-                            validationResults[threadIndex]);
-                    }
-                    catch (...)
-                    {
-                        validationExceptions[threadIndex] =
-                            std::current_exception();
-                    }
-                });
-
-                chunkBegin = chunkEnd;
-            }
-
-            for (auto& thread : threads)
-            {
-                thread.join();
-            }
-
-            for (auto const& validationException : validationExceptions)
-            {
-                if (validationException)
-                {
-                    std::rethrow_exception(validationException);
-                }
-            }
-        }
-
-        for (auto& validationResult : validationResults)
-        {
-            if (validationResult.mHadValidationFailure)
-            {
+                invalidTxs.emplace_back(tx);
+                seenInvalidTxs.emplace(tx->getFullHash());
                 errorCode = TxSetValidationResult::TX_VALIDATION_FAILED;
             }
-
-            for (auto const& invalidTx : validationResult.mInvalidTxs)
+            else
             {
-                invalidTxs.emplace_back(invalidTx);
-                seenInvalidTxs.emplace(invalidTx->getFullHash());
+                addFeeWithSaturation(accountFeeMap, tx->getFeeSourceID(),
+                                     tx->getFullFee());
+            }
+        }
+    }
+    else
+    {
+        auto const ledgerStateSnapshot =
+            app.getLedgerManager().copyLedgerStateSnapshot();
+        LedgerSnapshot ls(ledgerStateSnapshot);
+        // This is done so minSeqLedgerGap is validated against the next
+        // ledgerSeq, which is what will be used at apply time
+        ls.getLedgerHeader().currentToModify().ledgerSeq = nextLedgerSeq;
+        auto const* sorobanConfig = protocolVersionStartsFrom(
+                                        ls.getLedgerHeader()
+                                            .current()
+                                            .ledgerVersion,
+                                        SOROBAN_PROTOCOL_VERSION)
+                                        ? &app.getLedgerManager()
+                                               .getLastClosedSorobanNetworkConfig()
+                                        : nullptr;
+
+        auto const numThreads = getValidationThreadCount(txList.size());
+        if (numThreads != 0)
+        {
+            std::vector<ValidationChunkResult> validationResults(numThreads);
+            auto const baseChunkSize = txList.size() / numThreads;
+            auto const extraTxs = txList.size() % numThreads;
+            if (numThreads == 1)
+            {
+                validateTxChunk(txList, 0, txList.size(),
+                                app.getAppConnector(), ledgerStateSnapshot,
+                                nextLedgerSeq, lowerBoundCloseTimeOffset,
+                                upperBoundCloseTimeOffset, sorobanConfig,
+                                validationResults[0]);
+            }
+            else
+            {
+                std::vector<std::exception_ptr> validationExceptions(numThreads);
+                std::vector<std::thread> threads;
+                threads.reserve(numThreads);
+
+                size_t chunkBegin = 0;
+                for (size_t threadIndex = 0; threadIndex < numThreads;
+                     ++threadIndex)
+                {
+                    auto const chunkSize =
+                        baseChunkSize + (threadIndex < extraTxs ? 1u : 0u);
+                    auto const chunkEnd = chunkBegin + chunkSize;
+                    threads.emplace_back(
+                        [&, threadIndex, chunkBegin, chunkEnd]() {
+                            try
+                            {
+                                validateTxChunk(
+                                    txList, chunkBegin, chunkEnd,
+                                    app.getAppConnector(), ledgerStateSnapshot,
+                                    nextLedgerSeq, lowerBoundCloseTimeOffset,
+                                    upperBoundCloseTimeOffset, sorobanConfig,
+                                    validationResults[threadIndex]);
+                            }
+                            catch (...)
+                            {
+                                validationExceptions[threadIndex] =
+                                    std::current_exception();
+                            }
+                        });
+
+                    chunkBegin = chunkEnd;
+                }
+
+                for (auto& thread : threads)
+                {
+                    thread.join();
+                }
+
+                for (auto const& validationException : validationExceptions)
+                {
+                    if (validationException)
+                    {
+                        std::rethrow_exception(validationException);
+                    }
+                }
             }
 
-            mergeAccountFeeMaps(accountFeeMap,
-                                validationResult.mAccountFeeMap);
+            for (auto& validationResult : validationResults)
+            {
+                if (validationResult.mHadValidationFailure)
+                {
+                    errorCode = TxSetValidationResult::TX_VALIDATION_FAILED;
+                }
+
+                for (auto const& invalidTx : validationResult.mInvalidTxs)
+                {
+                    invalidTxs.emplace_back(invalidTx);
+                    seenInvalidTxs.emplace(invalidTx->getFullHash());
+                }
+
+                mergeAccountFeeMaps(accountFeeMap,
+                                    validationResult.mAccountFeeMap);
+            }
         }
     }
 
-    auto header = ls.getLedgerHeader().current();
-    for (auto const& tx : txList)
-    {
-        // Already added invalid tx
-        if (seenInvalidTxs.find(tx->getFullHash()) != seenInvalidTxs.end())
+    auto validateFeeBalances = [&](LedgerSnapshot& ls) {
+        auto header = ls.getLedgerHeader().current();
+        for (auto const& tx : txList)
         {
-            continue;
-        }
-
-        auto feeSourceID = tx->getFeeSourceID();
-        auto feeSource = ls.getAccount(feeSourceID);
-        // feeSource should exist since we've already run checkValid, log
-        // internal bug
-        if (!feeSource)
-        {
-            CLOG_ERROR(Herder,
-                       "Account not found when checking TxSet validity");
-            CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
-            continue;
-        }
-        auto it = accountFeeMap.find(feeSourceID);
-        auto totFee = it->second;
-        if (getAvailableBalance(header, feeSource.current()) < totFee)
-        {
-            invalidTxs.push_back(tx);
-            // Only override the error code if it wasn't already set
-            if (errorCode == TxSetValidationResult::VALID)
+            // Already added invalid tx
+            if (seenInvalidTxs.find(tx->getFullHash()) != seenInvalidTxs.end())
             {
-                errorCode = TxSetValidationResult::ACCOUNT_CANT_PAY_FEE;
+                continue;
             }
-            releaseAssert(seenInvalidTxs.insert(tx->getFullHash()).second);
-            CLOG_DEBUG(
-                Herder, "Got bad txSet: account can't pay fee tx: {}",
-                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"));
+
+            auto feeSourceID = tx->getFeeSourceID();
+            auto feeSource = ls.getAccount(feeSourceID);
+            // feeSource should exist since we've already run checkValid, log
+            // internal bug
+            if (!feeSource)
+            {
+                CLOG_ERROR(Herder,
+                           "Account not found when checking TxSet validity");
+                CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+                continue;
+            }
+            auto it = accountFeeMap.find(feeSourceID);
+            auto totFee = it->second;
+            if (getAvailableBalance(header, feeSource.current()) < totFee)
+            {
+                invalidTxs.push_back(tx);
+                // Only override the error code if it wasn't already set
+                if (errorCode == TxSetValidationResult::VALID)
+                {
+                    errorCode = TxSetValidationResult::ACCOUNT_CANT_PAY_FEE;
+                }
+                releaseAssert(seenInvalidTxs.insert(tx->getFullHash()).second);
+                CLOG_DEBUG(
+                    Herder, "Got bad txSet: account can't pay fee tx: {}",
+                    xdrToCerealString(tx->getEnvelope(),
+                                      "TransactionEnvelope"));
+            }
         }
+    };
+
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        LedgerSnapshot ls(app);
+        ls.getLedgerHeader().currentToModify().ledgerSeq = nextLedgerSeq;
+        validateFeeBalances(ls);
+    }
+    else
+    {
+        auto const ledgerStateSnapshot =
+            app.getLedgerManager().copyLedgerStateSnapshot();
+        LedgerSnapshot ls(ledgerStateSnapshot);
+        ls.getLedgerHeader().currentToModify().ledgerSeq = nextLedgerSeq;
+        validateFeeBalances(ls);
     }
 
     return invalidTxsWithError;
