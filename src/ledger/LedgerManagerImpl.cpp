@@ -509,8 +509,8 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     }();
     auto output =
         sealLedgerTxnAndStoreInBucketsAndDB(snap, ltx,
-        /*ledgerCloseMeta*/ nullptr,
-        /*initialLedgerVers*/ 0);
+                                            /*ledgerCloseMeta*/ nullptr,
+                                            /*initialLedgerVers*/ 0);
     advanceLastClosedLedgerState(output);
 
     ltx.commit();
@@ -633,7 +633,7 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
                   populateSecs.count());
 
         maybeRunSnapshotInvariantFromLedgerState(copyApplyLedgerStateSnapshot(),
-            /* runInParallel */ false);
+                                                 /* runInParallel */ false);
     }
     mApplyState.markEndOfSetupPhase();
 
@@ -2507,22 +2507,20 @@ getParallelLedgerInfo(AppConnector& app, LedgerHeader const& lh)
             lh.scpValue.closeTime, app.getNetworkID()};
 }
 
-void
+std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
 LedgerManagerImpl::applySorobanStageClustersInParallel(
     AppConnector& app, ApplyStage const& stage,
-    GlobalParallelApplyLedgerState& globalState,
+    GlobalParallelApplyLedgerState const& globalState,
     Hash const& sorobanBasePrngSeed, Config const& config,
     ParallelLedgerInfo const& ledgerInfo)
 {
     ZoneScoped;
 
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
     std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
         threadFutures;
 
-    // Phase 1: Deactivate global scope for thread state construction.
-    // ThreadParallelApplyLedgerState constructor adopts entries from
-    // the global scope, which requires it to be inactive.
-    globalState.scopeDeactivate();
+    DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
@@ -2535,58 +2533,25 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             std::cref(config), ledgerInfo, sorobanBasePrngSeed));
     }
 
-    // Phase 2: Reactivate global scope and pre-compute readWriteSet on the
-    // main thread while worker threads are executing. Worker threads operate
-    // on their own thread-local state and do not access the global scope
-    // during execution.
-    globalState.scopeActivate();
-    auto readWriteSet = getReadWriteKeysForStage(stage);
-
-    // Phase 3: Commit each thread's changes as soon as it finishes,
-    // regardless of thread index order. Poll all futures and commit
-    // whichever is ready first, overlapping commit work with
-    // still-running threads.
-    size_t numCommitted = 0;
-    auto const numThreads = threadFutures.size();
-    std::vector<bool> committed(numThreads, false);
-    while (numCommitted < numThreads)
+    for (auto& threadFuture : threadFutures)
     {
-        bool foundReady = false;
-        for (size_t i = 0; i < numThreads; ++i)
+        releaseAssert(threadFuture.valid());
+        try
         {
-            if (committed[i])
-            {
-                continue;
-            }
-            if (threadFutures[i].wait_for(std::chrono::seconds(0)) ==
-                std::future_status::ready)
-            {
-                try
-                {
-                    auto futureResult = threadFutures[i].get();
-                    globalState.commitChangesFromThread(
-                        app, *futureResult, readWriteSet);
-                }
-                catch (std::exception const& e)
-                {
-                            printErrorAndAbort("Exception on apply thread: ",
-                                            e.what());
-                }
-                catch (...)
-                {
-                            printErrorAndAbort(
-                                "Unknown exception on apply thread");
-                }
-                        committed[i] = true;
-                        ++numCommitted;
-                        foundReady = true;
-            }
+            auto futureResult = threadFuture.get();
+            threadStates.emplace_back(std::move(futureResult));
         }
-        if (!foundReady)
+        catch (std::exception const& e)
         {
-            std::this_thread::yield();
-        }        
+            printErrorAndAbort("Exception on apply thread: ", e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort("Unknown exception on apply thread");
+        }
     }
+    threadFutures.clear();
+    return threadStates;
 }
 
 void
@@ -2645,7 +2610,7 @@ LedgerManagerImpl::applySorobanStage(
 #ifdef BUILD_TESTS
     auto subStart = std::chrono::steady_clock::now();
 #endif
-    applySorobanStageClustersInParallel(
+    auto threadStates = applySorobanStageClustersInParallel(
         app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo);
 #ifdef BUILD_TESTS
     auto subEnd = std::chrono::steady_clock::now();
@@ -2662,6 +2627,24 @@ LedgerManagerImpl::applySorobanStage(
     mLastPhaseTimings.sorobanCheckInvariantsMs +=
         std::chrono::duration<double, std::milli>(subEnd - subStart).count();
 #endif
+
+#ifdef BUILD_TESTS
+    subStart = std::chrono::steady_clock::now();
+#endif
+    globalParState.commitChangesFromThreads(app, threadStates, stage);
+#ifdef BUILD_TESTS
+    subEnd = std::chrono::steady_clock::now();
+    mLastPhaseTimings.sorobanCommitFromThreadsMs +=
+        std::chrono::duration<double, std::milli>(subEnd - subStart).count();
+
+    subStart = std::chrono::steady_clock::now();
+#endif
+    threadStates.clear();
+#ifdef BUILD_TESTS
+    subEnd = std::chrono::steady_clock::now();
+    mLastPhaseTimings.sorobanDestroyThreadStatesMs +=
+        std::chrono::duration<double, std::milli>(subEnd - subStart).count();
+#endif
 }
 
 void
@@ -2675,7 +2658,7 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
     auto globalStart = std::chrono::steady_clock::now();
 #endif
     {
-    GlobalParallelApplyLedgerState globalParState(
+        GlobalParallelApplyLedgerState globalParState(
             app, mApplyState.copyLedgerStateSnapshot(), ltx, stages,
             mApplyState.getInMemorySorobanState(), sorobanConfig);
 #ifdef BUILD_TESTS
@@ -2684,24 +2667,24 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
             std::chrono::duration<double, std::milli>(globalEnd - globalStart)
                 .count();
 #endif
-    // LedgerTxn is not passed into applySorobanStage, so there's no risk
-    // of the header being updated while we apply the stages.
-    auto const& header = ltx.loadHeader().current();
+        // LedgerTxn is not passed into applySorobanStage, so there's no risk
+        // of the header being updated while we apply the stages.
+        auto const& header = ltx.loadHeader().current();
 #ifdef BUILD_TESTS
         mLastPhaseTimings.sorobanParallelApplyMs = 0;
         mLastPhaseTimings.sorobanCheckInvariantsMs = 0;
         mLastPhaseTimings.sorobanCommitFromThreadsMs = 0;
         mLastPhaseTimings.sorobanDestroyThreadStatesMs = 0;
 #endif
-    for (auto const& stage : stages)
-    {
-        applySorobanStage(app, header, globalParState, stage,
-                          sorobanBasePrngSeed);
-    }
+        for (auto const& stage : stages)
+        {
+            applySorobanStage(app, header, globalParState, stage,
+                              sorobanBasePrngSeed);
+        }
 #ifdef BUILD_TESTS
         auto subStart = std::chrono::steady_clock::now();
 #endif
-    globalParState.commitChangesToLedgerTxn(ltx);
+        globalParState.commitChangesToLedgerTxn(ltx);
 #ifdef BUILD_TESTS
         auto subEnd = std::chrono::steady_clock::now();
         mLastPhaseTimings.sorobanCommitToLtxMs =
@@ -2757,7 +2740,7 @@ LedgerManagerImpl::processResultAndMeta(
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
         {
-        mLastLedgerTxMeta.emplace_back(metaXDR);
+            mLastLedgerTxMeta.emplace_back(metaXDR);
         }
 #endif
 
@@ -2769,8 +2752,8 @@ LedgerManagerImpl::processResultAndMeta(
 #ifdef BUILD_TESTS
         if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
         {
-        mLastLedgerTxMeta.emplace_back(
-            txMetaBuilder.finalize(result.isSuccess()));
+            mLastLedgerTxMeta.emplace_back(
+                txMetaBuilder.finalize(result.isSuccess()));
         }
 #endif
     }
@@ -2837,7 +2820,7 @@ LedgerManagerImpl::applyTransactions(
     // mLastLedgerTxMeta, unless explicitly disabled for benchmarking.
     if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
     {
-    enableTxMeta = true;
+        enableTxMeta = true;
     }
 #endif
 #ifdef BUILD_TESTS
@@ -3336,7 +3319,7 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                 inMemoryState.updateState(initEntries, liveEntries, deadEntries,
                                           lh, finalSorobanConfig,
                                           sorobanMetrics);
-    });
+            });
     }
 
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);

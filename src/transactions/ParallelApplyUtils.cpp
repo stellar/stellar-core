@@ -101,6 +101,26 @@ using namespace stellar;
 // total order, B could save this fee, but we would lose the ability to run A
 // and B in parallel in the future. CAP 0063 explicitly chose this tradeoff.
 
+std::unordered_set<LedgerKey>
+getReadWriteKeysForStage(ApplyStage const& stage)
+{
+    ZoneScoped;
+    std::unordered_set<LedgerKey> res;
+
+    for (auto const& txBundle : stage)
+    {
+        for (auto const& lk :
+             txBundle.getTx()->sorobanResources().footprint.readWrite)
+        {
+            res.emplace(lk);
+            if (isSorobanEntry(lk))
+            {
+                res.emplace(getTTLKey(lk));
+            }
+        }
+    }
+    return res;
+}
 
 void
 readOnlyPreParallelApplyRange(
@@ -238,27 +258,6 @@ updateMaxOfRoTTLBump(UnorderedMap<LedgerKey, uint32_t>& roTTLBumps,
 
 namespace stellar
 {
-
-std::unordered_set<LedgerKey>
-getReadWriteKeysForStage(ApplyStage const& stage)
-{
-    ZoneScoped;
-    std::unordered_set<LedgerKey> res;
-
-    for (auto const& txBundle : stage)
-    {
-        for (auto const& lk :
-             txBundle.getTx()->sorobanResources().footprint.readWrite)
-        {
-            res.emplace(lk);
-            if (isSorobanEntry(lk))
-            {
-                res.emplace(getTTLKey(lk));
-            }
-        }
-    }
-    return res;
-}
 
 PreV23LedgerAccessHelper::PreV23LedgerAccessHelper(AbstractLedgerTxn& ltx)
     : mLtx(ltx)
@@ -637,19 +636,19 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
         bool originallyExisted =
             mOriginalLedgerTxnKeys.find(key) != mOriginalLedgerTxnKeys.end();
         if (!originallyExisted)
+        {
+            if (InMemorySorobanState::isInMemoryType(key))
             {
-                if (InMemorySorobanState::isInMemoryType(key))
-                {
                 originallyExisted = mInMemorySorobanState.get(key) != nullptr;
-                }
-                else
-                {
-                originallyExisted = mLCLSnapshot.loadLiveEntry(key) != nullptr;
-                }
             }
+            else
+            {
+                originallyExisted = mLCLSnapshot.loadLiveEntry(key) != nullptr;
+            }
+        }
 
         if (updatedLe)
-            {
+        {
             if (originallyExisted)
             {
                 ltxInner.updateWithoutLoading(*updatedLe);
@@ -664,12 +663,12 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             if (originallyExisted)
             {
                 auto ltxe = ltxInner.load(key);
-            if (ltxe)
-            {
+                if (ltxe)
+                {
                     ltxInner.erase(key);
                 }
             }
-        }
+    }
     }
 
     // While the final state of a restored key that will be written to the
@@ -793,6 +792,23 @@ GlobalParallelApplyLedgerState::commitChangesFromThread(
         commitChangeFromThread(thread, key, std::move(entry), readWriteSet);
     }
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
+}
+
+void
+GlobalParallelApplyLedgerState::commitChangesFromThreads(
+    AppConnector& app,
+    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
+    ApplyStage const& stage)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain() ||
+                  app.threadIsType(Application::ThreadType::APPLY));
+
+    auto readWriteSet = getReadWriteKeysForStage(stage);
+    for (auto const& thread : threads)
+    {
+        commitChangesFromThread(app, *thread, readWriteSet);
+    }
 }
 
 void
