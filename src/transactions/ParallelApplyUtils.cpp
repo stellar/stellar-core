@@ -462,7 +462,6 @@ GlobalParallelApplyLedgerState::
 
                 mGlobalEntryMap.emplace(lk,
                                         GlobalParallelApplyEntry{entry, false});
-                mOriginalLedgerTxnKeys.emplace(lk);
             }
         };
 
@@ -625,6 +624,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     LedgerTxn ltxInner(ltx);
     for (auto const& [key, entry] : mGlobalEntryMap)
     {
+        // Only update if dirty bit is set
         if (!entry.mIsDirty)
         {
             continue;
@@ -632,43 +632,26 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 
         std::optional<LedgerEntry> const& updatedLe =
             entry.mLedgerEntry.readInScope(*this);
-
-        bool originallyExisted =
-            mOriginalLedgerTxnKeys.find(key) != mOriginalLedgerTxnKeys.end();
-        if (!originallyExisted)
-        {
-            if (InMemorySorobanState::isInMemoryType(key))
-            {
-                originallyExisted = mInMemorySorobanState.get(key) != nullptr;
-            }
-            else
-            {
-                originallyExisted = mLCLSnapshot.loadLiveEntry(key) != nullptr;
-            }
-        }
-
         if (updatedLe)
         {
-            if (originallyExisted)
+            auto ltxe = ltxInner.load(key);
+            if (ltxe)
             {
-                ltxInner.updateWithoutLoading(*updatedLe);
+                ltxe.current() = *updatedLe;
             }
             else
             {
-                ltxInner.createWithoutLoading(*updatedLe);
+                ltxInner.create(*updatedLe);
             }
         }
         else
         {
-            if (originallyExisted)
+            auto ltxe = ltxInner.load(key);
+            if (ltxe)
             {
-                auto ltxe = ltxInner.load(key);
-                if (ltxe)
-                {
-                    ltxInner.erase(key);
-                }
+                ltxInner.erase(key);
             }
-    }
+        }
     }
 
     // While the final state of a restored key that will be written to the
@@ -816,7 +799,6 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster)
 {
-    ZoneScoped;
     releaseAssert(threadIsMain() ||
                   app.threadIsType(Application::ThreadType::APPLY));
 
