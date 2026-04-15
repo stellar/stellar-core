@@ -532,11 +532,17 @@ AC_ARG_ENABLE(tracy-capture,
     AS_HELP_STRING([--enable-tracy-capture],
         [Enable 'tracy' profiler/tracer capture program]))
 AM_CONDITIONAL(USE_TRACY_CAPTURE, [test x$enable_tracy_capture = xyes])
+if test x"$enable_tracy_capture" = xyes; then
+    PKG_CHECK_MODULES(capstone, capstone)
+fi
 
 AC_ARG_ENABLE(tracy-csvexport,
     AS_HELP_STRING([--enable-tracy-csvexport],
         [Enable 'tracy' profiler/tracer csvexport program]))
 AM_CONDITIONAL(USE_TRACY_CSVEXPORT, [test x$enable_tracy_csvexport = xyes])
+if test x"$enable_tracy_csvexport" = xyes; then
+    PKG_CHECK_MODULES(capstone, capstone)
+fi
 
 AC_ARG_ENABLE(spdlog,
     AS_HELP_STRING([--disable-spdlog],
