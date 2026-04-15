@@ -2124,11 +2124,11 @@ BallotProtocol::validateValues(SCPStatement const& st)
 
     if (values.empty())
     {
-        // This shouldn't happen
         CLOG_DEBUG(Proto,
                    "BallotProtocol::validateValues slot:{} "
                    "found empty value set in statement",
                    mSlot.getSlotIndex());
+        // This shouldn't happen
         return SCPDriver::kInvalidValue;
     }
 

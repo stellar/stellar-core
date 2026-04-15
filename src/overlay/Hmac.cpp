@@ -39,8 +39,6 @@ Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
 {
     ZoneScoped;
     LOCK_GUARD(mMutex, guard);
-    // TODO(18): Remove this. I think this was here for testing. Do we need it?
-    return true;
 
     if (msg.v0().sequence != mRecvMacSeq)
     {
