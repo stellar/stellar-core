@@ -1871,32 +1871,12 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
                                       SignerKey const& signerKey) const
 {
     ZoneScoped;
-
-    // Peek at the account's signers via getNewestVersion to avoid creating a
-    // child LedgerTxn in the common case where no matching pre-auth signer
-    // exists. The child LTX construction/destruction is expensive (~400ns)
-    // and almost never needed (pre-auth signers are rare, especially for
-    // Soroban TXs).
-    auto newest = ltxOuter.getNewestVersion(accountKey(accountID));
-    if (!newest)
-    {
-        return; // account was removed due to merge operation
-    }
-    auto const& peekSigners =
-        newest->ledgerEntry().data.account().signers;
-    auto peekRes =
-        findSignerByKey(peekSigners.begin(), peekSigners.end(), signerKey);
-    if (!peekRes.second)
-    {
-        return; // no matching signer — skip child LTX entirely
-    }
-
-    // Matching signer found (rare path) — create child LTX for modification
     LedgerTxn ltx(ltxOuter);
+
     auto account = stellar::loadAccount(ltx, accountID);
     if (!account)
     {
-        return;
+        return; // probably account was removed due to merge operation
     }
 
     auto header = ltx.loadHeader();
