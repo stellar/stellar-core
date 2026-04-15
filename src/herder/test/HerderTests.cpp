@@ -6901,7 +6901,7 @@ getInjectionPointsForSlot(Application& sourceNode, uint64 slotIndex)
 // examine output (but isn't necessarily expected to pass). But I don't
 // remember. Also, it hasn't been updated since adding skip ledger support and
 // fails suspiciously around where the disconnected node would vote to skip.
-TEST_CASE("Parallel tx set downloading", "[herder][.skip]")
+TEST_CASE("Parallel tx set downloading", "[herder][!hide]")
 {
     int constexpr simSize = 3;
     int constexpr threshold = 2;
@@ -7061,7 +7061,7 @@ TEST_CASE("Parallel tx set downloading", "[herder][.skip]")
 
 // TODO: Does this belong in SCP tests instead?
 // TODO: Better test name
-TEST_CASE("Skip ledger", "[herder]")
+TEST_CASE("Skip ledger", "[herder][!hide]")
 {
     int constexpr simSize = 3;
     int constexpr threshold = 2;
@@ -7154,7 +7154,7 @@ TEST_CASE("Skip ledger", "[herder]")
 // and the rest as LOW. Otherwise, there's no reason at A would have the tx set
 // (if, for example, A did not win nomination). Also, I may have broken this
 // test with ctrl-z, which interacts poorly with copilot
-TEST_CASE("Skip ledger vote reversal", "[herder]")
+TEST_CASE("Skip ledger vote reversal", "[herder][!hide]")
 {
     int constexpr simSize = 3;
     auto const networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
