@@ -15,7 +15,7 @@ noinst_HEADERS = $(SRC_H_FILES)
 # is done by setting the CXXSTDLIB flag, which Rust's C++-building machinery is
 # sensitive to. Rust passes-on, but does not look inside, CXXFLAGS itself to
 # realize that it needs this setting.
-CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
+CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,stdc++))
 
 if USE_TRACY
 # NB: this unfortunately long list has to be provided here and kept in sync with
