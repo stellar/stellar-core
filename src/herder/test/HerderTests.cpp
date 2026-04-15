@@ -6939,8 +6939,11 @@ feedTxSetFromStatement(Application& sourceNode, Application& targetNode,
 
     for (auto const& sv : stellarValues)
     {
-        // target should *not* already have the tx set
-        // REQUIRE(!targetHerder.getTxSet(sv.txSetHash));
+        // Skip values don't have a real tx set to feed
+        if (sv.txSetHash == Herder::SKIP_LEDGER_HASH)
+        {
+            continue;
+        }
 
         auto txSet = std::get<TxSetXDRFrameConstPtr>(
             sourceHerder.getTxSet(sv.txSetHash));
