@@ -612,7 +612,6 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
                              : std::nullopt);
 
         mGlobalEntryMap.emplace(lk, GlobalParallelApplyEntry{entry, false});
-        mOriginalLedgerTxnKeys.emplace(lk);
     }
 }
 
@@ -621,6 +620,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
+    LedgerTxn ltxInner(ltx);
     for (auto& [key, entry] : mGlobalEntryMap)
     {
         // Only update if dirty bit is set
@@ -644,21 +644,21 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             InternalLedgerEntry ile(std::move(*movedLe));
             if (entry.mIsNew)
             {
-                ltx.createWithoutLoading(std::move(ile));
+                ltxInner.createWithoutLoading(std::move(ile));
             }
             else
             {
-                ltx.updateWithoutLoading(std::move(ile));
+                ltxInner.updateWithoutLoading(std::move(ile));
             }
         }
         else
         {
             // Delete case: use load() + erase() to maintain EXACT consistency.
             // Deletes are rare in SAC transfers, so the cost is negligible.
-            auto ltxe = ltx.load(key);
+            auto ltxe = ltxInner.load(key);
             if (ltxe)
             {
-                ltx.erase(key);
+                ltxInner.erase(key);
             }
         }
     }
@@ -1049,7 +1049,7 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
     else if (newEntryOpt)
     {
         // If oldEntryOpt is null, the entry doesn't exist in any parent map
-        // or persistent state — it's a newly created entry.
+        // or persistent state - it's a newly created entry.
         bool isNew = !oldEntryOpt.has_value();
         upsertEntry(key, scopeAdoptEntry(newEntryOpt.value()),
                     getSnapshotLedgerSeq() + 1, isNew);
