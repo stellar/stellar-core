@@ -60,7 +60,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     // validators can easily manipulate an honest participant. I've disabled the
     // `true` variant for now until I better understand why it exists.
 
-    //bool const induceOneLedgerFork = GENERATE(false, true);
+    // bool const induceOneLedgerFork = GENERATE(false, true);
     bool const induceOneLedgerFork = false;
     CAPTURE(induceOneLedgerFork);
     auto const ledgerToCorrupt = 5;

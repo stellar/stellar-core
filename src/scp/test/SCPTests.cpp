@@ -3445,8 +3445,8 @@ TEST_CASE("nomination can self-generate invalid prepare after awaiting value"
 
     std::map<Value, SCPDriver::ValidationLevel> validationLevels;
     validationLevels[xValue] = SCPDriver::kAwaitingDownload;
-    scp.mValidateValueOverride =
-        [&](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+    scp.mValidateValueOverride = [&](uint64, Value const& value,
+                                     bool) -> SCPDriver::ValidationLevel {
         auto const it = validationLevels.find(value);
         if (it != validationLevels.end())
         {
@@ -3508,8 +3508,8 @@ TEST_CASE("ballot protocol can self-generate invalid prepare after"
             SCPBallot(1, xValue));
 
     // xValue becomes invalid (tx set downloaded but found unusable)
-    scp.mValidateValueOverride =
-        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+    scp.mValidateValueOverride = [](uint64, Value const& value,
+                                    bool) -> SCPDriver::ValidationLevel {
         if (value == xValue)
         {
             return SCPDriver::kInvalidValue;
@@ -3739,8 +3739,7 @@ TEST_CASE("setConfirmPrepared stalls on kAwaitingDownload value",
         // stalls mCommit (nC == 0) because xValue is kAwaitingDownload.
         // Check the latest emitted PREPARE.
         REQUIRE(scp.mEnvs.size() >= 2);
-        auto const& lastPrep =
-            scp.mEnvs.back().statement.pledges.prepare();
+        auto const& lastPrep = scp.mEnvs.back().statement.pledges.prepare();
         REQUIRE(lastPrep.nH == 1);
         REQUIRE(lastPrep.nC == 0);
     }
@@ -3822,8 +3821,8 @@ TEST_CASE("incoming PREPARE with invalid prepared value is accepted",
     REQUIRE(scp.mEnvs.size() == 1);
 
     // Set xValue to kInvalidValue
-    scp.mValidateValueOverride =
-        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+    scp.mValidateValueOverride = [](uint64, Value const& value,
+                                    bool) -> SCPDriver::ValidationLevel {
         if (value == xValue)
         {
             return SCPDriver::kInvalidValue;
@@ -3835,8 +3834,8 @@ TEST_CASE("incoming PREPARE with invalid prepared value is accepted",
     // With relaxed PREPARE validation, this should be accepted.
     SCPBallot yB1(1, yValue);
     SCPBallot xB1(1, xValue);
-    REQUIRE_NOTHROW(scp.receiveEnvelope(
-        makePrepare(v1SecretKey, qSetHash, 0, yB1, &xB1)));
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, yB1, &xB1)));
 }
 
 TEST_CASE("self-envelope with invalid mPrepared does not crash",
@@ -3865,16 +3864,16 @@ TEST_CASE("self-envelope with invalid mPrepared does not crash",
     SCPBallot xB1(1, xValue);
 
     // Quorum accepts-prepared xValue — sets mPrepared=(1, xValue)
-    REQUIRE_NOTHROW(scp.receiveEnvelope(
-        makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
     REQUIRE(scp.mEnvs.size() == 2);
     // Verify mPrepared is set in the emitted envelope
     REQUIRE(scp.mEnvs[1].statement.pledges.prepare().prepared);
     REQUIRE(*scp.mEnvs[1].statement.pledges.prepare().prepared == xB1);
 
     // xValue transitions to kInvalidValue
-    scp.mValidateValueOverride =
-        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+    scp.mValidateValueOverride = [](uint64, Value const& value,
+                                    bool) -> SCPDriver::ValidationLevel {
         if (value == xValue)
         {
             return SCPDriver::kInvalidValue;
@@ -3924,8 +3923,8 @@ TEST_CASE("self-envelope with invalid mCurrentBallot does not crash",
 
     // xValue transitions to kInvalidValue — mCurrentBallot now holds an
     // invalid value
-    scp.mValidateValueOverride =
-        [](uint64, Value const& value, bool) -> SCPDriver::ValidationLevel {
+    scp.mValidateValueOverride = [](uint64, Value const& value,
+                                    bool) -> SCPDriver::ValidationLevel {
         if (value == xValue)
         {
             return SCPDriver::kInvalidValue;
@@ -3939,10 +3938,10 @@ TEST_CASE("self-envelope with invalid mCurrentBallot does not crash",
     // self-envelope contains ballot=(1,xValue) which is kInvalidValue.
     // With relaxed PREPARE validation, no crash occurs.
     SCPBallot yB1(1, yValue);
-    REQUIRE_NOTHROW(scp.receiveEnvelope(
-        makePrepare(v1SecretKey, qSetHash, 0, yB1, &yB1)));
-    REQUIRE_NOTHROW(scp.receiveEnvelope(
-        makePrepare(v2SecretKey, qSetHash, 0, yB1, &yB1)));
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, yB1, &yB1)));
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, yB1, &yB1)));
 
     // Verify: v0 accepted-prepared yValue (new envelope emitted despite
     // mCurrentBallot having an invalid value)

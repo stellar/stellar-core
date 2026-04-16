@@ -255,7 +255,8 @@ HerderSCPDriver::validatePastOrFutureValue(
             {
                 CLOG_TRACE(Herder,
                            "Got a bad previousLedgerHash for skip value "
-                           "in ledger {}", slotIndex);
+                           "in ledger {}",
+                           slotIndex);
                 return SCPDriver::kInvalidValue;
             }
         }
@@ -374,11 +375,10 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             {
                 // Skip values should only appear in balloting, and so are
                 // considered invalid during nomination.
-                CLOG_DEBUG(
-                    Herder,
-                    "HerderSCPDriver::validateValue i: {} rejecting "
-                    "skip value during nomination",
-                    slotIndex);
+                CLOG_DEBUG(Herder,
+                           "HerderSCPDriver::validateValue i: {} rejecting "
+                           "skip value during nomination",
+                           slotIndex);
                 return SCPDriver::kInvalidValue;
             }
             auto const& ov = b.ext.originalValue();
@@ -1137,7 +1137,8 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     }
 }
 
-void HerderSCPDriver::noteSkipValueReplaced(uint64_t)
+void
+HerderSCPDriver::noteSkipValueReplaced(uint64_t)
 {
     ZoneScoped;
     mSCPMetrics.mSkipValueReplaced.inc();

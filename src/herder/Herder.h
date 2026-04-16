@@ -23,7 +23,9 @@ namespace stellar
 
 // Returned by getTxSet to distinguish "skip" values (no real tx set)
 // from "not yet downloaded" (nullptr).
-struct SkipTxSet {};
+struct SkipTxSet
+{
+};
 using TxSetResult = std::variant<TxSetXDRFrameConstPtr, SkipTxSet>;
 class Application;
 class XDROutputFileStream;

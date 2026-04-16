@@ -44,7 +44,6 @@ toStellarValueOrThrow(Value const& v)
     return sv;
 }
 
-
 std::optional<std::vector<Hash>>
 getTxSetHashes(SCPEnvelope const& envelope)
 {
