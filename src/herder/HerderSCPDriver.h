@@ -315,8 +315,7 @@ class HerderSCPDriver : public SCPDriver
         mTxSetValidCache;
 
     // TODO: Docs
-    bool checkValueTypeAndSkipHashInvariant(uint64_t slotIndex,
-                                            StellarValue const& sv) const;
+    bool checkValueTypeAndSkipHashInvariant(StellarValue const& sv) const;
 
     SCPDriver::ValidationLevel
     validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,
