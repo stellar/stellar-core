@@ -8,6 +8,27 @@
 # nondeterminism (between runs, or between compilers / standard libraries) are
 # not present in the code.
 
+# $srcdir is set by automake's test driver (pointing at src/ in the source
+# tree); fall back to . for direct invocation from src/ in the repo.
+if ! cd "${srcdir:-.}"
+then
+    echo "could not cd to ${srcdir:-.}, cannot check for nondeterminism"
+    exit 1
+fi
+
+# Check that we're in a git repo, and move to the src/ subdirectory
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1
+then
+    echo "not in a git repository, cannot check for nondeterminism"
+    exit 1
+fi
+topdir="$(git rev-parse --show-toplevel)"
+if ! cd "$topdir/src"
+then
+    echo "could not cd to src/ in the git repository, cannot check for nondeterminism"
+    exit 1
+fi
+
 if git grep 'std::rand()' '*.h' '*.cpp'
 then
     echo
