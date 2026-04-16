@@ -20,6 +20,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "rust/CppShims.h"
 #include "xdr/Stellar-transaction.h"
+#include "util/BitSet.h"
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
@@ -295,7 +296,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
-    ApplyLedgerView mApplyLedgerView;
+    ApplyLedgerStateSnapshot mStateSnapshot;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
@@ -308,7 +309,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
+        SorobanNetworkConfig const& sorobanConfig,
+        ApplyLedgerStateSnapshot stateSnapshot,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
@@ -321,7 +323,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics(),
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        , mApplyLedgerView(std::move(applyView))
+        , mStateSnapshot(std::move(stateSnapshot))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
@@ -448,7 +450,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         continue;
                     }
 
-                    auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
+                    auto archiveEntry = mStateSnapshot.loadArchiveEntry(lk);
                     if (archiveEntry)
                     {
                         releaseAssertOrThrow(
@@ -632,15 +634,17 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
-        // Every modified entry is either a newly created entry or an updated
-        // entry. Gather the modified entry keys in order to identify deleted
-        // entries (that don't exist in the modified entry list but do exist in
-        // the read-write footprint).
-        UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        uint32_t numCreatedSorobanEntries = 0;
-        uint32_t numCreatedTTLEntries = 0;
-        bool const allowClassicCreations = protocolVersionStartsFrom(
-            getLedgerVersion(), ProtocolVersion::V_26);
+        // Track which RW footprint keys appear in the host output without
+        // hashing LedgerKeys. Footprints are small, so a linear scan over a
+        // BitSet-backed coverage map is cheaper than maintaining hash sets.
+        auto const& rwKeys = mResources.footprint.readWrite;
+        BitSet rwKeyCovered(rwKeys.size());
+        size_t numCreatedSorobanEntries = 0;
+        size_t numCreatedTTLEntries = 0;
+        bool const allowClassicCreations =
+            protocolVersionStartsFrom(getLedgerVersion(),
+                                      ProtocolVersion::V_26);
+
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
@@ -655,9 +659,16 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
 
-            createdAndModifiedKeys.insert(lk);
-
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
+
+            for (size_t j = 0; j < rwKeys.size(); ++j)
+            {
+                if (!rwKeyCovered.get(j) && rwKeys[j] == lk)
+                {
+                    rwKeyCovered.set(j);
+                    break;
+                }
+            }
 
             // ttlEntry write fees come out of refundableFee, already
             // accounted for by the host
@@ -702,18 +713,21 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             }
         }
 
+
         // Verify that each newly created Soroban entry has a corresponding
         // newly created TTL entry (1:1 pairing guaranteed by the host).
-        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
+        releaseAssertOrThrow(numCreatedSorobanEntries ==
+                             numCreatedTTLEntries);
 
         // Erase every entry not returned.
         // NB: The entries that haven't been touched are passed through
         // from host, so this should never result in removing an entry
         // that hasn't been removed by host explicitly.
-        for (auto const& lk : mResources.footprint.readWrite)
+        for (size_t j = 0; j < rwKeys.size(); ++j)
         {
-            if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
+            if (!rwKeyCovered.get(j))
             {
+                auto const& lk = rwKeys[j];
                 if (eraseLedgerEntryIfExists(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
@@ -1050,7 +1064,8 @@ class InvokeHostFunctionPreV23ApplyHelper
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
+              opFrame, sorobanConfig, app.copyApplyLedgerStateSnapshot(),
+              moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
