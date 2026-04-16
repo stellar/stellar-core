@@ -240,17 +240,27 @@ HerderImpl::bootstrap()
 
     setupTriggerNextLedger();
     newSlotExternalized(
-        true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+        mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+    purgeOldSlotsAndProcessSCPQueue(true);
 }
 
 void
-HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
+HerderImpl::newSlotExternalized(StellarValue const& value)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "HerderImpl::newSlotExternalized");
 
     // start timing next externalize from this point
     mLastExternalize = mApp.getClock().now();
+
+    mPendingEnvelopes.forceRebuildQuorum();
+}
+
+void
+HerderImpl::purgeOldSlotsAndProcessSCPQueue(bool synchronous)
+{
+    ZoneScoped;
+    CLOG_TRACE(Herder, "HerderImpl::purgeOldSlotsAndProcessSCPQueue");
 
     // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
@@ -275,10 +285,10 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
         eraseOutsideRange(minSlotToRemember, maxSlotToRemember);
     }
 
-    mPendingEnvelopes.forceRebuildQuorum();
-
-    // Process new ready messages for the next slot
-    safelyProcessSCPQueue(synchronous);
+    // Process new ready messages for the next slot when tracking.
+    // When not tracking, Herder's out of sync mechanism processes all future
+    // slots automatically
+    processSCPQueue(synchronous);
 }
 
 void
@@ -478,12 +488,13 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // and there is no point in taking a position after the round is over
         mTriggerTimer.cancel();
 
-        // This call may cause LedgerManager to close ledger and trigger next
-        // ledger
+        // This call may cause LedgerManager to trigger ledger close
         processExternalized(slotIndex, value, isLatestSlot);
 
-        // Perform cleanups, and maybe process SCP queue
-        newSlotExternalized(false, value);
+        // Record externalize timing and rebuild quorum now. Purging old slots
+        // and processing the SCP queue for the next slot happens later, in
+        // lastClosedLedgerIncreased, once the ledger has actually closed.
+        newSlotExternalized(value);
 
         // Check to see if quorums have changed and we need to reanalyze.
         if (mApp.getConfig().USE_QUORUM_INTERSECTION_CHECKER_V2)
@@ -897,7 +908,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                    envelope.statement.pledges.type(),
                    envelope.statement.slotIndex, mApp.getStateHuman());
 
-        processSCPQueue();
+        processSCPQueue(true);
     }
     else
     {
@@ -1067,14 +1078,41 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 }
 
 void
-HerderImpl::processSCPQueue()
+HerderImpl::processSCPQueue(bool synchronous)
 {
     ZoneScoped;
     if (isTracking())
     {
+        ZoneScoped;
         std::string txt("tracking");
         ZoneText(txt.c_str(), txt.size());
-        processSCPQueueUpToIndex(nextConsensusLedgerIndex());
+
+        // process any statements up to the next slot
+        // this may cause it to externalize
+        auto nextIndex = nextConsensusLedgerIndex();
+        if (mApp.getLedgerManager().isApplying())
+        {
+            nextIndex =
+                std::min(nextIndex,
+                         mApp.getLedgerManager().getLastClosedLedgerNum() + 1);
+        }
+        auto processSCPQueueSomeMore = [this, nextIndex] {
+            if (mApp.isStopping())
+            {
+                return;
+            }
+            processSCPQueueUpToIndex(nextIndex);
+        };
+
+        if (synchronous)
+        {
+            processSCPQueueSomeMore();
+        }
+        else
+        {
+            mApp.postOnMainThread(processSCPQueueSomeMore,
+                                  "processSCPQueueSomeMore");
+        }
     }
     else
     {
@@ -1169,31 +1207,6 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
 }
 
 void
-HerderImpl::safelyProcessSCPQueue(bool synchronous)
-{
-    // process any statements up to the next slot
-    // this may cause it to externalize
-    auto nextIndex = nextConsensusLedgerIndex();
-    auto processSCPQueueSomeMore = [this, nextIndex]() {
-        if (mApp.isStopping())
-        {
-            return;
-        }
-        processSCPQueueUpToIndex(nextIndex);
-    };
-
-    if (synchronous)
-    {
-        processSCPQueueSomeMore();
-    }
-    else
-    {
-        mApp.postOnMainThread(processSCPQueueSomeMore,
-                              "processSCPQueueSomeMore");
-    }
-}
-
-void
 HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
                                       bool upgradeApplied)
 {
@@ -1227,6 +1240,12 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
         releaseAssert(mLedgerManager.isSynced());
 
         setupTriggerNextLedger();
+
+        // Now that the new ledger is closed, purge SCP slots outside of our
+        // validity bracket and process any already-buffered SCP envelopes for
+        // the next slot. Posted to the main thread so control returns to the
+        // caller first, matching the previous post-externalize behavior.
+        purgeOldSlotsAndProcessSCPQueue(false);
     }
 }
 
@@ -2342,6 +2361,8 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
                     TRANSACTION_QUEUE_BAN_LEDGERS,
                     mApp.getConfig().SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER,
                     recomputeKeysToFilter(protocolVersion));
+            setFilteredAccounts(
+                mApp.getBannedAccountsPersistor().getBannedAccounts());
         }
     }
     else if (mSorobanTransactionQueue)
@@ -2633,7 +2654,7 @@ HerderImpl::herderOutOfSync()
 
     startOutOfSyncTimer();
 
-    processSCPQueue();
+    processSCPQueue(true);
 }
 
 void

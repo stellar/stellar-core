@@ -158,7 +158,10 @@ class HerderImpl : public Herder
     TxSetXDRFrameConstPtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
-    void processSCPQueue();
+    // process ready SCP messages. This may trigger the node to externalze new
+    // slots. Use `synchronous=false` to avoid arbitrary delays of closing many
+    // ledgers at once.
+    void processSCPQueue(bool synchronous);
 
     uint32_t getMaxClassicTxSize() const override;
     uint32_t getFlowControlExtraBuffer() const override;
@@ -260,8 +263,8 @@ class HerderImpl : public Herder
     void broadcast(SCPEnvelope const& e);
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
-    void safelyProcessSCPQueue(bool synchronous);
-    void newSlotExternalized(bool synchronous, StellarValue const& value);
+    void newSlotExternalized(StellarValue const& value);
+    void purgeOldSlotsAndProcessSCPQueue(bool synchronous);
     void purgeOldPersistedTxSets();
     void writeDebugTxSet(LedgerCloseData const& lcd);
 

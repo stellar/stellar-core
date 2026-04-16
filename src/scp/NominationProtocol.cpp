@@ -419,6 +419,7 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
 
     recordEnvelope(envelope);
 
+    // Ensure node doesn't vote on future slots
     if (mNominationStarted)
     {
         // tracks if we should emit a new nomination message
