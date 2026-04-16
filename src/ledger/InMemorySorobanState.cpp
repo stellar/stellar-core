@@ -56,7 +56,12 @@ InMemorySorobanState::updateContractDataTTL(
                        InternalContractDataEntryHash>::iterator dataIt,
     TTLData newTtlData)
 {
-    dataIt->updateTTLData(newTtlData);
+    // Since entries are immutable, we must erase and re-insert
+    auto ledgerEntryPtr = dataIt->get().ledgerEntry;
+    auto sizeBytes = dataIt->get().sizeBytes;
+    mContractDataEntries.erase(dataIt);
+    mContractDataEntries.emplace(InternalContractDataMapEntry(
+        std::move(ledgerEntryPtr), newTtlData, sizeBytes));
 }
 
 void
@@ -100,7 +105,11 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     uint32_t newSize = xdr::xdr_size(ledgerEntry);
     updateStateSizeOnEntryUpdate(oldSize, newSize, /*isContractCode=*/false);
 
-    dataIt->updateLedgerEntry(ledgerEntry, newSize);
+    // Preserve the existing TTL while updating the data
+    auto preservedTTL = dataIt->get().ttlData;
+    mContractDataEntries.erase(dataIt);
+    mContractDataEntries.emplace(
+        InternalContractDataMapEntry(ledgerEntry, preservedTTL, newSize));
 }
 
 void
@@ -263,7 +272,7 @@ InMemorySorobanState::createContractCodeEntry(
 
     mContractCodeEntries.emplace(
         keyHash,
-        ContractCodeMapEntryT(std::make_shared<LedgerEntry>(ledgerEntry),
+        ContractCodeMapEntryT(std::make_shared<LedgerEntry const>(ledgerEntry),
                               ttlData, entrySize));
 }
 
@@ -286,9 +295,12 @@ InMemorySorobanState::updateContractCode(
     updateStateSizeOnEntryUpdate(codeIt->second.sizeBytes, newEntrySize,
                                  /*isContractCode=*/true);
 
-    releaseAssertOrThrow(!codeIt->second.ttlData.isDefault());
-    *codeIt->second.ledgerEntry = ledgerEntry;
-    codeIt->second.sizeBytes = newEntrySize;
+    // Preserve the existing TTL while updating the code
+    auto ttlData = codeIt->second.ttlData;
+    releaseAssertOrThrow(!ttlData.isDefault());
+    codeIt->second =
+        ContractCodeMapEntryT(std::make_shared<LedgerEntry const>(ledgerEntry),
+                              ttlData, newEntrySize);
 }
 
 void
@@ -365,7 +377,7 @@ InMemorySorobanState::InMemorySorobanState(InMemorySorobanState const& other)
     , mContractDataStateSize(other.mContractDataStateSize)
 {
     // InternalContractDataMapEntry has an explicit copy constructor that
-    // deep-copies the stored LedgerEntry, so we can just use emplace.
+    // deep-copies via clone(), so we can just use emplace.
     for (auto const& entry : other.mContractDataEntries)
     {
         mContractDataEntries.emplace(entry);
@@ -377,7 +389,7 @@ InMemorySorobanState::InMemorySorobanState(InMemorySorobanState const& other)
     {
         mContractCodeEntries.emplace(
             key, ContractCodeMapEntryT(
-                     std::make_shared<LedgerEntry>(*entry.ledgerEntry),
+                     std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
                      entry.ttlData, entry.sizeBytes));
     }
 
