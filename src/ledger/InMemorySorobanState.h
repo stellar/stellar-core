@@ -48,13 +48,13 @@ struct TTLData
 // We also cache the XDR size to avoid repeated xdr_size() calls during updates.
 struct ContractDataMapEntryT
 {
-    std::shared_ptr<LedgerEntry const> const ledgerEntry;
-    TTLData const ttlData;
+    std::shared_ptr<LedgerEntry> ledgerEntry;
+    TTLData ttlData;
     // Cached XDR serialized size to avoid repeated xdr_size() calls
-    uint32_t const sizeBytes;
+    uint32_t sizeBytes;
 
     explicit ContractDataMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
+        std::shared_ptr<LedgerEntry>&& ledgerEntry, TTLData ttlData,
         uint32_t sizeBytes)
         : ledgerEntry(std::move(ledgerEntry))
         , ttlData(ttlData)
@@ -66,7 +66,7 @@ struct ContractDataMapEntryT
 // ContractCodeMapEntryT stores a ContractCode LedgerEntry and its TTL.
 struct ContractCodeMapEntryT
 {
-    std::shared_ptr<LedgerEntry const> ledgerEntry;
+    std::shared_ptr<LedgerEntry> ledgerEntry;
     TTLData ttlData;
     // We store the current in-memory size for the contract code (including
     // its parsed module that is stored in the ModuleCache) in order to both
@@ -76,7 +76,7 @@ struct ContractCodeMapEntryT
     uint32_t sizeBytes;
 
     explicit ContractCodeMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
+        std::shared_ptr<LedgerEntry>&& ledgerEntry, TTLData ttlData,
         uint32_t sizeBytes)
         : ledgerEntry(std::move(ledgerEntry))
         , ttlData(ttlData)
@@ -93,9 +93,8 @@ struct ContractCodeMapEntryT
 // we use std::unordered_set since LedgerEntry contains both key and value data.
 //
 // Since C++17's unordered_set doesn't support heterogeneous lookup (searching
-// with a different type than stored), we use polymorphism to enable key-only
-// lookups without constructing full entries. This will be simplified when we
-// upgrade to C++20.
+// with a different type than stored), we use a compact wrapper that can
+// represent either a stored value or a key-only query.
 //
 // We index entries by their TTL key (SHA256 hash of the ContractData key)
 // rather than the full ContractData key. This lets us look up both ContractData
@@ -107,155 +106,16 @@ struct ContractCodeMapEntryT
 class InternalContractDataMapEntry
 {
   private:
-    // Abstract base class for polymorphic entry handling.
-    // This allows QueryKey and ValueEntry to be used interchangeably in the
-    // set.
-    struct AbstractEntry
-    {
-        virtual ~AbstractEntry() = default;
-
-        // Returns the TTL key (SHA256 hash) that indexes this entry.
-        // For ContractData entries, this is getTTLKey(ledgerKey).ttl().keyHash
-        // For TTL queries, this is directly the keyHash from the TTL key
-        virtual uint256 copyKey() const = 0;
-
-        // Computes hash for unordered_set storage.
-        // Note: This returns size_t for STL compatibility, not the uint256 key
-        virtual size_t hash() const = 0;
-
-        // Returns the stored data. Only valid for ValueEntry instances.
-        virtual ContractDataMapEntryT const& get() const = 0;
-
-        // Creates a deep copy of this entry. Required for copy constructor.
-        virtual std::unique_ptr<AbstractEntry> clone() const = 0;
-
-        // Equality comparison based on TTL keys
-        virtual bool
-        operator==(AbstractEntry const& other) const
-        {
-            return copyKey() == other.copyKey();
-        }
-    };
-
-    struct ValueEntry : public AbstractEntry
-    {
-      private:
-        ContractDataMapEntryT entry;
-
-      public:
-        ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-                   TTLData ttlData, uint32_t sizeBytes)
-            : entry(std::move(ledgerEntry), ttlData, sizeBytes)
-        {
-        }
-
-        uint256
-        copyKey() const override
-        {
-            auto ttlKey = getTTLKey(LedgerEntryKey(*entry.ledgerEntry));
-            return ttlKey.ttl().keyHash;
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<uint256>{}(copyKey());
-        }
-
-        ContractDataMapEntryT const&
-        get() const override
-        {
-            return entry;
-        }
-
-        std::unique_ptr<AbstractEntry>
-        clone() const override
-        {
-            return std::make_unique<ValueEntry>(
-                std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
-                entry.ttlData, entry.sizeBytes);
-        }
-    };
-
-    // QueryKey is a lightweight key-only entry used for map lookups.
-    struct QueryKey : public AbstractEntry
-    {
-      private:
-        uint256 const ledgerKeyHash;
-
-      public:
-        explicit QueryKey(uint256 const& ledgerKeyHash)
-            : ledgerKeyHash(ledgerKeyHash)
-        {
-        }
-
-        uint256
-        copyKey() const override
-        {
-            return ledgerKeyHash;
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<uint256>{}(ledgerKeyHash);
-        }
-
-        // Should never be called - QueryKey is only for lookups
-        ContractDataMapEntryT const&
-        get() const override
-        {
-            throw std::runtime_error(
-                "QueryKey::get() called - this is a logic error");
-        }
-
-        std::unique_ptr<AbstractEntry>
-        clone() const override
-        {
-            return std::make_unique<QueryKey>(ledgerKeyHash);
-        }
-    };
-
-    std::unique_ptr<AbstractEntry> impl;
-
-  public:
-    // Copy constructor - required for InMemorySorobanState copy constructor.
-    InternalContractDataMapEntry(InternalContractDataMapEntry const& other)
-        : impl(other.impl->clone())
-    {
-    }
-
-    // Creates a ValueEntry from a LedgerEntry (copies the entry)
-    InternalContractDataMapEntry(LedgerEntry const& ledgerEntry,
-                                 TTLData ttlData, uint32_t sizeBytes)
-        : impl(std::make_unique<ValueEntry>(
-              std::make_shared<LedgerEntry const>(ledgerEntry), ttlData,
-              sizeBytes))
-    {
-    }
-
-    // Creates a ValueEntry from a shared_ptr (avoids copying)
-    InternalContractDataMapEntry(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
-        uint32_t sizeBytes)
-        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry), ttlData,
-                                            sizeBytes))
-    {
-    }
-
-    // Creates a QueryKey for lookups. Accepts both CONTRACT_DATA and TTL keys.
-    // For CONTRACT_DATA keys, converts to TTL key hash.
-    // For TTL keys, uses the hash directly.
-    explicit InternalContractDataMapEntry(LedgerKey const& ledgerKey)
+    static uint256
+    computeKeyHash(LedgerKey const& ledgerKey)
     {
         if (ledgerKey.type() == CONTRACT_DATA)
         {
-            auto ttlKey = getTTLKey(ledgerKey);
-            impl = std::make_unique<QueryKey>(ttlKey.ttl().keyHash);
+            return getTTLKey(ledgerKey).ttl().keyHash;
         }
         else if (ledgerKey.type() == TTL)
         {
-            impl = std::make_unique<QueryKey>(ledgerKey.ttl().keyHash);
+            return ledgerKey.ttl().keyHash;
         }
         else
         {
@@ -264,22 +124,115 @@ class InternalContractDataMapEntry
         }
     }
 
+    static uint256
+    computeKeyHash(LedgerEntry const& ledgerEntry)
+    {
+        releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
+        return getTTLKey(LedgerEntryKey(ledgerEntry)).ttl().keyHash;
+    }
+
+    uint256 mKeyHash;
+    mutable ContractDataMapEntryT mEntry;
+    bool mHasValue;
+
+  public:
+    // Copy constructor - required for InMemorySorobanState copy constructor.
+    InternalContractDataMapEntry(InternalContractDataMapEntry const& other)
+        : mKeyHash(other.mKeyHash)
+        , mEntry(other.mHasValue
+                     ? ContractDataMapEntryT(
+                           std::make_shared<LedgerEntry>(*other.mEntry.ledgerEntry),
+                           other.mEntry.ttlData, other.mEntry.sizeBytes)
+                     : ContractDataMapEntryT(std::shared_ptr<LedgerEntry>(),
+                                             TTLData(), 0))
+        , mHasValue(other.mHasValue)
+    {
+    }
+
+    InternalContractDataMapEntry(InternalContractDataMapEntry&&) noexcept =
+        default;
+    InternalContractDataMapEntry&
+    operator=(InternalContractDataMapEntry const& other)
+    {
+        if (this != &other)
+        {
+            mKeyHash = other.mKeyHash;
+            mEntry = other.mHasValue
+                         ? ContractDataMapEntryT(
+                               std::make_shared<LedgerEntry>(
+                                   *other.mEntry.ledgerEntry),
+                               other.mEntry.ttlData, other.mEntry.sizeBytes)
+                         : ContractDataMapEntryT(
+                               std::shared_ptr<LedgerEntry>(), TTLData(), 0);
+            mHasValue = other.mHasValue;
+        }
+        return *this;
+    }
+    InternalContractDataMapEntry&
+    operator=(InternalContractDataMapEntry&&) noexcept = default;
+
+    // Creates a ValueEntry from a LedgerEntry (copies the entry)
+    InternalContractDataMapEntry(LedgerEntry const& ledgerEntry,
+                                 TTLData ttlData, uint32_t sizeBytes)
+        : mKeyHash(computeKeyHash(ledgerEntry))
+        , mEntry(std::make_shared<LedgerEntry>(ledgerEntry), ttlData,
+                 sizeBytes)
+        , mHasValue(true)
+    {
+    }
+
+    // Creates a ValueEntry from a shared_ptr (avoids copying)
+    InternalContractDataMapEntry(
+        std::shared_ptr<LedgerEntry>&& ledgerEntry, TTLData ttlData,
+        uint32_t sizeBytes)
+        : mKeyHash(computeKeyHash(*ledgerEntry))
+        , mEntry(std::move(ledgerEntry), ttlData, sizeBytes)
+        , mHasValue(true)
+    {
+    }
+
+    // Creates a QueryKey for lookups. Accepts both CONTRACT_DATA and TTL keys.
+    // For CONTRACT_DATA keys, converts to TTL key hash.
+    // For TTL keys, uses the hash directly.
+    explicit InternalContractDataMapEntry(LedgerKey const& ledgerKey)
+        : mKeyHash(computeKeyHash(ledgerKey))
+        , mEntry(std::shared_ptr<LedgerEntry>(), TTLData(), 0)
+        , mHasValue(false)
+    {
+    }
+
     size_t
     hash() const
     {
-        return impl->hash();
+        return std::hash<uint256>{}(mKeyHash);
     }
 
     bool
     operator==(InternalContractDataMapEntry const& other) const
     {
-        return impl->operator==(*other.impl);
+        return mKeyHash == other.mKeyHash;
     }
 
     ContractDataMapEntryT const&
     get() const
     {
-        return impl->get();
+        releaseAssertOrThrow(mHasValue);
+        return mEntry;
+    }
+
+    void
+    updateTTLData(TTLData ttlData) const
+    {
+        releaseAssertOrThrow(mHasValue);
+        mEntry.ttlData = ttlData;
+    }
+
+    void
+    updateLedgerEntry(LedgerEntry const& ledgerEntry, uint32_t sizeBytes) const
+    {
+        releaseAssertOrThrow(mHasValue);
+        *mEntry.ledgerEntry = ledgerEntry;
+        mEntry.sizeBytes = sizeBytes;
     }
 };
 
