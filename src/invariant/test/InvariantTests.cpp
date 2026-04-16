@@ -645,14 +645,21 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         InMemorySorobanState modifiedState =
             lm.getInMemorySorobanStateForTesting();
 
-        // Get entry and mutate it in place.
+        // Get entry, modify it, and replace in the appropriate map
         if (isContractCode)
         {
             auto it = modifiedState.mContractCodeEntries.begin();
+            auto keyHash = it->first;
             auto const& codeEntry = it->second;
             LedgerEntry modifiedEntry = *codeEntry.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
-            *it->second.ledgerEntry = modifiedEntry;
+            auto ttlData = codeEntry.ttlData;
+            auto sizeBytes = codeEntry.sizeBytes;
+            modifiedState.mContractCodeEntries.erase(it);
+            modifiedState.mContractCodeEntries.emplace(
+                keyHash, ContractCodeMapEntryT(
+                             std::make_shared<LedgerEntry const>(modifiedEntry),
+                             ttlData, sizeBytes));
         }
         else
         {
@@ -660,7 +667,12 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             auto const& entryData = it->get();
             LedgerEntry modifiedEntry = *entryData.ledgerEntry;
             modifiedEntry.lastModifiedLedgerSeq += 100;
-            it->updateLedgerEntry(modifiedEntry, entryData.sizeBytes);
+            auto ttlData = entryData.ttlData;
+            auto sizeBytes = entryData.sizeBytes;
+            modifiedState.mContractDataEntries.erase(it);
+            modifiedState.mContractDataEntries.emplace(
+                InternalContractDataMapEntry(modifiedEntry, ttlData,
+                                             sizeBytes));
         }
 
         auto result =
@@ -692,7 +704,7 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             modifiedState.mContractCodeEntries.emplace(
                 ttlKey.ttl().keyHash,
                 ContractCodeMapEntryT(
-                    std::make_shared<LedgerEntry>(extraEntry), ttlData,
+                    std::make_shared<LedgerEntry const>(extraEntry), ttlData,
                     100));
         }
         else
@@ -727,81 +739,18 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         // Corrupt TTL of an entry in the cache
         auto it = modifiedState.mContractDataEntries.begin();
+        auto const& entryData = it->get();
+        LedgerEntry entryCopy = *entryData.ledgerEntry;
 
         TTLData wrongTTL(42, 1);
-        it->updateTTLData(wrongTTL);
+        modifiedState.mContractDataEntries.erase(it);
+        modifiedState.mContractDataEntries.emplace(
+            InternalContractDataMapEntry(entryCopy, wrongTTL,
+                                         entryData.sizeBytes));
 
         auto result =
             invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
         REQUIRE(!result.empty());
-    }
-
-    SECTION("update paths preserve stored entry identity")
-    {
-        InMemorySorobanState modifiedState =
-            lm.getInMemorySorobanStateForTesting();
-
-        LedgerSnapshot ls(*app);
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ls);
-        auto ledgerVersion = lm.getLastClosedLedgerHeader().header.ledgerVersion;
-
-        auto dataKey = LedgerEntryKey(dataEntry1);
-        auto dataPtr = modifiedState.get(dataKey);
-        REQUIRE(dataPtr);
-
-        LedgerEntry updatedData = dataEntry1;
-        updatedData.lastModifiedLedgerSeq += 10;
-        updatedData.data.contractData().val.u32() += 1;
-        modifiedState.updateContractData(updatedData);
-
-        auto dataPtrAfterDataUpdate = modifiedState.get(dataKey);
-        REQUIRE(dataPtrAfterDataUpdate == dataPtr);
-        REQUIRE(dataPtrAfterDataUpdate->lastModifiedLedgerSeq ==
-                updatedData.lastModifiedLedgerSeq);
-        REQUIRE(dataPtrAfterDataUpdate->data.contractData().val.u32() ==
-                updatedData.data.contractData().val.u32());
-
-        LedgerEntry updatedDataTTL = dataTTL1;
-        updatedDataTTL.data.ttl().liveUntilLedgerSeq += 10;
-        updatedDataTTL.lastModifiedLedgerSeq += 10;
-        modifiedState.updateTTL(updatedDataTTL);
-
-        auto dataPtrAfterTTLUpdate = modifiedState.get(dataKey);
-        REQUIRE(dataPtrAfterTTLUpdate == dataPtrAfterDataUpdate);
-        auto updatedDataTTLFromState = modifiedState.get(getTTLKey(dataEntry1));
-        REQUIRE(updatedDataTTLFromState);
-        REQUIRE(updatedDataTTLFromState->data.ttl().liveUntilLedgerSeq ==
-                updatedDataTTL.data.ttl().liveUntilLedgerSeq);
-        REQUIRE(updatedDataTTLFromState->lastModifiedLedgerSeq ==
-                updatedDataTTL.lastModifiedLedgerSeq);
-
-        auto codeKey = LedgerEntryKey(codeEntry1);
-        auto codePtr = modifiedState.get(codeKey);
-        REQUIRE(codePtr);
-
-        LedgerEntry updatedCode = codeEntry1;
-        updatedCode.lastModifiedLedgerSeq += 10;
-        modifiedState.updateContractCode(updatedCode, sorobanConfig,
-                                         ledgerVersion);
-
-        auto codePtrAfterCodeUpdate = modifiedState.get(codeKey);
-        REQUIRE(codePtrAfterCodeUpdate == codePtr);
-        REQUIRE(codePtrAfterCodeUpdate->lastModifiedLedgerSeq ==
-                updatedCode.lastModifiedLedgerSeq);
-
-        LedgerEntry updatedCodeTTL = codeTTL1;
-        updatedCodeTTL.data.ttl().liveUntilLedgerSeq += 10;
-        updatedCodeTTL.lastModifiedLedgerSeq += 10;
-        modifiedState.updateTTL(updatedCodeTTL);
-
-        auto codePtrAfterTTLUpdate = modifiedState.get(codeKey);
-        REQUIRE(codePtrAfterTTLUpdate == codePtrAfterCodeUpdate);
-        auto updatedCodeTTLFromState = modifiedState.get(getTTLKey(codeEntry1));
-        REQUIRE(updatedCodeTTLFromState);
-        REQUIRE(updatedCodeTTLFromState->data.ttl().liveUntilLedgerSeq ==
-                updatedCodeTTL.data.ttl().liveUntilLedgerSeq);
-        REQUIRE(updatedCodeTTLFromState->lastModifiedLedgerSeq ==
-                updatedCodeTTL.lastModifiedLedgerSeq);
     }
 
     SECTION("Orphan TTL in BL without Soroban entry")
