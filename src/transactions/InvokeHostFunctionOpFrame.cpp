@@ -20,6 +20,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "rust/CppShims.h"
 #include "xdr/Stellar-transaction.h"
+#include "util/BitSet.h"
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
@@ -633,9 +634,17 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
-        // Create or update every entry returned.
-        UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        UnorderedSet<LedgerKey> createdKeys;
+        // Track which RW footprint keys appear in the host output without
+        // hashing LedgerKeys. Footprints are small, so a linear scan over a
+        // BitSet-backed coverage map is cheaper than maintaining hash sets.
+        auto const& rwKeys = mResources.footprint.readWrite;
+        BitSet rwKeyCovered(rwKeys.size());
+        size_t numCreatedSorobanEntries = 0;
+        size_t numCreatedTTLEntries = 0;
+        bool const allowClassicCreations =
+            protocolVersionStartsFrom(getLedgerVersion(),
+                                      ProtocolVersion::V_26);
+
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
@@ -650,15 +659,22 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
 
-            createdAndModifiedKeys.insert(lk);
-
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
+
+            for (size_t j = 0; j < rwKeys.size(); ++j)
+            {
+                if (!rwKeyCovered.get(j) && rwKeys[j] == lk)
+                {
+                    rwKeyCovered.set(j);
+                    break;
+                }
+            }
 
             // ttlEntry write fees come out of refundableFee, already
             // accounted for by the host
             if (lk.type() != TTL)
             {
+                uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
                 mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
                                         entrySize);
                 if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
@@ -677,42 +693,41 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             if (upsertLedgerEntry(lk, le))
             {
-                createdKeys.insert(lk);
+                if (isSorobanEntry(lk))
+                {
+                    ++numCreatedSorobanEntries;
+                }
+                else if (lk.type() == TTL)
+                {
+                    ++numCreatedTTLEntries;
+                }
+                else if (allowClassicCreations)
+                {
+                    releaseAssertOrThrow(lk.type() == ACCOUNT ||
+                                         lk.type() == TRUSTLINE);
+                }
+                else
+                {
+                    releaseAssertOrThrow(false);
+                }
             }
         }
 
-        // Check that each newly created ContractCode or ContractData entry also
-        // creates a ttlEntry. Starting from protocol 26 (CAP-73), the Stellar
-        // Asset Contract can also create classic entries (ACCOUNT, TRUSTLINE).
-        for (auto const& key : createdKeys)
-        {
-            if (isSorobanEntry(key))
-            {
-                auto ttlKey = getTTLKey(key);
-                releaseAssertOrThrow(createdKeys.find(ttlKey) !=
-                                     createdKeys.end());
-            }
-            else if (protocolVersionStartsFrom(getLedgerVersion(),
-                                               ProtocolVersion::V_26))
-            {
-                releaseAssertOrThrow(key.type() == TTL ||
-                                     key.type() == ACCOUNT ||
-                                     key.type() == TRUSTLINE);
-            }
-            else
-            {
-                releaseAssertOrThrow(key.type() == TTL);
-            }
-        }
+
+        // Verify that each newly created Soroban entry has a corresponding
+        // newly created TTL entry (1:1 pairing guaranteed by the host).
+        releaseAssertOrThrow(numCreatedSorobanEntries ==
+                             numCreatedTTLEntries);
 
         // Erase every entry not returned.
         // NB: The entries that haven't been touched are passed through
         // from host, so this should never result in removing an entry
         // that hasn't been removed by host explicitly.
-        for (auto const& lk : mResources.footprint.readWrite)
+        for (size_t j = 0; j < rwKeys.size(); ++j)
         {
-            if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
+            if (!rwKeyCovered.get(j))
             {
+                auto const& lk = rwKeys[j];
                 if (eraseLedgerEntryIfExists(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
