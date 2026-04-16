@@ -176,8 +176,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     // Creates a valid empty TxSetXDRFrame from the previous ledger hash and
     // protocol version. Used for skip ledger values where the full header
     // may not be available.
-    static TxSetXDRFrameConstPtr
-    makeEmpty(Hash const& previousLedgerHash, uint32 previousLedgerVersion);
+    static TxSetXDRFrameConstPtr makeEmpty(Hash const& previousLedgerHash,
+                                           uint32 previousLedgerVersion);
 
     // `makeFromWire` methods create a TxSetXDRFrame from the XDR messages.
     // These methods don't perform any validation on the XDR.

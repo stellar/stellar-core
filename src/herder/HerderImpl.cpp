@@ -323,8 +323,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     if (std::holds_alternative<SkipTxSet>(result))
     {
         auto const& ov = value.ext.originalValue();
-        externalizedSet = TxSetXDRFrame::makeEmpty(
-            ov.previousLedgerHash, ov.previousLedgerVersion);
+        externalizedSet = TxSetXDRFrame::makeEmpty(ov.previousLedgerHash,
+                                                   ov.previousLedgerVersion);
     }
     else
     {
@@ -2175,8 +2175,7 @@ HerderImpl::persistSCPState(uint64 slot)
         for (auto const& h : getValidatedTxSetHashes(e))
         {
             auto result = mPendingEnvelopes.getTxSet(h);
-            if (auto* txSetPtr =
-                    std::get_if<TxSetXDRFrameConstPtr>(&result))
+            if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result))
             {
                 if (*txSetPtr && !mApp.getPersistentState().hasTxSet(h))
                 {
