@@ -20,11 +20,11 @@
 #include <Tracy.hpp>
 #include <sodium.h>
 
+#include "test/CovMark.h"
+
 typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> binary_fuse_seed_t;
 
 #ifdef BUILD_TESTS
-
-#include "test/CovMark.h"
 
 // Test-only flags: force specific rare paths in populate() so tests can
 // exercise them without needing pathological hash distributions.
