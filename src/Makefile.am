@@ -462,6 +462,7 @@ else # !USE_POSTGRES
 TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
 TESTS += test/check-nondet
+TESTS += test/check-nocstyle
 
 format: always
 if USE_CLANG_FORMAT
