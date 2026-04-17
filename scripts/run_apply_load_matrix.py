@@ -72,14 +72,14 @@ class Scenario:
 
 
 SCENARIOS: tuple[Scenario, ...] = (
-    # Scenario(
-    #     model_tx="sac",
-    #     tx_count=3200,
-    #     thread_count=1,
-    # ),
     Scenario(
         model_tx="sac",
-        tx_count=6400,
+        tx_count=6000,
+        thread_count=4,
+    ),
+    Scenario(
+        model_tx="sac",
+        tx_count=6000,
         thread_count=8,
     ),
     # Scenario(
@@ -102,21 +102,21 @@ SCENARIOS: tuple[Scenario, ...] = (
     #     tx_count=6432,
     #     thread_count=24,
     # ),
-    # Scenario(
-    #     model_tx="custom_token",
-    #     tx_count=1600,
-    #     thread_count=1,
-    # ),
-    # Scenario(
-    #     model_tx="custom_token",
-    #     tx_count=1600,
-    #     thread_count=8,
-    # ),
-    # Scenario(
-    #     model_tx="soroswap",
-    #     tx_count=1000,
-    #     thread_count=1,
-    # ),
+    Scenario(
+        model_tx="custom_token",
+        tx_count=3000,
+        thread_count=4,
+    ),
+    Scenario(
+        model_tx="custom_token",
+        tx_count=3000,
+        thread_count=8,
+    ),
+    Scenario(
+        model_tx="soroswap",
+        tx_count=2000,
+        thread_count=4,
+    ),
     Scenario(
         model_tx="soroswap",
         tx_count=2000,
