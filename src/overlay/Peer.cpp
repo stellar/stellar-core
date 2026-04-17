@@ -1947,18 +1947,18 @@ Peer::recvAuth(StellarMessage const& msg)
         sendPeers();
     }
 
+    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
+    {
+        sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
+        return;
+    }
+
     updatePeerRecordAfterAuthentication();
 
     auto self = shared_from_this();
     if (!mAppConnector.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         sendErrorAndDrop(ERR_LOAD, "peer rejected");
-        return;
-    }
-
-    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
-    {
-        sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
         return;
     }
 
