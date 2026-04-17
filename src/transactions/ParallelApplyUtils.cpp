@@ -296,7 +296,7 @@ PreV23LedgerAccessHelper::getLedgerSeq()
     return mLtx.loadHeader().current().ledgerSeq;
 }
 
-bool
+void
 PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
                                             LedgerEntry const& entry)
 {
@@ -304,12 +304,10 @@ PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
     if (ltxe)
     {
         ltxe.current() = entry;
-        return false;
     }
     else
     {
         mLtx.create(entry);
-        return true;
     }
 }
 
@@ -355,11 +353,11 @@ ParallelLedgerAccessHelper::getLedgerVersion()
     return mLedgerInfo.getLedgerVersion();
 }
 
-bool
+void
 ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
                                               LedgerEntry const& entry)
 {
-    return mTxState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
+    mTxState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
 }
 
 bool
@@ -384,19 +382,19 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 // them are complete.
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
-    AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
-    std::vector<ApplyStage> const& stages,
+    AppConnector& app, ApplyLedgerStateSnapshot snapshot,
+    AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mLCLApplyView(std::move(applyView))
+    , mLCLSnapshot(std::move(snapshot))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
-    releaseAssertOrThrow(mLCLApplyView.getLedgerSeq() ==
+    releaseAssertOrThrow(mLCLSnapshot.getLedgerSeq() ==
                          mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         mLCLApplyView.getLedgerSeq() + 1);
+                         mLCLSnapshot.getLedgerSeq() + 1);
 
     // Pre-reserve global entry map to avoid rehashing as entries accumulate
     // from classic fee processing, Soroban RO pre-loading, and thread commits.
@@ -950,7 +948,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     // As part of the initialization of this thread state, we need to
     // collect all the keys that are in the global state map. For any keys
     // we need not in the global state, we will fetch them from the live
-    // applyView, in memory soroban state, or the hot archive later.
+    // snapshot, in memory soroban state, or the hot archive later.
     GlobalParallelApplyEntryMap const& globalEntryMap =
         global.getGlobalEntryMap();
 
@@ -993,7 +991,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    , mLCLApplyView(global.mLCLApplyView)
+    , mLCLSnapshot(global.mLCLSnapshot)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -1106,7 +1104,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     // collectClusterFootprintEntriesFromGlobal (even if it's marked for
     // deletion), so if the keys does not exist in mThreadEntryMap, it can't
     // exist in the global entry map either. We still need to check the in
-    // memory soroban state or the live applyView.
+    // memory soroban state or the live snapshot.
 
     // Check InMemorySorobanState cache for soroban types
     std::shared_ptr<LedgerEntry const> res;
@@ -1116,7 +1114,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mLCLApplyView.loadLiveEntry(key);
+        res = mLCLSnapshot.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -1213,7 +1211,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
         }
         else
         {
-            // If the entry was not found in the live applyView, we check if it
+            // If the entry was not found in the live snapshot, we check if it
             // was restored from the hot archive instead.
             auto const& hotArchiveRestores =
                 res.getRestoredEntries().hotArchive;
@@ -1269,10 +1267,10 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-ApplyLedgerView const&
+ApplyLedgerStateSnapshot const&
 ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mLCLApplyView;
+    return mLCLSnapshot;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&
@@ -1311,43 +1309,14 @@ TxParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
 }
 
-bool
+void
 TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                         LedgerEntry const& entry,
                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
-    // There are 4 cases:
-    //
-    //  1. The entry exists in the parent maps (thread state or live applyView)
-    //     but not in mTxEntryMap: we insert it into mTxEntryMap. This is a
-    //     "logical update" even though it's a local insert. We return false.
-    //
-    //  2. The entry exists in the parent maps _and_ mTxEntryMap: we update it.
-    //     This is obviously an update! We return false.
-    //
-    //  3. The entry does not exist in the parent maps but does already exist in
-    //     mTxEntryMap: we update it. This is a "logical update" to an _earlier_
-    //     logical create. We return false.
-    //
-    //  4. The entry does not exist in the parent maps and does not exist in
-    //     mTxEntryMap: we insert it into mTxEntryMap. This is a "logical
-    //     create". We return true.
-    //
-    // The only caller that cares about the return value is a loop that checks
-    // that logical creates that happened in the soroban host were accompanied
-    // by logical creates of TTL entries. We could theoretically return true in
-    // case 3 by comparing against the op prestate rather than the local op
-    // state, but the only time that happens is when there was a restore that
-    // populated mTxEntryMap before invoking the host, and we don't especially
-    // need to check our own TTL-creating work in that case.
-
-    bool liveEntryExistedAlready =
-        getLiveEntryOpt(key).readInScope(*this).has_value();
-    CLOG_TRACE(Tx, "parallel apply thread {} upserting {} key {}",
-               std::this_thread::get_id(),
-               liveEntryExistedAlready ? "already-live" : "new",
-               xdr::xdr_to_string(key, "key"));
+    CLOG_TRACE(Tx, "parallel apply thread {} upserting key {}",
+               std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
 
     auto [mapEntry, _] =
         mTxEntryMap.insert_or_assign(key, scopeAdoptEntryOpt(entry));
@@ -1355,7 +1324,6 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
         releaseAssertOrThrow(le);
         le.value().lastModifiedLedgerSeq = ledgerSeq;
     });
-    return !liveEntryExistedAlready;
 }
 
 bool
@@ -1366,7 +1334,7 @@ TxParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
     if (liveEntryExistedAlready)
     {
         // NB: we only erase an entry if it doesn't already exist in
-        // parents (thread state or live applyView), otherwise
+        // parents (thread state or live snapshot), otherwise
         // we will produce mismatched erases that don't relate to
         // any pre-state key when calculating the ledger delta.
         CLOG_TRACE(Tx, "parallel apply thread {} erasing {}",

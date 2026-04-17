@@ -294,6 +294,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
+    BitSet mRwKeyExisted;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
     ApplyLedgerStateSnapshot mStateSnapshot;
@@ -321,6 +322,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mResources(mOpFrame.mParentTx.sorobanResources())
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
+        , mRwKeyExisted(mResources.footprint.readWrite.size())
         , mMetrics(app.getSorobanMetrics(),
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         , mStateSnapshot(std::move(stateSnapshot))
@@ -474,6 +476,11 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 auto entryOpt = getLedgerEntryOpt(lk);
                 if (entryOpt)
                 {
+                    if (!isReadOnly)
+                    {
+                        mRwKeyExisted.set(i);
+                    }
+
                     auto leBuf = toCxxBuf(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
 
@@ -650,6 +657,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             LedgerEntry le;
             xdr::xdr_from_opaque(buf.data, le);
             auto lk = LedgerEntryKey(le);
+            size_t matchedRwKey = rwKeys.size();
+            size_t relatedRwKey = rwKeys.size();
             if (!validateContractLedgerEntry(
                     lk, buf.data.size(), mSorobanConfig, mAppConfig,
                     mOpFrame.mParentTx, mDiagnosticEvents))
@@ -663,9 +672,25 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             for (size_t j = 0; j < rwKeys.size(); ++j)
             {
-                if (!rwKeyCovered.get(j) && rwKeys[j] == lk)
+                bool directMatch = rwKeys[j] == lk;
+                if (directMatch)
                 {
-                    rwKeyCovered.set(j);
+                    relatedRwKey = j;
+                    if (!rwKeyCovered.get(j))
+                    {
+                        rwKeyCovered.set(j);
+                        matchedRwKey = j;
+                    }
+                }
+                else if (lk.type() == TTL && isSorobanEntry(rwKeys[j]) &&
+                         getTTLKey(rwKeys[j]) == lk)
+                {
+                    relatedRwKey = j;
+                }
+
+                if (matchedRwKey != rwKeys.size() &&
+                    relatedRwKey != rwKeys.size())
+                {
                     break;
                 }
             }
@@ -691,7 +716,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
             }
 
-            if (upsertLedgerEntry(lk, le))
+            bool created = relatedRwKey != rwKeys.size() &&
+                           !mRwKeyExisted.get(relatedRwKey);
+            upsertLedgerEntry(lk, le);
+            if (created)
             {
                 if (isSorobanEntry(lk))
                 {
