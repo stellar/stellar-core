@@ -20,3 +20,6 @@ LOG_PARTITION(Work)
 LOG_PARTITION(Invariant)
 LOG_PARTITION(Perf)
 LOG_PARTITION(Test)
+
+// TODO: remove vv
+LOG_PARTITION(Proto)

@@ -37,6 +37,9 @@ struct SlotEnvelopes
     // envelopes we are fetching right now
     std::map<SCPEnvelope, VirtualClock::time_point> mFetchingEnvelopes;
 
+    // TODO: This needs a better name and descriptor
+    std::set<SCPEnvelope> mPartiallyReadyEnvelopes;
+
     // list of ready envelopes that haven't been sent to SCP yet
     std::vector<SCPEnvelopeWrapperPtr> mReadyEnvelopes;
 
@@ -100,6 +103,8 @@ class PendingEnvelopes
     void envelopeReady(SCPEnvelope const& envelope);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
     bool isFullyFetched(SCPEnvelope const& envelope);
+    // TODO: Docs and maybe better name (like qsetIsFetched)
+    bool isPartiallyFetched(SCPEnvelope const& envelope);
     void startFetch(SCPEnvelope const& envelope);
     void stopFetch(SCPEnvelope const& envelope);
     void touchFetchCache(SCPEnvelope const& envelope);
@@ -112,8 +117,11 @@ class PendingEnvelopes
 
     // tries to find a txset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
-    TxSetXDRFrameConstPtr getKnownTxSet(Hash const& hash, uint64 slot,
-                                        bool touch);
+    TxSetResult getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
+
+    // Returns true if the tx set is available locally (either in cache or
+    // is a skip ledger hash which doesn't need fetching).
+    bool hasTxSet(Hash const& hash) const;
 
     void cleanKnownData();
 
@@ -203,8 +211,16 @@ class PendingEnvelopes
 
     Json::Value getJsonInfo(size_t limit);
 
-    TxSetXDRFrameConstPtr getTxSet(Hash const& hash);
+    TxSetResult getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);
+
+    /**
+     * Return how long the transaction set fetcher has been waiting for the
+     * transaction set identified by @p hash. Returns nullopt if the transaction
+     * set is not being fetched.
+     */
+    std::optional<std::chrono::milliseconds>
+    getTxSetWaitingTime(Hash const& hash) const;
 
     // returns true if we think that the node is in the transitive quorum for
     // sure

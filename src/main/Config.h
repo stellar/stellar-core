@@ -717,6 +717,9 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
+
+    // TODO: Docs
+    std::chrono::milliseconds TX_SET_DOWNLOAD_TIMEOUT;
     int MAX_BATCH_WRITE_COUNT;
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;

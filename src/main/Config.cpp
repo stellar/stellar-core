@@ -248,6 +248,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
+    TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(5000);
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
@@ -1372,6 +1373,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
                          item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"TX_SET_DOWNLOAD_TIMEOUT",
+                 [&]() {
+                     TX_SET_DOWNLOAD_TIMEOUT =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
                  }},
                 {"MAX_BATCH_WRITE_COUNT",
                  [&]() { MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1); }},

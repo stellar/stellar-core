@@ -204,6 +204,14 @@ class Slot : public std::enable_shared_from_this<Slot>
     // missing. Used for reporting purposes only.
     static uint32_t const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
 
+#ifdef BUILD_TESTS
+    std::vector<HistoricalStatement> const&
+    getHistoricalStatementsForTesting() const
+    {
+        return mStatementsHistory;
+    }
+#endif
+
   protected:
     std::vector<SCPEnvelope> getEntireCurrentState();
     void maybeSetGotVBlocking();
