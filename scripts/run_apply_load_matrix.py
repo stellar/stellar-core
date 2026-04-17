@@ -18,6 +18,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_STELLAR_CORE_BIN = SCRIPT_DIR.parent / "src" / "stellar-core"
 DEFAULT_TEMPLATE_CONFIG = SCRIPT_DIR.parent / "docs" / "apply-load-benchmark-sac.cfg"
 DEFAULT_OUTPUT_ROOT = Path.home() / "apply-load"
+DEFAULT_PERF_BIN = "perf"
+DEFAULT_TRACY_CAPTURE_BIN = SCRIPT_DIR.parent / "tracy-capture"
+DEFAULT_TRACY_SECONDS = 10
 APPLY_LOAD_NUM_LEDGERS = 200
 
 FLOAT_RE = r"([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
@@ -71,18 +74,18 @@ class Scenario:
 SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         model_tx="sac",
-        tx_count=6400,
-        thread_count=1,
+        tx_count=6000,
+        thread_count=4,
     ),
     Scenario(
         model_tx="sac",
-        tx_count=6400,
+        tx_count=6000,
         thread_count=8,
     ),
     Scenario(
         model_tx="custom_token",
         tx_count=3000,
-        thread_count=1,
+        thread_count=4,
     ),
     Scenario(
         model_tx="custom_token",
@@ -91,24 +94,20 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario(
         model_tx="soroswap",
-        tx_count=1600,
-        thread_count=1,
+        tx_count=2000,
+        thread_count=4,
     ),
     Scenario(
         model_tx="soroswap",
-        tx_count=1600,
+        tx_count=2000,
         thread_count=8,
     ),
 )
 
 
 def validate_scenarios(scenarios: tuple[Scenario, ...]) -> None:
-    seen_identifiers: set[str] = set()
     for scenario in scenarios:
         identifier = scenario.identifier()
-        if identifier in seen_identifiers:
-            raise ValueError(f"Duplicate scenario identifier: {identifier}")
-        seen_identifiers.add(identifier)
 
         if scenario.model_tx != "sac":
             continue
@@ -159,6 +158,36 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--build-tag",
         help="Optional build tag to embed in the run identifier. Defaults to a hash of `stellar-core version` output.",
+    )
+    parser.add_argument(
+        "--profile",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "When enabled, wrap each scenario in `perf record` and write one "
+            "`.perf.data` file per scenario into the scenario artifact directory."
+        ),
+    )
+    parser.add_argument(
+        "--tracy",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "When enabled, run stellar-core in the background and attach "
+            "`tracy-capture` to collect a Tracy trace file per scenario."
+        ),
+    )
+    parser.add_argument(
+        "--tracy-capture-bin",
+        type=Path,
+        default=DEFAULT_TRACY_CAPTURE_BIN,
+        help="Path or name of the tracy-capture binary.",
+    )
+    parser.add_argument(
+        "--tracy-seconds",
+        type=int,
+        default=DEFAULT_TRACY_SECONDS,
+        help="Number of seconds tracy-capture should record before disconnecting.",
     )
     return parser.parse_args()
 
@@ -217,6 +246,43 @@ def derive_build_tag(version_text: str, user_build_tag: str | None) -> str:
 def create_run_id(build_tag: str) -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     return f"{build_tag}-{timestamp}"
+
+
+def build_apply_load_command(stellar_core_bin: Path, config_path: Path) -> list[str]:
+    return [str(stellar_core_bin), "--conf", str(config_path), "apply-load"]
+
+
+def build_perf_record_command(
+    profiled_command: list[str], perf_data_path: Path
+) -> list[str]:
+    return [
+        DEFAULT_PERF_BIN,
+        "record",
+        "--freq",
+        "99",
+        "--call-graph",
+        # "dwarf",
+        "fp",
+        "--output",
+        str(perf_data_path),
+        "--",
+        *profiled_command,
+    ]
+
+
+def build_tracy_capture_command(
+    tracy_capture_bin: str, tracy_output_path: Path, tracy_seconds: int
+) -> list[str]:
+    return [
+        tracy_capture_bin,
+        "-o",
+        str(tracy_output_path),
+        "-a",
+        "127.0.0.1",
+        "-f",
+        "-s",
+        str(tracy_seconds),
+    ]
 
 
 def read_template_config(template_config: Path) -> str:
@@ -312,7 +378,14 @@ def append_csv_row(results_csv: Path, row: dict[str, str | float]) -> None:
         writer.writerow(row)
 
 
-def ensure_inputs(stellar_core_bin: Path, template_config: Path) -> tuple[Path, Path]:
+def ensure_inputs(
+    stellar_core_bin: Path,
+    template_config: Path,
+    *,
+    profile: bool,
+    tracy: bool,
+    tracy_capture_bin: Path,
+) -> tuple[Path, Path]:
     stellar_core_bin = stellar_core_bin.expanduser().resolve()
     template_config = template_config.expanduser().resolve()
 
@@ -322,6 +395,10 @@ def ensure_inputs(stellar_core_bin: Path, template_config: Path) -> tuple[Path, 
         raise FileNotFoundError(f"stellar-core path is not a file: {stellar_core_bin}")
     if not template_config.exists():
         raise FileNotFoundError(f"Template config not found: {template_config}")
+    if profile and shutil.which(DEFAULT_PERF_BIN) is None:
+        raise FileNotFoundError(f"{DEFAULT_PERF_BIN} not found on PATH")
+    if tracy and shutil.which(str(tracy_capture_bin)) is None:
+        raise FileNotFoundError(f"{tracy_capture_bin} not found on PATH")
 
     return stellar_core_bin, template_config
 
@@ -333,35 +410,95 @@ def run_scenario(
     stellar_core_bin: Path,
     template_text: str,
     run_id: str,
-    logs_dir: Path,
+    artifacts_dir: Path,
+    profile: bool,
+    tracy: bool,
+    tracy_capture_bin: str,
+    tracy_seconds: int,
 ) -> dict[str, float]:
-    log_name = f"{run_id}-{scenario_index:02d}-{scenario.slug()}.log"
-    with tempfile.TemporaryDirectory(prefix=f"apply-load-{scenario.slug()}-") as temp_dir:
+    slug = scenario.slug()
+    log_name = f"{run_id}-{scenario_index:02d}-{slug}.log"
+    perf_name = f"{run_id}-{scenario_index:02d}-{slug}.perf.data"
+    tracy_name = f"{run_id}-{scenario_index:02d}-{slug}.tracy"
+    tracy_log_name = f"{run_id}-{scenario_index:02d}-{slug}.tracy-capture.log"
+    with tempfile.TemporaryDirectory(prefix=f"apply-load-{slug}-") as temp_dir:
         work_dir = Path(temp_dir)
         config_text = build_config_text(template_text, scenario, log_name)
         config_path = work_dir / "apply-load.cfg"
         config_path.write_text(config_text, encoding="utf-8")
+        perf_data_path = artifacts_dir / perf_name
+        tracy_output_path = artifacts_dir / tracy_name
+        apply_load_command = build_apply_load_command(stellar_core_bin, config_path)
+        command = apply_load_command
+        if profile:
+            command = build_perf_record_command(apply_load_command, perf_data_path)
 
         print(f"Running {scenario.summary()}")
-        result = run_command(
-            [str(stellar_core_bin), "--conf", str(config_path), "apply-load"],
-            cwd=work_dir,
-        )
+        if profile:
+            print(f"  Profile data: {perf_data_path}")
+        if tracy:
+            print(f"  Tracy trace:  {tracy_output_path}")
+
+        if tracy:
+            stdout_path = work_dir / "stdout.txt"
+            stderr_path = work_dir / "stderr.txt"
+            with open(stdout_path, "w") as stdout_f, open(stderr_path, "w") as stderr_f:
+                proc = subprocess.Popen(
+                    command, cwd=work_dir, stdout=stdout_f, stderr=stderr_f,
+                )
+                try:
+                    tracy_command = build_tracy_capture_command(
+                        tracy_capture_bin, tracy_output_path, tracy_seconds,
+                    )
+                    tracy_result = run_command(tracy_command, cwd=work_dir)
+                    tracy_log_text = ""
+                    if tracy_result.stdout:
+                        tracy_log_text += tracy_result.stdout
+                    if tracy_result.stderr:
+                        tracy_log_text += tracy_result.stderr
+                    if tracy_log_text:
+                        tracy_log_path = artifacts_dir / tracy_log_name
+                        tracy_log_path.write_text(tracy_log_text, encoding="utf-8")
+                    if tracy_result.returncode != 0:
+                        print(
+                            f"  Warning: tracy-capture exited with code "
+                            f"{tracy_result.returncode}, see {tracy_log_name}",
+                            file=sys.stderr,
+                        )
+                finally:
+                    proc.wait()
+            stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace")
+            stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
+            returncode = proc.returncode
+        else:
+            result = run_command(command, cwd=work_dir)
+            stdout_text = result.stdout
+            stderr_text = result.stderr
+            returncode = result.returncode
 
         scenario_log = work_dir / log_name
         if scenario_log.exists():
-            shutil.copy2(scenario_log, logs_dir / log_name)
+            shutil.copy2(scenario_log, artifacts_dir / log_name)
 
-        if result.returncode != 0:
+        if returncode != 0:
             raise RuntimeError(
-                f"Scenario '{scenario.identifier()}' failed with exit code {result.returncode}.\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
+                f"Scenario '{scenario.identifier()}' failed with exit code {returncode}.\n"
+                f"stdout:\n{stdout_text}\n"
+                f"stderr:\n{stderr_text}"
             )
 
         if not scenario_log.exists():
             raise RuntimeError(
                 f"Scenario '{scenario.identifier()}' completed but did not produce log file {log_name}"
+            )
+        if profile and not perf_data_path.exists():
+            raise RuntimeError(
+                f"Scenario '{scenario.identifier()}' completed but did not produce profile {perf_name}"
+            )
+        if tracy and not tracy_output_path.exists():
+            print(
+                f"  Warning: tracy trace file not produced: {tracy_name}",
+                file=sys.stderr,
             )
 
         return parse_benchmark_results(scenario_log)
@@ -372,7 +509,11 @@ def main() -> int:
 
     try:
         stellar_core_bin, template_config = ensure_inputs(
-            args.stellar_core_bin, args.template_config
+            args.stellar_core_bin,
+            args.template_config,
+            profile=args.profile,
+            tracy=args.tracy,
+            tracy_capture_bin=args.tracy_capture_bin,
         )
         scenarios = SCENARIOS
         validate_scenarios(scenarios)
@@ -381,7 +522,7 @@ def main() -> int:
         run_id = create_run_id(build_tag)
         output_root = args.output_root.expanduser().resolve()
         run_dir = output_root / run_id
-        logs_dir = run_dir / "logs"
+        artifacts_dir = run_dir / "logs"
         results_csv = run_dir / "results.csv"
         stamp_path = run_dir / "stamp"
         template_text = read_template_config(template_config)
@@ -390,7 +531,7 @@ def main() -> int:
         return 1
 
     try:
-        logs_dir.mkdir(parents=True, exist_ok=False)
+        artifacts_dir.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
         print(f"Error: run directory already exists: {run_dir}", file=sys.stderr)
         return 1
@@ -405,12 +546,16 @@ def main() -> int:
     try:
         for scenario_index, scenario in enumerate(scenarios, start=1):
             metrics = run_scenario(
-            scenario_index,
+                scenario_index,
                 scenario,
                 stellar_core_bin=stellar_core_bin,
                 template_text=template_text,
                 run_id=run_id,
-                logs_dir=logs_dir,
+                artifacts_dir=artifacts_dir,
+                profile=args.profile,
+                tracy=args.tracy,
+                tracy_capture_bin=str(args.tracy_capture_bin),
+                tracy_seconds=args.tracy_seconds,
             )
             append_csv_row(
                 results_csv,
