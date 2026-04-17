@@ -171,11 +171,17 @@ TxSetUtils::getInvalidTxListWithErrors(
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    LedgerSnapshot ls(app);
-    // This is done so minSeqLedgerGap is validated against the next
-    // ledgerSeq, which is what will be used at apply time
-    ls.getLedgerHeader().currentToModify().ledgerSeq =
-        app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    CheckValidLedgerViewWrapper ledgerView(app);
+    // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
+    // which is what will be used at apply time.
+    std::optional<uint32_t> validationLedgerSeq;
+    if (protocolVersionStartsFrom(
+            ledgerView.getLedgerHeader().current().ledgerVersion,
+            ProtocolVersion::V_19))
+    {
+        validationLedgerSeq =
+            app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    }
 
     TxFrameListWithErrors invalidTxsWithError;
     auto& invalidTxs = invalidTxsWithError.first;
@@ -186,9 +192,9 @@ TxSetUtils::getInvalidTxListWithErrors(
     auto diagnostics = DiagnosticEventManager::createDisabled();
     for (auto const& tx : txs)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset, diagnostics);
+        auto txResult = tx->checkValid(
+            app.getAppConnector(), ledgerView, 0, lowerBoundCloseTimeOffset,
+            upperBoundCloseTimeOffset, diagnostics, validationLedgerSeq);
         if (!txResult->isSuccess())
         {
             invalidTxs.emplace_back(tx);
@@ -209,7 +215,7 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
     }
 
-    auto header = ls.getLedgerHeader().current();
+    auto header = ledgerView.getLedgerHeader().current();
     for (auto const& tx : txs)
     {
         // Already added invalid tx
@@ -219,7 +225,7 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
 
         auto feeSourceID = tx->getFeeSourceID();
-        auto feeSource = ls.getAccount(feeSourceID);
+        auto feeSource = ledgerView.getAccount(feeSourceID);
         // feeSource should exist since we've already run checkValid, log
         // internal bug
         if (!feeSource)

@@ -246,7 +246,8 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 FeeBumpTransactionFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SignatureChecker& signatureChecker,
+    CheckValidLedgerViewWrapper const& ledgerView,
     MutableTransactionResultBase* txResult) const
 {
     // Fee bumps do not contain explicit operations, so this check trivially
@@ -271,9 +272,11 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidImpl(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation) const
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
     {
@@ -284,16 +287,17 @@ FeeBumpTransactionFrame::checkValidImpl(
     // the fees that would end up being applied. However, this is what Core
     // used to return for a while, and some users may rely on this, so we
     // maintain this logic for the time being.
-    int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
-    auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
+    int64_t minBaseFee = ledgerView.getLedgerHeader().current().baseFee;
+    auto feeCharged =
+        getFee(ledgerView.getLedgerHeader().current(), minBaseFee, false);
     auto txResult = FeeBumpMutableTransactionResult::createSuccess(
         *mInnerTx, feeCharged, 0);
 
-    auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    auto ledgerVersion = ledgerView.getLedgerHeader().current().ledgerVersion;
     SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
                                       mEnvelope.feeBump().signatures,
                                       isOverlayValidation};
-    if (commonValid(signatureChecker, ls, false, *txResult) !=
+    if (commonValid(signatureChecker, ledgerView, false, *txResult) !=
         ValidationType::kFullyValid)
     {
         return txResult;
@@ -323,31 +327,37 @@ FeeBumpTransactionFrame::checkValidImpl(
     }
 
     mInnerTx->checkValidWithOptionallyChargedFee(
-        app, ls, current, false, lowerBoundCloseTimeOffset,
+        app, ledgerView, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents, isOverlayValidation);
+        diagnosticEvents, isOverlayValidation, validationLedgerSeq);
 
     return txResult;
 }
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
-    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, false);
+    return checkValidImpl(app, ledgerView, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, false,
+                          validationLedgerSeq);
 }
 
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidForOverlay(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
-    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, true);
+    return checkValidImpl(app, ledgerView, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, true,
+                          validationLedgerSeq);
 }
 
 bool
@@ -361,12 +371,13 @@ FeeBumpTransactionFrame::checkSorobanResources(
 
 std::optional<LedgerEntryWrapper>
 FeeBumpTransactionFrame::commonValidPreSeqNum(
-    LedgerSnapshot const& ls, MutableTransactionResultBase& txResult) const
+    CheckValidLedgerViewWrapper const& ledgerView,
+    MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    auto header = ls.getLedgerHeader();
+    auto header = ledgerView.getLedgerHeader();
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_13))
     {
@@ -427,7 +438,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
         }
     }
 
-    auto feeSource = ls.getAccount(getFeeSourceID());
+    auto feeSource = ledgerView.getAccount(getFeeSourceID());
     if (!feeSource)
     {
         txResult.setError(txNO_ACCOUNT);
@@ -439,14 +450,15 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls, bool applying,
+    SignatureChecker& signatureChecker,
+    CheckValidLedgerViewWrapper const& ledgerView, bool applying,
     MutableTransactionResultBase& txResult) const
 {
     ValidationType res = ValidationType::kInvalid;
 
     // Get the fee source account during commonValidPreSeqNum to avoid redundant
     // account loading
-    auto feeSource = commonValidPreSeqNum(ls, txResult);
+    auto feeSource = commonValidPreSeqNum(ledgerView, txResult);
     if (!feeSource)
     {
         return res;
@@ -454,7 +466,7 @@ FeeBumpTransactionFrame::commonValid(
 
     if (!checkAllTransactionSignatures(
             signatureChecker, *feeSource,
-            ls.getLedgerHeader().current().ledgerVersion))
+            ledgerView.getLedgerHeader().current().ledgerVersion))
     {
         txResult.setError(txBAD_AUTH);
         return res;
@@ -462,7 +474,7 @@ FeeBumpTransactionFrame::commonValid(
 
     res = ValidationType::kInvalidPostAuth;
 
-    auto header = ls.getLedgerHeader();
+    auto header = ledgerView.getLedgerHeader();
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance

@@ -6,7 +6,7 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/LedgerCmp.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -38,7 +38,7 @@ ArchivedStateConsistency::getName() const
 
 std::string
 ArchivedStateConsistency::checkOnLedgerCommit(
-    ApplyLedgerStateSnapshot const& lclSnapshot,
+    ApplyLedgerView const& lclApplyView,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -48,8 +48,8 @@ ArchivedStateConsistency::checkOnLedgerCommit(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::milliseconds(1));
 
-    auto ledgerSeq = lclSnapshot.getLedgerSeq() + 1;
-    auto ledgerVers = lclSnapshot.getLedgerHeader().ledgerVersion;
+    auto ledgerSeq = lclApplyView.getLedgerSeq() + 1;
+    auto ledgerVers = lclApplyView.getLedgerHeader().current().ledgerVersion;
 
     if (protocolVersionIsBefore(
             ledgerVers,
@@ -93,13 +93,13 @@ ArchivedStateConsistency::checkOnLedgerCommit(
     // Preload from both live and archived state
     UnorderedMap<LedgerKey, LedgerEntry> preloadedLiveEntries;
     auto preloadedLiveVector =
-        lclSnapshot.loadLiveKeys(allKeys, "ArchivedStateConsistency");
+        lclApplyView.loadLiveKeys(allKeys, "ArchivedStateConsistency");
     for (auto const& entry : preloadedLiveVector)
     {
         preloadedLiveEntries[LedgerEntryKey(entry)] = entry;
     }
 
-    auto preloadedArchivedVector = lclSnapshot.loadArchiveKeys(allKeys);
+    auto preloadedArchivedVector = lclApplyView.loadArchiveKeys(allKeys);
     UnorderedMap<LedgerKey, HotArchiveBucketEntry> preloadedArchivedEntries;
     for (auto const& entry : preloadedArchivedVector)
     {

@@ -2519,7 +2519,7 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
         {
             // Normal checkValid should succeed — the payload signer is valid
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = LedgerSnapshot(ltx);
+            auto ls = CheckValidLedgerViewWrapper(ltx);
             auto diagnostics = DiagnosticEventManager::createDisabled();
             auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
                                          diagnostics);
@@ -2539,7 +2539,7 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
             // authorized only via payload signer should fail overlay
             // validation
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ls = LedgerSnapshot(ltx);
+            auto ls = CheckValidLedgerViewWrapper(ltx);
             auto diagnostics = DiagnosticEventManager::createDisabled();
             auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
                                                    0, 0, 0, diagnostics);
@@ -2556,7 +2556,7 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
             SECTION("checkValid accepts fee bump")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = LedgerSnapshot(ltx);
+                auto ls = CheckValidLedgerViewWrapper(ltx);
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValid(app->getAppConnector(), ls,
                                                     0, 0, 0, diagnostics);
@@ -2566,7 +2566,7 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
             SECTION("checkValidForOverlay rejects fee bump")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ls = LedgerSnapshot(ltx);
+                auto ls = CheckValidLedgerViewWrapper(ltx);
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValidForOverlay(
                     app->getAppConnector(), ls, 0, 0, 0, diagnostics);

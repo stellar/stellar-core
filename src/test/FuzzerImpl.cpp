@@ -936,7 +936,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // Do not track metrics related to background signature verification in
         // the fuzzer.
         signatureChecker.disableCacheMetricsTracking();
-        LedgerSnapshot ltxStmt(ltx);
+        CheckValidLedgerViewWrapper ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
             auto diagnostics =

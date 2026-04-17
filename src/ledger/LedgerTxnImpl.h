@@ -5,7 +5,7 @@
 #pragma once
 
 #include "database/Database.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTxn.h"
 #include "util/RandomEvictionCache.h"
 #include "util/UnorderedSet.h"
@@ -628,7 +628,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable std::optional<ApplyLedgerStateSnapshot> mLedgerStateSnapshot;
+    mutable std::optional<ApplyLedgerView> mApplyLedgerView;
 
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
@@ -697,7 +697,7 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    ApplyLedgerStateSnapshot const& getLedgerStateSnapshot() const;
+    ApplyLedgerView const& getApplyLedgerView() const;
 
   public:
     // Constructor has the strong exception safety guarantee

@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SorobanTxTestUtils.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/Catch2.h"
@@ -1369,10 +1369,10 @@ SorobanTest::createRestoreTx(SorobanResources const& resources,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
-    LedgerSnapshot ls(getApp());
+    CheckValidLedgerViewWrapper ledgerView(getApp());
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    auto ret =
-        tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+    auto ret = tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
+                              diagnostics);
     return ret->isSuccess();
 }
 
@@ -1381,10 +1381,10 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerSnapshot ls(getApp());
-        REQUIRE(
-            tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics)
-                ->isSuccess());
+        CheckValidLedgerViewWrapper ledgerView(getApp());
+        REQUIRE(tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
+                               diagnostics)
+                    ->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});
@@ -1435,17 +1435,17 @@ ExpirationStatus
 SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
 {
     auto ttlKey = getTTLKey(key);
-    LedgerSnapshot ls(getApp());
-    if (auto lse = ls.load(ttlKey))
+    CheckValidLedgerViewWrapper ledgerView(getApp());
+    if (auto le = ledgerView.load(ttlKey))
     {
-        if (lse.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
+        if (le.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
         {
             return ExpirationStatus::EXPIRED_IN_LIVE_STATE;
         }
         return ExpirationStatus::LIVE;
     }
-    auto snap = getApp().getLedgerManager().copyLedgerStateSnapshot();
-    if (snap.loadArchiveEntry(key) != nullptr)
+    auto archiveView = getApp().getLedgerManager().copyImmutableLedgerView();
+    if (archiveView.loadArchiveEntry(key) != nullptr)
     {
         return ExpirationStatus::HOT_ARCHIVE;
     }

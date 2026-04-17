@@ -34,7 +34,7 @@ class ArchivedStateConsistency : public Invariant
     virtual std::string getName() const override;
 
     virtual std::string checkOnLedgerCommit(
-        ApplyLedgerStateSnapshot const& lclSnapshot,
+        ApplyLedgerView const& lclApplyView,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,

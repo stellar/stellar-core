@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-// Randomized testing for LedgerStateSnapshot, designed to
+// Randomized testing for ImmutableLedgerView, designed to
 // stress-test the snapshot interface under concurrent access with timing
 // variations to expose race conditions, stale reads, and data inconsistencies.
 
@@ -11,7 +11,7 @@
 #include "bucket/BucketBase.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/test/BucketTestUtils.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -177,7 +177,7 @@ struct ThreadGroup
 };
 
 // ---------------------------------------------------------------------------
-// SnapshotThread: holds a LedgerStateSnapshot together with the ledger
+// SnapshotThread: holds a ImmutableLedgerView together with the ledger
 // sequence the owning thread expects that snapshot to be at.  The expected
 // seq is private and only updated by explicit mutation operations, so any
 // unsynchronized drift is immediately detectable.
@@ -185,14 +185,15 @@ struct ThreadGroup
 class SnapshotThread
 {
     mutable ANNOTATED_SHARED_MUTEX(mMutex);
-    LedgerStateSnapshot mSnapshot GUARDED_BY(mMutex);
+    ImmutableLedgerView mLedgerView GUARDED_BY(mMutex);
     // Updated only by mutation methods; a mismatch with
-    // mSnapshot.getLedgerSeq() indicates a race or corruption.
+    // mLedgerView.getLedgerSeq() indicates a race or corruption.
     uint32_t mExpectedSeq;
 
   public:
-    explicit SnapshotThread(LedgerStateSnapshot snap)
-        : mSnapshot(std::move(snap)), mExpectedSeq(mSnapshot.getLedgerSeq())
+    explicit SnapshotThread(ImmutableLedgerView ledgerView)
+        : mLedgerView(std::move(ledgerView))
+        , mExpectedSeq(mLedgerView.getLedgerSeq())
     {
     }
 
@@ -204,22 +205,23 @@ class SnapshotThread
 
     // Read-only access.  Only the owning thread reads without a lock;
     // other threads use copySnapshot() which takes a shared lock.
-    LedgerStateSnapshot const&
-    snapshot() const NO_THREAD_SAFETY_ANALYSIS
+    ImmutableLedgerView const&
+    ledgerView() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mSnapshot;
+        return mLedgerView;
     }
 
     bool
     seqMatchesExpected() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mSnapshot.getLedgerSeq() == mExpectedSeq;
+        return mLedgerView.getLedgerSeq() == mExpectedSeq;
     }
 
     bool
     headerMatchesExpected() const NO_THREAD_SAFETY_ANALYSIS
     {
-        return mSnapshot.getLedgerHeader().ledgerSeq == mExpectedSeq;
+        return mLedgerView.getLedgerHeader().current().ledgerSeq ==
+               mExpectedSeq;
     }
 
     // --- Mutation operations (take exclusive lock, update mExpectedSeq) ---
@@ -229,8 +231,8 @@ class SnapshotThread
     maybeUpdate(LedgerManager const& lm)
     {
         SharedLockExclusive lock(mMutex);
-        lm.maybeUpdateLedgerStateSnapshot(mSnapshot);
-        auto newSeq = mSnapshot.getLedgerSeq();
+        lm.maybeUpdateImmutableLedgerView(mLedgerView);
+        auto newSeq = mLedgerView.getLedgerSeq();
         bool ok = newSeq >= mExpectedSeq;
         mExpectedSeq = newSeq;
         return ok;
@@ -241,29 +243,29 @@ class SnapshotThread
     freshCopy(LedgerManager const& lm)
     {
         SharedLockExclusive lock(mMutex);
-        mSnapshot = lm.copyLedgerStateSnapshot();
-        auto newSeq = mSnapshot.getLedgerSeq();
+        mLedgerView = lm.copyImmutableLedgerView();
+        auto newSeq = mLedgerView.getLedgerSeq();
         bool ok = newSeq >= mExpectedSeq;
         mExpectedSeq = newSeq;
         return ok;
     }
 
     // Copy the snapshot under a shared lock (peer-copy source).
-    LedgerStateSnapshot
+    ImmutableLedgerView
     copySnapshot() const
     {
         SharedLockShared lock(mMutex);
-        return mSnapshot;
+        return mLedgerView;
     }
 
     // Replace with a snapshot copied from a peer.  The peer may be
     // behind, so no monotonicity check.
     void
-    replaceWith(LedgerStateSnapshot snap)
+    replaceWith(ImmutableLedgerView ledgerView)
     {
         SharedLockExclusive lock(mMutex);
-        mSnapshot = std::move(snap);
-        mExpectedSeq = mSnapshot.getLedgerSeq();
+        mLedgerView = std::move(ledgerView);
+        mExpectedSeq = mLedgerView.getLedgerSeq();
     }
 };
 
@@ -379,7 +381,7 @@ SnapshotStressTest::SnapshotStressTest(int numThreads, unsigned seed,
     for (int i = 0; i < mNumThreads; i++)
     {
         mThreads.push_back(std::make_unique<SnapshotThread>(
-            mApp.getLedgerManager().copyLedgerStateSnapshot()));
+            mApp.getLedgerManager().copyImmutableLedgerView()));
     }
 }
 
@@ -406,8 +408,8 @@ SnapshotStressTest::run()
 
     // Liveness check: after all ledgers are closed, a fresh snapshot must
     // reflect the final ledger sequence.
-    auto finalSnapshot = mApp.getLedgerManager().copyLedgerStateSnapshot();
-    REQUIRE(finalSnapshot.getLedgerSeq() == mPregen.lastSeq);
+    auto finalLedgerView = mApp.getLedgerManager().copyImmutableLedgerView();
+    REQUIRE(finalLedgerView.getLedgerSeq() == mPregen.lastSeq);
 }
 
 // Each worker randomly picks an operation, executes it, then checks the
@@ -430,7 +432,7 @@ SnapshotStressTest::workerLoop(int threadIdx)
             {
                 fail(fmt::format("seq drifted {}->{} seed={}",
                                  sthread.expectedSeq(),
-                                 sthread.snapshot().getLedgerSeq(), mSeed));
+                                 sthread.ledgerView().getLedgerSeq(), mSeed));
                 break;
             }
 
@@ -541,7 +543,7 @@ SnapshotStressTest::readCurrent(SnapshotThread& sthread, bool archive,
         auto const& [key, expected] = randMapEntry(state, rng);
         if (archive)
         {
-            auto loaded = sthread.snapshot().loadArchiveEntry(key);
+            auto loaded = sthread.ledgerView().loadArchiveEntry(key);
             if (!loaded || loaded->type() != HOT_ARCHIVE_ARCHIVED ||
                 loaded->archivedEntry() != expected)
             {
@@ -552,7 +554,7 @@ SnapshotStressTest::readCurrent(SnapshotThread& sthread, bool archive,
         }
         else
         {
-            auto loaded = sthread.snapshot().loadLiveEntry(key);
+            auto loaded = sthread.ledgerView().loadLiveEntry(key);
             if (!loaded || *loaded != expected)
             {
                 fail(fmt::format("{} mismatch seq={} seed={}", opName, seq,
@@ -578,7 +580,7 @@ SnapshotStressTest::readCurrent(SnapshotThread& sthread, bool archive,
                 if (archive)
                 {
                     auto loaded =
-                        sthread.snapshot().loadArchiveEntry(futureKey);
+                        sthread.ledgerView().loadArchiveEntry(futureKey);
                     if (loaded && loaded->type() == HOT_ARCHIVE_ARCHIVED)
                     {
                         fail(fmt::format("{} false positive: found future key "
@@ -589,7 +591,7 @@ SnapshotStressTest::readCurrent(SnapshotThread& sthread, bool archive,
                 }
                 else
                 {
-                    if (sthread.snapshot().loadLiveEntry(futureKey))
+                    if (sthread.ledgerView().loadLiveEntry(futureKey))
                     {
                         fail(fmt::format("{} false positive: found future key "
                                          "from seq={} in snapshot at seq={} "
@@ -666,7 +668,7 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     if (archive)
     {
         auto result =
-            sthread.snapshot().loadArchiveKeysFromLedger(queryKeys, histSeq);
+            sthread.ledgerView().loadArchiveKeysFromLedger(queryKeys, histSeq);
         if (!retained)
         {
             if (result.has_value())
@@ -699,7 +701,7 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     else
     {
         auto result =
-            sthread.snapshot().loadLiveKeysFromLedger(queryKeys, histSeq);
+            sthread.ledgerView().loadLiveKeysFromLedger(queryKeys, histSeq);
         if (!retained)
         {
             if (result.has_value())
@@ -789,14 +791,15 @@ SnapshotStressTest::checkSelfConsistency(SnapshotThread const& sthread)
         fail(fmt::format("consistency: expected seq {} != snapshot seq {} "
                          "seed={}",
                          sthread.expectedSeq(),
-                         sthread.snapshot().getLedgerSeq(), mSeed));
+                         sthread.ledgerView().getLedgerSeq(), mSeed));
         return;
     }
     if (!sthread.headerMatchesExpected())
     {
-        fail(fmt::format("header/seq mismatch {}/{} seed={}",
-                         sthread.snapshot().getLedgerHeader().ledgerSeq,
-                         sthread.expectedSeq(), mSeed));
+        fail(fmt::format(
+            "header/seq mismatch {}/{} seed={}",
+            sthread.ledgerView().getLedgerHeader().current().ledgerSeq,
+            sthread.expectedSeq(), mSeed));
     }
 }
 
@@ -831,16 +834,16 @@ SnapshotStressTest::closeLedgers()
 }
 
 // ---------------------------------------------------------------------------
-// Unit-test helper: verify that every entry in `entries` is found in `snap`
-// with matching data.
+// Unit-test helper: verify that every entry in `entries` is found in
+// `ledgerView` with matching data.
 // ---------------------------------------------------------------------------
 void
-requireEntries(LedgerStateSnapshot& snap,
+requireEntries(ImmutableLedgerView& ledgerView,
                std::vector<LedgerEntry> const& entries)
 {
     for (auto const& entry : entries)
     {
-        auto loaded = snap.loadLiveEntry(LedgerEntryKey(entry));
+        auto loaded = ledgerView.loadLiveEntry(LedgerEntryKey(entry));
         REQUIRE(loaded);
         CHECK(*loaded == entry);
     }
@@ -884,7 +887,7 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
     // Add first batch, take snapshot S1.
     addLiveBatchAndUpdateSnapshot(*app, makeHeader(seq1, protocolVersion),
                                   entries1, {}, {});
-    auto s1 = lm.copyLedgerStateSnapshot();
+    auto s1 = lm.copyImmutableLedgerView();
     REQUIRE(s1.getLedgerSeq() == seq1);
 
     // Advance to seq2 with new entries.
@@ -907,13 +910,13 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
     }
 
     // maybeUpdate S1: should refresh it to seq2 (jump +1).
-    lm.maybeUpdateLedgerStateSnapshot(s1);
+    lm.maybeUpdateImmutableLedgerView(s1);
     REQUIRE(s1.getLedgerSeq() == seq2);
     requireEntries(s1, entries1);
     requireEntries(s1, entries2);
 
     // maybeUpdate again with no new ledger close: no-op.
-    lm.maybeUpdateLedgerStateSnapshot(s1);
+    lm.maybeUpdateImmutableLedgerView(s1);
     REQUIRE(s1.getLedgerSeq() == seq2);
 
     // Advance to seq3.
@@ -930,7 +933,7 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
 
     // maybeUpdate S2: still at seq1, jumps +2 (seq1 -> seq3).
     REQUIRE(s2.getLedgerSeq() == seq1);
-    lm.maybeUpdateLedgerStateSnapshot(s2);
+    lm.maybeUpdateImmutableLedgerView(s2);
     REQUIRE(s2.getLedgerSeq() == seq3);
     requireEntries(s2, entries1);
     requireEntries(s2, entries2);
@@ -938,7 +941,7 @@ TEST_CASE("basic snapshot copy semantics and isolation", "[snapshot]")
 
     // maybeUpdate S1: at seq2, jumps +1 (seq2 -> seq3).
     REQUIRE(s1.getLedgerSeq() == seq2);
-    lm.maybeUpdateLedgerStateSnapshot(s1);
+    lm.maybeUpdateImmutableLedgerView(s1);
     REQUIRE(s1.getLedgerSeq() == seq3);
     requireEntries(s1, entries3);
 }
@@ -999,8 +1002,8 @@ TEST_CASE("invariant check concurrent with state advance", "[snapshot]")
     addLiveBatchAndUpdateSnapshot(*app, makeHeader(seq1, protocolVersion),
                                   initialEntries, {}, {});
 
-    auto snapshot = app->getLedgerManager().copyLedgerStateSnapshot();
-    REQUIRE(snapshot.getLedgerSeq() == seq1);
+    auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
+    REQUIRE(ledgerView.getLedgerSeq() == seq1);
 
     // Build expected state map for the snapshot at seq1.
     UnorderedMap<LedgerKey, LedgerEntry> expectedAtSeq1;
@@ -1028,7 +1031,7 @@ TEST_CASE("invariant check concurrent with state advance", "[snapshot]")
             for (auto type : {ACCOUNT, TRUSTLINE, OFFER, DATA,
                               CLAIMABLE_BALANCE, LIQUIDITY_POOL})
             {
-                snapshot.scanLiveEntriesOfType(
+                ledgerView.scanLiveEntriesOfType(
                     type, [&](BucketEntry const& be) -> Loop {
                         if (be.type() == LIVEENTRY || be.type() == INITENTRY)
                         {

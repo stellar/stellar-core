@@ -2985,7 +2985,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     mPrefetchMisses = 0;
 
     // std::optional<...>::reset does not throw
-    mLedgerStateSnapshot.reset();
+    mApplyLedgerView.reset();
 
     mThreadInvariant.clearActiveThread();
 }
@@ -3092,8 +3092,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     {
         insertIfNotLoaded(keysToSearch, key);
     }
-    auto blLoad =
-        getLedgerStateSnapshot().loadLiveKeys(keysToSearch, "prefetch");
+    auto blLoad = getApplyLedgerView().loadLiveKeys(keysToSearch, "prefetch");
     cacheResult(populateLoadedEntries(keysToSearch, blLoad));
 
     return total;
@@ -3364,16 +3363,15 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-ApplyLedgerStateSnapshot const&
-LedgerTxnRoot::Impl::getLedgerStateSnapshot() const
+ApplyLedgerView const&
+LedgerTxnRoot::Impl::getApplyLedgerView() const
 {
-    if (!mLedgerStateSnapshot)
+    if (!mApplyLedgerView)
     {
-        mLedgerStateSnapshot =
-            mApp.getLedgerManager().copyApplyLedgerStateSnapshot();
+        mApplyLedgerView = mApp.getLedgerManager().copyApplyLedgerView();
     }
 
-    return *mLedgerStateSnapshot;
+    return *mApplyLedgerView;
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -3509,7 +3507,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     try
     {
         trustLines =
-            getLedgerStateSnapshot().loadPoolShareTrustLinesByAccountAndAsset(
+            getApplyLedgerView().loadPoolShareTrustLinesByAccountAndAsset(
                 account, asset);
     }
     catch (std::exception& e)
@@ -3560,8 +3558,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        return getLedgerStateSnapshot().loadInflationWinners(maxWinners,
-                                                             minVotes);
+        return getApplyLedgerView().loadInflationWinners(maxWinners, minVotes);
     }
     catch (std::exception& e)
     {
@@ -3646,7 +3643,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         }
         else
         {
-            entry = getLedgerStateSnapshot().loadLiveEntry(key);
+            entry = getApplyLedgerView().loadLiveEntry(key);
         }
     }
     catch (std::exception& e)
@@ -3715,7 +3712,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
     mChild = nullptr;
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
-    mLedgerStateSnapshot.reset();
+    mApplyLedgerView.reset();
     mThreadInvariant.clearActiveThread();
 }
 

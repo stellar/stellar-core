@@ -1432,7 +1432,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
-LedgerStateSnapshot&
+ImmutableLedgerView&
 OverlayManagerImpl::getOverlayThreadSnapshot()
 {
     releaseAssert(mApp.threadIsType(Application::ThreadType::OVERLAY));
@@ -1441,7 +1441,7 @@ OverlayManagerImpl::getOverlayThreadSnapshot()
     {
         // Create a new snapshot
         mOverlayThreadSnapshot =
-            mApp.getLedgerManager().copyLedgerStateSnapshot();
+            mApp.getLedgerManager().copyImmutableLedgerView();
     }
     return *mOverlayThreadSnapshot;
 }

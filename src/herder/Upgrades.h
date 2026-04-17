@@ -20,7 +20,7 @@ class Config;
 class Database;
 struct LedgerHeader;
 struct LedgerUpgrade;
-class LedgerSnapshot;
+class CheckValidLedgerViewWrapper;
 
 class ConfigUpgradeSetFrame;
 using ConfigUpgradeSetFrameConstPtr =
@@ -70,7 +70,8 @@ class Upgrades
 
         std::string toJson() const;
         void fromJson(std::string const& s);
-        std::string toDebugJson(LedgerSnapshot const& ls) const;
+        std::string
+        toDebugJson(CheckValidLedgerViewWrapper const& ledgerView) const;
     };
 
     Upgrades()
@@ -85,7 +86,7 @@ class Upgrades
     // create upgrades for given ledger
     std::vector<LedgerUpgrade>
     createUpgradesFor(LedgerHeader const& lclHeader,
-                      LedgerSnapshot const& ls) const;
+                      CheckValidLedgerViewWrapper const& ledgerView) const;
 
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, Application& app,
@@ -106,10 +107,10 @@ class Upgrades
     // INVALID if it is unsafe to apply the upgrade for any other reason
     //
     // If the upgrade could be deserialized then lupgrade is set
-    static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
-                                           LedgerUpgrade& lupgrade,
-                                           Application& app,
-                                           LedgerSnapshot const& ls);
+    static UpgradeValidity
+    isValidForApply(UpgradeType const& upgrade, LedgerUpgrade& lupgrade,
+                    Application& app,
+                    CheckValidLedgerViewWrapper const& ledgerView);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
@@ -135,8 +136,9 @@ class Upgrades
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
-    bool isValidForNomination(LedgerUpgrade const& upgrade,
-                              LedgerSnapshot const& ls) const;
+    bool
+    isValidForNomination(LedgerUpgrade const& upgrade,
+                         CheckValidLedgerViewWrapper const& ledgerView) const;
 
     static void applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                                     uint32_t newVersion);
@@ -156,7 +158,8 @@ class ConfigUpgradeSetFrame
 {
   public:
     static ConfigUpgradeSetFrameConstPtr
-    makeFromKey(LedgerSnapshot const& ls, ConfigUpgradeSetKey const& key);
+    makeFromKey(CheckValidLedgerViewWrapper const& ledgerView,
+                ConfigUpgradeSetKey const& key);
 
     static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
 
@@ -164,7 +167,7 @@ class ConfigUpgradeSetFrame
 
     ConfigUpgradeSetKey const& getKey() const;
 
-    bool upgradeNeeded(LedgerSnapshot const& ls) const;
+    bool upgradeNeeded(CheckValidLedgerViewWrapper const& ledgerView) const;
 
     void applyTo(AbstractLedgerTxn& ltx, Application& app) const;
 

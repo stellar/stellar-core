@@ -70,20 +70,20 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
     releaseAssert(app.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
-    auto& snapshot = app.getOverlayThreadSnapshot();
-    app.maybeUpdateLedgerStateSnapshot(snapshot);
-    LedgerSnapshot ledgerSnapshot(snapshot);
+    auto& overlayView = app.getOverlayThreadSnapshot();
+    app.maybeUpdateImmutableLedgerView(overlayView);
+    CheckValidLedgerViewWrapper ledgerView(overlayView);
 
-    // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to
+    // Use ledgerView to check all transactions in `tx`. We use a lambda to
     // simplify checking of both outer and inner transactions in the case of fee
     // bumps.
-    auto const checkTxSignatures = [&ledgerSnapshot](
+    auto const checkTxSignatures = [&ledgerView](
                                        TransactionFrameBaseConstPtr tx) {
         auto const& hash = tx->getContentsHash();
         auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
 
         SignatureChecker signatureChecker(
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
+            ledgerView.getLedgerHeader().current().ledgerVersion, hash,
             signatures, true);
 
         // Do not report signature cache metrics during background validation.
@@ -94,8 +94,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
         // NOTE: Use getFeeSourceID so that this works for both TransactionFrame
         // and FeeBumpTransactionFrame
-        auto const sourceAccount =
-            ledgerSnapshot.getAccount(tx->getFeeSourceID());
+        auto const sourceAccount = ledgerView.getAccount(tx->getFeeSourceID());
 
         if (!sourceAccount)
         {
@@ -116,10 +115,10 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
         // Check all transaction signatures
         tx->checkAllTransactionSignatures(
             signatureChecker, sourceAccount,
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+            ledgerView.getLedgerHeader().current().ledgerVersion);
 
         // Check all operation signatures.
-        tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+        tx->checkOperationSignatures(signatureChecker, ledgerView, nullptr);
     };
 
     checkTxSignatures(tx);

@@ -61,7 +61,7 @@ class InvariantManagerImpl : public InvariantManager
         std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
     virtual void checkOnLedgerCommit(
-        ApplyLedgerStateSnapshot const& lclSnapshot,
+        ApplyLedgerView const& lclApplyView,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -80,7 +80,7 @@ class InvariantManagerImpl : public InvariantManager
     bool shouldRunInvariantSnapshot() const override;
     void markStartOfInvariantSnapshot() override;
 
-    void runStateSnapshotInvariant(ApplyLedgerStateSnapshot const& snapshot,
+    void runStateSnapshotInvariant(ApplyLedgerView const& applyView,
                                    InMemorySorobanState const& inMemorySnapshot,
                                    std::function<bool()> isStopping) override;
 

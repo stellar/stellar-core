@@ -4,7 +4,7 @@
 
 #include "TestUtils.h"
 #include "herder/TxSetFrame.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"

@@ -4,7 +4,7 @@
 
 #include "ledger/InMemorySorobanState.h"
 #include "bucket/BucketListSnapshot.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
 #include "util/GlobalChecks.h"
@@ -445,18 +445,17 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 
 void
 InMemorySorobanState::initializeStateFromSnapshot(
-    ApplyLedgerStateSnapshot const& snap)
+    ApplyLedgerView const& applyView)
 {
     releaseAssertOrThrow(mContractDataEntries.empty());
     releaseAssertOrThrow(mContractCodeEntries.empty());
     releaseAssertOrThrow(mPendingTTLs.empty());
 
-    auto const& lclHeader = snap.getLedgerHeader();
+    auto const& lclHeader = applyView.getLedgerHeader().current();
     auto ledgerVersion = lclHeader.ledgerVersion;
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        LedgerSnapshot ls(snap);
-        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ls);
+        auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(applyView);
         // Check if entry is a DEADENTRY and add it to deletedKeys. Otherwise,
         // check if the entry is shadowed by a DEADENTRY.
         std::unordered_set<LedgerKey> deletedKeys;
@@ -523,9 +522,9 @@ InMemorySorobanState::initializeStateFromSnapshot(
             return Loop::INCOMPLETE;
         };
 
-        snap.scanLiveEntriesOfType(CONTRACT_DATA, contractDataHandler);
-        snap.scanLiveEntriesOfType(TTL, ttlHandler);
-        snap.scanLiveEntriesOfType(CONTRACT_CODE, contractCodeHandler);
+        applyView.scanLiveEntriesOfType(CONTRACT_DATA, contractDataHandler);
+        applyView.scanLiveEntriesOfType(TTL, ttlHandler);
+        applyView.scanLiveEntriesOfType(CONTRACT_CODE, contractCodeHandler);
     }
 
     mLastClosedLedgerSeq = lclHeader.ledgerSeq;

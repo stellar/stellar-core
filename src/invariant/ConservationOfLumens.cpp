@@ -5,8 +5,8 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -223,7 +223,7 @@ processEntryIfNew(LedgerEntry const& entry, LedgerKey const& key,
 
 // Scan live bucket list for entries that can hold the native asset
 static void
-scanLiveBuckets(ApplyLedgerStateSnapshot const& snapshot, Asset const& asset,
+scanLiveBuckets(ApplyLedgerView const& applyView, Asset const& asset,
                 AssetContractInfo const& assetContractInfo, int64_t& sumBalance,
                 std::string& errorMsg, std::function<bool()> const& isStopping)
 {
@@ -238,7 +238,7 @@ scanLiveBuckets(ApplyLedgerStateSnapshot const& snapshot, Asset const& asset,
 
         std::unordered_set<LedgerKey> countedKeys;
 
-        snapshot.scanLiveEntriesOfType(
+        applyView.scanLiveEntriesOfType(
             type, [&](BucketEntry const& be) -> Loop {
                 if (isStopping())
                 {
@@ -270,14 +270,13 @@ scanLiveBuckets(ApplyLedgerStateSnapshot const& snapshot, Asset const& asset,
 }
 
 static void
-scanHotArchiveBuckets(ApplyLedgerStateSnapshot const& snapshot,
-                      Asset const& asset,
+scanHotArchiveBuckets(ApplyLedgerView const& applyView, Asset const& asset,
                       AssetContractInfo const& assetContractInfo,
                       int64_t& sumBalance, std::string& errorMsg,
                       std::function<bool()> const& isStopping)
 {
     std::unordered_set<LedgerKey> countedKeys;
-    snapshot.scanAllArchiveEntries([&](HotArchiveBucketEntry const& be) {
+    applyView.scanAllArchiveEntries([&](HotArchiveBucketEntry const& be) {
         if (isStopping())
         {
             return Loop::COMPLETE;
@@ -310,7 +309,7 @@ scanHotArchiveBuckets(ApplyLedgerStateSnapshot const& snapshot,
 
 std::string
 ConservationOfLumens::checkSnapshot(
-    ApplyLedgerStateSnapshot const& snapshot,
+    ApplyLedgerView const& applyView,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -318,7 +317,7 @@ ConservationOfLumens::checkSnapshot(
                              LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
                              std::chrono::seconds(90));
 
-    auto const& header = snapshot.getLedgerHeader();
+    auto const& header = applyView.getLedgerHeader().current();
 
     // This invariant can fail prior to v24 due to bugs
     if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_24))
@@ -343,7 +342,7 @@ ConservationOfLumens::checkSnapshot(
 
     // Scan the Live BucketList for native balances using loopAllBuckets
 
-    scanLiveBuckets(snapshot, nativeAsset, mLumenContractInfo, sumBalance,
+    scanLiveBuckets(applyView, nativeAsset, mLumenContractInfo, sumBalance,
                     errorMsg, isStopping);
 
     if (shouldAbortInvariantScan(errorMsg, isStopping))
@@ -352,8 +351,8 @@ ConservationOfLumens::checkSnapshot(
     }
 
     // Scan the Hot Archive for native balances
-    scanHotArchiveBuckets(snapshot, nativeAsset, mLumenContractInfo, sumBalance,
-                          errorMsg, isStopping);
+    scanHotArchiveBuckets(applyView, nativeAsset, mLumenContractInfo,
+                          sumBalance, errorMsg, isStopping);
 
     if (shouldAbortInvariantScan(errorMsg, isStopping))
     {

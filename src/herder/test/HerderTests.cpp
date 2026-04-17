@@ -311,7 +311,7 @@ testTxSet(uint32 protocolVersion)
     SECTION("invalid tx")
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerSnapshot ls(*app);
+        CheckValidLedgerViewWrapper ledgerView(*app);
 
         SECTION("no user")
         {
@@ -321,8 +321,8 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: account doesn't exist
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txNO_ACCOUNT);
 
             SECTION("build block")
@@ -351,8 +351,8 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: bad sequence number
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txBAD_SEQ);
 
             SECTION("build block")
@@ -382,7 +382,7 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: insufficient balance
             // Need fresh snapshot after account creation
-            LedgerSnapshot lsNew(*app);
+            CheckValidLedgerViewWrapper lsNew(*app);
             REQUIRE(badTx
                         ->checkValid(app->getAppConnector(), lsNew, 0, 0, 0,
                                      diagnostics)
@@ -416,8 +416,8 @@ testTxSet(uint32 protocolVersion)
             // Individual tx check: bad auth (signature invalidated by maxTime
             // change)
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txBAD_AUTH);
 
             SECTION("build block")
@@ -532,7 +532,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         };
 
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    LedgerSnapshot ls(*app);
+    CheckValidLedgerViewWrapper ledgerView(*app);
 
     SECTION("invalid transaction")
     {
@@ -542,7 +542,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
 
             // Individual tx check: fee bump exceeds fee source balance
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -568,10 +568,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, 200);
 
             // Individual tx checks: first exceeds balance, second is valid
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -596,10 +596,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx2 = transaction(*app, account3, 1, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
 
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -625,10 +625,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, 200);
 
             // Individual tx checks
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
 
@@ -657,14 +657,14 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
 
             // Individual tx checks
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
             // Individually, fb2 is valid, but with fb1 it would exceed balance
-            REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -685,10 +685,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         SECTION("two fee bumps, same fee source, valid individually, combined "
                 "exceed balance")
         {
-            LedgerSnapshot ls(*app);
+            CheckValidLedgerViewWrapper ledgerView(*app);
             auto balanceOfFbAccount = getAvailableBalance(
-                ls.getLedgerHeader().current(),
-                ls.getAccount(account2.getPublicKey()).current());
+                ledgerView.getLedgerHeader().current(),
+                ledgerView.getAccount(account2.getPublicKey()).current());
 
             // Enforce balance invariance
             int64_t fee1 = 200;
@@ -704,10 +704,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, fee2);
             // Individual txs are valid
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -757,10 +757,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 createUploadWasmTx(*app, sorobanAccount2, 100,
                                    DEFAULT_TEST_RESOURCE_FEE, resources);
 
-            LedgerSnapshot ls(*app);
+            CheckValidLedgerViewWrapper ledgerView(*app);
             auto balanceOfFbAccount = getAvailableBalance(
-                ls.getLedgerHeader().current(),
-                ls.getAccount(feeSourceAccount.getPublicKey()).current());
+                ledgerView.getLedgerHeader().current(),
+                ledgerView.getAccount(feeSourceAccount.getPublicKey())
+                    .current());
 
             // Set fees so that each is valid individually but combined they
             // exceed the fee source's balance
@@ -778,10 +779,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             // Individual txs are valid
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -850,12 +851,12 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             auto diagnostics = DiagnosticEventManager::createDisabled();
             REQUIRE(classicFb
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->isSuccess());
             REQUIRE(sorobanFb
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->isSuccess());
 
             PerPhaseTransactionList invalidPerPhase;
@@ -907,10 +908,10 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
     auto account3 = root->create("a3", minBalance2);
     auto account4 = root->create("a4", minBalance2);
 
-    LedgerSnapshot ls(*app);
-    auto balanceOfFeeSource =
-        getAvailableBalance(ls.getLedgerHeader().current(),
-                            ls.getAccount(account2.getPublicKey()).current());
+    CheckValidLedgerViewWrapper ledgerView(*app);
+    auto balanceOfFeeSource = getAvailableBalance(
+        ledgerView.getLedgerHeader().current(),
+        ledgerView.getAccount(account2.getPublicKey()).current());
 
     // Create three fee bumps from account2 (fee source):
     // - fb1: fails checkValid (bad sequence number)
@@ -942,12 +943,15 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
 
     // Verify fb1 fails checkValid - inner tx has bad sequence number
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->getResultCode() == txFEE_BUMP_INNER_FAILED);
     // Verify fb2 and fb3 pass checkValid individually
-    REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->isSuccess());
-    REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->isSuccess());
 
     // Verify combined fees of fb2 + fb3 exceed balance
@@ -5176,8 +5180,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl);
                 REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
                         lastHeader.ledgerSeq);
-                REQUIRE(lm.copyLedgerStateSnapshot().getLedgerHeader() ==
-                        lastHeader);
+                REQUIRE(
+                    lm.copyImmutableLedgerView().getLedgerHeader().current() ==
+                    lastHeader);
 
                 // Apply state got committed, but has not yet been propagated to
                 // read-only state
@@ -5229,8 +5234,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 auto readOnly = lm.getLastClosedLedgerHeader();
                 REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
-                REQUIRE(lm.copyLedgerStateSnapshot().getLedgerHeader() ==
-                        readOnly.header);
+                REQUIRE(
+                    lm.copyImmutableLedgerView().getLedgerHeader().current() ==
+                    readOnly.header);
                 auto has = lm.getLastClosedLedgerHAS();
                 REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
 

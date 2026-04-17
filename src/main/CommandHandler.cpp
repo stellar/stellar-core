@@ -641,9 +641,9 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            auto ls = LedgerSnapshot(mApp);
+            auto ledgerView = CheckValidLedgerViewWrapper(mApp);
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
 
             if (!ptr ||
                 ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
@@ -810,9 +810,9 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        auto ls = LedgerSnapshot(mApp);
+        auto ledgerView = CheckValidLedgerViewWrapper(mApp);
 
-        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
 
         if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
         {
@@ -1041,12 +1041,12 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "detailed")
         {
-            LedgerSnapshot lsg(mApp);
+            CheckValidLedgerViewWrapper ledgerView(mApp);
             xdr::xvector<ConfigSettingEntry> entries;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
-                auto entry =
-                    lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                auto entry = ledgerView.load(
+                    configSettingKey(static_cast<ConfigSettingID>(c)));
                 if (!entry)
                 {
                     continue;
@@ -1058,7 +1058,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "upgrade_xdr")
         {
-            LedgerSnapshot lsg(mApp);
+            CheckValidLedgerViewWrapper ledgerView(mApp);
 
             ConfigUpgradeSet upgradeSet;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
@@ -1069,7 +1069,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 {
                     continue;
                 }
-                auto entry = lsg.load(configSettingKey(configSettingID));
+                auto entry = ledgerView.load(configSettingKey(configSettingID));
                 if (!entry)
                 {
                     continue;
@@ -1513,8 +1513,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerSnapshot lsg(mApp);
-        auto acc = lsg.load(accountKey(key.getPublicKey()));
+        CheckValidLedgerViewWrapper ledgerView(mApp);
+        auto acc = ledgerView.load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();

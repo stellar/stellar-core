@@ -554,7 +554,8 @@ TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
 
 bool
 TransactionFrame::checkOperationSignatures(
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
+    SignatureChecker& signatureChecker,
+    CheckValidLedgerViewWrapper const& ledgerView,
     MutableTransactionResultBase* txResult) const
 {
     ZoneScoped;
@@ -563,7 +564,7 @@ TransactionFrame::checkOperationSignatures(
     {
         auto const& op = mOperations[i];
         auto opResult = txResult ? &txResult->getOpResultAt(i) : nullptr;
-        if (!op->checkSignature(signatureChecker, ls, opResult, false))
+        if (!op->checkSignature(signatureChecker, ledgerView, opResult, false))
         {
             allOpsValid = false;
         }
@@ -1220,13 +1221,13 @@ TransactionFrame::computePreApplySorobanResourceFee(
 }
 
 bool
-TransactionFrame::isTooEarly(LedgerHeaderWrapper const& header,
+TransactionFrame::isTooEarly(uint32_t ledgerVersion, uint64_t closeTime,
+                             uint32_t ledgerSeq,
                              uint64_t lowerBoundCloseTimeOffset) const
 {
     auto const tb = getTimeBounds();
     if (tb)
     {
-        uint64 closeTime = header.current().scpValue.closeTime;
         if (tb->minTime &&
             (tb->minTime > (closeTime + lowerBoundCloseTimeOffset)))
         {
@@ -1234,18 +1235,18 @@ TransactionFrame::isTooEarly(LedgerHeaderWrapper const& header,
         }
     }
 
-    if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                  ProtocolVersion::V_19))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19))
     {
         auto const lb = getLedgerBounds();
-        return lb && lb->minLedger > header.current().ledgerSeq;
+        return lb && lb->minLedger > ledgerSeq;
     }
 
     return false;
 }
 
 bool
-TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
+TransactionFrame::isTooLate(uint32_t ledgerVersion, uint64_t closeTime,
+                            uint32_t ledgerSeq,
                             uint64_t upperBoundCloseTimeOffset) const
 {
     auto const tb = getTimeBounds();
@@ -1254,7 +1255,6 @@ TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
         // Prior to consensus, we can pass in an upper bound estimate on when we
         // expect the ledger to close so we don't accept transactions that will
         // expire by the time they are applied
-        uint64 closeTime = header.current().scpValue.closeTime;
         if (tb->maxTime &&
             (tb->maxTime < (closeTime + upperBoundCloseTimeOffset)))
         {
@@ -1262,23 +1262,21 @@ TransactionFrame::isTooLate(LedgerHeaderWrapper const& header,
         }
     }
 
-    if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                  ProtocolVersion::V_19))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19))
     {
         auto const lb = getLedgerBounds();
-        return lb && lb->maxLedger != 0 &&
-               lb->maxLedger <= header.current().ledgerSeq;
+        return lb && lb->maxLedger != 0 && lb->maxLedger <= ledgerSeq;
     }
     return false;
 }
 
 bool
-TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
+TransactionFrame::isTooEarlyForAccount(uint32_t ledgerVersion,
+                                       uint64_t closeTime, uint32_t ledgerSeq,
                                        LedgerEntryWrapper const& sourceAccount,
                                        uint64_t lowerBoundCloseTimeOffset) const
 {
-    if (protocolVersionIsBefore(header.current().ledgerVersion,
-                                ProtocolVersion::V_19))
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19))
     {
         return false;
     }
@@ -1292,8 +1290,7 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
                           : 0;
     auto minSeqAge = getMinSeqAge();
 
-    auto lowerBoundCloseTime =
-        header.current().scpValue.closeTime + lowerBoundCloseTimeOffset;
+    auto lowerBoundCloseTime = closeTime + lowerBoundCloseTimeOffset;
     if (minSeqAge > lowerBoundCloseTime ||
         lowerBoundCloseTime - minSeqAge < accSeqTime)
     {
@@ -1306,7 +1303,6 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
             : 0;
     auto minSeqLedgerGap = getMinSeqLedgerGap();
 
-    auto ledgerSeq = header.current().ledgerSeq;
     if (minSeqLedgerGap > ledgerSeq ||
         ledgerSeq - minSeqLedgerGap < accSeqLedger)
     {
@@ -1319,17 +1315,19 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
 std::optional<LedgerEntryWrapper>
 TransactionFrame::commonValidPreSeqNum(
     AppConnector& app, SorobanNetworkConfig const* cfg,
-    LedgerSnapshot const& ls, bool chargeFee,
+    CheckValidLedgerViewWrapper const& ledgerView, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
     MutableTransactionResultBase& txResult,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    uint32_t ledgerVersion =
+        ledgerView.getLedgerHeader().current().ledgerVersion;
     if ((protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
          (mEnvelope.type() == ENVELOPE_TYPE_TX ||
           hasMuxedAccount(mEnvelope))) ||
@@ -1390,7 +1388,7 @@ TransactionFrame::commonValidPreSeqNum(
         }
 
         if (protocolVersionStartsFrom(
-                ls.getLedgerHeader().current().ledgerVersion,
+                ledgerView.getLedgerHeader().current().ledgerVersion,
                 ProtocolVersion::V_25))
         {
             if (!validateSorobanMemo())
@@ -1513,13 +1511,22 @@ TransactionFrame::commonValidPreSeqNum(
         }
     }
 
-    auto header = ls.getLedgerHeader();
-    if (isTooEarly(header, lowerBoundCloseTimeOffset))
+    auto header = ledgerView.getLedgerHeader();
+
+    // If we have an overriding ledger sequence for validation (like when tx
+    // queue is accepting TXs for the next ledger), use that for time-based
+    // checks instead of the ledgerSeq from the header.
+    auto ledgerSeq = validationLedgerSeq.value_or(header.current().ledgerSeq);
+    auto closeTime = header.current().scpValue.closeTime;
+
+    if (isTooEarly(ledgerVersion, closeTime, ledgerSeq,
+                   lowerBoundCloseTimeOffset))
     {
         txResult.setInnermostError(txTOO_EARLY);
         return std::nullopt;
     }
-    if (isTooLate(header, upperBoundCloseTimeOffset))
+    if (isTooLate(ledgerVersion, closeTime, ledgerSeq,
+                  upperBoundCloseTimeOffset))
     {
         txResult.setInnermostError(txTOO_LATE);
         return std::nullopt;
@@ -1538,7 +1545,7 @@ TransactionFrame::commonValidPreSeqNum(
         return std::nullopt;
     }
 
-    auto sourceAccount = ls.getAccount(header, *this);
+    auto sourceAccount = ledgerView.getAccount(header, *this);
     if (!sourceAccount)
     {
         txResult.setInnermostError(txNO_ACCOUNT);
@@ -1615,8 +1622,9 @@ TransactionFrame::processSignatures(
     if (auto code = txResult.getInnermostResultCode();
         code == txSUCCESS || code == txFAILED)
     {
-        LedgerSnapshot ls(ltxOuter);
-        allOpsValid = checkOperationSignatures(signatureChecker, ls, &txResult);
+        CheckValidLedgerViewWrapper ledgerView(ltxOuter);
+        allOpsValid =
+            checkOperationSignatures(signatureChecker, ledgerView, &txResult);
     }
 
     removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
@@ -1666,12 +1674,14 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(
     AppConnector& app, SorobanNetworkConfig const* cfg,
-    SignatureChecker& signatureChecker, LedgerSnapshot const& ls,
-    SequenceNumber current, bool applying, bool chargeFee,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
+    SignatureChecker& signatureChecker,
+    CheckValidLedgerViewWrapper const& ledgerView, SequenceNumber current,
+    bool applying, bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
+    std::optional<FeePair> sorobanResourceFee,
     MutableTransactionResultBase& txResult,
-    DiagnosticEventManager& diagnosticEvents) const
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     ZoneScoped;
     ValidationType res = ValidationType::kInvalid;
@@ -1680,7 +1690,8 @@ TransactionFrame::commonValid(
                      lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, &app,
                      chargeFee, sorobanResourceFee, &txResult,
                      &diagnosticEvents, &current, &res, &cfg,
-                     &envelopeContentsHash](LedgerSnapshot const& ls) {
+                     &envelopeContentsHash, validationLedgerSeq](
+                        CheckValidLedgerViewWrapper const& ledgerView) {
         if (applying &&
             (lowerBoundCloseTimeOffset != 0 || upperBoundCloseTimeOffset != 0))
         {
@@ -1691,16 +1702,16 @@ TransactionFrame::commonValid(
         // Get the source account during commonValidPreSeqNum to avoid
         // redundant account loading
         auto sourceAccount = commonValidPreSeqNum(
-            app, cfg, ls, chargeFee, lowerBoundCloseTimeOffset,
+            app, cfg, ledgerView, chargeFee, lowerBoundCloseTimeOffset,
             upperBoundCloseTimeOffset, envelopeContentsHash, sorobanResourceFee,
-            txResult, diagnosticEvents);
+            txResult, diagnosticEvents, validationLedgerSeq);
 
         if (!sourceAccount)
         {
             return;
         }
 
-        auto header = ls.getLedgerHeader();
+        auto header = ledgerView.getLedgerHeader();
 
         // in older versions, the account's sequence number is updated when
         // taking fees
@@ -1721,7 +1732,11 @@ TransactionFrame::commonValid(
 
         res = ValidationType::kInvalidUpdateSeqNum;
 
-        if (isTooEarlyForAccount(header, *sourceAccount,
+        auto ledgerSeq =
+            validationLedgerSeq.value_or(header.current().ledgerSeq);
+        auto closeTime = header.current().scpValue.closeTime;
+        if (isTooEarlyForAccount(header.current().ledgerVersion, closeTime,
+                                 ledgerSeq, *sourceAccount,
                                  lowerBoundCloseTimeOffset))
         {
             txResult.setInnermostError(txBAD_MIN_SEQ_AGE_OR_GAP);
@@ -1760,16 +1775,17 @@ TransactionFrame::commonValid(
 
     // Older protocol versions contain buggy account loading code,
     // so preserve nested LedgerTxn to avoid writing to the ledger
-    if (protocolVersionIsBefore(ls.getLedgerHeader().current().ledgerVersion,
-                                ProtocolVersion::V_8) &&
+    if (protocolVersionIsBefore(
+            ledgerView.getLedgerHeader().current().ledgerVersion,
+            ProtocolVersion::V_8) &&
         applying)
     {
-        ls.executeWithMaybeInnerSnapshot(validate);
+        ledgerView.executeWithMaybeInnerSnapshot(validate);
     }
     else
     {
         // Validate using read-only snapshot
-        validate(ls);
+        validate(ledgerView);
     }
     return res;
 }
@@ -1893,22 +1909,23 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 
 void
 TransactionFrame::checkValidWithOptionallyChargedFee(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, Hash const& envelopeContentsHash,
     MutableTransactionResultBase& txResult,
-    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation) const
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
     ZoneScoped;
     mCachedAccountPreProtocol8.reset();
 
     SignatureChecker signatureChecker{
-        ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
+        ledgerView.getLedgerHeader().current().ledgerVersion, getContentsHash(),
         getSignatures(mEnvelope), isOverlayValidation};
 
     std::optional<FeePair> sorobanResourceFee;
     SorobanNetworkConfig const* sorobanConfig = nullptr;
-    auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+    auto ledgerVersion = ledgerView.getLedgerHeader().current().ledgerVersion;
     // Load sorobanConfig for all transactions at protocol >= V20.
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -1920,11 +1937,11 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                 ledgerVersion, *sorobanConfig, app.getConfig());
         }
     }
-    if (commonValid(app, sorobanConfig, signatureChecker, ls, current, false,
-                    chargeFee, lowerBoundCloseTimeOffset,
+    if (commonValid(app, sorobanConfig, signatureChecker, ledgerView, current,
+                    false, chargeFee, lowerBoundCloseTimeOffset,
                     upperBoundCloseTimeOffset, envelopeContentsHash,
-                    sorobanResourceFee, txResult,
-                    diagnosticEvents) != ValidationType::kMaybeValid)
+                    sorobanResourceFee, txResult, diagnosticEvents,
+                    validationLedgerSeq) != ValidationType::kMaybeValid)
     {
         return;
     }
@@ -1934,8 +1951,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         auto const& op = mOperations[i];
         auto& opResult = txResult.getOpResultAt(i);
 
-        if (!op->checkValid(app, signatureChecker, sorobanConfig, ls, false,
-                            opResult, diagnosticEvents))
+        if (!op->checkValid(app, signatureChecker, sorobanConfig, ledgerView,
+                            false, opResult, diagnosticEvents))
         {
             // it's OK to just fast fail here and not try to call
             // checkValid on all operations as the resulting object
@@ -1952,12 +1969,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 }
 
 MutableTxResultPtr
-TransactionFrame::checkValidImpl(AppConnector& app, LedgerSnapshot const& ls,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset,
-                                 DiagnosticEventManager& diagnosticEvents,
-                                 bool isOverlayValidation) const
+TransactionFrame::checkValidImpl(
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
 #ifdef BUILD_TESTS
     if (app.getRunInOverlayOnlyMode())
@@ -1984,35 +2001,42 @@ TransactionFrame::checkValidImpl(AppConnector& app, LedgerSnapshot const& ls,
     // aren't the fees that would end up being applied. However, this is
     // what Core used to return for a while, and some users may rely on
     // this, so we maintain this logic for the time being.
-    int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
-    auto feeCharged = getFee(ls.getLedgerHeader().current(), minBaseFee, false);
+    int64_t minBaseFee = ledgerView.getLedgerHeader().current().baseFee;
+    auto feeCharged =
+        getFee(ledgerView.getLedgerHeader().current(), minBaseFee, false);
     auto txResult = MutableTransactionResult::createSuccess(*this, feeCharged);
     checkValidWithOptionallyChargedFee(
-        app, ls, current, true, lowerBoundCloseTimeOffset,
+        app, ledgerView, current, true, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, getContentsHash(), *txResult,
-        diagnosticEvents, isOverlayValidation);
+        diagnosticEvents, isOverlayValidation, validationLedgerSeq);
     return txResult;
 }
 
 MutableTxResultPtr
-TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+TransactionFrame::checkValid(AppConnector& app,
+                             CheckValidLedgerViewWrapper const& ledgerView,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset,
-                             DiagnosticEventManager& diagnosticEvents) const
+                             DiagnosticEventManager& diagnosticEvents,
+                             std::optional<uint32_t> validationLedgerSeq) const
 {
-    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, false);
+    return checkValidImpl(app, ledgerView, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, false,
+                          validationLedgerSeq);
 }
 
 MutableTxResultPtr
 TransactionFrame::checkValidForOverlay(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents) const
+    AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
+    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    std::optional<uint32_t> validationLedgerSeq) const
 {
-    return checkValidImpl(app, ls, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset, diagnosticEvents, true);
+    return checkValidImpl(app, ledgerView, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, diagnosticEvents, true,
+                          validationLedgerSeq);
 }
 
 void
@@ -2108,12 +2132,16 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
                                    sorobanResourceFee->non_refundable_fee;
         txResult.initializeRefundableFeeTracker(initialFeeRefund);
     }
+
+    // Pass in nullopt, we always use the header ledgerSeq in the apply path for
+    // validation.
     LedgerTxn ltxTx(ltx);
-    LedgerSnapshot lsTx(ltxTx);
+    CheckValidLedgerViewWrapper lsTx(ltxTx);
     auto cv =
         commonValid(app, sorobanConfig, *signatureChecker, lsTx, 0, true,
                     chargeFee, 0, 0, envelopeContentsHash, sorobanResourceFee,
-                    txResult, meta.getDiagnosticEventManager());
+                    txResult, meta.getDiagnosticEventManager(),
+                    /*validationLedgerSeq=*/std::nullopt);
     if (cv >= ValidationType::kInvalidUpdateSeqNum)
     {
         processSeqNum(ltxTx);

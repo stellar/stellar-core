@@ -78,8 +78,8 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
 #ifdef BUILD_TESTS
     if (useMainThreadForTesting)
     {
-        mSnapshots.emplace(std::this_thread::get_id(),
-                           mAppConnector.copyLedgerStateSnapshot());
+        mLedgerViews.emplace(std::this_thread::get_id(),
+                             mAppConnector.copyImmutableLedgerView());
     }
     else
 #endif
@@ -87,7 +87,7 @@ QueryServer::QueryServer(std::string const& address, unsigned short port,
         auto workerPids = mServer.start();
         for (auto pid : workerPids)
         {
-            mSnapshots.emplace(pid, mAppConnector.copyLedgerStateSnapshot());
+            mLedgerViews.emplace(pid, mAppConnector.copyImmutableLedgerView());
         }
     }
 }
@@ -171,8 +171,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
     if (!keys.empty())
     {
-        auto& snapshot = mSnapshots.at(std::this_thread::get_id());
-        mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
+        auto& ledgerView = mLedgerViews.at(std::this_thread::get_id());
+        mAppConnector.maybeUpdateImmutableLedgerView(ledgerView);
 
         LedgerKeySet orderedKeys;
         for (auto const& key : keys)
@@ -184,13 +184,13 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
 
         std::vector<LedgerEntry> loadedKeys;
 
-        // If a snapshot ledger is specified, use it to get the ledger entry
+        // If a ledgerView ledger is specified, use it to get the ledger entry
         if (snapshotLedger)
         {
             root["ledgerSeq"] = *snapshotLedger;
 
             auto loadedKeysOp =
-                snapshot.loadLiveKeysFromLedger(orderedKeys, *snapshotLedger);
+                ledgerView.loadLiveKeysFromLedger(orderedKeys, *snapshotLedger);
 
             // Return 404 if ledgerSeq not found
             if (!loadedKeysOp)
@@ -204,8 +204,8 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         // Otherwise default to current ledger
         else
         {
-            loadedKeys = snapshot.loadLiveKeys(orderedKeys, "query");
-            root["ledgerSeq"] = snapshot.getLedgerSeq();
+            loadedKeys = ledgerView.loadLiveKeys(orderedKeys, "query");
+            root["ledgerSeq"] = ledgerView.getLedgerSeq();
         }
 
         for (auto const& le : loadedKeys)
@@ -253,8 +253,8 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
         return false;
     }
 
-    auto& snapshot = mSnapshots.at(std::this_thread::get_id());
-    mAppConnector.maybeUpdateLedgerStateSnapshot(snapshot);
+    auto& ledgerView = mLedgerViews.at(std::this_thread::get_id());
+    mAppConnector.maybeUpdateImmutableLedgerView(ledgerView);
     LedgerKeySet keysToSearch;
 
     // Keep track of keys in their original order for response ordering
@@ -283,11 +283,11 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::vector<LedgerEntry> liveEntries;
     std::vector<HotArchiveBucketEntry> archivedEntries;
     uint32_t ledgerSeq =
-        snapshotLedger ? *snapshotLedger : snapshot.getLedgerSeq();
+        snapshotLedger ? *snapshotLedger : ledgerView.getLedgerSeq();
     root["ledgerSeq"] = ledgerSeq;
 
     auto liveEntriesOp =
-        snapshot.loadLiveKeysFromLedger(keysToSearch, ledgerSeq);
+        ledgerView.loadLiveKeysFromLedger(keysToSearch, ledgerSeq);
 
     // Return 404 if ledgerSeq not found
     if (!liveEntriesOp)
@@ -316,7 +316,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     // Only query archive for soroban keys we didn't find in the live bucketList
     if (!hotArchiveKeysToSearch.empty())
     {
-        auto archivedEntriesOp = snapshot.loadArchiveKeysFromLedger(
+        auto archivedEntriesOp = ledgerView.loadArchiveKeysFromLedger(
             hotArchiveKeysToSearch, ledgerSeq);
         if (!archivedEntriesOp)
         {
@@ -339,10 +339,10 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     std::vector<LedgerEntry> ttlEntries;
     if (!ttlKeys.empty())
     {
-        // We haven't updated the live snapshot so we know the have a snapshot
-        // available for ledgerSeq
+        // We haven't updated the live ledgerView so we know the have a
+        // ledgerView available for ledgerSeq
         ttlEntries = std::move(
-            snapshot.loadLiveKeysFromLedger(ttlKeys, ledgerSeq).value());
+            ledgerView.loadLiveKeysFromLedger(ttlKeys, ledgerSeq).value());
     }
 
     std::unordered_map<LedgerKey, LedgerEntry> ttlMap;

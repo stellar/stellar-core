@@ -5,7 +5,7 @@
 #pragma once
 
 #include "bucket/BucketUtils.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "rust/RustBridge.h"
@@ -73,13 +73,13 @@ class AppConnector
 
     bool isStopping() const;
 
-    LedgerStateSnapshot copyLedgerStateSnapshot();
-    ApplyLedgerStateSnapshot copyApplyLedgerStateSnapshot();
-    void maybeUpdateLedgerStateSnapshot(LedgerStateSnapshot& snapshot);
+    ImmutableLedgerView copyImmutableLedgerView();
+    ApplyLedgerView copyApplyLedgerView();
+    void maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView);
 
     // Get a snapshot of ledger state for use by the overlay thread only. Must
     // only be called from the overlay thread.
-    LedgerStateSnapshot& getOverlayThreadSnapshot();
+    ImmutableLedgerView& getOverlayThreadSnapshot();
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
     // unless a path to a CSV file containing the corruption data was provided

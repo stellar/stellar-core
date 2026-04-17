@@ -21,10 +21,10 @@ size_t const SharedModuleCacheCompiler::BUFFERED_WASM_CAPACITY =
 // The snapshot is passed by copy here to ensure the background loading thread
 // has its own instance since snapshots themselves aren't thread safe.
 SharedModuleCacheCompiler::SharedModuleCacheCompiler(
-    ApplyLedgerStateSnapshot snap, size_t numThreads,
+    ApplyLedgerView applyView, size_t numThreads,
     std::vector<uint32_t> const& ledgerVersions)
     : mModuleCache(rust_bridge::new_module_cache())
-    , mSnap(std::move(snap))
+    , mApplyLedgerView(std::move(applyView))
     , mNumThreads(numThreads)
     , mLedgerVersions(ledgerVersions)
     , mStarted(std::chrono::steady_clock::now())
@@ -148,7 +148,7 @@ SharedModuleCacheCompiler::start()
         std::unordered_set<Hash> seenContracts;
         size_t liveContracts{0};
         // Note: this access is safe since we only have a single loading thread.
-        this->mSnap.scanLiveEntriesOfType(
+        this->mApplyLedgerView.scanLiveEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 Hash h;
                 switch (entry.type())

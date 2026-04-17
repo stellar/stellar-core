@@ -16,8 +16,8 @@ class Application;
 class Bucket;
 class Invariant;
 class LedgerManager;
-class LedgerStateSnapshot;
-class ApplyLedgerStateSnapshot;
+class ImmutableLedgerView;
+class ApplyLedgerView;
 struct EvictedStateVectors;
 struct LedgerTxnDelta;
 struct Operation;
@@ -56,7 +56,7 @@ class InvariantManager
                                        AppConnector& app) = 0;
 
     virtual void checkOnLedgerCommit(
-        ApplyLedgerStateSnapshot const& lclSnapshot,
+        ApplyLedgerView const& lclApplyView,
         std::vector<LedgerEntry> const& persitentEvictedFromLive,
         std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
         UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -65,10 +65,10 @@ class InvariantManager
     // This is used for expensive invariants that can't run in a blocking
     // fashion, such as invariants that require scanning the entire BucketList.
     // The invariant will periodically run on a background thread against the
-    // given ledger state snapshot. These invariants will only run if
+    // given ledger state applyView. These invariants will only run if
     // INVARIANT_EXTRA_CHECKS is enabled.
     virtual void
-    runStateSnapshotInvariant(ApplyLedgerStateSnapshot const& snapshot,
+    runStateSnapshotInvariant(ApplyLedgerView const& applyView,
                               InMemorySorobanState const& inMemorySnapshot,
                               std::function<bool()> isStopping) = 0;
 
@@ -80,8 +80,8 @@ class InvariantManager
 
     virtual bool shouldRunInvariantSnapshot() const = 0;
 
-    // Mark the start of a snapshot invariant run. Should be called when a
-    // snapshot for a scan is first created to prevent expensive redundant
+    // Mark the start of a applyView invariant run. Should be called when a
+    // applyView for a scan is first created to prevent expensive redundant
     // copies.
     virtual void markStartOfInvariantSnapshot() = 0;
 

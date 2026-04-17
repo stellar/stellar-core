@@ -48,11 +48,11 @@ sampleDiscrete(std::vector<T> const& values,
 uint64_t
 footprintSize(Application& app, xdr::xvector<stellar::LedgerKey> const& keys)
 {
-    LedgerSnapshot lsg(app);
+    CheckValidLedgerViewWrapper ledgerView(app);
     uint64_t total = 0;
     for (auto const& key : keys)
     {
-        auto entry = lsg.load(key);
+        auto entry = ledgerView.load(key);
         if (entry)
         {
             total += xdr::xdr_size(entry.current());
@@ -86,8 +86,8 @@ TxGenerator::updateMinBalance()
 bool
 TxGenerator::isLive(LedgerKey const& lk, uint32_t ledgerNum) const
 {
-    LedgerSnapshot lsg(mApp);
-    auto ttlEntryPtr = lsg.load(getTTLKey(lk));
+    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto ttlEntryPtr = ledgerView.load(getTTLKey(lk));
 
     return ttlEntryPtr && stellar::isLive(ttlEntryPtr.current(), ledgerNum);
 }
@@ -127,8 +127,8 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
 bool
 TxGenerator::loadAccount(TestAccount& account)
 {
-    LedgerSnapshot lsg(mApp);
-    auto const entry = lsg.getAccount(account.getPublicKey());
+    CheckValidLedgerViewWrapper ledgerView(mApp);
+    auto const entry = ledgerView.getAccount(account.getPublicKey());
     if (!entry)
     {
         return false;
@@ -944,7 +944,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
 {
     xdr::xvector<ConfigSettingEntry> updatedEntries;
 
-    LedgerSnapshot lsg(mApp);
+    CheckValidLedgerViewWrapper ledgerView(mApp);
     for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
     {
         auto type = static_cast<ConfigSettingID>(t);
@@ -983,7 +983,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
             continue;
         }
 
-        auto entryPtr = lsg.load(configSettingKey(type));
+        auto entryPtr = ledgerView.load(configSettingKey(type));
         // This could happen if we have not yet upgraded
         if ((t == CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0 ||
              t == CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0 ||
