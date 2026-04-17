@@ -62,15 +62,14 @@ CARGO_FEATURE_TESTUTILS =
 endif # !BUILD_TESTS
 
 
-if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+if ENABLE_CAP_0071
 CARGO_FEATURE_NEXT = --features next
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-next >$@
 else
 CARGO_FEATURE_NEXT =
+endif
+
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
-endif
 
 # tcmalloc must be linked early to properly override malloc/free
 stellar_core_LDADD = $(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS)		\
@@ -88,10 +87,15 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
+XDR_FEATURE_FLAGS =
+if ENABLE_CAP_0071
+XDR_FEATURE_FLAGS += -DCAP_0071
+endif
+
 SUFFIXES = .x .h .rs
 .x.h:
 	mkdir -p $(@D)
-	$(XDRC) -hh -pedantic -o $@ $<
+	$(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $<
 
 BISON=bison
 FLEX=flex
@@ -189,9 +193,14 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
 ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26
-WIP_SOROBAN_PROTOCOL=
+WIP_SOROBAN_PROTOCOL=p27
 
-if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+CARGO_XDR_FEATURE_FLAGS =
+if ENABLE_CAP_0071
+CARGO_XDR_FEATURE_FLAGS += --features cap_0071
+endif
+
+if ENABLE_CAP_0071
 ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)
 # This means "only pass --features=next if there's no WIP submodule"
 SOROBAN_FEATURE_NEXT=$(if $(WIP_SOROBAN_PROTOCOL),,$(CARGO_FEATURE_NEXT))
@@ -369,7 +378,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_
 				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT) $(CARGO_XDR_FEATURE_FLAGS)" \
 			;; \
 			*) \
 				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \

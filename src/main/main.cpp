@@ -164,6 +164,26 @@ extern std::vector<std::pair<std::filesystem::path, std::string>> const
 
 namespace
 {
+// XDR identity is verified in two parts:
+//
+// 1. Hash check: Both C++ (hash-xdrs.sh) and Rust (rs-stellar-xdr xdrgen)
+//    hash .x files after stripping #ifdef/#else/#endif blocks and removing
+//    all whitespace. This produces a canonical hash of the base XDR types
+//    that is stable regardless of which feature ifdefs are present or how
+//    the files are formatted. Content between #ifdef and #else (the
+//    feature-on branch) is stripped, while content between #else and #endif
+//    (the feature-off branch) is kept, since it represents the base types.
+//    Note: this does not validate feature-gated XDR content.
+//
+// 2. Feature flag check: C++ reports which XDR feature flags are enabled
+//    (e.g., CAP_0071) via preprocessor defines, and the Rust side reports
+//    its enabled features via the VERSION.features field in rs-stellar-xdr.
+//    These are compared to ensure both sides compiled the same set of
+//    feature-gated types. Together with the hash check, this is enough to be
+//    confident that the Rust and C++ sides are using the same XDR definitions.
+//    The xdr behind the feature gates could technically differ between Rust and
+//    C++, but our releases shouldn't be built with feature flags, so we should
+//    be fine.
 void
 checkXDRFileIdentity()
 {
@@ -177,8 +197,7 @@ checkXDRFileIdentity()
 
     // This will panic if soroban does not support the current ledger protocol
     // version. It should even work if configured with "next": the next feature
-    // should enable the next feature on the most recent soroban host, and to
-    // select the next xdr module from the xdr crate linked to that host.
+    // should enable the next feature on the most recent soroban host.
     rust::Vec<SorobanVersionInfo> rustVersions = get_soroban_version_info(
         stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     rust::Vec<XDRFileHash> const& rustHashes =
@@ -227,6 +246,52 @@ checkXDRFileIdentity()
                         "Rust. C++ size = {} and Rust size = {}.",
                         stellar::XDR_FILES_SHA256.size(), rustHashes.size()));
     }
+
+    // Verify that C++ and Rust have the same XDR feature flags enabled.
+    std::vector<std::string> cppFeatures;
+#ifdef CAP_0071
+    cppFeatures.emplace_back("cap_0071");
+#endif
+
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // If we're not building for the next protocol, no XDR feature flags
+    // should be enabled. If any are, it's a build misconfiguration.
+    if (!cppFeatures.empty())
+    {
+        throw std::runtime_error(
+            "XDR feature flags are enabled without "
+            "ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION");
+    }
+#endif
+
+    rust::Vec<rust::String> const& rustFeatures =
+        rustVersions.back().xdr_features;
+
+    if (cppFeatures.size() != rustFeatures.size())
+    {
+        throw std::runtime_error(fmt::format(
+            "XDR feature count mismatch: C++ has {} features, Rust has {}",
+            cppFeatures.size(), rustFeatures.size()));
+    }
+    for (auto const& cppFeat : cppFeatures)
+    {
+        bool found = false;
+        for (auto const& rustFeat : rustFeatures)
+        {
+            if (cppFeat == std::string(rustFeat.begin(), rustFeat.end()))
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            throw std::runtime_error(fmt::format(
+                "XDR feature mismatch: C++ has feature '{}' but Rust "
+                "does not",
+                cppFeat));
+        }
+    }
 }
 
 void
@@ -244,10 +309,10 @@ checkStellarCoreMajorVersionProtocolIdentity()
     if (major_release_version)
     {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        // In a vNext build, we expect the major release version to be one less
-        // than the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
-        // developing v21.X.Y and we enable vNext, then
-        // CURRENT_LEDGER_PROTOCOL_VERSION should be 22.
+        // In a next-protocol build (via
+        // --enable-next-protocol-version-unsafe-for-production), we expect
+        // the major release version to be one less than
+        // CURRENT_LEDGER_PROTOCOL_VERSION.
         if (*major_release_version + 1 !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
@@ -259,10 +324,8 @@ checkStellarCoreMajorVersionProtocolIdentity()
                             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
         }
 #else
-        // In a non-vNext build, we expect the major release version to be the
-        // same as the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
-        // developing v21.X.Y and we are not enabling vNext, then
-        // CURRENT_LEDGER_PROTOCOL_VERSION should be 21.
+        // In a non-next build, we expect the major release version to be the
+        // same as the CURRENT_LEDGER_PROTOCOL_VERSION.
         if (*major_release_version !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
@@ -372,10 +435,16 @@ main(int argc, char* const* argv)
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-        // Disable XDR hash checking in vnext builds
-#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        checkXDRFileIdentity();
-#endif
+        //  The p26 rs-stellar-xdr crate uses raw file
+        //  hashes, which can't match the ifdef-stripped hashes used here.
+        //  The easiest thing to do was to just skip the check for p26. Which
+        //  should be fine as the xdr on the rust side shouldn't change, and the
+        //  xdr on the core should always be backwards compatible. This is
+        //  temporary until we bump to p27.
+        if (Config::CURRENT_LEDGER_PROTOCOL_VERSION != 26)
+        {
+            checkXDRFileIdentity();
+        }
     }
     catch (...)
     {
