@@ -55,25 +55,50 @@ processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
 void
 InMemoryBucketState::insert(BucketEntry const& be)
 {
-    auto [_, inserted] = mEntries.insert(
-        InternalInMemoryBucketEntry(std::make_shared<BucketEntry const>(be)));
+    auto key = getBucketLedgerKey(be);
+    auto [_, inserted] =
+        mEntries.emplace(std::move(key),
+                         std::make_shared<BucketEntry const>(be));
     releaseAssertOrThrow(inserted);
 }
 
-// Perform a binary search using start iter as lower bound for search key.
 std::pair<IndexReturnT, InMemoryBucketState::IterT>
 InMemoryBucketState::scan(IterT start, LedgerKey const& searchKey) const
 {
     ZoneScoped;
-    auto it = mEntries.find(InternalInMemoryBucketEntry(searchKey));
-    // If we found the key
+    auto it = mEntries.find(searchKey);
     if (it != mEntries.end())
     {
-        return {IndexReturnT(it->get()), mEntries.begin()};
+        return {IndexReturnT(it->second), mEntries.begin()};
     }
 
     return {IndexReturnT(), mEntries.begin()};
 }
+
+#ifdef BUILD_TESTS
+bool
+InMemoryBucketState::operator==(InMemoryBucketState const& other) const
+{
+    if (mEntries.size() != other.mEntries.size())
+    {
+        return false;
+    }
+    for (auto const& [key, ptr] : mEntries)
+    {
+        auto it = other.mEntries.find(key);
+        if (it == other.mEntries.end())
+        {
+            return false;
+        }
+        // Compare the BucketEntry values pointed to
+        if (!(*ptr == *(it->second)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+#endif
 
 InMemoryIndex::InMemoryIndex(BucketManager& bm,
                              std::vector<BucketEntry> const& inMemoryState,
