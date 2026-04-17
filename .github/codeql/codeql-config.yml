@@ -1,0 +1,36 @@
+name: "Stellar Core CodeQL Config"
+
+# Restrict CodeQL analysis to production code only.
+# See: https://docs.github.com/en/code-security/reference/code-scanning/workflow-configuration-options#specifying-directories-to-scan
+#
+# `paths` lists the directories that should be scanned. For compiled languages
+# (C/C++) `paths` is advisory: CodeQL still analyzes everything that gets built,
+# but `paths-ignore` is honored to filter results.
+
+paths:
+  - .github/workflows
+  - src
+
+paths-ignore:
+  # Test directories and test data anywhere under src
+  - src/**/test
+  - src/**/testdata
+  # Simulation is a non-production test/benchmarking subsystem
+  - src/simulation
+  # Generated XDR bindings
+  - src/xdr
+  # No skipping vendored / third-party libraries for now
+  # - lib
+  # Rust vendored soroban sources (tests + fuzz harnesses)
+  - src/rust/soroban/**/fuzz
+  # Build, tooling and docs
+  - docker
+  - docs
+  - scripts
+  - performance-eval
+  - Builds
+  - m4
+  - target
+  - test-lcm
+  - test-tx-meta-baseline-current
+  - test-tx-meta-baseline-next
