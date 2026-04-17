@@ -920,6 +920,15 @@ class Config : public std::enable_shared_from_this<Config>
     // When set to true, ignores all message and tx set size limits for testing
     bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
 
+    // Experimental flag to use externalized close time for trigger timer
+    // calculation instead of prepare start time. Should only be used for
+    // testing.
+    bool EXPERIMENTAL_TRIGGER_TIMER;
+
+    // Injects a signed wall-clock offset into the node's system clock for
+    // testing. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void

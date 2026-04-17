@@ -2836,7 +2836,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 SECTION("basic value")
                 {
                     auto basicVal =
-                        StellarValue(txSet0->getContentsHash(), ct,
+                        StellarValue(txSet0->getContentsHash(), ct, ct,
                                      emptyUpgradeSteps, STELLAR_VALUE_BASIC);
                     checkInvalid(basicVal, isNomination);
                 }
@@ -8290,4 +8290,380 @@ TEST_CASE("far-future slots cleanup", "[herder]")
 
     // Check that far-future slots have been removed
     REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
+}
+
+TEST_CASE("experimental trigger timer consensus lag", "[herder][hide]")
+{
+    // This test measures consensus lag with 21 validators (19/21 threshold)
+    // under various configurations of EXPERIMENTAL_TRIGGER_TIMER, which uses
+    // the externalized closeTime (network-agreed wall clock) instead of the
+    // local getPrepareStart (steady_clock) to anchor the trigger timer.
+    //
+    // Uses OVER_TCP (REAL_TIME clocks) so that system_now() returns actual
+    // wall-clock time. This is required because the experimental timer's
+    // math (comparing system_now() to from_time_t(closeTime)) produces
+    // incorrect results with VIRTUAL_TIME clocks that start near epoch 0.
+    //
+    // Clock drift is injected via VirtualClock::setSystemTimeOffset(), which
+    // shifts system_now() without affecting steady_clock (now()) or event
+    // scheduling. This accurately simulates real NTP drift: the node's wall
+    // clock disagrees with reality, but its internal timers still fire on
+    // time. The drift affects:
+    //   1. The closeTime proposed during nomination (via system_now())
+    //   2. The trigger timer anchor in the EXPERIMENTAL_TRIGGER_TIMER path
+    //      (via system_now() compared to externalized closeTime)
+    //
+    // With 19/21 threshold, the network can tolerate at most 2 nodes
+    // failing. Drifting 3 nodes stresses the system: all 3 must still
+    // participate correctly for consensus to succeed.
+    //
+    // ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 1 reduces ledger close time
+    // to 1s so the test completes in reasonable wall-clock time.
+    auto mode = Simulation::OVER_TCP;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    int const numNodes = 21;
+    // ceil(21 * 19/21) = ceil(19.0) = 19
+    double const quorumFraction = 19.0 / 21.0;
+    uint32_t const numLedgers = 10;
+    // With 1s close time, each ledger takes ~1s real time; generous timeout
+    auto const perLedgerTimeout = std::chrono::seconds(10);
+
+    // Per-node random ledger close delay (250-500ms) to simulate varied
+    // processing speeds across the network.
+    std::vector<int> defaultCloseDelayMs;
+    for (int i = 0; i < numNodes; ++i)
+    {
+        defaultCloseDelayMs.push_back(rand_uniform<int>(250, 500));
+    }
+
+    // Drift callback: called after warmup to inject per-node clock offsets.
+    using DriftInjector =
+        std::function<void(std::vector<Application::pointer> const&)>;
+
+    // Helper: config generator from an experimental-timer predicate
+    auto makeConfGen = [](std::function<bool(int)> useExpTimer) {
+        return [useExpTimer](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.EXPERIMENTAL_TRIGGER_TIMER = useExpTimer(i);
+            return cfg;
+        };
+    };
+    auto allExpTimer = makeConfGen([](int) { return true; });
+    auto noExpTimer = makeConfGen([](int) { return false; });
+    // Thresholds for mixed-flag tests: 1, 25%, 50%, 75%, all-but-one
+    std::vector<int> mixedThresholds = {1, numNodes / 4, numNodes / 2,
+                                        numNodes * 3 / 4, numNodes - 1};
+
+    // Helper: generate random drift offsets in
+    // [-maxMag, -minMag] U [+minMag, +maxMag]
+    auto generateRandomDriftMs = [](int count, int minMag, int maxMag) {
+        std::vector<int> offsets;
+        for (int i = 0; i < count; ++i)
+        {
+            int ms = rand_uniform<int>(minMag, maxMag);
+            offsets.push_back(rand_flip() ? ms : -ms);
+        }
+        return offsets;
+    };
+
+    // Helper: create a drift injector that applies ms offsets to the first
+    // N nodes
+    auto makeDriftInjector =
+        [](std::vector<int> const& offsetsMs) -> DriftInjector {
+        return [offsetsMs](std::vector<Application::pointer> const& nodes) {
+            for (size_t i = 0; i < offsetsMs.size(); ++i)
+            {
+                nodes[i]->getClock().setSystemTimeOffset(
+                    std::chrono::milliseconds(offsetsMs[i]));
+            }
+        };
+    };
+
+    struct SimResult
+    {
+        std::chrono::milliseconds elapsed;
+        double avgMaxNomTimeouts;
+        double avgMaxPrepTimeouts;
+    };
+
+    auto runSimulation =
+        [&](std::function<Config(int)> confGen, DriftInjector injectDrift,
+            uint32_t ledgersToClose = 0,
+            std::vector<int> const& closeDelayOverride = {}) -> SimResult {
+        if (ledgersToClose == 0)
+        {
+            ledgersToClose = numLedgers;
+        }
+        auto const& closeDelayMs = closeDelayOverride.empty()
+                                       ? defaultCloseDelayMs
+                                       : closeDelayOverride;
+        // Wrap confGen to disable HTTP server (avoids port conflicts with
+        // 21+ nodes), accelerate close time to 1s, and add per-node
+        // artificial close delay
+        auto wrappedConfGen = [&confGen, &closeDelayMs](int i) {
+            auto cfg = confGen(i);
+            cfg.HTTP_PORT = 0;
+            cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 1;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::milliseconds(closeDelayMs[i]);
+            return cfg;
+        };
+        auto simulation =
+            Topologies::core(numNodes, quorumFraction, mode, networkID,
+                             wrappedConfGen);
+        simulation->startAllNodes();
+
+        // Close a few ledgers to let the network stabilize
+        uint32_t warmupLedger = LedgerManager::GENESIS_LEDGER_SEQ + 2;
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(warmupLedger, 1);
+            },
+            2 * perLedgerTimeout, false);
+
+        // Inject clock drift after warmup so all nodes are tracking
+        auto nodes = simulation->getNodes();
+        if (injectDrift)
+        {
+            injectDrift(nodes);
+        }
+
+        // Crank all ledgers continuously (no artificial sync points
+        // between ledgers — nodes race ahead naturally)
+        uint32_t startLedger = warmupLedger;
+        uint32_t targetLedger = startLedger + ledgersToClose;
+        auto startTime = nodes[0]->getClock().now();
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(targetLedger, 1);
+            },
+            ledgersToClose * perLedgerTimeout, false);
+        auto endTime = nodes[0]->getClock().now();
+
+        // Check nomination and prepare timeouts per ledger after the
+        // fact (historical data in mSCPExecutionTimes)
+        int64_t const maxNominationTimeouts = 3;
+        int64_t totalMaxNomTimeouts = 0;
+        int64_t totalMaxPrepTimeouts = 0;
+        for (uint32_t ledger = startLedger + 1; ledger <= targetLedger;
+             ++ledger)
+        {
+            int64_t maxNomTimeouts = 0;
+            int64_t maxPrepTimeouts = 0;
+            for (auto const& node : nodes)
+            {
+                auto& herder =
+                    dynamic_cast<HerderImpl&>(node->getHerder());
+                auto const& driver = herder.getHerderSCPDriver();
+                auto nomTimeouts =
+                    driver.getNominationTimeouts(ledger);
+                auto prepTimeouts =
+                    driver.getPrepareTimeouts(ledger);
+                if (nomTimeouts.has_value())
+                {
+                    maxNomTimeouts =
+                        std::max(maxNomTimeouts, nomTimeouts.value());
+                }
+                if (prepTimeouts.has_value())
+                {
+                    maxPrepTimeouts =
+                        std::max(maxPrepTimeouts, prepTimeouts.value());
+                }
+            }
+            totalMaxNomTimeouts += maxNomTimeouts;
+            totalMaxPrepTimeouts += maxPrepTimeouts;
+            REQUIRE(maxNomTimeouts <= maxNominationTimeouts);
+        }
+
+        // Verify all nodes ended on the same ledger (no desync)
+        uint32_t minLedger = UINT32_MAX;
+        uint32_t maxLedger = 0;
+        for (auto const& node : nodes)
+        {
+            auto ledgerNum = node->getLedgerManager().getLastClosedLedgerNum();
+            REQUIRE(ledgerNum >= targetLedger);
+            minLedger = std::min(minLedger, ledgerNum);
+            maxLedger = std::max(maxLedger, ledgerNum);
+        }
+        REQUIRE(minLedger == maxLedger);
+
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            endTime - startTime);
+        double avgMaxNomT =
+            static_cast<double>(totalMaxNomTimeouts) / ledgersToClose;
+        double avgMaxPrepT =
+            static_cast<double>(totalMaxPrepTimeouts) / ledgersToClose;
+        return {elapsed, avgMaxNomT, avgMaxPrepT};
+    };
+
+    // With ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 1, expected close time
+    // is 1s per ledger
+    auto expectedMs = numLedgers * std::chrono::milliseconds(1000);
+
+    SECTION("all nodes with EXPERIMENTAL_TRIGGER_TIMER, in sync")
+    {
+        auto [elapsed, avgNomT, avgPrepT] =
+            runSimulation(allExpTimer, nullptr);
+        auto [baselineElapsed, baselineAvgNomT, baselineAvgPrepT] =
+            runSimulation(noExpTimer, nullptr);
+
+        CLOG_INFO(Herder,
+                  "All-flag in-sync: {} ms for {} ledgers "
+                  "(expected ~{} ms, nom {:.2f}, prep {:.2f}). "
+                  "Baseline: {} ms (nom {:.2f}, prep {:.2f})",
+                  elapsed.count(), numLedgers, expectedMs.count(),
+                  avgNomT, avgPrepT, baselineElapsed.count(),
+                  baselineAvgNomT, baselineAvgPrepT);
+
+        // Experimental timer should be within 20% of expected cadence
+        // (tighten to 10% when numLedgers is raised back to 100)
+        REQUIRE(elapsed >= expectedMs * 8 / 10);
+        REQUIRE(elapsed <= expectedMs * 12 / 10);
+
+        // Experimental timer should be faster than the baseline
+        // (getPrepareStart doesn't reclaim SCP overhead)
+        REQUIRE(elapsed <= baselineElapsed);
+    }
+
+    SECTION("mixed EXPERIMENTAL_TRIGGER_TIMER, in sync")
+    {
+        auto [baselineElapsed, baselineAvgNomT, baselineAvgPrepT] =
+            runSimulation(noExpTimer, nullptr);
+
+        for (auto threshold : mixedThresholds)
+        {
+            auto confGen = makeConfGen(
+                [threshold](int i) { return i < threshold; });
+            auto [elapsed, avgNomT, avgPrepT] =
+                runSimulation(confGen, nullptr);
+
+            CLOG_INFO(Herder,
+                      "Mixed ({}/{} exp-timer), in-sync: {} ms "
+                      "(expected ~{} ms, baseline {} ms, "
+                      "nom {:.2f}, prep {:.2f})",
+                      threshold, numNodes, elapsed.count(),
+                      expectedMs.count(), baselineElapsed.count(),
+                      avgNomT, avgPrepT);
+            REQUIRE(elapsed <= expectedMs * 3);
+            // With majority exp-timer nodes, should beat the baseline
+            if (threshold >= numNodes / 2)
+            {
+                REQUIRE(elapsed <= baselineElapsed);
+            }
+        }
+    }
+
+    SECTION("all nodes with EXPERIMENTAL_TRIGGER_TIMER, random drift +-2s")
+    {
+        // 15 nodes get random wall-clock drift in [-2000, -500] or
+        // [+500, +2000] ms, simulating realistic NTP dispersion.
+        int const numDrift = 15;
+        auto offsets = generateRandomDriftMs(numDrift, 500, 2000);
+
+        auto [elapsed, avgNomT, avgPrepT] =
+            runSimulation(allExpTimer, makeDriftInjector(offsets));
+
+        CLOG_INFO(Herder,
+                  "All-flag, drift +-2s on {} nodes: {} ms for {} "
+                  "ledgers (expected ~{} ms, nom {:.2f}, prep {:.2f})",
+                  numDrift, elapsed.count(), numLedgers,
+                  expectedMs.count(), avgNomT, avgPrepT);
+        REQUIRE(elapsed <= expectedMs * 5);
+    }
+
+    SECTION("mixed EXPERIMENTAL_TRIGGER_TIMER, random drift +-2s")
+    {
+        int const numDrift = 15;
+        auto offsets = generateRandomDriftMs(numDrift, 500, 2000);
+        auto driftInjector = makeDriftInjector(offsets);
+
+        for (auto threshold : mixedThresholds)
+        {
+            auto confGen = makeConfGen(
+                [threshold](int i) { return i < threshold; });
+            auto [elapsed, avgNomT, avgPrepT] =
+                runSimulation(confGen, driftInjector);
+
+            CLOG_INFO(Herder,
+                      "Mixed ({}/{} exp-timer), drift +-2s: {} ms "
+                      "(expected ~{} ms, nom {:.2f}, prep {:.2f})",
+                      threshold, numNodes, elapsed.count(),
+                      expectedMs.count(), avgNomT, avgPrepT);
+            REQUIRE(elapsed <= expectedMs * 5);
+        }
+    }
+
+    SECTION("all-flag, intense drift and sleep stress test")
+    {
+        // 15 of 21 nodes get bimodal drift: half at -[8,10]s, half at
+        // +[8,10]s. No stabilizing middle — every drifted node is
+        // maximally wrong. Plus random artificial sleep (250-750ms).
+        int const numIntenseDrift = 15;
+
+        std::vector<int> stressDelays;
+        for (int i = 0; i < numNodes; ++i)
+        {
+            stressDelays.push_back(rand_uniform<int>(250, 750));
+        }
+
+        // Bimodal: half at -[8,10]s, half at +[8,10]s
+        std::vector<int> intenseDriftMs;
+        for (int i = 0; i < numIntenseDrift; ++i)
+        {
+            int mag = rand_uniform<int>(8000, 10000);
+            intenseDriftMs.push_back(i < numIntenseDrift / 2 ? -mag
+                                                             : mag);
+        }
+
+        auto [elapsed, avgNomT, avgPrepT] =
+            runSimulation(allExpTimer, makeDriftInjector(intenseDriftMs),
+                          numLedgers, stressDelays);
+
+        CLOG_INFO(Herder,
+                  "All-flag, bimodal drift +-[8,10]s + close delay "
+                  "250-750ms: {} ms (expected ~{} ms, "
+                  "nom {:.2f}, prep {:.2f})",
+                  elapsed.count(), expectedMs.count(),
+                  avgNomT, avgPrepT);
+        REQUIRE(elapsed <= expectedMs * 10);
+    }
+
+    SECTION("mixed, intense drift and sleep stress test")
+    {
+        int const numIntenseDrift = 15;
+
+        std::vector<int> stressDelays;
+        for (int i = 0; i < numNodes; ++i)
+        {
+            stressDelays.push_back(rand_uniform<int>(250, 750));
+        }
+
+        // Bimodal: half at -[8,10]s, half at +[8,10]s
+        std::vector<int> intenseDriftMs;
+        for (int i = 0; i < numIntenseDrift; ++i)
+        {
+            int mag = rand_uniform<int>(8000, 10000);
+            intenseDriftMs.push_back(i < numIntenseDrift / 2 ? -mag
+                                                             : mag);
+        }
+        auto driftInjector = makeDriftInjector(intenseDriftMs);
+
+        for (auto threshold : mixedThresholds)
+        {
+            auto confGen = makeConfGen(
+                [threshold](int i) { return i < threshold; });
+            auto [elapsed, avgNomT, avgPrepT] =
+                runSimulation(confGen, driftInjector,
+                              numLedgers, stressDelays);
+
+            CLOG_INFO(Herder,
+                      "Mixed ({}/{} exp-timer), intense drift + delay: "
+                      "{} ms (expected ~{} ms, "
+                      "nom {:.2f}, prep {:.2f})",
+                      threshold, numNodes, elapsed.count(),
+                      expectedMs.count(), avgNomT, avgPrepT);
+            REQUIRE(elapsed <= expectedMs * 10);
+        }
+    }
 }

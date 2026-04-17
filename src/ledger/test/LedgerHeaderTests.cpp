@@ -37,6 +37,7 @@ TEST_CASE("genesisledger", "[ledger]")
     REQUIRE(header.previousLedgerHash == Hash{});
     REQUIRE(header.scpValue.txSetHash == Hash{});
     REQUIRE(header.scpValue.closeTime == 0);
+    REQUIRE(header.scpValue.actualCloseTime == 0);
     REQUIRE(header.scpValue.upgrades.size() == 0);
     REQUIRE(header.txSetResultHash == Hash{});
     REQUIRE(binToHex(header.bucketListHash) ==
@@ -92,6 +93,54 @@ TEST_CASE("ledgerheader", "[ledger]")
         REQUIRE(saved ==
                 app2->getLedgerManager().getLastClosedLedgerHeader().hash);
     }
+}
+
+TEST_CASE("ledger age prefers actual close time", "[ledger]")
+{
+    VirtualClock clock(VirtualClock::VIRTUAL_TIME);
+    auto app = createTestApplication(clock, getTestConfig());
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto txSet = TxSetXDRFrame::makeEmpty(lcl);
+
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(100));
+    clock.setSystemTimeOffset(std::chrono::seconds(30));
+
+    StellarValue sv = app->getHerder().makeStellarValue(
+        txSet->getContentsHash(), 130, emptyUpgradeSteps,
+        app->getConfig().NODE_SEED, 100);
+    REQUIRE(sv.actualCloseTime == 100);
+
+    LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+    app->getLedgerManager().applyLedger(ledgerData);
+
+    clock.setSystemTimeOffset(std::chrono::seconds(20));
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(105));
+
+    REQUIRE(app->getLedgerManager().secondsSinceLastLedgerClose() == 5);
+}
+
+TEST_CASE("ledger age falls back to close time", "[ledger]")
+{
+    VirtualClock clock(VirtualClock::VIRTUAL_TIME);
+    auto app = createTestApplication(clock, getTestConfig());
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto txSet = TxSetXDRFrame::makeEmpty(lcl);
+
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(100));
+    clock.setSystemTimeOffset(std::chrono::seconds(20));
+
+    StellarValue sv = app->getHerder().makeStellarValue(
+        txSet->getContentsHash(), 120, emptyUpgradeSteps,
+        app->getConfig().NODE_SEED);
+
+    LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+    app->getLedgerManager().applyLedger(ledgerData);
+
+    clock.setCurrentVirtualTime(VirtualClock::from_time_t(105));
+
+    REQUIRE(app->getLedgerManager().secondsSinceLastLedgerClose() == 5);
 }
 
 TEST_CASE_VERSIONS("base reserve", "[ledger]")

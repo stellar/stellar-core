@@ -965,8 +965,8 @@ HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
 {
     getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
     auto sk = skToSignValue ? *skToSignValue : mApp.getConfig().NODE_SEED;
-    StellarValue sv =
-        makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
+    StellarValue sv = makeStellarValue(txSet->getContentsHash(), closeTime,
+                                       upgrades, sk, closeTime);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
     while (mApp.getLedgerManager().getLastClosedLedgerNum() < ledgerSeq)
     {
@@ -1278,16 +1278,68 @@ HerderImpl::setupTriggerNextLedger()
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - milliseconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-    if (lastStart)
+    auto lastLedgerStatingPoint = now - milliseconds;
+
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER)
     {
-        lastBallotStart = *lastStart;
+        auto consensusCloseTime = trackingConsensusCloseTime();
+
+        // Bootstrap to pessimistic estimate on startup
+        if (consensusCloseTime == 0)
+        {
+            CLOG_WARNING(
+                Herder,
+                "Consensus close time is 0, using pessimistic estimate");
+            // Keep the existing lastLedgerStatingPoint
+        }
+        else
+        {
+            // closeTime is a time_t (whole-second granularity), so
+            // from_time_t(closeTime) is the START of that second. The
+            // actual nomination happened at closeTime + some sub-second
+            // fraction lost to truncation. This causes the trigger to
+            // fire slightly early on the first round after alignment,
+            // but the cadence self-corrects on subsequent rounds.
+            auto externalizedSystemTime =
+                VirtualClock::from_time_t(consensusCloseTime);
+            auto currentSystemTime = mApp.getClock().system_now();
+
+            // Handle clock drift: if externalized time is in the future,
+            // fall back to pessimistic estimate
+            if (externalizedSystemTime >= currentSystemTime)
+            {
+                CLOG_WARNING(Herder,
+                             "Externalized closeTime {} is in the future "
+                             "(current time {}), "
+                             "using pessimistic estimate",
+                             consensusCloseTime,
+                             VirtualClock::to_time_t(currentSystemTime));
+                // Keep the existing lastLedgerStatingPoint which is already set
+                // to the pessimistic estimate (now - milliseconds)
+            }
+            else
+            {
+                // Calculate how long ago the externalized closeTime was
+                auto timeSinceExternalized =
+                    currentSystemTime - externalizedSystemTime;
+                lastLedgerStatingPoint = now - timeSinceExternalized;
+            }
+        }
+    }
+    else
+#endif
+    {
+        auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+        if (lastStart)
+        {
+            lastLedgerStatingPoint = *lastStart;
+        }
     }
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + milliseconds;
+    auto triggerTime = lastLedgerStatingPoint + milliseconds;
 
     if (triggerTime < now)
     {
@@ -1505,8 +1557,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime =
-        VirtualClock::to_time_t(mApp.getClock().system_now());
+    auto [actualSystemNow, driftedSystemNow] =
+        mApp.getClock().actual_and_fake_system_now();
+    uint64_t actualCloseTime = VirtualClock::to_time_t(actualSystemNow);
+    uint64_t nextCloseTime = VirtualClock::to_time_t(driftedSystemNow);
     if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
     {
         auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
@@ -1636,8 +1690,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-    StellarValue newProposedValue = makeStellarValue(
-        txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
+    StellarValue newProposedValue =
+        makeStellarValue(txSetHash, nextCloseTime, newUpgrades,
+                         mApp.getConfig().NODE_SEED, actualCloseTime);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
 }
@@ -2715,13 +2770,14 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 StellarValue
 HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
-                             SecretKey const& s)
+                             SecretKey const& s, uint64_t actualCloseTime)
 {
     ZoneScoped;
     StellarValue sv;
     sv.ext.v(STELLAR_VALUE_SIGNED);
     sv.txSetHash = txSetHash;
     sv.closeTime = closeTime;
+    sv.actualCloseTime = actualCloseTime;
     sv.upgrades = upgrades;
     sv.ext.lcValueSignature().nodeID = s.getPublicKey();
     sv.ext.lcValueSignature().signature =

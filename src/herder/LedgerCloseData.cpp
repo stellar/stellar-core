@@ -52,7 +52,7 @@ stellarValueToString(Config const& c, StellarValue const& sv)
         res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);
     }
     res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
-        << ", upgrades: [";
+        << ", actCt: " << sv.actualCloseTime << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
         if (upgrade.empty())
