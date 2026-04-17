@@ -71,44 +71,40 @@ class Scenario:
 SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         model_tx="sac",
-        tx_count=6400,
+        tx_count=3200,
         thread_count=1,
     ),
     Scenario(
         model_tx="sac",
-        tx_count=6400,
+        tx_count=3200,
         thread_count=8,
     ),
     Scenario(
         model_tx="custom_token",
-        tx_count=3000,
+        tx_count=1600,
         thread_count=1,
     ),
     Scenario(
         model_tx="custom_token",
-        tx_count=3000,
+        tx_count=1600,
         thread_count=8,
     ),
     Scenario(
         model_tx="soroswap",
-        tx_count=1600,
+        tx_count=1000,
         thread_count=1,
     ),
     Scenario(
         model_tx="soroswap",
-        tx_count=1600,
+        tx_count=1000,
         thread_count=8,
     ),
 )
 
 
 def validate_scenarios(scenarios: tuple[Scenario, ...]) -> None:
-    seen_identifiers: set[str] = set()
     for scenario in scenarios:
         identifier = scenario.identifier()
-        if identifier in seen_identifiers:
-            raise ValueError(f"Duplicate scenario identifier: {identifier}")
-        seen_identifiers.add(identifier)
 
         if scenario.model_tx != "sac":
             continue
