@@ -323,7 +323,7 @@ class TxParallelApplyLedgerState
 
     // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
     // sequence number.
-    bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
                      uint32_t ledgerSeq);
     bool eraseEntryIfExists(LedgerKey const& key);
     bool entryWasRestored(LedgerKey const& key) const;
@@ -345,12 +345,7 @@ class LedgerAccessHelper
     virtual std::optional<LedgerEntry>
     getLedgerEntryOpt(LedgerKey const& key) = 0;
 
-    // upsert returns true if the entry was created, false if it was updated.
-    // "created" here is interpreted narrowly to mean there was no
-    // populated/non-null entry in any parent level of the ledger state; a
-    // "local" map-insert that shadows an existing entry is not considered a
-    // create.
-    virtual bool upsertLedgerEntry(LedgerKey const& key,
+    virtual void upsertLedgerEntry(LedgerKey const& key,
                                    LedgerEntry const& entry) = 0;
 
     // erase returns true if the entry was erased, false if it wasn't present.
@@ -371,7 +366,7 @@ class PreV23LedgerAccessHelper : virtual public LedgerAccessHelper
     AbstractLedgerTxn& mLtx;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
-    bool upsertLedgerEntry(LedgerKey const& key,
+    void upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
     bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;
@@ -390,7 +385,7 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
     TxParallelApplyLedgerState mTxState;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
-    bool upsertLedgerEntry(LedgerKey const& key,
+    void upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
     bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;

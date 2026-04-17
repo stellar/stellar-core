@@ -296,7 +296,7 @@ PreV23LedgerAccessHelper::getLedgerSeq()
     return mLtx.loadHeader().current().ledgerSeq;
 }
 
-bool
+void
 PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
                                             LedgerEntry const& entry)
 {
@@ -304,12 +304,10 @@ PreV23LedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
     if (ltxe)
     {
         ltxe.current() = entry;
-        return false;
     }
     else
     {
         mLtx.create(entry);
-        return true;
     }
 }
 
@@ -355,11 +353,11 @@ ParallelLedgerAccessHelper::getLedgerVersion()
     return mLedgerInfo.getLedgerVersion();
 }
 
-bool
+void
 ParallelLedgerAccessHelper::upsertLedgerEntry(LedgerKey const& key,
                                               LedgerEntry const& entry)
 {
-    return mTxState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
+    mTxState.upsertEntry(key, entry, mLedgerInfo.getLedgerSeq());
 }
 
 bool
@@ -1311,43 +1309,14 @@ TxParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
 }
 
-bool
+void
 TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                         LedgerEntry const& entry,
                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
-    // There are 4 cases:
-    //
-    //  1. The entry exists in the parent maps (thread state or live snapshot)
-    //     but not in mTxEntryMap: we insert it into mTxEntryMap. This is a
-    //     "logical update" even though it's a local insert. We return false.
-    //
-    //  2. The entry exists in the parent maps _and_ mTxEntryMap: we update it.
-    //     This is obviously an update! We return false.
-    //
-    //  3. The entry does not exist in the parent maps but does already exist in
-    //     mTxEntryMap: we update it. This is a "logical update" to an _earlier_
-    //     logical create. We return false.
-    //
-    //  4. The entry does not exist in the parent maps and does not exist in
-    //     mTxEntryMap: we insert it into mTxEntryMap. This is a "logical
-    //     create". We return true.
-    //
-    // The only caller that cares about the return value is a loop that checks
-    // that logical creates that happened in the soroban host were accompanied
-    // by logical creates of TTL entries. We could theoretically return true in
-    // case 3 by comparing against the op prestate rather than the local op
-    // state, but the only time that happens is when there was a restore that
-    // populated mTxEntryMap before invoking the host, and we don't especially
-    // need to check our own TTL-creating work in that case.
-
-    bool liveEntryExistedAlready =
-        getLiveEntryOpt(key).readInScope(*this).has_value();
-    CLOG_TRACE(Tx, "parallel apply thread {} upserting {} key {}",
-               std::this_thread::get_id(),
-               liveEntryExistedAlready ? "already-live" : "new",
-               xdr::xdr_to_string(key, "key"));
+    CLOG_TRACE(Tx, "parallel apply thread {} upserting key {}",
+               std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
 
     auto [mapEntry, _] =
         mTxEntryMap.insert_or_assign(key, scopeAdoptEntryOpt(entry));
@@ -1355,7 +1324,6 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
         releaseAssertOrThrow(le);
         le.value().lastModifiedLedgerSeq = ledgerSeq;
     });
-    return !liveEntryExistedAlready;
 }
 
 bool
