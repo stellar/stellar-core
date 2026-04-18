@@ -145,22 +145,29 @@ the upgrade from protocol 22 to 23:
 ## Dealing with "next"
 
 Stellar-core and soroban-env-host both support the concept of a "next build",
-which is a conditional-compilation mode (enabled by a configure flag
-`--enable-next-protocol-version-unsafe-for-production`) that supports a protocol
-number one-higher than "the one written on the label". I.e. stellar-core v22.0.0
-and soroban-env-host v22.0.0 when built with "next" will support something they
-call "protocol 23", and will build with XDR from a "next" repo, and so on.
+which is a conditional-compilation mode that supports a protocol number
+one-higher than "the one written on the label".
 
-Enabling the "next build" on a given checkout of the tree always shifts the
-maximum core-supported protocol up by one. It might also conditionally-include a
-work-in-progress "next soroban submodule", or it might simply pass the flag
-`--features=next` to the current maximum-numbered soroban submodule (which will
-in turn cause that soroban submodule to increment its own max-supported protocol
-number).
+Next-protocol XDR changes are gated behind `#ifdef` directives (e.g.,
+`#ifdef CAP_0071`) in the `.x` files on the `main` branch of `stellar-xdr`.
+Individual features can be enabled with per-feature configure flags:
 
-Which of these two build variants the "next build" causes is controlled by a
-variable `WIP_SOROBAN_PROTOCOL` in `src/Makefile.am` and is documented in more
-detail there.
+    ./configure --enable-cap-0071
+
+Or all features can be enabled at once with the meta-flag:
+
+    ./configure --enable-next-protocol-version-unsafe-for-production
+
+Each per-feature flag sets `BUILDING_NEXT_PROTOCOL`, which:
+- Bumps `CURRENT_LEDGER_PROTOCOL_VERSION` by one
+- Passes the feature define to both xdrc (for XDR `.h` generation) and C++ code
+- Passes `--features next` to the main Rust crate, activating the next soroban
+  module (e.g., p27)
+- Passes `--features <feature>` to the next soroban module's cargo build, which
+  flows through to `rs-stellar-xdr` to enable the corresponding XDR types
+
+The `WIP_SOROBAN_PROTOCOL` variable in `src/Makefile.am` controls which soroban
+submodule is included in next builds. See the comments there for details.
 
 ## Rust, Cargo, versions, submodules, rlibs, and dep-tree files
 

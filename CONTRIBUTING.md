@@ -99,11 +99,23 @@ Steps (tested on Mac OS):
 
 ### Special configure flags for unreleased protocol versions
 
-When building with `configure`, the flag below must be used to enable unreleased protocol
-versions. If this flag is not provided code and tests relating to the next protocol version will
-not execute.
+When building with `configure`, the flag below enables all unreleased protocol features.
+If not provided, code and tests relating to the next protocol version will not execute.
 
     ./configure --enable-next-protocol-version-unsafe-for-production
+
+Individual XDR features can also be enabled independently:
+
+    ./configure --enable-cap-0071
+
+Each per-feature flag (e.g., `--enable-cap-0071`) does the following:
+- Passes `-D<FEATURE>` to the C preprocessor for XDR compilation (xdrc) and C++ code
+- Passes `--features <feature>` to the Rust soroban build
+- Sets `BUILDING_NEXT_PROTOCOL`, which bumps the protocol version and enables the
+  next-protocol soroban module (p27)
+
+The meta-flag `--enable-next-protocol-version-unsafe-for-production` enables all individual
+feature flags plus `ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION`.
 
 ## Sanitizers
 
