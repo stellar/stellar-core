@@ -5373,8 +5373,8 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
                 StellarValue sv;
                 toStellarValue(env.statement.pledges.externalize().commit.value,
                                sv);
-                auto txSet =
-                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash);
+                auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash));
                 REQUIRE(txSet);
                 return std::make_pair(env, txSet->toStellarMessage());
             }
@@ -5410,11 +5410,14 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
 
     SCPEnvelope invalidEnv{};
     invalidEnv.statement.slotIndex = invalidSlot;
-    invalidEnv.statement.pledges.type(SCP_ST_PREPARE);
-    invalidEnv.statement.pledges.prepare().ballot.counter = 1;
-    invalidEnv.statement.pledges.prepare().ballot.value =
-        xdr::xdr_to_opaque(invalidValue);
-    invalidEnv.statement.pledges.prepare().quorumSetHash = qsetHash;
+    invalidEnv.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& invalidConfirm = invalidEnv.statement.pledges.confirm();
+    invalidConfirm.ballot.counter = 1;
+    invalidConfirm.ballot.value = xdr::xdr_to_opaque(invalidValue);
+    invalidConfirm.nPrepared = 1;
+    invalidConfirm.nCommit = 1;
+    invalidConfirm.nH = 1;
+    invalidConfirm.quorumSetHash = qsetHash;
     invalidEnv.statement.nodeID = keyA.getPublicKey();
     herderC.signEnvelope(keyA, invalidEnv);
 
@@ -5438,7 +5441,7 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
             Herder::ENVELOPE_STATUS_READY);
     REQUIRE(herderC.trackingConsensusLedgerIndex() == target - 1);
 
-    // Inject future invalid PREPARE for slot target+1. Herder should accept.
+    // Inject future invalid CONFIRM for slot target+1. Herder should accept.
     REQUIRE(herderC.recvSCPEnvelope(invalidEnv) ==
             Herder::ENVELOPE_STATUS_FETCHING);
 

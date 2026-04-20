@@ -944,7 +944,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             auto maybeQSet = mApp.getHerder().getQSet(qSetHash);
             if (maybeQSet)
             {
-                processSCPQueue();
+                processSCPQueue(true);
             }
         }
         else if (status == Herder::ENVELOPE_STATUS_PROCESSED)
