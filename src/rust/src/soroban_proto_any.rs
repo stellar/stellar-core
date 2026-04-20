@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use log::{debug, error, trace, warn};
-use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
+use std::{cell::RefCell, fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (soroban_proto_any) is bound to _multiple locations_ in the
 // module tree of this crate:
@@ -388,6 +388,53 @@ fn encode_contract_cost_params(params: &ContractCostParams) -> Result<RustBuf, B
     Ok(non_metered_xdr_to_rust_buf(params)?)
 }
 
+#[derive(Clone)]
+struct CachedContractCostParams {
+    cpu_params_bytes: Vec<u8>,
+    mem_params_bytes: Vec<u8>,
+    cpu_params: ContractCostParams,
+    mem_params: ContractCostParams,
+}
+
+thread_local! {
+    static CACHED_CONTRACT_COST_PARAMS: RefCell<Option<CachedContractCostParams>> =
+        RefCell::new(None);
+}
+
+fn get_cached_contract_cost_params(
+    cpu_cost_params_buf: &CxxBuf,
+    mem_cost_params_buf: &CxxBuf,
+) -> Result<(ContractCostParams, ContractCostParams), Box<dyn Error>> {
+    let cpu_params_bytes = cpu_cost_params_buf.data.as_slice();
+    let mem_params_bytes = mem_cost_params_buf.data.as_slice();
+
+    CACHED_CONTRACT_COST_PARAMS.with(
+        |cache| -> Result<(ContractCostParams, ContractCostParams), Box<dyn Error>> {
+            let mut cache = cache.borrow_mut();
+            if let Some(cached_params) = cache.as_ref() {
+                if cached_params.cpu_params_bytes.as_slice() == cpu_params_bytes
+                    && cached_params.mem_params_bytes.as_slice() == mem_params_bytes
+                {
+                    return Ok((
+                        cached_params.cpu_params.clone(),
+                        cached_params.mem_params.clone(),
+                    ));
+                }
+            }
+
+            let cpu_params = non_metered_xdr_from_cxx_buf::<ContractCostParams>(cpu_cost_params_buf)?;
+            let mem_params = non_metered_xdr_from_cxx_buf::<ContractCostParams>(mem_cost_params_buf)?;
+            *cache = Some(CachedContractCostParams {
+                cpu_params_bytes: cpu_params_bytes.to_vec(),
+                mem_params_bytes: mem_params_bytes.to_vec(),
+                cpu_params: cpu_params.clone(),
+                mem_params: mem_params.clone(),
+            });
+            Ok((cpu_params, mem_params))
+        },
+    )
+}
+
 fn invoke_host_function_or_maybe_panic(
     enable_diagnostics: bool,
     instruction_limit: u32,
@@ -408,16 +455,13 @@ fn invoke_host_function_or_maybe_panic(
     let _span0 = tracy_span!("invoke_host_function_or_maybe_panic");
 
     let protocol_version = ledger_info.protocol_version;
-
-    let budget = Budget::try_from_configs(
-        instruction_limit as u64,
-        ledger_info.memory_limit as u64,
-        // These are the only non-metered XDR conversions that we perform. They
-        // have a small constant cost that is independent of the user-provided
-        // data.
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
+    let cpu_limit = instruction_limit as u64;
+    let mem_limit = ledger_info.memory_limit as u64;
+    let (cpu_params, mem_params) = get_cached_contract_cost_params(
+        &ledger_info.cpu_cost_params,
+        &ledger_info.mem_cost_params,
     )?;
+    let budget = Budget::try_from_configs(cpu_limit, mem_limit, cpu_params, mem_params)?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
     let trace_hook: Option<super::soroban_env_host::TraceHook> =
@@ -554,6 +598,53 @@ fn invoke_host_function_or_maybe_panic(
         contract_events: vec![],
         rent_fee: 0,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clear_cached_contract_cost_params() {
+        CACHED_CONTRACT_COST_PARAMS.with(|cache| {
+            *cache.borrow_mut() = None;
+        });
+    }
+
+    fn make_cxx_buf(bytes: &[u8]) -> CxxBuf {
+        CxxBuf {
+            data: unsafe { crate::rust_bridge::shim_copyU8Vector(bytes.as_ptr(), bytes.len()) },
+        }
+    }
+
+    #[test]
+    fn parsed_cost_params_cache_reuses_and_invalidates_on_bytes() {
+        clear_cached_contract_cost_params();
+
+        let cpu_params_v1 = ContractCostParams(vec![1, 2, 3].try_into().unwrap());
+        let mem_params_v1 = ContractCostParams(vec![4, 5, 6].try_into().unwrap());
+        let cpu_params_v2 = ContractCostParams(vec![7, 8, 9].try_into().unwrap());
+
+        let cpu_buf_v1 = make_cxx_buf(&non_metered_xdr_to_vec(&cpu_params_v1).unwrap());
+        let mem_buf_v1 = make_cxx_buf(&non_metered_xdr_to_vec(&mem_params_v1).unwrap());
+        let cpu_buf_v2 = make_cxx_buf(&non_metered_xdr_to_vec(&cpu_params_v2).unwrap());
+
+        let (cached_cpu_v1, cached_mem_v1) =
+            get_cached_contract_cost_params(&cpu_buf_v1, &mem_buf_v1).unwrap();
+        assert_eq!(cached_cpu_v1, cpu_params_v1);
+        assert_eq!(cached_mem_v1, mem_params_v1);
+
+        let (cached_cpu_v1_again, cached_mem_v1_again) =
+            get_cached_contract_cost_params(&cpu_buf_v1, &mem_buf_v1).unwrap();
+        assert_eq!(cached_cpu_v1_again, cpu_params_v1);
+        assert_eq!(cached_mem_v1_again, mem_params_v1);
+
+        let (cached_cpu_v2, cached_mem_v1_still) =
+            get_cached_contract_cost_params(&cpu_buf_v2, &mem_buf_v1).unwrap();
+        assert_eq!(cached_cpu_v2, cpu_params_v2);
+        assert_eq!(cached_mem_v1_still, mem_params_v1);
+
+        clear_cached_contract_cost_params();
+    }
 }
 
 #[allow(dead_code)]
