@@ -1442,6 +1442,34 @@ BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
     return res;
 }
 
+void
+BallotProtocol::throwIfValueInvalidForCommit(Value const& value,
+                                             char const* caller)
+{
+    auto validationLevel = mSlot.getSCPDriver().validateValue(
+        mSlot.getSlotIndex(), value, /*nomination=*/false);
+    if (validationLevel != SCPDriver::kInvalidValue)
+    {
+        return;
+    }
+
+    uint64 const slotIndex = mSlot.getSlotIndex();
+    std::string const valueStr =
+        mSlot.getSCP().getDriver().getValueString(value);
+    CLOG_FATAL(Proto,
+               "BallotProtocol::{} slot:{} SCP federated accept is forcing a "
+               "commit on a value this node considers invalid (value:{}). "
+               "The most likely cause is that this stellar-core binary is "
+               "incompatible with the network's current protocol version. "
+               "Please check that you are running the latest stellar-core "
+               "release.",
+               caller, slotIndex, valueStr);
+    std::ostringstream oss;
+    oss << "SCP forced commit on locally-invalid value (slot=" << slotIndex
+        << ", caller=" << caller << ")";
+    throw std::runtime_error(oss.str());
+}
+
 bool
 BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 {
@@ -1449,6 +1477,8 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
     CLOG_TRACE(SCP, "BallotProtocol::setAcceptCommit i: {} new c: {} new h: {}",
                mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
                mSlot.getSCP().ballotToStr(h));
+
+    throwIfValueInvalidForCommit(c.value, "setAcceptCommit");
 
     bool didWork = false;
 
@@ -1651,6 +1681,8 @@ BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
                "BallotProtocol::setConfirmCommit i: {} new c: {} new h: {}",
                mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
                mSlot.getSCP().ballotToStr(h));
+
+    throwIfValueInvalidForCommit(c.value, "setConfirmCommit");
 
     mCommit = makeBallot(c);
     mHighBallot = makeBallot(h);

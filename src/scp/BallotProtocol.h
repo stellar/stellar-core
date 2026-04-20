@@ -215,6 +215,11 @@ class BallotProtocol
     bool setConfirmCommit(SCPBallot const& acceptCommitLow,
                           SCPBallot const& acceptCommitHigh);
 
+    // Throws std::runtime_error if validateValue(value, nomination=false)
+    // returns kInvalidValue. Called from setAcceptCommit / setConfirmCommit
+    // to fail fast when a quorum pulls us into committing a value we reject.
+    void throwIfValueInvalidForCommit(Value const& value, char const* caller);
+
     // step 9 from the SCP paper
     bool attemptBump();
 

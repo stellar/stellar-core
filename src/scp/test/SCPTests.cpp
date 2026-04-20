@@ -3960,4 +3960,76 @@ TEST_CASE("self-envelope with invalid mCurrentBallot does not crash",
     }
     REQUIRE(foundYPrepared);
 }
+
+TEST_CASE("setAcceptCommit throws when quorum forces invalid value",
+          "[scp][ballotprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+    scp.mValidateValueOverride = [](uint64, Value const& value,
+                                    bool) -> SCPDriver::ValidationLevel {
+        if (value == xValue)
+        {
+            return SCPDriver::kInvalidValue;
+        }
+        return SCPDriver::kFullyValidatedValue;
+    };
+
+    SCPBallot xB1(1, xValue);
+
+    // Relaxed PREPARE validation lets us accept xValue as a protocol fact
+    // even though local validation already says it is invalid.
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1)));
+    REQUIRE_NOTHROW(
+        scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, xB1, &xB1)));
+
+    // Quorum now confirms-prepared xValue, but the commit gate refuses to vote
+    // to commit it, so the local node remains in PREPARE with nH=1, nC=0.
+    REQUIRE(!scp.mEnvs.empty());
+    auto const& prep = scp.mEnvs.back().statement.pledges.prepare();
+    REQUIRE(prep.ballot == xB1);
+    REQUIRE(prep.prepared);
+    REQUIRE(*prep.prepared == xB1);
+    REQUIRE(prep.nH == 1);
+    REQUIRE(prep.nC == 0);
+
+    bool threw = false;
+    try
+    {
+        // A quorum of PREPARE envelopes carrying nC=1, nH=1 pulls the local
+        // node into setAcceptCommit for xValue. throwIfValueInvalidForCommit
+        // detects the kInvalidValue at the commit transition and throws before
+        // any state mutation, surfacing a diagnostic pointing at likely
+        // operator-visible causes (binary behind protocol version, upgrade
+        // policy divergence, or ledger state divergence).
+        scp.receiveEnvelope(
+            makePrepare(v1SecretKey, qSetHash, 0, xB1, &xB1, 1, 1));
+        scp.receiveEnvelope(
+            makePrepare(v2SecretKey, qSetHash, 0, xB1, &xB1, 1, 1));
+    }
+    catch (std::runtime_error const& e)
+    {
+        threw = true;
+        REQUIRE(std::string(e.what()).find(
+                    "SCP forced commit on locally-invalid value") !=
+                std::string::npos);
+    }
+
+    REQUIRE(threw);
+}
 }
