@@ -17,9 +17,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"
-#ifdef BUILD_TESTS
-#include "simulation/ApplyLoad.h"
-#endif
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -352,6 +349,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
 
+    FILTERED_G_ADDRESSES = {};
+
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
@@ -411,6 +410,54 @@ readString(ConfigItem const& item)
     }
     return item.second->as<std::string>()->get();
 }
+
+#ifdef BUILD_TESTS
+ApplyLoadMode
+parseApplyLoadMode(ConfigItem const& item)
+{
+    auto mode = readString(item);
+    if (mode == "ledger-limits")
+    {
+        return ApplyLoadMode::LIMIT_BASED;
+    }
+    if (mode == "max-sac-tps")
+    {
+        return ApplyLoadMode::MAX_SAC_TPS;
+    }
+    if (mode == "limits-for-model-tx")
+    {
+        return ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
+    }
+    if (mode == "benchmark")
+    {
+        return ApplyLoadMode::BENCHMARK_MODEL_TX;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODE', expected one of: ledger-limits, "
+        "max-sac-tps, limits-for-model-tx, benchmark");
+}
+
+ApplyLoadModelTx
+parseApplyLoadModelTx(ConfigItem const& item)
+{
+    auto modelTx = readString(item);
+    if (modelTx == "sac")
+    {
+        return ApplyLoadModelTx::SAC;
+    }
+    if (modelTx == "custom_token")
+    {
+        return ApplyLoadModelTx::CUSTOM_TOKEN;
+    }
+    if (modelTx == "soroswap")
+    {
+        return ApplyLoadModelTx::SOROSWAP;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
+        "soroswap");
+}
+#endif
 
 template <typename T>
 std::vector<T>
@@ -874,7 +921,21 @@ Config::load(std::istream& in)
     cpptoml::parser p(in);
     t = p.parse();
     processConfig(t);
+
+#ifdef BUILD_TESTS
+    std::ostringstream configToml;
+    configToml << *t;
+    mLoadedConfigToml = configToml.str();
+#endif
 }
+
+#ifdef BUILD_TESTS
+std::string const&
+Config::getLoadedConfigToml() const
+{
+    return mLoadedConfigToml;
+}
+#endif
 
 void
 Config::addSelfToValidators(
@@ -1517,6 +1578,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
                          readXdrEnumArray<OperationType>(item);
                  }},
+                {"FILTERED_G_ADDRESSES",
+                 [&]() {
+                     FILTERED_G_ADDRESSES = readArray<std::string>(item);
+                     for (auto const& addr : FILTERED_G_ADDRESSES)
+                     {
+                         KeyUtils::fromStrKey<PublicKey>(addr);
+                     }
+                     CLOG_WARNING(
+                         Overlay,
+                         "FILTERED_G_ADDRESSES is deprecated. It will be "
+                         "removed in a future release. Please use "
+                         "`banaccounts` HTTP endpoint instead to ban accounts "
+                         "from submitting transactions to this node.");
+                 }},
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
                  [&]() {
                      // Since it doesn't make sense to sleep for a negative
@@ -1597,6 +1672,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readIntArray<uint32_t>(item);
                  }},
 #ifdef BUILD_TESTS
+                {"APPLY_LOAD_MODE",
+                 [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
+                {"APPLY_LOAD_MODEL_TX",
+                 [&]() { APPLY_LOAD_MODEL_TX = parseApplyLoadModelTx(item); }},
                 {"APPLY_LOAD_DATA_ENTRY_SIZE",
                  [&]() {
                      APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
@@ -1962,19 +2041,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         if (PARALLEL_LEDGER_APPLY && !parallelLedgerClose())
         {
-            if (RUN_STANDALONE)
-            {
-                LOG_WARNING(DEFAULT_LOG, "RUN_STANDALONE is enabled, disabling "
-                                         "PARALLEL_LEDGER_APPLY");
-                PARALLEL_LEDGER_APPLY = false;
-            }
-            else
-            {
-                std::string msg =
-                    "Invalid configuration: PARALLEL_LEDGER_APPLY "
-                    "does not support in-memory database modes.";
-                throw std::runtime_error(msg);
-            }
+            LOG_WARNING(DEFAULT_LOG,
+                        "PARALLEL_LEDGER_APPLY is not supported with "
+                        "in-memory SQLite, disabling.");
+            PARALLEL_LEDGER_APPLY = false;
         }
 
         if (INVARIANT_EXTRA_CHECKS && NODE_IS_VALIDATOR)
@@ -2543,9 +2613,7 @@ Config::allBucketsInMemory() const
 bool
 Config::parallelLedgerClose() const
 {
-    // Standalone mode expects synchronous ledger application
-    return PARALLEL_LEDGER_APPLY && !RUN_STANDALONE &&
-           DATABASE.value != "sqlite3://:memory:";
+    return PARALLEL_LEDGER_APPLY && DATABASE.value != "sqlite3://:memory:";
 }
 
 void

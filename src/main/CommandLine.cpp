@@ -61,8 +61,6 @@
 namespace stellar
 {
 
-static uint32_t const MAINTENANCE_LEDGER_COUNT = 1000000;
-
 void
 writeWithTextFlow(std::ostream& os, std::string const& text)
 {
@@ -377,27 +375,6 @@ forceUntrustedCatchup(bool& force)
 {
     return clara::Opt{force}["--force-untrusted-catchup"](
         "force unverified catchup");
-}
-
-clara::Opt
-inMemoryParser(bool& inMemory)
-{
-    return clara::Opt{inMemory}["--in-memory"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
-}
-
-clara::Opt
-startAtLedgerParser(uint32_t& startAtLedger)
-{
-    return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
-}
-
-clara::Opt
-startAtHashParser(std::string& startAtHash)
-{
-    return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
@@ -783,7 +760,6 @@ runCatchup(CommandLineArgs const& args)
     std::string archive;
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
-    bool inMemory = false;
     bool forceUntrusted = false;
     std::string hash;
     std::string stream;
@@ -837,9 +813,8 @@ runCatchup(CommandLineArgs const& args)
          catchupArchiveParser,
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
-         validationParser(completeValidation), inMemoryParser(inMemory),
-         ledgerHashParser(hash), ledgerHashParser(hash),
-         forceUntrustedCatchup(forceUntrusted),
+         validationParser(completeValidation), ledgerHashParser(hash),
+         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -849,23 +824,12 @@ runCatchup(CommandLineArgs const& args)
             config.MANUAL_CLOSE = true;
             config.DISABLE_BUCKET_GC = disableBucketGC;
 
-            if (config.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
-                config.AUTOMATIC_MAINTENANCE_COUNT > 0)
-            {
-                // If the user did not _disable_ maintenance, turn the dial up
-                // to be much more aggressive about running maintenance during a
-                // bulk catchup, otherwise the DB is likely to overflow with
-                // unwanted history.
-                config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{30};
-                config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
-            }
-
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             int result;
             {
-                auto app = Application::create(clock, config, inMemory);
+                auto app = Application::create(clock, config, false);
                 auto const& ham = app->getHistoryArchiveManager();
                 auto archivePtr = ham.getHistoryArchive(archive);
                 if (iequals(archive, "any"))
@@ -1227,22 +1191,11 @@ int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    [[maybe_unused]] bool minimalForInMemoryMode = false;
-
-    auto minimalDBParser = [](bool& minimalForInMemoryMode) {
-        return clara::Opt{
-            minimalForInMemoryMode}["--minimal-for-in-memory-mode"](
-            "(DEPRECATED) flag is ignored and will be removed soon.");
-    };
-
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        minimalDBParser(minimalForInMemoryMode)},
-                       [&] {
-                           auto cfg = configOption.getConfig();
-                           initializeDatabase(cfg);
-                           return 0;
-                       });
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto cfg = configOption.getConfig();
+        initializeDatabase(cfg);
+        return 0;
+    });
 }
 
 int
@@ -1418,7 +1371,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
     std::optional<Config> cfg = std::nullopt;
     std::string jsonPath;
     std::string resultJson;
-    bool analyzeCriticalGroups;
+    bool analyzeCriticalGroups = false;
     uint64_t timeLimitMs = 5000;                 // Default: 5 seconds
     size_t memoryLimitBytes = 100 * 1024 * 1024; // Default: 100 MiB
     bool v2 = true;
@@ -1614,17 +1567,12 @@ run(CommandLineArgs const& args)
     auto disableBucketGC = false;
     std::string stream;
     bool waitForConsensus = false;
-    [[maybe_unused]] bool inMemory = false;
-    [[maybe_unused]] uint32_t startAtLedger = 0;
-    [[maybe_unused]] std::string startAtHash;
-
     return runWithHelp(
         args,
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
-         metadataOutputStreamParser(stream), inMemoryParser(inMemory),
-         waitForConsensusParser(waitForConsensus),
-         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
+         metadataOutputStreamParser(stream),
+         waitForConsensusParser(waitForConsensus)},
         [&] {
             Config cfg;
             std::shared_ptr<VirtualClock> clock;
@@ -1659,20 +1607,6 @@ run(CommandLineArgs const& args)
                     if (cfg.RUN_STANDALONE)
                     {
                         clockMode = VirtualClock::VIRTUAL_TIME;
-                        if (cfg.AUTOMATIC_MAINTENANCE_COUNT != 0 ||
-                            cfg.AUTOMATIC_MAINTENANCE_PERIOD.count() != 0)
-                        {
-                            LOG_WARNING(DEFAULT_LOG,
-                                        "Using MANUAL_CLOSE and RUN_STANDALONE "
-                                        "together induces virtual time, which "
-                                        "requires automatic maintenance to be "
-                                        "disabled. AUTOMATIC_MAINTENANCE_COUNT "
-                                        "and AUTOMATIC_MAINTENANCE_PERIOD are "
-                                        "being overridden to 0.");
-                            cfg.AUTOMATIC_MAINTENANCE_COUNT = 0;
-                            cfg.AUTOMATIC_MAINTENANCE_PERIOD =
-                                std::chrono::seconds{0};
-                        }
                     }
                 }
 
@@ -1739,45 +1673,50 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
+    writeVersionInfo(std::cout);
+    return 0;
+}
+
+void
+writeVersionInfo(std::ostream& os)
+{
     rust::Vec<SorobanVersionInfo> rustVersions =
         rust_bridge::get_soroban_version_info(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-    std::cout << STELLAR_CORE_VERSION << std::endl;
-    std::cout << "ledger protocol version: "
-              << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
-    std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
-              << std::endl;
+    os << STELLAR_CORE_VERSION << std::endl;
+    os << "ledger protocol version: " << Config::CURRENT_LEDGER_PROTOCOL_VERSION
+       << std::endl;
+    os << "rust version: " << rust_bridge::get_rustc_version().c_str()
+       << std::endl;
 
-    std::cout << "soroban-env-host versions: " << std::endl;
+    os << "soroban-env-host versions: " << std::endl;
 
     size_t i = 0;
     for (auto& host : rustVersions)
     {
-        std::cout << "    host[" << i << "]:" << std::endl;
-        std::cout << "        package version: " << host.env_pkg_ver.c_str()
-                  << std::endl;
+        os << "    host[" << i << "]:" << std::endl;
+        os << "        package version: " << host.env_pkg_ver.c_str()
+           << std::endl;
 
-        std::cout << "        git version: " << host.env_git_rev.c_str()
-                  << std::endl;
+        os << "        git version: " << host.env_git_rev.c_str() << std::endl;
 
-        std::cout << "        ledger protocol version: " << host.env_max_proto
-                  << std::endl;
+        os << "        ledger protocol version: " << host.env_max_proto
+           << std::endl;
 
-        std::cout << "        pre-release version: " << host.env_pre_release_ver
-                  << std::endl;
+        os << "        pre-release version: " << host.env_pre_release_ver
+           << std::endl;
 
-        std::cout << "        rs-stellar-xdr:" << std::endl;
+        os << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout << "            package version: " << host.xdr_pkg_ver.c_str()
-                  << std::endl;
-        std::cout << "            git version: " << host.xdr_git_rev.c_str()
-                  << std::endl;
-        std::cout << "            base XDR git version: "
-                  << host.xdr_base_git_rev.c_str() << std::endl;
+        os << "            package version: " << host.xdr_pkg_ver.c_str()
+           << std::endl;
+        os << "            git version: " << host.xdr_git_rev.c_str()
+           << std::endl;
+        os << "            base XDR git version: "
+           << host.xdr_base_git_rev.c_str() << std::endl;
         ++i;
     }
-    return 0;
 }
 
 #ifdef BUILD_TESTS
@@ -1889,183 +1828,110 @@ runGenFuzz(CommandLineArgs const& args)
         });
 }
 
-ParserWithValidation
-applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
-{
-    auto validateMode = [&] {
-        if (iequals(modeArg, "ledger-limits"))
-        {
-            mode = ApplyLoadMode::LIMIT_BASED;
-            return "";
-        }
-        if (iequals(modeArg, "max-sac-tps"))
-        {
-            mode = ApplyLoadMode::MAX_SAC_TPS;
-            return "";
-        }
-        if (iequals(modeArg, "limits-for-model-tx"))
-        {
-            mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
-            return "";
-        }
-        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
-               "or 'max-sac-tps'.";
-    };
-
-    return {clara::Opt{modeArg, "MODE"}["--mode"](
-                "set the apply-load mode. Expected modes: ledger-limits, "
-                "max-sac-tps. Defaults to ledger-limits."),
-            validateMode};
-}
-
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
-    std::string modeArg = "ledger-limits";
 
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
-        [&] {
-            auto config = configOption.getConfig();
-            config.MANUAL_CLOSE = true;
-            config.USE_CONFIG_FOR_GENESIS = true;
-            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            config.LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            if (config.APPLY_LOAD_NUM_LEDGERS < 10)
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        auto mode = config.APPLY_LOAD_MODE;
+        // Common boilerplate configuration for apply load benchmarking.
+        // The goal of this config is to set up all the common parameters
+        // that don't affect benchmarking at once.
+        // Parameters that affect benchmarking should be set explicitly
+        // in the benchmarking config for the sake of reproducibility and
+        // clarity.
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.NODE_IS_VALIDATOR = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        config.NETWORK_PASSPHRASE = "Apply Load";
+        config.PARALLEL_LEDGER_APPLY = true;
+
+        // All modes besides limit-based don't need to worry about message
+        // limits.
+        if (mode != ApplyLoadMode::LIMIT_BASED)
+        {
+            config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+        }
+
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto appPtr = Application::create(clock, config);
+
+        auto& app = *appPtr;
+        {
+            app.start();
+
+            // Constructs and sets up the apply load benchmarking harness.
+            // The setup may take some time as it involves injecting the
+            // test entries into bucket list across multiple ledgers (
+            // depending on the configuration).
+            ApplyLoad al(app);
+
+            // In the limit-based mode, we may want publish the history
+            // checkpoint just before performing the benchmark. This way
+            // the 'checkpointed' bucket list could be used downstream in
+            // order to setup the test environment for meta ingestion
+            // benchmarking. Note, that the apply load test setup avoids
+            // using transactions in order to make it faster, so the
+            // injected test entries are only observable in the bucket
+            // list and not in the meta or transaction history.
+            if (mode == ApplyLoadMode::LIMIT_BASED &&
+                app.getHistoryArchiveManager().publishEnabled())
             {
-                throw std::runtime_error(
-                    "APPLY_LOAD_NUM_LEDGERS must be at least 10");
-            }
-            if (mode == ApplyLoadMode::MAX_SAC_TPS)
-            {
-                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >
-                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
+                                "history archive publication");
+                while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
+                    app.getLedgerManager().getLastClosedLedgerNum(),
+                    app.getConfig()))
                 {
-                    throw std::runtime_error(
-                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must not be greater "
-                        "than APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps "
-                        "mode");
+                    al.closeLedger({});
                 }
-
-                // For now, metrics are expensive at high, parallel load. We
-                // disable them so they don't bottleneck the test, but this
-                // should be addressed in the future.
-                config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
-                config.DISABLE_META_TRACKING_FOR_TESTING = true;
-                config.METADATA_OUTPUT_STREAM = "";
-                config.METADATA_DEBUG_LEDGERS = 0;
-
-                // Apply Load may exceed TX_SET byte size limits, so ignore them
-                config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
-
-                // Enable background apply for max-sac-tps mode.
-                // This requires disabling standalone mode, since
-                // parallelLedgerClose() is incompatible with it.
-                // We also disable overlay auto-start to prevent the
-                // node from trying to connect to peers.
-                // parallelLedgerClose() also requires a file-based
-                // database (not in-memory sqlite), so we set one if
-                // the user hasn't configured one.
-                config.RUN_STANDALONE = false;
-                config.PARALLEL_LEDGER_APPLY = true;
-                config.MODE_AUTO_STARTS_OVERLAY = false;
-                if (config.DATABASE.value == "sqlite3://:memory:")
-                {
-                    config.DATABASE =
-                        SecretValue{"sqlite3://stellar-core-apply-load.db"};
-                }
-
-                // Use in-memory BucketList for max-sac-tps mode.
-                // Setting page size exponent to 0 causes all bucket
-                // entries to be individually indexed in memory,
-                // eliminating disk I/O for BucketList lookups.
-                config.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
-            }
-            else
-            {
-                config.RUN_STANDALONE = true;
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf,
+                          "Published final checkpoint before benchmark: "
+                          "ledger {} ({})",
+                          app.getLedgerManager().getLastClosedLedgerNum(),
+                          fmt::format(
+                              FMT_STRING("{:08x}"),
+                              app.getLedgerManager().getLastClosedLedgerNum()));
             }
 
-            VirtualClock clock(VirtualClock::REAL_TIME);
-            auto appPtr = Application::create(clock, config);
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
 
-            auto& app = *appPtr;
-            {
-                app.start();
+            auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+            cpuInsRatio.Clear();
 
-                // Constructs and sets up the apply load benchmarking harness.
-                // The setup may take some time as it involves injecting the
-                // test entries into bucket list across multiple ledgers (
-                // depending on the configuration).
-                ApplyLoad al(app, mode);
+            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op",
+                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+            cpuInsRatioExclVm.Clear();
 
-                // In the limit-based mode, we may want publish the history
-                // checkpoint just before performing the benchmark. This way
-                // the 'checkpointed' bucket list could be used downstream in
-                // order to setup the test environment for meta ingestion
-                // benchmarking. Note, that the apply load test setup avoids
-                // using transactions in order to make it faster, so the
-                // injected test entries are only observable in the bucket
-                // list and not in the meta or transaction history.
-                if (mode == ApplyLoadMode::LIMIT_BASED &&
-                    app.getHistoryArchiveManager().publishEnabled())
-                {
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
-                                    "history archive publication");
-                    while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        app.getConfig()))
-                    {
-                        al.closeLedger({});
-                    }
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(
-                        Perf,
-                        "Published final checkpoint before benchmark: "
-                        "ledger {} ({})",
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        fmt::format(
-                            FMT_STRING("{:08x}"),
-                            app.getLedgerManager().getLastClosedLedgerNum()));
-                }
+            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+            ledgerCpuInsRatio.Clear();
 
-                auto& ledgerClose =
-                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-                ledgerClose.Clear();
+            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+            ledgerCpuInsRatioExclVm.Clear();
 
-                auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio"});
-                cpuInsRatio.Clear();
+            auto& totalTxApplyTime = app.getMetrics().NewTimer(
+                {"ledger", "transaction", "total-apply"});
+            totalTxApplyTime.Clear();
 
-                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-                cpuInsRatioExclVm.Clear();
+            al.execute();
+        }
 
-                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-                ledgerCpuInsRatio.Clear();
-
-                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "ledger-cpu-insns-ratio-excl-vm"});
-                ledgerCpuInsRatioExclVm.Clear();
-
-                auto& totalTxApplyTime = app.getMetrics().NewTimer(
-                    {"ledger", "transaction", "total-apply"});
-                totalTxApplyTime.Clear();
-
-                al.execute();
-            }
-
-            return 0;
-        });
+        return 0;
+    });
 }
 
 int

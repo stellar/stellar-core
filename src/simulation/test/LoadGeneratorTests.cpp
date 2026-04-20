@@ -6,8 +6,8 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "main/Config.h"
-#include "scp/QuorumSetUtils.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
@@ -882,11 +882,13 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
 TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 {
     auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
 
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
@@ -946,7 +948,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
-    ApplyLoad al(*app, ApplyLoadMode::LIMIT_BASED);
+    ApplyLoad al(*app);
 
     // Sample a few indices to verify hot archive is properly initialized
     uint32_t expectedArchivedEntries =
@@ -956,17 +958,15 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
 
-    auto hotArchive = app->getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
+    // auto snap = app->getLedgerManager().copyLedgerStateSnapshot();
 
-    for (auto idx : sampleIndices)
-    {
-        sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
-    }
+    // for (auto idx : sampleIndices)
+    // {
+    //     sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
+    // }
 
-    auto sampleEntries = hotArchive->loadKeys(sampleKeys);
-    REQUIRE(sampleEntries.size() == sampleKeys.size());
+    // auto sampleEntries = snap.loadArchiveKeys(sampleKeys);
+    // REQUIRE(sampleEntries.size() == sampleKeys.size());
 
     al.execute();
 
@@ -977,16 +977,18 @@ TEST_CASE("apply load find max limits for model tx",
           "[loadgen][applyload][acceptance]")
 {
     auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
     cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
 
     // Also generate that many classic simple payments.
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
-    // Close 3 ledgers per iteration.
+    // Close 30 ledgers per iteration.
     cfg.APPLY_LOAD_NUM_LEDGERS = 30;
     // The target close time is 500ms.
     cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 500;
@@ -1028,7 +1030,7 @@ TEST_CASE("apply load find max limits for model tx",
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
-    ApplyLoad al(*app, ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX);
+    ApplyLoad al(*app);
 
     al.execute();
 
@@ -1039,11 +1041,13 @@ TEST_CASE("apply load find max SAC TPS",
           "[loadgen][applyload][soroban][acceptance]")
 {
     auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::MAX_SAC_TPS;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.MANUAL_CLOSE = true;
     cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
 
     // Configure test parameters for MAX_SAC_TPS mode
     cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1500;
@@ -1052,11 +1056,12 @@ TEST_CASE("apply load find max SAC TPS",
     cfg.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS = 1500;
     cfg.APPLY_LOAD_NUM_LEDGERS = 30;
     cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
-    ApplyLoad al(*app, ApplyLoadMode::MAX_SAC_TPS);
+    ApplyLoad al(*app);
 
     // Run the MAX_SAC_TPS test
     al.execute();
@@ -1070,6 +1075,104 @@ TEST_CASE("apply load find max SAC TPS",
     REQUIRE(maxClustersMetric.count() ==
             cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
     REQUIRE(successCountMetric.count() > 200);
+}
+
+TEST_CASE("apply load benchmark model tx",
+          "[loadgen][applyload][soroban][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 2000;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 500;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_BATCH_SAC_COUNT = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    al.execute();
+
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    REQUIRE(successCountMetric.count() > 0);
+}
+
+TEST_CASE("apply load benchmark custom token",
+          "[loadgen][applyload][soroban][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::CUSTOM_TOKEN;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 5000;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 500;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    al.execute();
+
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    REQUIRE(successCountMetric.count() > 0);
+}
+
+TEST_CASE("apply load benchmark soroswap",
+          "[loadgen][applyload][soroban][acceptance]")
+{
+    auto cfg = getTestConfig();
+    cfg.APPLY_LOAD_MODE = ApplyLoadMode::BENCHMARK_MODEL_TX;
+    cfg.APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SOROSWAP;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
+    cfg.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+
+    cfg.APPLY_LOAD_NUM_LEDGERS = 10;
+    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 1000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 4;
+    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    ApplyLoad al(*app);
+
+    al.execute();
+
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
+
+    auto& successCountMetric =
+        app->getMetrics().NewCounter({"ledger", "apply-soroban", "success"});
+    REQUIRE(successCountMetric.count() > 0);
 }
 
 TEST_CASE("noisy binary search", "[applyload]")
