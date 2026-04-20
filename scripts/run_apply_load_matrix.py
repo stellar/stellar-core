@@ -281,6 +281,24 @@ def run_command(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess
     )
 
 
+def resolve_executable_path(executable: Path, *, description: str) -> Path:
+    expanded = executable.expanduser()
+    if expanded.exists():
+        resolved = expanded.resolve()
+    else:
+        resolved_on_path = shutil.which(str(expanded))
+        if resolved_on_path is None:
+            raise FileNotFoundError(
+                f"{description} not found: {executable} "
+                f"(also checked {expanded.resolve()})"
+            )
+        resolved = Path(resolved_on_path).resolve()
+
+    if not resolved.is_file():
+        raise FileNotFoundError(f"{description} path is not a file: {resolved}")
+    return resolved
+
+
 def get_version_string(stellar_core_bin: Path) -> str:
     result = run_command([str(stellar_core_bin), "version"], cwd=stellar_core_bin.parent)
     if result.returncode != 0:
@@ -335,10 +353,10 @@ def build_perf_record_command(
 
 
 def build_tracy_capture_command(
-    tracy_capture_bin: str, tracy_output_path: Path, tracy_seconds: int
+    tracy_capture_bin: Path, tracy_output_path: Path, tracy_seconds: int
 ) -> list[str]:
     return [
-        tracy_capture_bin,
+        str(tracy_capture_bin),
         "-o",
         str(tracy_output_path),
         "-a",
@@ -449,22 +467,23 @@ def ensure_inputs(
     profile: bool,
     tracy: bool,
     tracy_capture_bin: Path,
-) -> tuple[Path, Path]:
-    stellar_core_bin = stellar_core_bin.expanduser().resolve()
+) -> tuple[Path, Path, Path]:
+    stellar_core_bin = resolve_executable_path(
+        stellar_core_bin, description="stellar-core binary"
+    )
     template_config = template_config.expanduser().resolve()
+    resolved_tracy_capture_bin = tracy_capture_bin.expanduser()
 
-    if not stellar_core_bin.exists():
-        raise FileNotFoundError(f"stellar-core binary not found: {stellar_core_bin}")
-    if not stellar_core_bin.is_file():
-        raise FileNotFoundError(f"stellar-core path is not a file: {stellar_core_bin}")
     if not template_config.exists():
         raise FileNotFoundError(f"Template config not found: {template_config}")
     if profile and shutil.which(DEFAULT_PERF_BIN) is None:
         raise FileNotFoundError(f"{DEFAULT_PERF_BIN} not found on PATH")
-    if tracy and shutil.which(str(tracy_capture_bin)) is None:
-        raise FileNotFoundError(f"{tracy_capture_bin} not found on PATH")
+    if tracy:
+        resolved_tracy_capture_bin = resolve_executable_path(
+            tracy_capture_bin, description="tracy-capture binary"
+        )
 
-    return stellar_core_bin, template_config
+    return stellar_core_bin, template_config, resolved_tracy_capture_bin
 
 
 def run_scenario(
@@ -477,7 +496,7 @@ def run_scenario(
     artifacts_dir: Path,
     profile: bool,
     tracy: bool,
-    tracy_capture_bin: str,
+    tracy_capture_bin: Path,
     tracy_seconds: int,
 ) -> dict[str, float]:
     slug = scenario.slug()
@@ -572,7 +591,7 @@ def main() -> int:
     args = parse_args()
 
     try:
-        stellar_core_bin, template_config = ensure_inputs(
+        stellar_core_bin, template_config, tracy_capture_bin = ensure_inputs(
             args.stellar_core_bin,
             args.template_config,
             profile=args.profile,
@@ -618,7 +637,7 @@ def main() -> int:
                 artifacts_dir=artifacts_dir,
                 profile=args.profile,
                 tracy=args.tracy,
-                tracy_capture_bin=str(args.tracy_capture_bin),
+                tracy_capture_bin=tracy_capture_bin,
                 tracy_seconds=args.tracy_seconds,
             )
             append_csv_row(
