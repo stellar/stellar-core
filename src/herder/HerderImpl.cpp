@@ -1607,7 +1607,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     std::vector<LedgerUpgrade> upgrades;
     {
         CheckValidLedgerViewWrapper ledgerView(mApp);
-        upgrades = mUpgrades.createUpgradesFor(lcl.header, ledgerView);
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, ledgerView,
+                                               mApp.getConfig());
     }
     for (auto const& upgrade : upgrades)
     {

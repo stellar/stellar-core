@@ -236,7 +236,7 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
                 encodeLedgerKey(ccKey));
 
             REQUIRE(SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
         }
 
         SECTION("frozen keys delta validation rejects liquidity pool share "
@@ -254,7 +254,7 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
                 encodeLedgerKey(poolShareTlKey));
 
             REQUIRE(!SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
         }
 
         SECTION("frozen keys delta validation rejects issuer trustline keys")
@@ -273,7 +273,7 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
                 encodeLedgerKey(issuerTlKey));
 
             REQUIRE(!SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
         }
 
         SECTION("frozen keys delta validation rejects invalid key types")
@@ -297,7 +297,7 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
                     encodeLedgerKey(lk));
 
                 REQUIRE(!SorobanNetworkConfig::isValidConfigSettingEntry(
-                    deltaEntry, protocolVersion));
+                    deltaEntry, protocolVersion, app->getConfig()));
             }
         }
 
@@ -311,12 +311,12 @@ TEST_CASE_VERSIONS("frozen ledger keys config setting upgrades",
             deltaEntry.frozenLedgerKeysDelta().keysToFreeze.emplace_back(
                 encodeLedgerKey(lk));
             REQUIRE(SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
             // Corrupt the XDR by changing some bytes in the encoded key.
             deltaEntry.frozenLedgerKeysDelta().keysToFreeze[0][0] = 0xFF;
             deltaEntry.frozenLedgerKeysDelta().keysToFreeze[0][3] = 0xFF;
             REQUIRE(!SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
         }
 
         SECTION("adds and remove frozen keys")
@@ -436,7 +436,7 @@ TEST_CASE_VERSIONS("freeze bypass txs config setting upgrades",
                 makeHash(2));
 
             REQUIRE(SorobanNetworkConfig::isValidConfigSettingEntry(
-                deltaEntry, protocolVersion));
+                deltaEntry, protocolVersion, app->getConfig()));
         }
 
         SECTION("adds and removes bypass tx hashes")

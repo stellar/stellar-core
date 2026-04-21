@@ -25,12 +25,12 @@ namespace
 void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
                          AbstractLedgerTxn& ltxRoot,
-                         uint32_t versionToValidateAgainst)
+                         uint32_t versionToValidateAgainst, Config const& cfg)
 {
     ZoneScoped;
 
     if (!SorobanNetworkConfig::isValidConfigSettingEntry(
-            configSetting, versionToValidateAgainst))
+            configSetting, versionToValidateAgainst, cfg))
     {
         throw std::runtime_error("Invalid configSettingEntry");
     }
@@ -1322,7 +1322,8 @@ updateStateSizeWindowSetting(
 
 bool
 SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
-                                                uint32_t ledgerVersion)
+                                                uint32_t ledgerVersion,
+                                                Config const& appCfg)
 {
     bool valid = false;
     switch (cfg.configSettingID())
@@ -1450,14 +1451,23 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_SCP_TIMING:
-        valid =
-            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+    {
+        bool ledgerTargetCloseTimeValid =
             cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds >=
                 MinimumSorobanNetworkConfig::
                     LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
             cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds <=
                 MaximumSorobanNetworkConfig::
-                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS;
+#ifdef BUILD_TESTS
+        if (appCfg.TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS)
+        {
+            ledgerTargetCloseTimeValid = true;
+        }
+#endif
+        valid =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+            ledgerTargetCloseTimeValid &&
             cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds >=
                 MinimumSorobanNetworkConfig::
                     NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
@@ -1483,6 +1493,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MaximumSorobanNetworkConfig::
                     BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
+    }
     case ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS:
         // The frozen keys entry itself is always valid (it's just a list of
         // encoded keys). But it cannot be directly upgraded — only the delta
@@ -1612,33 +1623,33 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
 
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
-                             ltx, versionToValidateAgainst);
+                             ltx, versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialCpuCostParamsEntryForV20(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMemCostParamsEntryForV20(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialliveSorobanStateSizeWindow(app), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialEvictionIterator(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
 }
 
 void
@@ -1682,10 +1693,11 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
                                                          Application& app)
 {
     ZoneScoped;
+    auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
+                             static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
     createConfigSettingEntry(initialScpTimingEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
+                             static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
 
     // We expect CONFIG_SETTING_CONTRACT_LEDGER_COST_V0 to exist when upgrading
     // to protocol 23 as it must be created during the protocol 20 upgrade.
@@ -1699,7 +1711,7 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
         le.data.configSetting().contractLedgerCost();
     createConfigSettingEntry(
         initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
-        static_cast<uint32_t>(ProtocolVersion::V_23));
+        static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
 
     updateRentCostParamsForV23(ltx);
 }

@@ -153,6 +153,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
+    TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
 #endif
 
     FORCE_SCP = false;
@@ -1143,6 +1144,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER =
                          readInt<uint32_t>(item, 1);
+                 }},
+                {"TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS",
+                 [&]() {
+                     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = readBool(item);
+                     if (TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS)
+                     {
+                         LOG_WARNING(DEFAULT_LOG,
+                                     "Ignoring ledger target close time "
+                                     "upgrade bounds for testing");
+                     }
                  }},
 #endif
                 {"PEER_PORT",

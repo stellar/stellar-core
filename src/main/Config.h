@@ -920,6 +920,10 @@ class Config : public std::enable_shared_from_this<Config>
     // When set to true, ignores all message and tx set size limits for testing
     bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
 
+    // When set, disables validation of the ledger target close time
+    // bounds on config upgrades (for testing only).
+    bool TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
