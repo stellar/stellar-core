@@ -86,7 +86,8 @@ class Upgrades
     // create upgrades for given ledger
     std::vector<LedgerUpgrade>
     createUpgradesFor(LedgerHeader const& lclHeader,
-                      CheckValidLedgerViewWrapper const& ledgerView) const;
+                      CheckValidLedgerViewWrapper const& ledgerView,
+                      Config const& appCfg) const;
 
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, Application& app,
@@ -174,7 +175,7 @@ class ConfigUpgradeSetFrame
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;
 
-    Upgrades::UpgradeValidity isValidForApply() const;
+    Upgrades::UpgradeValidity isValidForApply(Config const& cfg) const;
 
     std::string encodeAsString() const;
 

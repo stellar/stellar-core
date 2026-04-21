@@ -278,7 +278,8 @@ Upgrades::getParameters() const
 
 std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
-                            CheckValidLedgerViewWrapper const& ledgerView) const
+                            CheckValidLedgerViewWrapper const& ledgerView,
+                            Config const& appCfg) const
 {
     auto result = std::vector<LedgerUpgrade>{};
     if (!timeForUpgrade(lclHeader.scpValue.closeTime))
@@ -322,7 +323,7 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     {
         auto cfgUpgrade = ConfigUpgradeSetFrame::makeFromKey(ledgerView, *key);
         if (cfgUpgrade != nullptr &&
-            cfgUpgrade->isValidForApply() == UpgradeValidity::VALID &&
+            cfgUpgrade->isValidForApply(appCfg) == UpgradeValidity::VALID &&
             cfgUpgrade->upgradeNeeded(ledgerView))
         {
             result.emplace_back(LEDGER_UPGRADE_CONFIG);
@@ -375,7 +376,8 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
             throw std::runtime_error(
                 "Failed to retrieve valid config upgrade set");
         }
-        if (cfgUpgrade->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+        if (cfgUpgrade->isValidForApply(app.getConfig()) !=
+            Upgrades::UpgradeValidity::VALID)
         {
             throw std::runtime_error("config upgrade set is no longer valid");
         }
@@ -616,7 +618,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         {
             return UpgradeValidity::INVALID;
         }
-        auto configUpgradeValid = cfgUpgrade->isValidForApply();
+        auto configUpgradeValid = cfgUpgrade->isValidForApply(app.getConfig());
         if (configUpgradeValid == UpgradeValidity::XDR_INVALID)
         {
             return UpgradeValidity::XDR_INVALID;
@@ -1571,7 +1573,7 @@ ConfigUpgradeSetFrame::isConsistentWith(
 }
 
 Upgrades::UpgradeValidity
-ConfigUpgradeSetFrame::isValidForApply() const
+ConfigUpgradeSetFrame::isValidForApply(Config const& appCfg) const
 {
     if (!mValidXDR)
     {
@@ -1579,8 +1581,8 @@ ConfigUpgradeSetFrame::isValidForApply() const
     }
     for (auto const& cfg : mConfigUpgradeSet.updatedEntry)
     {
-        if (!SorobanNetworkConfig::isValidConfigSettingEntry(cfg,
-                                                             mLedgerVersion) ||
+        if (!SorobanNetworkConfig::isValidConfigSettingEntry(
+                cfg, mLedgerVersion, appCfg) ||
             SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(cfg))
         {
             CLOG_DEBUG(Herder, "Got bad ConfigSettingEntry {}",

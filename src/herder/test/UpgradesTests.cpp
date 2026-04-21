@@ -344,7 +344,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+                                                        app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -354,7 +355,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+                                                        app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -364,7 +366,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+                                                        app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -374,7 +377,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+                                                        app->getConfig());
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -387,7 +391,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ledgerView,
+                                                        app->getConfig());
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
@@ -736,7 +741,8 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                 auto testInvalidXdr = [&]() {
                     auto configUpgradeSetFrame =
                         makeConfigUpgradeSet(ltx, badConfigUpgradeSet);
-                    REQUIRE(configUpgradeSetFrame->isValidForApply() ==
+                    REQUIRE(configUpgradeSetFrame->isValidForApply(
+                                app->getConfig()) ==
                             Upgrades::UpgradeValidity::XDR_INVALID);
                     REQUIRE(Upgrades::isValidForApply(
                                 toUpgradeType(
