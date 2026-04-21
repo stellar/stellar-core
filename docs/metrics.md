@@ -81,6 +81,7 @@ history.publish.time                      | timer     | time to successfully pub
 history.get.throughput                    | meter     | bytes per second of history archive retrieval
 history.get.failure                       | meter     | history archive downloads failed
 ledger.age.closed                         | bucket    | time between ledgers
+ledger.age.closed-histogram               | histogram | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
 ledger.apply.success                      | counter   | count of successfully applied transactions
 ledger.apply.failure                      | counter   | count of failed applied transactions

@@ -74,6 +74,9 @@ class LedgerManagerImpl : public LedgerManager
         medida::Histogram& mPrefetchHitRate;
         medida::Timer& mLedgerClose;
         medida::Buckets& mLedgerAgeClosed;
+#ifdef BUILD_TESTS
+        medida::Histogram& mLedgerAgeClosedHistogram;
+#endif
         medida::Counter& mLedgerAge;
         medida::Counter& mTransactionApplySucceeded;
         medida::Counter& mTransactionApplyFailed;

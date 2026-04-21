@@ -68,6 +68,7 @@
 
 #include "medida/buckets.h"
 #include "medida/counter.h"
+#include "medida/histogram.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include <Tracy.hpp>
@@ -201,6 +202,11 @@ LedgerManagerImpl::LedgerApplyMetrics::LedgerApplyMetrics(
     , mLedgerClose(registry.NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(registry.NewBuckets({"ledger", "age", "closed"},
                                            {5000.0, 7000.0, 10000.0, 20000.0}))
+#ifdef BUILD_TESTS
+    , mLedgerAgeClosedHistogram(
+          registry.NewHistogram({"ledger", "age", "closed-histogram"},
+                                medida::SamplingInterface::kSliding))
+#endif
     , mLedgerAge(registry.NewCounter({"ledger", "age", "current-seconds"}))
     , mTransactionApplySucceeded(
           registry.NewCounter({"ledger", "apply", "success"}))
@@ -1495,7 +1501,13 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     ZoneValue(static_cast<int64_t>(header.current().ledgerSeq));
 
     auto now = mApp.getClock().now();
-    mApplyState.getMetrics().mLedgerAgeClosed.Update(now - mLastClose);
+    auto closeDuration = now - mLastClose;
+    mApplyState.getMetrics().mLedgerAgeClosed.Update(closeDuration);
+#ifdef BUILD_TESTS
+    mApplyState.getMetrics().mLedgerAgeClosedHistogram.Update(
+        std::chrono::duration_cast<std::chrono::milliseconds>(closeDuration)
+            .count());
+#endif
     // mLastClose is only accessed by a single thread, so no synchronization
     // needed
     mLastClose = now;
