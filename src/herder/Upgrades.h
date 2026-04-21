@@ -171,7 +171,7 @@ class ConfigUpgradeSetFrame
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;
 
-    Upgrades::UpgradeValidity isValidForApply() const;
+    Upgrades::UpgradeValidity isValidForApply(Config const& cfg) const;
 
     std::string encodeAsString() const;
 

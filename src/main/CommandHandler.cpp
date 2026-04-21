@@ -581,8 +581,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 
             auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
 
-            if (!ptr ||
-                ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+            if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
+                            Upgrades::UpgradeValidity::VALID)
             {
                 retStr = "Error setting configUpgradeSet";
                 return;
@@ -635,7 +635,8 @@ CommandHandler::dumpProposedSettings(std::string const& params,
 
         auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
 
-        if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+        if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
+                        Upgrades::UpgradeValidity::VALID)
         {
             retStr = "configUpgradeSet is missing or invalid";
             return;

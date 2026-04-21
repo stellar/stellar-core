@@ -411,7 +411,8 @@ class SorobanNetworkConfig
     uint64_t getAverageSorobanStateSize() const;
 
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
-                                          uint32_t ledgerVersion);
+                                          uint32_t ledgerVersion,
+                                          Config const& appCfg);
     static bool
     isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
 
