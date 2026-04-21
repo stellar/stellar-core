@@ -3001,7 +3001,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         // Triggering next ledger will construct and cache the block
         herder.triggerNextLedger(seq, true);
         // All hits during the whole SCP round
-        REQUIRE(cache.getCounters().mHits == 8);
+        REQUIRE(cache.getCounters().mHits == 9);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
     }
