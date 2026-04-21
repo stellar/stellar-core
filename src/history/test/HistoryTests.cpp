@@ -2027,16 +2027,29 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
             clock.crank(false);
         app1->start();
         auto& hm1 = app1->getHistoryManager();
-        while (hm1.getPublishSuccessCount() < 5)
-        {
-            clock.crank(true);
-        }
+        // Ledgers to add to genesis. Trimming runs lazily (at most one
+        // checkpoint per externalize), so we wait for it to catch up.
+        uint32_t const publishedCount = 30;
+        auto minScpLedger = [&]() {
+            uint32_t m = 0;
+            soci::indicator ind = soci::i_null;
+            app1->getDatabase().getRawMiscSession()
+                << "SELECT MIN(ledgerseq) FROM scphistory",
+                soci::into(m, ind);
+            return ind == soci::i_ok ? m : 0;
+        };
+        testutil::crankUntil(
+            app1,
+            [&]() {
+                return hm1.getPublishSuccessCount() >= 5 &&
+                       minScpLedger() > publishedCount;
+            },
+            std::chrono::seconds{60});
+        REQUIRE(hm1.getPublishSuccessCount() >= 5);
+        REQUIRE(minScpLedger() > publishedCount);
 
-        // Verify old history got trimmed
+        // Verify old SCP history got trimmed
         XDROutputFileStream out(app1->getClock().getIOContext(), true);
-        // Ledgers to add to genesis, maintenance keeps at least one checkpoint
-        // of data, so last ledger trimmed is (5 * 8 - 1) - 8 = 31
-        uint32_t publishedCount = 30;
         auto scp = app1->getHerderPersistence().copySCPHistoryToStream(
             app1->getDatabase().getRawMiscSession(),
             LedgerManager::GENESIS_LEDGER_SEQ, publishedCount, out);
