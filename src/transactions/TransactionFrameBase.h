@@ -44,12 +44,61 @@ using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
+class ParallelApplyLedgerKey
+{
+  public:
+    ParallelApplyLedgerKey() = default;
+    ParallelApplyLedgerKey(LedgerKey const& ledgerKey)
+        : mLedgerKey(ledgerKey)
+    {
+    }
+
+    LedgerKey const&
+    ledgerKey() const
+    {
+        return mLedgerKey;
+    }
+
+    operator LedgerKey const&() const
+    {
+        return mLedgerKey;
+    }
+
+    size_t
+    hash() const
+    {
+        if (mHash != 0)
+        {
+            return mHash;
+        }
+        mHash = std::hash<LedgerKey>{}(mLedgerKey);
+        return mHash;
+    }
+
+  private:
+    mutable size_t mHash{0};
+    LedgerKey mLedgerKey;
+};
+
+inline bool
+operator==(ParallelApplyLedgerKey const& lhs,
+           ParallelApplyLedgerKey const& rhs)
+{
+    return lhs.ledgerKey() == rhs.ledgerKey();
+}
+
+using ParallelApplyLedgerKeySet = UnorderedSet<ParallelApplyLedgerKey>;
+
+template <typename T>
+using ParallelApplyLedgerKeyMap = UnorderedMap<ParallelApplyLedgerKey, T>;
+
 // Tracks entry updates within a transaction during parallel apply phases. If
 // the transaction succeeds, the thread's ParallelApplyEntryMap should be
 // updated with the entries from the TxModifiedEntryMap.
 using TxParApplyLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TxParApply>;
-using TxModifiedEntryMap = UnorderedMap<LedgerKey, TxParApplyLedgerEntryOpt>;
+using TxModifiedEntryMap =
+    ParallelApplyLedgerKeyMap<TxParApplyLedgerEntryOpt>;
 
 struct ParallelPreApplyInfo
 {
@@ -113,7 +162,8 @@ using TxParallelApplyEntry =
 // threads return, the updates from each threads entry map should be committed
 // to LedgerTxn.
 template <StaticLedgerEntryScope S>
-using ParallelApplyEntryMap = UnorderedMap<LedgerKey, ParallelApplyEntry<S>>;
+using ParallelApplyEntryMap =
+    ParallelApplyLedgerKeyMap<ParallelApplyEntry<S>>;
 using GlobalParallelApplyEntryMap =
     ParallelApplyEntryMap<StaticLedgerEntryScope::GlobalParApply>;
 using ThreadParallelApplyEntryMap =
@@ -332,5 +382,18 @@ class TransactionFrameBase
     virtual bool isRestoreFootprintTx() const = 0;
 
     virtual ~TransactionFrameBase() = default;
+};
+}
+
+namespace std
+{
+template <> class hash<stellar::ParallelApplyLedgerKey>
+{
+  public:
+    size_t
+    operator()(stellar::ParallelApplyLedgerKey const& key) const
+    {
+        return key.hash();
+    }
 };
 }
