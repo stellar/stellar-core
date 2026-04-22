@@ -181,6 +181,8 @@ namespace stellar
 {
 class Application;
 class Bucket;
+class ImmutableLedgerData;
+using ImmutableLedgerDataPtr = std::shared_ptr<ImmutableLedgerData const>;
 class LiveBucketList;
 class Config;
 class Database;
@@ -322,15 +324,14 @@ class HistoryManager
     // a multiple of getCheckpointFrequency(). Returns true if checkpoint
     // publication of the LCL was queued, otherwise false. ledgerVers must align
     // with lcl.
-    virtual bool maybeQueueHistoryCheckpoint(uint32_t lcl,
-                                             uint32_t ledgerVers) = 0;
+    virtual bool
+    maybeQueueHistoryCheckpoint(ImmutableLedgerDataPtr ledgerState) = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it, as well as the bucketlist of its state -- to a
     // publication-queue in the database. This should be followed shortly
-    // (typically after commit) with a call to publishQueuedHistory. ledgerVers
-    // must align with lcl.
-    virtual void queueCurrentHistory(uint32_t lcl, uint32_t ledgerVers) = 0;
+    // (typically after commit) with a call to publishQueuedHistory.
+    virtual void queueCurrentHistory(ImmutableLedgerDataPtr ledgerState) = 0;
 
     // Return the youngest ledger still in the outgoing publish queue;
     // returns 0 if the publish queue has nothing in it.

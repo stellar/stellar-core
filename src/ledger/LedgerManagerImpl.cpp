@@ -1719,7 +1719,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         }
     }
 
-    auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
     auto lclApplyView = mApplyState.copyApplyLedgerView();
@@ -1827,7 +1826,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // consistent with the ledger header, we must base checkpoints off the new
     // ledgerVers here and not the initial ledgerVers.
     auto& hm = mApp.getHistoryManager();
-    hm.maybeQueueHistoryCheckpoint(ledgerSeq, maybeNewVersion);
+    hm.maybeQueueHistoryCheckpoint(appliedLedgerState);
     JITTER_INJECT_DELAY();
 
     // step 2
