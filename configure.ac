@@ -538,6 +538,11 @@ AC_ARG_ENABLE(tracy-csvexport,
         [Enable 'tracy' profiler/tracer csvexport program]))
 AM_CONDITIONAL(USE_TRACY_CSVEXPORT, [test x$enable_tracy_csvexport = xyes])
 
+AC_ARG_ENABLE(tracy-import-chrome,
+    AS_HELP_STRING([--enable-tracy-import-chrome],
+        [Enable 'tracy' profiler/tracer chrome-trace-format importer]))
+AM_CONDITIONAL(USE_TRACY_IMPORT_CHROME, [test x$enable_tracy_import_chrome = xyes])
+
 AC_ARG_ENABLE(spdlog,
     AS_HELP_STRING([--disable-spdlog],
         [Disable spdlog]))
