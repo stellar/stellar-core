@@ -365,8 +365,9 @@ BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
         // Value has been definitively determined to be invalid (e.g., a
         // tx set that was downloaded and found to be unusable). Replace
         // immediately with skip -- no timeout check needed.
-        CLOG_DEBUG(Proto, "Replacing invalid value with skip for slot {}",
-                   mSlot.getSlotIndex());
+        CLOG_WARNING(
+            Proto, "Replacing invalid value '{}' with skip for slot {}",
+            mSlot.getSCPDriver().getValueString(v), mSlot.getSlotIndex());
         break;
     case SCPDriver::kAwaitingDownload:
     {
@@ -1184,10 +1185,6 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
                 // With parallel downloading, a confirmed-prepared value
                 // can become kInvalidValue if the tx set was downloaded
                 // and found invalid. Do not vote to commit it.
-                // TODO(37): Should ensure that the validator who proposed this
-                // value is included in this log message, as it's very likely
-                // the validator is misbehaving. Should also do this at
-                // `maybeReplaceValueWithSkip`.
                 CLOG_WARNING(
                     Proto,
                     "BallotProtocol::setConfirmPrepared slot:{} "

@@ -745,10 +745,6 @@ PendingEnvelopes::pop(uint64 slotIndex)
     return nullptr;
 }
 
-// TODO(37): This only surfaces slots with FULLY ready envelopes (tx set is
-// available). I think that's right (as this is only used when the node is not
-// tracking, and parallel downloading is only enabled for tracking nodes), but
-// we should double check that this is the right behavior.
 vector<uint64>
 PendingEnvelopes::readySlots()
 {
