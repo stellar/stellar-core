@@ -231,6 +231,13 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
     CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
     CheckValidLedgerViewWrapper(Application& app);
     explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
+#ifdef BUILD_TESTS
+    // Set by overlay-only mode call sites so commonValid skips the seqnum
+    // equality check: on-disk seqnums are frozen at genesis while
+    // LoadGenerator keeps advancing its local counters, so every tx after the
+    // first would otherwise fail isBadSeq.
+    bool mSkipSeqNumCheck{false};
+#endif
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper

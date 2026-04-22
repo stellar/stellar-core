@@ -53,7 +53,10 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
     uint32_t nAccounts = 1000;
     uint32_t nTxs = 100;
 
-    // Upgrade the network config.
+    // Upgrade the network config. Lift both ledger- and tx-level limits so
+    // SOROBAN_INVOKE_APPLY_LOAD's oversized invoke txs pass validation in
+    // overlay-only mode (where checkValid now runs end-to-end, including
+    // checkSorobanResources).
     upgradeSorobanNetworkConfig(
         [&](SorobanNetworkConfig& cfg) {
             auto mx = std::numeric_limits<uint32_t>::max();
@@ -64,6 +67,14 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
             cfg.mLedgerMaxDiskReadBytes = mx;
             cfg.mLedgerMaxWriteLedgerEntries = mx;
             cfg.mLedgerMaxWriteBytes = mx;
+            cfg.mTxMaxInstructions = mx;
+            cfg.mTxMaxDiskReadEntries = mx;
+            cfg.mTxMaxDiskReadBytes = mx;
+            cfg.mTxMaxWriteLedgerEntries = mx;
+            cfg.mTxMaxWriteBytes = mx;
+            cfg.mTxMaxFootprintEntries = mx;
+            cfg.mTxMaxSizeBytes = mx;
+            cfg.mTxMaxContractEventsSizeBytes = mx;
         },
         simulation);
 
