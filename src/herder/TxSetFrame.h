@@ -102,6 +102,23 @@ std::string toString(TxSetValidationResult result);
 using TxFrameList = std::vector<TransactionFrameBasePtr>;
 using PerPhaseTransactionList = std::vector<TxFrameList>;
 
+#ifdef BUILD_TESTS
+struct TxSetBuildPhaseTimings
+{
+    double totalMs = 0;
+    double trimInvalidClassicMs = 0;
+    double surgePricingClassicMs = 0;
+    double trimInvalidSorobanMs = 0;
+    double surgePricingSorobanMs = 0;
+    double buildParallelSorobanPhaseMs = 0;
+    double buildApplicableTxSetMs = 0;
+    double toWireTxSetMs = 0;
+    double prepareTxSetForApplyMs = 0;
+    double validateRoundTripShapeMs = 0;
+    double validateTxSetMs = 0;
+};
+#endif
+
 // Creates a valid ApplicableTxSetFrame and corresponding TxSetXDRFrame
 // from the provided transactions.
 //
@@ -124,7 +141,8 @@ makeTxSetFromTransactions(
     // `enforceTxsApplyOrder` argument in test-only overrides.
     ,
     bool skipValidation = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    TxSetBuildPhaseTimings* txSetBuildTimings = nullptr
 #endif
 );
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -138,7 +156,8 @@ makeTxSetFromTransactions(
     // `enforceTxsApplyOrder` argument in test-only overrides.
     ,
     bool skipValidation = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {}
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    TxSetBuildPhaseTimings* txSetBuildTimings = nullptr
 #endif
 );
 
@@ -147,13 +166,15 @@ std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    TxSetBuildPhaseTimings* txSetBuildTimings = nullptr);
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
     bool enforceTxsApplyOrder = false,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {});
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder = {},
+    TxSetBuildPhaseTimings* txSetBuildTimings = nullptr);
 #endif
 
 // `TxSetFrame` is a wrapper around `TransactionSet` or
@@ -373,7 +394,8 @@ class TxSetPhaseFrame
 #ifdef BUILD_TESTS
         ,
         bool skipValidation,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        TxSetBuildPhaseTimings* txSetBuildTimings
 #endif
     );
 #ifdef BUILD_TESTS
@@ -382,7 +404,8 @@ class TxSetPhaseFrame
         TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
         bool enforceTxsApplyOrder,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        TxSetBuildPhaseTimings* txSetBuildTimings);
 #endif
     TxSetPhaseFrame(TxSetPhase phase, TxFrameList const& txs,
                     std::shared_ptr<InclusionFeeMap> inclusionFeeMap);
@@ -550,7 +573,8 @@ class ApplicableTxSetFrame
 #ifdef BUILD_TESTS
         ,
         bool skipValidation,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        TxSetBuildPhaseTimings* txSetBuildTimings
 #endif
     );
 #ifdef BUILD_TESTS
@@ -559,7 +583,8 @@ class ApplicableTxSetFrame
         TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
         bool enforceTxsApplyOrder,
-        txtest::ParallelSorobanOrder const& parallelSorobanOrder);
+        txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+        TxSetBuildPhaseTimings* txSetBuildTimings);
 #endif
 
     ApplicableTxSetFrame(Application& app,

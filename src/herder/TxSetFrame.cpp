@@ -27,6 +27,7 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <future>
 #include <list>
 #include <numeric>
@@ -38,6 +39,40 @@ namespace stellar
 
 namespace
 {
+#ifdef BUILD_TESTS
+double
+elapsedMs(std::chrono::steady_clock::time_point const& start)
+{
+    return std::chrono::duration<double, std::milli>(
+               std::chrono::steady_clock::now() - start)
+        .count();
+}
+
+template <typename Fn>
+auto
+measureStage(double* output, Fn&& fn)
+{
+    auto start = std::chrono::steady_clock::now();
+    if constexpr (std::is_void_v<std::invoke_result_t<Fn>>)
+    {
+        std::forward<Fn>(fn)();
+        if (output)
+        {
+            *output += elapsedMs(start);
+        }
+    }
+    else
+    {
+        auto result = std::forward<Fn>(fn)();
+        if (output)
+        {
+            *output += elapsedMs(start);
+        }
+        return result;
+    }
+}
+#endif
+
 std::string
 getTxSetPhaseName(TxSetPhase phase)
 {
@@ -694,11 +729,23 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
 #ifdef BUILD_TESTS
                   ,
                   bool enforceTxsApplyOrder,
-                  txtest::ParallelSorobanOrder const& parallelSorobanOrder
+                  txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+                  TxSetBuildPhaseTimings* txSetBuildTimings
 #endif
 )
 {
     ZoneScoped;
+#ifdef BUILD_TESTS
+    auto const surgePricingStart = std::chrono::steady_clock::now();
+    double* surgePricingField = nullptr;
+    if (txSetBuildTimings)
+    {
+        surgePricingField =
+            phase == TxSetPhase::CLASSIC
+                ? &txSetBuildTimings->surgePricingClassicMs
+                : &txSetBuildTimings->surgePricingSorobanMs;
+    }
+#endif
     auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
     std::vector<bool> hadTxNotFittingLane;
     uint32_t ledgerVersion =
@@ -746,10 +793,25 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
         else
         {
 #endif
+#ifdef BUILD_TESTS
+            includedTxs = measureStage(
+                txSetBuildTimings
+                    ? &txSetBuildTimings->buildParallelSorobanPhaseMs
+                    : nullptr,
+                [&]() {
+                    return buildSurgePricedParallelSorobanPhase(
+                        txs, app.getConfig(),
+                        app.getLedgerManager()
+                            .getLastClosedSorobanNetworkConfig(),
+                        surgePricingLaneConfig, hadTxNotFittingLane,
+                        ledgerVersion);
+                });
+#else
             includedTxs = buildSurgePricedParallelSorobanPhase(
                 txs, app.getConfig(),
                 app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
                 surgePricingLaneConfig, hadTxNotFittingLane, ledgerVersion);
+#endif
 #ifdef BUILD_TESTS
         }
 #endif
@@ -819,6 +881,13 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app
                       &surgePricingLaneConfig](auto const& tx) {
         inclusionFeeMap[tx] = laneBaseFee[surgePricingLaneConfig->getLane(*tx)];
     });
+
+#ifdef BUILD_TESTS
+    if (surgePricingField)
+    {
+        *surgePricingField += elapsedMs(surgePricingStart);
+    }
+#endif
 
     return std::make_pair(includedTxs, inclusionFeeMapPtr);
 }
@@ -942,7 +1011,8 @@ makeTxSetFromTransactions(
 #ifdef BUILD_TESTS
     ,
     bool skipValidation,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+    TxSetBuildPhaseTimings* txSetBuildTimings
 #endif
 )
 {
@@ -952,7 +1022,8 @@ makeTxSetFromTransactions(
                                      upperBoundCloseTimeOffset, invalidTxs
 #ifdef BUILD_TESTS
                                      ,
-                                     skipValidation, parallelSorobanOrder
+                                     skipValidation, parallelSorobanOrder,
+                                     txSetBuildTimings
 #endif
     );
 }
@@ -965,7 +1036,8 @@ makeTxSetFromTransactions(
 #ifdef BUILD_TESTS
     ,
     bool skipValidation,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+    TxSetBuildPhaseTimings* txSetBuildTimings
 #endif
 )
 {
@@ -974,6 +1046,20 @@ makeTxSetFromTransactions(
     releaseAssert(txPhases.size() == invalidTxs.size());
     releaseAssert(txPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+
+#ifdef BUILD_TESTS
+    auto const totalStart = std::chrono::steady_clock::now();
+    if (txSetBuildTimings)
+    {
+        *txSetBuildTimings = {};
+    }
+    auto finalizeTimings = [&]() {
+        if (txSetBuildTimings)
+        {
+            txSetBuildTimings->totalMs = elapsedMs(totalStart);
+        }
+    };
+#endif
 
     std::vector<TxSetPhaseFrame> validatedPhases;
     UnorderedMap<AccountID, int64_t> accountFeeMap;
@@ -992,63 +1078,84 @@ makeTxSetFromTransactions(
         auto& invalid = invalidTxs[i];
         TxFrameList validatedTxs;
 #ifdef BUILD_TESTS
+        double* trimInvalidField = nullptr;
+        if (txSetBuildTimings)
+        {
+            trimInvalidField =
+                expectSoroban ? &txSetBuildTimings->trimInvalidSorobanMs
+                              : &txSetBuildTimings->trimInvalidClassicMs;
+        }
         if (skipValidation)
         {
             validatedTxs = phaseTxs;
         }
         else
         {
-#endif
-            validatedTxs = TxSetUtils::trimInvalid(
-                phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
-                upperBoundCloseTimeOffset, invalid);
-#ifdef BUILD_TESTS
+            validatedTxs = measureStage(trimInvalidField, [&]() {
+                return TxSetUtils::trimInvalid(
+                    phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
+                    upperBoundCloseTimeOffset, invalid);
+            });
         }
+#else
+        validatedTxs = TxSetUtils::trimInvalid(
+            phaseTxs, app, accountFeeMap, lowerBoundCloseTimeOffset,
+            upperBoundCloseTimeOffset, invalid);
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
         auto [includedTxs, inclusionFeeMapBinding] =
             applySurgePricing(phaseType, validatedTxs, app
 #ifdef BUILD_TESTS
                               ,
-                              skipValidation, parallelSorobanOrder
+                              skipValidation, parallelSorobanOrder,
+                              txSetBuildTimings
 #endif
             );
         auto inclusionFeeMap = inclusionFeeMapBinding;
-        std::visit(
-            [&validatedPhases, phaseType, inclusionFeeMap](auto&& txs) {
-                using T = std::decay_t<decltype(txs)>;
-                if constexpr (std::is_same_v<T, TxFrameList>)
-                {
-                    validatedPhases.emplace_back(
-                        TxSetPhaseFrame(phaseType, txs, inclusionFeeMap));
-                }
-                else if constexpr (std::is_same_v<T, TxStageFrameList>)
-                {
-                    validatedPhases.emplace_back(TxSetPhaseFrame(
-                        phaseType, std::move(txs), inclusionFeeMap));
-                }
-                else
-                {
-                    // This can't be just `false` as if an assertion is not
-                    // dependent on template argument, it will be
-                    // unconditionally triggered.
-                    static_assert(!std::is_same_v<T, T>,
-                                  "Non-exhaustive visitor");
-                }
-            },
-            includedTxs);
+        if (std::holds_alternative<TxFrameList>(includedTxs))
+        {
+            validatedPhases.emplace_back(TxSetPhaseFrame(
+                phaseType, std::get<TxFrameList>(includedTxs), inclusionFeeMap));
+        }
+        else if (std::holds_alternative<TxStageFrameList>(includedTxs))
+        {
+            validatedPhases.emplace_back(TxSetPhaseFrame(
+                phaseType, std::get<TxStageFrameList>(std::move(includedTxs)),
+                inclusionFeeMap));
+        }
+        else
+        {
+            releaseAssert(false);
+        }
     }
 
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     // Preliminary applicable frame - we don't know the contents hash yet, but
     // we also don't return this.
+#ifdef BUILD_TESTS
+    auto preliminaryApplicableTxSet = measureStage(
+        txSetBuildTimings ? &txSetBuildTimings->buildApplicableTxSetMs
+                          : nullptr,
+        [&]() {
+            return std::unique_ptr<ApplicableTxSetFrame>(
+                new ApplicableTxSetFrame(app, lclHeader, validatedPhases,
+                                         std::nullopt));
+        });
+#else
     std::unique_ptr<ApplicableTxSetFrame> preliminaryApplicableTxSet(
         new ApplicableTxSetFrame(app, lclHeader, validatedPhases,
                                  std::nullopt));
+#endif
 
     // Do the roundtrip through XDR to ensure we never build an incorrect tx set
     // for nomination.
+#ifdef BUILD_TESTS
+    auto outputTxSet = measureStage(
+        txSetBuildTimings ? &txSetBuildTimings->toWireTxSetMs : nullptr,
+        [&]() { return preliminaryApplicableTxSet->toWireTxSetFrame(); });
+#else
     auto outputTxSet = preliminaryApplicableTxSet->toWireTxSetFrame();
+#endif
 #ifdef BUILD_TESTS
     if (skipValidation)
     {
@@ -1056,13 +1163,20 @@ makeTxSetFromTransactions(
         // and validation flow.
         preliminaryApplicableTxSet->mContentsHash =
             outputTxSet->getContentsHash();
+        finalizeTimings();
         return std::make_pair(outputTxSet,
                               std::move(preliminaryApplicableTxSet));
     }
 #endif
-
+#ifdef BUILD_TESTS
+    auto outputApplicableTxSet = measureStage(
+        txSetBuildTimings ? &txSetBuildTimings->prepareTxSetForApplyMs
+                          : nullptr,
+        [&]() { return outputTxSet->prepareForApply(app, lclHeader.header); });
+#else
     ApplicableTxSetFrameConstPtr outputApplicableTxSet =
         outputTxSet->prepareForApply(app, lclHeader.header);
+#endif
 
     if (!outputApplicableTxSet)
     {
@@ -1072,6 +1186,29 @@ makeTxSetFromTransactions(
 
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
+#ifdef BUILD_TESTS
+    bool valid = measureStage(
+        txSetBuildTimings ? &txSetBuildTimings->validateRoundTripShapeMs
+                          : nullptr,
+        [&]() {
+            bool shapeValid = preliminaryApplicableTxSet->numPhases() ==
+                              outputApplicableTxSet->numPhases();
+            if (shapeValid)
+            {
+                for (size_t i = 0; i < preliminaryApplicableTxSet->numPhases();
+                     ++i)
+                {
+                    shapeValid =
+                        shapeValid &&
+                        preliminaryApplicableTxSet->sizeTx(
+                            static_cast<TxSetPhase>(i)) ==
+                            outputApplicableTxSet->sizeTx(
+                                static_cast<TxSetPhase>(i));
+                }
+            }
+            return shapeValid;
+        });
+#else
     bool valid = preliminaryApplicableTxSet->numPhases() ==
                  outputApplicableTxSet->numPhases();
     if (valid)
@@ -1084,6 +1221,7 @@ makeTxSetFromTransactions(
                                      static_cast<TxSetPhase>(i));
         }
     }
+#endif
     if (!valid)
     {
         throw std::runtime_error("Created invalid tx set frame - shape is "
@@ -1091,8 +1229,18 @@ makeTxSetFromTransactions(
     }
     // We already trimmed invalid transactions in an earlier call to
     // `trimInvalid`, so skip transaction validation here
+#ifdef BUILD_TESTS
+    auto validationResult = measureStage(
+        txSetBuildTimings ? &txSetBuildTimings->validateTxSetMs : nullptr,
+        [&]() {
+            return outputApplicableTxSet->checkValidInternalWithResult(
+                app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+                true);
+        });
+#else
     auto validationResult = outputApplicableTxSet->checkValidInternalWithResult(
         app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, true);
+#endif
     if (validationResult != TxSetValidationResult::VALID)
     {
         throw std::runtime_error(fmt::format(
@@ -1100,6 +1248,9 @@ makeTxSetFromTransactions(
             toString(validationResult)));
     }
 
+#ifdef BUILD_TESTS
+    finalizeTimings();
+#endif
     return std::make_pair(outputTxSet, std::move(outputApplicableTxSet));
 }
 
@@ -1141,12 +1292,13 @@ std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeTxSetFromTransactions(
     TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder)
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+    TxSetBuildPhaseTimings* txSetBuildTimings)
 {
     TxFrameList invalid;
     return makeTxSetFromTransactions(
         txs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset, invalid,
-        enforceTxsApplyOrder, parallelSorobanOrder);
+        enforceTxsApplyOrder, parallelSorobanOrder, txSetBuildTimings);
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
@@ -1154,7 +1306,8 @@ makeTxSetFromTransactions(
     TxFrameList txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs,
     bool enforceTxsApplyOrder,
-    txtest::ParallelSorobanOrder const& parallelSorobanOrder)
+    txtest::ParallelSorobanOrder const& parallelSorobanOrder,
+    TxSetBuildPhaseTimings* txSetBuildTimings)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!app.getLedgerManager().isApplying());
@@ -1179,7 +1332,8 @@ makeTxSetFromTransactions(
     invalid.resize(perPhaseTxs.size());
     auto res = makeTxSetFromTransactions(
         perPhaseTxs, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalid, enforceTxsApplyOrder, parallelSorobanOrder);
+        invalid, enforceTxsApplyOrder, parallelSorobanOrder,
+        txSetBuildTimings);
     if (enforceTxsApplyOrder)
     {
         auto const& resPhases = res.second->getPhases();

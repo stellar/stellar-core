@@ -13,6 +13,7 @@
 #include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
@@ -275,6 +276,102 @@ logPhaseTimingsTable(
     {
         CLOG_WARNING(Perf,
                      "{:<24s} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} "
+                     "{:>8.2f} {:>8.2f}",
+                     r.name, r.stats.mean, r.stats.stddev, r.stats.median,
+                     r.stats.p25, r.stats.p75, r.stats.p95, r.stats.p99);
+    }
+}
+
+void
+logTxSetBuildTimingsTable(
+    std::vector<TxSetBuildPhaseTimings> const& allTimings)
+{
+    if (allTimings.empty())
+    {
+        return;
+    }
+
+    size_t n = allTimings.size();
+    auto extract = [&](auto field) {
+        std::vector<double> v(n);
+        for (size_t i = 0; i < n; ++i)
+        {
+            v[i] = allTimings[i].*field;
+        }
+        return v;
+    };
+
+    auto total = extract(&TxSetBuildPhaseTimings::totalMs);
+    auto trimClassic = extract(&TxSetBuildPhaseTimings::trimInvalidClassicMs);
+    auto surgeClassic =
+        extract(&TxSetBuildPhaseTimings::surgePricingClassicMs);
+    auto trimSoroban = extract(&TxSetBuildPhaseTimings::trimInvalidSorobanMs);
+    auto surgeSoroban =
+        extract(&TxSetBuildPhaseTimings::surgePricingSorobanMs);
+    auto parallelBuild =
+        extract(&TxSetBuildPhaseTimings::buildParallelSorobanPhaseMs);
+    auto buildApplicable =
+        extract(&TxSetBuildPhaseTimings::buildApplicableTxSetMs);
+    auto toWire = extract(&TxSetBuildPhaseTimings::toWireTxSetMs);
+    auto prepareForApply =
+        extract(&TxSetBuildPhaseTimings::prepareTxSetForApplyMs);
+    auto validateShape =
+        extract(&TxSetBuildPhaseTimings::validateRoundTripShapeMs);
+    auto validateTxSet = extract(&TxSetBuildPhaseTimings::validateTxSetMs);
+
+    std::vector<double> classicTotal(n);
+    std::vector<double> sorobanTotal(n);
+    std::vector<double> sorobanSurgeGap(n);
+    std::vector<double> totalGap(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        classicTotal[i] = trimClassic[i] + surgeClassic[i];
+        sorobanTotal[i] = trimSoroban[i] + surgeSoroban[i];
+        sorobanSurgeGap[i] = surgeSoroban[i] - parallelBuild[i];
+        totalGap[i] = total[i] - classicTotal[i] - sorobanTotal[i] -
+                      buildApplicable[i] - toWire[i] - prepareForApply[i] -
+                      validateShape[i] - validateTxSet[i];
+    }
+
+    struct PhaseRow
+    {
+        std::string name;
+        PhaseStats stats;
+    };
+
+    std::vector<PhaseRow> rows = {
+        {"total", computePhaseStats(total)},
+        {"phase_classic", computePhaseStats(classicTotal)},
+        {"| trim_invalid", computePhaseStats(trimClassic)},
+        {"| surge_pricing", computePhaseStats(surgeClassic)},
+        {"phase_soroban", computePhaseStats(sorobanTotal)},
+        {"| trim_invalid", computePhaseStats(trimSoroban)},
+        {"| surge_pricing", computePhaseStats(surgeSoroban)},
+        {"|   parallel_build", computePhaseStats(parallelBuild)},
+        {"|   *** soroban gap ***", computePhaseStats(sorobanSurgeGap)},
+        {"build_applicable", computePhaseStats(buildApplicable)},
+        {"to_wire", computePhaseStats(toWire)},
+        {"prepare_for_apply", computePhaseStats(prepareForApply)},
+        {"validate_shape", computePhaseStats(validateShape)},
+        {"validate_txset", computePhaseStats(validateTxSet)},
+        {"*** txset gap ***", computePhaseStats(totalGap)},
+    };
+
+    CLOG_WARNING(
+        Perf,
+        "Tx-set build timing breakdown ({} ledgers, all values in ms):", n);
+    CLOG_WARNING(
+        Perf, "{:<28s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}",
+        "phase", "mean", "stddev", "median", "p25", "p75", "p95",
+        "p99");
+    CLOG_WARNING(
+        Perf,
+        "{:-<28s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s}",
+        "", "", "", "", "", "", "", "");
+    for (auto const& r : rows)
+    {
+        CLOG_WARNING(Perf,
+                     "{:<28s} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} {:>8.2f} "
                      "{:>8.2f} {:>8.2f}",
                      r.name, r.stats.mean, r.stats.stddev, r.stats.median,
                      r.stats.p25, r.stats.p75, r.stats.p95, r.stats.p99);
@@ -988,9 +1085,12 @@ ApplyLoad::setup()
 void
 ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                        xdr::xvector<UpgradeType, 6> const& upgrades,
-                       bool recordSorobanUtilization)
+                       bool recordSorobanUtilization,
+                       TxSetBuildPhaseTimings* txSetBuildTimings)
 {
-    auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0);
+    auto txSet =
+        makeTxSetFromTransactions(txs, mApp, 0, 0, false, {},
+                                  txSetBuildTimings);
 
     if (recordSorobanUtilization)
     {
@@ -2084,6 +2184,8 @@ ApplyLoad::benchmarkModelTx()
     using Timings = LedgerManagerImpl::LedgerClosePhaseTimings;
     std::vector<Timings> allPhaseTimings;
     allPhaseTimings.reserve(config.APPLY_LOAD_NUM_LEDGERS);
+    std::vector<TxSetBuildPhaseTimings> allTxSetBuildTimings;
+    allTxSetBuildTimings.reserve(config.APPLY_LOAD_NUM_LEDGERS);
 
     CLOG_WARNING(Perf,
                  "Starting model transaction benchmark for {} ledgers with "
@@ -2096,24 +2198,28 @@ ApplyLoad::benchmarkModelTx()
     for (size_t i = 0; i < config.APPLY_LOAD_NUM_LEDGERS; ++i)
     {
         double closeTimeMs = 0.0;
+        TxSetBuildPhaseTimings txSetBuildTimings;
         switch (mModelTx)
         {
         case ApplyLoadModelTx::SAC:
             closeTimeMs = benchmarkModelTxTpsSingleLedger(
-                ApplyLoadModelTx::SAC, calculateBenchmarkModelTxCount());
+                ApplyLoadModelTx::SAC, calculateBenchmarkModelTxCount(),
+                &txSetBuildTimings);
             break;
         case ApplyLoadModelTx::CUSTOM_TOKEN:
             closeTimeMs = benchmarkModelTxTpsSingleLedger(
                 ApplyLoadModelTx::CUSTOM_TOKEN,
-                calculateBenchmarkModelTxCount());
+                calculateBenchmarkModelTxCount(), &txSetBuildTimings);
             break;
         case ApplyLoadModelTx::SOROSWAP:
             closeTimeMs = benchmarkModelTxTpsSingleLedger(
-                ApplyLoadModelTx::SOROSWAP, calculateBenchmarkModelTxCount());
+                ApplyLoadModelTx::SOROSWAP, calculateBenchmarkModelTxCount(),
+                &txSetBuildTimings);
             break;
         }
         closeTimes.emplace_back(closeTimeMs);
         allPhaseTimings.emplace_back(lm.getLastPhaseTimings());
+        allTxSetBuildTimings.emplace_back(txSetBuildTimings);
     }
 
     releaseAssert(!closeTimes.empty());
@@ -2153,11 +2259,14 @@ ApplyLoad::benchmarkModelTx()
 
     // Compute and output per-phase statistics table.
     logPhaseTimingsTable(allPhaseTimings);
+    logTxSetBuildTimingsTable(allTxSetBuildTimings);
 }
 
 double
 ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
-                                           uint32_t txsPerLedger)
+                                           uint32_t txsPerLedger,
+                                           TxSetBuildPhaseTimings*
+                                               txSetBuildTimings)
 {
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES
@@ -2202,7 +2311,7 @@ ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
     releaseAssert(
         mApp.getBucketManager().getHotArchiveBucketList().futuresAllResolved());
     double timeBefore = totalTxApplyTimer.sum();
-    closeLedger(txs);
+    closeLedger(txs, {}, false, txSetBuildTimings);
     double timeAfter = totalTxApplyTimer.sum();
 
     double closeTime = timeAfter - timeBefore;

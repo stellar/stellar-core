@@ -10,6 +10,8 @@
 namespace stellar
 {
 
+struct TxSetBuildPhaseTimings;
+
 class ApplyLoad
 {
   public:
@@ -28,7 +30,8 @@ class ApplyLoad
     // the benchmark runs.
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                      xdr::xvector<UpgradeType, 6> const& upgrades = {},
-                     bool recordSorobanUtilization = false);
+                     bool recordSorobanUtilization = false,
+                     TxSetBuildPhaseTimings* txSetBuildTimings = nullptr);
 
     // These metrics track what percentage of available resources were used when
     // creating the list of transactions in benchmark().
@@ -93,7 +96,9 @@ class ApplyLoad
     // Run a single ledger benchmark at the given TPS. Returns the close time
     // in milliseconds for that ledger.
     double benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
-                                           uint32_t txsPerLedger);
+                                           uint32_t txsPerLedger,
+                                           TxSetBuildPhaseTimings*
+                                               txSetBuildTimings = nullptr);
 
     // Run a single ledger benchmark for the model transaction mode. Returns
     // the close time in milliseconds for that ledger.
