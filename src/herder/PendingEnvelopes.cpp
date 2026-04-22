@@ -432,11 +432,6 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             if (isPartiallyFetched(envelope) &&
                 (type == SCP_ST_NOMINATE || type == SCP_ST_PREPARE))
             {
-                // TODO: This comment could be better vv
-                // If the envelope is partially fetched and the type is either
-                // SCP_ST_NOMINATE or SCP_ST_PREPARE, we can add it to the
-                // mPartiallyReadyEnvelopes set, so that we can process it
-                // later when the qset is fully fetched
                 partiallyReady.insert(envelope);
             }
         }
