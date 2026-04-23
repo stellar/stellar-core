@@ -158,6 +158,18 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
     }
+    else if (mode == "mixed_pregen_sac_payment")
+    {
+        return LoadGenMode::MIXED_PREGEN_SAC_PAYMENT;
+    }
+    else if (mode == "mixed_pregen_oz_token_transfer")
+    {
+        return LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER;
+    }
+    else if (mode == "mixed_pregen_soroswap_swap")
+    {
+        return LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
+    }
     else
     {
         throw std::runtime_error(
@@ -290,12 +302,14 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     }
 
     mTransactionsAppliedAtTheStart = getTxCount(mApp, cfg.isSoroban());
-    if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD &&
+    if ((cfg.mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD ||
+         cfg.modeMixesPregen()) &&
         !mApp.getRunInOverlayOnlyMode())
     {
         reset();
         throw std::runtime_error(
-            "Can only run SOROBAN_INVOKE_APPLY_LOAD in overlay only mode");
+            "Can only run SOROBAN_INVOKE_APPLY_LOAD / MIXED_PREGEN_* modes in "
+            "overlay only mode");
     }
     if (cfg.txRate == 0)
     {
@@ -418,7 +432,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     mPreLoadgenApplySorobanFailure =
         mTxGenerator.getApplySorobanFailure().count();
 
-    if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+    if (cfg.mode == LoadGenMode::PAY_PREGENERATED || cfg.modeMixesPregen())
     {
         if (!mPreloadedTransactionsFile)
         {
@@ -513,17 +527,17 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         }
     }
 
-    if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+    if (cfg.mode == LoadGenMode::PAY_PREGENERATED || cfg.modeMixesPregen())
     {
         if (mApp.getConfig().GENESIS_TEST_ACCOUNT_COUNT == 0)
         {
-            errorMsg = "PAY_PREGENERATED mode requires non-zero "
-                       "GENESIS_TEST_ACCOUNT_COUNT";
+            errorMsg = "PAY_PREGENERATED / MIXED_PREGEN_* modes require "
+                       "non-zero GENESIS_TEST_ACCOUNT_COUNT";
         }
         else if (cfg.preloadedTransactionsFile.empty())
         {
-            errorMsg =
-                "PAY_PREGENERATED mode requires preloadedTransactionsFile";
+            errorMsg = "PAY_PREGENERATED / MIXED_PREGEN_* modes require "
+                       "preloadedTransactionsFile";
         }
     }
 
@@ -606,6 +620,15 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
         modeStr = "SOROBAN_INVOKE_APPLY_LOAD";
         break;
+    case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
+        modeStr = "mixed_pregen_sac_payment";
+        break;
+    case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
+        modeStr = "mixed_pregen_oz_token_transfer";
+        break;
+    case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
+        modeStr = "mixed_pregen_soroswap_swap";
+        break;
     }
 
     ret["mode"] = modeStr;
@@ -672,7 +695,23 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         return;
     }
 
-    auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
+    // For MIXED_PREGEN_* modes, classic and soroban streams have independent
+    // TPS. Compute per-step budgets up front; the dispatch emits both streams
+    // within the same step.
+    int64_t mixedClassicBudget = 0;
+    int64_t mixedSorobanBudget = 0;
+    if (cfg.modeMixesPregen())
+    {
+        auto const& mix = cfg.getMixPregenSorobanConfig();
+        mixedClassicBudget =
+            getTxPerStep(mix.classicTxRate, cfg.spikeInterval, cfg.spikeSize);
+        mixedSorobanBudget =
+            getTxPerStep(mix.sorobanTxRate, cfg.spikeInterval, cfg.spikeSize);
+    }
+    auto txPerStep =
+        cfg.modeMixesPregen()
+            ? (mixedClassicBudget + mixedSorobanBudget)
+            : getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
     auto submitScope = mStepTimer.TimeScope();
 
     uint64_t now = mApp.timeNow();
@@ -688,7 +727,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     for (int64_t i = 0; i < txPerStep; ++i)
     {
         if (mAccountsAvailable.empty() &&
-            cfg.mode != LoadGenMode::PAY_PREGENERATED)
+            cfg.mode != LoadGenMode::PAY_PREGENERATED && !cfg.modeMixesPregen())
         {
             CLOG_WARNING(LoadGen,
                          "Load generation failed: no more accounts available");
@@ -698,7 +737,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         }
 
         uint64_t sourceAccountId = 0;
-        if (cfg.mode != LoadGenMode::PAY_PREGENERATED)
+        if (cfg.mode != LoadGenMode::PAY_PREGENERATED && !cfg.modeMixesPregen())
         {
             sourceAccountId = getNextAvailableAccount(ledgerNum);
         }
@@ -798,6 +837,29 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     dataEntrySize, cfg.maxGeneratedFeeRate);
             };
             break;
+        case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
+        case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
+        case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
+            generateTx = [&]() {
+                // Soroban stream drained first each step, then classic.
+                if (mixedSorobanBudget > 0)
+                {
+                    if (mAccountsAvailable.empty())
+                    {
+                        throw std::runtime_error(
+                            "Load generation failed: no more accounts "
+                            "available for soroban stream");
+                    }
+                    --mixedSorobanBudget;
+                    uint64_t srcId = getNextAvailableAccount(ledgerNum);
+                    return createSyntheticSorobanTransaction(ledgerNum, srcId,
+                                                             cfg);
+                }
+                releaseAssert(mixedClassicBudget > 0);
+                --mixedClassicBudget;
+                return readTransactionFromFile(cfg);
+            };
+            break;
         }
 
         try
@@ -871,14 +933,14 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             return false;
         }
 
-        // No re-submission in PAY_PREGENERATED mode.
+        // No re-submission in PAY_PREGENERATED / MIXED_PREGEN_* modes.
         // Each transaction is for a unique source account, so we
         // should not see BAD_SEQ error codes unless core is actually dropping
         // txs due to overload (in which case we should just fail loadgen,
         // instead of re-submitting)
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
             status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR ||
-            cfg.mode == LoadGenMode::PAY_PREGENERATED)
+            cfg.mode == LoadGenMode::PAY_PREGENERATED || cfg.modeMixesPregen())
         {
             mFailed = true;
             return false;
@@ -1028,6 +1090,72 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     }
     default:
         releaseAssert(false);
+    }
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+LoadGenerator::createSyntheticSorobanTransaction(uint32_t ledgerNum,
+                                                 uint64_t sourceAccountId,
+                                                 GeneratedLoadConfig const& cfg)
+{
+    switch (cfg.mode)
+    {
+    case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
+    {
+        if (!mSyntheticSACInstance)
+        {
+            mSyntheticSACInstance =
+                makeSyntheticContractInstance("loadgen_sac");
+        }
+        // Each tx targets a fresh synthetic destination to avoid RW conflicts.
+        SCAddress dest(SC_ADDRESS_TYPE_CONTRACT);
+        dest.contractId() = sha256(fmt::format(
+            "loadgen_sac_dest_{}_{}", ledgerNum, mSyntheticSACDestCounter++));
+        return mTxGenerator.invokeSACPayment(
+            ledgerNum, sourceAccountId, dest, *mSyntheticSACInstance,
+            /* amount */ 100, cfg.maxGeneratedFeeRate);
+    }
+    case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
+    {
+        if (!mSyntheticTokenInstance)
+        {
+            mSyntheticTokenInstance =
+                makeSyntheticContractInstance("loadgen_oz_token");
+        }
+        // Pick a destination account ID distinct from the source.
+        uint64_t toId =
+            rand_uniform<uint64_t>(0, cfg.nAccounts - 1) + cfg.offset;
+        if (toId == sourceAccountId)
+        {
+            toId = cfg.offset +
+                   ((sourceAccountId - cfg.offset + 1) % cfg.nAccounts);
+        }
+        return mTxGenerator.invokeTokenTransfer(
+            ledgerNum, sourceAccountId, toId, *mSyntheticTokenInstance,
+            /* amount */ 100, cfg.maxGeneratedFeeRate);
+    }
+    case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
+    {
+        if (!mSyntheticSoroswapState)
+        {
+            // Small fixed pool: 4 tokens, 2 pairs — enough to exercise
+            // round-robin + direction alternation.
+            mSyntheticSoroswapState =
+                makeSyntheticSoroswapState(/* numTokens */ 4,
+                                           /* numPairs */ 2);
+        }
+        auto const& state = *mSyntheticSoroswapState;
+        uint32_t pairIndex = mSyntheticSoroswapSwapCounter % state.pairs.size();
+        bool swapAForB =
+            (mSyntheticSoroswapSwapCounter / state.pairs.size()) % 2 == 0;
+        ++mSyntheticSoroswapSwapCounter;
+        return mTxGenerator.invokeSoroswapSwap(ledgerNum, sourceAccountId,
+                                               state, pairIndex, swapAForB,
+                                               cfg.maxGeneratedFeeRate);
+    }
+    default:
+        throw std::runtime_error(
+            "createSyntheticSorobanTransaction: unexpected mode");
     }
 }
 
@@ -1408,6 +1536,22 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
         txm.mSorobanInvokeTxs.Mark();
         break;
+    case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
+    case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
+    case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
+        // Both streams flow through here; classify by whether the tx is
+        // soroban.
+        if (txf->isSoroban())
+        {
+            txm.mSorobanInvokeTxs.Mark();
+        }
+        else
+        {
+            txm.mNativePayment.Mark(txf->getNumOperations());
+            txm.mNativePaymentBytes.Mark(
+                xdr::xdr_argpack_size(*txf->toStellarMessage()));
+        }
+        break;
     }
 
     txm.mTxnAttempted.Mark();
@@ -1415,8 +1559,14 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     auto msg = txf->toStellarMessage();
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
 
-    // Skip certain checks for pregenerated transactions
-    bool isPregeneratedTx = (mode == LoadGenMode::PAY_PREGENERATED);
+    // Skip certain checks for pregenerated transactions (MIXED_PREGEN_* modes
+    // also inject pregen txs, so flag them the same way — the flag is harmless
+    // for the soroban half under overlay-only).
+    bool isPregeneratedTx =
+        (mode == LoadGenMode::PAY_PREGENERATED) ||
+        (mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT) ||
+        (mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER) ||
+        (mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP);
     auto addResult = mApp.getHerder().recvTransaction(
         txf, true, /*force=*/false, /*isLoadgenTx=*/isPregeneratedTx);
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
@@ -1696,6 +1846,20 @@ GeneratedLoadConfig::getMixClassicSorobanConfig() const
     return mixClassicSorobanConfig;
 }
 
+GeneratedLoadConfig::MixPregenSorobanConfig&
+GeneratedLoadConfig::getMutMixPregenSorobanConfig()
+{
+    releaseAssert(modeMixesPregen());
+    return mixPregenSorobanConfig;
+}
+
+GeneratedLoadConfig::MixPregenSorobanConfig const&
+GeneratedLoadConfig::getMixPregenSorobanConfig() const
+{
+    releaseAssert(modeMixesPregen());
+    return mixPregenSorobanConfig;
+}
+
 uint32_t
 GeneratedLoadConfig::getMinSorobanPercentSuccess() const
 {
@@ -1741,7 +1905,7 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
            mode == LoadGenMode::PAY_PREGENERATED ||
-           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
+           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD || modeMixesPregen();
 }
 
 bool
@@ -1750,6 +1914,14 @@ GeneratedLoadConfig::modeInvokes() const
     return mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
            mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
+}
+
+bool
+GeneratedLoadConfig::modeMixesPregen() const
+{
+    return mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT ||
+           mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER ||
+           mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
 }
 
 bool

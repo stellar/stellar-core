@@ -1446,11 +1446,29 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
-        if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+        if (cfg.mode == LoadGenMode::PAY_PREGENERATED || cfg.modeMixesPregen())
         {
             // Always use the configuration file path
             cfg.preloadedTransactionsFile =
                 mApp.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+        }
+
+        if (cfg.modeMixesPregen())
+        {
+            auto& mix = cfg.getMutMixPregenSorobanConfig();
+            mix.classicTxRate =
+                parseOptionalParamOrDefault<uint32_t>(map, "classictxrate", 0);
+            mix.sorobanTxRate =
+                parseOptionalParamOrDefault<uint32_t>(map, "sorobantxrate", 0);
+            if (mix.classicTxRate == 0 && mix.sorobanTxRate == 0)
+            {
+                retStr = "At least one of classictxrate / sorobantxrate must "
+                         "be non-zero";
+                return;
+            }
+            // cfg.txRate is used for progress / step scheduling logs; set the
+            // combined rate so users see sensible throughput output.
+            cfg.txRate = mix.classicTxRate + mix.sorobanTxRate;
         }
 
         if (cfg.maxGeneratedFeeRate)

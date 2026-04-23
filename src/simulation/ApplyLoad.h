@@ -188,33 +188,8 @@ class ApplyLoad
     // Used to generate custom token transfer transactions
     TxGenerator::ContractInstance mTokenInstance;
 
-    // Soroswap AMM benchmark state
-    struct SoroswapPairInfo
-    {
-        SCAddress pairContractID;
-        uint32_t tokenAIndex;
-        uint32_t tokenBIndex;
-    };
-
-    struct SoroswapState
-    {
-        SCAddress factoryContractID;
-        SCAddress routerContractID;
-
-        std::vector<SoroswapPairInfo> pairs;
-        std::vector<TxGenerator::ContractInstance> sacInstances;
-
-        LedgerKey routerCodeKey;
-        LedgerKey pairCodeKey;
-        LedgerKey factoryCodeKey;
-
-        LedgerKey routerInstanceKey;
-        LedgerKey factoryInstanceKey;
-
-        std::vector<Asset> assets;
-        uint32_t numTokens = 0;
-    };
-    SoroswapState mSoroswapState;
+    // Soroswap AMM benchmark state (type defined in TxGenerator.h)
+    TxGenerator::SoroswapState mSoroswapState;
 
     // Counter for alternating swap direction per pair
     std::vector<uint32_t> mSoroswapSwapCounters;

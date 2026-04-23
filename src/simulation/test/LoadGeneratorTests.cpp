@@ -108,6 +108,110 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
         500 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
+          "[loadgen]")
+{
+    // Pregen source accounts live in [nAccounts, 2*nAccounts); soroban source
+    // accounts live in [0, nAccounts). GENESIS_TEST_ACCOUNT_COUNT must cover
+    // both disjoint ranges.
+    uint32_t const nAccounts = 200;
+    uint32_t const genesisAccountCount = nAccounts * 2;
+    uint32_t const nTxs = 60;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            cfg.GENESIS_TEST_ACCOUNT_COUNT = genesisAccountCount;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];
+
+    // Max out Soroban network limits so synthetic footprints pass checkValid.
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            auto mx = std::numeric_limits<uint32_t>::max();
+            cfg.mLedgerMaxTxCount = mx;
+            cfg.mLedgerMaxInstructions = mx;
+            cfg.mLedgerMaxTransactionsSizeBytes = mx;
+            cfg.mLedgerMaxDiskReadEntries = mx;
+            cfg.mLedgerMaxDiskReadBytes = mx;
+            cfg.mLedgerMaxWriteLedgerEntries = mx;
+            cfg.mLedgerMaxWriteBytes = mx;
+            cfg.mTxMaxInstructions = mx;
+            cfg.mTxMaxDiskReadEntries = mx;
+            cfg.mTxMaxDiskReadBytes = mx;
+            cfg.mTxMaxWriteLedgerEntries = mx;
+            cfg.mTxMaxWriteBytes = mx;
+            cfg.mTxMaxFootprintEntries = mx;
+            cfg.mTxMaxSizeBytes = mx;
+            cfg.mTxMaxContractEventsSizeBytes = mx;
+        },
+        simulation);
+
+    // Generate a pregen payments file targeting the upper half of the account
+    // range, so the classic stream never collides with the soroban stream.
+    std::string fileName =
+        app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+    auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
+    generateTransactions(app, fileName, nTxs, nAccounts,
+                         /* offset */ nAccounts);
+
+    for (auto& node : nodes)
+    {
+        node->setRunInOverlayOnlyMode(true);
+    }
+
+    auto prev = app.getMetrics()
+                    .NewMeter({"loadgen", "run", "complete"}, "run")
+                    .count();
+
+    auto runMixed = [&](LoadGenMode mode) {
+        GeneratedLoadConfig cfg =
+            GeneratedLoadConfig::txLoad(mode, nAccounts, nTxs,
+                                        /* txRate */ 1, /* offset */ nAccounts);
+        cfg.preloadedTransactionsFile =
+            app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+        auto& mix = cfg.getMutMixPregenSorobanConfig();
+        mix.classicTxRate = 20;
+        mix.sorobanTxRate = 5;
+        cfg.txRate = mix.classicTxRate + mix.sorobanTxRate;
+        app.getLoadGenerator().generateLoad(cfg);
+    };
+
+    SECTION("sac payment")
+    {
+        runMixed(LoadGenMode::MIXED_PREGEN_SAC_PAYMENT);
+    }
+    SECTION("oz token transfer")
+    {
+        runMixed(LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER);
+    }
+    SECTION("soroswap swap")
+    {
+        runMixed(LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP);
+    }
+
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == prev + 1;
+        },
+        500 * simulation->getExpectedLedgerCloseTime(), false);
+}
+
 TEST_CASE("generate load in protocol 1", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
