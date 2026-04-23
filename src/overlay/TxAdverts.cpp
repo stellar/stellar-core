@@ -66,6 +66,22 @@ TxAdverts::startAdvertTimer()
     });
 }
 
+size_t
+TxAdverts::getTxLimit()
+{
+    auto& lm = mApp.getLedgerManager();
+    size_t classic = lm.getLastMaxTxSetSizeOps();
+    if (protocolVersionStartsFrom(
+            lm.getLastClosedLedgerHeader().header.ledgerVersion,
+            SOROBAN_PROTOCOL_VERSION))
+    {
+
+        return classic +
+               lm.getLastClosedSorobanNetworkConfig().ledgerMaxTxCount();
+    }
+    return classic;
+}
+
 void
 TxAdverts::queueOutgoingAdvert(Hash const& txHash)
 {
@@ -108,7 +124,8 @@ void
 TxAdverts::retryIncomingAdvert(std::list<Hash>& list)
 {
     mTxHashesToRetry.splice(mTxHashesToRetry.end(), list);
-    while (size() > mApp.getLedgerManager().getLastMaxTxSetSizeOps())
+    size_t const limit = getTxLimit();
+    while (size() > limit)
     {
         popIncomingAdvert();
     }
@@ -123,11 +140,11 @@ TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
     }
 
     auto it = txHashes.begin();
-    size_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+    size_t const limit = getTxLimit();
     if (txHashes.size() > limit)
     {
-        // If txHashes has more than getLastMaxTxSetSizeOps txns, then
-        // the first (txHashes.size() - getLastMaxTxSetSizeOps) txns will be
+        // If txHashes has more than limit txns, then
+        // the first (txHashes.size() - limit) txns will be
         // popped in the while loop below. Therefore, we won't even bother
         // pushing them.
         it += txHashes.size() - limit;
