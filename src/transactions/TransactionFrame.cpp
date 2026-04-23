@@ -1723,11 +1723,11 @@ TransactionFrame::commonValid(
             {
                 current = sourceAccount->current().data.account().seqNum;
             }
-            bool forceCheck = true;
+            bool skipCheck = false;
 #ifdef BUILD_TESTS
-            forceCheck = !ledgerView.mSkipSeqNumCheck;
+            skipCheck = ledgerView.mSkipSeqNumCheck;
 #endif
-            if (forceCheck && isBadSeq(header, current))
+            if (!skipCheck && isBadSeq(header, current))
             {
                 txResult.setInnermostError(txBAD_SEQ);
                 return;

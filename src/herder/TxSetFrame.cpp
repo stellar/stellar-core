@@ -2144,7 +2144,14 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
         releaseAssert(mPhases.size() == 1);
     }
 
-    if (needGeneralizedTxSet)
+    bool enforceUniqueSourceAccount = needGeneralizedTxSet;
+#ifdef BUILD_TESTS
+    if (app.getRunInOverlayOnlyMode())
+    {
+        enforceUniqueSourceAccount = false;
+    }
+#endif
+    if (enforceUniqueSourceAccount)
     {
         // Ensure the tx set does not contain multiple txs per source
         // account

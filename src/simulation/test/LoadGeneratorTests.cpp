@@ -111,11 +111,8 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
 TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
           "[loadgen]")
 {
-    // Pregen source accounts live in [nAccounts, 2*nAccounts); soroban source
-    // accounts live in [0, nAccounts). GENESIS_TEST_ACCOUNT_COUNT must cover
-    // both disjoint ranges.
     uint32_t const nAccounts = 200;
-    uint32_t const genesisAccountCount = nAccounts * 2;
+    uint32_t const genesisAccountCount = nAccounts;
     uint32_t const nTxs = 60;
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -160,13 +157,14 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
         },
         simulation);
 
-    // Generate a pregen payments file targeting the upper half of the account
-    // range, so the classic stream never collides with the soroban stream.
+    // Both classic pregen and synthetic soroban streams draw from the same
+    // account pool; cross-queue source-account conflicts are allowed in
+    // overlay-only mode (HerderImpl bypasses the one-tx-per-source-per-ledger
+    // check), so no disjointness is required.
     std::string fileName =
         app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
     auto cleanup = gsl::finally([&]() { std::remove(fileName.c_str()); });
-    generateTransactions(app, fileName, nTxs, nAccounts,
-                         /* offset */ nAccounts);
+    generateTransactions(app, fileName, nTxs, nAccounts, /* offset */ 0);
 
     for (auto& node : nodes)
     {
@@ -180,7 +178,7 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
     auto runMixed = [&](LoadGenMode mode) {
         GeneratedLoadConfig cfg =
             GeneratedLoadConfig::txLoad(mode, nAccounts, nTxs,
-                                        /* txRate */ 1, /* offset */ nAccounts);
+                                        /* txRate */ 1, /* offset */ 0);
         cfg.preloadedTransactionsFile =
             app.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
         auto& mix = cfg.getMutMixPregenSorobanConfig();
@@ -209,7 +207,7 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
                        .NewMeter({"loadgen", "run", "complete"}, "run")
                        .count() == prev + 1;
         },
-        500 * simulation->getExpectedLedgerCloseTime(), false);
+        100 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
 TEST_CASE("generate load in protocol 1", "[loadgen]")

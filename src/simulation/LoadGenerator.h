@@ -274,7 +274,6 @@ class LoadGenerator
     // Set when load generation actually begins
     std::unique_ptr<VirtualClock::time_point> mStartTime;
 
-    uint32_t mTransactionsAppliedAtTheStart = 0;
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
@@ -317,6 +316,16 @@ class LoadGenerator
     uint32_t mSyntheticSACDestCounter{0};
     // Round-robin counter for Soroswap pair selection + direction.
     uint32_t mSyntheticSoroswapSwapCounter{0};
+    // Per-stream submission counters, tracked for every mode. For single-
+    // stream modes one of them stays at 0, which makes the waitTillComplete
+    // check trivially hold for that stream. For MIXED_PREGEN_* both are used.
+    uint64_t mClassicSubmitted{0};
+    uint64_t mSorobanSubmitted{0};
+    // Per-stream applied-at-start snapshots captured in start(), so
+    // waitTillComplete compares per-stream applied deltas against per-stream
+    // submitted counters.
+    uint32_t mClassicAppliedAtStart{0};
+    uint32_t mSorobanAppliedAtStart{0};
 
     TxGenerator::TestAccountPtr mRoot;
 
@@ -340,6 +349,11 @@ class LoadGenerator
     void resetSorobanState();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
+    // Variant that paces against a caller-provided submitted counter, used for
+    // MIXED_PREGEN_* where classic and soroban streams have independent rates
+    // and must not share mTotalSubmitted.
+    int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
+                         uint32_t spikeSize, uint64_t submittedSoFar);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);

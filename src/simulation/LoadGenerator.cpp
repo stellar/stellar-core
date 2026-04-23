@@ -98,6 +98,14 @@ getTxCount(Application& app, bool isSoroban)
     }
 }
 
+static bool
+isMixedPregenMode(LoadGenMode mode)
+{
+    return mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT ||
+           mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER ||
+           mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
+}
+
 LoadGenerator::LoadGenerator(Application& app)
     : mTxGenerator(app)
     , mApp(app)
@@ -192,6 +200,13 @@ int64_t
 LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                             uint32_t spikeSize)
 {
+    return getTxPerStep(txRate, spikeInterval, spikeSize, mTotalSubmitted);
+}
+
+int64_t
+LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
+                            uint32_t spikeSize, uint64_t submittedSoFar)
+{
     if (!mStartTime)
     {
         throw std::runtime_error("Load generation start time must be set");
@@ -213,12 +228,12 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                spikeSize;
     }
 
-    if (txs <= mTotalSubmitted)
+    if (txs <= static_cast<int64_t>(submittedSoFar))
     {
         return 0;
     }
 
-    return txs - mTotalSubmitted;
+    return txs - static_cast<int64_t>(submittedSoFar);
 }
 
 void
@@ -258,13 +273,21 @@ LoadGenerator::reset()
     mLoadTimer.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
+    mClassicSubmitted = 0;
+    mSorobanSubmitted = 0;
+    mClassicAppliedAtStart = 0;
+    mSorobanAppliedAtStart = 0;
+    mSyntheticSACInstance.reset();
+    mSyntheticTokenInstance.reset();
+    mSyntheticSoroswapState.reset();
+    mSyntheticSACDestCounter = 0;
+    mSyntheticSoroswapSwapCounter = 0;
     mWaitTillCompleteForLedgers = 0;
     mFailed = false;
     mStarted = false;
 
     mPreLoadgenApplySorobanSuccess = 0;
     mPreLoadgenApplySorobanFailure = 0;
-    mTransactionsAppliedAtTheStart = 0;
 }
 
 // Reset Soroban persistent state
@@ -301,7 +324,8 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         return;
     }
 
-    mTransactionsAppliedAtTheStart = getTxCount(mApp, cfg.isSoroban());
+    mClassicAppliedAtStart = getTxCount(mApp, /* isSoroban */ false);
+    mSorobanAppliedAtStart = getTxCount(mApp, /* isSoroban */ true);
     if ((cfg.mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD ||
          cfg.modeMixesPregen()) &&
         !mApp.getRunInOverlayOnlyMode())
@@ -696,17 +720,17 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     // For MIXED_PREGEN_* modes, classic and soroban streams have independent
-    // TPS. Compute per-step budgets up front; the dispatch emits both streams
-    // within the same step.
+    // TPS. Compute per-step budgets from per-stream submitted counters so one
+    // stream's output doesn't starve the other (mTotalSubmitted is shared).
     int64_t mixedClassicBudget = 0;
     int64_t mixedSorobanBudget = 0;
     if (cfg.modeMixesPregen())
     {
         auto const& mix = cfg.getMixPregenSorobanConfig();
-        mixedClassicBudget =
-            getTxPerStep(mix.classicTxRate, cfg.spikeInterval, cfg.spikeSize);
-        mixedSorobanBudget =
-            getTxPerStep(mix.sorobanTxRate, cfg.spikeInterval, cfg.spikeSize);
+        mixedClassicBudget = getTxPerStep(mix.classicTxRate, cfg.spikeInterval,
+                                          cfg.spikeSize, mClassicSubmitted);
+        mixedSorobanBudget = getTxPerStep(mix.sorobanTxRate, cfg.spikeInterval,
+                                          cfg.spikeSize, mSorobanSubmitted);
     }
     auto txPerStep =
         cfg.modeMixesPregen()
@@ -745,6 +769,10 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         std::function<std::pair<TxGenerator::TestAccountPtr,
                                 TransactionFrameBaseConstPtr>()>
             generateTx;
+
+        // Set by the MIXED_PREGEN_* lambda so the outer loop can bump the
+        // correct per-stream submitted counter after a successful submit.
+        bool isMixedSorobanTx = false;
 
         switch (cfg.mode)
         {
@@ -851,12 +879,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                             "available for soroban stream");
                     }
                     --mixedSorobanBudget;
+                    isMixedSorobanTx = true;
                     uint64_t srcId = getNextAvailableAccount(ledgerNum);
                     return createSyntheticSorobanTransaction(ledgerNum, srcId,
                                                              cfg);
                 }
                 releaseAssert(mixedClassicBudget > 0);
                 --mixedClassicBudget;
+                isMixedSorobanTx = false;
                 return readTransactionFromFile(cfg);
             };
             break;
@@ -867,6 +897,18 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             if (submitTx(cfg, generateTx))
             {
                 --cfg.nTxs;
+                // Mixed modes decide per-tx via the lambda; other modes are
+                // classified by the mode as a whole.
+                bool isSorobanTx =
+                    cfg.modeMixesPregen() ? isMixedSorobanTx : cfg.isSoroban();
+                if (isSorobanTx)
+                {
+                    ++mSorobanSubmitted;
+                }
+                else
+                {
+                    ++mClassicSubmitted;
+                }
             }
         }
         catch (std::runtime_error const& e)
@@ -1335,14 +1377,20 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     bool sorobanIsDone = false;
     if (mApp.getRunInOverlayOnlyMode())
     {
-        auto count = getTxCount(mApp, cfg.isSoroban());
-        CLOG_INFO(LoadGen, "Transaction count: {}", count);
-        CLOG_INFO(LoadGen, "Transactions applied at the start: {}",
-                  mTransactionsAppliedAtTheStart);
-        CLOG_INFO(LoadGen, "Transactions applied: {}", mTotalSubmitted);
-        classicIsDone =
-            (count - mTransactionsAppliedAtTheStart) == mTotalSubmitted;
-        sorobanIsDone = classicIsDone;
+        // Per-stream accounting works for every mode: single-stream modes
+        // leave the unused counter at 0, so its "applied == submitted" check
+        // holds trivially.
+        auto classicApplied =
+            getTxCount(mApp, /* isSoroban */ false) - mClassicAppliedAtStart;
+        auto sorobanApplied =
+            getTxCount(mApp, /* isSoroban */ true) - mSorobanAppliedAtStart;
+        CLOG_INFO(LoadGen,
+                  "Classic applied {} (submitted {}), "
+                  "soroban applied {} (submitted {})",
+                  classicApplied, mClassicSubmitted, sorobanApplied,
+                  mSorobanSubmitted);
+        classicIsDone = classicApplied == mClassicSubmitted;
+        sorobanIsDone = sorobanApplied == mSorobanSubmitted;
     }
     else
     {
@@ -1559,14 +1607,11 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
     auto msg = txf->toStellarMessage();
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
 
-    // Skip certain checks for pregenerated transactions (MIXED_PREGEN_* modes
-    // also inject pregen txs, so flag them the same way — the flag is harmless
-    // for the soroban half under overlay-only).
-    bool isPregeneratedTx =
-        (mode == LoadGenMode::PAY_PREGENERATED) ||
-        (mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT) ||
-        (mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER) ||
-        (mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP);
+    // Skip certain checks for pregenerated classic transactions. The synthetic
+    // Soroban half of MIXED_PREGEN_* is generated locally, but must still go
+    // through overlay validation so network resource limits are exercised.
+    bool isPregeneratedTx = (mode == LoadGenMode::PAY_PREGENERATED) ||
+                            (isMixedPregenMode(mode) && !txf->isSoroban());
     auto addResult = mApp.getHerder().recvTransaction(
         txf, true, /*force=*/false, /*isLoadgenTx=*/isPregeneratedTx);
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
@@ -1919,9 +1964,7 @@ GeneratedLoadConfig::modeInvokes() const
 bool
 GeneratedLoadConfig::modeMixesPregen() const
 {
-    return mode == LoadGenMode::MIXED_PREGEN_SAC_PAYMENT ||
-           mode == LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER ||
-           mode == LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP;
+    return isMixedPregenMode(mode);
 }
 
 bool

@@ -641,7 +641,11 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     bool hasClassic =
         mTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
         tx->isSoroban();
-    if (hasSoroban || hasClassic)
+    bool enforceSourceAccountLimit = true;
+#ifdef BUILD_TESTS
+    enforceSourceAccountLimit = !mApp.getRunInOverlayOnlyMode();
+#endif
+    if (enforceSourceAccountLimit && (hasSoroban || hasClassic))
     {
         CLOG_DEBUG(Herder,
                    "recv transaction {} for {} rejected due to 1 tx per source "
