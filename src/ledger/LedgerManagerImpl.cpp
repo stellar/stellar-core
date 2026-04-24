@@ -3338,21 +3338,18 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // - updateState modifies mInMemorySorobanState
     // All three can run in parallel.
     std::future<void> inMemoryStateUpdateFuture;
-    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
-    {
-        auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
-        auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
 
-        inMemoryStateUpdateFuture = std::async(
-            std::launch::async,
-            [&inMemoryState, &initEntries, &liveEntries, &deadEntries, &lh,
-             &finalSorobanConfig, &sorobanMetrics]() {
-                ZoneScopedN("updateInMemorySorobanState (async)");
-                inMemoryState.updateState(initEntries, liveEntries, deadEntries,
-                                          lh, finalSorobanConfig,
-                                          sorobanMetrics);
-            });
-    }
+    auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
+    auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
+
+    inMemoryStateUpdateFuture = std::async(
+        std::launch::async,
+        [&inMemoryState, &initEntries, &liveEntries, &deadEntries, &lh,
+         &finalSorobanConfig, &sorobanMetrics]() {
+            ZoneScopedN("updateInMemorySorobanState (async)");
+            inMemoryState.updateState(initEntries, liveEntries, deadEntries, lh,
+                                      finalSorobanConfig, sorobanMetrics);
+        });
 
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
