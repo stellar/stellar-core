@@ -48,8 +48,7 @@ class ParallelApplyLedgerKey
 {
   public:
     ParallelApplyLedgerKey() = default;
-    ParallelApplyLedgerKey(LedgerKey const& ledgerKey)
-        : mLedgerKey(ledgerKey)
+    ParallelApplyLedgerKey(LedgerKey const& ledgerKey) : mLedgerKey(ledgerKey)
     {
     }
 
@@ -81,8 +80,7 @@ class ParallelApplyLedgerKey
 };
 
 inline bool
-operator==(ParallelApplyLedgerKey const& lhs,
-           ParallelApplyLedgerKey const& rhs)
+operator==(ParallelApplyLedgerKey const& lhs, ParallelApplyLedgerKey const& rhs)
 {
     return lhs.ledgerKey() == rhs.ledgerKey();
 }
@@ -97,8 +95,7 @@ using ParallelApplyLedgerKeyMap = UnorderedMap<ParallelApplyLedgerKey, T>;
 // updated with the entries from the TxModifiedEntryMap.
 using TxParApplyLedgerEntry =
     ScopedLedgerEntry<StaticLedgerEntryScope::TxParApply>;
-using TxModifiedEntryMap =
-    ParallelApplyLedgerKeyMap<TxParApplyLedgerEntryOpt>;
+using TxModifiedEntryMap = ParallelApplyLedgerKeyMap<TxParApplyLedgerEntryOpt>;
 
 struct ParallelPreApplyInfo
 {
@@ -140,8 +137,7 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
     }
     template <StaticLedgerEntryScope S2>
     ParallelApplyEntry<S2>
-    rescope(LedgerEntryScope<S> const& s1,
-            LedgerEntryScope<S2> const& s2) &&
+    rescope(LedgerEntryScope<S> const& s1, LedgerEntryScope<S2> const& s2) &&
     {
         auto adoptedEntry =
             s2.scopeAdoptEntryOptFrom(std::move(mLedgerEntry), s1);
@@ -162,8 +158,7 @@ using TxParallelApplyEntry =
 // threads return, the updates from each threads entry map should be committed
 // to LedgerTxn.
 template <StaticLedgerEntryScope S>
-using ParallelApplyEntryMap =
-    ParallelApplyLedgerKeyMap<ParallelApplyEntry<S>>;
+using ParallelApplyEntryMap = ParallelApplyLedgerKeyMap<ParallelApplyEntry<S>>;
 using GlobalParallelApplyEntryMap =
     ParallelApplyEntryMap<StaticLedgerEntryScope::GlobalParApply>;
 using ThreadParallelApplyEntryMap =

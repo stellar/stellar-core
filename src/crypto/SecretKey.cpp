@@ -360,7 +360,8 @@ PubKeyUtils::seedVerifySigCache(unsigned int seed)
     for (size_t i = 0; i < NUM_VERIFY_CACHE_SHARDS; ++i)
     {
         std::lock_guard<std::mutex> guard(gVerifySigCacheShards[i].mMutex);
-        gVerifySigCacheShards[i].mCache.seed(seed + static_cast<unsigned int>(i));
+        gVerifySigCacheShards[i].mCache.seed(seed +
+                                             static_cast<unsigned int>(i));
     }
 }
 
@@ -479,8 +480,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     auto cacheKey = verifySigCacheKey(key, signature, bin);
 
     // Select shard based on cache key hash to distribute lock contention
-    auto shardIdx =
-        std::hash<Hash>{}(cacheKey) % NUM_VERIFY_CACHE_SHARDS;
+    auto shardIdx = std::hash<Hash>{}(cacheKey) % NUM_VERIFY_CACHE_SHARDS;
     auto& shard = gVerifySigCacheShards[shardIdx];
 
     {

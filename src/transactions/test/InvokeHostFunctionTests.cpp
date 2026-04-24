@@ -7936,8 +7936,8 @@ TEST_CASE("protocol 26 parallel apply removes soroban pre-auth signer",
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     auto resources =
         defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
-    auto tx = makeSorobanWasmUploadTx(test.getApp(), source, wasm, resources,
-                                      1000);
+    auto tx =
+        makeSorobanWasmUploadTx(test.getApp(), source, wasm, resources, 1000);
     tx->getMutableEnvelope().v1().signatures.clear();
 
     SignerKey txSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);
@@ -7988,14 +7988,13 @@ TEST_CASE("protocol 26 parallel apply removes soroban fee bump pre-auth "
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     auto resources =
         defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
-    auto innerTx = makeSorobanWasmUploadTx(test.getApp(), source, wasm,
-                                           resources, 1000);
+    auto innerTx =
+        makeSorobanWasmUploadTx(test.getApp(), source, wasm, resources, 1000);
     innerTx->getMutableEnvelope().v1().signatures.clear();
 
-    auto feeBumpTx = feeBump(
-        test.getApp(), feeBumper, innerTx,
-        innerTx->getEnvelope().v1().tx.fee * 5,
-        /*useInclusionAsFullFee=*/true);
+    auto feeBumpTx = feeBump(test.getApp(), feeBumper, innerTx,
+                             innerTx->getEnvelope().v1().tx.fee * 5,
+                             /*useInclusionAsFullFee=*/true);
     feeBumpTx->getMutableEnvelope().feeBump().signatures.clear();
 
     SignerKey innerSigner(SIGNER_KEY_TYPE_PRE_AUTH_TX);

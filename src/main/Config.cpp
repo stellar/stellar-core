@@ -1195,9 +1195,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
                  }},
                 {"DISABLE_TX_META_FOR_TESTING",
-                 [&]() {
-                     DISABLE_TX_META_FOR_TESTING = readBool(item);
-                 }},
+                 [&]() { DISABLE_TX_META_FOR_TESTING = readBool(item); }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
                      CLOG_WARNING(Overlay,
@@ -1474,8 +1472,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { WORKER_THREADS = readInt<int>(item, 2, 1000); }},
                 {"LEDGER_CLOSE_WORKER_THREADS",
                  [&]() {
-                     LEDGER_CLOSE_WORKER_THREADS =
-                         readInt<int>(item, 1, 100);
+                     LEDGER_CLOSE_WORKER_THREADS = readInt<int>(item, 1, 100);
                  }},
                 {"QUERY_THREAD_POOL_SIZE",
                  [&]() {

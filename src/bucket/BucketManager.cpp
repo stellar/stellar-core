@@ -1184,8 +1184,9 @@ BucketManager::resolveBackgroundEvictionScan(
     // Production path: uses direct O(1) lookups in the LedgerTxn's EntryMap
     // via isModifiedKey(), avoiding building a full UnorderedSet of all ~128K
     // modified keys (~20ms saved per ledger).
-    auto isModifiedKey = [&ltx](LedgerKey const& k)
-    { return ltx.isModifiedKey(k); };
+    auto isModifiedKey = [&ltx](LedgerKey const& k) {
+        return ltx.isModifiedKey(k);
+    };
 
     ZoneScoped;
     releaseAssert(mEvictionStatistics);

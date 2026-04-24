@@ -119,12 +119,11 @@ TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
-                                 SequenceNumber current,
-                                 uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset,
-                                 DiagnosticEventManager& diagnosticEvents,
-                                 SorobanNetworkConfig const* sorobanConfig) const
+TransactionTestFrame::checkValid(
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    DiagnosticEventManager& diagnosticEvents,
+    SorobanNetworkConfig const* sorobanConfig) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
         app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
@@ -381,18 +380,16 @@ void
 TransactionTestFrame::preParallelApplyReadOnly(
     AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig,
-    ParallelPreApplyInfo& info) const
+    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
 {
     mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
                                                 sorobanConfig, info);
 }
 
 void
-TransactionTestFrame::preParallelApplyWrite(AppConnector& app,
-                                            AbstractLedgerTxn& ltx,
-                                            TransactionMetaBuilder& meta,
-                                            ParallelPreApplyInfo const& info) const
+TransactionTestFrame::preParallelApplyWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    ParallelPreApplyInfo const& info) const
 {
     mTransactionFrame->preParallelApplyWrite(app, ltx, meta, info);
 }

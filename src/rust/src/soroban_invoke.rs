@@ -22,19 +22,19 @@ pub(crate) fn invoke_host_function(
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, ledger_info.protocol_version)?;
     let res = (hm.invoke_host_function)(
-                    enable_diagnostics,
-                    instruction_limit,
-                    hf_buf,
-                    &resources_buf,
-                    restored_rw_entry_indices,
-                    source_account_buf,
-                    auth_entries,
-                    ledger_info,
-                    ledger_entries,
-                    ttl_entries,
-                    base_prng_seed,
-                    &rent_fee_configuration,
-                    module_cache,
+        enable_diagnostics,
+        instruction_limit,
+        hf_buf,
+        &resources_buf,
+        restored_rw_entry_indices,
+        source_account_buf,
+        auth_entries,
+        ledger_info,
+        ledger_entries,
+        ttl_entries,
+        base_prng_seed,
+        &rent_fee_configuration,
+        module_cache,
     );
 
     #[cfg(feature = "testutils")]

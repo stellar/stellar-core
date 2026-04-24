@@ -1669,8 +1669,8 @@ TransactionFrame::commonValid(
     SequenceNumber current, bool applying, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     Hash const& envelopeContentsHash, std::optional<FeePair> sorobanResourceFee,
-                              MutableTransactionResultBase& txResult,
-                              DiagnosticEventManager& diagnosticEvents) const
+    MutableTransactionResultBase& txResult,
+    DiagnosticEventManager& diagnosticEvents) const
 {
     ZoneScoped;
     ValidationType res = ValidationType::kInvalid;
@@ -1898,11 +1898,10 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     MutableTransactionResultBase& txResult,
     DiagnosticEventManager& diagnosticEvents) const
 {
-    checkValidWithOptionallyChargedFee(app, ls, current, chargeFee,
-                                       lowerBoundCloseTimeOffset,
-                                       upperBoundCloseTimeOffset,
-                                       envelopeContentsHash, txResult,
-                                       diagnosticEvents, nullptr);
+    checkValidWithOptionallyChargedFee(
+        app, ls, current, chargeFee, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, envelopeContentsHash, txResult,
+        diagnosticEvents, nullptr);
 }
 
 void
@@ -1938,9 +1937,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                 ledgerVersion, *effectiveSorobanConfig, app.getConfig());
         }
     }
-    if (commonValid(app, effectiveSorobanConfig, signatureChecker, ls,
-                    current, false, chargeFee,
-                    lowerBoundCloseTimeOffset,
+    if (commonValid(app, effectiveSorobanConfig, signatureChecker, ls, current,
+                    false, chargeFee, lowerBoundCloseTimeOffset,
                     upperBoundCloseTimeOffset, envelopeContentsHash,
                     sorobanResourceFee, txResult,
                     diagnosticEvents) != ValidationType::kMaybeValid)
@@ -2148,8 +2146,8 @@ std::unique_ptr<SignatureChecker>
 TransactionFrame::commonParallelPreApplyReadOnly(
     bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const* sorobanConfig,
-    Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
+    SorobanNetworkConfig const* sorobanConfig, Hash const& envelopeContentsHash,
+    ParallelPreApplyInfo& info) const
 {
     mCachedAccountPreProtocol8.reset();
     uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
@@ -2183,10 +2181,10 @@ TransactionFrame::commonParallelPreApplyReadOnly(
         txResult.initializeRefundableFeeTracker(initialFeeRefund);
     }
 
-    auto cv = commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
-                          chargeFee, 0, 0, envelopeContentsHash,
-                          sorobanResourceFee, txResult,
-                          meta.getDiagnosticEventManager());
+    auto cv =
+        commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
+                    chargeFee, 0, 0, envelopeContentsHash, sorobanResourceFee,
+                    txResult, meta.getDiagnosticEventManager());
     info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
 
     bool signaturesValid =
@@ -2200,11 +2198,10 @@ TransactionFrame::commonParallelPreApplyReadOnly(
 }
 
 bool
-TransactionFrame::processSignaturesReadOnly(ValidationType cv,
-                                            SignatureChecker& signatureChecker,
-                                            LedgerSnapshot const& ls,
-                                            MutableTransactionResultBase& txResult,
-                                            ParallelPreApplyInfo& info) const
+TransactionFrame::processSignaturesReadOnly(
+    ValidationType cv, SignatureChecker& signatureChecker,
+    LedgerSnapshot const& ls, MutableTransactionResultBase& txResult,
+    ParallelPreApplyInfo& info) const
 {
     ZoneScoped;
     bool maybeValid = (cv == ValidationType::kMaybeValid);
@@ -2264,8 +2261,7 @@ void
 TransactionFrame::preParallelApplyReadOnly(
     AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig,
-    ParallelPreApplyInfo& info) const
+    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
 {
     preParallelApplyReadOnly(true, app, ls, meta, txResult, sorobanConfig,
                              getContentsHash(), info);
@@ -2275,8 +2271,8 @@ void
 TransactionFrame::preParallelApplyReadOnly(
     bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig,
-    Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
+    SorobanNetworkConfig const& sorobanConfig, Hash const& envelopeContentsHash,
+    ParallelPreApplyInfo& info) const
 {
     ZoneScoped;
     try
@@ -2372,7 +2368,6 @@ TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
         preParallelApplyReadOnly(chargeFee, app, ls, meta, txResult,
                                  sorobanConfig, envelopeContentsHash, info);
         preParallelApplyWrite(app, ltx, meta, info);
-
     }
     catch (std::exception& e)
     {

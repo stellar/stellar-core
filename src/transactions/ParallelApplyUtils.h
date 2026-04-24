@@ -116,14 +116,13 @@ class ThreadParallelApplyLedgerState
         Cluster const& cluster);
 
     void upsertEntry(LedgerKey const& key,
-                     ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq, bool isNew = false);
+                     ThreadParApplyLedgerEntry const& entry, uint32_t ledgerSeq,
+                     bool isNew = false);
     void eraseEntry(LedgerKey const& key, bool isNew = false);
     void
-    commitChangeFromSuccessfulTx(
-        ParallelApplyLedgerKey const& key,
-        ThreadParApplyLedgerEntryOpt const& entryOpt,
-        ParallelApplyLedgerKeySet const& roTTLSet);
+    commitChangeFromSuccessfulTx(ParallelApplyLedgerKey const& key,
+                                 ThreadParApplyLedgerEntryOpt const& entryOpt,
+                                 ParallelApplyLedgerKeySet const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -226,9 +225,9 @@ class GlobalParallelApplyLedgerState
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages);
 
-    void readOnlyPreParallelApply(
-        AppConnector& app,
-        std::vector<TxBundle const*> const& txBundles);
+    void
+    readOnlyPreParallelApply(AppConnector& app,
+                             std::vector<TxBundle const*> const& txBundles);
 
     void commitBufferedPreParallelApplyWrites(
         AppConnector& app, AbstractLedgerTxn& ltx,
@@ -237,22 +236,19 @@ class GlobalParallelApplyLedgerState
     void collectModifiedClassicEntries(AbstractLedgerTxn& ltx,
                                        std::vector<ApplyStage> const& stages);
 
-        bool
-        maybeMergeRoTTLBumps(ParallelApplyLedgerKey const& key,
-                                                 GlobalParallelApplyEntry const& newEntry,
-                                                 GlobalParallelApplyEntry& oldEntry,
-                                                 ParallelApplyLedgerKeySet const& readWriteSet);
+    bool maybeMergeRoTTLBumps(ParallelApplyLedgerKey const& key,
+                              GlobalParallelApplyEntry const& newEntry,
+                              GlobalParallelApplyEntry& oldEntry,
+                              ParallelApplyLedgerKeySet const& readWriteSet);
 
-    void
-    commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
-                                                     ParallelApplyLedgerKey const& key,
-                           ThreadParallelApplyEntry&& parEntry,
-                                                     ParallelApplyLedgerKeySet const& readWriteSet);
+    void commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
+                                ParallelApplyLedgerKey const& key,
+                                ThreadParallelApplyEntry&& parEntry,
+                                ParallelApplyLedgerKeySet const& readWriteSet);
 
-    void
-    commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState& thread,
-                                                        ParallelApplyLedgerKeySet const& readWriteSet);
+    void commitChangesFromThread(AppConnector& app,
+                                 ThreadParallelApplyLedgerState& thread,
+                                 ParallelApplyLedgerKeySet const& readWriteSet);
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app,

@@ -39,13 +39,13 @@ class TxEffects
     ParallelPreApplyInfo&
     getParallelPreApplyInfo()
     {
-      return mParallelPreApplyInfo;
+        return mParallelPreApplyInfo;
     }
 
     ParallelPreApplyInfo const&
     getParallelPreApplyInfo() const
     {
-      return mParallelPreApplyInfo;
+        return mParallelPreApplyInfo;
     }
 
     void

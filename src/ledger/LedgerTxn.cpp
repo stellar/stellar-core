@@ -806,11 +806,10 @@ LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry&& entry)
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Init(
-            std::make_shared<InternalLedgerEntry>(std::move(entry))),
-        /* effectiveActive */ false);
+    updateEntry(key, /* keyHint */ nullptr,
+                LedgerEntryPtr::Init(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
@@ -859,11 +858,10 @@ LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry&& entry)
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(
-        key, /* keyHint */ nullptr,
-        LedgerEntryPtr::Live(
-            std::make_shared<InternalLedgerEntry>(std::move(entry))),
-        /* effectiveActive */ false);
+    updateEntry(key, /* keyHint */ nullptr,
+                LedgerEntryPtr::Live(
+                    std::make_shared<InternalLedgerEntry>(std::move(entry))),
+                /* effectiveActive */ false);
 }
 
 void
@@ -1724,13 +1722,11 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
                 // objects (~128K+ entries per ledger).
                 if (entry.isInit())
                 {
-                    resInit.emplace_back(
-                        std::move(entry->ledgerEntry()));
+                    resInit.emplace_back(std::move(entry->ledgerEntry()));
                 }
                 else
                 {
-                    resLive.emplace_back(
-                        std::move(entry->ledgerEntry()));
+                    resLive.emplace_back(std::move(entry->ledgerEntry()));
                 }
             }
             else

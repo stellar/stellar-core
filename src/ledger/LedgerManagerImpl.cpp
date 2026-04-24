@@ -2317,8 +2317,8 @@ LedgerManagerImpl::processFeesSeqNums(
         // Cache protocol version to avoid repeated loadHeader() calls
         // in the per-TX loop below.
         auto const cachedLedgerVersion = header.ledgerVersion;
-        bool const isV19OrLater =
-            protocolVersionStartsFrom(cachedLedgerVersion, ProtocolVersion::V_19);
+        bool const isV19OrLater = protocolVersionStartsFrom(
+            cachedLedgerVersion, ProtocolVersion::V_19);
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
 #ifdef BUILD_TESTS
@@ -2352,9 +2352,8 @@ LedgerManagerImpl::processFeesSeqNums(
                     {
                         releaseAssert(*expectedResultsIter !=
                                       expectedResults->results.end());
-                        releaseAssert(
-                            (*expectedResultsIter)->transactionHash ==
-                            tx->getContentsHash());
+                        releaseAssert((*expectedResultsIter)->transactionHash ==
+                                      tx->getContentsHash());
                         txResults.back()->setReplayTransactionResult(
                             (*expectedResultsIter)->result);
 
@@ -2373,8 +2372,8 @@ LedgerManagerImpl::processFeesSeqNums(
                                                        tx->getSeqNum());
                         if (!res.second)
                         {
-                            res.first->second = std::max(
-                                res.first->second, tx->getSeqNum());
+                            res.first->second =
+                                std::max(res.first->second, tx->getSeqNum());
                         }
 
                         if (mergeOpInTx(tx->getRawOperations()))

@@ -95,10 +95,9 @@ class ApplyLoad
 
     // Run a single ledger benchmark at the given TPS. Returns the close time
     // in milliseconds for that ledger.
-    double benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
-                                           uint32_t txsPerLedger,
-                                           TxSetBuildPhaseTimings*
-                                               txSetBuildTimings = nullptr);
+    double benchmarkModelTxTpsSingleLedger(
+        ApplyLoadModelTx modelTx, uint32_t txsPerLedger,
+        TxSetBuildPhaseTimings* txSetBuildTimings = nullptr);
 
     // Run a single ledger benchmark for the model transaction mode. Returns
     // the close time in milliseconds for that ledger.
