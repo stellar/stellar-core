@@ -16,129 +16,61 @@ namespace stellar
 
 class SHA256;
 
-// LedgerKey sizes usually dominate LedgerEntry size, so we don't want to
-// store a key-value map to be memory efficient. Instead, we store a set of
-// InternalInMemoryBucketEntry objects, which is a wrapper around either a
-// LedgerKey or cached BucketEntry. This allows us to use std::unordered_set to
-// efficiently store cache entries, but allows lookup by key only.
-// Note that C++20 allows heterogeneous lookup in unordered_set, so we can
-// simplify this class once we upgrade.
+// LedgerKey sizes usually dominate LedgerEntry size, so we don't want to store
+// a key-value map. Instead, we store the cached BucketEntry and use C++20
+// heterogeneous lookup to find it by LedgerKey without constructing a wrapper.
 class InternalInMemoryBucketEntry
 {
   private:
-    struct AbstractEntry
-    {
-        virtual ~AbstractEntry() = default;
-        virtual LedgerKey copyKey() const = 0;
-        virtual size_t hash() const = 0;
-        virtual IndexPtrT const& get() const = 0;
-
-        virtual bool
-        operator==(AbstractEntry const& other) const
-        {
-            return copyKey() == other.copyKey();
-        }
-    };
-
-    // "Value" entry type used for storing BucketEntry in cache
-    struct ValueEntry : public AbstractEntry
-    {
-      private:
-        IndexPtrT entry;
-
-      public:
-        ValueEntry(IndexPtrT entry) : entry(entry)
-        {
-        }
-
-        LedgerKey
-        copyKey() const override
-        {
-            return getBucketLedgerKey(*entry);
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<LedgerKey>{}(getBucketLedgerKey(*entry));
-        }
-
-        IndexPtrT const&
-        get() const override
-        {
-            return entry;
-        }
-    };
-
-    // "Key" entry type only used for querying the cache
-    struct QueryKey : public AbstractEntry
-    {
-      private:
-        LedgerKey ledgerKey;
-
-      public:
-        QueryKey(LedgerKey const& ledgerKey) : ledgerKey(ledgerKey)
-        {
-        }
-
-        LedgerKey
-        copyKey() const override
-        {
-            return ledgerKey;
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<LedgerKey>{}(ledgerKey);
-        }
-
-        IndexPtrT const&
-        get() const override
-        {
-            throw std::runtime_error("Called get() on QueryKey");
-        }
-    };
-
-    std::unique_ptr<AbstractEntry> impl;
+    IndexPtrT mEntry;
+    size_t mHash;
 
   public:
-    InternalInMemoryBucketEntry(IndexPtrT entry)
-        : impl(std::make_unique<ValueEntry>(entry))
-    {
-    }
-
-    InternalInMemoryBucketEntry(LedgerKey const& ledgerKey)
-        : impl(std::make_unique<QueryKey>(ledgerKey))
-    {
-    }
+    explicit InternalInMemoryBucketEntry(IndexPtrT entry);
 
     size_t
     hash() const
     {
-        return impl->hash();
+        return mHash;
     }
 
-    bool
-    operator==(InternalInMemoryBucketEntry const& other) const
-    {
-        return impl->operator==(*other.impl);
-    }
+    bool keyEquals(LedgerKey const& key) const;
+    bool operator==(InternalInMemoryBucketEntry const& other) const;
 
     IndexPtrT const&
     get() const
     {
-        return impl->get();
+        return mEntry;
     }
 };
 
 struct InternalInMemoryBucketEntryHash
 {
+    using is_transparent = void;
+
     size_t
     operator()(InternalInMemoryBucketEntry const& entry) const
     {
         return entry.hash();
     }
+
+    size_t
+    operator()(LedgerKey const& key) const
+    {
+        return std::hash<LedgerKey>{}(key);
+    }
+};
+
+struct InternalInMemoryBucketEntryEqual
+{
+    using is_transparent = void;
+
+    bool operator()(InternalInMemoryBucketEntry const& lhs,
+                    InternalInMemoryBucketEntry const& rhs) const;
+    bool operator()(InternalInMemoryBucketEntry const& lhs,
+                    LedgerKey const& rhs) const;
+    bool operator()(LedgerKey const& lhs,
+                    InternalInMemoryBucketEntry const& rhs) const;
 };
 
 // For small Buckets, we can cache all contents in memory. Because we cache all
@@ -146,8 +78,10 @@ struct InternalInMemoryBucketEntryHash
 // this index type. It is always recreated on startup.
 class InMemoryBucketState : public NonMovableOrCopyable
 {
-    using InMemorySet = std::unordered_set<InternalInMemoryBucketEntry,
-                                           InternalInMemoryBucketEntryHash>;
+    using InMemorySet =
+        std::unordered_set<InternalInMemoryBucketEntry,
+                           InternalInMemoryBucketEntryHash,
+                           InternalInMemoryBucketEntryEqual>;
 
     InMemorySet mEntries;
 
