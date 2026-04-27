@@ -1723,7 +1723,11 @@ TransactionFrame::commonValid(
             {
                 current = sourceAccount->current().data.account().seqNum;
             }
-            if (isBadSeq(header, current))
+            bool skipCheck = false;
+#ifdef BUILD_TESTS
+            skipCheck = ledgerView.mSkipSeqNumCheck;
+#endif
+            if (!skipCheck && isBadSeq(header, current))
             {
                 txResult.setInnermostError(txBAD_SEQ);
                 return;
@@ -1976,13 +1980,6 @@ TransactionFrame::checkValidImpl(
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
     std::optional<uint32_t> validationLedgerSeq) const
 {
-#ifdef BUILD_TESTS
-    if (app.getRunInOverlayOnlyMode())
-    {
-        return MutableTransactionResult::createSuccess(*this, 0);
-    }
-#endif
-
     // Subtle: this check has to happen in `checkValid` and not
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use

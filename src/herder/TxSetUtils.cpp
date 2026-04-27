@@ -172,6 +172,10 @@ TxSetUtils::getInvalidTxListWithErrors(
     ZoneScoped;
     releaseAssert(threadIsMain());
     CheckValidLedgerViewWrapper ledgerView(app);
+#ifdef BUILD_TESTS
+    // See TransactionQueue::canAdd for the overlay-only-mode rationale.
+    ledgerView.mSkipSeqNumCheck = app.getRunInOverlayOnlyMode();
+#endif
     // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
     // which is what will be used at apply time.
     std::optional<uint32_t> validationLedgerSeq;

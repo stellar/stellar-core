@@ -1620,6 +1620,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     {
         auto numTxs = txSet->sizeTxTotal();
         auto numOps = txSet->sizeOpTotalForLogging();
+        auto numClassicTxs = applicableTxSet->sizeTx(TxSetPhase::CLASSIC);
+        auto numSorobanTxs = applicableTxSet->sizeTx(TxSetPhase::SOROBAN);
+        auto ledgerSeq = header.current().ledgerSeq;
 
         // Force-deactivate header in overlay only mode; in normal mode, this is
         // done by `processFeesSeqNums`
@@ -1631,6 +1634,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         mApplyState.getMetrics().mOperationCount.Update(
             static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
+
+        CLOG_INFO(Ledger,
+                  "Overlay-only mode: skipping apply for ledger {} "
+                  "({} classic, {} soroban, {} total txs)",
+                  ledgerSeq, numClassicTxs, numSorobanTxs, numTxs);
     }
     else
 #endif

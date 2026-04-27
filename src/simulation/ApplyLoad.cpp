@@ -38,26 +38,6 @@ namespace
 {
 constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
 
-LedgerKey
-makeSACBalanceKey(SCAddress const& sacContract, SCVal const& holderAddrVal)
-{
-    LedgerKey key(CONTRACT_DATA);
-    key.contractData().contract = sacContract;
-    key.contractData().key =
-        txtest::makeVecSCVal({makeSymbolSCVal("Balance"), holderAddrVal});
-    key.contractData().durability = ContractDataDurability::PERSISTENT;
-    return key;
-}
-
-LedgerKey
-makeTrustlineKey(PublicKey const& accountID, Asset const& asset)
-{
-    LedgerKey key(TRUSTLINE);
-    key.trustLine().accountID = accountID;
-    key.trustLine().asset = assetToTrustLineAsset(asset);
-    return key;
-}
-
 void
 logExecutionEnvironmentSnapshot(Config const& cfg)
 {
@@ -2819,7 +2799,7 @@ ApplyLoad::setupSoroswapContracts()
             txtest::makeContractInstanceKey(pairAddress);
 
         // Store pair info
-        SoroswapPairInfo pairInfo;
+        TxGenerator::SoroswapPairInfo pairInfo;
         pairInfo.tokenAIndex = i;
         pairInfo.tokenBIndex = j;
         pairInfo.pairContractID = pairAddress;
@@ -3089,7 +3069,6 @@ ApplyLoad::generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
     {
         // Round-robin across pairs for parallelism
         uint32_t pairIndex = i % numPairs;
-        auto const& pair = mSoroswapState.pairs[pairIndex];
 
         // Unique account per tx (skip account 0 = root/issuer)
         uint32_t accountIdx = i + 1;
@@ -3098,110 +3077,10 @@ ApplyLoad::generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
         bool swapAForB = (mSoroswapSwapCounters[pairIndex] % 2 == 0);
         mSoroswapSwapCounters[pairIndex]++;
 
-        uint32_t tokenInIdx = swapAForB ? pair.tokenAIndex : pair.tokenBIndex;
-        uint32_t tokenOutIdx = swapAForB ? pair.tokenBIndex : pair.tokenAIndex;
-
-        auto fromAccount =
-            mTxGenerator.findAccount(accountIdx, lm.getLastClosedLedgerNum());
-        fromAccount->loadSequenceNumber();
-
-        auto fromVal =
-            makeAddressSCVal(makeAccountAddress(fromAccount->getPublicKey()));
-
-        // Build path: [token_in, token_out]
-        auto tokenInVal = makeAddressSCVal(
-            mSoroswapState.sacInstances[tokenInIdx].contractID);
-        auto tokenOutVal = makeAddressSCVal(
-            mSoroswapState.sacInstances[tokenOutIdx].contractID);
-
-        SCVal pathVec(SCV_VEC);
-        pathVec.vec().activate();
-        pathVec.vec()->push_back(tokenInVal);
-        pathVec.vec()->push_back(tokenOutVal);
-
-        int64_t swapAmount = 100;
-        SCVal deadlineVal(SCV_U64);
-        deadlineVal.u64() = UINT64_MAX;
-
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = mSoroswapState.routerContractID;
-        ihf.invokeContract().functionName = "swap_exact_tokens_for_tokens";
-        ihf.invokeContract().args = {
-            txtest::makeI128(swapAmount), // amount_in
-            txtest::makeI128(0),          // amount_out_min
-            pathVec,                      // path
-            fromVal,                      // to
-            deadlineVal                   // deadline
-        };
-
-        // Footprint
-        SorobanResources resources;
-        resources.instructions = TxGenerator::SOROSWAP_SWAP_TX_INSTRUCTIONS;
-        resources.diskReadBytes = 5000;
-        resources.writeBytes = 5000;
-
-        // Read-only: router instance, token_in SAC instance,
-        //            token_out SAC instance, router code, pair code
-        resources.footprint.readOnly.push_back(
-            mSoroswapState.routerInstanceKey);
-        resources.footprint.readOnly.push_back(
-            mSoroswapState.sacInstances[tokenInIdx].readOnlyKeys.at(0));
-        resources.footprint.readOnly.push_back(
-            mSoroswapState.sacInstances[tokenOutIdx].readOnlyKeys.at(0));
-        resources.footprint.readOnly.push_back(mSoroswapState.routerCodeKey);
-        resources.footprint.readOnly.push_back(mSoroswapState.pairCodeKey);
-
-        // Read-write: user trustline(A), user trustline(B),
-        //             Balance[pair] for token_in, Balance[pair] for
-        //             token_out, pair instance
-        resources.footprint.readWrite.emplace_back(makeTrustlineKey(
-            fromAccount->getPublicKey(), mSoroswapState.assets[tokenInIdx]));
-        resources.footprint.readWrite.emplace_back(makeTrustlineKey(
-            fromAccount->getPublicKey(), mSoroswapState.assets[tokenOutIdx]));
-
-        auto pairAddrVal = makeAddressSCVal(pair.pairContractID);
-        // Balance[pair] for token_in
-        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
-            mSoroswapState.sacInstances[tokenInIdx].contractID, pairAddrVal));
-        // Balance[pair] for token_out
-        resources.footprint.readWrite.emplace_back(makeSACBalanceKey(
-            mSoroswapState.sacInstances[tokenOutIdx].contractID, pairAddrVal));
-        // Pair contract instance (RW - modified during swap)
-        resources.footprint.readWrite.emplace_back(
-            txtest::makeContractInstanceKey(pair.pairContractID));
-
-        // Auth: source_account authorizes swap_exact_tokens_for_tokens
-        // which sub-invokes token_in.transfer(user, pair, amount)
-        SorobanAuthorizedInvocation rootInvocation;
-        rootInvocation.function.type(
-            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-        rootInvocation.function.contractFn() = ihf.invokeContract();
-
-        SorobanAuthorizedInvocation transferInvocation;
-        transferInvocation.function.type(
-            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-        transferInvocation.function.contractFn().contractAddress =
-            mSoroswapState.sacInstances[tokenInIdx].contractID;
-        transferInvocation.function.contractFn().functionName = "transfer";
-        transferInvocation.function.contractFn().args = {
-            fromVal, pairAddrVal, txtest::makeI128(swapAmount)};
-        rootInvocation.subInvocations.push_back(transferInvocation);
-
-        SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-        op.body.invokeHostFunctionOp().auth.emplace_back(credentials,
-                                                         rootInvocation);
-
-        auto resourceFee =
-            txtest::sorobanResourceFee(mApp, resources, 1000, 200);
-        resourceFee += 5'000'000;
-
-        auto tx = txtest::sorobanTransactionFrameFromOps(
-            mApp.getNetworkID(), *fromAccount, {op}, {}, resources,
-            mTxGenerator.generateFee(std::nullopt, 1), resourceFee);
-        txs.push_back(tx);
+        auto tx = mTxGenerator.invokeSoroswapSwap(
+            lm.getLastClosedLedgerNum() + 1, accountIdx, mSoroswapState,
+            pairIndex, swapAForB, std::nullopt);
+        txs.push_back(tx.second);
     }
 
     CheckValidLedgerViewWrapper ls(mApp);

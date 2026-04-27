@@ -18,6 +18,13 @@ namespace stellar
 uint64_t footprintSize(Application& app,
                        xdr::xvector<stellar::LedgerKey> const& keys);
 
+// Build a CONTRACT_DATA ledger key for a SAC "Balance" entry.
+LedgerKey makeSACBalanceKey(SCAddress const& sacContract,
+                            SCVal const& holderAddrVal);
+
+// Build a TRUSTLINE ledger key for the given account + asset.
+LedgerKey makeTrustlineKey(PublicKey const& accountID, Asset const& asset);
+
 // Config settings for SOROBAN_CREATE_UPGRADE
 struct SorobanUpgradeConfig
 {
@@ -117,6 +124,33 @@ class TxGenerator
         uint32_t contractEntriesSize = 0;
     };
 
+    // Soroswap AMM benchmark state
+    struct SoroswapPairInfo
+    {
+        SCAddress pairContractID;
+        uint32_t tokenAIndex;
+        uint32_t tokenBIndex;
+    };
+
+    struct SoroswapState
+    {
+        SCAddress factoryContractID;
+        SCAddress routerContractID;
+
+        std::vector<SoroswapPairInfo> pairs;
+        std::vector<ContractInstance> sacInstances;
+
+        LedgerKey routerCodeKey;
+        LedgerKey pairCodeKey;
+        LedgerKey factoryCodeKey;
+
+        LedgerKey routerInstanceKey;
+        LedgerKey factoryInstanceKey;
+
+        std::vector<Asset> assets;
+        uint32_t numTokens = 0;
+    };
+
     using TestAccountPtr = std::shared_ptr<TestAccount>;
     TxGenerator(Application& app, uint32_t prePopulatedArchivedEntries = 0);
 
@@ -201,6 +235,15 @@ class TxGenerator
                         ContractInstance const& batchTransferInstance,
                         ContractInstance const& sacInstance,
                         std::vector<SCAddress> const& destinations);
+
+    // Build a Soroswap router swap_exact_tokens_for_tokens transaction for
+    // the given pair and direction. `state` supplies the router/pair/SAC keys
+    // and assets; `swapAForB` picks the direction.
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSoroswapSwap(uint32_t ledgerNum, uint64_t fromAccountId,
+                       SoroswapState const& state, size_t pairIndex,
+                       bool swapAForB,
+                       std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
@@ -260,5 +303,18 @@ class TxGenerator
     // using ApplyLoad::getKeyForArchivedEntry.
     uint32_t mNextKeyToRestore{};
 };
+
+// Build a fully-synthetic ContractInstance (contractID + CONTRACT_CODE +
+// CONTRACT_DATA instance keys) derived from `salt`. The contract does not
+// exist on-ledger; intended for overlay-only load-gen modes where apply is
+// simulated and footprint entries are never dereferenced.
+TxGenerator::ContractInstance
+makeSyntheticContractInstance(std::string const& salt);
+
+// Build a fully-synthetic SoroswapState with `numTokens` SAC instances and
+// `numPairs` pairs (all pairs use consecutive token indices modulo numTokens).
+// Same overlay-only caveat as makeSyntheticContractInstance.
+TxGenerator::SoroswapState makeSyntheticSoroswapState(uint32_t numTokens,
+                                                      uint32_t numPairs);
 
 }

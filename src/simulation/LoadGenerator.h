@@ -46,7 +46,14 @@ enum class LoadGenMode
     // Submit pre-generated payment transactions from an XDR file
     PAY_PREGENERATED,
     // Submit the same type of invoke transaction as ApplyLoad
-    SOROBAN_INVOKE_APPLY_LOAD
+    SOROBAN_INVOKE_APPLY_LOAD,
+    // Overlay-only modes: pre-generated classic payments + a soroban
+    // transaction type of choice, each with its own TPS. No on-ledger setup
+    // is required; soroban contract keys are synthesized in memory. Apply
+    // is skipped so nothing is actually executed.
+    MIXED_PREGEN_SAC_PAYMENT,
+    MIXED_PREGEN_OZ_TOKEN_TRANSFER,
+    MIXED_PREGEN_SOROSWAP_SWAP
 };
 
 struct GeneratedLoadConfig
@@ -69,6 +76,16 @@ struct GeneratedLoadConfig
         double payWeight = 0;
         double sorobanUploadWeight = 0;
         double sorobanInvokeWeight = 0;
+    };
+
+    // Config settings for the MIXED_PREGEN_* overlay-only modes.
+    // Each stream has its own independent TPS. Setting `classicTxRate` to 0
+    // yields a pure-soroban run; `sorobanTxRate` to 0 is equivalent to
+    // PAY_PREGENERATED. `nTxs` is the combined stop target.
+    struct MixPregenSorobanConfig
+    {
+        uint32_t classicTxRate = 0;
+        uint32_t sorobanTxRate = 0;
     };
 
     void copySorobanNetworkConfigToUpgradeConfig(
@@ -95,6 +112,8 @@ struct GeneratedLoadConfig
     SorobanUpgradeConfig const& getSorobanUpgradeConfig() const;
     MixClassicSorobanConfig& getMutMixClassicSorobanConfig();
     MixClassicSorobanConfig const& getMixClassicSorobanConfig() const;
+    MixPregenSorobanConfig& getMutMixPregenSorobanConfig();
+    MixPregenSorobanConfig const& getMixPregenSorobanConfig() const;
     uint32_t getMinSorobanPercentSuccess() const;
     void setMinSorobanPercentSuccess(uint32_t minPercentSuccess);
 
@@ -104,6 +123,10 @@ struct GeneratedLoadConfig
 
     // True iff mode generates SOROBAN_INVOKE load
     bool modeInvokes() const;
+
+    // True iff mode emits a classic pregen stream in parallel with a soroban
+    // stream (MIXED_PREGEN_* modes).
+    bool modeMixesPregen() const;
 
     // True iff mode generates SOROBAN_INVOKE_SETUP load
     bool modeSetsUpInvoke() const;
@@ -141,6 +164,7 @@ struct GeneratedLoadConfig
     SorobanConfig sorobanConfig;
     SorobanUpgradeConfig sorobanUpgradeConfig;
     MixClassicSorobanConfig mixClassicSorobanConfig;
+    MixPregenSorobanConfig mixPregenSorobanConfig;
 
     // Minimum percentage of successful soroban transactions for run to be
     // considered successful.
@@ -250,7 +274,6 @@ class LoadGenerator
     // Set when load generation actually begins
     std::unique_ptr<VirtualClock::time_point> mStartTime;
 
-    uint32_t mTransactionsAppliedAtTheStart = 0;
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
@@ -284,6 +307,26 @@ class LoadGenerator
     // unique instance
     UnorderedMap<uint64_t, TxGenerator::ContractInstance> mContractInstances;
 
+    // Synthetic (off-ledger) contract state for the MIXED_PREGEN_* overlay-only
+    // modes. Lazily populated on first use of each mode; never touches the DB.
+    std::optional<TxGenerator::ContractInstance> mSyntheticSACInstance;
+    std::optional<TxGenerator::ContractInstance> mSyntheticTokenInstance;
+    std::optional<TxGenerator::SoroswapState> mSyntheticSoroswapState;
+    // Counter for generating unique SAC payment destination addresses.
+    uint32_t mSyntheticSACDestCounter{0};
+    // Round-robin counter for Soroswap pair selection + direction.
+    uint32_t mSyntheticSoroswapSwapCounter{0};
+    // Per-stream submission counters, tracked for every mode. For single-
+    // stream modes one of them stays at 0, which makes the waitTillComplete
+    // check trivially hold for that stream. For MIXED_PREGEN_* both are used.
+    uint64_t mClassicSubmitted{0};
+    uint64_t mSorobanSubmitted{0};
+    // Per-stream applied-at-start snapshots captured in start(), so
+    // waitTillComplete compares per-stream applied deltas against per-stream
+    // submitted counters.
+    uint32_t mClassicAppliedAtStart{0};
+    uint32_t mSorobanAppliedAtStart{0};
+
     TxGenerator::TestAccountPtr mRoot;
 
     medida::Meter& mLoadgenComplete;
@@ -306,6 +349,11 @@ class LoadGenerator
     void resetSorobanState();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
+    // Variant that paces against a caller-provided submitted counter, used for
+    // MIXED_PREGEN_* where classic and soroban streams have independent rates
+    // and must not share mTotalSubmitted.
+    int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
+                         uint32_t spikeSize, uint64_t submittedSoFar);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -316,6 +364,14 @@ class LoadGenerator
         uint32_t ledgerNum, uint64_t sourceAccountId,
         std::optional<uint32_t> classicByteCount,
         GeneratedLoadConfig const& cfg);
+
+    // Build a synthetic-state soroban transaction for the requested mode
+    // (one of MIXED_PREGEN_SAC_PAYMENT / OZ_TOKEN_TRANSFER / SOROSWAP_SWAP).
+    // Lazily initializes the mSynthetic* state on first call.
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    createSyntheticSorobanTransaction(uint32_t ledgerNum,
+                                      uint64_t sourceAccountId,
+                                      GeneratedLoadConfig const& cfg);
 
     std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(GeneratedLoadConfig const& cfg,

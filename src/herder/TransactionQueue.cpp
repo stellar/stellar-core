@@ -440,6 +440,12 @@ TransactionQueue::canAdd(
     }
 
     CheckValidLedgerViewWrapper ledgerView(mApp);
+#ifdef BUILD_TESTS
+    // Overlay-only mode freezes on-disk seqnums at genesis but LoadGenerator
+    // keeps advancing local ones, so checkValid must skip the seqnum equality
+    // check or every tx after the first fails.
+    ledgerView.mSkipSeqNumCheck = mApp.getRunInOverlayOnlyMode();
+#endif
     // Subtle: transactions are rejected based on the source account limit
     // prior to this point. This is safe because we can't evict transactions
     // from the same source account, so a newer transaction won't replace an
@@ -496,7 +502,7 @@ TransactionQueue::canAdd(
     // Loadgen transactions are given unlimited funds, and therefore do no need
     // to be checked for fees
 #ifdef BUILD_TESTS
-    if (!isLoadgenTx && !mApp.getRunInOverlayOnlyMode())
+    if (!isLoadgenTx)
 #endif
     {
         auto const feeSource = ledgerView.getAccount(tx->getFeeSourceID());
