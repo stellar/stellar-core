@@ -162,10 +162,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::PAY_PREGENERATED;
     }
-    else if (mode == "soroban_invoke_apply_load")
-    {
-        return LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
-    }
     else if (mode == "mixed_pregen_sac_payment")
     {
         return LoadGenMode::MIXED_PREGEN_SAC_PAYMENT;
@@ -326,9 +322,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
 
     mClassicAppliedAtStart = getTxCount(mApp, /* isSoroban */ false);
     mSorobanAppliedAtStart = getTxCount(mApp, /* isSoroban */ true);
-    if ((cfg.mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD ||
-         cfg.modeMixesPregen()) &&
-        !mApp.getRunInOverlayOnlyMode())
+    if (cfg.modeMixesPregen() && !mApp.getRunInOverlayOnlyMode())
     {
         reset();
         throw std::runtime_error(
@@ -641,9 +635,6 @@ GeneratedLoadConfig::getStatus() const
     case LoadGenMode::PAY_PREGENERATED:
         modeStr = "pay_pregenerated";
         break;
-    case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
-        modeStr = "SOROBAN_INVOKE_APPLY_LOAD";
-        break;
     case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
         modeStr = "mixed_pregen_sac_payment";
         break;
@@ -848,22 +839,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         break;
         case LoadGenMode::PAY_PREGENERATED:
             generateTx = [&]() { return readTransactionFromFile(cfg); };
-            break;
-        case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
-            generateTx = [&]() {
-                auto instanceIter = mContractInstances.find(sourceAccountId);
-                releaseAssert(instanceIter != mContractInstances.end());
-                auto const& instance = instanceIter->second;
-                auto const& appCfg = mApp.getConfig();
-                uint64_t dataEntryCount =
-                    appCfg.APPLY_LOAD_BL_BATCH_SIZE *
-                    appCfg.APPLY_LOAD_BL_SIMULATED_LEDGERS;
-                size_t dataEntrySize = appCfg.APPLY_LOAD_DATA_ENTRY_SIZE;
-
-                return mTxGenerator.invokeSorobanLoadTransactionV2(
-                    ledgerNum, sourceAccountId, instance, dataEntryCount,
-                    dataEntrySize, cfg.maxGeneratedFeeRate);
-            };
             break;
         case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
         case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
@@ -1581,9 +1556,6 @@ LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
             releaseAssert(false);
         }
         break;
-    case LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD:
-        txm.mSorobanInvokeTxs.Mark();
-        break;
     case LoadGenMode::MIXED_PREGEN_SAC_PAYMENT:
     case LoadGenMode::MIXED_PREGEN_OZ_TOKEN_TRANSFER:
     case LoadGenMode::MIXED_PREGEN_SOROSWAP_SWAP:
@@ -1931,8 +1903,7 @@ GeneratedLoadConfig::isSoroban() const
            mode == LoadGenMode::SOROBAN_UPLOAD ||
            mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
-           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
 }
 
 bool
@@ -1949,16 +1920,14 @@ GeneratedLoadConfig::isLoad() const
            mode == LoadGenMode::SOROBAN_INVOKE ||
            mode == LoadGenMode::SOROBAN_CREATE_UPGRADE ||
            mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
-           mode == LoadGenMode::PAY_PREGENERATED ||
-           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD || modeMixesPregen();
+           mode == LoadGenMode::PAY_PREGENERATED || modeMixesPregen();
 }
 
 bool
 GeneratedLoadConfig::modeInvokes() const
 {
     return mode == LoadGenMode::SOROBAN_INVOKE ||
-           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN ||
-           mode == LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD;
+           mode == LoadGenMode::MIXED_CLASSIC_SOROBAN;
 }
 
 bool

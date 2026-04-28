@@ -38,6 +38,13 @@ namespace
 {
 constexpr double NOISY_BINARY_SEARCH_CONFIDENCE = 0.99;
 
+uint32_t
+roundUpToXdrSizeMultiple(uint32_t size)
+{
+    uint32_t remainder = size % 4;
+    return remainder == 0 ? size : size + 4 - remainder;
+}
+
 void
 logExecutionEnvironmentSnapshot(Config const& cfg)
 {
@@ -67,6 +74,81 @@ interpolatePercentile(std::vector<double> const& sortedValues,
     auto hi = static_cast<size_t>(std::ceil(rank));
     double weight = rank - lo;
     return sortedValues[lo] * (1.0 - weight) + sortedValues[hi] * weight;
+}
+
+template <typename T>
+void
+throwIfResourceIsZero(T resourceVal, char const* resourceName)
+{
+    if (resourceVal == 0)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING(
+                "Derived apply-load tx profile has zero {} in LIMIT_BASED "
+                "mode; reduce APPLY_LOAD_MAX_SOROBAN_TX_COUNT or raise "
+                "the corresponding ledger limit"),
+            resourceName));
+    }
+}
+
+ApplyLoadTxProfile
+deriveLimitBasedTxProfile(ApplyLoadMode mode, Config const& cfg)
+{
+    if (mode != ApplyLoadMode::LIMIT_BASED)
+    {
+        return ApplyLoadTxProfile{};
+    }
+    uint32_t txsPerLedger = cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
+    releaseAssert(txsPerLedger != 0);
+
+    ApplyLoadTxProfile txProfile;
+    txProfile.instructions = std::min(
+        static_cast<uint32_t>(cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS *
+                              cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS /
+                              txsPerLedger),
+        cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS);
+    throwIfResourceIsZero(txProfile.instructions, "instructions");
+
+    txProfile.txSizeBytes =
+        std::min(cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES / txsPerLedger,
+                 cfg.APPLY_LOAD_MAX_TX_SIZE_BYTES);
+    txProfile.txSizeBytes = roundUpToXdrSizeMultiple(txProfile.txSizeBytes);
+    throwIfResourceIsZero(txProfile.txSizeBytes, "tx-size bytes");
+
+    txProfile.rwEntries =
+        std::min({cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES / txsPerLedger,
+                  cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES,
+                  cfg.APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE});
+    throwIfResourceIsZero(txProfile.rwEntries, "rw entries");
+
+    // Base the data entry size on the write bytes limit, as normally the disk
+    // reads should mostly come from the restorations, and the restorations
+    // require write bytes.
+    txProfile.dataEntrySizeBytes =
+        std::min(cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES /
+                     (txsPerLedger * txProfile.rwEntries),
+                 cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES / txProfile.rwEntries);
+    txProfile.dataEntrySizeBytes -= txProfile.dataEntrySizeBytes % 4;
+    throwIfResourceIsZero(txProfile.dataEntrySizeBytes, "data entry size");
+
+    txProfile.diskReadEntries = std::min(
+        {cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES / txsPerLedger,
+         cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES /
+             (txsPerLedger * txProfile.dataEntrySizeBytes),
+         cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES, txProfile.rwEntries});
+    // Allow 0 disk read entries in case if we want to omit restorations.
+
+    CLOG_INFO(Perf,
+              "Derived tx profile for {} txs per ledger: "
+              "instructions {}, tx size {}, disk read entries {}, disk read "
+              "bytes {}, rw entries {}, write bytes {}",
+              cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT, txProfile.instructions,
+              txProfile.txSizeBytes, txProfile.diskReadEntries,
+              txProfile.diskReadEntries * txProfile.dataEntrySizeBytes,
+              txProfile.rwEntries,
+              txProfile.rwEntries * txProfile.dataEntrySizeBytes);
+
+    return txProfile;
 }
 
 SorobanUpgradeConfig
@@ -509,51 +591,27 @@ ApplyLoad::getKeyForArchivedEntry(uint64_t index)
 }
 
 uint32_t
-ApplyLoad::calculateRequiredHotArchiveEntries(ApplyLoadMode mode,
-                                              Config const& cfg)
+ApplyLoad::getTotalHotArchiveEntries() const
 {
-    // If no RO entries are configured, return 0
-    if (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.empty())
+    return mTotalHotArchiveEntries;
+}
+
+uint32_t
+ApplyLoad::calculateRequiredHotArchiveEntries(Config const& cfg)
+{
+    if (mMode != ApplyLoadMode::LIMIT_BASED)
     {
         return 0;
     }
 
-    releaseAssertOrThrow(
-        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.size() ==
-        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.size());
-
-    // Calculate mean disk reads per transaction
-    double totalWeight = std::accumulate(
-        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.begin(),
-        cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION.end(), 0.0);
-    double meanDiskReadsPerTx = 0.0;
-    for (size_t i = 0; i < cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES.size(); ++i)
-    {
-        meanDiskReadsPerTx +=
-            static_cast<double>(cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES[i]) *
-            (cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION[i] /
-             totalWeight);
-    }
-
     // Calculate total expected disk reads
-    double totalExpectedRestores = meanDiskReadsPerTx *
-                                   cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
-                                   cfg.APPLY_LOAD_NUM_LEDGERS;
+    uint32_t totalExpectedRestores = mLimitsBasedTxProfile.diskReadEntries *
+                                     cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
+                                     cfg.APPLY_LOAD_NUM_LEDGERS;
     // We technically can only actually perform totalExpectedRestores, but we
     // still need to create valid transactions in the 'mempool', so we need
     // to scale the expected number of restores by the transaction queue size.
     totalExpectedRestores *= cfg.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER;
-
-    // In FIND_LIMITS_FOR_MODEL_TX mode, we perform a binary search that uses
-    // new restores and thus we need to additionally scale the restores by
-    // log2 of max tx count (which approximates the maximum number of binary
-    // search iterations).
-    if (mode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
-    {
-        totalExpectedRestores *= log2(cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT);
-    }
-
-    // Add some generous buffer since actual distributions may vary.
     return totalExpectedRestores * 1.5;
 }
 
@@ -561,8 +619,9 @@ ApplyLoad::ApplyLoad(Application& app)
     : mApp(app)
     , mMode(app.getConfig().APPLY_LOAD_MODE)
     , mModelTx(app.getConfig().APPLY_LOAD_MODEL_TX)
+    , mLimitsBasedTxProfile(deriveLimitBasedTxProfile(mMode, app.getConfig()))
     , mTotalHotArchiveEntries(
-          calculateRequiredHotArchiveEntries(mMode, app.getConfig()))
+          calculateRequiredHotArchiveEntries(app.getConfig()))
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "apply-load", "tx-count"}))
     , mInstructionUtilization(mApp.getMetrics().NewHistogram(
@@ -612,8 +671,7 @@ ApplyLoad::ApplyLoad(Application& app)
     }
     // Noisy binary search-based modes require at least 30 ledgers to have
     // enough samples for statistics to be meaningful.
-    if (mMode == ApplyLoadMode::MAX_SAC_TPS ||
-        mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
+    if (mMode == ApplyLoadMode::MAX_SAC_TPS)
     {
 
         if (config.APPLY_LOAD_NUM_LEDGERS < 30)
@@ -635,7 +693,6 @@ ApplyLoad::ApplyLoad(Application& app)
     switch (mMode)
     {
     case ApplyLoadMode::LIMIT_BASED:
-    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         mNumAccounts = config.APPLY_LOAD_MAX_SOROBAN_TX_COUNT *
                            config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
                        config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER *
@@ -724,7 +781,6 @@ ApplyLoad::setup()
     switch (mMode)
     {
     case ApplyLoadMode::LIMIT_BASED:
-    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         setupLoadContract();
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
@@ -752,7 +808,6 @@ ApplyLoad::setup()
     switch (mMode)
     {
     case ApplyLoadMode::MAX_SAC_TPS:
-    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
         // Just upgrade to a placeholder number of TXs, we'll
         // upgrade again before each TPS run.
         upgradeSettingsForMaxTPS(100000);
@@ -766,8 +821,7 @@ ApplyLoad::setup()
     }
 
     // Setup initial bucket list for modes that support it.
-    if (mMode == ApplyLoadMode::LIMIT_BASED ||
-        mMode == ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX)
+    if (mMode == ApplyLoadMode::LIMIT_BASED)
     {
         setupBucketList();
     }
@@ -835,9 +889,6 @@ ApplyLoad::execute()
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
         findMaxSacTps();
-        break;
-    case ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX:
-        findMaxLimitsForModelTransaction();
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
         benchmarkModelTx();
@@ -936,123 +987,6 @@ ApplyLoad::applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig)
     releaseAssert(mTxGenerator.getApplySorobanSuccess().count() -
                       currApplySorobanSuccess ==
                   1);
-}
-
-std::pair<SorobanUpgradeConfig, uint64_t>
-ApplyLoad::updateSettingsForTxCount(uint64_t txsPerLedger)
-{
-    // Round the configuration values down to be a multiple of the respective
-    // step in order to get more readable configurations, and also to speeed
-    // up the binary search significantly.
-    uint64_t const INSTRUCTIONS_ROUNDING_STEP = 5'000'000;
-    uint64_t const SIZE_ROUNDING_STEP = 500;
-    uint64_t const ENTRIES_ROUNDING_STEP = 10;
-
-    auto const& config = mApp.getConfig();
-    uint64_t insns =
-        roundDown(txsPerLedger * config.APPLY_LOAD_INSTRUCTIONS[0] /
-                      config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS,
-                  INSTRUCTIONS_ROUNDING_STEP);
-    uint64_t txSize = roundDown(
-        txsPerLedger * config.APPLY_LOAD_TX_SIZE_BYTES[0], SIZE_ROUNDING_STEP);
-
-    uint64_t writeEntries =
-        roundDown(txsPerLedger * config.APPLY_LOAD_NUM_RW_ENTRIES[0],
-                  ENTRIES_ROUNDING_STEP);
-    uint64_t writeBytes = roundDown(
-        writeEntries * config.APPLY_LOAD_DATA_ENTRY_SIZE, SIZE_ROUNDING_STEP);
-
-    uint64_t diskReadEntries =
-        roundDown(txsPerLedger * config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0],
-                  ENTRIES_ROUNDING_STEP);
-    uint64_t diskReadBytes =
-        roundDown(diskReadEntries * config.APPLY_LOAD_DATA_ENTRY_SIZE,
-                  SIZE_ROUNDING_STEP);
-
-    if (diskReadEntries == 0)
-    {
-        diskReadEntries =
-            MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-        diskReadBytes = MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
-    }
-
-    uint64_t actualMaxTxs = txsPerLedger;
-    actualMaxTxs =
-        std::min(actualMaxTxs,
-                 insns * config.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS /
-                     config.APPLY_LOAD_INSTRUCTIONS[0]);
-    actualMaxTxs =
-        std::min(actualMaxTxs, txSize / config.APPLY_LOAD_TX_SIZE_BYTES[0]);
-    if (config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] > 0)
-    {
-        actualMaxTxs = std::min(actualMaxTxs,
-                                diskReadEntries /
-                                    config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0]);
-        actualMaxTxs = std::min(
-            actualMaxTxs,
-            diskReadBytes / (config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] *
-                             config.APPLY_LOAD_DATA_ENTRY_SIZE));
-    }
-    actualMaxTxs = std::min(actualMaxTxs,
-                            writeEntries / config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
-
-    actualMaxTxs = std::min(actualMaxTxs,
-                            writeBytes / (config.APPLY_LOAD_NUM_RW_ENTRIES[0] *
-                                          config.APPLY_LOAD_DATA_ENTRY_SIZE));
-    CLOG_INFO(Perf,
-              "Resources after rounding for testing {} actual max txs per "
-              "ledger: "
-              "instructions {}, tx size {}, disk read entries {}, "
-              "disk read bytes {}, rw entries {}, rw bytes {}",
-              actualMaxTxs, insns, txSize, diskReadEntries, diskReadBytes,
-              writeEntries, writeBytes);
-
-    auto upgradeConfig = getUpgradeConfig(mApp.getConfig(),
-                                          /* validate */ false);
-    // Set tx limits to the respective resources of the 'model'
-    // transaction.
-    upgradeConfig.txMaxInstructions =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS,
-                 config.APPLY_LOAD_INSTRUCTIONS[0]);
-    upgradeConfig.txMaxSizeBytes =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES,
-                 config.APPLY_LOAD_TX_SIZE_BYTES[0]);
-    upgradeConfig.txMaxDiskReadEntries =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES,
-                 config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0]);
-    upgradeConfig.txMaxWriteLedgerEntries =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES,
-                 config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
-    upgradeConfig.txMaxDiskReadBytes =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES,
-                 config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0] *
-                     config.APPLY_LOAD_DATA_ENTRY_SIZE);
-    upgradeConfig.txMaxWriteBytes =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES,
-                 config.APPLY_LOAD_NUM_RW_ENTRIES[0] *
-                     config.APPLY_LOAD_DATA_ENTRY_SIZE);
-    upgradeConfig.txMaxContractEventsSizeBytes =
-        std::max(MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES,
-                 config.APPLY_LOAD_EVENT_COUNT[0] *
-                         TxGenerator::SOROBAN_LOAD_V2_EVENT_SIZE_BYTES +
-                     100);
-    upgradeConfig.txMaxFootprintEntries =
-        *upgradeConfig.txMaxDiskReadEntries +
-        *upgradeConfig.txMaxWriteLedgerEntries;
-
-    // Set the ledger-wide limits to the compute values calculated above.
-    // Note, that in theory we could end up with ledger limits lower than
-    // the transaction limits, but in normally would be just
-    // mis-configuration (using a model transaction that is too large to
-    // be applied within the target close time).
-    upgradeConfig.ledgerMaxInstructions = insns;
-    upgradeConfig.ledgerMaxTransactionsSizeBytes = txSize;
-    upgradeConfig.ledgerMaxDiskReadEntries = diskReadEntries;
-    upgradeConfig.ledgerMaxWriteLedgerEntries = writeEntries;
-    upgradeConfig.ledgerMaxDiskReadBytes = diskReadBytes;
-    upgradeConfig.ledgerMaxWriteBytes = writeBytes;
-
-    return std::make_pair(upgradeConfig, actualMaxTxs);
 }
 
 void
@@ -1235,22 +1169,21 @@ ApplyLoad::setupBucketList()
         ContractDataDurability::PERSISTENT;
     baseLiveEntry.data.contractData().val.type(SCV_BYTES);
 
-    mDataEntrySize = xdr::xdr_size(baseLiveEntry);
+    auto dataEntrySize = xdr::xdr_size(baseLiveEntry);
     // Add some padding to reach the configured LE size.
-    if (mDataEntrySize < mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE)
+    if (dataEntrySize < mLimitsBasedTxProfile.dataEntrySizeBytes)
     {
         baseLiveEntry.data.contractData().val.bytes().resize(
-            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE - mDataEntrySize);
-        mDataEntrySize = mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE;
-        releaseAssertOrThrow(xdr::xdr_size(baseLiveEntry) == mDataEntrySize);
+            mLimitsBasedTxProfile.dataEntrySizeBytes - dataEntrySize);
+        dataEntrySize = mLimitsBasedTxProfile.dataEntrySizeBytes;
+        releaseAssertOrThrow(xdr::xdr_size(baseLiveEntry) == dataEntrySize);
     }
     else
     {
-        CLOG_WARNING(Perf,
-                     "Apply load generated entry size is larger than "
-                     "APPLY_LOAD_DATA_ENTRY_SIZE: {} > {}",
-                     mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE,
-                     mDataEntrySize);
+        throw std::runtime_error(fmt::format(
+            "Apply load generated entry size is larger than "
+            "resolved apply-load data entry size: {} > {}",
+            dataEntrySize, mLimitsBasedTxProfile.dataEntrySizeBytes));
     }
 
     auto logBucketListStats = [](std::string const& logStr,
@@ -1273,6 +1206,12 @@ ApplyLoad::setupBucketList()
     // ledgers, but save one batch for the last batch to populate upper levels.
     uint32_t totalBatchCount =
         cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS / cfg.APPLY_LOAD_BL_WRITE_FREQUENCY;
+    if (cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS %
+            cfg.APPLY_LOAD_BL_WRITE_FREQUENCY !=
+        0)
+    {
+        totalBatchCount++;
+    }
     releaseAssertOrThrow(totalBatchCount > 0);
 
     // Reserve one batch worth of entries for the top level buckets.
@@ -1560,7 +1499,7 @@ ApplyLoad::benchmarkLimitsIteration()
 
         auto [_, tx] = mTxGenerator.invokeSorobanLoadTransactionV2(
             lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
-            mDataEntryCount, mDataEntrySize, 1'000'000);
+            mLimitsBasedTxProfile, mDataEntryCount, 1'000'000);
 
         uint32_t ledgerVersion = mApp.getLedgerManager()
                                      .getLastClosedLedgerHeader()
@@ -1608,116 +1547,6 @@ ApplyLoad::benchmarkLimitsIteration()
     double closeTime = timeAfter - timeBefore;
     CLOG_INFO(Perf, "Limits benchmark time: {:.2f}ms", closeTime);
     return closeTime;
-}
-
-void
-ApplyLoad::findMaxLimitsForModelTransaction()
-{
-    auto const& config = mApp.getConfig();
-
-    auto validateTxParam = [&config](std::string const& paramName,
-                                     auto const& values, auto const& weights,
-                                     bool allowZeroValue = false) {
-        if (values.size() != 1)
-        {
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("{} must have exactly one entry for "
-                                       "'limits-for-model-tx' mode"),
-                            paramName));
-        }
-        if (!allowZeroValue && values[0] == 0)
-        {
-            throw std::runtime_error(fmt::format(
-                FMT_STRING("{} cannot be zero for 'limits-for-model-tx' mode"),
-                paramName));
-        }
-        if (weights.size() != 1 || weights[0] != 1)
-        {
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("{}_DISTRIBUTION must have exactly one "
-                                       "entry with the value of 1 for "
-                                       "'limits-for-model-tx' mode"),
-                            paramName));
-        }
-    };
-    validateTxParam("APPLY_LOAD_INSTRUCTIONS", config.APPLY_LOAD_INSTRUCTIONS,
-                    config.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION);
-    validateTxParam("APPLY_LOAD_TX_SIZE_BYTES", config.APPLY_LOAD_TX_SIZE_BYTES,
-                    config.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION);
-    validateTxParam("APPLY_LOAD_NUM_DISK_READ_ENTRIES",
-                    config.APPLY_LOAD_NUM_DISK_READ_ENTRIES,
-                    config.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION, true);
-    validateTxParam("APPLY_LOAD_NUM_RW_ENTRIES",
-                    config.APPLY_LOAD_NUM_RW_ENTRIES,
-                    config.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION);
-    validateTxParam("APPLY_LOAD_EVENT_COUNT", config.APPLY_LOAD_EVENT_COUNT,
-                    config.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION, true);
-
-    double targetTimeMs = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
-
-    // Track the best config found during the search
-    SorobanUpgradeConfig maxLimitsConfig;
-    uint64_t maxLimitsTxsPerLedger = 0;
-
-    auto prepareIteration = [this, &config](uint32_t testTxsPerLedger) {
-        CLOG_INFO(Perf,
-                  "Testing ledger max model txs: {}, generated limits: "
-                  "instructions {}, tx size {}, disk read entries {}, rw "
-                  "entries {}",
-                  testTxsPerLedger,
-                  testTxsPerLedger * config.APPLY_LOAD_INSTRUCTIONS[0],
-                  testTxsPerLedger * config.APPLY_LOAD_TX_SIZE_BYTES[0],
-                  testTxsPerLedger * config.APPLY_LOAD_NUM_DISK_READ_ENTRIES[0],
-                  testTxsPerLedger * config.APPLY_LOAD_NUM_RW_ENTRIES[0]);
-
-        auto [upgradeConfig, actualMaxTxsPerLedger] =
-            updateSettingsForTxCount(testTxsPerLedger);
-
-        applyConfigUpgrade(upgradeConfig);
-    };
-    auto iterationResult = [this, &maxLimitsTxsPerLedger, &maxLimitsConfig](
-                               uint32_t testTxsPerLedger, bool isAbove) {
-        auto [upgradeConfig, actualMaxTxsPerLedger] =
-            updateSettingsForTxCount(testTxsPerLedger);
-        // Store the config if this is the best so far
-        if (!isAbove && actualMaxTxsPerLedger > maxLimitsTxsPerLedger)
-        {
-            maxLimitsTxsPerLedger = actualMaxTxsPerLedger;
-            maxLimitsConfig = upgradeConfig;
-        }
-    };
-
-    auto benchmarkFunc = [this](uint32_t testTxsPerLedger) -> double {
-        double closeTime = benchmarkLimitsIteration();
-        releaseAssert(successRate() == 1.0);
-        return closeTime;
-    };
-
-    uint32_t minTxsPerLedger = 1;
-    uint32_t maxTxsPerLedger = mApp.getConfig().APPLY_LOAD_MAX_SOROBAN_TX_COUNT;
-    size_t maxSamplesPerPoint = mApp.getConfig().APPLY_LOAD_NUM_LEDGERS;
-    uint32_t xTolerance = 100;
-
-    auto [lo, hi] = noisyBinarySearch(
-        benchmarkFunc, targetTimeMs, minTxsPerLedger, maxTxsPerLedger,
-        NOISY_BINARY_SEARCH_CONFIDENCE, xTolerance, maxSamplesPerPoint,
-        prepareIteration, iterationResult);
-    // Note, that the final search range may be above the TPL found, that's due
-    // to rounding we do when calculating TPL to benchmark (not every TPL
-    // value can be tested fairly).
-    CLOG_INFO(Perf,
-              "Maximum limits found for model transaction ({} TPL, [{}, {}] "
-              "final search range): "
-              "instructions {}, "
-              "tx size {}, disk read entries {}, disk read bytes {}, "
-              "write entries {}, write bytes {}",
-              maxLimitsTxsPerLedger, lo, hi,
-              *maxLimitsConfig.ledgerMaxInstructions,
-              *maxLimitsConfig.ledgerMaxTransactionsSizeBytes,
-              *maxLimitsConfig.ledgerMaxDiskReadEntries,
-              *maxLimitsConfig.ledgerMaxDiskReadBytes,
-              *maxLimitsConfig.ledgerMaxWriteLedgerEntries,
-              *maxLimitsConfig.ledgerMaxWriteBytes);
 }
 
 double

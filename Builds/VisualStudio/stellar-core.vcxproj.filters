@@ -1335,9 +1335,6 @@
     <ClCompile Include="..\..\src\main\QueryServer.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1458,6 +1455,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\SecretManager.cpp">
       <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\ImmutableLedgerView.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\CovMark.cpp">
+      <Filter>test</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2460,9 +2463,6 @@
     <ClInclude Include="..\..\src\main\QueryServer.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\main\AppConnector.h">
       <Filter>main</Filter>
     </ClInclude>
@@ -2586,6 +2586,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\SecretManager.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\ImmutableLedgerView.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\CovMark.h">
+      <Filter>test</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

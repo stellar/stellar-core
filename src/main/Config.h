@@ -73,7 +73,6 @@ struct ValidatorWeightConfig
 enum class ApplyLoadMode
 {
     LIMIT_BASED,
-    FIND_LIMITS_FOR_MODEL_TX,
     MAX_SAC_TPS,
     BENCHMARK_MODEL_TX
 };
@@ -349,11 +348,6 @@ class Config : public std::enable_shared_from_this<Config>
     ApplyLoadMode APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
     ApplyLoadModelTx APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
 
-    // Size of the synthetic contract data entries used in apply-load.
-    // Currently we generate entries of the equal size for more precise
-    // control over the modelled instructions.
-    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE = 0;
-
     // The parameters below control the synthetic bucket list generation in
     // apply-load.
 
@@ -400,33 +394,14 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Number of ledgers to apply in apply-load.
-    // Depending on the mode this represents either the total number of ledgers
-    // to close for benchmarking, or the number of ledgers to apply per
-    // iteration of binary search for modes that perform search.
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
-    // Target ledger close time in milliseconds for modes that perform binary
-    // search of TPS or limits.
+    // Target ledger close time in milliseconds for max-sac-tps mode.
     uint32_t APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1000;
 
     // Number of classic transactions to include in each ledger in ledger limit
     // based apply-load mode.
     uint32_t APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
-
-    // Number of instructions to generate in the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS;
-    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION;
-
-    // Transaction size in bytes for the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES;
-    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION;
-
-    // Number of disk read-only and read-write entries in the apply-load
-    // transactions. Every entry will have `APPLY_LOAD_DATA_ENTRY_SIZE` size.
-    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES;
-    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION;
 
     // Number of events to generate in the apply-load transactions.
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT;

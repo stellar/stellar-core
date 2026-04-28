@@ -29,10 +29,6 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
-            cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {10};
-            cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {100};
-            cfg.APPLY_LOAD_NUM_RW_ENTRIES = {5};
-            cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {100};
             cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
             cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
             cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
@@ -91,13 +87,6 @@ TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
         // Simulate payment transactions
         app.getLoadGenerator().generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::PAY, nAccounts, nTxs, /* txRate */ 1));
-    }
-    SECTION("invoke realistic")
-    {
-        // Simulate realistic invoke transactions
-        app.getLoadGenerator().generateLoad(
-            GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE_APPLY_LOAD,
-                                        nAccounts, nTxs, /* txRate */ 1));
     }
     simulation->crankUntil(
         [&]() {
@@ -1005,8 +994,6 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 
     cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
 
-    cfg.APPLY_LOAD_DATA_ENTRY_SIZE = 1000;
-
     // BL generation parameters
     cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 10000;
     cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
@@ -1014,32 +1001,19 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
     cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
 
-    // Load generation parameters
-    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {0, 1, 2};
-    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {3, 2, 1};
-
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES = {1, 5, 10};
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {1, 1, 1};
-
     cfg.APPLY_LOAD_EVENT_COUNT = {100};
     cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION = {1};
-
-    cfg.APPLY_LOAD_TX_SIZE_BYTES = {1'000, 2'000, 5'000};
-    cfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION = {3, 2, 1};
-
-    cfg.APPLY_LOAD_INSTRUCTIONS = {10'000'000, 50'000'000};
-    cfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION = {5, 1};
 
     // Ledger and transaction limits
     cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 500'000'000;
     cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS = 100'000'000;
     cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
 
-    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 2000;
-    cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 100;
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_LEDGER_ENTRIES = 200;
+    cfg.APPLY_LOAD_TX_MAX_DISK_READ_LEDGER_ENTRIES = 10;
     cfg.APPLY_LOAD_TX_MAX_FOOTPRINT_SIZE = 100;
 
-    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 50'000'000;
+    cfg.APPLY_LOAD_LEDGER_MAX_DISK_READ_BYTES = 1'000'000;
     cfg.APPLY_LOAD_TX_MAX_DISK_READ_BYTES = 200'000;
 
     cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1250;
@@ -1064,9 +1038,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
     ApplyLoad al(*app);
 
     // Sample a few indices to verify hot archive is properly initialized
-    uint32_t expectedArchivedEntries =
-        ApplyLoad::calculateRequiredHotArchiveEntries(
-            ApplyLoadMode::LIMIT_BASED, cfg);
+    uint32_t expectedArchivedEntries = al.getTotalHotArchiveEntries();
     std::vector<uint32_t> sampleIndices = {0, expectedArchivedEntries / 2,
                                            expectedArchivedEntries - 1};
     std::set<LedgerKey, LedgerEntryIdCmp> sampleKeys;
@@ -1080,70 +1052,6 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
 
     auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys);
     REQUIRE(sampleEntries.size() == sampleKeys.size());
-
-    al.execute();
-
-    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
-}
-
-TEST_CASE("apply load find max limits for model tx",
-          "[loadgen][applyload][acceptance]")
-{
-    auto cfg = getTestConfig();
-    cfg.APPLY_LOAD_MODE = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-    cfg.USE_CONFIG_FOR_GENESIS = true;
-    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-    cfg.MANUAL_CLOSE = true;
-    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-    cfg.GENESIS_TEST_ACCOUNT_COUNT = 10000;
-
-    // Also generate that many classic simple payments.
-    cfg.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 100;
-
-    // Close 30 ledgers per iteration.
-    cfg.APPLY_LOAD_NUM_LEDGERS = 30;
-    // The target close time is 500ms.
-    cfg.APPLY_LOAD_TARGET_CLOSE_TIME_MS = 500;
-
-    // Size of each data entry to be used in the test.
-    cfg.APPLY_LOAD_DATA_ENTRY_SIZE = 100;
-
-    // BL generation parameters
-    cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 1000;
-    cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
-    cfg.APPLY_LOAD_BL_BATCH_SIZE = 1000;
-    cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
-    cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
-
-    // Load generation parameters
-    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES = {1};
-    cfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION = {1};
-
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES = {4};
-    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION = {1};
-
-    cfg.APPLY_LOAD_EVENT_COUNT = {2};
-    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION = {1};
-
-    cfg.APPLY_LOAD_TX_SIZE_BYTES = {1000};
-    cfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION = {1};
-
-    cfg.APPLY_LOAD_INSTRUCTIONS = {2'000'000};
-    cfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION = {1};
-
-    // Only a few ledger limits need to be specified, the rest will be found by
-    // the benchmark itself.
-    // Number of soroban txs per ledger is the upper bound of the binary
-    // search for the number of the model txs to include in each ledger.
-    cfg.APPLY_LOAD_MAX_SOROBAN_TX_COUNT = 1000;
-    // Use 2 clusters/threads.
-    cfg.APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 2;
-
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    auto app = createTestApplication(clock, cfg);
-
-    ApplyLoad al(*app);
 
     al.execute();
 

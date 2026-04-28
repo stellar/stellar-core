@@ -45,8 +45,6 @@ enum class LoadGenMode
     MIXED_CLASSIC_SOROBAN,
     // Submit pre-generated payment transactions from an XDR file
     PAY_PREGENERATED,
-    // Submit the same type of invoke transaction as ApplyLoad
-    SOROBAN_INVOKE_APPLY_LOAD,
     // Overlay-only modes: pre-generated classic payments + a soroban
     // transaction type of choice, each with its own TPS. No on-ledger setup
     // is required; soroban contract keys are synthesized in memory. Apply

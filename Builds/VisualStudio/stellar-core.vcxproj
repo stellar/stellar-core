@@ -596,6 +596,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.cpp" />
+    <ClCompile Include="..\..\src\ledger\ImmutableLedgerView.cpp" />
     <ClCompile Include="..\..\src\ledger\InMemorySorobanState.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
@@ -603,7 +604,6 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxn.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
@@ -670,6 +670,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp" />
     <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
     <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
+    <ClCompile Include="..\..\src\test\CovMark.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzRegressionTests.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzTargetRegistry.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzUtils.cpp" />
@@ -1064,6 +1065,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.h" />
+    <ClInclude Include="..\..\src\ledger\ImmutableLedgerView.h" />
     <ClInclude Include="..\..\src\ledger\InMemorySorobanState.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
@@ -1073,7 +1075,6 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerManager.h" />
     <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnHeader.h" />
@@ -1123,6 +1124,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\TxDemandsManager.h" />
     <ClInclude Include="..\..\src\simulation\ApplyLoad.h" />
     <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
+    <ClInclude Include="..\..\src\test\CovMark.h" />
     <ClInclude Include="..\..\src\test\Fuzzer.h" />
     <ClInclude Include="..\..\src\test\fuzz\FuzzTargetRegistry.h" />
     <ClInclude Include="..\..\src\test\fuzz\FuzzUtils.h" />

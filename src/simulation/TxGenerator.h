@@ -101,6 +101,15 @@ struct SorobanUpgradeConfig
     std::optional<FreezeBypassTxsDelta> freezeBypassTxsDelta{};
 };
 
+struct ApplyLoadTxProfile
+{
+    uint32_t instructions = 0;
+    uint32_t txSizeBytes = 0;
+    uint32_t diskReadEntries = 0;
+    uint32_t rwEntries = 0;
+    uint32_t dataEntrySizeBytes = 0;
+};
+
 class TxGenerator
 {
   public:
@@ -215,8 +224,8 @@ class TxGenerator
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransactionV2(uint32_t ledgerNum, uint64_t accountId,
                                    ContractInstance const& instance,
+                                   ApplyLoadTxProfile const& txProfile,
                                    uint64_t dataEntryCount,
-                                   size_t dataEntrySize,
                                    std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSACPayment(uint32_t ledgerNum, uint64_t fromAccountId,
