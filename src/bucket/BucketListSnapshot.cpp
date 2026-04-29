@@ -375,8 +375,9 @@ SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
 {
 }
 
-std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeys(
+template <class BucketT>
+std::vector<typename BucketT::LoadT>
+SearchableBucketListSnapshot<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {
@@ -385,8 +386,8 @@ SearchableLiveBucketListSnapshot::loadKeys(
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
 
     auto keys = inKeys;
-    std::vector<LedgerEntry> entries;
-    auto loadKeysLoop = [&](std::shared_ptr<LiveBucket const> const& bucket) {
+    std::vector<typename BucketT::LoadT> entries;
+    auto loadKeysLoop = [&](std::shared_ptr<BucketT const> const& bucket) {
         loadKeysFromBucket(bucket, keys, entries);
         return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
@@ -808,24 +809,6 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data)
     : SearchableBucketListSnapshot<HotArchiveBucket>(metrics, std::move(data))
 {
-}
-
-std::vector<HotArchiveBucketEntry>
-SearchableHotArchiveBucketListSnapshot::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
-{
-    ZoneScoped;
-    releaseAssert(mData);
-
-    auto keys = inKeys;
-    std::vector<HotArchiveBucketEntry> entries;
-    auto loadKeysLoop =
-        [&](std::shared_ptr<HotArchiveBucket const> const& bucket) {
-            loadKeysFromBucket(bucket, keys, entries);
-            return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
-        };
-    loopAllBuckets(loadKeysLoop, *mData);
-    return entries;
 }
 
 void

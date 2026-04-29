@@ -383,7 +383,8 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
     // Only query archive for soroban keys we didn't find in the live bucketList
     if (!hotArchiveKeysToSearch.empty())
     {
-        archivedEntries = snapshotPtr->loadArchiveKeys(hotArchiveKeysToSearch);
+        archivedEntries =
+            snapshotPtr->loadArchiveKeys(hotArchiveKeysToSearch, "hot-query");
     }
 
     // Collect TTL keys for Soroban entries in the live BucketList

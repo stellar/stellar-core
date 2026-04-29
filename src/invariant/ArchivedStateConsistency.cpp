@@ -99,7 +99,8 @@ ArchivedStateConsistency::checkOnLedgerCommit(
         preloadedLiveEntries[LedgerEntryKey(entry)] = entry;
     }
 
-    auto preloadedArchivedVector = lclApplyView.loadArchiveKeys(allKeys);
+    auto preloadedArchivedVector =
+        lclApplyView.loadArchiveKeys(allKeys, "ArchivedStateConsistency");
     UnorderedMap<LedgerKey, HotArchiveBucketEntry> preloadedArchivedEntries;
     for (auto const& entry : preloadedArchivedVector)
     {
