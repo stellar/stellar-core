@@ -1284,7 +1284,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
                 bulkLoadKeys.emplace(k);
             }
 
-            auto bulkLoadResult = ledgerView.loadArchiveKeys(bulkLoadKeys);
+            auto bulkLoadResult =
+                ledgerView.loadArchiveKeys(bulkLoadKeys, "test");
             for (auto entry : bulkLoadResult)
             {
                 REQUIRE(entry.type() == HOT_ARCHIVE_ARCHIVED);
@@ -1354,7 +1355,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         // Bulk load
         auto bulkLoadResult =
-            ledgerView.loadArchiveKeys({liveShadow1, liveShadow2});
+            ledgerView.loadArchiveKeys({liveShadow1, liveShadow2}, "test");
         REQUIRE(bulkLoadResult.size() == 0);
 
         // Shadow via archivedEntries
@@ -1374,8 +1375,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         REQUIRE(entryPtr->archivedEntry() == archivedShadow);
 
         // Bulk load
-        auto bulkLoadResult2 =
-            ledgerView.loadArchiveKeys({LedgerEntryKey(archivedShadow)});
+        auto bulkLoadResult2 = ledgerView.loadArchiveKeys(
+            {LedgerEntryKey(archivedShadow)}, "test");
         REQUIRE(bulkLoadResult2.size() == 1);
         REQUIRE(bulkLoadResult2[0].type() == HOT_ARCHIVE_ARCHIVED);
         REQUIRE(bulkLoadResult2[0].archivedEntry() == archivedShadow);

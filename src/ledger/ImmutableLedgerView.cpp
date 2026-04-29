@@ -410,9 +410,10 @@ ImmutableLedgerView::loadArchiveEntry(LedgerKey const& k) const
 
 std::vector<HotArchiveBucketEntry>
 ImmutableLedgerView::loadArchiveKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    std::string const& label) const
 {
-    return mHotArchiveSnapshot.loadKeys(inKeys);
+    return mHotArchiveSnapshot.loadKeys(inKeys, label);
 }
 
 void

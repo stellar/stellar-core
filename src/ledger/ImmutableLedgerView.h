@@ -174,7 +174,8 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
     std::shared_ptr<HotArchiveBucketEntry const>
     loadArchiveEntry(LedgerKey const& k) const;
     std::vector<HotArchiveBucketEntry>
-    loadArchiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
+    loadArchiveKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                    std::string const& label) const;
     void scanAllArchiveEntries(
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 };

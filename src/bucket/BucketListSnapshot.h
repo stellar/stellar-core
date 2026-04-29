@@ -152,6 +152,13 @@ template <class BucketT> class SearchableBucketListSnapshot
     std::shared_ptr<typename BucketT::LoadT const>
     load(LedgerKey const& k) const;
 
+    // Bulk load. Walks all buckets, accumulating found entries until all
+    // keys have been resolved. label identifies the call site for the bulk
+    // load timer metric.
+    std::vector<typename BucketT::LoadT>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+             std::string const& label) const;
+
     // Access to underlying data (for copying/refreshing)
     std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
     getSnapshotData() const;
@@ -174,10 +181,6 @@ class SearchableLiveBucketListSnapshot
   public:
     SearchableLiveBucketListSnapshot(SearchableLiveBucketListSnapshot const&) =
         default;
-
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-             std::string const& label) const;
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
@@ -212,9 +215,6 @@ class SearchableHotArchiveBucketListSnapshot
   public:
     SearchableHotArchiveBucketListSnapshot(
         SearchableHotArchiveBucketListSnapshot const&) = default;
-
-    std::vector<HotArchiveBucketEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
     // Iterate over all entries in all buckets. Note this iterates over all
     // HotArchiveBucketEntry, so some may be shadowed and outdated.

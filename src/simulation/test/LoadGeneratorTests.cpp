@@ -1078,7 +1078,7 @@ TEST_CASE("apply load", "[loadgen][applyload][acceptance]")
         sampleKeys.insert(ApplyLoad::getKeyForArchivedEntry(idx));
     }
 
-    auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys);
+    auto sampleEntries = ledgerView.loadArchiveKeys(sampleKeys, "test");
     REQUIRE(sampleEntries.size() == sampleKeys.size());
 
     al.execute();

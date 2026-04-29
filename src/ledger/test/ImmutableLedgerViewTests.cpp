@@ -744,7 +744,7 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
 
     if (archive)
     {
-        auto result = histSnapshot->loadArchiveKeys(queryKeys);
+        auto result = histSnapshot->loadArchiveKeys(queryKeys, "test");
         for (auto const& habe : result)
         {
             if (habe.type() != HOT_ARCHIVE_ARCHIVED)
