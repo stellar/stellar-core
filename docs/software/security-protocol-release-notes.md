@@ -19,6 +19,10 @@ It is organized as a reverse chronological timeline of releases.
 * Crashes (that could lead to remote code execution).
 * Other attacks that can be exploited (inside or outside of the Stellar protocol).
 
+## External mitigations
+
+* Freezing accounts involved in an exploit.
+
 ## Goals for this document
 
 * Have a summary view of changes that affect the code base (stellar-core has to be able to replay all ledgers generated since genesis on the Stellar public network).
@@ -43,6 +47,8 @@ It then follows that:
 
 * `tag-name` - protocol - description of the protocol change
 
+* `tag-name` - external - description of the reason for the change to stellar-core. This is most likely not a stellar-core vulnerability but is being done because of an external request from the ecosystem.
+
 ## Tags used in this document
 
 * `Overlay` - subsystem used by peers to communicate to each other
@@ -52,6 +58,65 @@ It then follows that:
 * `History` - History subsystem
 
 # List of releases
+
+## v26.0.1 (2026-04-03)
+* `Ledger` - security - Block transactions using `ed25519SignedPayload` signatures.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Use full hash-of-hash for Overlay adverts to prevent hash prefix collision.
+    * exploited: no
+    * mitigation: code fix
+
+## v26.0.0 (2026-03-24)
+* `Overlay` - security - Hardened the multi-threaded HTTP server against core crash from malformed requests.
+    * exploited: no
+    * mitigation: code fix
+
+## v25.2.2-external (2026-03-24)
+* `Ledger` - security - Divergence from pool-share revocation order.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Pre-validate the wasm before passing it to wasmi.
+    * exploited: no
+    * mitigation: code fix
+
+## v25.2.1-external (2026-03-17)
+* `Herder` - security - Hardened `computePerOpFee` by preventing a division-by-zero crash.
+    * exploited: no
+    * mitigation: code fix
+* `Ledger` - security - Run Soroban host on a larger Rust stack to avoid stack overflow on deeply recursive contract execution.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Rate limit `GET_SCP_STATE` messages to prevent peers from inducing elevated CPU/memory consumption via repeated SCP state requests.
+    * exploited: no
+    * mitigation: code fix
+
+## v25.2.0 (2026-02-25)
+* `Ledger` - security - Improved transaction set validation to reject invalid tx sets earlier.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Flow control fix preventing peers from overwhelming a node with messages faster than they can be processed.
+    * exploited: no
+    * mitigation: code fix
+* `SCP` - security - Clean up far-future SCP data slots when tracking, preventing unbounded memory growth from messages targeting future slots.
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - Fixed uncaught exceptions around `readOne` that could crash a node when processing malformed XDR in history archives.
+    * exploited: no
+    * mitigation: code fix
+* `Herder` - external - Make banned-accounts list persistent across restarts and hardening the controls used to mitigate ongoing exploits. This is marked as external because it was a mitigation for an ecosystem exploit and not a vulnerability in stellar-core.
+    * exploited: no
+    * mitigation: code fix
+
+## v25.1.3 (2026-02-22)
+* `Herder` - external - Updated banned accounts logic, refining the controls used to filter transactions related to known exploits (follow-up to v25.1.1). This is marked as external because it was a mitigation for an ecosystem exploit and not a vulnerability in stellar-core.
+    * exploited: no
+    * mitigation: code fix
+
+## v25.1.1 (2026-02-03)
+* `Herder` - external - Implement ban accounts logic to freeze the accounts involved in the Blend Yieldbox exploit. This is marked as external because it was a mitigation for an ecosystem exploit and not a vulnerability in stellar-core.
+    * exploited: no
+    * mitigation: code fix
 
 ## v25.0.0 (2026-01-22)
 * `Ledger` - protocol - CAP0074 - Host functions for BN254
