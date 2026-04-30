@@ -746,7 +746,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         },
         simulation);
     auto const numInstances = nAccounts;
-    auto const numSorobanTxs = 150;
+    auto const numSorobanTxs = 500;
 
     numTxsBefore = getSuccessfulTxCount();
 
