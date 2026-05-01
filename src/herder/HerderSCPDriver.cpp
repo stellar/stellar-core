@@ -1524,7 +1524,6 @@ HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
     return qualityWeightIt->second / homeDomainSizeIt->second;
 }
 
-#ifdef BUILD_TESTS
 std::optional<int64_t>
 HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
 {
@@ -1535,6 +1534,5 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
     }
     return std::nullopt;
 }
-#endif
 
 }
