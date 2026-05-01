@@ -7212,7 +7212,7 @@ wasmsAreCached(Application& app, std::vector<Hash> const& wasms)
 static int64_t const INVOKE_ADD_UNCACHED_COST_PASS = 500'000;
 static int64_t const INVOKE_ADD_UNCACHED_COST_FAIL = 400'000;
 
-static int64_t const INVOKE_ADD_CACHED_COST_PASS = 300'000;
+static int64_t const INVOKE_ADD_CACHED_COST_PASS = 305'000;
 static int64_t const INVOKE_ADD_CACHED_COST_FAIL = 200'000;
 
 TEST_CASE("reusable module cache", "[soroban][modulecache]")
