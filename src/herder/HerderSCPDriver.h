@@ -167,15 +167,16 @@ class HerderSCPDriver : public SCPDriver
     void cacheValidTxSet(ApplicableTxSetFrame const& txSet,
                          LedgerHeaderHistoryEntry const& lcl,
                          uint64_t closeTimeOffset) const;
+
+    // Get the number of nomination timeouts that occurred for a given slot
+    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
+
 #ifdef BUILD_TESTS
     RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>&
     getTxSetValidityCache()
     {
         return mTxSetValidCache;
     }
-
-    // Get the number of nomination timeouts that occurred for a given slot
-    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
 #endif
 
   private:

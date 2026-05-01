@@ -258,6 +258,22 @@ class HerderImpl : public Herder
 
     void setupTriggerNextLedger();
 
+    // Compute the trigger-timer anchor point using the local node's
+    // prepare-start timestamp for the previous slot. Returns a pessimistic
+    // estimate (now - expectedClose) if no prepare-start is recorded.
+    VirtualClock::time_point
+    triggerAnchorFromPrepareStart(uint64_t lastIndex,
+                                  VirtualClock::time_point now,
+                                  std::chrono::milliseconds expectedClose);
+
+    // Compute the trigger-timer anchor point using the network-agreed
+    // consensus close time on the system clock. Falls back to
+    // triggerAnchorFromPrepareStart if consensus close time is unavailable
+    // or if the local clock is significantly drifting from the network time.
+    VirtualClock::time_point triggerAnchorFromConsensusCloseTime(
+        uint64_t lastIndex, VirtualClock::time_point now,
+        std::chrono::milliseconds expectedClose);
+
     void startOutOfSyncTimer();
     void outOfSyncRecovery();
     void broadcast(SCPEnvelope const& e);
@@ -341,6 +357,10 @@ class HerderImpl : public Herder
         // envelope signature verification
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
+
+        // Marked when the experimental trigger timer falls back from the
+        // network-close-time anchor to the local prepare-start anchor.
+        medida::Meter& mTriggerPrepareStartFallback;
 
         SCPMetrics(Application& app);
     };
