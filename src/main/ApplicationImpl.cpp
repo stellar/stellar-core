@@ -148,6 +148,17 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     homeStr += mConfig.NODE_HOME_DOMAIN;
     TracyAppInfo(homeStr.c_str(), homeStr.size());
 
+#ifdef BUILD_TESTS
+    if (mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING !=
+        std::chrono::milliseconds::zero())
+    {
+        mVirtualClock.setSystemTimeOffset(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING));
+        mStartedOn = clock.system_now();
+    }
+#endif
+
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
         {
