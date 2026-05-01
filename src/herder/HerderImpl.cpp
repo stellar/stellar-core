@@ -1438,7 +1438,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     std::vector<LedgerUpgrade> upgrades;
     {
         LedgerSnapshot ls(mApp);
-        upgrades = mUpgrades.createUpgradesFor(lcl.header, ls);
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, ls, mApp.getConfig());
     }
     for (auto const& upgrade : upgrades)
     {

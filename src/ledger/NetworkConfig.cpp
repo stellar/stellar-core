@@ -1370,6 +1370,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MaximumSorobanNetworkConfig::
                     BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
+    }
     default:
         break;
     }

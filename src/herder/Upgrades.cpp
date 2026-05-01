@@ -279,7 +279,7 @@ Upgrades::getParameters() const
 
 std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
-                            LedgerSnapshot const& ls) const
+                            LedgerSnapshot const& ls, Config const& cfg) const
 {
     auto result = std::vector<LedgerUpgrade>{};
     if (!timeForUpgrade(lclHeader.scpValue.closeTime))
@@ -334,7 +334,7 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     {
         auto cfgUpgrade = ConfigUpgradeSetFrame::makeFromKey(ls, *key);
         if (cfgUpgrade != nullptr &&
-            cfgUpgrade->isValidForApply() == UpgradeValidity::VALID &&
+            cfgUpgrade->isValidForApply(cfg) == UpgradeValidity::VALID &&
             cfgUpgrade->upgradeNeeded(ls))
         {
             result.emplace_back(LEDGER_UPGRADE_CONFIG);
