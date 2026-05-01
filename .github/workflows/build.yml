@@ -76,7 +76,7 @@ jobs:
         if: steps.check-last-tested-commit.outputs.skip != 'true'
         # Prevent sudden announcement of a new advisory from failing ci:
         continue-on-error: true
-        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         with:
           command: check advisories
           # leave arguments empty so we don't test --all-features
@@ -85,7 +85,7 @@ jobs:
 
       - name: Check cargo-deny bans licenses sources
         if: steps.check-last-tested-commit.outputs.skip != 'true'
-        uses: EmbarkStudios/cargo-deny-action@8d73959fce1cdc8989f23fdf03bec6ae6a6576ef
+        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         with:
           command: check bans licenses sources
           # leave arguments empty so we don't test --all-features
