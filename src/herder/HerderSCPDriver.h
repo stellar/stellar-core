@@ -84,6 +84,9 @@ class HerderSCPDriver : public SCPDriver
     void stopTimer(uint64 slotIndex, int timerID) override;
     std::chrono::milliseconds computeTimeout(uint32 roundNumber,
                                              bool isNomination) override;
+#ifdef BUILD_TESTS
+    std::chrono::milliseconds getNominationEmitDelayForTesting() const override;
+#endif
 
     // hashing support
     Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override;

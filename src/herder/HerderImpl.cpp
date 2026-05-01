@@ -1271,9 +1271,10 @@ HerderImpl::triggerAnchorFromPrepareStart(
 // Compute the anchor for the next trigger. Caller fires at
 // `anchor + expectedClose`. Unlike the local ballot cadence trigger, this uses
 // the externalized close time from the previous ledger, which is a timestamp
-// coming from a different, potentially unsynced node. This is more accurate
-// than just using local timers, as those skew late based on latency from the
-// leader, but we need to be careful to account for drift.
+// coming from a different node whose system clock may be drifted relative to
+// ours. This is more accurate than just using local timers, as those skew late
+// based on latency from the leader, but we need to be careful to account for
+// drift.
 //
 // Constraints:
 // 1. Track `expectedClose` on the network timeline as closely as possible.
