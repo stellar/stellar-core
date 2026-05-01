@@ -925,6 +925,14 @@ class Config : public std::enable_shared_from_this<Config>
     // only flag.
     bool TESTING_NOMINATE_RANDOM_VALUES;
 
+    // Injects a signed wall-clock offset into the node's system clock for
+    // testing. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
+    // Delay emission of updated nomination messages for testing nomination
+    // timeout behavior. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void

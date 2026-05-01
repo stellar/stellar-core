@@ -676,6 +676,31 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
             slot->nominate(value, previousValue, true);
         });
 
+#ifdef BUILD_TESTS
+    // If a nomination-emit delay is configured, defer the emit by
+    // arming NOMINATION_EMIT_TIMER instead of broadcasting now. A subsequent
+    // nominate() will replace the timer so the eventual emit reflects the
+    // latest state. Skip the deferral once the SCP nomination timeout has
+    // fired (`timedout`) so retries don't compound latency, and cancel any
+    // still-armed timer in that case.
+    if (updated)
+    {
+        auto delay = mSlot.getSCPDriver().getNominationEmitDelayForTesting();
+        if (delay > std::chrono::milliseconds::zero() && !timedout)
+        {
+            mSlot.getSCPDriver().setupTimer(
+                mSlot.getSlotIndex(), Slot::NOMINATION_EMIT_TIMER, delay,
+                [slot, this]() { emitNomination(); });
+            return updated;
+        }
+        if (delay > std::chrono::milliseconds::zero())
+        {
+            mSlot.getSCPDriver().stopTimer(mSlot.getSlotIndex(),
+                                           Slot::NOMINATION_EMIT_TIMER);
+        }
+    }
+#endif
+
     if (updated)
     {
         emitNomination();
