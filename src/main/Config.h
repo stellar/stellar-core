@@ -559,6 +559,10 @@ class Config : public std::enable_shared_from_this<Config>
     // also enabled.
     bool BACKGROUND_TX_SIG_VERIFICATION;
 
+    // Experimental flag to use externalized close time for trigger timer
+    // calculation instead of prepare start time.
+    bool EXPERIMENTAL_TRIGGER_TIMER;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes

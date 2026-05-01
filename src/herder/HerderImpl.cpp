@@ -80,6 +80,8 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "envelope", "validsig"}, "envelope"))
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
+    , mTriggerPrepareStartFallback(app.getMetrics().NewMeter(
+          {"scp", "trigger", "prepare-start-fallback"}, "trigger"))
 {
 }
 
@@ -1253,6 +1255,151 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
     }
 }
 
+VirtualClock::time_point
+HerderImpl::triggerAnchorFromPrepareStart(
+    uint64_t lastIndex, VirtualClock::time_point now,
+    std::chrono::milliseconds expectedClose)
+{
+    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+    if (lastStart)
+    {
+        return *lastStart;
+    }
+    // Pessimistic estimate: assume the previous ballot protocol started one
+    // full interval ago, so the next trigger should fire immediately.
+    return now - expectedClose;
+}
+
+// Compute the anchor for the next trigger. Caller fires at
+// `anchor + expectedClose`. Unlike the local ballot cadence trigger, this uses
+// the externalized close time from the previous ledger, which is a timestamp
+// coming from a different, potentially unsynced node. This is more accurate
+// than just using local timers, as those skew late based on latency from the
+// leader, but we need to be careful to account for drift.
+//
+// Constraints:
+// 1. Track `expectedClose` on the network timeline as closely as possible.
+// 2. Under drift, prefer a longer ledger to a shorter one to prevent fast
+//    ledgers causing too much strain on the network.
+// 3. Never let a badly lagging local clock wedge the node (i.e. never schedule
+//    a trigger in the far future).
+//
+// Scenarios (assume last `closeTime` = N, target = 5s):
+// 1. Our clock ahead of network: Check how much time our system clock says has
+//    elapsed since the externalized network ledger closed
+//    (timeSinceNetworkLedgerStart). If timeSinceNetworkLedgerStart > target,
+//    either the network itself is slow, or our clock is ahead.
+//
+//   To get a better sense of which, we also take into account
+//   nomination time, so the check becomes timeSinceNetworkLedgerStart > target
+//   + nominationBudget, where nomination budget scales with timeouts.
+//
+//   If we think we're drifting ahead after taking nomination into account, we
+//   fall back to prepare-start anchor, which is based on our local clock and
+//   can't drift, but is slower.
+//
+//   Note that if nomination is quick, but apply takes a long time, it still
+//   appears like we're ahead and we fall back to prepare-start. This isn't a
+//   problem. The prepare-start timer starts before the apply stage, so a long
+//   apply is "baked in" to the time. If apply was the bottleneck, we'll
+//   probably trigger immediately even if we use the prepare-start timer because
+//   we're behind, so using prepare-start is identical to the network-based
+//   anchor from the perf standpoint if we really are in sync anyway.
+//
+//   This is not true for nomination. The prepare-start timer starts after
+//   nomination, so it does not reflect a long nomination. This is why we need
+//   the nomination budget in our check. If nomination took a long time and we
+//   fall back to the conservative timer, this is much worse from a perf
+//   perspective, as we are waiting nomination time + target time before
+//   starting the next ledger.
+//
+// 2. Our clock behind network: Check whether our local timer says
+//    more time has elapsed since prepare-start vs how much time has
+//    elapsed since the externalized network ledger closed.
+//
+//   If true, our system clock is lagging far enough that the network-based
+//   anchor would schedule the next trigger later than the conservative timer
+//   based on local ballot cadence. That delay can grow with drift and wedge the
+//   node if arbitrarily in the future, so we fall back to the prepare-start
+//   anchor. This anchor is conservative and local, but it gives us a bounded
+//   trigger time even when system time is badly behind.
+//
+// 3. Clocks synced, but nomination/apply was slow: With synced clocks,
+//    time since network close time is large because real time really passed,
+//    not because our system clock drifted. The goal is to avoid falling back to
+//    a conservative timer and snowballing the real delay.
+//
+//    See scenario 1, but TL;DR we can look at the nomination timeouts and see
+//    if the network is slow vs. the node drifting. If nomination is slow, we
+//    can't fall back to the prepare-apply timer because it would compound the
+//    delay. If apply is slow, it doesn't matter which timer we use, they both
+//    will result in triggering immediately.
+VirtualClock::time_point
+HerderImpl::triggerAnchorFromConsensusCloseTime(
+    uint64_t lastIndex, VirtualClock::time_point now,
+    std::chrono::milliseconds expectedClose)
+{
+    auto fallbackToPrepareStart = [&]() {
+        mSCPMetrics.mTriggerPrepareStartFallback.Mark();
+        return triggerAnchorFromPrepareStart(lastIndex, now, expectedClose);
+    };
+
+    auto consensusCloseTime = trackingConsensusCloseTime();
+    if (consensusCloseTime == 0)
+    {
+        CLOG_WARNING(Herder, "Consensus close time is 0, falling back to "
+                             "prepare-start anchor");
+        return fallbackToPrepareStart();
+    }
+
+    // Compare elapsed time on the externalized closeTime timeline with elapsed
+    // time on our local prepare-start timeline.
+    // Relation, with drift > 0 meaning our clock is ahead of network time:
+    //
+    //   timeSinceNetworkLedgerStart
+    //     = nominationBudget + timeSinceLocalBallotStart + drift
+    //
+    // where nominationBudget is the slow-nomination allowance described above.
+    auto externalizedSystemTime = VirtualClock::from_time_t(consensusCloseTime);
+    auto currentSystemTime = mApp.getClock().system_now();
+    auto timeSinceNetworkLedgerStart =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            currentSystemTime - externalizedSystemTime);
+
+    auto localBallotStart =
+        triggerAnchorFromPrepareStart(lastIndex, now, expectedClose);
+    auto timeSinceLocalBallotStart =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now -
+                                                              localBallotStart);
+
+    // Scenario 2: if system time is behind the local prepare-start timer, the
+    // network-based anchor can wedge the node, so use the local fallback.
+    if (timeSinceLocalBallotStart > timeSinceNetworkLedgerStart)
+    {
+        return fallbackToPrepareStart();
+    }
+
+    // Scenario 1: widen the ahead-drift bound by the slow nomination we can
+    // explain from the previous slot's timeout count.
+    auto nominationTimeouts =
+        mHerderSCPDriver.getNominationTimeouts(lastIndex).value_or(0);
+    auto nominationBudget = std::chrono::milliseconds::zero();
+    for (int64_t round = 1; round <= nominationTimeouts; ++round)
+    {
+        nominationBudget += mHerderSCPDriver.computeTimeout(
+            static_cast<uint32_t>(round), /*isNomination=*/true);
+    }
+
+    // Scenario 1: if elapsed system time exceeds target plus explainable
+    // nomination delay, treat it as clock-ahead drift and use the fallback.
+    if (timeSinceNetworkLedgerStart > expectedClose + nominationBudget)
+    {
+        return fallbackToPrepareStart();
+    }
+
+    return now - timeSinceNetworkLedgerStart;
+}
+
 void
 HerderImpl::setupTriggerNextLedger()
 {
@@ -1279,19 +1426,16 @@ HerderImpl::setupTriggerNextLedger()
     std::chrono::milliseconds milliseconds =
         mLedgerManager.getExpectedLedgerCloseTime();
 
-    // bootstrap with a pessimistic estimate of when
-    // the ballot protocol started last
     auto now = mApp.getClock().now();
-    auto lastBallotStart = now - milliseconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-    if (lastStart)
-    {
-        lastBallotStart = *lastStart;
-    }
+
+    auto lastLedgerStartingPoint =
+        mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER
+            ? triggerAnchorFromConsensusCloseTime(lastIndex, now, milliseconds)
+            : triggerAnchorFromPrepareStart(lastIndex, now, milliseconds);
 
     // Adjust trigger time in case node's clock has drifted.
     // This ensures that next value to nominate is valid
-    auto triggerTime = lastBallotStart + milliseconds;
+    auto triggerTime = lastLedgerStartingPoint + milliseconds;
 
     if (triggerTime < now)
     {
