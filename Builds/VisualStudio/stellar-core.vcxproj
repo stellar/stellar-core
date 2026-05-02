@@ -670,7 +670,6 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp" />
     <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
     <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
-    <ClCompile Include="..\..\src\test\fuzz\FuzzMain.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzRegressionTests.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzTargetRegistry.cpp" />
     <ClCompile Include="..\..\src\test\fuzz\FuzzUtils.cpp" />

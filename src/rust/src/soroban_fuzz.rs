@@ -22,9 +22,6 @@ pub fn run_soroban_fuzz_target(_name: &str, _data: &[u8]) -> FuzzResultCode {
 
 // When testutils feature is enabled, import and use the actual implementations
 #[cfg(all(feature = "next", feature = "testutils"))]
-extern crate soroban_env_host_p26;
-
-#[cfg(all(feature = "next", feature = "testutils"))]
 use soroban_fuzz_targets::{self as fuzz, FuzzResult};
 
 /// Run a Soroban fuzz target with the given input bytes.
