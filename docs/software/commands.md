@@ -34,12 +34,8 @@ Command options can only by placed after command.
       ledger close time for applying transactions.
     - `APPLY_LOAD_MODE="max-sac-tps"`: determines maximum TPS for the load
       consisting only of fast SAC transfer.
-    - `APPLY_LOAD_MODE="limits-for-model-tx"`: determines maximum ledger
-      limits for the load consisting only of a customizable 'model'
-      transaction.
     - `APPLY_LOAD_MODE="benchmark"`: benchmarks a fixed-size ledger of model
-      transactions. Use `APPLY_LOAD_MODEL_TX` to select the model transaction;
-      currently only `"sac"` is supported.
+      transactions. Use `APPLY_LOAD_MODEL_TX` to select the model transaction.
   * Load generation is configured in the Core config file. The relevant settings
     all begin with `APPLY_LOAD_`. See full example configurations with
     per-setting documentation in the `docs` directory

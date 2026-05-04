@@ -415,17 +415,13 @@ parseApplyLoadMode(ConfigItem const& item)
     {
         return ApplyLoadMode::MAX_SAC_TPS;
     }
-    if (mode == "limits-for-model-tx")
-    {
-        return ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
-    }
     if (mode == "benchmark")
     {
         return ApplyLoadMode::BENCHMARK_MODEL_TX;
     }
     throw std::invalid_argument(
         "invalid 'APPLY_LOAD_MODE', expected one of: ledger-limits, "
-        "max-sac-tps, limits-for-model-tx, benchmark");
+        "max-sac-tps, benchmark");
 }
 
 ApplyLoadModelTx
@@ -1686,16 +1682,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
                 {"APPLY_LOAD_MODEL_TX",
                  [&]() { APPLY_LOAD_MODEL_TX = parseApplyLoadModelTx(item); }},
-                {"APPLY_LOAD_DATA_ENTRY_SIZE",
-                 [&]() {
-                     APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
-                     // align to 4 bytes
-                     if (APPLY_LOAD_DATA_ENTRY_SIZE % 4 != 0)
-                     {
-                         APPLY_LOAD_DATA_ENTRY_SIZE +=
-                             4 - (APPLY_LOAD_DATA_ENTRY_SIZE % 4);
-                     }
-                 }},
                 {"APPLY_LOAD_BL_SIMULATED_LEDGERS",
                  [&]() {
                      APPLY_LOAD_BL_SIMULATED_LEDGERS = readInt<uint32_t>(item);
@@ -1713,43 +1699,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"APPLY_LOAD_BL_LAST_BATCH_SIZE",
                  [&]() {
                      APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
-                 }},
-                {"APPLY_LOAD_INSTRUCTIONS",
-                 [&]() {
-                     APPLY_LOAD_INSTRUCTIONS = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_TX_SIZE_BYTES",
-                 [&]() {
-                     APPLY_LOAD_TX_SIZE_BYTES = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES",
-                 [&]() {
-                     APPLY_LOAD_NUM_DISK_READ_ENTRIES =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES",
-                 [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
                  }},
                 {"APPLY_LOAD_EVENT_COUNT",
                  [&]() {

@@ -372,8 +372,9 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
     auth.rootInvocation.function.type(
         SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
     SCVal val(SCV_BYTES);
+    auth.rootInvocation.function.contractFn().args = {val};
 
-    auto const overheadBytes = xdr::xdr_size(auth) + xdr::xdr_size(val);
+    auto const overheadBytes = xdr::xdr_size(auth);
     if (overheadBytes > increaseUpToBytes)
     {
         increaseUpToBytes = 0;
@@ -552,7 +553,7 @@ TxGenerator::invokeSorobanLoadTransaction(
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
-    uint64_t dataEntryCount, size_t dataEntrySize,
+    ApplyLoadTxProfile const& txProfile, uint64_t dataEntryCount,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
     auto const& appCfg = mApp.getConfig();
@@ -560,10 +561,9 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     // The estimates below are fairly tight as they depend on linear
     // functions (maybe with a small constant factor as well).
     uint32_t const baseInstructionCount = 737'119;
-    uint32_t const baselineTxSizeBytes = 256;
+    uint32_t const baselineTxSizeBytes = 328;
     uint32_t const eventSize = TxGenerator::SOROBAN_LOAD_V2_EVENT_SIZE_BYTES;
     uint32_t const instructionsPerGuestCycle = 40;
-    uint32_t const instructionsPerHostCycle = 4'875;
     uint32_t const instructionsPerAuthByte = 35;
     uint32_t const instructionsPerEvent = 8'500;
 
@@ -575,14 +575,10 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     uint32_t archiveEntriesToRestore = 0;
     if (mPrePopulatedArchivedEntries != 0)
     {
-        archiveEntriesToRestore = sampleDiscrete(
-            appCfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES,
-            appCfg.APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION, 0u);
+        archiveEntriesToRestore = txProfile.diskReadEntries;
     }
 
-    uint32_t rwEntries =
-        sampleDiscrete(appCfg.APPLY_LOAD_NUM_RW_ENTRIES,
-                       appCfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION, 0u);
+    uint32_t rwEntries = txProfile.rwEntries;
 
     // Subtract the archive entries from rwEntries since restoration counts as a
     // write
@@ -641,26 +637,24 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         }
     }
 
-    uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources);
-    uint32_t desiredTxBytes =
-        sampleDiscrete(appCfg.APPLY_LOAD_TX_SIZE_BYTES,
-                       appCfg.APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION, 0u);
+    uint32_t txOverheadBytes = baselineTxSizeBytes + xdr::xdr_size(resources) +
+                               4 * archivedIndexes.size();
+    uint32_t desiredTxBytes = txProfile.txSizeBytes;
     uint32_t paddingBytes =
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
     uint32_t entriesWriteSize =
-        dataEntrySize * (rwEntries + archiveEntriesToRestore);
+        txProfile.dataEntrySizeBytes * (rwEntries + archiveEntriesToRestore);
 
     uint32_t eventCount =
         sampleDiscrete(appCfg.APPLY_LOAD_EVENT_COUNT,
                        appCfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION, 0u);
 
     // Pick random number of cycles between bounds
-    uint32_t targetInstructions =
-        sampleDiscrete(appCfg.APPLY_LOAD_INSTRUCTIONS,
-                       appCfg.APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION, 0u);
+    uint32_t targetInstructions = txProfile.instructions;
     resources.instructions = targetInstructions;
     resources.writeBytes = entriesWriteSize;
-    resources.diskReadBytes = dataEntrySize * archiveEntriesToRestore;
+    resources.diskReadBytes =
+        txProfile.dataEntrySizeBytes * archiveEntriesToRestore;
 
     auto numEntries =
         (rwEntries + archiveEntriesToRestore + instance.readOnlyKeys.size());
@@ -712,7 +706,14 @@ TxGenerator::invokeSorobanLoadTransactionV2(
     ihf.invokeContract().args = {makeU32(guestCycles), makeU32(hostCycles),
                                  makeU32(eventCount)};
 
-    increaseOpSize(op, paddingBytes);
+    SorobanAuthorizationEntry auth;
+    auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    auth.rootInvocation.function.type(
+        SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    SCVal val(SCV_BYTES);
+    val.bytes().resize(paddingBytes);
+    auth.rootInvocation.function.contractFn().args = {val};
+    op.body.invokeHostFunctionOp().auth = {auth};
 
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes,
@@ -733,6 +734,12 @@ TxGenerator::invokeSorobanLoadTransactionV2(
         resourceFee, std::nullopt, std::nullopt,
         archivedIndexes.empty() ? std::nullopt
                                 : std::make_optional(archivedIndexes));
+    auto txSize = xdr::xdr_size(tx->getEnvelope());
+    if (txSize != txProfile.txSizeBytes)
+    {
+        CLOG_WARNING(Perf, "Tx size is different than desired: {} vs {}",
+                     txSize, txProfile.txSizeBytes);
+    }
     return std::make_pair(account, tx);
 }
 
