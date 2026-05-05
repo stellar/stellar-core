@@ -83,7 +83,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             txEnv.v1().tx.operations.emplace_back();
             // The fee is actually not relevant for XDR validation, we just use
             // it to have different tx envelopes.
-            txEnv.v1().tx.fee = 100 + txId;
+            txEnv.v1().tx.fee = 10000 + txId;
             ++txId;
             txEnv.v1().tx.operations.back().body.type(
                 isSoroban ? OperationType::INVOKE_HOST_FUNCTION

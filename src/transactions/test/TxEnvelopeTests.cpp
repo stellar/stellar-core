@@ -2474,7 +2474,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
     }
 }
 
-TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
+TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
                    "[tx][envelope][overlay]")
 {
     Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
@@ -2485,9 +2485,8 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
 
     int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
-    // This test validates that checkValidForOverlay skips
-    // SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD verification, while checkValid
-    // (used during txset validation and apply) does not.
+    // This test validates that checkValidForOverlay verifies
+    // SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD signers normally
     for_versions_from(19, *app, [&] {
         auto a1 = root->create("a1", paymentAmount);
 
@@ -2533,18 +2532,14 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
             REQUIRE(tx->getResultCode() == txSUCCESS);
         }
 
-        SECTION("checkValidForOverlay rejects ed25519 signed payload signer")
+        SECTION("checkValidForOverlay accepts ed25519 signed payload signer")
         {
-            // Overlay validation skips payload signer checking, so a tx
-            // authorized only via payload signer should fail overlay
-            // validation
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto ls = CheckValidLedgerViewWrapper(ltx);
             auto diagnostics = DiagnosticEventManager::createDisabled();
             auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
                                                    0, 0, 0, diagnostics);
-            REQUIRE(!result->isSuccess());
-            REQUIRE(result->getResultCode() == txBAD_AUTH);
+            REQUIRE(result->isSuccess());
         }
 
         SECTION("fee bump with ed25519 signed payload signer on inner tx")
@@ -2563,16 +2558,14 @@ TEST_CASE_VERSIONS("overlay validation skips ed25519 signed payload signers",
                 REQUIRE(result->isSuccess());
             }
 
-            SECTION("checkValidForOverlay rejects fee bump")
+            SECTION("checkValidForOverlay accepts fee bump")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto ls = CheckValidLedgerViewWrapper(ltx);
                 auto diagnostics = DiagnosticEventManager::createDisabled();
                 auto result = feeBumpTx->checkValidForOverlay(
                     app->getAppConnector(), ls, 0, 0, 0, diagnostics);
-                REQUIRE(!result->isSuccess());
-                // Fee bump wraps the inner failure
-                REQUIRE(result->getResultCode() == txFEE_BUMP_INNER_FAILED);
+                REQUIRE(result->isSuccess());
             }
         }
     });
