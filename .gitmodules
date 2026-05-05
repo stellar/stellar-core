@@ -23,14 +23,10 @@
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog
 	ignore = dirty
-[submodule "src/protocol-next/xdr"]
-	path = src/protocol-next/xdr
-	url = https://github.com/stellar/stellar-xdr
-	branch = next
 [submodule "src/protocol-curr/xdr"]
 	path = src/protocol-curr/xdr
 	url = https://github.com/stellar/stellar-xdr
-	branch = curr
+	branch = main
 [submodule "src/rust/soroban/p21"]
 	path = src/rust/soroban/p21
 	url = https://github.com/stellar/rs-soroban-env
@@ -49,6 +45,9 @@
 	branch = internal/v25.2.0
 [submodule "src/rust/soroban/p26"]
 	path = src/rust/soroban/p26
+	url = https://github.com/stellar/rs-soroban-env.git
+[submodule "src/rust/soroban/p27"]
+	path = src/rust/soroban/p27
 	url = https://github.com/stellar/rs-soroban-env.git
 [submodule "lib/gperftools"]
 	path = lib/gperftools
