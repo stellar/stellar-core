@@ -240,8 +240,7 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     }
     signers.insert(signers.end(), acc.signers.begin(), acc.signers.end());
 
-    return signatureChecker.checkSignature(
-        signers, neededWeight, !signatureChecker.isOverlayValidation());
+    return signatureChecker.checkSignature(signers, neededWeight);
 }
 
 bool
