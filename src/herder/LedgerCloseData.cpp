@@ -1,6 +1,7 @@
 ﻿#include "util/asio.h"
 #include "LedgerCloseData.h"
 #include "crypto/Hex.h"
+#include "herder/Herder.h"
 #include "herder/Upgrades.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
@@ -23,7 +24,9 @@ LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq,
     , mValue(v)
     , mExpectedLedgerHash(expectedLedgerHash)
 {
-    releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
+    Hash const& valueTxHash = mValue.txSetHash;
+    releaseAssert(valueTxHash == Herder::SKIP_LEDGER_HASH ||
+                  txSet->getContentsHash() == valueTxHash);
 }
 
 #ifdef BUILD_TESTS
@@ -37,7 +40,9 @@ LedgerCloseData::LedgerCloseData(
     , mExpectedLedgerHash(expectedLedgerHash)
     , mExpectedResults(expectedResults)
 {
-    releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
+    Hash const& valueTxHash = mValue.txSetHash;
+    releaseAssert(valueTxHash == Herder::SKIP_LEDGER_HASH ||
+                  txSet->getContentsHash() == valueTxHash);
 }
 #endif // BUILD_TESTS
 
@@ -47,9 +52,20 @@ stellarValueToString(Config const& c, StellarValue const& sv)
     std::stringstream res;
 
     res << "[";
-    if (sv.ext.v() == STELLAR_VALUE_SIGNED)
+    switch (sv.ext.v())
     {
+    case STELLAR_VALUE_BASIC:
+        break;
+    case STELLAR_VALUE_SIGNED:
         res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);
+        break;
+    case STELLAR_VALUE_SKIP:
+        res << " SKIP@"
+            << c.toShortString(sv.ext.originalValue().lcValueSignature.nodeID);
+        break;
+    default:
+        res << " UNKNOWN";
+        break;
     }
     res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
         << ", upgrades: [";

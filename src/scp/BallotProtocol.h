@@ -215,6 +215,11 @@ class BallotProtocol
     bool setConfirmCommit(SCPBallot const& acceptCommitLow,
                           SCPBallot const& acceptCommitHigh);
 
+    // Throws std::runtime_error if validateValue(value, nomination=false)
+    // returns kInvalidValue. Called from setAcceptCommit / setConfirmCommit
+    // to fail fast when a quorum pulls us into committing a value we reject.
+    void throwIfValueInvalidForCommit(Value const& value, char const* caller);
+
     // step 9 from the SCP paper
     bool attemptBump();
 
@@ -288,6 +293,9 @@ class BallotProtocol
     // such doesn't do any validation
     // check: verifies that ballot is greater than old one
     void bumpToBallot(SCPBallot const& ballot, bool check);
+
+    // TODO: Docs
+    bool maybeReplaceValueWithSkip(Value& v) const;
 
     // switch the local node to the given ballot's value
     // with the assumption that the ballot is more recent than the one

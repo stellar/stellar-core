@@ -9,12 +9,16 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 #include "xdr/Stellar-SCP.h"
 
 namespace stellar
 {
+class TxSetXDRFrame;
+using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
+
 class ValueWrapper : public NonMovableOrCopyable
 {
     Value const mValue;
@@ -27,6 +31,13 @@ class ValueWrapper : public NonMovableOrCopyable
     getValue() const
     {
         return mValue;
+    }
+
+    // Should be called when a tx set becomes available after this wrapper was
+    // created without it.
+    virtual void
+    setTxSet(TxSetXDRFrameConstPtr txSet)
+    {
     }
 };
 
@@ -58,6 +69,13 @@ class SCPEnvelopeWrapper : public NonMovableOrCopyable
     getStatement() const
     {
         return mEnvelope.statement;
+    }
+
+    // Should be called when a tx set becomes available after this wrapper was
+    // created without it.
+    virtual void
+    addTxSet(TxSetXDRFrameConstPtr txSet)
+    {
     }
 };
 
@@ -91,6 +109,17 @@ class SCPDriver
     // considered invalid.
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
+    // `getTxSetDownloadWaitTime` returns how long the fetcher has been waiting
+    // for the transaction set identified by @p hash. Returns nullopt if the
+    // transaction set is not being fetched. May throw if `hash` cannot be
+    // converted to a `StellarValue`.
+    virtual std::optional<std::chrono::milliseconds>
+    getTxSetDownloadWaitTime(Value const& hash) const = 0;
+
+    // Returns how long the ballot protocol should wait before replacing a
+    // value whose transaction set has not finished downloading.
+    virtual std::chrono::milliseconds getTxSetDownloadTimeout() const = 0;
+
     // Users of the SCP library should inherit from SCPDriver and implement the
     // virtual methods which are called by the SCP implementation to
     // abstract the transport layer used from the implementation of the SCP
@@ -117,13 +146,17 @@ class SCPDriver
     {
         kInvalidValue = 0,       // value is invalid for sure
         kMaybeValidValue = 1,    // value may be valid
-        kFullyValidatedValue = 2 // value is valid for sure
+        kAwaitingDownload = 2,   // value is being fetched
+        kFullyValidatedValue = 3 // value is valid for sure
     };
     virtual ValidationLevel
     validateValue(uint64 slotIndex, Value const& value, bool nomination)
     {
         return kMaybeValidValue;
     }
+
+    // TODO: Remove this function after cleaning up logging?
+    static std::string validationLevelToString(ValidationLevel level);
 
     // `extractValidValue` transforms the value, if possible to a different
     // value that the local node would agree to (fully validated).
@@ -135,6 +168,12 @@ class SCPDriver
     {
         return nullptr;
     }
+
+    // Helper function to craft a skip ledger value from a Value.
+    virtual Value makeSkipLedgerValueFromValue(Value const& v) const = 0;
+
+    // `isSkipLedgerValue` checks if a value is a skip ledger value.
+    virtual bool isSkipLedgerValue(Value const& v) const = 0;
 
     // `getValueString` is used for debugging
     // default implementation is the hash of the value
@@ -206,6 +245,11 @@ class SCPDriver
     {
     }
 
+    virtual void
+    noteSkipValueReplaced(uint64)
+    {
+    }
+
     // ``nominatingValue`` is called every time the local instance nominates
     // a new value.
     virtual void
@@ -254,6 +298,19 @@ class SCPDriver
     // the local node.
     virtual void
     ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
+
+    // Called when balloting becomes blocked waiting for a txset download
+    virtual void
+    recordBallotBlockedOnTxSet(uint64 slotIndex, Value const& value)
+    {
+    }
+
+    // Called when balloting is unblocked (setting mCommit) to measure and
+    // record how long we were blocked waiting for the txset
+    virtual void
+    measureAndRecordBallotBlockedOnTxSet(uint64 slotIndex, Value const& value)
     {
     }
 

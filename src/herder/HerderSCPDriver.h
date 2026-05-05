@@ -76,6 +76,15 @@ class HerderSCPDriver : public SCPDriver
     std::string toShortString(NodeID const& pk) const override;
     std::string getValueString(Value const& v) const override;
 
+    // TODO: Docs. Mention that this function can throw if `v` cannot be
+    // converted to a `StellarValue`
+    // TODO: Mention in docs that this should only be called from slots with
+    // slot indicies equal to LCL+1.
+    Value makeSkipLedgerValueFromValue(Value const& v) const override;
+
+    // TODO(4): Do I even need this function?
+    bool isSkipLedgerValue(Value const& v) const override;
+
     // timer handling
     void setupTimer(uint64_t slotIndex, int timerID,
                     std::chrono::milliseconds timeout,
@@ -98,6 +107,9 @@ class HerderSCPDriver : public SCPDriver
     ValueWrapperPtr stripAllUpgrades(Value const& v) override;
     uint32_t getUpgradeNominationTimeoutLimit() const override;
 
+    // TODO: Docs
+    void noteSkipValueReplaced(uint64_t slotIndex) override;
+
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
     void nominate(uint64_t slotIndex, StellarValue const& value,
@@ -119,6 +131,15 @@ class HerderSCPDriver : public SCPDriver
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot) override;
 
+    // Ballot blocked on txset tracking methods
+    // Called when balloting becomes blocked waiting for a txset download
+    void recordBallotBlockedOnTxSet(uint64_t slotIndex,
+                                    Value const& value) override;
+    // Called when balloting is unblocked (setting mCommit) to measure and
+    // record how long we were blocked
+    void measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
+                                              Value const& value) override;
+
     std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
     // validate close time as much as possible
@@ -136,6 +157,11 @@ class HerderSCPDriver : public SCPDriver
                                 std::optional<uint64_t> maxSlotIndex,
                                 uint64 slotToKeep);
 
+    // Called when a tx set is received to update any ValueWrappers that were
+    // created before the tx set was available (for parallel tx set
+    // downloading).
+    void onTxSetReceived(Hash const& txSetHash, TxSetXDRFrameConstPtr txSet);
+
     double getExternalizeLag(NodeID const& id) const;
 
     Json::Value getQsetLagInfo(bool summary, bool fullKeys);
@@ -147,6 +173,10 @@ class HerderSCPDriver : public SCPDriver
     // Begin a new interval for checking for dead nodes--set current dead nodes
     // as missing nodes from previous interval
     void startCheckForDeadNodesInterval();
+
+    std::optional<std::chrono::milliseconds>
+    getTxSetDownloadWaitTime(Value const& v) const override;
+    std::chrono::milliseconds getTxSetDownloadTimeout() const override;
 
     // Application-specific weight function. This function uses the quality
     // levels from automatic quorum set generation to determine the weight of a
@@ -186,6 +216,20 @@ class HerderSCPDriver : public SCPDriver
     PendingEnvelopes& mPendingEnvelopes;
     SCP mSCP;
 
+    // Registry of ValueWrappers that were created before their tx set was
+    // available. Maps txSetHash -> weak_ptrs to wrappers awaiting that tx set.
+    // When onTxSetReceived() is called, we update any waiting wrappers.
+    // Cleanup of expired weak_ptrs happens in purgeSlots().
+    std::map<Hash, std::vector<std::weak_ptr<ValueWrapper>>>
+        mPendingTxSetWrappers;
+
+    // Registry of EnvelopeWrappers that were created before their tx set was
+    // available. Maps txSetHash -> weak_ptrs to wrappers awaiting that tx set.
+    // When onTxSetReceived() is called, we update any waiting wrappers.
+    // Cleanup of expired weak_ptrs happens in purgeSlots().
+    std::map<Hash, std::vector<std::weak_ptr<SCPEnvelopeWrapper>>>
+        mPendingTxSetEnvelopeWrappers;
+
     struct SCPMetrics
     {
         medida::Meter& mEnvelopeSign;
@@ -203,6 +247,16 @@ class HerderSCPDriver : public SCPDriver
         // Timers tracking externalize messages
         medida::Timer& mFirstToSelfExternalizeLag;
         medida::Timer& mSelfToOthersExternalizeLag;
+
+        // Timer tracking how long balloting was blocked waiting for a txset
+        // download (time spent in kAwaitingDownload before setting mCommit)
+        medida::Timer& mBallotBlockedOnTxSet;
+
+        // Tracks how many ledgers we externalized using a skip value.
+        medida::Counter& mSkipExternalized;
+        // Counts replacements of proposed values with the synthesized skip
+        // value.
+        medida::Counter& mSkipValueReplaced;
 
         SCPMetrics(Application& app);
     };
@@ -232,6 +286,10 @@ class HerderSCPDriver : public SCPDriver
         // externalize timing information
         std::optional<VirtualClock::time_point> mFirstExternalize;
         std::optional<VirtualClock::time_point> mSelfExternalize;
+
+        // Tracks when balloting first became blocked on each txset in this
+        // slot.
+        std::map<Value, VirtualClock::time_point> mBallotBlockedOnTxSetStart;
     };
 
     // Map of time points for each slot to measure key protocol metrics:
@@ -255,6 +313,9 @@ class HerderSCPDriver : public SCPDriver
     // validity of txSet
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;
+
+    // TODO: Docs
+    bool checkValueTypeAndSkipHashInvariant(StellarValue const& sv) const;
 
     SCPDriver::ValidationLevel
     validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,

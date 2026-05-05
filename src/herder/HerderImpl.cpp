@@ -328,8 +328,19 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                      slotIndex, hexAbbrev(value.txSetHash));
     }
 
-    TxSetXDRFrameConstPtr externalizedSet =
-        mPendingEnvelopes.getTxSet(value.txSetHash);
+    auto result = mPendingEnvelopes.getTxSet(value.txSetHash);
+    TxSetXDRFrameConstPtr externalizedSet;
+    if (std::holds_alternative<SkipTxSet>(result))
+    {
+        auto const& ov = value.ext.originalValue();
+        externalizedSet = TxSetXDRFrame::makeEmpty(ov.previousLedgerHash,
+                                                   ov.previousLedgerVersion);
+    }
+    else
+    {
+        externalizedSet = std::get<TxSetXDRFrameConstPtr>(result);
+    }
+    releaseAssert(externalizedSet != nullptr);
 
     // save the SCP messages in the database
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
@@ -902,6 +913,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
+    // This call fetches everything. Will only return ENVELOPE_STATUS_READY once
+    // everything is fetched though! Will need a new status to allow it to
+    // proceed to nomination at least, I think.
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
@@ -916,10 +930,26 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
     else
     {
-        if (status == Herder::ENVELOPE_STATUS_FETCHING)
+        SCPStatementType type = envelope.statement.pledges.type();
+        // Allow parallel tx set downloading if the node is in sync and this is
+        // a NOMINATE or PREPARE message. Technically both of these criteria
+        // should be properly handled downstream, but this provides some
+        // additional assurance.
+        if (mApp.getState() == Application::State::APP_SYNCED_STATE &&
+            status == Herder::ENVELOPE_STATUS_FETCHING &&
+            (type == SCP_ST_NOMINATE || type == SCP_ST_PREPARE))
         {
             std::string txt("FETCHING");
             ZoneText(txt.c_str(), txt.size());
+
+            // If we have the quorum set, then proceed without the tx set.
+            auto qSetHash = Slot::getCompanionQuorumSetHashFromStatement(
+                envelope.statement);
+            auto maybeQSet = mApp.getHerder().getQSet(qSetHash);
+            if (maybeQSet)
+            {
+                processSCPQueue(true);
+            }
         }
         else if (status == Herder::ENVELOPE_STATUS_PROCESSED)
         {
@@ -1142,6 +1172,7 @@ void
 HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     ZoneScoped;
+    CLOG_TRACE(Proto, "Processing SCP queue up to index {}", slotIndex);
     while (true)
     {
         SCPEnvelopeWrapperPtr envW = mPendingEnvelopes.pop(slotIndex);
@@ -1390,7 +1421,7 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetXDRFrameConstPtr
+TxSetResult
 HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
@@ -2167,11 +2198,15 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getValidatedTxSetHashes(e))
         {
-            auto txSet = mPendingEnvelopes.getTxSet(h);
-            if (txSet && !mApp.getPersistentState().hasTxSet(h))
+            auto result = mPendingEnvelopes.getTxSet(h);
+            if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result))
             {
-                txSets.insert(std::make_pair(h, txSet));
+                if (*txSetPtr && !mApp.getPersistentState().hasTxSet(h))
+                {
+                    txSets.insert(std::make_pair(h, *txSetPtr));
+                }
             }
+            // SkipTxSet: nothing to persist
         }
         Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
         SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
@@ -2710,11 +2745,32 @@ bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
-    auto [b, _] = PubKeyUtils::verifySig(
-        sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
-        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
-                           sv.txSetHash, sv.closeTime));
-    return b;
+    switch (sv.ext.v())
+    {
+    case STELLAR_VALUE_BASIC:
+        // This function should never be called with an unsigned value
+        releaseAssert(false);
+    case STELLAR_VALUE_SIGNED:
+        return PubKeyUtils::verifySig(sv.ext.lcValueSignature().nodeID,
+                                      sv.ext.lcValueSignature().signature,
+                                      xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                                         ENVELOPE_TYPE_SCPVALUE,
+                                                         sv.txSetHash,
+                                                         sv.closeTime))
+            .valid;
+    case STELLAR_VALUE_SKIP:
+    {
+        auto const& ov = sv.ext.originalValue();
+        return PubKeyUtils::verifySig(
+                   ov.lcValueSignature.nodeID, ov.lcValueSignature.signature,
+                   xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                      ENVELOPE_TYPE_SCPVALUE, ov.txSetHash,
+                                      sv.closeTime))
+            .valid;
+    }
+    default:
+        releaseAssert(false);
+    }
 }
 
 StellarValue

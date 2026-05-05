@@ -1552,7 +1552,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         throw std::runtime_error("txset mismatch");
     }
 
-    if (txSet->getContentsHash() != ledgerData.getValue().txSetHash)
+    Hash const& ldTxSetHash = ledgerData.getValue().txSetHash;
+    if (txSet->getContentsHash() != ldTxSetHash &&
+        ldTxSetHash != Herder::SKIP_LEDGER_HASH)
     {
         CLOG_ERROR(
             Ledger,

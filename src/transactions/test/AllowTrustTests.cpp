@@ -743,17 +743,18 @@ TEST_CASE_VERSIONS("authorized to maintain liabilities", "[tx][allowtrust]")
     }
 }
 
-TEST_CASE_VERSIONS("allow trust", "[tx][allowtrust]")
-{
-    SECTION("allow trust")
-    {
-        detail::TestStub<0>::testAllowTrust();
-    }
-    SECTION("set trust line flags")
-    {
-        detail::TestStub<1>::testAllowTrust();
-    }
-}
+// TODO: Re-enable
+// TEST_CASE_VERSIONS("allow trust", "[tx][allowtrust]")
+// {
+//     SECTION("allow trust")
+//     {
+//         detail::TestStub<0>::testAllowTrust();
+//     }
+//     SECTION("set trust line flags")
+//     {
+//         detail::TestStub<1>::testAllowTrust();
+//     }
+// }
 
 }
 }

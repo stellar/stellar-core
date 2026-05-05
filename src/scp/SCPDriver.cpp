@@ -79,6 +79,24 @@ SCPDriver::getValueString(Value const& v) const
 }
 
 std::string
+SCPDriver::validationLevelToString(ValidationLevel level)
+{
+    switch (level)
+    {
+    case kInvalidValue:
+        return "InvalidValue";
+    case kMaybeValidValue:
+        return "MaybeValidValue";
+    case kAwaitingDownload:
+        return "AwaitingDownload";
+    case kFullyValidatedValue:
+        return "FullyValidatedValue";
+    default:
+        return "UnknownValidationLevel";
+    }
+}
+
+std::string
 SCPDriver::toStrKey(NodeID const& pk, bool fullKey) const
 {
     return fullKey ? KeyUtils::toStrKey(pk) : toShortString(pk);

@@ -21,6 +21,10 @@ struct StellarValue;
 // returns false on error
 bool toStellarValue(Value const& v, StellarValue& sv);
 
+// Converts a Value into a StellarValue
+// throws an exception on error.
+StellarValue toStellarValueOrThrow(Value const& v);
+
 // Extract the transaction set hashes present in `envelope`.
 // Returns nullopt if any of the values in the envelope cannot be parsed.
 std::optional<std::vector<Hash>> getTxSetHashes(SCPEnvelope const& envelope);
