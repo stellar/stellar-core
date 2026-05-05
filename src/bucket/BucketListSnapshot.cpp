@@ -748,10 +748,10 @@ BucketEntryIterator::advance()
             break;
         }
 
-        auto type = mEntry.type();
-        releaseAssert(type == LIVEENTRY || type == INITENTRY ||
-                      type == DEADENTRY);
-        return true;
+        if (mKey.type() == mType)
+        {
+            return true;
+        }
     }
     return false;
 }
