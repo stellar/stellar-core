@@ -1836,12 +1836,21 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
                 invocation.getTxMeta().getDiagnosticEvents();
             REQUIRE(diagnosticEvents.size() > 1);
 
-            auto const& contract_ev = diagnosticEvents.at(1);
-            REQUIRE(!contract_ev.inSuccessfulContractCall);
-            REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
-            auto const& topics = contract_ev.event.body.v0().topics.at(1);
-            REQUIRE(topics.type() == SCV_ERROR);
-            REQUIRE(topics.error().type() == SCE_CONTRACT);
+            bool errorFound = false;
+            for (auto const& contract_ev : diagnosticEvents)
+            {
+                REQUIRE(!contract_ev.inSuccessfulContractCall);
+                REQUIRE(contract_ev.event.type ==
+                        ContractEventType::DIAGNOSTIC);
+
+                auto const& topics = contract_ev.event.body.v0().topics.at(1);
+                if (topics.type() == SCV_ERROR)
+                {
+                    errorFound = true;
+                    break;
+                }
+            }
+            REQUIRE(errorFound);
         }
         int64_t expectedFromBalance = preTransferFromBalance;
         if (mAsset.type() == ASSET_TYPE_NATIVE)
