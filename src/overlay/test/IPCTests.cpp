@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+#include <cstring>
 
 using namespace stellar;
 

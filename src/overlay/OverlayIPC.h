@@ -10,6 +10,10 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <mutex>
+#include <atomic>
+#include <condition_variable>
+
 
 namespace stellar
 {
