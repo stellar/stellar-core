@@ -1179,6 +1179,21 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
                     mSlot.getSlotIndex(), newC.counter,
                     mSlot.getSCP().getDriver().getValueString(newC.value),
                     waitingTime.value().count());
+
+                // TODO: We need to be sure that we can't get stuck here.
+                // There are two things that will invoke the ballot protocol
+                // from here:
+                // 1. The ballot timer fires and we bump to a new ballot.
+                // 2. A new statement arrives from a peer.
+                //
+                // Is it possible that neither of these things happens? The
+                // ballot timer is only set if we've heard from a quorum at the
+                // mCurrentBallot ballot counter or higher. If that hasn't
+                // happened, and we don't receive a newer message from a peer,
+                // then what would ever retrigger the ballot protocol?
+                //
+                // Is there even a real scenario where the ballot timer wouldn't
+                // be armed?
             }
             else if (validationLevel == SCPDriver::kInvalidValue)
             {
