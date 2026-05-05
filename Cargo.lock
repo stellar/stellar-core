@@ -1232,6 +1232,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
 
 [[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
+
+[[package]]
 name = "rustc-simple-version"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1877,7 +1883,9 @@ dependencies = [
  "itertools 0.10.5",
  "log",
  "rand",
+ "rustc-hash",
  "rustc-simple-version",
+ "sha2",
  "soroban-env-host 21.2.2",
  "soroban-env-host 22.0.0",
  "soroban-env-host 23.0.0",
@@ -1887,6 +1895,7 @@ dependencies = [
  "soroban-synth-wasm",
  "soroban-test-wasms",
  "stellar-quorum-analyzer",
+ "stellar-xdr 26.0.0",
  "tracy-client",
 ]
 
@@ -2028,6 +2037,21 @@ dependencies = [
 name = "stellar-xdr"
 version = "25.0.0"
 source = "git+https://github.com/stellar/rs-stellar-xdr?rev=99c73b18ccd68bc3439be30801da6261b193d2da#99c73b18ccd68bc3439be30801da6261b193d2da"
+dependencies = [
+ "cfg_eval",
+ "crate-git-revision",
+ "escape-bytes",
+ "ethnum",
+ "hex",
+ "sha2",
+ "stellar-strkey 0.0.13",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "26.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea3195594b044ea3a5b05906f81d945480825f00db4e3ae7d77526bf546ff3a"
 dependencies = [
  "cfg_eval",
  "crate-git-revision",

@@ -48,6 +48,12 @@ AppConnector::getBanManager()
     return mApp.getBanManager();
 }
 
+BucketManager&
+AppConnector::getBucketManager()
+{
+    return mApp.getBucketManager();
+}
+
 SorobanNetworkConfig const&
 AppConnector::getLastClosedSorobanNetworkConfig() const
 {

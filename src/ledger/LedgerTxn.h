@@ -433,6 +433,14 @@ class AbstractLedgerTxnParent
   public:
     virtual ~AbstractLedgerTxnParent();
 
+    // Opt in to letting LedgerTxn-side load() calls route Soroban-state
+    // keys through InMemorySorobanState rather than tripping the C5
+    // assertion. Off by default; only test scaffolding flips this on.
+    // The default no-op base implementation makes this safe to call on
+    // any AbstractLedgerTxnParent — only LedgerTxnRoot actually wires
+    // the flag through getNewestVersion.
+    virtual void setAllowInMemorySorobanStateLoads(bool allow);
+
     // addChild is called by a newly constructed AbstractLedgerTxn to become a
     // child of AbstractLedgerTxnParent. Throws if AbstractLedgerTxnParent
     // is in the sealed state or already has a child.
@@ -923,6 +931,15 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     );
 
     virtual ~LedgerTxnRoot();
+
+    // Opt in to letting LedgerTxn-side load() calls route Soroban-state
+    // keys (CONTRACT_DATA / CONTRACT_CODE / TTL) through
+    // InMemorySorobanState instead of tripping the C5 assertion. Off by
+    // default — production apply / catchup never enables it; test
+    // verification scaffolding that wants to use the generic LedgerTxn
+    // API for Soroban spot-checks does. The flag is sticky for the
+    // lifetime of the LedgerTxnRoot.
+    void setAllowInMemorySorobanStateLoads(bool allow) override;
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 

@@ -11,7 +11,6 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
-#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 #include "util/GlobalChecks.h"
@@ -382,72 +381,21 @@ OperationMetaBuilder::setLedgerChanges(AbstractLedgerTxn& opLtx,
 }
 
 void
-OperationMetaBuilder::setLedgerChangesFromSuccessfulOp(
-    ThreadParallelApplyLedgerState const& threadState,
-    ParallelTxSuccessVal const& res, uint32_t ledgerSeq)
+OperationMetaBuilder::setLedgerChangesPreBuilt(
+    LedgerEntryChanges&& changes,
+    UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
+    UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
+    uint32_t ledgerSeq)
 {
-    ZoneScoped;
     if (!mEnabled)
     {
         return;
     }
-    auto const& hotArchiveRestores = res.getRestoredEntries().hotArchive;
-    auto const& liveRestores = res.getRestoredEntries().liveBucketList;
-
-    LedgerEntryChanges changes;
-    for (auto const& [lk, scopedLeOpt] : res.getModifiedEntryMap())
-    {
-        auto leOpt = scopedLeOpt.readInScope(res);
-        auto prevLe = threadState.getLiveEntryOpt(lk).readInScope(threadState);
-
-        if (prevLe)
-        {
-            changes.emplace_back(LEDGER_ENTRY_STATE);
-            changes.back().state() = prevLe.value();
-
-            if (leOpt)
-            {
-                changes.emplace_back(LEDGER_ENTRY_UPDATED);
-                changes.back().updated() = leOpt.value();
-            }
-            else
-            {
-                changes.emplace_back(LEDGER_ENTRY_REMOVED);
-                changes.back().removed() = lk;
-            }
-        }
-        else
-        {
-            if (!leOpt)
-            {
-                // If this is a delete, and an entry cannot be found in the live
-                // snapshot of initialEntryMap, it means that this entry was
-                // restored
-                auto it = hotArchiveRestores.find(lk);
-                releaseAssertOrThrow(it != hotArchiveRestores.end());
-
-                changes.emplace_back(LEDGER_ENTRY_CREATED);
-                changes.back().created() = it->second;
-                changes.back().created().lastModifiedLedgerSeq = ledgerSeq;
-
-                changes.emplace_back(LEDGER_ENTRY_REMOVED);
-                changes.back().removed() = lk;
-            }
-            else
-            {
-                changes.emplace_back(LEDGER_ENTRY_CREATED);
-                changes.back().created() = leOpt.value();
-            }
-        }
-    }
-
+    auto processed = processOpLedgerEntryChanges(
+        mConfig, mOp, changes, hotArchiveRestores, liveRestores,
+        mProtocolVersion, ledgerSeq);
     std::visit(
-        [&changes, &hotArchiveRestores, &liveRestores, ledgerSeq,
-         this](auto&& meta) {
-            meta.get().changes = processOpLedgerEntryChanges(
-                mConfig, mOp, changes, hotArchiveRestores, liveRestores,
-                mProtocolVersion, ledgerSeq);
-        },
+        [&processed](auto&& meta) { meta.get().changes = std::move(processed); },
         mMeta);
 }
 

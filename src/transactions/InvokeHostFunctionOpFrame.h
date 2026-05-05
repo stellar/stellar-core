@@ -55,15 +55,6 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    std::optional<ParallelTxSuccessVal>
-    doParallelApply(AppConnector& app,
-                    ThreadParallelApplyLedgerState const& threadState,
-                    Config const& appConfig, Hash const& txPrngSeed,
-                    ParallelLedgerInfo const& ledgerInfo,
-                    SorobanMetrics& sorobanMetrics, OperationResult& res,
-                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                    OperationMetaBuilder& opMeta) const override;
-
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

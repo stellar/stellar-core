@@ -255,6 +255,10 @@ class LedgerSnapshot : public NonMovableOrCopyable
         MetricsRegistry& metrics,
         std::shared_ptr<BucketListSnapshotData<LiveBucket> const> liveData,
         LedgerHeader const& header);
+    // Take ownership of a caller-supplied getter (e.g. an overlay
+    // snapshot that wraps a bucket snapshot + an in-flight ltx delta).
+    explicit LedgerSnapshot(
+        std::unique_ptr<AbstractLedgerStateSnapshot const> getter);
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper

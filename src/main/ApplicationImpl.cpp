@@ -303,6 +303,12 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     );
 
 #ifdef BUILD_TESTS
+    // Test scaffolding has many ltx.load(soroban_key) call sites used
+    // for spot-checking state. Opt the test-build LedgerTxnRoot in to
+    // routing those through InMemorySorobanState rather than tripping
+    // the C5 assert. Production builds keep the strict default.
+    mLedgerTxnRoot->setAllowInMemorySorobanStateLoads(true);
+
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         resetLedgerState();

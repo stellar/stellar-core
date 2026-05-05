@@ -131,3 +131,21 @@ pub(crate) fn contract_code_memory_size_for_rent(
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     (hm.contract_code_memory_size_for_rent)(contract_code_entry, cpu_cost_params, mem_cost_params)
 }
+
+// Same as contract_code_memory_size_for_rent but takes raw byte slices —
+// usable from inside Rust without constructing a CxxBuf. Used by the
+// Soroban in-memory state's recompute path.
+pub(crate) fn contract_code_memory_size_for_rent_bytes(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    contract_code_entry: &[u8],
+    cpu_cost_params: &[u8],
+    mem_cost_params: &[u8],
+) -> Result<u32, Box<dyn std::error::Error>> {
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    (hm.contract_code_memory_size_for_rent_bytes)(
+        contract_code_entry,
+        cpu_cost_params,
+        mem_cost_params,
+    )
+}

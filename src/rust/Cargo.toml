@@ -14,12 +14,19 @@ log = "=0.4.19"
 cxx = "=1.0.97"
 base64 = "=0.13.1"
 rustc-simple-version = "=0.1.0"
+sha2 = "=0.10.9"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
 rand = "=0.8.5"
 
 itertools = "=0.10.5"
 backtrace = { version = "=0.3.76", features = [ "cpp_demangle" ] }
+
+# Faster non-crypto hasher for the Soroban apply-phase HashMaps. LedgerKeys
+# carry SHA-256-derived material and TtlKeyHash keys are pure SHA-256 outputs,
+# so SipHash's avalanche guarantees are wasted work. FxHash's per-byte mix is
+# adequate for already-random keys and noticeably faster on short inputs.
+rustc-hash = "=2.0.0"
 
 # ed25519-dalek for faster signature verification
 ed25519-dalek = "2.1.1"
@@ -168,6 +175,20 @@ rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
 rev = "174d2a89c7e676000ef4ee2998959681a55befec"
+
+# Latest stellar-xdr — used as the canonical Rust type for SorobanState's
+# stored LedgerEntries. XDR is wire-backwards-compatible, so bytes serialized
+# from these types decode cleanly in older pinned soroban-env-host-pXX
+# crates' own (transitively-pulled) stellar-xdr versions. We pin to the EXACT
+# version + source soroban-env-host-p26 uses (registry =26.0.0) so the
+# `xdr::LedgerEntry` etc. types are nominally identical between this crate
+# and the p26 host — that nominal identity is the prerequisite for the
+# planned p27 zero-copy entry point (C12) where we hand the host
+# `&[&LedgerEntry]` directly without serialising into bytes first.
+[dependencies.stellar-xdr]
+version = "=26.0.0"
+default-features = false
+features = ["std", "curr"]
 
 [features]
 

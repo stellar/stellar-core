@@ -4,13 +4,11 @@
 
 #pragma once
 
-#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 
 namespace stellar
 {
 class TransactionTestFrame;
-class ThreadParallelApplyLedgerState;
 using TransactionTestFramePtr = std::shared_ptr<TransactionTestFrame>;
 
 // The normal TransactionFrame object is immutable, and the caller needs to
@@ -62,6 +60,34 @@ class TransactionTestFrame : public TransactionFrameBase
                std::optional<SorobanNetworkConfig const> const& sorobanConfig =
                    std::nullopt,
                Hash const& sorobanBasePrngSeed = Hash{}) const override;
+
+    void processSeqNumForSoroban(AbstractLedgerTxn& ltx) const override;
+
+    void
+    removeOneTimeSignersForSoroban(AbstractLedgerTxn& ltx) const override;
+
+    void initializeRefundableFeeTrackerForSoroban(
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& appConfig, MutableTransactionResultBase& txResult,
+        TransactionMetaBuilder& meta) const override;
+
+    bool commonPreApplyForSoroban(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void preParallelApplyForSorobanReadOnly(
+        AppConnector& app, LedgerSnapshot const& ls,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelPreApplyInfo& info) const override;
+
+    void preParallelApplyForSorobanWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        ParallelPreApplyInfo const& info) const override;
 
     MutableTxResultPtr checkValid(AppConnector& app,
                                   AbstractLedgerTxn& ltxOuter,
@@ -150,29 +176,6 @@ class TransactionTestFrame : public TransactionFrameBase
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
-
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& resPayload,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
-
-    void preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
-                                  TransactionMetaBuilder& meta,
-                                  MutableTransactionResultBase& resPayload,
-                                  SorobanNetworkConfig const& sorobanConfig,
-                                  ParallelPreApplyInfo& info) const override;
-
-    void preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
-                               TransactionMetaBuilder& meta,
-                               ParallelPreApplyInfo const& info) const override;
-
-    std::optional<ParallelTxSuccessVal> parallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, ParallelLedgerInfo const& ledgerInfo,
-        MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
-        TxEffects& effects) const override;
 
     MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,

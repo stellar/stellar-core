@@ -43,7 +43,6 @@ class XDROutputFileStream;
 class SHA256;
 class AppConnector;
 class TransactionMetaBuilder;
-class ThreadParallelApplyLedgerState;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -300,55 +299,6 @@ class TransactionFrame : public TransactionFrameBase
                    SorobanNetworkConfig const* sorobanConfig,
                    Hash const& envelopeContentsHash) const;
 
-    std::unique_ptr<SignatureChecker> commonParallelPreApplyReadOnly(
-        bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
-        TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-        SorobanNetworkConfig const* sorobanConfig,
-        Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const;
-
-    bool processSignaturesReadOnly(ValidationType cv,
-                                   SignatureChecker& signatureChecker,
-                                   LedgerSnapshot const& ls,
-                                   MutableTransactionResultBase& txResult,
-                                   ParallelPreApplyInfo& info) const;
-
-    void preParallelApply(bool chargeFee, AppConnector& app,
-                          AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-                          MutableTransactionResultBase& txResult,
-                          SorobanNetworkConfig const& sorobanConfig,
-                          Hash const& envelopeContentsHash) const;
-
-    void preParallelApplyReadOnly(bool chargeFee, AppConnector& app,
-                                  LedgerSnapshot const& ls,
-                                  TransactionMetaBuilder& meta,
-                                  MutableTransactionResultBase& txResult,
-                                  SorobanNetworkConfig const& sorobanConfig,
-                                  Hash const& envelopeContentsHash,
-                                  ParallelPreApplyInfo& info) const;
-
-    void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const override;
-
-    void preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
-                                  TransactionMetaBuilder& meta,
-                                  MutableTransactionResultBase& txResult,
-                                  SorobanNetworkConfig const& sorobanConfig,
-                                  ParallelPreApplyInfo& info) const override;
-
-    void preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
-                               TransactionMetaBuilder& meta,
-                               ParallelPreApplyInfo const& info) const override;
-
-    std::optional<ParallelTxSuccessVal> parallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, ParallelLedgerInfo const& ledgerInfo,
-        MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
-        TxEffects& effects) const override;
-
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(bool chargeFee, AppConnector& app, AbstractLedgerTxn& ltx,
@@ -362,6 +312,34 @@ class TransactionFrame : public TransactionFrameBase
                MutableTransactionResultBase& txResult,
                std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                Hash const& sorobanBasePrngSeed) const override;
+
+    void processSeqNumForSoroban(AbstractLedgerTxn& ltx) const override;
+
+    void
+    removeOneTimeSignersForSoroban(AbstractLedgerTxn& ltx) const override;
+
+    bool commonPreApplyForSoroban(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const override;
+
+    void preParallelApplyForSorobanReadOnly(
+        AppConnector& app, LedgerSnapshot const& ls,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelPreApplyInfo& info) const override;
+
+    void preParallelApplyForSorobanWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        ParallelPreApplyInfo const& info) const override;
+
+    void initializeRefundableFeeTrackerForSoroban(
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& appConfig, MutableTransactionResultBase& txResult,
+        TransactionMetaBuilder& meta) const override;
 
     // Performs the necessary post-apply transaction processing.
     // This has to be called after both `processFeeSeqNum` and

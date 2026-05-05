@@ -172,35 +172,6 @@ OperationFrame::apply(
     return applyRes;
 }
 
-std::optional<ParallelTxSuccessVal>
-OperationFrame::parallelApply(
-    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    SorobanMetrics& sorobanMetrics, OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta, Hash const& txPrngSeed) const
-{
-    ZoneScoped;
-    CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
-    // checkValid is called earlier in preParallelApply
-
-    return doParallelApply(app, threadState, config, txPrngSeed, ledgerInfo,
-                           sorobanMetrics, res, refundableFeeTracker, opMeta);
-}
-
-std::optional<ParallelTxSuccessVal>
-OperationFrame::doParallelApply(
-    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& appConfig, Hash const& txPrngSeed,
-    ParallelLedgerInfo const& ledgerInfo, SorobanMetrics& sorobanMetrics,
-    OperationResult& res,
-    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-    OperationMetaBuilder& opMeta) const
-{
-    throw std::runtime_error(
-        "Cannot call doParallelApply on a non Soroban operation");
-}
-
 ThresholdLevel
 OperationFrame::getThresholdLevel() const
 {

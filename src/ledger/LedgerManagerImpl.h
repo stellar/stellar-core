@@ -15,7 +15,6 @@
 #include "main/ApplicationImpl.h"
 #include "rust/RustBridge.h"
 #include "transactions/ParallelApplyStage.h"
-#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -369,33 +368,47 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         TransactionResultSet& txResultSet);
 
-    std::unique_ptr<ThreadParallelApplyLedgerState>
-    applyThread(AppConnector& app,
-                std::unique_ptr<ThreadParallelApplyLedgerState> threadState,
-                Cluster const& cluster, Config const& config,
-                ParallelLedgerInfo ledgerInfo, Hash sorobanBasePrngSeed);
+    // C11: the old C++ Soroban apply orchestration (applyThread,
+    // applySorobanStageClustersInParallel, checkAllTxBundleInvariants,
+    // applySorobanStage, applySorobanStages) was deleted here.
+    // applySorobanPhaseRust below replaces all of it — Rust owns the
+    // orchestration, per-TX dispatch, parallel cluster execution, and
+    // state mutation.
+    //
+    // The C++ side here only:
+    //   - serializes the txset's Soroban phase to XDR bytes,
+    //   - builds the classic / archived prefetch lookup vectors,
+    //   - calls the bridge,
+    //   - applies the returned ledger_updates to ltx (so bucket writeback
+    //     and invariant checks see the diffs).
+    // Returns the per-TX outputs from the bridge in apply order. The
+    // caller is responsible for walking applyStages in lockstep and
+    // setting per-TX OperationResult codes / meta from these.
+    //
+  public:
+    // outPerTxDecodedRestores is populated in parallel with the returned
+    // per-TX results: outPerTxDecodedRestores[i] holds the LedgerKey →
+    // LedgerEntry maps for that TX's hot-archive / live-bucket restores
+    // (data + TTL entries, deduplicated against the phase-level seen
+    // sets). applySorobanPhaseRust does the XDR decode once; the caller
+    // forwards the matching element to processSorobanPerTxResult so it
+    // doesn't decode the same byte buffers a second time.
+    struct PerTxDecodedRestores
+    {
+        UnorderedMap<LedgerKey, LedgerEntry> hotArchive;
+        UnorderedMap<LedgerKey, LedgerEntry> live;
+    };
 
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>
-    applySorobanStageClustersInParallel(
-        AppConnector& app, ApplyStage const& stage,
-        GlobalParallelApplyLedgerState const& globalState,
-        Hash const& sorobanBasePrngSeed, Config const& config,
-        ParallelLedgerInfo const& ledgerInfo);
-
-    void checkAllTxBundleInvariants(AppConnector& app, ApplyStage const& stage,
-                                    Config const& config,
-                                    ParallelLedgerInfo const& ledgerInfo,
-                                    LedgerHeader const& header);
-
-    void applySorobanStage(AppConnector& app, LedgerHeader const& header,
-                           GlobalParallelApplyLedgerState& globalParState,
-                           ApplyStage const& stage,
-                           Hash const& sorobanBasePrngSeed);
-
-    void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
-                            std::vector<ApplyStage> const& stages,
-                            SorobanNetworkConfig const& sorobanConfig,
-                            Hash const& sorobanBasePrngSeed);
+  private:
+    rust::Vec<SorobanTxApplyResult>
+    applySorobanPhaseRust(AbstractLedgerTxn& ltx,
+                          TxSetPhaseFrame const& phase,
+                          SorobanNetworkConfig const& sorobanConfig,
+                          Hash const& sorobanBasePrngSeed,
+                          std::vector<int64_t> const& perTxMaxRefundableFee,
+                          bool enableTxMeta,
+                          std::vector<PerTxDecodedRestores>&
+                              outPerTxDecodedRestores);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
     // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,

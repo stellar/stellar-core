@@ -79,6 +79,58 @@ TransactionTestFrame::apply(
     return ret;
 }
 
+void
+TransactionTestFrame::processSeqNumForSoroban(AbstractLedgerTxn& ltx) const
+{
+    mTransactionFrame->processSeqNumForSoroban(ltx);
+}
+
+void
+TransactionTestFrame::removeOneTimeSignersForSoroban(
+    AbstractLedgerTxn& ltx) const
+{
+    mTransactionFrame->removeOneTimeSignersForSoroban(ltx);
+}
+
+void
+TransactionTestFrame::initializeRefundableFeeTrackerForSoroban(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& appConfig, MutableTransactionResultBase& txResult,
+    TransactionMetaBuilder& meta) const
+{
+    mTransactionFrame->initializeRefundableFeeTrackerForSoroban(
+        protocolVersion, sorobanConfig, appConfig, txResult, meta);
+}
+
+bool
+TransactionTestFrame::commonPreApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    return mTransactionFrame->commonPreApplyForSoroban(
+        app, ltx, meta, txResult, sorobanConfig);
+}
+
+void
+TransactionTestFrame::preParallelApplyForSorobanReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
+    mTransactionFrame->preParallelApplyForSorobanReadOnly(
+        app, ls, meta, txResult, sorobanConfig, info);
+}
+
+void
+TransactionTestFrame::preParallelApplyForSorobanWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    ParallelPreApplyInfo const& info) const
+{
+    mTransactionFrame->preParallelApplyForSorobanWrite(app, ltx, meta, info);
+}
+
 MutableTxResultPtr
 TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  SequenceNumber current,
@@ -364,46 +416,6 @@ void
 TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
     mTransactionFrame->insertKeysForTxApply(keys);
-}
-
-void
-TransactionTestFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig) const
-{
-    mTransactionFrame->preParallelApply(app, ltx, meta, resPayload,
-                                        sorobanConfig);
-}
-
-void
-TransactionTestFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
-{
-    mTransactionFrame->preParallelApplyReadOnly(app, ls, meta, resPayload,
-                                                sorobanConfig, info);
-}
-
-void
-TransactionTestFrame::preParallelApplyWrite(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    ParallelPreApplyInfo const& info) const
-{
-    mTransactionFrame->preParallelApplyWrite(app, ltx, meta, info);
-}
-
-std::optional<ParallelTxSuccessVal>
-TransactionTestFrame::parallelApply(
-    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& resPayload, SorobanMetrics& sorobanMetrics,
-    Hash const& txPrngSeed, TxEffects& effects) const
-{
-    return mTransactionFrame->parallelApply(
-        app, threadState, config, ledgerInfo, resPayload, sorobanMetrics,
-        txPrngSeed, effects);
 }
 
 MutableTxResultPtr

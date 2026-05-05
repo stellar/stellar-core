@@ -224,33 +224,81 @@ class TransactionFrameBase
           std::optional<SorobanNetworkConfig const> const& sorobanConfig,
           Hash const& sorobanBasePrngSeed) const = 0;
 
+    // Bump the source account's seqNum for a Soroban V_23+ TX before the
+    // Rust-driven apply phase runs. In the legacy parallel-apply path
+    // this happened inside commonPreApply (called from preParallelApply,
+    // both since deleted); the new path needs a thin equivalent so the
+    // apply doesn't leave acc.seqNum stale and break the next tx's
+    // checkValid.
     virtual void
-    preParallelApply(AppConnector& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaBuilder& meta,
-                     MutableTransactionResultBase& txResult,
-                     SorobanNetworkConfig const& sorobanConfig) const = 0;
+    processSeqNumForSoroban(AbstractLedgerTxn& ltx) const = 0;
 
+    // Remove PRE_AUTH_TX one-time signers for a Soroban V_23+ TX before
+    // the Rust-driven apply phase runs. In the legacy path this happened
+    // inside commonPreApply → processSignatures →
+    // removeOneTimeSignerFromAllSourceAccounts; the new path needs a
+    // thin equivalent. For TransactionFrame this strips the signer from
+    // the tx source + per-op source accounts; for FeeBumpTransactionFrame
+    // it also strips the fee-bumper's signer.
     virtual void
-    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
-                             TransactionMetaBuilder& meta,
-                             MutableTransactionResultBase& txResult,
-                             SorobanNetworkConfig const& sorobanConfig,
-                             ParallelPreApplyInfo& info) const = 0;
+    removeOneTimeSignersForSoroban(AbstractLedgerTxn& ltx) const = 0;
 
-    virtual void
-    preParallelApplyWrite(AppConnector& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaBuilder& meta,
-                          ParallelPreApplyInfo const& info) const = 0;
+    // Initialize the per-tx refundable-fee tracker and meta builder's
+    // non-refundable resource fee for a Soroban V_23+ TX. Mirrors the
+    // legacy commonPreApply path's:
+    //   sorobanResourceFee = computePreApplySorobanResourceFee(...);
+    //   meta.setNonRefundableResourceFee(...);
+    //   txResult.initializeRefundableFeeTracker(initialFeeRefund);
+    // Without this the new parallel-apply orchestrator's
+    // consumeRefundableSorobanResources call sees an uninitialized
+    // tracker and skips fee accounting, so refundable-fee budget checks
+    // (e.g. "Failed write still causes ttl observation") never fire.
+    virtual void initializeRefundableFeeTrackerForSoroban(
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& appConfig, MutableTransactionResultBase& txResult,
+        TransactionMetaBuilder& meta) const = 0;
 
-    // If the transaction fails during parallel apply, returns std::nullopt.
-    // Otherwise returns a ParallelTxSuccessVal containing the modified entries
-    // and restored keys.
-    virtual std::optional<ParallelTxSuccessVal> parallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, ParallelLedgerInfo const& ledgerInfo,
-        MutableTransactionResultBase& resPayload,
-        SorobanMetrics& sorobanMetrics, Hash const& sorobanBasePrngSeed,
-        TxEffects& effects) const = 0;
+    // Run the full common-pre-apply work for a Soroban V_23+ TX before
+    // the Rust apply phase: build a SignatureChecker, run commonValid,
+    // bump source seqnum, validate signatures (set txBAD_AUTH /
+    // txBAD_AUTH_EXTRA / txFAILED on failure), and push the resulting
+    // changes onto `meta` as txChangesBefore. Replaces the standalone
+    // processSeqNumForSoroban + removeOneTimeSignersForSoroban pair so
+    // signature validation isn't lost when the V_23+ apply path skips
+    // the legacy commonPreApply.
+    //
+    // Returns true if the TX should proceed to apply, false if it has
+    // been rejected by validation (in which case `txResult` already
+    // carries the appropriate error code and the orchestrator must
+    // skip the Rust phase for this TX).
+    virtual bool commonPreApplyForSoroban(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig) const = 0;
+
+    // Read-only portion of pre-parallel-apply: build a SignatureChecker,
+    // verify signatures, run commonValid against an immutable LCL
+    // LedgerSnapshot. Records the writes that the subsequent sequential
+    // write phase needs to perform (seqnum bump, signer removal, soroban
+    // metrics update) into `info`. Mutates `txResult` only — never the
+    // shared ltx. Safe to invoke from a worker thread.
+    virtual void preParallelApplyForSorobanReadOnly(
+        AppConnector& app, LedgerSnapshot const& ls,
+        TransactionMetaBuilder& meta,
+        MutableTransactionResultBase& txResult,
+        SorobanNetworkConfig const& sorobanConfig,
+        ParallelPreApplyInfo& info) const = 0;
+
+    // Write portion of pre-parallel-apply: applies the writes captured by
+    // the read-only phase (seqnum bump, one-time signer removal, soroban
+    // metrics update) to the shared ltx, and pushes the resulting
+    // LedgerEntryChanges onto `meta` as txChangesBefore. Must run
+    // sequentially on the apply thread.
+    virtual void preParallelApplyForSorobanWrite(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        TransactionMetaBuilder& meta,
+        ParallelPreApplyInfo const& info) const = 0;
 
     virtual MutableTxResultPtr
     checkValid(AppConnector& app, LedgerSnapshot const& ls,

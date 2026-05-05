@@ -623,6 +623,12 @@ class LedgerTxnRoot::Impl
 
     Application& mApp;
     InMemorySorobanState const& mInMemorySorobanState;
+    // Opt-in flag: when true, getNewestVersion routes Soroban-state key
+    // loads to mInMemorySorobanState instead of asserting. Off by
+    // default; only test scaffolding that wants to spot-check Soroban
+    // state through the generic LedgerTxn API enables it. See C5 in
+    // the Soroban-apply move plan.
+    bool mAllowInMemorySorobanStateLoads = false;
     std::unique_ptr<SessionWrapper> mSession;
 
     std::unique_ptr<LedgerHeader> mHeader;
@@ -712,6 +718,8 @@ class LedgerTxnRoot::Impl
     );
 
     ~Impl();
+
+    void setAllowInMemorySorobanStateLoads(bool allow);
 
     // addChild has the strong exception safety guarantee.
     void addChild(AbstractLedgerTxn& child, TransactionMode mode);

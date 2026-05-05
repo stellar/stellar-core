@@ -16,6 +16,7 @@ class OverlayManager;
 class LedgerManager;
 class Herder;
 class BanManager;
+class BucketManager;
 struct OverlayMetrics;
 class SorobanNetworkConfig;
 class SorobanMetrics;
@@ -40,6 +41,7 @@ class AppConnector
     LedgerManager& getLedgerManager();
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
+    BucketManager& getBucketManager();
     bool shouldYield() const;
     void checkOnOperationApply(Operation const& operation,
                                OperationResult const& opres,

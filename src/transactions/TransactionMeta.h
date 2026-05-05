@@ -22,11 +22,19 @@ class OperationMetaBuilder
     // ledger transaction used for this operation.
     void setLedgerChanges(AbstractLedgerTxn& opLtx, uint32_t ledgerSeq);
 
-    // Similar to the above function, but used during parallel apply, which uses
-    // thread state and return value maps to track entry changes.
-    void setLedgerChangesFromSuccessfulOp(
-        ThreadParallelApplyLedgerState const& threadState,
-        ParallelTxSuccessVal const& res, uint32_t ledgerSeq);
+    // Sets the LedgerEntryChanges for this operation directly from a
+    // pre-built vector. Used by the post-V_23 Soroban apply path, where
+    // entry diffs come back from Rust as (key, prev, new) triples
+    // rather than as an AbstractLedgerTxn delta. RESTORED
+    // reclassification is performed via processOpLedgerEntryChanges
+    // using the supplied hot-archive and live-bucket restore maps
+    // (each is keyed by LedgerKey and stores the entry value at the
+    // moment of restoration).
+    void setLedgerChangesPreBuilt(
+        LedgerEntryChanges&& changes,
+        UnorderedMap<LedgerKey, LedgerEntry> const& hotArchiveRestores,
+        UnorderedMap<LedgerKey, LedgerEntry> const& liveRestores,
+        uint32_t ledgerSeq);
 
     // Sets the return value for a Soroban operation.
     void setSorobanReturnValue(SCVal const& val);

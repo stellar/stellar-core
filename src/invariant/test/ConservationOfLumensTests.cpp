@@ -10,6 +10,7 @@
 #include "ledger/LedgerStateSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"

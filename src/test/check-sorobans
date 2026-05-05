@@ -40,6 +40,16 @@ SKIP_TESTS="host::declared_size::test::test_expected_size"
 set -e
 set -x
 
+# top_builddir / top_srcdir are exported by automake as paths relative to
+# src/. The cd "$i" below changes the CWD, which would skew any
+# subsequent relative-path resolution (and historically caused the
+# CARGO_TARGET_DIR to land at a nested src/rust/soroban/src/rust/soroban/
+# path, with broken / 0-byte artifacts that survived across runs).
+# Convert both to absolute up-front so the rest of this script stays
+# stable regardless of CWD.
+top_builddir=$(cd "${top_builddir}" && pwd)
+top_srcdir=$(cd "${top_srcdir}" && pwd)
+
 cd "${top_srcdir}/src/rust/soroban"
 for i in ${SOROBAN_PROTOCOLS_TO_TEST}; do
     cd "$i"

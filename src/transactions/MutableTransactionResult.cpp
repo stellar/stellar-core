@@ -39,7 +39,8 @@ bool
 RefundableFeeTracker::consumeRefundableSorobanResources(
     uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg,
-    TransactionFrame const& tx, DiagnosticEventManager& diagnosticEvents)
+    TransactionFrameBase const& tx,
+    DiagnosticEventManager& diagnosticEvents)
 {
     ZoneScoped;
     releaseAssert(tx.isSoroban());
@@ -79,6 +80,42 @@ RefundableFeeTracker::consumeRefundableSorobanResources(
     return true;
 }
 
+bool
+RefundableFeeTracker::consumeRefundableSorobanResourcesPrecomputed(
+    uint32_t contractEventSizeBytes, int64_t rentFee,
+    int64_t refundableFeeIncrement,
+    DiagnosticEventManager& diagnosticEvents)
+{
+    ZoneScoped;
+    mConsumedContractEventsSizeBytes += contractEventSizeBytes;
+    mConsumedRentFee += rentFee;
+
+    if (mMaximumRefundableFee < mConsumedRentFee)
+    {
+        diagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "refundable resource fee was not sufficient to cover the ledger "
+            "storage rent: {} > {}",
+            {makeU64SCVal(mConsumedRentFee),
+             makeU64SCVal(mMaximumRefundableFee)});
+        return false;
+    }
+
+    mConsumedRefundableFee = mConsumedRentFee + refundableFeeIncrement;
+
+    if (mMaximumRefundableFee < mConsumedRefundableFee)
+    {
+        diagnosticEvents.pushError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "refundable resource fee was not sufficient to cover the events "
+            "fee after paying for ledger storage rent: {} > {}",
+            {makeU64SCVal(refundableFeeIncrement),
+             makeU64SCVal(mMaximumRefundableFee - mConsumedRentFee)});
+        return false;
+    }
+    return true;
+}
+
 int64_t
 RefundableFeeTracker::getFeeRefund() const
 {
@@ -89,6 +126,12 @@ int64_t
 RefundableFeeTracker::getConsumedRentFee() const
 {
     return mConsumedRentFee;
+}
+
+int64_t
+RefundableFeeTracker::getMaximumRefundableFee() const
+{
+    return mMaximumRefundableFee;
 }
 
 int64_t

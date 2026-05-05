@@ -133,12 +133,16 @@ impl From<xdr::Error> for CoreHostError {
 
 impl std::error::Error for CoreHostError {}
 
-fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
+pub(super) fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
+    non_metered_xdr_from_slice(buf.data.as_slice())
+}
+
+fn non_metered_xdr_from_slice<T: ReadXdr>(bytes: &[u8]) -> Result<T, HostError> {
     Ok(T::read_xdr(&mut xdr::Limited::new(
-        Cursor::new(buf.data.as_slice()),
+        Cursor::new(bytes),
         Limits {
             depth: MARSHALLING_STACK_LIMIT,
-            len: buf.data.len(),
+            len: bytes.len(),
         },
     ))
     // We only expect this to be called for safe, internal conversions, so this
@@ -159,7 +163,7 @@ fn non_metered_xdr_to_vec<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     Ok(vec)
 }
 
-fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+pub(super) fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
     Ok(RustBuf {
         data: non_metered_xdr_to_vec(t)?,
     })
@@ -239,13 +243,13 @@ pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
     }
 }
 
-fn log_diagnostic_events(events: &Vec<DiagnosticEvent>) {
+pub(super) fn log_diagnostic_events(events: &Vec<DiagnosticEvent>) {
     for e in events {
         debug!("Diagnostic event: {:?}", e);
     }
 }
 
-fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
+pub(super) fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
     events
         .iter()
         .filter_map(|e| {
@@ -258,7 +262,7 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
         .collect()
 }
 
-fn extract_ledger_effects(
+pub(super) fn extract_ledger_effects(
     entry_changes: Vec<LedgerEntryChange>,
 ) -> Result<Vec<RustBuf>, HostError> {
     let mut modified_entries = vec![];
@@ -353,7 +357,7 @@ pub(crate) fn invoke_host_function(
     }
 }
 
-fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
+pub(super) fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
     let prev_state = std::cell::RefCell::new(String::new());
     Rc::new(move |host, traceevent| {
         if traceevent.is_begin() || traceevent.is_end() {
@@ -625,13 +629,29 @@ pub(crate) fn contract_code_memory_size_for_rent(
     cpu_cost_params: &CxxBuf,
     mem_cost_params: &CxxBuf,
 ) -> Result<u32, Box<dyn std::error::Error>> {
+    contract_code_memory_size_for_rent_bytes(
+        contract_code_entry_xdr.data.as_slice(),
+        cpu_cost_params.data.as_slice(),
+        mem_cost_params.data.as_slice(),
+    )
+}
+
+// Same as contract_code_memory_size_for_rent but takes raw byte slices —
+// usable from inside Rust without constructing a CxxBuf. Used by the Soroban
+// in-memory state's recompute path so the size computation lives entirely on
+// the Rust side without a C++ round-trip.
+pub(crate) fn contract_code_memory_size_for_rent_bytes(
+    contract_code_entry_xdr: &[u8],
+    cpu_cost_params: &[u8],
+    mem_cost_params: &[u8],
+) -> Result<u32, Box<dyn std::error::Error>> {
     let contract_code_entry =
-        non_metered_xdr_from_cxx_buf::<ContractCodeEntry>(contract_code_entry_xdr)?;
+        non_metered_xdr_from_slice::<ContractCodeEntry>(contract_code_entry_xdr)?;
     let budget = Budget::try_from_configs(
         0,
         0,
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(cpu_cost_params)?,
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(mem_cost_params)?,
+        non_metered_xdr_from_slice::<ContractCostParams>(cpu_cost_params)?,
+        non_metered_xdr_from_slice::<ContractCostParams>(mem_cost_params)?,
     )?;
     super::wasm_module_memory_cost_wrapper(&budget, &contract_code_entry)?
         .try_into()

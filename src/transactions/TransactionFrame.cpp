@@ -25,7 +25,6 @@
 #include "transactions/EventManager.h"
 #include "transactions/LumenEventReconciler.h"
 #include "transactions/MutableTransactionResult.h"
-#include "transactions/ParallelApplyUtils.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
@@ -2142,360 +2141,6 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
     }
 }
 
-std::unique_ptr<SignatureChecker>
-TransactionFrame::commonParallelPreApplyReadOnly(
-    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
-    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const* sorobanConfig, Hash const& envelopeContentsHash,
-    ParallelPreApplyInfo& info) const
-{
-    mCachedAccountPreProtocol8.reset();
-    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
-    std::unique_ptr<SignatureChecker> signatureChecker;
-#ifdef BUILD_TESTS
-    if (txResult.hasReplayTransactionResult())
-    {
-        signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
-            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-    }
-    else
-    {
-#endif // BUILD_TESTS
-        signatureChecker = std::make_unique<SignatureChecker>(
-            ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
-#ifdef BUILD_TESTS
-    }
-#endif // BUILD_TESTS
-
-    std::optional<FeePair> sorobanResourceFee;
-    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
-        isSoroban())
-    {
-        sorobanResourceFee = computePreApplySorobanResourceFee(
-            ledgerVersion, *sorobanConfig, app.getConfig());
-
-        meta.setNonRefundableResourceFee(
-            sorobanResourceFee->non_refundable_fee);
-        int64_t initialFeeRefund = declaredSorobanResourceFee() -
-                                   sorobanResourceFee->non_refundable_fee;
-        txResult.initializeRefundableFeeTracker(initialFeeRefund);
-    }
-
-    auto cv =
-        commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
-                    chargeFee, 0, 0, envelopeContentsHash, sorobanResourceFee,
-                    txResult, meta.getDiagnosticEventManager());
-    info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
-
-    bool signaturesValid =
-        processSignaturesReadOnly(cv, *signatureChecker, ls, txResult, info);
-
-    if (signaturesValid && cv == ValidationType::kMaybeValid)
-    {
-        return signatureChecker;
-    }
-    return nullptr;
-}
-
-bool
-TransactionFrame::processSignaturesReadOnly(
-    ValidationType cv, SignatureChecker& signatureChecker,
-    LedgerSnapshot const& ls, MutableTransactionResultBase& txResult,
-    ParallelPreApplyInfo& info) const
-{
-    ZoneScoped;
-    bool maybeValid = (cv == ValidationType::kMaybeValid);
-    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
-    {
-        return maybeValid;
-    }
-
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13) &&
-        !maybeValid)
-    {
-        info.mRemoveOneTimeSigners = true;
-        return false;
-    }
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
-        cv < ValidationType::kInvalidPostAuth)
-    {
-        return false;
-    }
-
-    bool allOpsValid = true;
-    if (auto code = txResult.getInnermostResultCode();
-        code == txSUCCESS || code == txFAILED)
-    {
-        allOpsValid = checkOperationSignatures(signatureChecker, ls, &txResult);
-    }
-
-    info.mRemoveOneTimeSigners = true;
-
-    if (!allOpsValid)
-    {
-        txResult.setInnermostError(txFAILED);
-        return false;
-    }
-
-    if (!signatureChecker.checkAllSignaturesUsed())
-    {
-        txResult.setInnermostError(txBAD_AUTH_EXTRA);
-        return false;
-    }
-
-    return maybeValid;
-}
-
-void
-TransactionFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& resPayload,
-    SorobanNetworkConfig const& sorobanConfig) const
-{
-    preParallelApply(true, app, ltx, meta, resPayload, sorobanConfig,
-                     getContentsHash());
-}
-
-void
-TransactionFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
-{
-    preParallelApplyReadOnly(true, app, ls, meta, txResult, sorobanConfig,
-                             getContentsHash(), info);
-}
-
-void
-TransactionFrame::preParallelApplyReadOnly(
-    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
-    TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig, Hash const& envelopeContentsHash,
-    ParallelPreApplyInfo& info) const
-{
-    ZoneScoped;
-    try
-    {
-        releaseAssertOrThrow(isSoroban());
-
-        auto signatureChecker = commonParallelPreApplyReadOnly(
-            chargeFee, app, ls, meta, txResult, &sorobanConfig,
-            envelopeContentsHash, info);
-        bool ok = signatureChecker != nullptr;
-        if (ok)
-        {
-            info.mUpdateSorobanMetrics = true;
-
-            auto& opResult = txResult.getOpResultAt(0);
-            ok = mOperations.front()->checkValid(
-                app, *signatureChecker, &sorobanConfig, ls, true, opResult,
-                meta.getDiagnosticEventManager());
-            if (!ok)
-            {
-                txResult.setInnermostError(txFAILED);
-            }
-        }
-
-        releaseAssertOrThrow(ok == txResult.isSuccess());
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception during read-only preParallelApply: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort(
-            "Unknown exception during read-only preParallelApply");
-    }
-}
-
-void
-TransactionFrame::preParallelApplyWrite(AppConnector& app,
-                                        AbstractLedgerTxn& ltx,
-                                        TransactionMetaBuilder& meta,
-                                        ParallelPreApplyInfo const& info) const
-{
-    ZoneScoped;
-    try
-    {
-        LedgerTxn ltxTx(ltx);
-        if (info.mUpdateSeqNum)
-        {
-            processSeqNum(ltxTx);
-        }
-        if (info.mRemoveOneTimeSigners)
-        {
-            removeOneTimeSignerFromAllSourceAccounts(ltxTx);
-        }
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
-
-        if (info.mUpdateSorobanMetrics)
-        {
-            updateSorobanMetrics(app);
-        }
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception during preParallelApply writes: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort("Unknown exception during preParallelApply writes");
-    }
-}
-
-void
-TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
-                                   AbstractLedgerTxn& ltx,
-                                   TransactionMetaBuilder& meta,
-                                   MutableTransactionResultBase& txResult,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Hash const& envelopeContentsHash) const
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain() ||
-                  app.threadIsType(Application::ThreadType::APPLY));
-    try
-    {
-        releaseAssertOrThrow(isSoroban());
-
-        ParallelPreApplyInfo info;
-        LedgerSnapshot ls(ltx);
-        preParallelApplyReadOnly(chargeFee, app, ls, meta, txResult,
-                                 sorobanConfig, envelopeContentsHash, info);
-        preParallelApplyWrite(app, ltx, meta, info);
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception after processing fees but before "
-                           "processing sequence number: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort("Unknown exception after processing fees but before "
-                           "processing sequence number");
-    }
-}
-
-std::optional<ParallelTxSuccessVal>
-TransactionFrame::parallelApply(
-    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
-    Hash const& txPrngSeed, TxEffects& effects) const
-{
-    ZoneScoped;
-    // This tx failed validation earlier, do not apply it
-    if (!txResult.isSuccess())
-    {
-        return std::nullopt;
-    }
-
-    if (!maybeAdoptFailedReplayResult(txResult))
-    {
-        return std::nullopt;
-    }
-
-    bool reportInternalErrOnException = true;
-    try
-    {
-        // We do not want to increase the internal-error metric count for
-        // older ledger versions. The minimum ledger version for which we
-        // start internal-error counting is defined in the app config.
-        reportInternalErrOnException =
-            ledgerInfo.getLedgerVersion() >=
-            config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
-
-        std::optional<medida::TimerContext> opTimer;
-        if (!config.DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        {
-            opTimer.emplace(app.getMetrics()
-                                .NewTimer({"ledger", "operation", "apply"})
-                                .TimeScope());
-        }
-
-        releaseAssertOrThrow(mOperations.size() == 1);
-
-        auto op = mOperations.front();
-        auto& opResult = txResult.getOpResultAt(0);
-        auto& opMeta = effects.getMeta().getOperationMetaBuilderAt(0);
-
-        auto res = op->parallelApply(
-            app, threadState, config, ledgerInfo, sorobanMetrics, opResult,
-            txResult.getRefundableFeeTracker(), opMeta, txPrngSeed);
-
-#ifdef BUILD_TESTS
-        maybeTriggerTestInternalError(mEnvelope);
-#endif
-
-        if (res)
-        {
-            // Only build the LedgerTxnDelta when invariant checks are
-            // enabled — the delta is consumed exclusively by
-            // checkOnOperationApply which is a no-op otherwise.
-            if (!config.INVARIANT_CHECKS.empty())
-            {
-                threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
-                                                            effects);
-            }
-            opMeta.setLedgerChangesFromSuccessfulOp(threadState, *res,
-                                                    ledgerInfo.getLedgerSeq());
-        }
-        else
-        {
-            txResult.setInnermostError(txFAILED);
-        }
-
-        return res;
-    }
-    catch (std::bad_alloc& e)
-    {
-        printErrorAndAbort("Exception while applying operations: ", e.what());
-    }
-    catch (std::exception& e)
-    {
-        if (reportInternalErrOnException)
-        {
-            CLOG_ERROR(Tx, "Exception while applying operations ({}, {}): {}",
-                       xdr_to_string(getFullHash(), "fullHash"),
-                       xdr_to_string(getContentsHash(), "contentsHash"),
-                       e.what());
-        }
-        else
-        {
-            CLOG_INFO(Tx,
-                      "Exception occurred on outdated protocol version "
-                      "while applying operations ({}, {}): {}",
-                      xdr_to_string(getFullHash(), "fullHash"),
-                      xdr_to_string(getContentsHash(), "contentsHash"),
-                      e.what());
-        }
-    }
-    if (config.HALT_ON_INTERNAL_TRANSACTION_ERROR)
-    {
-        printErrorAndAbort("Encountered an exception while applying "
-                           "operations, see logs for details.");
-    }
-
-    // This is only reachable if an exception is thrown
-    txResult.setInnermostError(txINTERNAL_ERROR);
-
-    // We only increase the internal-error metric count if the
-    // ledger is a newer version.
-    if (reportInternalErrOnException)
-    {
-        auto& internalErrorCounter = app.getMetrics().NewCounter(
-            {"ledger", "transaction", "internal-error"});
-        internalErrorCounter.inc();
-    }
-    return std::nullopt;
-}
-
 bool
 TransactionFrame::applyOperations(
     SignatureChecker& signatureChecker, AppConnector& app,
@@ -2758,6 +2403,232 @@ TransactionFrame::apply(
 {
     return apply(true, app, ltx, meta, txResult, sorobanConfig,
                  sorobanBasePrngSeed, getContentsHash());
+}
+
+void
+TransactionFrame::processSeqNumForSoroban(AbstractLedgerTxn& ltx) const
+{
+    // Delegates to the same processSeqNum that the legacy commonPreApply
+    // used to invoke. processSeqNum is internally a no-op for ledger
+    // versions before V_10 (those bump seqnums in processFeeSeqNum
+    // already), so this stays safe across protocols.
+    //
+    // Tolerate a missing source account: if a same-ledger classic merge
+    // already destroyed the source, processSeqNum's loadSourceAccount
+    // returns an inactive LedgerTxnEntry and current() would assert.
+    // The downstream Rust apply handles the missing-account case as a
+    // tx failure; nothing else needs to happen here.
+    if (!stellar::loadAccount(ltx, getSourceID()))
+    {
+        return;
+    }
+    processSeqNum(ltx);
+}
+
+void
+TransactionFrame::removeOneTimeSignersForSoroban(AbstractLedgerTxn& ltx) const
+{
+    removeOneTimeSignerFromAllSourceAccounts(ltx);
+}
+
+bool
+TransactionFrame::commonPreApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Delegates to the existing commonPreApply, which builds a
+    // SignatureChecker, runs commonValid (signature + seqnum + fee
+    // checks), bumps seqnum on success, validates signatures, and
+    // pushes the resulting LedgerEntryChanges onto `meta` as
+    // txChangesBefore. On failure, txResult already carries the
+    // appropriate error code (txBAD_AUTH, txBAD_AUTH_EXTRA,
+    // txFAILED, etc.) and the orchestrator must skip the Rust
+    // apply for this TX. chargeFee=false because fees are charged
+    // upstream by processFeesSeqNums; commonPreApply only consults
+    // chargeFee for its sub-validation cost-charging path.
+    auto sigChecker = commonPreApply(/*chargeFee=*/false, app, ltx, meta,
+                                     txResult, &sorobanConfig,
+                                     getContentsHash());
+    return sigChecker != nullptr;
+}
+
+void
+TransactionFrame::preParallelApplyForSorobanReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
+    ZoneScoped;
+    try
+    {
+        releaseAssertOrThrow(isSoroban());
+
+        mCachedAccountPreProtocol8.reset();
+        uint32_t ledgerVersion =
+            ls.getLedgerHeader().current().ledgerVersion;
+        std::unique_ptr<SignatureChecker> signatureChecker;
+#ifdef BUILD_TESTS
+        if (txResult.hasReplayTransactionResult())
+        {
+            signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+        }
+        else
+        {
+#endif // BUILD_TESTS
+            signatureChecker = std::make_unique<SignatureChecker>(
+                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+#ifdef BUILD_TESTS
+        }
+#endif // BUILD_TESTS
+        // Cache-metric counters use a single global mutex; disabling
+        // tracking on the per-tx checker avoids contention across the
+        // pre-apply worker threads (the underlying signature-verify cache
+        // itself is already sharded + mutex-protected, so verifications
+        // still benefit from cross-tx caching).
+        signatureChecker->disableCacheMetricsTracking();
+
+        std::optional<FeePair> sorobanResourceFee;
+        if (protocolVersionStartsFrom(ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            isSoroban())
+        {
+            sorobanResourceFee = computePreApplySorobanResourceFee(
+                ledgerVersion, sorobanConfig, app.getConfig());
+
+            meta.setNonRefundableResourceFee(
+                sorobanResourceFee->non_refundable_fee);
+            int64_t initialFeeRefund = declaredSorobanResourceFee() -
+                                       sorobanResourceFee->non_refundable_fee;
+            txResult.initializeRefundableFeeTracker(initialFeeRefund);
+        }
+
+        auto cv = commonValid(app, &sorobanConfig, *signatureChecker, ls, 0,
+                              true, /*chargeFee=*/false, 0, 0,
+                              getContentsHash(), sorobanResourceFee, txResult,
+                              meta.getDiagnosticEventManager());
+        info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
+
+        bool maybeValid = (cv == ValidationType::kMaybeValid);
+        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
+        {
+            // V_23+ Soroban path won't hit this — defensive only.
+            info.mUpdateSorobanMetrics = maybeValid;
+            return;
+        }
+
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13) &&
+            !maybeValid)
+        {
+            info.mRemoveOneTimeSigners = true;
+            return;
+        }
+        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
+            cv < ValidationType::kInvalidPostAuth)
+        {
+            return;
+        }
+
+        bool allOpsValid = true;
+        if (auto code = txResult.getInnermostResultCode();
+            code == txSUCCESS || code == txFAILED)
+        {
+            allOpsValid =
+                checkOperationSignatures(*signatureChecker, ls, &txResult);
+        }
+
+        info.mRemoveOneTimeSigners = true;
+
+        if (!allOpsValid)
+        {
+            txResult.setInnermostError(txFAILED);
+            return;
+        }
+        if (!signatureChecker->checkAllSignaturesUsed())
+        {
+            txResult.setInnermostError(txBAD_AUTH_EXTRA);
+            return;
+        }
+
+        info.mUpdateSorobanMetrics = maybeValid;
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort(
+            "Exception during read-only preParallelApply: ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort(
+            "Unknown exception during read-only preParallelApply");
+    }
+}
+
+void
+TransactionFrame::preParallelApplyForSorobanWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    ParallelPreApplyInfo const& info) const
+{
+    ZoneScoped;
+    try
+    {
+        LedgerTxn ltxTx(ltx);
+        if (info.mUpdateSeqNum)
+        {
+            // Tolerate missing source (a same-ledger classic merge may
+            // already have destroyed it). The Rust apply will surface
+            // tx failure for missing source.
+            if (stellar::loadAccount(ltxTx, getSourceID()))
+            {
+                processSeqNum(ltxTx);
+            }
+        }
+        if (info.mRemoveOneTimeSigners)
+        {
+            removeOneTimeSignerFromAllSourceAccounts(ltxTx);
+        }
+        meta.pushTxChangesBefore(ltxTx);
+        ltxTx.commit();
+
+        if (info.mUpdateSorobanMetrics)
+        {
+            updateSorobanMetrics(app);
+        }
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort(
+            "Exception during preParallelApply writes: ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception during preParallelApply writes");
+    }
+}
+
+void
+TransactionFrame::initializeRefundableFeeTrackerForSoroban(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& appConfig, MutableTransactionResultBase& txResult,
+    TransactionMetaBuilder& meta) const
+{
+    // Mirrors the legacy commonPreApply Soroban-fee init block (deleted
+    // along with commonPreApply itself for V_23+). Compute the
+    // non-refundable fee, record it on the meta builder, then size the
+    // refundable-fee tracker to declared_fee minus non_refundable.
+    if (!isSoroban())
+    {
+        return;
+    }
+    auto sorobanResourceFee =
+        computePreApplySorobanResourceFee(protocolVersion, sorobanConfig,
+                                          appConfig);
+    meta.setNonRefundableResourceFee(sorobanResourceFee.non_refundable_fee);
+    int64_t initialFeeRefund =
+        declaredSorobanResourceFee() - sorobanResourceFee.non_refundable_fee;
+    txResult.initializeRefundableFeeTracker(initialFeeRefund);
 }
 
 void

@@ -129,6 +129,340 @@ pub(crate) mod p26 {
         )
     }
 
+    /// Typed-input variant of `invoke_host_function_with_trace_hook_and_module_cache`.
+    /// Skips the encode/decode roundtrip on the way IN — caller hands typed
+    /// values straight in, the host's e2e_invoke_typed reuses them via
+    /// `metered_clone` (cheap walk of the in-memory type, no XDR parse).
+    /// Output side keeps encoded `LedgerEntryChange.encoded_new_value` for
+    /// now so the C++ shim can stream straight into the bucket layer; the
+    /// further win of typed output entries is deferred to a follow-up.
+    pub fn invoke_host_function_typed_with_trace_hook_and_module_cache(
+        budget: &Budget,
+        enable_diagnostics: bool,
+        host_function: soroban_env_host::xdr::HostFunction,
+        resources: soroban_env_host::xdr::SorobanResources,
+        restored_rw_entry_indices: &[u32],
+        source_account: soroban_env_host::xdr::AccountId,
+        auth_entries: Vec<soroban_env_host::xdr::SorobanAuthorizationEntry>,
+        ledger_info: LedgerInfo,
+        ledger_entries: Vec<(
+            std::rc::Rc<soroban_env_host::xdr::LedgerEntry>,
+            Option<soroban_env_host::xdr::TtlEntry>,
+            u32,
+        )>,
+        base_prng_seed: [u8; 32],
+        diagnostic_events: &mut Vec<DiagnosticEvent>,
+        trace_hook: Option<TraceHook>,
+        module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionResult, HostError> {
+        e2e_invoke::invoke_host_function_typed(
+            budget,
+            enable_diagnostics,
+            host_function,
+            resources,
+            restored_rw_entry_indices,
+            source_account,
+            auth_entries,
+            ledger_info,
+            ledger_entries,
+            base_prng_seed,
+            diagnostic_events,
+            trace_hook,
+            Some(module_cache.p26_cache.module_cache.clone()),
+        )
+    }
+
+    /// Typed sister of `soroban_proto_any::extract_ledger_effects`.
+    /// Returns each RW modified entry as `(LedgerEntry, RustBuf)` —
+    /// typed value alongside its encoded XDR — so callers that want
+    /// the typed shape can skip a second XDR decode while preserving
+    /// the encoded bytes for the bridge / bucket-write boundary.
+    /// Lives in the p26 block (not in the shared `soroban_proto_any`
+    /// file) because it reaches into `LedgerEntryChange::typed_new_value`,
+    /// a field that exists only in the p26 host crate.
+    fn extract_ledger_effects_typed(
+        entry_changes: Vec<soroban_env_host::e2e_invoke::LedgerEntryChange>,
+    ) -> Result<
+        Vec<(soroban_env_host::xdr::LedgerEntry, crate::RustBuf)>,
+        soroban_env_host::HostError,
+    > {
+        use soroban_env_host::xdr::{
+            LedgerEntry, LedgerEntryData, LedgerEntryExt, ScErrorCode, ScErrorType, TtlEntry,
+        };
+
+        let mut modified_entries = vec![];
+        for change in entry_changes {
+            if !change.read_only {
+                if let (Some(typed), Some(encoded)) =
+                    (change.typed_new_value, change.encoded_new_value)
+                {
+                    let entry = std::rc::Rc::try_unwrap(typed)
+                        .unwrap_or_else(|rc| (*rc).clone());
+                    modified_entries.push((entry, encoded.into()));
+                }
+            }
+            if let Some(ttl_change) = change.ttl_change {
+                if ttl_change.new_live_until_ledger > ttl_change.old_live_until_ledger {
+                    let hash_bytes: [u8; 32] = ttl_change
+                        .key_hash
+                        .try_into()
+                        .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
+                    let le = LedgerEntry {
+                        last_modified_ledger_seq: 0,
+                        data: LedgerEntryData::Ttl(TtlEntry {
+                            key_hash: hash_bytes.into(),
+                            live_until_ledger_seq: ttl_change.new_live_until_ledger,
+                        }),
+                        ext: LedgerEntryExt::V0,
+                    };
+                    let encoded = soroban_proto_any::non_metered_xdr_to_rust_buf(&le)
+                        .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
+                    modified_entries.push((le, encoded));
+                }
+            }
+        }
+        Ok(modified_entries)
+    }
+
+    /// Rust-only output of the typed host call. Carries typed
+    /// `LedgerEntry`s alongside their encoded XDR bytes so consumers
+    /// that want the typed shape (e.g. to drop straight into an
+    /// in-memory state map) skip the redundant decode while the
+    /// encoded bytes stay available for the bridge / bucket boundary.
+    pub struct InvokeHostFunctionTypedOutput {
+        pub success: bool,
+        pub is_internal_error: bool,
+        pub diagnostic_events: Vec<crate::RustBuf>,
+        pub cpu_insns: u64,
+        pub mem_bytes: u64,
+        pub time_nsecs: u64,
+        pub result_value: crate::RustBuf,
+        pub contract_events: Vec<crate::RustBuf>,
+        // Each entry carries typed LedgerEntry + its encoded bytes.
+        pub modified_ledger_entries: Vec<(
+            soroban_env_host::xdr::LedgerEntry,
+            crate::RustBuf,
+        )>,
+        pub rent_fee: i64,
+    }
+
+    /// Top-level entry point for the typed (zero-copy-input) host call.
+    /// Mirrors `soroban_proto_any::invoke_host_function`'s
+    /// budget/timer/diagnostics scaffolding but takes typed inputs and
+    /// hands them to `invoke_host_function_typed_with_trace_hook_and_module_cache`
+    /// without any per-input XDR encode/decode. Returns
+    /// `InvokeHostFunctionTypedOutput` so callers can use the typed
+    /// `modified_ledger_entries` directly while still having the
+    /// encoded bytes on hand for downstream bucket writeback.
+    pub fn invoke_host_function_typed_via_curr_host(
+        enable_diagnostics: bool,
+        instruction_limit: u32,
+        host_function: soroban_env_host::xdr::HostFunction,
+        resources: soroban_env_host::xdr::SorobanResources,
+        restored_rw_entry_indices: &[u32],
+        source_account: soroban_env_host::xdr::AccountId,
+        auth_entries: Vec<soroban_env_host::xdr::SorobanAuthorizationEntry>,
+        ledger_info: &crate::CxxLedgerInfo,
+        ledger_entries: Vec<(
+            std::rc::Rc<soroban_env_host::xdr::LedgerEntry>,
+            Option<soroban_env_host::xdr::TtlEntry>,
+            u32,
+        )>,
+        base_prng_seed: [u8; 32],
+        rent_fee_configuration: CxxRentFeeConfiguration,
+        module_cache: &SorobanModuleCache,
+    ) -> Result<InvokeHostFunctionTypedOutput, Box<dyn std::error::Error>> {
+        use soroban_env_host::xdr::{
+            ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
+            ContractEventV0, DiagnosticEvent as XdrDiagnosticEvent, ExtensionPoint,
+        };
+
+        // Per-thread cache of decoded ContractCostParams. Each cluster
+        // worker (`std::thread::scope` spawn) sees a fresh thread_local,
+        // and within that thread we run hundreds of TXs against the
+        // same ledger config — XDR-decoding the cost params per TX is
+        // ~30 short reads each, but the overall sum of those was
+        // dominating per-TX overhead. Cache by buffer pointer + length
+        // (the orchestrator hands us the same `CxxLedgerInfo` for every
+        // TX in the phase, so `as_ptr()` matches as long as the
+        // underlying `std::vector` hasn't reallocated). Falling back to
+        // a re-decode keeps us correct if the assumption is ever
+        // violated.
+        thread_local! {
+            static COST_PARAMS_CACHE: std::cell::RefCell<
+                Option<(*const u8, usize, *const u8, usize, ContractCostParams, ContractCostParams)>,
+            > = std::cell::RefCell::new(None);
+        }
+        let cpu_buf = ledger_info.cpu_cost_params.data.as_slice();
+        let mem_buf = ledger_info.mem_cost_params.data.as_slice();
+        let (cpu_params, mem_params) = COST_PARAMS_CACHE.with(|cache| {
+            let mut entry = cache.borrow_mut();
+            let cur = (
+                cpu_buf.as_ptr(),
+                cpu_buf.len(),
+                mem_buf.as_ptr(),
+                mem_buf.len(),
+            );
+            if let Some((cp_ptr, cp_len, mp_ptr, mp_len, cpu, mem)) = entry.as_ref() {
+                if *cp_ptr == cur.0
+                    && *cp_len == cur.1
+                    && *mp_ptr == cur.2
+                    && *mp_len == cur.3
+                {
+                    return Ok::<_, Box<dyn std::error::Error>>(
+                        (cpu.clone(), mem.clone()),
+                    );
+                }
+            }
+            let cpu = soroban_proto_any::non_metered_xdr_from_cxx_buf::<ContractCostParams>(
+                &ledger_info.cpu_cost_params,
+            )?;
+            let mem = soroban_proto_any::non_metered_xdr_from_cxx_buf::<ContractCostParams>(
+                &ledger_info.mem_cost_params,
+            )?;
+            *entry = Some((cur.0, cur.1, cur.2, cur.3, cpu.clone(), mem.clone()));
+            Ok((cpu, mem))
+        })?;
+        let budget = Budget::try_from_configs(
+            instruction_limit as u64,
+            ledger_info.memory_limit as u64,
+            cpu_params,
+            mem_params,
+        )?;
+        let mut diagnostic_events: Vec<XdrDiagnosticEvent> = vec![];
+        let ledger_seq_num = ledger_info.sequence_number;
+        let trace_hook: Option<soroban_env_host::TraceHook> =
+            if crate::log::is_tx_tracing_enabled() {
+                Some(soroban_proto_any::make_trace_hook_fn())
+            } else {
+                None
+            };
+        let host_ledger_info: LedgerInfo = ledger_info.try_into()?;
+        let start_time = std::time::Instant::now();
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            invoke_host_function_typed_with_trace_hook_and_module_cache(
+                &budget,
+                enable_diagnostics,
+                host_function,
+                resources,
+                restored_rw_entry_indices,
+                source_account,
+                auth_entries,
+                host_ledger_info,
+                ledger_entries,
+                base_prng_seed,
+                &mut diagnostic_events,
+                trace_hook,
+                module_cache,
+            )
+        }));
+        let res = match res {
+            Ok(r) => r,
+            Err(panic_payload) => {
+                let msg = if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    format!("contract host panicked: {s}")
+                } else if let Some(s) = panic_payload.downcast_ref::<&'static str>() {
+                    format!("contract host panicked: {s}")
+                } else {
+                    "contract host panicked".into()
+                };
+                return Err(soroban_proto_any::CoreHostError::General(msg).into());
+            }
+        };
+        let stop_time = std::time::Instant::now();
+        let time_nsecs = stop_time.duration_since(start_time).as_nanos() as u64;
+
+        soroban_proto_any::log_diagnostic_events(&diagnostic_events);
+        let cpu_insns = budget.get_cpu_insns_consumed()?;
+        let mem_bytes = budget.get_mem_bytes_consumed()?;
+
+        let err = match res {
+            Ok(res) => match res.encoded_invoke_result {
+                Ok(result_value) => {
+                    let rent_changes = soroban_env_host::e2e_invoke::extract_rent_changes(
+                        &res.ledger_changes,
+                    );
+                    let rent_fee = soroban_env_host::fees::compute_rent_fee(
+                        &rent_changes,
+                        &(&rent_fee_configuration).into(),
+                        ledger_seq_num,
+                    );
+                    let modified_ledger_entries =
+                        extract_ledger_effects_typed(res.ledger_changes)?;
+                    return Ok(InvokeHostFunctionTypedOutput {
+                        success: true,
+                        is_internal_error: false,
+                        diagnostic_events:
+                            soroban_proto_any::encode_diagnostic_events(&diagnostic_events),
+                        cpu_insns,
+                        mem_bytes,
+                        time_nsecs,
+                        result_value: result_value.into(),
+                        modified_ledger_entries,
+                        contract_events: res
+                            .encoded_contract_events
+                            .into_iter()
+                            .map(crate::RustBuf::from)
+                            .collect(),
+                        rent_fee,
+                    });
+                }
+                Err(e) => e,
+            },
+            Err(e) => e,
+        };
+        if enable_diagnostics {
+            use soroban_env_host::xdr::{ScError, ScErrorCode, ScSymbol, ScVal};
+            diagnostic_events.push(XdrDiagnosticEvent {
+                in_successful_contract_call: false,
+                event: ContractEvent {
+                    ext: ExtensionPoint::V0,
+                    contract_id: None,
+                    type_: ContractEventType::Diagnostic,
+                    body: ContractEventBody::V0(ContractEventV0 {
+                        topics: vec![
+                            ScVal::Symbol(ScSymbol(
+                                "host_fn_failed".try_into().unwrap_or_default(),
+                            )),
+                            ScVal::Error(
+                                err.error
+                                    .try_into()
+                                    .unwrap_or(ScError::Context(ScErrorCode::InternalError)),
+                            ),
+                        ]
+                        .try_into()
+                        .unwrap_or_default(),
+                        data: ScVal::Void,
+                    }),
+                },
+            });
+        }
+        let protocol_version = ledger_info.protocol_version;
+        let is_internal_error = if protocol_version < 22 {
+            err.error
+                .is_code(soroban_env_host::xdr::ScErrorCode::InternalError)
+        } else {
+            err.error
+                .is_code(soroban_env_host::xdr::ScErrorCode::InternalError)
+                && !err
+                    .error
+                    .is_type(soroban_env_host::xdr::ScErrorType::Contract)
+        };
+        Ok(InvokeHostFunctionTypedOutput {
+            success: false,
+            is_internal_error,
+            diagnostic_events: soroban_proto_any::encode_diagnostic_events(&diagnostic_events),
+            cpu_insns,
+            mem_bytes,
+            time_nsecs,
+            result_value: crate::RustBuf::from(vec![]),
+            modified_ledger_entries: vec![],
+            contract_events: vec![],
+            rent_fee: 0,
+        })
+    }
+
+
     pub(crate) fn wasm_module_memory_cost_wrapper(
         budget: &Budget,
         contract_code_entry: &ContractCodeEntry,
@@ -1153,6 +1487,15 @@ pub(crate) struct HostModule {
         mem_cost_params: &CxxBuf,
     )
         -> Result<u32, Box<dyn std::error::Error>>,
+    // Same as contract_code_memory_size_for_rent but takes raw byte slices
+    // — usable from inside Rust without constructing a CxxBuf. Used by the
+    // SorobanState recompute path.
+    pub(crate) contract_code_memory_size_for_rent_bytes: fn(
+        contract_code_entry: &[u8],
+        cpu_cost_params: &[u8],
+        mem_cost_params: &[u8],
+    )
+        -> Result<u32, Box<dyn std::error::Error>>,
     pub(crate) can_parse_transaction: fn(&CxxBuf, depth_limit: u32) -> bool,
     #[cfg(feature = "testutils")]
     pub(crate) rustbuf_containing_scval_to_string: fn(&RustBuf) -> String,
@@ -1173,6 +1516,8 @@ macro_rules! proto_versioned_functions_for_module {
                 $module::soroban_proto_any::compute_rent_write_fee_per_1kb,
             contract_code_memory_size_for_rent:
                 $module::soroban_proto_any::contract_code_memory_size_for_rent,
+            contract_code_memory_size_for_rent_bytes:
+                $module::soroban_proto_any::contract_code_memory_size_for_rent_bytes,
             can_parse_transaction: $module::soroban_proto_any::can_parse_transaction,
             #[cfg(feature = "testutils")]
             rustbuf_containing_scval_to_string:

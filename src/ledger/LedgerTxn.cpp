@@ -341,6 +341,12 @@ AbstractLedgerTxnParent::~AbstractLedgerTxnParent()
 {
 }
 
+void
+AbstractLedgerTxnParent::setAllowInMemorySorobanStateLoads(bool /*allow*/)
+{
+    // No-op default. LedgerTxnRoot overrides to wire the flag through.
+}
+
 // Implementation of EntryIterator --------------------------------------------
 EntryIterator::EntryIterator(std::unique_ptr<AbstractImpl>&& impl)
     : mImpl(std::move(impl))
@@ -2847,6 +2853,18 @@ LedgerTxnRoot::getSession() const
     return mImpl->getSession();
 }
 
+void
+LedgerTxnRoot::Impl::setAllowInMemorySorobanStateLoads(bool allow)
+{
+    mAllowInMemorySorobanStateLoads = allow;
+}
+
+void
+LedgerTxnRoot::setAllowInMemorySorobanStateLoads(bool allow)
+{
+    mImpl->setAllowInMemorySorobanStateLoads(allow);
+}
+
 #ifdef BUILD_TESTS
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
@@ -3689,14 +3707,30 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         ++mPrefetchMisses;
     }
 
+    // C5: Soroban-state keys must not be loaded via LedgerTxn by default.
+    // Callers that need CONTRACT_DATA / CONTRACT_CODE / TTL should call
+    // InMemorySorobanState directly. Test verification code that
+    // legitimately wants to spot-check Soroban state through the
+    // generic LedgerTxn API can opt in via
+    // setAllowInMemorySorobanStateLoads(true) on the LedgerTxnRoot —
+    // when that flag is set we route Soroban-key loads to
+    // InMemorySorobanState. Production apply / catchup paths leave
+    // the flag off and a Soroban key reaching here trips the assert.
+    if (InMemorySorobanState::isInMemoryType(key))
+    {
+        releaseAssertOrThrow(mAllowInMemorySorobanStateLoads);
+        auto entry = mInMemorySorobanState.get(key);
+        if (!entry)
+        {
+            return nullptr;
+        }
+        return std::make_shared<InternalLedgerEntry const>(*entry);
+    }
+
     std::shared_ptr<LedgerEntry const> entry = nullptr;
     try
     {
-        if (InMemorySorobanState::isInMemoryType(key))
-        {
-            entry = mInMemorySorobanState.get(key);
-        }
-        else if (!mApp.getConfig().allBucketsInMemory() && key.type() == OFFER)
+        if (!mApp.getConfig().allBucketsInMemory() && key.type() == OFFER)
         {
             entry = loadOffer(key);
         }

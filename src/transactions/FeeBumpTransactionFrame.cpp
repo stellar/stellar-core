@@ -82,108 +82,6 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 }
 #endif
 
-void
-FeeBumpTransactionFrame::preParallelApply(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig) const
-{
-    try
-    {
-        ParallelPreApplyInfo info;
-        LedgerSnapshot ls(ltx);
-        preParallelApplyReadOnly(app, ls, meta, txResult, sorobanConfig, info);
-        preParallelApplyWrite(app, ltx, meta, info);
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception in preParallelApply ", e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort("Unknown exception in preParallelApply");
-    }
-}
-
-void
-FeeBumpTransactionFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
-    MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
-{
-    try
-    {
-        mInnerTx->preParallelApplyReadOnly(/*chargeFee=*/false, app, ls, meta,
-                                           txResult, sorobanConfig,
-                                           getContentsHash(), info);
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception during read-only preParallelApply: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort(
-            "Unknown exception during read-only preParallelApply");
-    }
-}
-
-void
-FeeBumpTransactionFrame::preParallelApplyWrite(
-    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
-    ParallelPreApplyInfo const& info) const
-{
-    try
-    {
-        LedgerTxn ltxTx(ltx);
-        removeOneTimeSignerKeyFromFeeSource(ltxTx);
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
-
-        mInnerTx->preParallelApplyWrite(app, ltx, meta, info);
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception during preParallelApply writes: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort("Unknown exception during preParallelApply writes");
-    }
-}
-
-std::optional<ParallelTxSuccessVal>
-FeeBumpTransactionFrame::parallelApply(
-    AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-    Config const& config, ParallelLedgerInfo const& ledgerInfo,
-    MutableTransactionResultBase& txResult, SorobanMetrics& sorobanMetrics,
-    Hash const& txPrngSeed, TxEffects& effects) const
-{
-    try
-    {
-        // If this throws, then we may not have the correct TransactionResult so
-        // we must crash.
-        // Note that even after updateResult is called here, feeCharged will not
-        // be accurate for Soroban transactions until
-        // FeeBumpTransactionFrame::processPostApply is called.
-        return mInnerTx->parallelApply(app, threadState, config, ledgerInfo,
-                                       txResult, sorobanMetrics, txPrngSeed,
-                                       effects);
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort("Exception while applying inner transaction: ",
-                           e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort(
-            "Unknown exception while applying inner transaction");
-    }
-}
-
 bool
 FeeBumpTransactionFrame::apply(
     AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
@@ -227,6 +125,104 @@ FeeBumpTransactionFrame::apply(
         printErrorAndAbort(
             "Unknown exception while applying inner transaction");
     }
+}
+
+void
+FeeBumpTransactionFrame::processSeqNumForSoroban(AbstractLedgerTxn& ltx) const
+{
+    // The fee-bump envelope itself carries no separate sequence number;
+    // the seqnum bump applies to the inner Soroban tx's source account.
+    mInnerTx->processSeqNumForSoroban(ltx);
+}
+
+void
+FeeBumpTransactionFrame::removeOneTimeSignersForSoroban(
+    AbstractLedgerTxn& ltx) const
+{
+    // Mirrors the legacy fee-bump apply path which removed the
+    // fee-bumper's PRE_AUTH_TX signer first, then delegated to the
+    // inner tx's signature processing for the inner source account
+    // signers.
+    removeOneTimeSignerKeyFromFeeSource(ltx);
+    mInnerTx->removeOneTimeSignersForSoroban(ltx);
+}
+
+bool
+FeeBumpTransactionFrame::commonPreApplyForSoroban(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig) const
+{
+    // Mirror the legacy fee-bump apply path: strip the fee-bumper's
+    // PRE_AUTH_TX signer, push txChangesBefore, then delegate to the
+    // inner Soroban tx so it runs the full commonPreApply (signature
+    // validation + seqnum bump + signer removal). The fee-bump
+    // envelope itself doesn't carry a separate seqnum or its own
+    // signature-validated source — those concerns belong to the inner
+    // tx.
+    try
+    {
+        LedgerTxn ltxFeeBump(ltx);
+        removeOneTimeSignerKeyFromFeeSource(ltxFeeBump);
+        meta.pushTxChangesBefore(ltxFeeBump);
+        ltxFeeBump.commit();
+    }
+    catch (...)
+    {
+        // Mirror apply()'s defensive abort.
+        printErrorAndAbort(
+            "Exception while removing fee-bumper one-time signer for Soroban");
+    }
+    return mInnerTx->commonPreApplyForSoroban(app, ltx, meta, txResult,
+                                              sorobanConfig);
+}
+
+void
+FeeBumpTransactionFrame::preParallelApplyForSorobanReadOnly(
+    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    MutableTransactionResultBase& txResult,
+    SorobanNetworkConfig const& sorobanConfig,
+    ParallelPreApplyInfo& info) const
+{
+    // Read-only validation work happens entirely on the inner tx — the
+    // fee-bump envelope itself has no separate signature / commonValid
+    // checks beyond the one-time signer removal performed in the write
+    // phase.
+    mInnerTx->preParallelApplyForSorobanReadOnly(app, ls, meta, txResult,
+                                                 sorobanConfig, info);
+}
+
+void
+FeeBumpTransactionFrame::preParallelApplyForSorobanWrite(
+    AppConnector& app, AbstractLedgerTxn& ltx, TransactionMetaBuilder& meta,
+    ParallelPreApplyInfo const& info) const
+{
+    try
+    {
+        LedgerTxn ltxFeeBump(ltx);
+        removeOneTimeSignerKeyFromFeeSource(ltxFeeBump);
+        meta.pushTxChangesBefore(ltxFeeBump);
+        ltxFeeBump.commit();
+    }
+    catch (...)
+    {
+        printErrorAndAbort(
+            "Exception while removing fee-bumper one-time signer for Soroban");
+    }
+    mInnerTx->preParallelApplyForSorobanWrite(app, ltx, meta, info);
+}
+
+void
+FeeBumpTransactionFrame::initializeRefundableFeeTrackerForSoroban(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& appConfig, MutableTransactionResultBase& txResult,
+    TransactionMetaBuilder& meta) const
+{
+    // The fee-bump envelope has no separate Soroban fee accounting; the
+    // inner tx owns the resource declaration. Forward through the inner
+    // tx so the refundable-fee tracker sees the inner declared fee.
+    mInnerTx->initializeRefundableFeeTrackerForSoroban(
+        protocolVersion, sorobanConfig, appConfig, txResult, meta);
 }
 
 void

@@ -1,6 +1,7 @@
 #include "simulation/TxGenerator.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
 #include "transactions/TransactionBridge.h"

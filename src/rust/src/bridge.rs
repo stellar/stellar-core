@@ -27,6 +27,176 @@ pub(crate) mod rust_bridge {
         hash: String,
     }
 
+    // ===== Soroban apply-phase types =====
+    //
+    // These are the per-TX inputs and outputs of the new Rust-owned Soroban
+    // parallel-apply phase (see apply_soroban_phase below). Skeleton in C6;
+    // the per-TX driver and orchestrator implementations land in C7..C9.
+
+    // A single ledger-entry diff produced by the apply phase. Used for the
+    // accumulated outputs (Rust → C++) that C++ writes to buckets after the
+    // phase. An empty `value_xdr` means "delete this key".
+    struct LedgerEntryUpdate {
+        // XDR-serialized LedgerKey.
+        key_xdr: RustBuf,
+        // XDR-serialized LedgerEntry. Empty Vec = deletion of `key_xdr`.
+        value_xdr: RustBuf,
+    }
+
+    // C++ → Rust prefetch entry. Same shape as `LedgerEntryUpdate` but
+    // owned by C++ so we can move the freshly-`xdr_to_opaque`'d
+    // `std::vector<uint8_t>` into a `unique_ptr` and ship without the
+    // per-byte `push_back` loop cxx's `rust::Vec<u8>` forces on the
+    // way in. The two structs are kept separate because cxx requires
+    // bridge struct fields to be a fixed type, and a single struct
+    // can't carry both `RustBuf` and `CxxBuf` cells.
+    struct LedgerEntryInput {
+        key_xdr: CxxBuf,
+        value_xdr: CxxBuf,
+    }
+
+    // Per-entry delta produced by a single Soroban TX. C++ uses these
+    // to build LedgerEntryChanges for the per-op meta:
+    //
+    //   - prev_value_xdr empty + new_value_xdr non-empty  → CREATED
+    //   - prev_value_xdr non-empty + new_value_xdr empty  → STATE + REMOVED
+    //   - both non-empty                                  → STATE + UPDATED
+    //
+    // RESTORED reclassification (for entries pulled out of the hot
+    // archive or live bucket list with expired TTL) is layered on top
+    // by C++ via processOpLedgerEntryChanges using the restored-key
+    // hints already present in the host output; no extra bridge field
+    // is needed for the basic CREATED/UPDATED/REMOVED shape.
+    struct LedgerEntryDelta {
+        key_xdr: RustBuf,
+        prev_value_xdr: RustBuf,
+        new_value_xdr: RustBuf,
+    }
+
+    // Per-TX outcome from the Soroban apply phase.
+    struct SorobanTxApplyResult {
+        success: bool,
+        is_internal_error: bool,
+        // True when the host succeeded but the TX's refundable-fee
+        // budget cannot cover the host's rent_fee. Rust drops the
+        // TX's writes / tx_changes when this is set; C++ uses the
+        // flag to surface INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE
+        // (or the equivalent for ExtendFootprintTtl / RestoreFootprint)
+        // instead of the generic TRAPPED / MALFORMED codes.
+        is_insufficient_refundable_fee: bool,
+        // True when the TX hit a declared resource cap (currently only
+        // disk read bytes; the host enforces instructions / memory and
+        // surfaces those via is_internal_error or its own diagnostics).
+        // C++ uses the flag to surface
+        // INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED on the failure
+        // path. Rust drops the TX's writes when this is set.
+        is_resource_limit_exceeded: bool,
+        // True when the TX touched a Soroban entry that was archived
+        // (TTL expired and not auto-restored). Mirrors the legacy
+        // doApply path's pre-host archival walk: persistent expired
+        // entries fail with INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED rather
+        // than the generic TRAPPED. Temporary expired entries are
+        // *not* archival failures — they're simply skipped from the
+        // host's footprint inputs, so the host treats the lookup as
+        // missing.
+        is_entry_archived: bool,
+        // XDR-serialized return value (SCVal) for InvokeHostFunction TXs.
+        // Empty for ExtendFootprintTtl / RestoreFootprint and for failed
+        // TXs. Used by C++ to populate InvokeHostFunctionResult on
+        // success and to compute the success-hash preimage.
+        return_value_xdr: RustBuf,
+        // XDR-serialized ContractEvents emitted by the host. Used both
+        // to populate transaction meta and as part of the
+        // InvokeHostFunctionSuccessPreImage hash. Empty for
+        // ExtendFootprintTtl / RestoreFootprint and for failed TXs.
+        contract_events: Vec<RustBuf>,
+        // XDR-serialized DiagnosticEvents (ContractEvent + success
+        // flag). Always populated when diagnostics are enabled,
+        // regardless of success.
+        diagnostic_events: Vec<RustBuf>,
+        // Refundable-fee components consumed by this TX, used by C++ to
+        // drive RefundableFeeTracker on success. Both are 0 on failure
+        // (the C++ side resets the tracker via setInnermostError).
+        //   * rent_fee_consumed: rent paid for state archival /
+        //     extension. InvokeHostFunction gets this from the host;
+        //     ExtendFootprintTtl and RestoreFootprint compute it from
+        //     the rent-fee config.
+        //   * contract_event_size_bytes: total XDR-serialised size of
+        //     the contract events emitted by InvokeHostFunction (zero
+        //     for the TTL ops since they emit no contract events).
+        rent_fee_consumed: i64,
+        contract_event_size_bytes: u32,
+        // Per-TX entry deltas in apply order. Used by C++ to populate
+        // the per-op LedgerEntryChanges meta. Empty for failed TXs.
+        tx_changes: Vec<LedgerEntryDelta>,
+        // Hot-archive restorations performed by this TX, indexed by
+        // LedgerKey. Each entry is the value at the moment of
+        // restoration (data/code from the archive, TTL freshly built).
+        // Used by C++'s processOpLedgerEntryChanges to reclassify
+        // CREATED → RESTORED for resurrected entries. Includes both the
+        // data/code key and the matching TTL key.
+        hot_archive_restores: Vec<LedgerEntryUpdate>,
+        // Live-BucketList restorations (entries whose TTL had expired
+        // but whose data/code still lived in the live BL). The data/
+        // code entry is *not* modified by RestoreFootprint here — only
+        // the TTL is bumped — so this map carries the unchanged live
+        // value of the data/code key plus the new TTL.
+        live_restores: Vec<LedgerEntryUpdate>,
+        // Pre-computed SHA-256 of
+        // `InvokeHostFunctionSuccessPreImage{returnValue, contractEvents}`,
+        // used by C++ to populate
+        // `InvokeHostFunctionResult.success`. The preimage XDR is
+        // built by concatenating the host's already-encoded
+        // `return_value_xdr`, a 4-byte big-endian event count, and
+        // each `contract_events[i]` byte vec — no per-tx decode +
+        // re-encode round-trip on the C++ side. Empty for non-
+        // InvokeHostFunction success paths and for failures.
+        success_preimage_hash: RustBuf,
+        // Pre-computed events-portion of the resource fee for this TX
+        // (the `refundable_fee` field of the host's
+        // compute_transaction_resource_fee output, which depends on
+        // the tx's resources + emitted events size). The C++ post-
+        // pass adds this to `rent_fee_consumed` to populate the
+        // RefundableFeeTracker without calling back through the
+        // bridge to recompute the same value.
+        refundable_fee_increment: i64,
+    }
+
+    // Aggregate result of a single Soroban parallel-apply phase. Returned
+    // by apply_soroban_phase. The Soroban half of the writes is already
+    // absorbed into the SorobanState passed in &mut; the four fields
+    // below are what bucket persistence / LedgerTxn need to see.
+    //
+    // Soroban writes are pre-classified by Rust (which already knows
+    // create vs update from `state.get(&k).is_some()` at fold time) so
+    // the C++ post-pass can route them directly to the bucket
+    // init/live/dead lists without the per-key XDR-decode + wasCreate
+    // map walk the unsplit shape used to require.
+    struct SorobanPhaseResult {
+        per_tx: Vec<SorobanTxApplyResult>,
+        // Soroban entries written for the first time this ledger (no
+        // prior version in SorobanState). Each `RustBuf` is the host's
+        // `metered_write_xdr` of the LedgerEntry with
+        // `lastModifiedLedgerSeq` patched to the current ledger seq.
+        // The matching `LedgerKey` is derivable from the entry via
+        // `getLedgerKey` on the C++ side (see `InternalLedgerEntry`),
+        // so we don't ship it over the bridge — saves ~50-100 bytes ×
+        // ~6000 writes per phase plus the matching encode/decode.
+        soroban_init_entry_xdrs: Vec<RustBuf>,
+        // Soroban entries that updated a pre-existing version. Same
+        // shape as `soroban_init_entry_xdrs`.
+        soroban_live_entry_xdrs: Vec<RustBuf>,
+        // Soroban keys whose entries were deleted this ledger.
+        // XDR-serialized `LedgerKey` per element — value bytes have no
+        // meaning for deletes so we don't ship a wrapper struct.
+        soroban_dead_key_xdrs: Vec<RustBuf>,
+        // Classic entries (Account / Trustline / etc.) emitted as side
+        // effects of native asset operations executed by Soroban. The
+        // C++ post-pass routes them through LedgerTxn for bucket
+        // writeback because the classic invariants need to see them.
+        classic_updates: Vec<LedgerEntryUpdate>,
+    }
+
     // Result of invoking a host function.
     // When `success` is `false`, the function has failed. The diagnostic events
     // and metering data will be populated, but result value and effects won't
@@ -77,6 +247,8 @@ pub(crate) mod rust_bridge {
         pub min_temp_entry_ttl: u32,
         pub min_persistent_entry_ttl: u32,
         pub max_entry_ttl: u32,
+        pub max_contract_size_bytes: u32,
+        pub max_contract_data_entry_size_bytes: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }
@@ -328,6 +500,212 @@ pub(crate) mod rust_bridge {
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
         fn get_mem_bytes_consumed(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
 
+        // SorobanState — canonical in-memory Soroban state (CONTRACT_DATA,
+        // CONTRACT_CODE, TTL), owned by Rust. Replaces the C++
+        // InMemorySorobanState class. The C++ shim drives this via the FFI
+        // methods below. See src/rust/src/soroban_apply.rs for the typed
+        // Rust API and design notes.
+        //
+        // All `_xdr` methods take serialized XDR bytes (as &CxxBuf). The
+        // bytes are deserialized into the canonical (latest) stellar-xdr
+        // type and dispatched to the typed implementation.
+        type SorobanState;
+
+        fn new_soroban_state() -> Box<SorobanState>;
+
+        // Reads. lookup_entry_xdr returns an empty RustBuf when the key is
+        // not present (a real LedgerEntry is never an empty byte sequence).
+        fn lookup_entry_xdr(self: &SorobanState, key_xdr: &CxxBuf) -> RustBuf;
+        fn has_ttl_xdr(self: &SorobanState, key_xdr: &CxxBuf) -> bool;
+
+        // Trivial accessors (mirror the read-only C++ InMemorySorobanState
+        // public API).
+        fn is_empty(self: &SorobanState) -> bool;
+        fn ledger_seq(self: &SorobanState) -> u32;
+        fn size(self: &SorobanState) -> u64;
+        fn contract_data_entry_count(self: &SorobanState) -> usize;
+        fn contract_code_entry_count(self: &SorobanState) -> usize;
+
+        // Lifecycle / invariants.
+        fn manually_advance_ledger_header(self: &mut SorobanState, ledger_seq: u32);
+        fn check_update_invariants(self: &SorobanState);
+        fn assert_last_closed_ledger(self: &SorobanState, expected_ledger_seq: u32);
+
+        // CRUD — ContractData. `entry_xdr` must be a serialized
+        // CONTRACT_DATA LedgerEntry; `key_xdr` must be a serialized
+        // CONTRACT_DATA LedgerKey. Each method panics on a type mismatch
+        // (mirrors the C++ releaseAssertOrThrow checks).
+        fn create_contract_data_entry_xdr(self: &mut SorobanState, entry_xdr: &CxxBuf);
+        fn update_contract_data_xdr(self: &mut SorobanState, entry_xdr: &CxxBuf);
+        fn delete_contract_data_xdr(self: &mut SorobanState, key_xdr: &CxxBuf);
+
+        // CRUD — ContractCode. The caller (C++ shim) computes
+        // protocol-aware size_bytes via the existing
+        // ledgerEntrySizeForRent path and passes it in. Storage doesn't try
+        // to recompute it.
+        fn create_contract_code_entry_xdr(
+            self: &mut SorobanState,
+            entry_xdr: &CxxBuf,
+            size_bytes: u32,
+        );
+        fn update_contract_code_xdr(
+            self: &mut SorobanState,
+            entry_xdr: &CxxBuf,
+            size_bytes: u32,
+        );
+        fn delete_contract_code_xdr(self: &mut SorobanState, key_xdr: &CxxBuf);
+
+        // CRUD — TTL. `entry_xdr` must be a serialized TTL LedgerEntry.
+        fn create_ttl_xdr(self: &mut SorobanState, entry_xdr: &CxxBuf);
+        fn update_ttl_xdr(self: &mut SorobanState, entry_xdr: &CxxBuf);
+
+        // Notify SorobanState of post-apply eviction events: archived
+        // entries (data/code moved to the hot archive) and deleted
+        // keys (TTLs of evicted entries plus expired-temporary data
+        // entries). Removes the corresponding CONTRACT_DATA /
+        // CONTRACT_CODE entries from the in-memory map; TTL keys and
+        // non-Soroban keys are no-ops. Lenient on missing entries.
+        fn evict_entries_xdr(
+            self: &mut SorobanState,
+            archived_entry_keys: &Vec<CxxBuf>,
+            deleted_keys: &Vec<CxxBuf>,
+        );
+
+        // Batch-apply init / live / dead entries to SorobanState in one
+        // call. Used by the BucketTestUtils replay path that bypasses
+        // the normal apply phase (setNextLedgerEntryBatchForBucketTesting
+        // flow) — entries flow into the live BucketList via
+        // addLiveBatch, so we need to mirror them into SorobanState too
+        // or post-apply paths (eviction lookup, etc.) won't see them.
+        // Soroban-only: classic / config entries are ignored.
+        fn batch_update_xdr(
+            self: &mut SorobanState,
+            init_entries: &Vec<CxxBuf>,
+            live_entries: &Vec<CxxBuf>,
+            dead_keys: &Vec<CxxBuf>,
+            new_ledger_seq: u32,
+            ledger_version: u32,
+            config_max_protocol: u32,
+            cpu_cost_params: &CxxBuf,
+            mem_cost_params: &CxxBuf,
+        );
+
+        // Reset the state to empty. Used by the C++ shim's clearForTesting
+        // path. Cheaper than dropping the Box and constructing a new one.
+        fn clear(self: &mut SorobanState);
+
+        // Recompute the cached size_bytes for every stored CONTRACT_CODE
+        // entry. Used during protocol upgrades when the in-memory size
+        // computation changes. Done entirely on the Rust side: the iteration
+        // is a single FFI call, and the per-entry size computation reaches
+        // into the per-protocol soroban-env-host directly via
+        // contract_code_memory_size_for_rent_bytes (no C++ round-trip).
+        fn recompute_contract_code_size_xdr(
+            self: &mut SorobanState,
+            config_max_protocol: u32,
+            protocol_version: u32,
+            cpu_cost_params: &CxxBuf,
+            mem_cost_params: &CxxBuf,
+        );
+
+        // Initialize SorobanState from a list of live-bucket file paths in
+        // priority order (level 0 curr, level 0 snap, level 1 curr, level 1
+        // snap, ...). Replaces the old C++ initializeStateFromSnapshot path:
+        // the bucket-list iteration, dedup against DEADENTRY records, and
+        // contract-code size compute all happen entirely on the Rust side.
+        // The state must be empty when called.
+        //
+        // Pre-Soroban protocols are a no-op (just sets the ledger seq).
+        fn initialize_from_bucket_files(
+            self: &mut SorobanState,
+            bucket_paths: &Vec<String>,
+            last_closed_ledger_seq: u32,
+            ledger_version: u32,
+            config_max_protocol: u32,
+            cpu_cost_params: &CxxBuf,
+            mem_cost_params: &CxxBuf,
+        );
+
+        // Run the entire Soroban parallel-apply phase for one ledger.
+        // Replaces the C++ applySorobanStages + ParallelApplyUtils
+        // orchestration. The full per-TX driver, stage orchestrator, and
+        // per-protocol host dispatch implementation lands in C7..C9; this
+        // declaration is the bridge skeleton (returns an error in C6).
+        //
+        // Inputs:
+        //   - state: SorobanState, mutated in place. Soroban-state diffs from
+        //     this phase are absorbed into `state` before return; the
+        //     returned `ledger_updates` Vec is what bucket persistence
+        //     should write.
+        //   - module_cache: parsed-WASM cache, shared across phases.
+        //   - soroban_phase_xdr: the Soroban portion of the closing
+        //     ledger's TxSet, XDR-serialized. Cluster/stage structure is
+        //     baked into the TxSet — Rust does not re-cluster.
+        //   - classic_prefetch: classic-state entries (source accounts,
+        //     etc.) the Soroban TXs touch, pre-loaded by C++ from the
+        //     LedgerTxn / bucket list.
+        //   - archived_prefetch: hot-archive entries pre-loaded by C++ for
+        //     RestoreFootprint operations.
+        //   - ledger_info: closing ledger header info.
+        //   - rent_fee_configuration: per-ledger rent-fee parameters.
+        //   - cpu_cost_params / mem_cost_params: serialized
+        //     ContractCostParams from SorobanNetworkConfig.
+        fn apply_soroban_phase(
+            state: &mut SorobanState,
+            module_cache: &SorobanModuleCache,
+            config_max_protocol: u32,
+            // Flat list of TransactionEnvelope XDR bytes in apply
+            // order — C++ no longer wraps them in a TransactionPhase
+            // before encoding; Rust deserializes each in parallel
+            // across the cluster worker pool.
+            soroban_envelopes: &Vec<CxxBuf>,
+            // Per-cluster TX count and per-stage cluster count let
+            // Rust rebuild the stage / cluster structure out of the
+            // flat envelopes vec.
+            soroban_cluster_sizes: &Vec<u32>,
+            soroban_stage_cluster_counts: &Vec<u32>,
+            // 32-byte base seed — typically the txset's content hash.
+            // Per-TX seeds are derived as
+            // SHA256(soroban_base_prng_seed || tx_num_be) where tx_num is
+            // the TX's apply-order index in the phase.
+            soroban_base_prng_seed: &CxxBuf,
+            classic_prefetch: &Vec<LedgerEntryInput>,
+            archived_prefetch: &Vec<LedgerEntryInput>,
+            ledger_info: &CxxLedgerInfo,
+            rent_fee_configuration: CxxRentFeeConfiguration,
+            // Per-TX max_refundable_fee, in apply-order matching the
+            // soroban_phase_xdr's stage/cluster/tx walk (declared
+            // resource fee minus non_refundable_fee). When the host's
+            // returned rent_fee for a TX exceeds this cap, Rust drops
+            // the TX's writes from cluster_local_writes / tx_changes
+            // and signals failure back to C++ via the tx result.
+            per_tx_max_refundable_fee: &Vec<i64>,
+            // When false, the host runs with diagnostics off and the
+            // orchestrator skips emitting the per-tx core_metrics
+            // diagnostic events. Mirrors the legacy
+            // `cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS` gate that the
+            // C++ op-frame consulted before calling
+            // `maybePopulateMetricsInDiagnosticEvents`.
+            enable_diagnostics: bool,
+            // When false, the orchestrator skips populating per-tx
+            // `tx_changes` (LedgerEntryDelta) and the contract-events
+            // / return-value byte buffers used only by the C++ meta
+            // builder. Hot-archive / live restore tracking still runs
+            // because the post-pass markRestoredFrom* calls consume
+            // it independently of the meta gate.
+            enable_tx_meta: bool,
+            // Per-ledger fee config (`compute_transaction_resource_fee`
+            // input) plus per-tx envelope byte size table. Lets the
+            // orchestrator precompute each tx's
+            // `refundable_fee_increment` (events portion of the
+            // SorobanResources fee, used by the C++
+            // RefundableFeeTracker) inside the cluster worker — saves
+            // 6000 round-trip FFI calls into the bridge from the C++
+            // post-pass.
+            fee_configuration: CxxFeeConfiguration,
+            per_tx_envelope_size_bytes: &Vec<u32>,
+        ) -> Result<SorobanPhaseResult>;
+
         // Given a quorum set configuration, checks if quorum intersection is
         // enjoyed among all possible quorums. Returns `Ok(status)` where
         // `status` can be:
@@ -404,6 +782,7 @@ use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
 use crate::quorum_checker::*;
+use crate::soroban_apply::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;

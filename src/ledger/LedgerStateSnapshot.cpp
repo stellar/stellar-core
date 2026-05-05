@@ -280,6 +280,12 @@ LedgerSnapshot::LedgerSnapshot(
 {
 }
 
+LedgerSnapshot::LedgerSnapshot(
+    std::unique_ptr<AbstractLedgerStateSnapshot const> getter)
+    : mGetter(std::move(getter))
+{
+}
+
 LedgerHeaderWrapper
 LedgerSnapshot::getLedgerHeader() const
 {

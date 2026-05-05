@@ -27,7 +27,19 @@ class RefundableFeeTracker
     bool consumeRefundableSorobanResources(
         uint32_t contractEventSizeBytes, int64_t rentFee,
         uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, TransactionFrame const& tx,
+        Config const& cfg, TransactionFrameBase const& tx,
+        DiagnosticEventManager& diagnosticEvents);
+    // Same shape as `consumeRefundableSorobanResources` but accepts a
+    // pre-computed `refundableFeeIncrement` (rent fee + the
+    // events-portion of `compute_transaction_resource_fee`). Used by
+    // the Soroban parallel-apply path where Rust already had the
+    // SorobanResources and contract-event byte size in hand and the
+    // bridge call hops just to recompute the same fee on the C++ side
+    // were dominating per-tx C++ overhead. Embedders that don't have
+    // the increment must use the legacy variant above.
+    bool consumeRefundableSorobanResourcesPrecomputed(
+        uint32_t contractEventSizeBytes, int64_t rentFee,
+        int64_t refundableFeeIncrement,
         DiagnosticEventManager& diagnosticEvents);
     // Returns the total fee refund to apply for transaction.
     int64_t getFeeRefund() const;
@@ -35,6 +47,11 @@ class RefundableFeeTracker
     int64_t getConsumedRentFee() const;
     // Returns the total refundable fee consumed so far.
     int64_t getConsumedRefundableFee() const;
+    // Returns the cap the tracker was initialized with (declared
+    // refundable fee minus the non-refundable resource fee). Used by
+    // the parallel-apply orchestrator to drop a TX's writes when the
+    // host-reported rent_fee already blows the budget.
+    int64_t getMaximumRefundableFee() const;
 
   private:
     friend class MutableTransactionResultBase;

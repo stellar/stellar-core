@@ -1647,8 +1647,11 @@ TEST_CASE("tx set hits overlay byte limit during construction",
           "[transactionqueue][soroban]")
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    // Pre-V_23 Soroban scenarios are out of scope on this branch; the
+    // test exercises tx-set byte-limit handling which is protocol-
+    // independent, so bump to V_23+.
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(
+        PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
     auto max = std::numeric_limits<uint32_t>::max();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
     // Pre-create enough genesis accounts for the test

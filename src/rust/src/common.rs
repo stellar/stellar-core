@@ -63,6 +63,9 @@ impl Clone for CxxLedgerInfo {
             min_temp_entry_ttl: self.min_temp_entry_ttl,
             min_persistent_entry_ttl: self.min_persistent_entry_ttl,
             max_entry_ttl: self.max_entry_ttl,
+            max_contract_size_bytes: self.max_contract_size_bytes,
+            max_contract_data_entry_size_bytes: self
+                .max_contract_data_entry_size_bytes,
             cpu_cost_params: self.cpu_cost_params.clone(),
             mem_cost_params: self.mem_cost_params.clone(),
         }

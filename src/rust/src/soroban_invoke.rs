@@ -4,6 +4,55 @@ use crate::{
     CxxTransactionResources, FeePair, InvokeHostFunctionOutput, SorobanModuleCache,
 };
 
+pub(crate) use crate::soroban_proto_all::soroban_curr::InvokeHostFunctionTypedOutput;
+
+/// Typed-input wrapper for the latest host (`soroban_curr`, currently
+/// p26). Skips the per-input XDR encode/decode roundtrip on the way IN
+/// — caller hands already-typed values straight through. Returns the
+/// same byte-encoded `InvokeHostFunctionOutput` shape as
+/// `invoke_host_function` so downstream callers don't have to fork
+/// their result-handling code.
+///
+/// Caller must ensure `ledger_info.protocol_version` is in soroban_curr's
+/// supported range; older pinned hosts (p21..p25) keep their byte-only
+/// entry points and would not match types nominally even though the
+/// wire format is the same.
+pub(crate) fn invoke_host_function_typed(
+    enable_diagnostics: bool,
+    instruction_limit: u32,
+    host_function: crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::HostFunction,
+    resources: crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::SorobanResources,
+    restored_rw_entry_indices: &[u32],
+    source_account: crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::AccountId,
+    auth_entries: Vec<
+        crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::SorobanAuthorizationEntry,
+    >,
+    ledger_info: &CxxLedgerInfo,
+    ledger_entries: Vec<(
+        std::rc::Rc<crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::LedgerEntry>,
+        Option<crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::TtlEntry>,
+        u32,
+    )>,
+    base_prng_seed: [u8; 32],
+    rent_fee_configuration: CxxRentFeeConfiguration,
+    module_cache: &SorobanModuleCache,
+) -> Result<InvokeHostFunctionTypedOutput, Box<dyn std::error::Error>> {
+    crate::soroban_proto_all::soroban_curr::invoke_host_function_typed_via_curr_host(
+        enable_diagnostics,
+        instruction_limit,
+        host_function,
+        resources,
+        restored_rw_entry_indices,
+        source_account,
+        auth_entries,
+        ledger_info,
+        ledger_entries,
+        base_prng_seed,
+        rent_fee_configuration,
+        module_cache,
+    )
+}
+
 pub(crate) fn invoke_host_function(
     config_max_protocol: u32,
     enable_diagnostics: bool,

@@ -9,7 +9,6 @@
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
-#include "transactions/ParallelApplyUtils.h"
 #include "util/types.h"
 #include <memory>
 
@@ -26,7 +25,6 @@ class MutableTransactionResultBase;
 class DiagnosticEventManager;
 class RefundableFeeTracker;
 class OperationMetaBuilder;
-class ThreadParallelApplyLedgerState;
 
 enum class ThresholdLevel
 {
@@ -61,15 +59,6 @@ class OperationFrame
     virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          OperationResult& res,
                          OperationMetaBuilder& opMeta) const = 0;
-
-    virtual std::optional<ParallelTxSuccessVal>
-    doParallelApply(AppConnector& app,
-                    ThreadParallelApplyLedgerState const& threadState,
-                    Config const& config, Hash const& txPrngSeed,
-                    ParallelLedgerInfo const& ledgerInfo,
-                    SorobanMetrics& sorobanMetrics, OperationResult& res,
-                    std::optional<RefundableFeeTracker>& refundableFeeTracker,
-                    OperationMetaBuilder& opMeta) const;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -114,14 +103,6 @@ class OperationFrame
                Hash const& sorobanBasePrngSeed, OperationResult& res,
                std::optional<RefundableFeeTracker>& refundableFeeTracker,
                OperationMetaBuilder& opMeta) const;
-
-    // Returns std::nullopt if operation fails.
-    std::optional<ParallelTxSuccessVal> parallelApply(
-        AppConnector& app, ThreadParallelApplyLedgerState const& threadState,
-        Config const& config, ParallelLedgerInfo const& ledgerInfo,
-        SorobanMetrics& sorobanMetrics, OperationResult& res,
-        std::optional<RefundableFeeTracker>& refundableFeeTracker,
-        OperationMetaBuilder& opMeta, Hash const& sorobanBasePrngSeed) const;
 
     Operation const&
     getOperation() const

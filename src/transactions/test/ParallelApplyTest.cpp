@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "ledger/LedgerStateSnapshot.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
