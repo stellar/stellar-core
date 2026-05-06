@@ -239,14 +239,72 @@ AC_ARG_ENABLE([sccache],
 AC_ARG_ENABLE([nsc-sccache],
               AS_HELP_STRING([--enable-nsc-sccache], [configure sccache using nsc cache setup]))
 
+AC_ARG_WITH([nsc-token-file],
+            AS_HELP_STRING([--with-nsc-token-file=PATH],
+                [path to namespace token file for nsc cache authentication
+                 (auto-detected in srcdir/builddir/homedir as namespace-token.json;
+                  required on workstations where NAMESPACE_GITHUB_RUNTIME is not set)]))
+
 AS_IF([test "x$enable_nsc_sccache" = "xyes"], [
   AC_CHECK_PROGS([NSC], [nsc])
   AS_IF([test -z "$NSC"], [
     AC_MSG_ERROR([--enable-nsc-sccache requested but nsc was not found])
   ])
 
-  AC_MSG_NOTICE([configuring sccache environment with: nsc cache sccache setup --cache_name stellar])
-  NSC_SCCACHE_SETUP=`$NSC cache sccache setup --cache_name stellar`
+  # Resolve the nsc token file path.
+  nsc_token_file="$with_nsc_token_file"
+
+  # Auto-detect namespace-token.json if not explicitly provided.
+  AS_IF([test "x$nsc_token_file" = "x" -o "x$nsc_token_file" = "xyes"], [
+    nsc_token_file=""
+    AC_MSG_CHECKING([for namespace-token.json in standard locations])
+    for _nsc_dir in "$(cd "$srcdir" && pwd)" "$(pwd)" "$HOME"; do
+      if test -f "$_nsc_dir/namespace-token.json"; then
+        nsc_token_file="$_nsc_dir/namespace-token.json"
+        break
+      fi
+    done
+    AS_IF([test -n "$nsc_token_file"],
+      [AC_MSG_RESULT([$nsc_token_file])],
+      [AC_MSG_RESULT([not found])])
+  ])
+
+  # When NAMESPACE_GITHUB_RUNTIME is not set (i.e. on a developer
+  # workstation rather than in CI) the token file is required.
+  AS_IF([test -z "$NAMESPACE_GITHUB_RUNTIME"], [
+    AS_IF([test -z "$nsc_token_file"], [
+      AC_MSG_ERROR([--enable-nsc-sccache requires a namespace token file on
+workstations (NAMESPACE_GITHUB_RUNTIME is not set).
+
+Either pass --with-nsc-token-file=PATH to configure, or place a file called
+namespace-token.json in the source directory, build directory, or your home
+directory.
+
+To generate a token, run:
+
+  nsc cache sccache create-token --cache_name=stellar --token=namespace-token.json
+
+Then re-run configure.])
+    ])
+    AS_IF([test ! -f "$nsc_token_file"], [
+      AC_MSG_ERROR([nsc token file '$nsc_token_file' does not exist.
+
+To generate a token, run:
+
+  nsc cache sccache create-token --cache_name=stellar --token=$nsc_token_file
+
+Then re-run configure.])
+    ])
+  ])
+
+  # Build the nsc command, appending --token only when we have a file.
+  nsc_setup_cmd="$NSC cache sccache setup --cache_name=stellar"
+  AS_IF([test -n "$nsc_token_file"], [
+    nsc_setup_cmd="$nsc_setup_cmd --token=$nsc_token_file"
+  ])
+
+  AC_MSG_NOTICE([configuring sccache environment with: $nsc_setup_cmd])
+  NSC_SCCACHE_SETUP=`eval $nsc_setup_cmd`
   nsc_rc=$?
   AS_IF([test $nsc_rc -ne 0 -o "x$NSC_SCCACHE_SETUP" = "x"], [
     AC_MSG_ERROR([nsc cache sccache setup failed or returned empty result])
