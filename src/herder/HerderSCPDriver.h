@@ -64,6 +64,7 @@ class HerderSCPDriver : public SCPDriver
     SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope) override;
     void signEnvelope(SCPEnvelope& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
+    bool isEnvelopeReady(SCPEnvelope const& env) const override;
 
     // value validation
     SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,

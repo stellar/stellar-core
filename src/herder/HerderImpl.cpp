@@ -909,9 +909,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
-    // This call fetches everything. Will only return ENVELOPE_STATUS_READY once
-    // everything is fetched though! Will need a new status to allow it to
-    // proceed to nomination at least, I think.
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
@@ -926,26 +923,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
     else
     {
-        SCPStatementType type = envelope.statement.pledges.type();
-        // Allow parallel tx set downloading if the node is in sync and this is
-        // a NOMINATE or PREPARE message. Technically both of these criteria
-        // should be properly handled downstream, but this provides some
-        // additional assurance.
-        if (mApp.getState() == Application::State::APP_SYNCED_STATE &&
-            status == Herder::ENVELOPE_STATUS_FETCHING &&
-            (type == SCP_ST_NOMINATE || type == SCP_ST_PREPARE))
+        if (status == Herder::ENVELOPE_STATUS_FETCHING)
         {
             std::string txt("FETCHING");
             ZoneText(txt.c_str(), txt.size());
-
-            // If we have the quorum set, then proceed without the tx set.
-            auto qSetHash = Slot::getCompanionQuorumSetHashFromStatement(
-                envelope.statement);
-            auto maybeQSet = mApp.getHerder().getQSet(qSetHash);
-            if (maybeQSet)
-            {
-                processSCPQueue(true);
-            }
         }
         else if (status == Herder::ENVELOPE_STATUS_PROCESSED)
         {

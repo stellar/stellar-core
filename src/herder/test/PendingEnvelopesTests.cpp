@@ -58,6 +58,24 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         // fake envelope
         auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_CONFIRM);
+        auto& conf = envelope.statement.pledges.confirm();
+        conf.ballot.counter = 1;
+        conf.ballot.value = p.first;
+        conf.nPrepared = 1;
+        conf.nCommit = 1;
+        conf.nH = 1;
+        conf.quorumSetHash = qSetHash;
+        envelope.statement.nodeID = s.getPublicKey();
+        herder.signEnvelope(s, envelope);
+        return envelope;
+    };
+    // PREPARE counterpart used by sections that explicitly exercise
+    // parallel tx set downloading logic
+    auto makePrepareEnvelope = [&](TxPair const& p, Hash qSetHash,
+                                   uint64_t slotIndex) {
+        auto envelope = SCPEnvelope{};
+        envelope.statement.slotIndex = slotIndex;
         envelope.statement.pledges.type(SCP_ST_PREPARE);
         auto& prep = envelope.statement.pledges.prepare();
         prep.ballot.counter = 1;
@@ -137,7 +155,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
 
-            REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
+            REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+
             // -> processes saneEnvelope
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                p.second));
@@ -208,6 +227,69 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_READY);
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                Herder::ENVELOPE_STATUS_PROCESSED);
+    }
+
+    SECTION("PREPARE: process before tx set arrives")
+    {
+        // Exercises the parallel tx set downloading code path: PREPARE
+        // qualifies for early handoff to SCP once the qset is cached, even
+        // while the tx set is still in flight
+        auto prepEnv =
+            makePrepareEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto& fetchTimer =
+            app->getMetrics().NewTimer({"scp", "fetch", "envelope"});
+        auto const initialCount = fetchTimer.count();
+
+        // Initial receipt: nothing cached → FETCHING
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+        REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
+
+        // Qset arrives. Envelope is now READY.
+        REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+        REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
+
+        // Re-feeds during this state return PROCESSED
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
+                Herder::ENVELOPE_STATUS_PROCESSED);
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
+                Herder::ENVELOPE_STATUS_PROCESSED);
+
+        // Fetch duration not yet recorded as tx set has not arrived
+        REQUIRE(fetchTimer.count() == initialCount);
+
+        // Tx set arrives
+        REQUIRE(
+            pendingEnvelopes.recvTxSet(p.second->getContentsHash(), p.second));
+
+        // Fetch duration recorded after tx set arrival
+        REQUIRE(fetchTimer.count() == initialCount + 1);
+
+        // Subsequent re-feeds remain idempotent.
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
+                Herder::ENVELOPE_STATUS_PROCESSED);
+    }
+
+    SECTION("PREPARE: ready immediately when both resources cached")
+    {
+        // qset and tx set arrive prior to the envelope
+        pendingEnvelopes.addSCPQuorumSet(saneQSetHash, saneQSet);
+        pendingEnvelopes.addTxSet(p.second->getContentsHash(), 0, p.second);
+
+        auto prepEnv =
+            makePrepareEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto& fetchTimer =
+            app->getMetrics().NewTimer({"scp", "fetch", "envelope"});
+        auto const initialCount = fetchTimer.count();
+
+        // Envelope is immediately ready
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
+                Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(fetchTimer.count() == initialCount + 1);
+
+        // Returns PROCESSED on re-feed.
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
                 Herder::ENVELOPE_STATUS_PROCESSED);
     }
 
@@ -410,7 +492,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
-        REQUIRE(herder.getSCP().getLatestMessage(pk) != nullptr);
+        REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
         REQUIRE(pendingEnvelopes.recvTxSet(p2.second->getContentsHash(),
                                            p2.second));
     }

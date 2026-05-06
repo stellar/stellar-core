@@ -374,66 +374,70 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         auto& envs = mEnvelopes[envelope.statement.slotIndex];
         auto& fetching = envs.mFetchingEnvelopes;
         auto& processed = envs.mProcessedEnvelopes;
-        auto& partiallyReady = envs.mPartiallyReadyEnvelopes;
 
-        auto fetchIt = fetching.find(envelope);
-
-        if (fetchIt == fetching.end())
-        { // we aren't fetching this envelope
-            if (processed.find(envelope) == processed.end())
-            { // we haven't seen this envelope before
-                // insert it into the fetching set
-                fetchIt =
-                    fetching.emplace(envelope, mApp.getClock().now()).first;
-                startFetch(envelope);
-                updateMetrics();
-            }
-            else
-            {
-                // we already have this one
-                return Herder::ENVELOPE_STATUS_PROCESSED;
-            }
-        }
-
-        // we are fetching this envelope
-        // check if we are done fetching it
-        if (isFullyFetched(envelope))
-        {
+        // Retire `envelope` from `mFetchingEnvelopes`: record the fetch
+        // duration and erase the entry.
+        auto retireFromFetching = [&](auto fetchIt) {
             std::chrono::nanoseconds durationNano =
                 mApp.getClock().now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);
-            CLOG_TRACE(Perf,
-                       "Herder fetched for envelope {} with txsets {} and "
-                       "qset {} in {} seconds",
-                       hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
-                       hexAbbrev(h),
-                       std::chrono::duration<double>(durationNano).count());
-
-            // move the item from fetching to processed
-            processed.emplace(envelope);
+            CLOG_TRACE(
+                Perf,
+                "Herder fetched for envelope {} with txsets {} and qset "
+                "{} in {} seconds",
+                hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
+                hexAbbrev(h),
+                std::chrono::duration<double>(durationNano).count());
             fetching.erase(fetchIt);
+        };
 
-            // Remove from partially ready envelopes if it was there
-            partiallyReady.erase(envelope);
+        auto fetchIt = fetching.find(envelope);
 
+        if (processed.find(envelope) != processed.end())
+        {
+            if (fetchIt != fetching.end() && isFullyFetched(envelope))
+            {
+                // Record that we've fully fetched this envelope and drop from
+                // `fetching`
+                retireFromFetching(fetchIt);
+                updateMetrics();
+            }
+            // We've already processed this envelope. Nothing more to do.
+            return Herder::ENVELOPE_STATUS_PROCESSED;
+        }
+
+        if (fetchIt == fetching.end())
+        {
+            // First time seeing this envelope: insert into mFetching and
+            // kick off any outstanding qset / tx-set fetches.
+            fetchIt = fetching.emplace(envelope, mApp.getClock().now()).first;
+            startFetch(envelope);
+            updateMetrics();
+        }
+
+        if (mHerder.getHerderSCPDriver().isEnvelopeReady(envelope))
+        {
+            // This envelope is sufficiently downloaded for SCP to process it
+            processed.emplace(envelope);
             envelopeReady(envelope);
+
+            if (isFullyFetched(envelope))
+            {
+                // Record that we've fully fetched this envelope and drop from
+                // `fetching`
+                retireFromFetching(fetchIt);
+            }
+
             updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         }
         else
         {
-            // else just keep waiting for it to come in
-            // and refresh fetchers as needed
+            // Keep waiting for necessary data to arrive and refresh fetchers as
+            // needed
             startFetch(envelope);
-
-            SCPStatementType type = envelope.statement.pledges.type();
-            if (isPartiallyFetched(envelope) &&
-                (type == SCP_ST_NOMINATE || type == SCP_ST_PREPARE))
-            {
-                partiallyReady.insert(envelope);
-            }
         }
 
         return Herder::ENVELOPE_STATUS_FETCHING;
@@ -605,7 +609,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
                hexAbbrev(xdrSha256(envelope)), slot,
                envelope.statement.pledges.type());
 
-    // envelope has been fetched completely, but SCP has not done
+    // envelope has been fetched sufficiently, but SCP has not done
     // any validation on values yet. Regardless, record cost of this
     // envelope.
     recordReceivedCost(envelope);
@@ -620,7 +624,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 }
 
 bool
-PendingEnvelopes::isPartiallyFetched(SCPEnvelope const& envelope)
+PendingEnvelopes::isQsetFetched(SCPEnvelope const& envelope)
 {
     return getKnownQSet(
                Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
@@ -628,17 +632,18 @@ PendingEnvelopes::isPartiallyFetched(SCPEnvelope const& envelope)
 }
 
 bool
+PendingEnvelopes::areTxSetsFetched(SCPEnvelope const& env) const
+{
+    auto const txSetHashes = getValidatedTxSetHashes(env);
+    return std::all_of(
+        txSetHashes.begin(), txSetHashes.end(),
+        [&](Hash const& txSetHash) { return hasTxSet(txSetHash); });
+}
+
+bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!isPartiallyFetched(envelope))
-    {
-        return false;
-    }
-
-    auto txSetHashes = getValidatedTxSetHashes(envelope);
-    return std::all_of(
-        std::begin(txSetHashes), std::end(txSetHashes),
-        [&](Hash const& txSetHash) { return hasTxSet(txSetHash); });
+    return isQsetFetched(envelope) && areTxSetsFetched(envelope);
 }
 
 // Requests all missing tx sets in `envelope`
@@ -712,7 +717,6 @@ PendingEnvelopes::pop(uint64 slotIndex)
     auto it = mEnvelopes.begin();
     while (it != mEnvelopes.end() && slotIndex >= it->first)
     {
-        // Process fully ready envelopes first
         auto& v = it->second.mReadyEnvelopes;
         if (v.size() != 0)
         {
@@ -720,19 +724,6 @@ PendingEnvelopes::pop(uint64 slotIndex)
             v.pop_back();
 
             updateMetrics();
-            return ret;
-        }
-
-        // If no more fully ready envelopes, proceed to processing partially
-        // ready envelopes
-        auto& partial = it->second.mPartiallyReadyEnvelopes;
-        if (partial.size() != 0)
-        {
-            // If we have partially ready envelopes, we can return the first one
-            auto it = partial.begin();
-            SCPEnvelopeWrapperPtr ret =
-                mHerder.getHerderSCPDriver().wrapEnvelope(*it);
-            partial.erase(it);
             return ret;
         }
         it++;

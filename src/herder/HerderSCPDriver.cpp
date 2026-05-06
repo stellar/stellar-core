@@ -200,6 +200,44 @@ HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
     mHerder.emitEnvelope(envelope);
 }
 
+bool
+HerderSCPDriver::isEnvelopeReady(SCPEnvelope const& env) const
+{
+    if (!mPendingEnvelopes.isQsetFetched(env))
+    {
+        // QSet must be available
+        return false;
+    }
+
+    if (mPendingEnvelopes.areTxSetsFetched(env))
+    {
+        // Have all tx sets and the qset. This envelope is ready to be processed
+        return true;
+    }
+
+    // Beyond this point all checks relate to whether SCP can process `env`
+    // in parallel with downloading the missing tx sets it references.
+
+    auto const type = env.statement.pledges.type();
+    if (type != SCP_ST_NOMINATE && type != SCP_ST_PREPARE)
+    {
+        // Parallel tx set downloading is only allowed for nomination and
+        // prepare messages.
+        return false;
+    }
+
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (env.statement.slotIndex != lcl.header.ledgerSeq + 1)
+    {
+        // Parallel tx set downloading is only enabled for LCL+1
+        return false;
+    }
+
+    // Parallel downloading is only enabled when tracking and in sync
+    return mHerder.isTracking() &&
+           mApp.getState() == Application::State::APP_SYNCED_STATE;
+}
+
 // value validation
 
 bool

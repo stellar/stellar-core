@@ -409,6 +409,13 @@ class TestSCP : public SCPDriver
         }
         return std::chrono::milliseconds(timeoutMS);
     }
+
+    bool isEnvelopeReady(SCPEnvelope const& envelope) const override
+    {
+        // Not implemented. These tests do not use PendingEnvelopes, and so do
+        // not require this method.
+        releaseAssert(false);
+    }
 };
 
 namespace

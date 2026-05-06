@@ -120,6 +120,10 @@ class SCPDriver
     // value whose transaction set has not finished downloading.
     virtual std::chrono::milliseconds getTxSetDownloadTimeout() const = 0;
 
+    // Returns whether or not the envelope `env` is ready to be processed by
+    // SCP.
+    virtual bool isEnvelopeReady(SCPEnvelope const& env) const = 0;
+
     // Users of the SCP library should inherit from SCPDriver and implement the
     // virtual methods which are called by the SCP implementation to
     // abstract the transport layer used from the implementation of the SCP
