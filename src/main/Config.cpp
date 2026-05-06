@@ -125,12 +125,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
-    MODE_STORES_HISTORY_MISC = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
-        std::vector<std::chrono::microseconds>();
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_FOR_TESTING = {};
@@ -150,6 +146,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
         std::chrono::microseconds::zero();
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
+        std::vector<std::chrono::microseconds>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
@@ -342,8 +341,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FILTERED_G_ADDRESSES = {};
 
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
@@ -353,6 +350,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 300; // 5 minutes
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
@@ -1022,6 +1021,7 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
     }
 }
 
+#ifdef BUILD_TESTS
 void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
@@ -1058,6 +1058,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
                  100 * OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] / sum);
     }
 }
+#endif
 
 void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
@@ -1598,25 +1599,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "`banaccounts` HTTP endpoint instead to ban accounts "
                          "from submitting transactions to this node.");
                  }},
-                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
-                 [&]() {
-                     // Since it doesn't make sense to sleep for a negative
-                     // amount of time, we use an unsigned integer type.
-                     auto input = readIntArray<uint32>(item);
-                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
-                         input.size());
-                     // Convert uint32 to std::chrono::microseconds
-                     std::transform(
-                         input.begin(), input.end(),
-                         std::back_inserter(
-                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                         [](uint32 x) { return std::chrono::microseconds(x); });
-                 }},
-                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
-                 [&]() {
-                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
-                         readIntArray<uint32>(item);
-                 }},
                 {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
                      LOADGEN_BYTE_COUNT_FOR_TESTING =
@@ -1678,6 +1660,25 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readIntArray<uint32_t>(item);
                  }},
 #ifdef BUILD_TESTS
+                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
+                 [&]() {
+                     // Since it doesn't make sense to sleep for a negative
+                     // amount of time, we use an unsigned integer type.
+                     auto input = readIntArray<uint32>(item);
+                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
+                         input.size());
+                     // Convert uint32 to std::chrono::microseconds
+                     std::transform(
+                         input.begin(), input.end(),
+                         std::back_inserter(
+                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                         [](uint32 x) { return std::chrono::microseconds(x); });
+                 }},
+                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+                 [&]() {
+                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
                 {"APPLY_LOAD_MODE",
                  [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
                 {"APPLY_LOAD_MODEL_TX",
@@ -1953,12 +1954,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
         }
 
-        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
-            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
-        {
-            processOpApplySleepTimeForTestingConfigs();
-        }
-
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE > PEER_FLOOD_READING_CAPACITY)
         {
             std::string msg =
@@ -1976,6 +1971,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
 #ifdef BUILD_TESTS
+        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
+            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+        {
+            processOpApplySleepTimeForTestingConfigs();
+        }
+
         if (!IGNORE_MESSAGE_LIMITS_FOR_TESTING &&
             getSorobanByteAllowance() + getClassicByteAllowance() >
                 MAX_TX_SET_ALLOWANCE)

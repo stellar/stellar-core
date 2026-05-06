@@ -294,19 +294,6 @@ class Config : public std::enable_shared_from_this<Config>
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
 
-    // Config parameters that force transaction application during ledger
-    // close to sleep for a certain amount of time.
-    // The probability that it sleeps for
-    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
-    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
-    // options are only for consensus and overlay simulation testing. These two
-    // must be used together.
-    std::vector<std::chrono::microseconds>
-        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
-    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
-
     // Config parameters that LoadGen uses to decide the number of bytes to
     // include in each payment transaction for testing only. The probability
     // that transactions will contain COUNT[i] bytes is
@@ -344,6 +331,19 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
 #ifdef BUILD_TESTS
+    // Config parameters that force transaction application during ledger
+    // close to sleep for a certain amount of time.
+    // The probability that it sleeps for
+    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
+    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
+    // options are only for consensus and overlay simulation testing. These two
+    // must be used together.
+    std::vector<std::chrono::microseconds>
+        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
+    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
+
     // apply-load-specific configuration parameters:
     ApplyLoadMode APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
     ApplyLoadModelTx APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
@@ -541,10 +541,6 @@ class Config : public std::enable_shared_from_this<Config>
     // NODE_IS_VALIDATOR=true, this value is ignored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
-
-    // A config parameter that stores historical data, such as transactions,
-    // fees, and scp history in the database
-    bool MODE_STORES_HISTORY_MISC;
 
     // A config parameter that controls whether core automatically catches up
     // when it has buffered enough input; if false an out-of-sync node will
@@ -933,6 +929,7 @@ class Config : public std::enable_shared_from_this<Config>
     // This exposes the node seed in the config, so make sure to only use in
     // test workloads (such as apply-load).
     std::string const& getLoadedConfigToml() const;
+    void processOpApplySleepTimeForTestingConfigs();
 #endif
 
     // fixes values of connection-relates settings
@@ -962,8 +959,6 @@ class Config : public std::enable_shared_from_this<Config>
     // A special name to be used for stdin in stead of a file name in command
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;
-
-    void processOpApplySleepTimeForTestingConfigs();
 
     std::chrono::seconds HISTOGRAM_WINDOW_SIZE;
 
