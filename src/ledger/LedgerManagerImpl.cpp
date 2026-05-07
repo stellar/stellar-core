@@ -1310,9 +1310,11 @@ LedgerManagerImpl::emitNextMeta()
 
 namespace
 {
+#ifdef BUILD_TESTS
 void
 maybeSimulateSleep(Config const& cfg, size_t opSize,
-                   LogSlowExecution& closeTime)
+                   LogSlowExecution& closeTime,
+                   stellar_default_random_engine& rng)
 {
     if (!cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
     {
@@ -1324,8 +1326,7 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
         for (size_t i = 0; i < opSize; i++)
         {
             sleepFor +=
-                cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(
-                    getGlobalRandomEngine())];
+                cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(rng)];
         }
         std::chrono::microseconds applicationTime =
             closeTime.checkElapsedTime();
@@ -1338,6 +1339,7 @@ maybeSimulateSleep(Config const& cfg, size_t opSize,
         }
     }
 }
+#endif
 
 asio::io_context&
 getMetaIOContext(Application& app)
@@ -1660,12 +1662,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
                                         ledgerCloseMeta);
     }
 
-    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
-    {
-        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-        mApp.getHistoryManager().appendTransactionSet(ledgerSeq, txSet,
-                                                      txResultSet);
-    }
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    mApp.getHistoryManager().appendTransactionSet(ledgerSeq, txSet,
+                                                  txResultSet);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -1727,7 +1726,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         }
     }
 
-    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
     auto lclApplyView = mApplyState.copyApplyLedgerView();
     auto appliedLedgerState = sealLedgerTxnAndStoreInBucketsAndDB(
@@ -1895,8 +1894,10 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         mApp.postOnMainThread(std::move(cb), "advanceLedgerStateAndPublish");
     }
 
+#ifdef BUILD_TESTS
     maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
-                       applyLedgerTime);
+                       applyLedgerTime, mApplySleepRng);
+#endif
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());

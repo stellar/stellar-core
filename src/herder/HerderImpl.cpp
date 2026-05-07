@@ -331,8 +331,6 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     TxSetXDRFrameConstPtr externalizedSet =
         mPendingEnvelopes.getTxSet(value.txSetHash);
 
-    // save the SCP messages in the database
-    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         ZoneNamedN(updateSCPHistoryZone, "update SCP history", true);
         if (slotIndex != 0)

@@ -17,6 +17,7 @@
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
+#include "util/Math.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <atomic>
@@ -428,6 +429,8 @@ class LedgerManagerImpl : public LedgerManager
 #ifdef BUILD_TESTS
     std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
+    // Local prng for OP_APPLY_SLEEP_TIME_*_FOR_TESTING.
+    stellar_default_random_engine mApplySleepRng;
 #endif
 
     void setState(State s);
