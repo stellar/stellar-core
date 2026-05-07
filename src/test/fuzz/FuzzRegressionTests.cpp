@@ -83,7 +83,8 @@ runFuzzTargetSmokeTest(std::string const& targetName)
 
         case FuzzResultCode::FUZZ_DISABLED:
             // Target is not available in this build configuration
-            // (e.g., Soroban fuzz targets when Rust 'fuzz' feature is disabled)
+            // (e.g., Soroban fuzz targets when Rust 'testutils' feature is
+            // disabled)
             CLOG_WARNING(Test,
                          "Smoke test for '{}' skipped: target is disabled in "
                          "this build",

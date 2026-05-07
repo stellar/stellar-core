@@ -84,10 +84,10 @@ tracy-client = { version = "=0.17.0", features = [
 #
 
 # Note: due to some subtle mis-features in Cargo's unification of transitive
-# dependency versions, we do _not_ usually use to all the separate soroban crate
+# dependency versions, we do _not_ usually use all the separate soroban crate
 # versions listed directly here. See $(top_srcdir)/src/Makefile.am for the logic
 # that builds each crate separately and then provides them to the stellar-core
-# crate here.
+# crate here as separate ".rlib" files.
 #
 # However that type of "non-unified" build breaks sanitizer builds, and also
 # makes it difficult to use an IDE to work on this crate since the IDE will not
@@ -171,6 +171,11 @@ version = "=26.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 
+# The soroban-fuzz-targets crate will actually pull in _its own copy_ of the
+# soroban host (or at least unify with one of the versions above if you're doing
+# a unified build) which means that it should also be updated any time the max
+# soroban is updated -- it should track the highest protocol available (or
+# at least whichever one you want to fuzz).
 [dependencies.soroban-fuzz-targets]
 version = "=26.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
@@ -203,8 +208,8 @@ tracy = ["dep:tracy-client"]
 next = []
 
 # The testutils feature turns on stuff that should only be available in a core
-# BUILD_TESTS build, such as the code to support transaction re-execution on
-# a secondary host, AND the fuzz target entry points in soroban-env-host.
-# This allows fuzz smoke tests to run in normal test builds without requiring
-# the full fuzz instrumentation infrastructure.
+# BUILD_TESTS build, such as the code to support transaction re-execution on a
+# secondary host, AND enables the soroban-fuzz-targets dependency. This allows
+# fuzz smoke tests to run in normal test builds without requiring the full fuzz
+# _instrumentation_ infrastructure.
 testutils = ["dep:soroban-fuzz-targets"]
