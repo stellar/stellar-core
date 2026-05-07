@@ -24,6 +24,10 @@ pub enum MessageType {
     /// Request current SCP state (peer asked via GET_SCP_STATE)
     RequestScpState = 3,
 
+    /// Broadcast a compact representation of the current TX set to all peers
+    /// Payload [txSetHash:32]
+    BroadcastCompactSet = 9,
+
     // ═══ Core → Overlay (Non-Critical) ═══
     /// Ledger closed, here's the new state
     LedgerClosed = 4,
@@ -104,6 +108,7 @@ impl TryFrom<u32> for MessageType {
             6 => Ok(MessageType::ScpStateResponse),
             7 => Ok(MessageType::Shutdown),
             8 => Ok(MessageType::SetPeerConfig),
+            9 => Ok(MessageType::BroadcastCompactSet),
             10 => Ok(MessageType::SubmitTx),
             11 => Ok(MessageType::RequestTxSet),
             12 => Ok(MessageType::CacheTxSet),

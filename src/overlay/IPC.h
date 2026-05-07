@@ -40,6 +40,10 @@ enum class IPCMessageType : uint32_t
     /// Request current SCP state (peer asked via GET_SCP_STATE)
     REQUEST_SCP_STATE = 3,
 
+    /// Broadcast a compact representation of the current TX set to all peers
+    /// Payload [txSetHash:32]
+    BROADCAST_COMPACT_SET = 9,
+
     // ═══ Core → Overlay (Non-Critical) ═══
 
     /// Ledger closed, here's the new state

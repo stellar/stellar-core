@@ -119,7 +119,7 @@ TEST_CASE("IPC payload size benchmark", "[overlay-ipc-rust][.][benchmark]")
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
     // Start the Rust overlay process
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, 11625, PublicKey{});
     ipc.start();
 
     // Wait for connection
@@ -242,7 +242,7 @@ TEST_CASE("IPC concurrent access benchmark", "[overlay-ipc-rust][.][benchmark]")
     TmpDir tmpDir("ipc-benchmark");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
-    OverlayIPC ipc(socketPath, overlayBinary, 11625);
+    OverlayIPC ipc(socketPath, overlayBinary, 11625, PublicKey{});
     ipc.start();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     REQUIRE(ipc.isConnected());

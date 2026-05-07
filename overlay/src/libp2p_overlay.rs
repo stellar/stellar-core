@@ -32,6 +32,7 @@ use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use stellar_xdr::{CompactTxSetMessage, Limits, ReadXdr};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, trace, warn};
 
@@ -53,16 +54,13 @@ const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
 pub enum OverlayEvent {
     /// Received SCP envelope from peer
     ScpReceived { envelope: Vec<u8>, from: PeerId },
-    /// Received TX from peer
-    TxReceived { tx: Vec<u8>, from: PeerId },
-    /// Received TX set response
-    TxSetReceived {
-        hash: [u8; 32],
-        data: Vec<u8>,
+    /// Received compact message from peer
+    CompactReceived {
+        msg: CompactTxSetMessage,
         from: PeerId,
     },
-    /// Peer is requesting a TX set (need to look up and respond)
-    TxSetRequested { hash: [u8; 32], from: PeerId },
+    /// Received TX from peer
+    TxReceived { tx: Vec<u8>, from: PeerId },
     /// Peer is requesting SCP state
     ScpStateRequested { peer_id: PeerId, ledger_seq: u32 },
     /// Peer connected — includes the remote address for PeerId mapping
@@ -78,24 +76,26 @@ pub enum OverlayCommand {
     BroadcastScp(Vec<u8>),
     /// Broadcast TX to all peers
     BroadcastTx(Vec<u8>),
-    /// Request TX set from a peer (picks best peer)
-    FetchTxSet { hash: [u8; 32] },
-    /// Send TX set to a specific peer (response to their request)
-    SendTxSet {
-        hash: [u8; 32],
-        data: Vec<u8>,
-        to: PeerId,
-    },
-    /// Record that a peer has a specific TX set (learned from SCP message)
-    RecordTxSetSource { hash: [u8; 32], peer: PeerId },
+    /// Broadcast compact TX set to all peers
+    BroadcastCompact(Vec<u8>),
+    // Send txs for a compact message to a specific peer (response to their request)
+    SendCompactMessage(Vec<u8>, PeerId),
     /// Connect to a peer by address (bootstrap — PeerId unknown)
     Dial(Multiaddr),
     /// Connect to a known peer by PeerId (reconnect — deduplicates automatically)
-    DialPeer { peer_id: PeerId, addr: Multiaddr },
+    DialPeer {
+        peer_id: PeerId,
+        addr: Multiaddr,
+    },
     /// Request SCP state from all peers
-    RequestScpState { ledger_seq: u32 },
+    RequestScpState {
+        ledger_seq: u32,
+    },
     /// Send SCP envelope to a specific peer
-    SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
+    SendScpToPeer {
+        peer_id: PeerId,
+        envelope: Vec<u8>,
+    },
     /// Shutdown
     Shutdown,
     /// Query the number of connected peers (responds via oneshot)
@@ -168,8 +168,25 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn broadcast_tx(&self, tx: Vec<u8>) {
-        if let Err(e) = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await {
+    pub async fn send_compact_msg(&self, msg: Vec<u8>, peer_id: PeerId) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SendCompactMessage(msg, peer_id))
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SendCompactTxs: {}",
+                e
+            );
+        }
+    }
+
+    pub async fn broadcast_compact(&self, txset: Vec<u8>) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::BroadcastCompact(txset))
+            .await
+        {
             warn!(
                 "Overlay command channel closed, failed to send BroadcastTx: {}",
                 e
@@ -177,37 +194,10 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn fetch_txset(&self, hash: [u8; 32]) {
-        if let Err(e) = self.cmd_tx.send(OverlayCommand::FetchTxSet { hash }).await {
+    pub async fn broadcast_tx(&self, tx: Vec<u8>) {
+        if let Err(e) = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await {
             warn!(
-                "Overlay command channel closed, failed to send FetchTxSet: {}",
-                e
-            );
-        }
-    }
-
-    pub async fn send_txset(&self, hash: [u8; 32], data: Vec<u8>, to: PeerId) {
-        if let Err(e) = self
-            .cmd_tx
-            .send(OverlayCommand::SendTxSet { hash, data, to })
-            .await
-        {
-            warn!(
-                "Overlay command channel closed, failed to send SendTxSet: {}",
-                e
-            );
-        }
-    }
-
-    /// Record that a peer has a specific TX set (call when receiving SCP with txSetHash)
-    pub async fn record_txset_source(&self, hash: [u8; 32], peer: PeerId) {
-        if let Err(e) = self
-            .cmd_tx
-            .send(OverlayCommand::RecordTxSetSource { hash, peer })
-            .await
-        {
-            warn!(
-                "Overlay command channel closed, failed to send RecordTxSetSource: {}",
+                "Overlay command channel closed, failed to send BroadcastTx: {}",
                 e
             );
         }
@@ -296,10 +286,6 @@ struct SharedState {
     /// Track which peers we've sent each SCP message to (prevent duplicate sends)
     scp_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
     /// Track which peers we've sent each TX to (prevent duplicate sends) - LEGACY
-    tx_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
-    /// TX set sources: which peer has which TX set (learned from SCP messages)
-    txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
-    /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
     pending_txset_requests: RwLock<HashMap<[u8; 32], (PeerId, Instant)>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
@@ -340,12 +326,6 @@ impl SharedState {
             )),
             scp_sent_to: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(10000).unwrap(),
-            )),
-            tx_sent_to: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(100000).unwrap(),
-            )),
-            txset_sources: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(1000).unwrap(),
             )),
             pending_txset_requests: RwLock::new(HashMap::new()),
             event_tx,
@@ -511,22 +491,17 @@ impl StellarOverlay {
 
                 Some(cmd) = self.cmd_rx.recv() => {
                     match cmd {
+                        OverlayCommand::BroadcastCompact(txset) => {
+                            self.broadcast_compact(txset).await;
+                        }
                         OverlayCommand::BroadcastScp(envelope) => {
                             self.broadcast_scp(&envelope).await;
                         }
                         OverlayCommand::BroadcastTx(tx) => {
                             self.broadcast_tx(&tx).await;
                         }
-                        OverlayCommand::FetchTxSet { hash } => {
-                            self.fetch_txset(hash).await;
-                        }
-                        OverlayCommand::SendTxSet { hash, data, to } => {
-                            self.send_txset_response(to, hash, data).await;
-                        }
-                        OverlayCommand::RecordTxSetSource { hash, peer } => {
-                            let mut sources = self.state.txset_sources.write().await;
-                            sources.put(hash, peer);
-                            debug!("Recorded peer {} as source for TX set {:02x?}...", peer, &hash[..4]);
+                        OverlayCommand::SendCompactMessage(msg, peer_id) => {
+                            self.send_compact_message(peer_id, msg).await;
                         }
                         OverlayCommand::Dial(addr) => {
                             info!("Dialing peer at {}", addr);
@@ -822,6 +797,42 @@ impl StellarOverlay {
         }
     }
 
+    async fn broadcast_compact(&mut self, envelope: Vec<u8>) {
+        // Same as broadcast_scp, except we don't do deduplication or track sent peers. We assume
+        // that this is the first time this envelope is being sent.
+
+        // Determine which peers still need this message
+        let streams = self.state.peer_streams.read().await;
+        let all_peers: Vec<_> = streams.keys().cloned().collect();
+        drop(streams);
+
+        // Spawn parallel send tasks - don't block event loop waiting for each peer
+        for peer_id in all_peers {
+            let state = Arc::clone(&self.state);
+            let envelope = envelope.clone();
+            tokio::spawn(async move {
+                match send_to_peer_stream(&state, peer_id.clone(), StreamType::TxSet, &envelope)
+                    .await
+                {
+                    Ok(_) => {
+                        state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_write
+                            .fetch_add(envelope.len() as u64, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                        warn!(
+                            "COMPACT_SEND_FAIL: Failed to send compact block to {}: {}",
+                            peer_id, e
+                        );
+                    }
+                }
+            });
+        }
+    }
+
     /// Broadcast TX to all connected peers
     /// Broadcast TX using INV/GETDATA protocol (bandwidth efficient)
     async fn broadcast_tx(&mut self, tx: &[u8]) {
@@ -885,125 +896,16 @@ impl StellarOverlay {
         }
     }
 
-    /// Fetch TX set from a peer - preferring the peer who sent us the SCP message referencing it
-    async fn fetch_txset(&mut self, hash: [u8; 32]) {
-        // Check if we're already fetching this TxSet from a connected peer (dedup)
-        {
-            let pending = self.state.pending_txset_requests.read().await;
-            if let Some((pending_peer, _)) = pending.get(&hash) {
-                // Check if that peer is still connected
-                let streams = self.state.peer_streams.read().await;
-                if streams.contains_key(pending_peer) {
-                    debug!(
-                        "TXSET_FETCH_SKIP: TxSet {:02x?}... already being fetched from {}, skipping duplicate",
-                        &hash[..4], pending_peer
-                    );
-                    return;
-                }
-                // Otherwise, peer disconnected - we'll re-request below
-            }
-        }
-
-        // First check if we know which peer has this TX set (from SCP message)
-        let known_source = {
-            let sources = self.state.txset_sources.read().await;
-            sources.peek(&hash).cloned()
-        };
-
-        let peer = if let Some(source_peer) = known_source {
-            // Verify this peer is still connected
-            let streams = self.state.peer_streams.read().await;
-            if streams.contains_key(&source_peer) {
-                info!(
-                    "TXSET_FETCH: Fetching TX set {:02x?}... from known source {}",
-                    &hash[..4],
-                    source_peer
-                );
-                source_peer
-            } else {
-                // Source peer disconnected, fall back to any peer
-                match streams.keys().next().cloned() {
-                    Some(p) => {
-                        info!("TXSET_FETCH: Fetching TX set {:02x?}... from fallback peer {} (source {} disconnected)",
-                              &hash[..4], p, source_peer);
-                        p
-                    }
-                    None => {
-                        warn!(
-                            "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                            &hash[..4]
-                        );
-                        return;
-                    }
-                }
-            }
-        } else {
-            // No known source, pick any connected peer
-            let streams = self.state.peer_streams.read().await;
-            match streams.keys().next().cloned() {
-                Some(p) => {
-                    info!(
-                        "TXSET_FETCH: Fetching TX set {:02x?}... from random peer {} (no known source)",
-                        &hash[..4],
-                        p
-                    );
-                    p
-                }
-                None => {
-                    warn!(
-                        "TXSET_FETCH_FAIL: No peers to fetch TX set {:02x?}... from",
-                        &hash[..4]
-                    );
-                    return;
-                }
-            }
-        };
-
-        // Record this pending request with timestamp for latency tracking
-        self.state
-            .pending_txset_requests
-            .write()
-            .await
-            .insert(hash, (peer.clone(), Instant::now()));
-
-        // Send request on TxSet stream (just the 32-byte hash)
-        match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &hash).await {
-            Ok(_) => info!(
-                "TXSET_FETCH_SENT: Sent request for TxSet {:02x?}... to {}",
-                &hash[..4],
-                peer
-            ),
-            Err(e) => {
-                warn!(
-                    "TXSET_FETCH_FAIL: Failed to send TxSet request {:02x?}... to {}: {}",
-                    &hash[..4],
-                    peer,
-                    e
-                );
-                self.state
-                    .pending_txset_requests
-                    .write()
-                    .await
-                    .remove(&hash);
-            }
-        }
-    }
-
-    /// Send TX set response to a specific peer
-    async fn send_txset_response(&mut self, peer: PeerId, hash: [u8; 32], data: Vec<u8>) {
+    /// Send Compact message to a specific peer
+    async fn send_compact_message(&mut self, peer: PeerId, data: Vec<u8>) {
         info!(
-            "TXSET_SEND: Sending TX set {:02x?}... ({} bytes) to {}",
-            &hash[..4],
+            "COMPACT: Sending compact mesage {:02x?}... ({} bytes) to {}",
+            &data[..8],
             data.len(),
             peer
         );
 
-        // Response format: 32-byte hash + XDR data
-        let mut response = Vec::with_capacity(32 + data.len());
-        response.extend_from_slice(&hash);
-        response.extend_from_slice(&data);
-
-        match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &response).await {
+        match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &data).await {
             Ok(_) => {
                 self.state
                     .metrics
@@ -1016,11 +918,11 @@ impl StellarOverlay {
                 self.state
                     .metrics
                     .byte_write
-                    .fetch_add(response.len() as u64, Ordering::Relaxed);
+                    .fetch_add(data.len() as u64, Ordering::Relaxed);
                 info!(
-                    "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
-                    &hash[..4],
-                    response.len(),
+                    "TXSET_SEND_OK: Successfully sent compact message set {:02x?}... ({} bytes on wire) to {}",
+                    &data[..8],
+                    data.len(),
                     peer
                 );
             }
@@ -1030,8 +932,8 @@ impl StellarOverlay {
                     .error_write
                     .fetch_add(1, Ordering::Relaxed);
                 warn!(
-                    "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
-                    &hash[..4],
+                    "TXSET_SEND_FAIL: Failed to send compact message {:02x?}... to {}: {}",
+                    &data[..8],
                     peer,
                     e
                 );
@@ -1830,75 +1732,16 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
             loop {
                 match read_framed(&mut stream).await {
                     Ok(data) => {
-                        state.metrics.message_read.fetch_add(1, Ordering::Relaxed);
-                        state
-                            .metrics
-                            .byte_read
-                            .fetch_add(data.len() as u64, Ordering::Relaxed);
-                        // 32 bytes = request (just the hash)
-                        // >32 bytes = response (hash + XDR data)
-                        if data.len() == 32 {
-                            // This is a GET_TX_SET request from peer
-                            let mut hash = [0u8; 32];
-                            hash.copy_from_slice(&data);
-                            info!(
-                                "TXSET_REQ_IN: Received TxSet request for {:02x?}... from {}",
-                                &hash[..4],
-                                peer_id
+                        let txset_msg = CompactTxSetMessage::from_xdr(&data, Limits::none())
+                            .expect("invalid TxSet message format");
+                        if let Err(e) = state.event_tx.send(OverlayEvent::CompactReceived {
+                            msg: txset_msg,
+                            from: peer_id,
+                        }) {
+                            warn!(
+                                "Failed to forward CompactReceived event from {}: {}",
+                                peer_id, e
                             );
-
-                            // Emit event so main.rs can look up cache and respond
-                            if let Err(e) = state.event_tx.send(OverlayEvent::TxSetRequested {
-                                hash,
-                                from: peer_id,
-                            }) {
-                                warn!(
-                                    "Failed to forward TxSetRequested event from {}: {}",
-                                    peer_id, e
-                                );
-                            }
-                        } else if data.len() > 32 {
-                            // This is a TX_SET response to our request
-                            let mut hash = [0u8; 32];
-                            hash.copy_from_slice(&data[..32]);
-                            let txset_data = data[32..].to_vec();
-
-                            // Clear pending request flag and measure fetch latency
-                            let was_pending = {
-                                let mut pending = state.pending_txset_requests.write().await;
-                                if let Some((_, request_time)) = pending.remove(&hash) {
-                                    let fetch_us = request_time.elapsed().as_micros() as u64;
-                                    state
-                                        .metrics
-                                        .fetch_txset_sum_us
-                                        .fetch_add(fetch_us, Ordering::Relaxed);
-                                    state
-                                        .metrics
-                                        .fetch_txset_count
-                                        .fetch_add(1, Ordering::Relaxed);
-                                    true
-                                } else {
-                                    false
-                                }
-                            };
-
-                            info!(
-                                "TXSET_RECV: Received TxSet {:02x?}... ({} bytes) from {} (was_pending={})",
-                                &hash[..4],
-                                txset_data.len(),
-                                peer_id,
-                                was_pending
-                            );
-                            if let Err(e) = state.event_tx.send(OverlayEvent::TxSetReceived {
-                                hash,
-                                data: txset_data,
-                                from: peer_id,
-                            }) {
-                                warn!(
-                                    "Failed to forward TxSetReceived event from {}: {}",
-                                    peer_id, e
-                                );
-                            }
                         }
                     }
                     Err(e) => {
@@ -2537,91 +2380,6 @@ mod tests {
         handle2.shutdown().await;
     }
 
-    /// Test TxSet request/response flow
-    /// Node2 requests a TxSet from Node1, Node1 responds with the data
-    #[tokio::test]
-    async fn test_txset_fetch() {
-        let keypair1 = Keypair::generate_ed25519();
-        let keypair2 = Keypair::generate_ed25519();
-
-        let (handle1, mut events1, _tx_events1, overlay1) =
-            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) =
-            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
-
-        let listen_port = 19601;
-        tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        tokio::spawn(async move { overlay2.run("127.0.0.1", 19602).await });
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // Connect
-        let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", listen_port)
-            .parse()
-            .unwrap();
-        handle2.dial(addr).await;
-
-        // Wait for connection + streams
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Drain events
-        while events1.try_recv().is_ok() {}
-        while events2.try_recv().is_ok() {}
-
-        // Node2 requests a TxSet by hash
-        let requested_hash: [u8; 32] = [0x42; 32];
-        handle2.fetch_txset(requested_hash).await;
-
-        // Node1 should receive TxSetRequested event
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-        let mut request_received = false;
-
-        while tokio::time::Instant::now() < deadline && !request_received {
-            tokio::select! {
-                Some(event) = events1.recv() => {
-                    if let OverlayEvent::TxSetRequested { hash, from } = event {
-                        assert_eq!(hash, requested_hash);
-                        request_received = true;
-
-                        // Node1 responds with TxSet data
-                        let txset_data = b"mock txset XDR data here".to_vec();
-                        handle1.send_txset(hash, txset_data, from).await;
-                    }
-                }
-                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-            }
-        }
-        assert!(
-            request_received,
-            "Node1 should receive TxSetRequested event"
-        );
-
-        // Node2 should receive TxSetReceived event
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-        let mut response_received = false;
-
-        while tokio::time::Instant::now() < deadline && !response_received {
-            tokio::select! {
-                Some(event) = events2.recv() => {
-                    if let OverlayEvent::TxSetReceived { hash, data, .. } = event {
-                        assert_eq!(hash, requested_hash);
-                        assert_eq!(data, b"mock txset XDR data here".to_vec());
-                        response_received = true;
-                    }
-                }
-                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-            }
-        }
-        assert!(
-            response_received,
-            "Node2 should receive TxSetReceived event"
-        );
-
-        handle1.shutdown().await;
-        handle2.shutdown().await;
-    }
-
     /// Test multiple TXs flood with correct ordering (by fee)
     #[tokio::test]
     async fn test_multiple_txs_flood() {
@@ -3080,51 +2838,6 @@ mod tests {
     }
 }
 
-/// Test TX set source tracking - verify we ask the right peer
-#[tokio::test]
-async fn test_txset_source_tracking() {
-    let keypair1 = Keypair::generate_ed25519();
-    let keypair2 = Keypair::generate_ed25519();
-    let peer2_id = PeerId::from_public_key(&keypair2.public());
-
-    let (handle1, _events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
-
-    let listen_port = 20101;
-    tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    tokio::spawn(async move { overlay2.run("127.0.0.1", 20102).await });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Connect overlay2 to overlay1
-    let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", listen_port)
-        .parse()
-        .unwrap();
-    handle2.dial(addr).await;
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    // Record that peer1 (from overlay2's perspective) has a specific TX set
-    let test_hash: [u8; 32] = [0xAB; 32];
-    // We need to get peer1's ID first - overlay2 should have seen it connect
-    // For now, test that record_txset_source doesn't crash
-    let fake_peer = PeerId::random();
-    handle2.record_txset_source(test_hash, fake_peer).await;
-
-    // Give time for command to process
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Now try to fetch - since fake_peer isn't connected, it should fall back
-    handle2.fetch_txset(test_hash).await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Clean up
-    handle1.shutdown().await;
-    handle2.shutdown().await;
-}
-
 /// Test TX set fetch from connected peer
 #[tokio::test]
 async fn test_txset_fetch_flow() {
@@ -3322,118 +3035,6 @@ async fn test_large_txset_doesnt_block_scp() {
     send_task.await.unwrap();
     handle1.shutdown().await;
     handle2.shutdown().await;
-}
-
-/// Test TX set request to peer that has the data
-#[tokio::test]
-async fn test_txset_request_and_response() {
-    let keypair1 = Keypair::generate_ed25519();
-    let keypair2 = Keypair::generate_ed25519();
-
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
-
-    let listen_port = 20601;
-    tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    tokio::spawn(async move { overlay2.run("127.0.0.1", 20602).await });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Connect
-    let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", listen_port)
-        .parse()
-        .unwrap();
-    handle2.dial(addr).await;
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    // Drain events
-    while events1.try_recv().is_ok() {}
-    while events2.try_recv().is_ok() {}
-
-    // Node2 requests a TX set
-    let requested_hash: [u8; 32] = [0x77; 32];
-    let txset_data = b"test tx set XDR content here".to_vec();
-
-    handle2.fetch_txset(requested_hash).await;
-
-    // Node1 receives request and responds
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut responded = false;
-
-    while tokio::time::Instant::now() < deadline && !responded {
-        tokio::select! {
-            Some(event) = events1.recv() => {
-                if let OverlayEvent::TxSetRequested { hash, from } = event {
-                    assert_eq!(hash, requested_hash, "Request should have correct hash");
-                    handle1.send_txset(hash, txset_data.clone(), from).await;
-                    responded = true;
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(
-        responded,
-        "Node1 should receive and respond to TX set request"
-    );
-
-    // Node2 should receive the TX set
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut received = false;
-
-    while tokio::time::Instant::now() < deadline && !received {
-        tokio::select! {
-            Some(event) = events2.recv() => {
-                if let OverlayEvent::TxSetReceived { hash, data, .. } = event {
-                    assert_eq!(hash, requested_hash, "Received hash should match");
-                    assert_eq!(data, txset_data, "Received data should match");
-                    received = true;
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(received, "Node2 should receive TX set response");
-
-    handle1.shutdown().await;
-    handle2.shutdown().await;
-}
-
-/// Test TX set fetch when no peers are connected
-#[tokio::test]
-async fn test_txset_fetch_no_peers() {
-    let keypair = Keypair::generate_ed25519();
-    let (handle, mut events, _tx_events, overlay) =
-        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
-
-    let listen_port = 20701;
-    tokio::spawn(async move { overlay.run("127.0.0.1", listen_port).await });
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Request TX set with no peers connected
-    let requested_hash: [u8; 32] = [0x88; 32];
-    handle.fetch_txset(requested_hash).await;
-
-    // Should not crash or hang - just no response
-    // Wait briefly to ensure no panic
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // Drain any events (there shouldn't be any TX set related ones)
-    let mut txset_events = 0;
-    while let Ok(event) = events.try_recv() {
-        if matches!(event, OverlayEvent::TxSetReceived { .. }) {
-            txset_events += 1;
-        }
-    }
-    assert_eq!(
-        txset_events, 0,
-        "Should not receive TX set when no peers connected"
-    );
-
-    handle.shutdown().await;
 }
 
 /// Test multiple concurrent TX set requests
@@ -3872,125 +3473,6 @@ async fn test_concurrent_scp_and_txset_writes_to_same_peer() {
 
     assert!(scp_received, "SCP message should be received");
     assert!(txset_received, "TxSet should be received");
-
-    handle1.shutdown().await;
-    handle2.shutdown().await;
-}
-
-/// Test that pending_txset_requests tracks peer and is cleaned on disconnect.
-/// This is a simpler unit test that verifies the data structure changes work.
-#[tokio::test]
-async fn test_pending_txset_cleanup_on_disconnect() {
-    let keypair1 = Keypair::generate_ed25519();
-    let keypair2 = Keypair::generate_ed25519();
-
-    let peer1_id = PeerId::from_public_key(&keypair1.public());
-
-    let (handle1, mut events1, _tx_events1, overlay1) =
-        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
-        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
-
-    // Start both overlays (ports must not collide with test_20_node_full_mesh 22000-22019)
-    let listen_port1 = 22501;
-    let listen_port2 = 22502;
-
-    tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port1).await });
-    tokio::spawn(async move { overlay2.run("127.0.0.1", listen_port2).await });
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // Connect node1 to node2
-    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", listen_port2)
-        .parse()
-        .unwrap();
-    handle1.dial(addr2).await;
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    // Verify connection by exchanging SCP message
-    handle1.broadcast_scp(b"hello".to_vec()).await;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut connected = false;
-    while tokio::time::Instant::now() < deadline && !connected {
-        tokio::select! {
-            Some(event) = events2.recv() => {
-                if let OverlayEvent::ScpReceived { .. } = event {
-                    connected = true;
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(connected, "Nodes should be connected");
-
-    // Request TxSet - this tests that pending_txset_requests correctly stores (hash, peer)
-    let txset_hash: [u8; 32] = [0x42; 32];
-    handle1.fetch_txset(txset_hash).await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Verify node2 received the request
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut got_request = false;
-    while tokio::time::Instant::now() < deadline && !got_request {
-        tokio::select! {
-            Some(event) = events2.recv() => {
-                if let OverlayEvent::TxSetRequested { hash, .. } = event {
-                    if hash == txset_hash {
-                        got_request = true;
-                    }
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(got_request, "Node2 should receive TxSet request");
-
-    // Now have node2 respond with the TxSet
-    // This verifies the pending cleanup works when response is received
-    let txset_data = vec![0xAB; 1024];
-    handle2
-        .send_txset(txset_hash, txset_data.clone(), peer1_id)
-        .await;
-
-    // Verify node1 receives the TxSet response
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut got_response = false;
-    while tokio::time::Instant::now() < deadline && !got_response {
-        tokio::select! {
-            Some(event) = events1.recv() => {
-                if let OverlayEvent::TxSetReceived { hash, data, .. } = event {
-                    if hash == txset_hash && data == txset_data {
-                        got_response = true;
-                    }
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(got_response, "Node1 should receive TxSet response");
-
-    // Request the same TxSet again - should NOT be skipped since pending was cleared
-    handle1.fetch_txset(txset_hash).await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Verify node2 receives the second request
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    let mut got_second_request = false;
-    while tokio::time::Instant::now() < deadline && !got_second_request {
-        tokio::select! {
-            Some(event) = events2.recv() => {
-                if let OverlayEvent::TxSetRequested { hash, .. } = event {
-                    if hash == txset_hash {
-                        got_second_request = true;
-                    }
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(10)) => {}
-        }
-    }
-    assert!(
-        got_second_request,
-        "Node2 should receive second TxSet request after pending was cleared by response"
-    );
 
     handle1.shutdown().await;
     handle2.shutdown().await;
