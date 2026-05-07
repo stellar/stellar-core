@@ -1233,6 +1233,7 @@ LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
     if (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
+        releaseAssert(!mApp.getRunInOverlayOnlyMode());
         auto txQueueSeqNum =
             tx->isSoroban()
                 ? mApp.getHerder()
@@ -1971,7 +1972,10 @@ LoadGenerator::readTransactionFromFile(GeneratedLoadConfig const& cfg)
     auto idx = mCurrPreloadedTransaction % cfg.nAccounts;
     auto acc = mTxGenerator.getAccount(idx + cfg.offset);
     releaseAssert(acc);
-    acc->setSequenceNumber(txFrame->getSeqNum());
+    if (!mApp.getRunInOverlayOnlyMode())
+    {
+        acc->setSequenceNumber(txFrame->getSeqNum());
+    }
     ++mCurrPreloadedTransaction;
 
     // Do not provide an account
