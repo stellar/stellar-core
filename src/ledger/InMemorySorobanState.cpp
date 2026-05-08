@@ -367,11 +367,13 @@ InMemorySorobanState::InMemorySorobanState(InMemorySorobanState const& other)
     , mContractCodeStateSize(other.mContractCodeStateSize)
     , mContractDataStateSize(other.mContractDataStateSize)
 {
-    // InternalContractDataMapEntry has an explicit copy constructor that
-    // deep-copies via clone(), so we can just use emplace.
+    // ContractDataMapEntryT uses shared_ptr, so we must explicitly deep-copy
+    // each LedgerEntry.
     for (auto const& entry : other.mContractDataEntries)
     {
-        mContractDataEntries.emplace(entry);
+        mContractDataEntries.emplace(
+            std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
+            entry.ttlData);
     }
 
     // ContractCodeMapEntryT uses shared_ptr, so we must explicitly deep-copy
