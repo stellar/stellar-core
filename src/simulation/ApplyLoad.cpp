@@ -280,6 +280,12 @@ getUpgradeConfigForMaxTPS(Config const& cfg, uint64_t instructionsPerCluster,
 
     return upgradeConfig;
 }
+
+uint32_t
+convertTPStoTPL(uint32_t tps, uint32_t closeTimeMs)
+{
+    return static_cast<uint32_t>(std::ceil(tps * closeTimeMs / 1000.0));
+}
 } // namespace
 
 /*
@@ -700,9 +706,9 @@ ApplyLoad::ApplyLoad(Application& app)
                        2;
         break;
     case ApplyLoadMode::MAX_SAC_TPS:
-        mNumAccounts = config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS *
-                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER *
-                           config.APPLY_LOAD_TARGET_CLOSE_TIME_MS / 1000.0 +
+        mNumAccounts = convertTPStoTPL(config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS,
+                                       config.APPLY_LOAD_TARGET_CLOSE_TIME_MS) *
+                           config.SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
                        config.APPLY_LOAD_CLASSIC_TXS_PER_LEDGER;
         break;
     case ApplyLoadMode::BENCHMARK_MODEL_TX:
@@ -1125,7 +1131,9 @@ ApplyLoad::setupBatchTransferContracts()
         // We need to transfer enough XLM to cover all batch transfers
         // Each batch will transfer APPLY_LOAD_BATCH_SAC_COUNT * 1 stroop
         int64_t maxTxsPerCluster =
-            mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS / numClusters;
+            convertTPStoTPL(mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS,
+                            mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS) /
+            numClusters;
         int64_t amountToTransfer =
             mApp.getConfig().APPLY_LOAD_BATCH_SAC_COUNT * // Sent per tx
             maxTxsPerCluster * // Max txs per ledger per cluster
@@ -1626,10 +1634,14 @@ ApplyLoad::findMaxSacTps()
             txsPerStep;
     }
     uint32_t minSteps = std::max(
-        1u, mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS / txsPerStep);
-    uint32_t maxSteps = std::ceil(
-        static_cast<double>(mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS) /
-        txsPerStep);
+        1u, convertTPStoTPL(mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MIN_TPS,
+                            mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS) /
+                txsPerStep);
+    uint32_t maxSteps =
+        std::ceil(static_cast<double>(convertTPStoTPL(
+                      mApp.getConfig().APPLY_LOAD_MAX_SAC_TPS_MAX_TPS,
+                      mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS)) /
+                  txsPerStep);
 
     double targetCloseTimeMs = mApp.getConfig().APPLY_LOAD_TARGET_CLOSE_TIME_MS;
 
