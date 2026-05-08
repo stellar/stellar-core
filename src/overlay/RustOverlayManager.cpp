@@ -7,9 +7,9 @@
 #include "herder/TxSetFrame.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "util/Backtrace.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-overlay.h"
-#include <fmt/format.h>
 #include <medida/counter.h>
 #include <medida/histogram.h>
 #include <medida/meter.h>
@@ -23,25 +23,11 @@ RustOverlayManager::RustOverlayManager(Application& app)
 {
     auto const& cfg = mApp.getConfig();
 
-    std::string socketPath = cfg.OVERLAY_SOCKET_PATH;
-    if (socketPath.empty())
-    {
-        socketPath = fmt::format("/tmp/stellar-overlay-{}-{}.sock", getpid(),
-                                 cfg.HTTP_PORT);
-    }
+    CLOG_INFO(Overlay, "Creating RustOverlayManager with port={}",
+              cfg.PEER_PORT);
 
-    std::string binaryPath = cfg.OVERLAY_BINARY_PATH;
-    if (binaryPath.empty())
-    {
-        binaryPath = "stellar-overlay";
-    }
-
-    CLOG_INFO(Overlay,
-              "Creating RustOverlayManager with socket={}, binary={}, port={}",
-              socketPath, binaryPath, cfg.PEER_PORT);
-
-    mOverlayIPC =
-        std::make_unique<OverlayIPC>(socketPath, binaryPath, cfg.PEER_PORT);
+    mOverlayIPC = std::make_unique<OverlayIPC>(
+        cfg.OVERLAY_SOCKET_PATH, cfg.OVERLAY_BINARY_PATH, cfg.PEER_PORT);
 }
 
 RustOverlayManager::~RustOverlayManager()
@@ -88,6 +74,7 @@ RustOverlayManager::start()
     if (!mOverlayIPC->start())
     {
         CLOG_ERROR(Overlay, "Failed to start Rust overlay process");
+        printCurrentBacktrace();
         throw std::runtime_error("Failed to start Rust overlay");
     }
 

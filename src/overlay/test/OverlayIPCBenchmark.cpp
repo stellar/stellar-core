@@ -3,16 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "overlay/IPC.h"
 #include "overlay/OverlayIPC.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 
 #include <chrono>
-#include <filesystem>
-#include <iomanip>
 #include <thread>
-#include <unistd.h>
 #include <vector>
 
 using namespace stellar;
@@ -21,21 +17,14 @@ namespace
 {
 
 std::string
-findOverlayBinary()
+requireOverlayBinary()
 {
-    std::vector<std::string> paths = {
-        "target/release/stellar-overlay",
-        "../target/release/stellar-overlay",
-    };
-
-    for (auto const& p : paths)
+    auto overlayBinary = OverlayIPC::findOverlayBinaryPath();
+    if (!overlayBinary)
     {
-        if (access(p.c_str(), X_OK) == 0)
-        {
-            return std::filesystem::absolute(p).string();
-        }
+        FAIL("Skipping test - overlay binary not found");
     }
-    return "";
+    return *overlayBinary;
 }
 
 struct BenchmarkResult
@@ -116,12 +105,7 @@ benchmarkPayloadSize(OverlayIPC& ipc, size_t payloadSize, int iterations)
  */
 TEST_CASE("IPC payload size benchmark", "[overlay-ipc-rust][.][benchmark]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
+    std::string overlayBinary = requireOverlayBinary();
 
     CLOG_INFO(Overlay, "");
     CLOG_INFO(Overlay, "============================================"
@@ -246,12 +230,7 @@ TEST_CASE("IPC payload size benchmark", "[overlay-ipc-rust][.][benchmark]")
  */
 TEST_CASE("IPC concurrent access benchmark", "[overlay-ipc-rust][.][benchmark]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
+    std::string overlayBinary = requireOverlayBinary();
 
     CLOG_INFO(Overlay, "");
     CLOG_INFO(Overlay, "============================================"

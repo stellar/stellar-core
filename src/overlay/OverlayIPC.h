@@ -6,14 +6,14 @@
 
 #include "overlay/IPC.h"
 #include "xdr/Stellar-overlay.h"
-#include <functional>
-#include <memory>
-#include <string>
-#include <thread>
-#include <mutex>
 #include <atomic>
 #include <condition_variable>
-
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
 
 namespace stellar
 {
@@ -52,12 +52,16 @@ class OverlayIPC
     /**
      * Create an OverlayIPC instance.
      *
-     * @param socketPath Path for Unix domain socket
-     * @param overlayBinaryPath Path to the overlay binary (stellar-overlay)
+     * @param socketPath Path for Unix domain socket, or empty for default
+     * @param overlayBinaryPath Path to the overlay binary, or empty to search
      * @param peerPort Port for peer TCP connections (passed to overlay)
      */
-    OverlayIPC(std::string socketPath, std::string overlayBinaryPath,
+    OverlayIPC(std::optional<std::string> socketPath,
+               std::optional<std::string> overlayBinaryPath,
                uint16_t peerPort);
+
+    static std::string defaultSocketPath(uint16_t peerPort);
+    static std::optional<std::string> findOverlayBinaryPath();
 
     ~OverlayIPC();
 
@@ -199,6 +203,8 @@ class OverlayIPC
     /// Spawn the overlay process
     bool spawnOverlay();
 
+    std::optional<std::string> resolveOverlayBinaryPath() const;
+
     /// Reader thread function
     void readerLoop();
 
@@ -210,7 +216,7 @@ class OverlayIPC
                               std::vector<SCPEnvelope> const& envelopes);
 
     std::string mSocketPath;
-    std::string mOverlayBinaryPath;
+    std::optional<std::string> mOverlayBinaryPath;
     uint16_t mPeerPort;
 
     std::unique_ptr<IPCChannel> mChannel;
