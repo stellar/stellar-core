@@ -621,6 +621,14 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
         thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
 
+        // When capturing LCM, enable Soroban diagnostic events so that
+        // downstream consumers can extract runtime error details and
+        // nested contract calls from the meta.
+        if (gLcmCaptureEnabled)
+        {
+            thisConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+        }
+
         // Disable RPC endpoint in tests
         thisConfig.HTTP_QUERY_PORT = 0;
         thisConfig.QUERY_SNAPSHOT_LEDGERS = 0;

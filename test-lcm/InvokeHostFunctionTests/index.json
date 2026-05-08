@@ -118,6 +118,7 @@
    "2eb7c4a770d05ab6" : "Soroban_classic_account_authentication-account_with_required_multisig-incomplete_key",
    "2f06a14dfcb5cd88" : "Soroban_authorization-classic_and_custom_accounts-deep_tree-success_with_duplicate_auth_entries",
    "303dce5b05111d4b" : "Soroban_authorization-multisig_classic_account-deep_tree-incorrect_signature_payload",
+   "30fb87b1984c9677" : "Stellar_asset_contract_transfer_with_CAP-67_address_types",
    "311f3f548207d5d6" : "Soroban_authorization-multisig_classic_account-wide_tree-incorrect_signature_payload",
    "3152146ae3e1601f" : "Soroban_footprint_validation-invokeHostFunction-readOnly-invalid_asset_11",
    "318b008d239ea9d8" : "Module_cache",
