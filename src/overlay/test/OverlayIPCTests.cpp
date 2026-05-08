@@ -3,16 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "overlay/IPC.h"
 #include "overlay/OverlayIPC.h"
 #include "util/TmpDir.h"
 #include "xdr/Stellar-SCP.h"
-#include "xdr/Stellar-overlay.h"
 
 #include <chrono>
-#include <filesystem>
 #include <thread>
-#include <unistd.h>
 
 using namespace stellar;
 
@@ -30,36 +26,15 @@ using namespace stellar;
 namespace
 {
 
-// Helper to find the overlay binary
 std::string
-findOverlayBinary()
+requireOverlayBinary()
 {
-    // Try various paths (tests run from src/ directory)
-    std::vector<std::string> paths = {
-        "../target/release/stellar-overlay",
-        "target/release/stellar-overlay",
-        "overlay/target/release/stellar-overlay",
-        "../overlay/target/release/stellar-overlay",
-    };
-
-    for (auto const& p : paths)
+    auto overlayBinary = OverlayIPC::findOverlayBinaryPath();
+    if (!overlayBinary)
     {
-        if (access(p.c_str(), X_OK) == 0)
-        {
-            // Return absolute path for forked child process
-            return std::filesystem::absolute(p).string();
-        }
+        FAIL("Skipping test - overlay binary not found");
     }
-
-    return "";
-}
-
-// Get absolute socket path from TmpDir
-std::string
-getAbsoluteSocketPath(TmpDir const& tmpDir)
-{
-    return std::filesystem::absolute(tmpDir.getName() + "/overlay.sock")
-        .string();
+    return *overlayBinary;
 }
 
 // Create a mock SCP envelope for testing
@@ -88,11 +63,10 @@ makeMockSCPEnvelope(uint64_t slotIndex, uint32_t nodeId)
 
 TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc-rust][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    REQUIRE_FALSE(overlayBinary.empty());
+    auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDir("overlay-ipc-test");
-    std::string socketPath = getAbsoluteSocketPath(tmpDir);
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
     OverlayIPC ipc(socketPath, overlayBinary, 11625);
 
@@ -109,11 +83,10 @@ TEST_CASE("OverlayIPC connects to Rust overlay", "[overlay-ipc-rust][.]")
 
 TEST_CASE("OverlayIPC broadcasts SCP to Rust overlay", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    REQUIRE_FALSE(overlayBinary.empty());
+    auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDir("overlay-ipc-broadcast-test");
-    std::string socketPath = getAbsoluteSocketPath(tmpDir);
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
     OverlayIPC ipc(socketPath, overlayBinary, 11625);
     REQUIRE(ipc.start());
@@ -143,11 +116,10 @@ TEST_CASE("OverlayIPC receives SCP from Rust overlay", "[overlay-ipc][.]")
     // This test requires two overlay instances to actually relay messages
     // For now, we just verify the callback mechanism works
 
-    std::string overlayBinary = findOverlayBinary();
-    REQUIRE_FALSE(overlayBinary.empty());
+    auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDir("overlay-ipc-receive-test");
-    std::string socketPath = getAbsoluteSocketPath(tmpDir);
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
     OverlayIPC ipc(socketPath, overlayBinary, 11625);
 
@@ -171,11 +143,10 @@ TEST_CASE("OverlayIPC receives SCP from Rust overlay", "[overlay-ipc][.]")
 
 TEST_CASE("OverlayIPC ledger close notification", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    REQUIRE_FALSE(overlayBinary.empty());
+    auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDir("overlay-ipc-ledger-test");
-    std::string socketPath = getAbsoluteSocketPath(tmpDir);
+    std::string socketPath = tmpDir.getName() + "/overlay.sock";
 
     OverlayIPC ipc(socketPath, overlayBinary, 11625);
     REQUIRE(ipc.start());
@@ -203,14 +174,13 @@ TEST_CASE("OverlayIPC ledger close notification", "[overlay-ipc][.]")
  */
 TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    REQUIRE_FALSE(overlayBinary.empty());
+    auto overlayBinary = requireOverlayBinary();
 
     TmpDir tmpDirA("overlay-ipc-e2e-A");
     TmpDir tmpDirB("overlay-ipc-e2e-B");
 
-    std::string socketPathA = getAbsoluteSocketPath(tmpDirA);
-    std::string socketPathB = getAbsoluteSocketPath(tmpDirB);
+    std::string socketPathA = tmpDirA.getName() + "/overlay.sock";
+    std::string socketPathB = tmpDirB.getName() + "/overlay.sock";
 
     // This test would require overlays to connect to each other,
     // which needs config files and peer discovery.
@@ -276,13 +246,7 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay SCP consensus", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     // Use OVER_TCP mode which enables RustOverlayManager
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(networkID);
@@ -350,13 +314,7 @@ TEST_CASE("Rust overlay SCP consensus", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_get_top_txs_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11625;
@@ -385,13 +343,7 @@ TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay TX submission", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_submit_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11626;
@@ -475,13 +427,7 @@ makeTxEnvelope(int64_t fee, int64_t seqNum, uint8_t accountByte,
  */
 TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_inclusion_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11627;
@@ -526,13 +472,7 @@ TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_fee_per_op_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11628;
@@ -576,13 +516,7 @@ TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_mempool_eviction_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11629;
@@ -636,13 +570,7 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_tx_dedup_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11630;
@@ -676,13 +604,7 @@ TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     TmpDir tmpDir("overlay_ipc_mempool_clear_test");
     std::string socketPath = tmpDir.getName() + "/overlay.sock";
     uint16_t peerPort = 11631;
@@ -736,13 +658,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     // Create two overlay processes on different ports
     TmpDir tmpDirA("overlay_ipc_flood_test_a");
     TmpDir tmpDirB("overlay_ipc_flood_test_b");
@@ -808,13 +724,7 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     // Use OVER_TCP mode which enables RustOverlayManager
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(networkID);
@@ -920,13 +830,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
  */
 TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     // Test parameters - tx per ledger batch
     struct TestRun
     {
@@ -1265,13 +1169,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
 // (cache has 0 entries)
 TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
-
+    std::string overlayBinary = requireOverlayBinary();
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG,
              "============================================================");
@@ -1472,12 +1370,7 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
  */
 TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
 {
-    std::string overlayBinary = findOverlayBinary();
-    if (overlayBinary.empty())
-    {
-        FAIL("Skipping test - overlay binary not found");
-        return;
-    }
+    std::string overlayBinary = requireOverlayBinary();
 
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG,

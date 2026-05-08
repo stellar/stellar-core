@@ -98,9 +98,6 @@ Simulation::addNode(SecretKey nodeKey, QuorumSetSpec qSet, Config const* cfg2,
     cfg->MANUAL_CLOSE = false;
     cfg->RUN_STANDALONE = false;
 
-    // Binary path for Rust overlay
-    cfg->OVERLAY_BINARY_PATH = "../target/release/stellar-overlay";
-
     if (SCPQuorumSet const* manualQSet = std::get_if<SCPQuorumSet>(&qSet))
     {
         if (mQuorumSetAdjuster)
