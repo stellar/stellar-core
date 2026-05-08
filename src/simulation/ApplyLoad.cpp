@@ -1,4 +1,5 @@
 #include "simulation/ApplyLoad.h"
+#include "main/AppConnector.h"
 
 #include <algorithm>
 #include <cmath>

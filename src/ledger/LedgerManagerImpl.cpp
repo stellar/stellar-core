@@ -2236,7 +2236,7 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     mLastClosedLedgerState = state;
 }
 #endif
-}
+//}
 
 std::vector<MutableTxResultPtr>
 LedgerManagerImpl::processFeesSeqNums(
