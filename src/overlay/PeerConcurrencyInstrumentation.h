@@ -72,9 +72,9 @@ class LockOrderChecker
 
     struct LockOrderViolation
     {
-        const char* heldLockName;
+        char const* heldLockName;
         int heldLockOrder;
-        const char* acquiredLockName;
+        char const* acquiredLockName;
         int acquiredLockOrder;
         std::thread::id threadId;
         std::chrono::steady_clock::time_point timestamp;
@@ -88,7 +88,7 @@ class LockOrderChecker
     }
 
     void
-    recordAcquire(const char* lockName, int lockOrder, void* lockAddr)
+    recordAcquire(char const* lockName, int lockOrder, void* lockAddr)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -192,7 +192,7 @@ class LockOrderChecker
 
     struct HeldLock
     {
-        const char* name;
+        char const* name;
         int order;
         void* addr;
     };
@@ -277,7 +277,7 @@ class WriteQueueAndCapacityTracker
     }
 
     void
-    recordDepth(const void* peerAddr, size_t depth)
+    recordDepth(void const* peerAddr, size_t depth)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -302,7 +302,7 @@ class WriteQueueAndCapacityTracker
     }
 
     void
-    recordCapacityLocked(const void* peerAddr, uint64_t amount)
+    recordCapacityLocked(void const* peerAddr, uint64_t amount)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -313,7 +313,7 @@ class WriteQueueAndCapacityTracker
     }
 
     void
-    recordCapacityReleasedSent(const void* peerAddr, uint64_t amount)
+    recordCapacityReleasedSent(void const* peerAddr, uint64_t amount)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -325,7 +325,7 @@ class WriteQueueAndCapacityTracker
     }
 
     void
-    recordQueueTrim(const void* peerAddr, size_t trimmed, bool hadInFlight)
+    recordQueueTrim(void const* peerAddr, size_t trimmed, bool hadInFlight)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -339,7 +339,7 @@ class WriteQueueAndCapacityTracker
     }
 
     bool
-    hasCapacityLeak(const void* peerAddr)
+    hasCapacityLeak(void const* peerAddr)
     {
         std::lock_guard<std::mutex> g(mMutex);
         auto it = mPeerStates.find(peerAddr);
@@ -412,7 +412,7 @@ class WriteQueueAndCapacityTracker
     }
 
     std::mutex mMutex;
-    std::unordered_map<const void*, PerPeerState> mPeerStates;
+    std::unordered_map<void const*, PerPeerState> mPeerStates;
     std::atomic<bool> mEnabled;
 };
 
@@ -443,7 +443,7 @@ class HandlerDurationLogger
 
     struct StallEvent
     {
-        const char* handlerName;
+        char const* handlerName;
         uint64_t durationUs;
         std::thread::id threadId;
         std::chrono::steady_clock::time_point timestamp;
@@ -465,7 +465,7 @@ class HandlerDurationLogger
     }
 
     void
-    enter(const char* name)
+    enter(char const* name)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -476,7 +476,7 @@ class HandlerDurationLogger
     }
 
     void
-    exit(const char* name)
+    exit(char const* name)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -525,7 +525,7 @@ class HandlerDurationLogger
     }
 
     void
-    recordThrottleDuration(const char* peerName, uint64_t durationUs)
+    recordThrottleDuration(char const* peerName, uint64_t durationUs)
     {
         if (!mEnabled.load(std::memory_order_relaxed))
             return;
@@ -617,20 +617,20 @@ class HandlerDurationLogger
     struct PairHash
     {
         size_t
-        operator()(std::pair<std::thread::id, const char*> const& p) const
+        operator()(std::pair<std::thread::id, char const*> const& p) const
         {
             auto h1 = std::hash<std::thread::id>{}(p.first);
             auto h2 =
-                std::hash<const void*>{}(static_cast<const void*>(p.second));
+                std::hash<void const*>{}(static_cast<void const*>(p.second));
             return h1 ^ (h2 << 1);
         }
     };
 
     std::mutex mMutex;
-    std::unordered_map<std::pair<std::thread::id, const char*>,
+    std::unordered_map<std::pair<std::thread::id, char const*>,
                        std::chrono::steady_clock::time_point, PairHash>
         mActiveHandlers;
-    std::unordered_map<const char*, HandlerStats> mHandlerStats;
+    std::unordered_map<char const*, HandlerStats> mHandlerStats;
     std::atomic<uint64_t> mStallThresholdUs;
     std::atomic<size_t> mStallCount;
     std::array<StallEvent, MAX_STALL_EVENTS> mStallEvents;
@@ -641,7 +641,7 @@ class HandlerDurationLogger
 class HandlerDurationGuard
 {
   public:
-    explicit HandlerDurationGuard(const char* name) : mName(name)
+    explicit HandlerDurationGuard(char const* name) : mName(name)
     {
         HandlerDurationLogger::instance().enter(mName);
     }
@@ -651,7 +651,7 @@ class HandlerDurationGuard
     }
 
   private:
-    const char* mName;
+    char const* mName;
 };
 
 // =========================================================================
@@ -739,7 +739,7 @@ resetAllInstrumentation()
         name)
 #define PEER_HANDLER_DURATION_GUARD(name) \
     stellar::overlay_instrumentation::HandlerDurationGuard \
-    _handler_guard_##__LINE__(name)
+        _handler_guard_##__LINE__(name)
 #define PEER_THROTTLE_DURATION(peer, durationUs) \
     stellar::overlay_instrumentation::HandlerDurationLogger::instance() \
         .recordThrottleDuration(peer, durationUs)

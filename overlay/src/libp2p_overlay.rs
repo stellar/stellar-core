@@ -20,7 +20,10 @@ use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
     identity::Keypair,
-    swarm::{dial_opts::{DialOpts, PeerCondition}, NetworkBehaviour, SwarmEvent},
+    swarm::{
+        dial_opts::{DialOpts, PeerCondition},
+        NetworkBehaviour, SwarmEvent,
+    },
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
@@ -158,19 +161,28 @@ impl OverlayHandle {
             .send(OverlayCommand::BroadcastScp(envelope))
             .await
         {
-            warn!("Overlay command channel closed, failed to send BroadcastScp: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send BroadcastScp: {}",
+                e
+            );
         }
     }
 
     pub async fn broadcast_tx(&self, tx: Vec<u8>) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await {
-            warn!("Overlay command channel closed, failed to send BroadcastTx: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send BroadcastTx: {}",
+                e
+            );
         }
     }
 
     pub async fn fetch_txset(&self, hash: [u8; 32]) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::FetchTxSet { hash }).await {
-            warn!("Overlay command channel closed, failed to send FetchTxSet: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send FetchTxSet: {}",
+                e
+            );
         }
     }
 
@@ -180,7 +192,10 @@ impl OverlayHandle {
             .send(OverlayCommand::SendTxSet { hash, data, to })
             .await
         {
-            warn!("Overlay command channel closed, failed to send SendTxSet: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send SendTxSet: {}",
+                e
+            );
         }
     }
 
@@ -191,7 +206,10 @@ impl OverlayHandle {
             .send(OverlayCommand::RecordTxSetSource { hash, peer })
             .await
         {
-            warn!("Overlay command channel closed, failed to send RecordTxSetSource: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send RecordTxSetSource: {}",
+                e
+            );
         }
     }
 
@@ -203,8 +221,15 @@ impl OverlayHandle {
 
     /// Dial a known peer by PeerId. libp2p will skip the dial if already connected.
     pub async fn dial_peer(&self, peer_id: PeerId, addr: Multiaddr) {
-        if let Err(e) = self.cmd_tx.send(OverlayCommand::DialPeer { peer_id, addr }).await {
-            warn!("Overlay command channel closed, failed to send DialPeer: {}", e);
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::DialPeer { peer_id, addr })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send DialPeer: {}",
+                e
+            );
         }
     }
 
@@ -214,7 +239,10 @@ impl OverlayHandle {
             .send(OverlayCommand::RequestScpState { ledger_seq })
             .await
         {
-            warn!("Overlay command channel closed, failed to send RequestScpState: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send RequestScpState: {}",
+                e
+            );
         }
     }
 
@@ -231,7 +259,10 @@ impl OverlayHandle {
 
     pub async fn shutdown(&self) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::Shutdown).await {
-            warn!("Overlay command channel closed, failed to send Shutdown: {}", e);
+            warn!(
+                "Overlay command channel closed, failed to send Shutdown: {}",
+                e
+            );
         }
     }
 
@@ -381,10 +412,7 @@ pub fn create_overlay(
                 key.public(),
             ));
 
-            StellarBehaviour {
-                stream,
-                identify,
-            }
+            StellarBehaviour { stream, identify }
         })?
         .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(300)))
         .build();
@@ -397,7 +425,12 @@ pub fn create_overlay(
     // Bounded channel for TX events - drops allowed under backpressure
     let (tx_event_tx, tx_event_rx) = mpsc::channel(TX_EVENT_CHANNEL_CAPACITY);
 
-    let state = Arc::new(SharedState::new(event_tx, tx_event_tx, control.clone(), metrics));
+    let state = Arc::new(SharedState::new(
+        event_tx,
+        tx_event_tx,
+        control.clone(),
+        metrics,
+    ));
 
     let overlay = StellarOverlay {
         swarm,
@@ -433,21 +466,30 @@ impl StellarOverlay {
         let scp_incoming = match self.control.accept(SCP_PROTOCOL) {
             Ok(incoming) => incoming,
             Err(e) => {
-                error!("Failed to accept SCP protocol streams: {:?}. Overlay cannot function.", e);
+                error!(
+                    "Failed to accept SCP protocol streams: {:?}. Overlay cannot function.",
+                    e
+                );
                 return;
             }
         };
         let tx_incoming = match self.control.accept(TX_PROTOCOL) {
             Ok(incoming) => incoming,
             Err(e) => {
-                error!("Failed to accept TX protocol streams: {:?}. Overlay cannot function.", e);
+                error!(
+                    "Failed to accept TX protocol streams: {:?}. Overlay cannot function.",
+                    e
+                );
                 return;
             }
         };
         let txset_incoming = match self.control.accept(TXSET_PROTOCOL) {
             Ok(incoming) => incoming,
             Err(e) => {
-                error!("Failed to accept TxSet protocol streams: {:?}. Overlay cannot function.", e);
+                error!(
+                    "Failed to accept TxSet protocol streams: {:?}. Overlay cannot function.",
+                    e
+                );
                 return;
             }
         };
@@ -554,10 +596,19 @@ impl StellarOverlay {
             } => {
                 // Only decrement connection_pending for outbound dials we initiated
                 if endpoint.is_dialer() {
-                    self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
-                    self.state.metrics.outbound_establish.fetch_add(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .connection_pending
+                        .fetch_sub(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .outbound_establish
+                        .fetch_add(1, Ordering::Relaxed);
                 } else {
-                    self.state.metrics.inbound_establish.fetch_add(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .inbound_establish
+                        .fetch_add(1, Ordering::Relaxed);
                 }
 
                 // Only open streams on the first connection to a peer.
@@ -567,7 +618,10 @@ impl StellarOverlay {
                 // "unexpected end of file" on the remote's inbound handlers.
                 if num_established.get() == 1 {
                     info!("Connected to peer {}", peer_id);
-                    self.state.metrics.connection_authenticated.fetch_add(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .connection_authenticated
+                        .fetch_add(1, Ordering::Relaxed);
                     {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.insert(peer_id, Arc::new(PeerOutboundStreams::new()));
@@ -577,7 +631,9 @@ impl StellarOverlay {
                     // Extract the remote address from the endpoint for reconnection.
                     let remote_addr = match &endpoint {
                         libp2p::core::ConnectedPoint::Dialer { address, .. } => address.clone(),
-                        libp2p::core::ConnectedPoint::Listener { send_back_addr, .. } => send_back_addr.clone(),
+                        libp2p::core::ConnectedPoint::Listener { send_back_addr, .. } => {
+                            send_back_addr.clone()
+                        }
                     };
                     let _ = self.state.event_tx.send(OverlayEvent::PeerConnected {
                         peer_id: peer_id.clone(),
@@ -607,8 +663,14 @@ impl StellarOverlay {
                 // Duplicate connections closing shouldn't tear down working streams.
                 if num_established == 0 {
                     info!("Disconnected from peer {}", peer_id);
-                    self.state.metrics.connection_authenticated.fetch_sub(1, Ordering::Relaxed);
-                    self.state.metrics.outbound_drop.fetch_add(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .connection_authenticated
+                        .fetch_sub(1, Ordering::Relaxed);
+                    self.state
+                        .metrics
+                        .outbound_drop
+                        .fetch_add(1, Ordering::Relaxed);
                     {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.remove(&peer_id);
@@ -630,7 +692,10 @@ impl StellarOverlay {
                     if let Err(e) = self.state.event_tx.send(OverlayEvent::PeerDisconnected {
                         peer_id: peer_id.clone(),
                     }) {
-                        warn!("Failed to send PeerDisconnected event for {}: {}", peer_id, e);
+                        warn!(
+                            "Failed to send PeerDisconnected event for {}: {}",
+                            peer_id, e
+                        );
                     }
                 } else {
                     debug!(
@@ -652,17 +717,18 @@ impl StellarOverlay {
 
             SwarmEvent::IncomingConnection { .. } => {
                 trace!("Incoming connection");
-                self.state.metrics.inbound_attempt.fetch_add(1, Ordering::Relaxed);
+                self.state
+                    .metrics
+                    .inbound_attempt
+                    .fetch_add(1, Ordering::Relaxed);
             }
 
-            SwarmEvent::OutgoingConnectionError {
-                peer_id, error, ..
-            } => {
-                warn!(
-                    "Outgoing connection failed to {:?}: {}",
-                    peer_id, error
-                );
-                self.state.metrics.connection_pending.fetch_sub(1, Ordering::Relaxed);
+            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                warn!("Outgoing connection failed to {:?}: {}", peer_id, error);
+                self.state
+                    .metrics
+                    .connection_pending
+                    .fetch_sub(1, Ordering::Relaxed);
             }
 
             _ => {}
@@ -687,9 +753,7 @@ impl StellarOverlay {
         let peers_to_send: Vec<PeerId>;
         {
             let mut sent_to = self.state.scp_sent_to.write().await;
-            let already_sent: HashSet<PeerId> = sent_to.peek(&hash)
-                .cloned()
-                .unwrap_or_default();
+            let already_sent: HashSet<PeerId> = sent_to.peek(&hash).cloned().unwrap_or_default();
 
             peers_to_send = all_peers
                 .into_iter()
@@ -716,7 +780,10 @@ impl StellarOverlay {
             envelope.len(),
             peers_to_send.len()
         );
-        self.state.metrics.message_broadcast.fetch_add(1, Ordering::Relaxed);
+        self.state
+            .metrics
+            .message_broadcast
+            .fetch_add(1, Ordering::Relaxed);
 
         // Spawn parallel send tasks - don't block event loop waiting for each peer
         for peer_id in peers_to_send {
@@ -726,9 +793,15 @@ impl StellarOverlay {
                 match send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &envelope).await
                 {
                     Ok(_) => {
-                        state.metrics.send_scp_message.fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .send_scp_message
+                            .fetch_add(1, Ordering::Relaxed);
                         state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                        state.metrics.byte_write.fetch_add(envelope.len() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_write
+                            .fetch_add(envelope.len() as u64, Ordering::Relaxed);
                         debug!(
                             "SCP_SEND_OK: Sent SCP {:02x?}... to {}",
                             &hash[..4],
@@ -762,7 +835,10 @@ impl StellarOverlay {
                 return;
             }
             seen.put(hash, ());
-            self.state.metrics.memory_flood_known.store(seen.len() as i64, Ordering::Relaxed);
+            self.state
+                .metrics
+                .memory_flood_known
+                .store(seen.len() as i64, Ordering::Relaxed);
         }
 
         // Store TX in buffer for GETDATA responses
@@ -786,7 +862,10 @@ impl StellarOverlay {
             tx.len(),
             peers.len()
         );
-        self.state.metrics.flood_advertised.fetch_add(peers.len() as u64, Ordering::Relaxed);
+        self.state
+            .metrics
+            .flood_advertised
+            .fetch_add(peers.len() as u64, Ordering::Relaxed);
 
         // Create INV entry (fee is 0 for now - TODO: pass from caller)
         let inv_entry = InvEntry {
@@ -926,9 +1005,18 @@ impl StellarOverlay {
 
         match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &response).await {
             Ok(_) => {
-                self.state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
-                self.state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                self.state.metrics.byte_write.fetch_add(response.len() as u64, Ordering::Relaxed);
+                self.state
+                    .metrics
+                    .send_txset
+                    .fetch_add(1, Ordering::Relaxed);
+                self.state
+                    .metrics
+                    .message_write
+                    .fetch_add(1, Ordering::Relaxed);
+                self.state
+                    .metrics
+                    .byte_write
+                    .fetch_add(response.len() as u64, Ordering::Relaxed);
                 info!(
                     "TXSET_SEND_OK: Successfully sent TX set {:02x?}... ({} bytes on wire) to {}",
                     &hash[..4],
@@ -937,7 +1025,10 @@ impl StellarOverlay {
                 );
             }
             Err(e) => {
-                self.state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                self.state
+                    .metrics
+                    .error_write
+                    .fetch_add(1, Ordering::Relaxed);
                 warn!(
                     "TXSET_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
                     &hash[..4],
@@ -1052,7 +1143,10 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     )
     .await
     {
-        info!("Failed to request SCP state from newly connected peer {}: {:?}", peer_id, e);
+        info!(
+            "Failed to request SCP state from newly connected peer {}: {:?}",
+            peer_id, e
+        );
     }
 }
 
@@ -1252,11 +1346,23 @@ async fn send_inv_batch(state: &Arc<SharedState>, peer: PeerId, batch: InvBatch)
             state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
             warn!("Failed to send INV batch to {}: {}", peer, e);
         } else {
-            state.metrics.send_transaction.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .send_transaction
+                .fetch_add(1, Ordering::Relaxed);
             state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-            state.metrics.byte_write.fetch_add(encoded_len, Ordering::Relaxed);
-            state.metrics.flood_tx_batch_size_sum.fetch_add(batch_size, Ordering::Relaxed);
-            state.metrics.flood_tx_batch_size_count.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(encoded_len, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_tx_batch_size_sum
+                .fetch_add(batch_size, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_tx_batch_size_count
+                .fetch_add(1, Ordering::Relaxed);
             debug!("TX_INV_SENT: Sent INV batch to {}", peer);
         }
     });
@@ -1284,7 +1390,10 @@ async fn read_framed(stream: &mut Stream) -> io::Result<Vec<u8>> {
 async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<SharedState>) {
     while let Some((peer_id, mut stream)) = incoming.next().await {
         info!("SCP_STREAM: Accepted inbound SCP stream from {}", peer_id);
-        state.metrics.inbound_establish.fetch_add(1, Ordering::Relaxed);
+        state
+            .metrics
+            .inbound_establish
+            .fetch_add(1, Ordering::Relaxed);
         state.metrics.inbound_live.fetch_add(1, Ordering::Relaxed);
         let state = state.clone();
 
@@ -1293,7 +1402,10 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                 match read_framed(&mut stream).await {
                     Ok(envelope) => {
                         state.metrics.message_read.fetch_add(1, Ordering::Relaxed);
-                        state.metrics.byte_read.fetch_add(envelope.len() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_read
+                            .fetch_add(envelope.len() as u64, Ordering::Relaxed);
 
                         // Check if this is an SCP state request (small message, 4 bytes)
                         if envelope.len() == 4 {
@@ -1363,7 +1475,10 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         }
 
                         let elapsed_us = recv_start.elapsed().as_micros() as u64;
-                        state.metrics.recv_scp_sum_us.fetch_add(elapsed_us, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .recv_scp_sum_us
+                            .fetch_add(elapsed_us, Ordering::Relaxed);
                         state.metrics.recv_scp_count.fetch_add(1, Ordering::Relaxed);
                     }
                     Err(e) => {
@@ -1393,7 +1508,10 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
                 match read_framed(&mut stream).await {
                     Ok(data) => {
                         state.metrics.message_read.fetch_add(1, Ordering::Relaxed);
-                        state.metrics.byte_read.fetch_add(data.len() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_read
+                            .fetch_add(data.len() as u64, Ordering::Relaxed);
                         // Parse INV/GETDATA message
                         handle_tx_stream_message(&state, &peer_id, &data, &mut stream).await;
                     }
@@ -1469,7 +1587,10 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
 
     // Send GETDATA for TXs we don't have
     if !to_request.is_empty() {
-        state.metrics.flood_demanded.fetch_add(to_request.len() as u64, Ordering::Relaxed);
+        state
+            .metrics
+            .flood_demanded
+            .fetch_add(to_request.len() as u64, Ordering::Relaxed);
         debug!(
             "TX_GETDATA_SEND: Requesting {} TXs from {}",
             to_request.len(),
@@ -1525,7 +1646,10 @@ async fn handle_getdata(
         };
 
         if let Some(tx_data) = tx_data {
-            state.metrics.flood_fulfilled.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_fulfilled
+                .fetch_add(1, Ordering::Relaxed);
             // Send TX response
             let msg = TxStreamMessage::Tx(tx_data);
             let encoded = msg.encode();
@@ -1536,16 +1660,28 @@ async fn handle_getdata(
                 if let Err(e) =
                     send_to_peer_stream(&state_clone, peer_clone, StreamType::Tx, &encoded).await
                 {
-                    state_clone.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                    state_clone
+                        .metrics
+                        .error_write
+                        .fetch_add(1, Ordering::Relaxed);
                     warn!("Failed to send TX to {}: {}", peer_clone, e);
                 } else {
-                    state_clone.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                    state_clone.metrics.byte_write.fetch_add(encoded.len() as u64, Ordering::Relaxed);
+                    state_clone
+                        .metrics
+                        .message_write
+                        .fetch_add(1, Ordering::Relaxed);
+                    state_clone
+                        .metrics
+                        .byte_write
+                        .fetch_add(encoded.len() as u64, Ordering::Relaxed);
                     debug!("TX_SEND: Sent TX {:02x?}... to {}", &hash[..4], peer_clone);
                 }
             });
         } else {
-            state.metrics.flood_unfulfilled_unknown.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_unfulfilled_unknown
+                .fetch_add(1, Ordering::Relaxed);
             trace!(
                 "TX_GETDATA_MISS: Don't have TX {:02x?}... for {}",
                 &hash[..4],
@@ -1566,21 +1702,36 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
         let mut seen = state.tx_seen.write().await;
         if seen.contains(&hash) {
             trace!("Duplicate TX from {}", peer_id);
-            state.metrics.flood_duplicate_recv.fetch_add(tx_len, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_duplicate_recv
+                .fetch_add(tx_len, Ordering::Relaxed);
             return;
         }
         seen.put(hash, ());
-        state.metrics.memory_flood_known.store(seen.len() as i64, Ordering::Relaxed);
+        state
+            .metrics
+            .memory_flood_known
+            .store(seen.len() as i64, Ordering::Relaxed);
     }
-    state.metrics.flood_unique_recv.fetch_add(tx_len, Ordering::Relaxed);
+    state
+        .metrics
+        .flood_unique_recv
+        .fetch_add(tx_len, Ordering::Relaxed);
 
     // Remove from pending requests and measure pull latency
     {
         let mut pending = state.pending_getdata.write().await;
         if let Some(req) = pending.remove(&hash) {
             let pull_us = req.first_sent_at.elapsed().as_micros() as u64;
-            state.metrics.flood_tx_pull_latency_sum_us.fetch_add(pull_us, Ordering::Relaxed);
-            state.metrics.flood_tx_pull_latency_count.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_tx_pull_latency_sum_us
+                .fetch_add(pull_us, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_tx_pull_latency_count
+                .fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -1657,8 +1808,14 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
 
     // Record recv-transaction timing
     let elapsed_us = recv_start.elapsed().as_micros() as u64;
-    state.metrics.recv_transaction_sum_us.fetch_add(elapsed_us, Ordering::Relaxed);
-    state.metrics.recv_transaction_count.fetch_add(1, Ordering::Relaxed);
+    state
+        .metrics
+        .recv_transaction_sum_us
+        .fetch_add(elapsed_us, Ordering::Relaxed);
+    state
+        .metrics
+        .recv_transaction_count
+        .fetch_add(1, Ordering::Relaxed);
     state.metrics.update_recv_transaction_max(elapsed_us);
 }
 
@@ -1674,7 +1831,10 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                 match read_framed(&mut stream).await {
                     Ok(data) => {
                         state.metrics.message_read.fetch_add(1, Ordering::Relaxed);
-                        state.metrics.byte_read.fetch_add(data.len() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_read
+                            .fetch_add(data.len() as u64, Ordering::Relaxed);
                         // 32 bytes = request (just the hash)
                         // >32 bytes = response (hash + XDR data)
                         if data.len() == 32 {
@@ -1692,7 +1852,10 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 hash,
                                 from: peer_id,
                             }) {
-                                warn!("Failed to forward TxSetRequested event from {}: {}", peer_id, e);
+                                warn!(
+                                    "Failed to forward TxSetRequested event from {}: {}",
+                                    peer_id, e
+                                );
                             }
                         } else if data.len() > 32 {
                             // This is a TX_SET response to our request
@@ -1705,8 +1868,14 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 let mut pending = state.pending_txset_requests.write().await;
                                 if let Some((_, request_time)) = pending.remove(&hash) {
                                     let fetch_us = request_time.elapsed().as_micros() as u64;
-                                    state.metrics.fetch_txset_sum_us.fetch_add(fetch_us, Ordering::Relaxed);
-                                    state.metrics.fetch_txset_count.fetch_add(1, Ordering::Relaxed);
+                                    state
+                                        .metrics
+                                        .fetch_txset_sum_us
+                                        .fetch_add(fetch_us, Ordering::Relaxed);
+                                    state
+                                        .metrics
+                                        .fetch_txset_count
+                                        .fetch_add(1, Ordering::Relaxed);
                                     true
                                 } else {
                                     false
@@ -1725,7 +1894,10 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                 data: txset_data,
                                 from: peer_id,
                             }) {
-                                warn!("Failed to forward TxSetReceived event from {}: {}", peer_id, e);
+                                warn!(
+                                    "Failed to forward TxSetReceived event from {}: {}",
+                                    peer_id, e
+                                );
                             }
                         }
                     }
@@ -1774,7 +1946,10 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
 
         // Log give-ups
         if !gave_up.is_empty() {
-            state.metrics.flood_abandoned_demands.fetch_add(gave_up.len() as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .flood_abandoned_demands
+                .fetch_add(gave_up.len() as u64, Ordering::Relaxed);
         }
         for hash in &gave_up {
             warn!(
@@ -1785,7 +1960,10 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
 
         // Retry timed-out requests: group by next peer, send batched GETDATA
         if !to_retry.is_empty() {
-            state.metrics.demand_timeout.fetch_add(to_retry.len() as u64, Ordering::Relaxed);
+            state
+                .metrics
+                .demand_timeout
+                .fetch_add(to_retry.len() as u64, Ordering::Relaxed);
 
             // Resolve next peer for each hash and group by peer
             let mut per_peer: HashMap<PeerId, Vec<[u8; 32]>> = HashMap::new();
@@ -1808,7 +1986,8 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
             for (peer, hashes) in per_peer {
                 debug!(
                     "GETDATA_RETRY: Retrying {} TXs to peer {}",
-                    hashes.len(), peer
+                    hashes.len(),
+                    peer
                 );
                 let getdata = GetData { hashes };
                 let msg = TxStreamMessage::GetData(getdata);
@@ -1939,7 +2118,8 @@ mod tests {
     #[tokio::test]
     async fn test_overlay_creation() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let overlay_task = tokio::spawn(async move {
             overlay.run("127.0.0.1", 0).await;
@@ -1959,8 +2139,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, mut events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19101;
         let overlay1_task = tokio::spawn(async move {
@@ -2014,8 +2196,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, mut events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19201;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2077,8 +2261,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19301;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2190,8 +2376,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19501;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2299,8 +2487,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19401;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2354,8 +2544,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, mut events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19601;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2436,8 +2628,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19701;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2496,8 +2690,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, _events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19801;
         tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2554,9 +2750,12 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, _events_a, _tx_events_a, overlay_a) = create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_b, mut events_b, _tx_events_b, overlay_b) = create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_c, mut events_c, _tx_events_c, overlay_c) = create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_a, _events_a, _tx_events_a, overlay_a) =
+            create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_b, mut events_b, _tx_events_b, overlay_b) =
+            create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_c, mut events_c, _tx_events_c, overlay_c) =
+            create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Start all nodes on different ports
         let port_a = 19901;
@@ -2631,9 +2830,12 @@ mod tests {
         let keypair_b = Keypair::generate_ed25519();
         let keypair_c = Keypair::generate_ed25519();
 
-        let (handle_a, _events_a, _tx_events_a, overlay_a) = create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_b, _events_b, mut tx_events_b, overlay_b) = create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle_c, _events_c, mut tx_events_c, overlay_c) = create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_a, _events_a, _tx_events_a, overlay_a) =
+            create_overlay(keypair_a, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_b, _events_b, mut tx_events_b, overlay_b) =
+            create_overlay(keypair_b, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle_c, _events_c, mut tx_events_c, overlay_c) =
+            create_overlay(keypair_c, Arc::new(OverlayMetrics::new())).unwrap();
 
         let port_a = 20001;
         let port_b = 20002;
@@ -2705,7 +2907,8 @@ mod tests {
     #[tokio::test]
     async fn test_clean_shutdown() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         let overlay_task = tokio::spawn(async move {
             overlay.run("127.0.0.1", 20100).await;
@@ -2734,7 +2937,8 @@ mod tests {
     #[tokio::test]
     async fn test_dial_invalid_address() {
         let keypair = Keypair::generate_ed25519();
-        let (handle, _events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle, _events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
         tokio::spawn(async move { overlay.run("127.0.0.1", 20200).await });
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -2760,8 +2964,10 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-        let (handle2, mut events2, mut tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, mut tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         // Use unique ports to avoid conflicts with other tests
         let listen_port = 22901;
@@ -2881,8 +3087,10 @@ async fn test_txset_source_tracking() {
     let keypair2 = Keypair::generate_ed25519();
     let peer2_id = PeerId::from_public_key(&keypair2.public());
 
-    let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20101;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2923,8 +3131,10 @@ async fn test_txset_fetch_flow() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20201;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -2971,8 +3181,10 @@ async fn test_peer_disconnect_detection() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20301;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3007,7 +3219,8 @@ async fn test_peer_disconnect_detection() {
 #[tokio::test]
 async fn test_connect_unreachable_peer_timeout() {
     let keypair = Keypair::generate_ed25519();
-    let (handle, _events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _tx_events, overlay) =
+        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20401;
     tokio::spawn(async move { overlay.run("127.0.0.1", listen_port).await });
@@ -3040,8 +3253,10 @@ async fn test_large_txset_doesnt_block_scp() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20501;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3115,8 +3330,10 @@ async fn test_txset_request_and_response() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20601;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3189,7 +3406,8 @@ async fn test_txset_request_and_response() {
 #[tokio::test]
 async fn test_txset_fetch_no_peers() {
     let keypair = Keypair::generate_ed25519();
-    let (handle, mut events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, mut events, _tx_events, overlay) =
+        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20701;
     tokio::spawn(async move { overlay.run("127.0.0.1", listen_port).await });
@@ -3224,8 +3442,10 @@ async fn test_txset_multiple_concurrent_requests() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20801;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3291,8 +3511,10 @@ async fn test_scp_state_request_on_connection() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 19801;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3354,8 +3576,10 @@ async fn test_quic_keepalive_survives_idle() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     // Use unique ports to avoid conflicts with other tests
     let listen_port = 23001;
@@ -3430,8 +3654,10 @@ async fn test_listen_on_configured_ip() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21101;
 
@@ -3477,7 +3703,8 @@ async fn test_listen_ip_binding() {
     // Test that we can specify different IPs for run()
     // On most systems, 127.0.0.1 and 127.0.0.2 are both valid loopback addresses
     let keypair = Keypair::generate_ed25519();
-    let (handle, _events, _tx_events, overlay) = create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle, _events, _tx_events, overlay) =
+        create_overlay(keypair, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21201;
 
@@ -3504,8 +3731,10 @@ async fn test_scp_broadcast_does_not_block_event_loop() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 21301;
     let port2 = 21302;
@@ -3556,8 +3785,10 @@ async fn test_concurrent_scp_and_txset_writes_to_same_peer() {
     let keypair2 = Keypair::generate_ed25519();
     let peer2_id = PeerId::from_public_key(&keypair2.public());
 
-    let (handle1, _events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, _events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 21001;
     tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
@@ -3655,8 +3886,10 @@ async fn test_pending_txset_cleanup_on_disconnect() {
 
     let peer1_id = PeerId::from_public_key(&keypair1.public());
 
-    let (handle1, mut events1, _tx_events1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx_events1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, mut events2, _tx_events2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     // Start both overlays (ports must not collide with test_20_node_full_mesh 22000-22019)
     let listen_port1 = 22501;
@@ -4146,7 +4379,10 @@ async fn test_scp_relay_no_echo_to_sender() {
             }
         }
     }
-    assert_eq!(echo_count, 0, "Node1 should NOT receive echo of its own SCP message");
+    assert_eq!(
+        echo_count, 0,
+        "Node1 should NOT receive echo of its own SCP message"
+    );
 
     handle1.shutdown().await;
     handle2.shutdown().await;
@@ -4224,10 +4460,11 @@ async fn test_20_node_full_mesh() {
             // Print diagnostics before failing
             for i in 0..N {
                 let count = handles[i].connected_peer_count().await;
-                let auth = metrics[i]
-                    .connection_authenticated
-                    .load(Ordering::Relaxed);
-                eprintln!("Node {}: connected_peer_count={}, connection_authenticated={}", i, count, auth);
+                let auth = metrics[i].connection_authenticated.load(Ordering::Relaxed);
+                eprintln!(
+                    "Node {}: connected_peer_count={}, connection_authenticated={}",
+                    i, count, auth
+                );
             }
             panic!(
                 "Timed out waiting for full mesh: not all {} nodes have {} peers",
@@ -4279,8 +4516,12 @@ async fn test_simultaneous_dial_dedup() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Both sides dial each other simultaneously
-    let addr1: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port1).parse().unwrap();
-    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    let addr1: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port1)
+        .parse()
+        .unwrap();
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2)
+        .parse()
+        .unwrap();
     handle1.dial(addr2).await;
     handle2.dial(addr1).await;
 
@@ -4296,8 +4537,16 @@ async fn test_simultaneous_dial_dedup() {
     // connection_authenticated metric should also be 1 on each side
     let auth1 = m1.connection_authenticated.load(Ordering::Relaxed);
     let auth2 = m2.connection_authenticated.load(Ordering::Relaxed);
-    assert_eq!(auth1, 1, "Node1 connection_authenticated should be 1, got {}", auth1);
-    assert_eq!(auth2, 1, "Node2 connection_authenticated should be 1, got {}", auth2);
+    assert_eq!(
+        auth1, 1,
+        "Node1 connection_authenticated should be 1, got {}",
+        auth1
+    );
+    assert_eq!(
+        auth2, 1,
+        "Node2 connection_authenticated should be 1, got {}",
+        auth2
+    );
 
     // Verify SCP messages flow correctly (streams not corrupted by duplicate)
     handle1.broadcast_scp(b"test_scp_msg".to_vec()).await;
@@ -4309,8 +4558,12 @@ async fn test_simultaneous_dial_dedup() {
                 }
             }
         }
-    }).await;
-    assert!(received.is_ok(), "Node2 should receive SCP message through deduped connection");
+    })
+    .await;
+    assert!(
+        received.is_ok(),
+        "Node2 should receive SCP message through deduped connection"
+    );
 
     handle1.shutdown().await;
     handle2.shutdown().await;
@@ -4325,7 +4578,8 @@ async fn test_dial_peer_skips_when_connected() {
 
     let m1 = Arc::new(OverlayMetrics::new());
     let (handle1, _events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
-    let (handle2, _events2, _tx2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _tx2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 23200;
     let port2 = 23201;
@@ -4334,7 +4588,9 @@ async fn test_dial_peer_skips_when_connected() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // First connection: address-based dial (bootstrap)
-    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2)
+        .parse()
+        .unwrap();
     handle1.dial(addr2.clone()).await;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -4369,8 +4625,10 @@ async fn test_peer_connected_event_emitted() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx1, overlay1) = create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, _events2, _tx2, overlay2) = create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle1, mut events1, _tx1, overlay1) =
+        create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+    let (handle2, _events2, _tx2, overlay2) =
+        create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let port1 = 23300;
     let port2 = 23301;
@@ -4378,7 +4636,9 @@ async fn test_peer_connected_event_emitted() {
     tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2).parse().unwrap();
+    let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2)
+        .parse()
+        .unwrap();
     handle1.dial(addr2).await;
 
     // Should receive PeerConnected event
@@ -4390,9 +4650,13 @@ async fn test_peer_connected_event_emitted() {
                 }
             }
         }
-    }).await;
+    })
+    .await;
 
-    assert!(connected_event.is_ok(), "Should receive PeerConnected event");
+    assert!(
+        connected_event.is_ok(),
+        "Should receive PeerConnected event"
+    );
     let (peer_id, addr) = connected_event.unwrap();
     // The address should contain 127.0.0.1 and port2
     let addr_str = addr.to_string();
@@ -4412,8 +4676,12 @@ async fn test_peer_connected_event_emitted() {
                 }
             }
         }
-    }).await;
-    assert!(disconnect_event.is_ok(), "Should receive PeerDisconnected event");
+    })
+    .await;
+    assert!(
+        disconnect_event.is_ok(),
+        "Should receive PeerDisconnected event"
+    );
     assert_eq!(disconnect_event.unwrap(), peer_id);
 
     handle1.shutdown().await;
@@ -4496,7 +4764,10 @@ async fn test_20_node_mesh_with_dedup() {
         if min_peers >= N - 1 && !converged {
             converge_time = elapsed;
             converged = true;
-            eprintln!("  *** CONVERGED at t={:.0?}ms ***", converge_time.as_millis());
+            eprintln!(
+                "  *** CONVERGED at t={:.0?}ms ***",
+                converge_time.as_millis()
+            );
             break;
         }
         if tokio::time::Instant::now() >= deadline {
@@ -4512,9 +4783,15 @@ async fn test_20_node_mesh_with_dedup() {
 
     // ── Post-convergence stability: sample every 500ms for 3s ──
     eprintln!("\n=== Post-convergence stability (3s hold) ===");
-    let mut prev_out: Vec<u64> = (0..N).map(|i| metrics[i].outbound_establish.load(Ordering::Relaxed)).collect();
-    let mut prev_in: Vec<u64> = (0..N).map(|i| metrics[i].inbound_establish.load(Ordering::Relaxed)).collect();
-    let mut prev_drop: Vec<u64> = (0..N).map(|i| metrics[i].outbound_drop.load(Ordering::Relaxed)).collect();
+    let mut prev_out: Vec<u64> = (0..N)
+        .map(|i| metrics[i].outbound_establish.load(Ordering::Relaxed))
+        .collect();
+    let mut prev_in: Vec<u64> = (0..N)
+        .map(|i| metrics[i].inbound_establish.load(Ordering::Relaxed))
+        .collect();
+    let mut prev_drop: Vec<u64> = (0..N)
+        .map(|i| metrics[i].outbound_drop.load(Ordering::Relaxed))
+        .collect();
 
     for tick in 1..=6 {
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -4541,17 +4818,25 @@ async fn test_20_node_mesh_with_dedup() {
         }
         eprintln!(
             "  t=+{:.1}s  new_out_est={:3}  new_in_est={:3}  new_drops={}  peer_counts_stable={}",
-            tick as f64 * 0.5, delta_out, delta_in, delta_drop, !peer_counts_changed
+            tick as f64 * 0.5,
+            delta_out,
+            delta_in,
+            delta_drop,
+            !peer_counts_changed
         );
 
         assert_eq!(delta_drop, 0, "Drops at t=+{:.1}s", tick as f64 * 0.5);
-        assert!(!peer_counts_changed, "Peer counts changed at t=+{:.1}s", tick as f64 * 0.5);
+        assert!(
+            !peer_counts_changed,
+            "Peer counts changed at t=+{:.1}s",
+            tick as f64 * 0.5
+        );
     }
 
     eprintln!("\n=== Final per-node metrics ===\n");
 
     // ── Detailed per-node audit ──
-    let expected_dials = (N - 1) as u64;  // each node dials N-1 others
+    let expected_dials = (N - 1) as u64; // each node dials N-1 others
     let mut total_outbound_establish = 0u64;
     let mut total_inbound_establish = 0u64;
     let mut total_outbound_drop = 0u64;
@@ -4584,8 +4869,16 @@ async fn test_20_node_mesh_with_dedup() {
 
         assert_eq!(count, N - 1, "Node {} peer count", i);
         assert_eq!(auth, (N - 1) as i64, "Node {} auth metric", i);
-        assert_eq!(out_attempt, expected_dials, "Node {} should have dialed exactly {} peers", i, expected_dials);
-        assert_eq!(out_drop, 0, "Node {} should have 0 drops (no reconnects)", i);
+        assert_eq!(
+            out_attempt, expected_dials,
+            "Node {} should have dialed exactly {} peers",
+            i, expected_dials
+        );
+        assert_eq!(
+            out_drop, 0,
+            "Node {} should have 0 drops (no reconnects)",
+            i
+        );
         assert_eq!(pending, 0, "Node {} should have 0 pending connections", i);
 
         if out_drop > 0 {
@@ -4595,16 +4888,23 @@ async fn test_20_node_mesh_with_dedup() {
 
     eprintln!(
         "\nTotals: out_establish={} in_establish={} drops={} duplicate_transport_conns={}",
-        total_outbound_establish, total_inbound_establish, total_outbound_drop, total_duplicate_conns
+        total_outbound_establish,
+        total_inbound_establish,
+        total_outbound_drop,
+        total_duplicate_conns
     );
     eprintln!("Convergence time: {:.0?}ms", converge_time.as_millis());
     eprintln!(
         "Unique peer pairs: {} (expected C({},2) = {})",
-        total_outbound_establish / 2,  // rough: each pair has ~2 outbound establishes
-        N, N * (N - 1) / 2
+        total_outbound_establish / 2, // rough: each pair has ~2 outbound establishes
+        N,
+        N * (N - 1) / 2
     );
 
-    assert!(!any_reconnect, "No node should have experienced a reconnect/drop");
+    assert!(
+        !any_reconnect,
+        "No node should have experienced a reconnect/drop"
+    );
 
     // Verify SCP still flows: node 0 broadcasts, all others receive
     handles[0].broadcast_scp(b"mesh_test_scp".to_vec()).await;
@@ -4620,7 +4920,8 @@ async fn test_20_node_mesh_with_dedup() {
                     }
                 }
             }
-        }).await;
+        })
+        .await;
         if result.is_ok() {
             received_count += 1;
         }

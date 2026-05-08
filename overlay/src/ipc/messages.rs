@@ -401,10 +401,7 @@ mod tests {
             MessageType::try_from(11).unwrap(),
             MessageType::RequestTxSet
         );
-        assert_eq!(
-            MessageType::try_from(12).unwrap(),
-            MessageType::CacheTxSet
-        );
+        assert_eq!(MessageType::try_from(12).unwrap(), MessageType::CacheTxSet);
         assert_eq!(
             MessageType::try_from(13).unwrap(),
             MessageType::RequestOverlayMetrics

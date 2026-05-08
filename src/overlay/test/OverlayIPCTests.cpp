@@ -866,8 +866,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
     {
         SECTION(run.label)
         {
-            uint16_t basePort =
-                static_cast<uint16_t>(11626 + sectionIdx * 10);
+            uint16_t basePort = static_cast<uint16_t>(11626 + sectionIdx * 10);
             LOG_INFO(DEFAULT_LOG, "========================================");
             LOG_INFO(DEFAULT_LOG, "Starting stress test: {}", run.label);
             LOG_INFO(DEFAULT_LOG, "========================================");
@@ -903,8 +902,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
 
             auto cfg1 = simulation->newConfig();
             cfg1.PEER_PORT = basePort + 1;
-            cfg1.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort));
+            cfg1.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
             cfg1.KNOWN_PEERS.push_back(
                 fmt::format("127.0.0.1:{}", basePort + 2));
             cfg1.KNOWN_PEERS.push_back(
@@ -914,8 +912,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
 
             auto cfg2 = simulation->newConfig();
             cfg2.PEER_PORT = basePort + 2;
-            cfg2.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort));
+            cfg2.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
             cfg2.KNOWN_PEERS.push_back(
                 fmt::format("127.0.0.1:{}", basePort + 1));
             cfg2.KNOWN_PEERS.push_back(
@@ -925,8 +922,7 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
 
             auto cfg3 = simulation->newConfig();
             cfg3.PEER_PORT = basePort + 3;
-            cfg3.KNOWN_PEERS.push_back(
-                fmt::format("127.0.0.1:{}", basePort));
+            cfg3.KNOWN_PEERS.push_back(fmt::format("127.0.0.1:{}", basePort));
             cfg3.KNOWN_PEERS.push_back(
                 fmt::format("127.0.0.1:{}", basePort + 1));
             cfg3.KNOWN_PEERS.push_back(
@@ -1477,7 +1473,8 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
 }
 
 /**
- * Test that Rust overlay correctly handles TX sets at protocol 19 (pre-Soroban).
+ * Test that Rust overlay correctly handles TX sets at protocol 19
+ * (pre-Soroban).
  *
  * Protocol < 20: Uses TransactionSet (non-generalized)
  * Protocol >= 20: Uses GeneralizedTransactionSet
@@ -1549,8 +1546,7 @@ TEST_CASE("Rust overlay pre-Soroban TX set handling",
     REQUIRE(lcl.header.ledgerVersion == 19);
 
     REQUIRE(simulation->haveAllExternalized(5, 2));
-    LOG_INFO(DEFAULT_LOG,
-             "✓ Pre-Soroban consensus works with Rust overlay");
+    LOG_INFO(DEFAULT_LOG, "✓ Pre-Soroban consensus works with Rust overlay");
 }
 
 /**

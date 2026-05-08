@@ -91,8 +91,7 @@ OverlayIPC::findOverlayBinaryPath()
                 directory = ".";
             }
             auto candidate =
-                (std::filesystem::path(directory) / "stellar-overlay")
-                    .string();
+                (std::filesystem::path(directory) / "stellar-overlay").string();
             auto resolved = absoluteIfExecutable(candidate);
             if (resolved)
             {
@@ -761,9 +760,10 @@ OverlayIPC::requestMetrics(int timeoutMs)
     std::unique_lock<std::mutex> lock(mMetricsMutex);
     mPendingMetricsResponse.reset();
 
-    bool gotResponse = mMetricsCv.wait_for(
-        lock, std::chrono::milliseconds(timeoutMs),
-        [this] { return mPendingMetricsResponse.has_value(); });
+    bool gotResponse =
+        mMetricsCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] {
+            return mPendingMetricsResponse.has_value();
+        });
 
     if (!gotResponse)
     {
