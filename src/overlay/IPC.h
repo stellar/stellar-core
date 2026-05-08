@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -155,6 +156,9 @@ class IPCChannel
     /// Receive a message. Blocks until message available or connection closed.
     std::optional<IPCMessage> receive();
 
+    /// Shut down the socket. Unblocks any concurrent receive() call.
+    void shutdown();
+
     /// Check if connection is still open
     bool isConnected() const;
 
@@ -169,7 +173,7 @@ class IPCChannel
     explicit IPCChannel(int socket);
 
     int mSocket;
-    bool mConnected;
+    std::atomic<bool> mConnected;
 };
 
 /**
