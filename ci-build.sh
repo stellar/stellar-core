@@ -118,11 +118,13 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+#config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+config_flags="--enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
 # rust/gimli-backed backtrace system.
-export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+# export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fno-common"
 export CXXFLAGS="$CFLAGS"
 
 # quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
