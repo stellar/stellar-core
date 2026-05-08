@@ -178,14 +178,20 @@ OverlayIPC::shutdown()
         mChannel->send(msg);
     }
 
-    // Close channel (will unblock reader)
-    mChannel.reset();
+    // Shut down the socket to unblock the reader thread before destroying the
+    // channel object it is using.
+    if (mChannel)
+    {
+        mChannel->shutdown();
+    }
 
     // Wait for reader thread
     if (mReaderThread.joinable())
     {
         mReaderThread.join();
     }
+
+    mChannel.reset();
 
     // Wait for overlay process
     if (mOverlayPid > 0)

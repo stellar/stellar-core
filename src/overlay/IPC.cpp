@@ -159,6 +159,7 @@ IPCChannel::~IPCChannel()
 {
     if (mSocket >= 0)
     {
+        shutdown();
         close(mSocket);
     }
 }
@@ -196,7 +197,7 @@ IPCChannel::fromSocket(int socket)
 bool
 IPCChannel::send(IPCMessage const& msg)
 {
-    if (!mConnected)
+    if (!mConnected.load())
     {
         return false;
     }
@@ -204,7 +205,7 @@ IPCChannel::send(IPCMessage const& msg)
     bool result = ipc::sendMessage(mSocket, msg);
     if (!result)
     {
-        mConnected = false;
+        mConnected.store(false);
     }
     return result;
 }
@@ -212,7 +213,7 @@ IPCChannel::send(IPCMessage const& msg)
 std::optional<IPCMessage>
 IPCChannel::receive()
 {
-    if (!mConnected)
+    if (!mConnected.load())
     {
         return std::nullopt;
     }
@@ -220,15 +221,24 @@ IPCChannel::receive()
     auto msg = ipc::receiveMessage(mSocket);
     if (!msg)
     {
-        mConnected = false;
+        mConnected.store(false);
     }
     return msg;
+}
+
+void
+IPCChannel::shutdown()
+{
+    if (mConnected.exchange(false))
+    {
+        ::shutdown(mSocket, SHUT_RDWR);
+    }
 }
 
 bool
 IPCChannel::isConnected() const
 {
-    return mConnected;
+    return mConnected.load();
 }
 
 // ============================================================================
