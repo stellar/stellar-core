@@ -5,12 +5,12 @@
 #include "lib/catch.hpp"
 #include "overlay/IPC.h"
 #include "util/TmpDir.h"
+#include <cstring>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
-#include <cstring>
 
 using namespace stellar;
 

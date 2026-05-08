@@ -57,8 +57,7 @@ class OverlayIPC
      * @param peerPort Port for peer TCP connections (passed to overlay)
      */
     OverlayIPC(std::optional<std::string> socketPath,
-               std::optional<std::string> overlayBinaryPath,
-               uint16_t peerPort);
+               std::optional<std::string> overlayBinaryPath, uint16_t peerPort);
 
     static std::string defaultSocketPath(uint16_t peerPort);
     static std::optional<std::string> findOverlayBinaryPath();

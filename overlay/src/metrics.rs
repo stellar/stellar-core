@@ -20,7 +20,6 @@ const ORD: Ordering = Ordering::Relaxed;
 /// field `foo_bar`. Underscores replace dots and hyphens.
 pub struct OverlayMetrics {
     // ═══ Gauges (instantaneous values, reported as medida Counters) ═══
-
     /// overlay.connection.authenticated — number of authenticated (connected) peers
     pub connection_authenticated: AtomicI64,
     /// overlay.connection.pending — pending connections (dialing)
@@ -39,7 +38,6 @@ pub struct OverlayMetrics {
     pub recv_transaction_max_us: AtomicU64,
 
     // ═══ Monotonic counters (reported as medida Meters via delta) ═══
-
     /// overlay.byte.read — total bytes received from peers
     pub byte_read: AtomicU64,
     /// overlay.byte.write — total bytes sent to peers

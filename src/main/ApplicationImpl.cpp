@@ -514,7 +514,8 @@ ApplicationImpl::getJsonInfo(bool verbose)
         }
     }
 
-    // Peer counts from Rust overlay metrics (synced via mAuthenticatedPeersSize/mPendingPeersSize)
+    // Peer counts from Rust overlay metrics (synced via
+    // mAuthenticatedPeersSize/mPendingPeersSize)
     auto& overlayMetrics = getOverlayManager().getOverlayMetrics();
     info["peers"]["authenticated_count"] =
         static_cast<int>(overlayMetrics.mAuthenticatedPeersSize.count());

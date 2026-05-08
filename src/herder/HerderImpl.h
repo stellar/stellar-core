@@ -100,13 +100,13 @@ class HerderImpl : public Herder
     void emitEnvelope(SCPEnvelope const& envelope);
 
 #ifdef BUILD_TESTS
-    TxSubmitStatus
-    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool force = false, bool isLoadgenTx = false) override;
+    TxSubmitStatus recvTransaction(TransactionFrameBasePtr tx,
+                                   bool submittedFromSelf, bool force = false,
+                                   bool isLoadgenTx = false) override;
 #else
     TxSubmitStatus recvTransaction(TransactionFrameBasePtr tx,
-                                                bool submittedFromSelf,
-                                                bool force = false) override;
+                                   bool submittedFromSelf,
+                                   bool force = false) override;
 #endif
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;

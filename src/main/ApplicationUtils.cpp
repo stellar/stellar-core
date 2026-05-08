@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/ApplicationUtils.h"
-#include "main/AppConnector.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/ApplyBucketsWork.h"
@@ -22,6 +21,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "main/AppConnector.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"

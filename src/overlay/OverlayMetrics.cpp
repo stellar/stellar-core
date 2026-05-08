@@ -56,8 +56,7 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewCounter({"overlay", "connection", "pending"}))
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
-    , mFetchTxSetTimer(
-          app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
 {
 }
 }
