@@ -226,9 +226,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PATH_TO_PROTOCOL_23_CORRUPTION_FILE = "";
 
     // Rust overlay defaults
-    OVERLAY_BINARY_PATH =
-        ""; // Empty uses PATH lookup, set to custom path if needed
-    OVERLAY_SOCKET_PATH = ""; // Generated automatically if empty
+    OVERLAY_BINARY_PATH = std::nullopt;
+    OVERLAY_SOCKET_PATH = std::nullopt;
 
     LOG_COLOR = false;
 

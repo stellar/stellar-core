@@ -5,25 +5,102 @@
 #include "overlay/OverlayIPC.h"
 #include "crypto/Hex.h"
 #include "util/Logging.h"
-#include "util/types.h"
 #include "xdr/Stellar-ledger.h"
+#include <fmt/format.h>
 #include <xdrpp/marshal.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <filesystem>
 #include <signal.h>
+#include <sstream>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <condition_variable>
+#include <vector>
 
 namespace stellar
 {
 
-OverlayIPC::OverlayIPC(std::string socketPath, std::string overlayBinaryPath,
+namespace
+{
+
+bool
+isExecutable(std::string const& path)
+{
+    return access(path.c_str(), X_OK) == 0;
+}
+
+std::optional<std::string>
+absoluteIfExecutable(std::string const& path)
+{
+    if (isExecutable(path))
+    {
+        return std::filesystem::absolute(path).string();
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+OverlayIPC::OverlayIPC(std::optional<std::string> socketPath,
+                       std::optional<std::string> overlayBinaryPath,
                        uint16_t peerPort)
-    : mSocketPath(std::move(socketPath))
+    : mSocketPath(socketPath && !socketPath->empty()
+                      ? std::move(*socketPath)
+                      : defaultSocketPath(peerPort))
     , mOverlayBinaryPath(std::move(overlayBinaryPath))
     , mPeerPort(peerPort)
 {
+}
+
+std::string
+OverlayIPC::defaultSocketPath(uint16_t peerPort)
+{
+    return fmt::format("/tmp/stellar-overlay-{}-{}.sock", getpid(), peerPort);
+}
+
+std::optional<std::string>
+OverlayIPC::findOverlayBinaryPath()
+{
+    std::vector<std::string> paths = {
+        "stellar-overlay",
+        "../stellar-overlay",
+        "target/release/stellar-overlay",
+        "../target/release/stellar-overlay",
+        "target/debug/stellar-overlay",
+        "../target/debug/stellar-overlay",
+    };
+
+    for (auto const& path : paths)
+    {
+        auto resolved = absoluteIfExecutable(path);
+        if (resolved)
+        {
+            return resolved;
+        }
+    }
+
+    if (auto const pathEnv = std::getenv("PATH"))
+    {
+        std::stringstream pathStream(pathEnv);
+        std::string directory;
+        while (std::getline(pathStream, directory, ':'))
+        {
+            if (directory.empty())
+            {
+                directory = ".";
+            }
+            auto candidate =
+                (std::filesystem::path(directory) / "stellar-overlay").string();
+            auto resolved = absoluteIfExecutable(candidate);
+            if (resolved)
+            {
+                return resolved;
+            }
+        }
+    }
+
+    return std::nullopt;
 }
 
 OverlayIPC::~OverlayIPC()
@@ -131,6 +208,13 @@ OverlayIPC::shutdown()
 bool
 OverlayIPC::spawnOverlay()
 {
+    auto overlayBinaryPath = resolveOverlayBinaryPath();
+    if (!overlayBinaryPath)
+    {
+        CLOG_ERROR(Overlay, "Unable to locate stellar-overlay binary");
+        return false;
+    }
+
     pid_t pid = fork();
     if (pid < 0)
     {
@@ -143,7 +227,7 @@ OverlayIPC::spawnOverlay()
         // Child process - exec overlay binary
         // Arguments: <binary> --listen <socket-path> --peer-port <port>
         std::string portStr = std::to_string(mPeerPort);
-        execl(mOverlayBinaryPath.c_str(), mOverlayBinaryPath.c_str(),
+        execl(overlayBinaryPath->c_str(), overlayBinaryPath->c_str(),
               "--listen", mSocketPath.c_str(), "--peer-port", portStr.c_str(),
               nullptr);
 
@@ -155,6 +239,16 @@ OverlayIPC::spawnOverlay()
     mOverlayPid = pid;
     CLOG_INFO(Overlay, "Spawned overlay process (pid={})", pid);
     return true;
+}
+
+std::optional<std::string>
+OverlayIPC::resolveOverlayBinaryPath() const
+{
+    if (mOverlayBinaryPath && !mOverlayBinaryPath->empty())
+    {
+        return mOverlayBinaryPath;
+    }
+    return findOverlayBinaryPath();
 }
 
 void
@@ -666,9 +760,10 @@ OverlayIPC::requestMetrics(int timeoutMs)
     std::unique_lock<std::mutex> lock(mMetricsMutex);
     mPendingMetricsResponse.reset();
 
-    bool gotResponse = mMetricsCv.wait_for(
-        lock, std::chrono::milliseconds(timeoutMs),
-        [this] { return mPendingMetricsResponse.has_value(); });
+    bool gotResponse =
+        mMetricsCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] {
+            return mPendingMetricsResponse.has_value();
+        });
 
     if (!gotResponse)
     {

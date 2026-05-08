@@ -128,7 +128,8 @@
 
 //         // Add a ban via the persistor
 //         app->getBannedAccountsPersistor().addBannedAccounts({addr1});
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 1);
 //     }
 
@@ -180,13 +181,13 @@
 
 //         // Without force: filtered
 //         REQUIRE(
-//             app->getHerder().recvTransaction(tx, false, /*force=*/false).code ==
-//             TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+//             app->getHerder().recvTransaction(tx, false, /*force=*/false).code
+//             == TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
 //         // With force: bypasses account filter
 //         REQUIRE(
-//             app->getHerder().recvTransaction(tx, false, /*force=*/true).code ==
-//             TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+//             app->getHerder().recvTransaction(tx, false, /*force=*/true).code
+//             == TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 //     }
 
 //     SECTION("force flag bypasses ban for fee-bump with banned fee source")
@@ -209,13 +210,13 @@
 
 //         // Without force: filtered
 //         REQUIRE(
-//             app->getHerder().recvTransaction(fb, false, /*force=*/false).code ==
-//             TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+//             app->getHerder().recvTransaction(fb, false, /*force=*/false).code
+//             == TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
 //         // With force: bypasses account filter
 //         REQUIRE(
-//             app->getHerder().recvTransaction(fb, false, /*force=*/true).code ==
-//             TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+//             app->getHerder().recvTransaction(fb, false, /*force=*/true).code
+//             == TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 //     }
 
 //     SECTION("ban via command persists and filters transactions")
@@ -239,11 +240,12 @@
 //         auto acc = getAccount("acc");
 //         auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
 //         REQUIRE(
-//             app->getHerder().recvTransaction(tx, false, /*force=*/false).code ==
-//             TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+//             app->getHerder().recvTransaction(tx, false, /*force=*/false).code
+//             == TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
 //         // Verify persisted
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 1);
 //     }
 
@@ -260,13 +262,17 @@
 //         auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
 
 //         // Add first account
-//         app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr1);
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         app->getCommandHandler().manualCmd("banaccounts?accountids=" +
+//         addr1);
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 1);
 
 //         // Add second account (additive, not replacing)
-//         app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr2);
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         app->getCommandHandler().manualCmd("banaccounts?accountids=" +
+//         addr2);
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 2);
 //     }
 
@@ -293,7 +299,8 @@
 //         auto key1 = SecretKey::pseudoRandomForTesting();
 //         auto addr1 = KeyUtils::toStrKey(key1.getPublicKey());
 
-//         app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr1);
+//         app->getCommandHandler().manualCmd("banaccounts?accountids=" +
+//         addr1);
 
 //         auto result = app->getCommandHandler().manualCmd("banaccounts");
 //         REQUIRE(result.find("bannedAccounts") != std::string::npos);
@@ -350,9 +357,11 @@
 //         auto addr2 = KeyUtils::toStrKey(key2.getPublicKey());
 
 //         // Ban both
-//         app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr1 +
+//         app->getCommandHandler().manualCmd("banaccounts?accountids=" + addr1
+//         +
 //                                            "," + addr2);
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 2);
 
 //         // Unban one
@@ -361,11 +370,13 @@
 //         REQUIRE(result.find("banned accounts updated") != std::string::npos);
 //         REQUIRE(result.find("\"removed\": 1") != std::string::npos);
 
-//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size() ==
+//         REQUIRE(app->getBannedAccountsPersistor().getBannedAccounts().size()
+//         ==
 //                 1);
 
 //         // Verify addr2 is still banned
-//         auto keys = app->getBannedAccountsPersistor().getBannedAccountStrKeys();
+//         auto keys =
+//         app->getBannedAccountsPersistor().getBannedAccountStrKeys();
 //         REQUIRE(std::find(keys.begin(), keys.end(), addr2) != keys.end());
 //         REQUIRE(std::find(keys.begin(), keys.end(), addr1) == keys.end());
 //     }
@@ -390,8 +401,8 @@
 //                 TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
 
 //         // Unban
-//         app->getCommandHandler().manualCmd("unbanaccounts?accountids=" + addr);
-//         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+//         app->getCommandHandler().manualCmd("unbanaccounts?accountids=" +
+//         addr); REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
 //                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 //     }
 

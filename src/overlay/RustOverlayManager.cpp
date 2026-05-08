@@ -7,9 +7,9 @@
 #include "herder/TxSetFrame.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "util/Backtrace.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-overlay.h"
-#include <fmt/format.h>
 #include <medida/counter.h>
 #include <medida/histogram.h>
 #include <medida/meter.h>
@@ -23,25 +23,11 @@ RustOverlayManager::RustOverlayManager(Application& app)
 {
     auto const& cfg = mApp.getConfig();
 
-    std::string socketPath = cfg.OVERLAY_SOCKET_PATH;
-    if (socketPath.empty())
-    {
-        socketPath = fmt::format("/tmp/stellar-overlay-{}-{}.sock", getpid(),
-                                 cfg.HTTP_PORT);
-    }
+    CLOG_INFO(Overlay, "Creating RustOverlayManager with port={}",
+              cfg.PEER_PORT);
 
-    std::string binaryPath = cfg.OVERLAY_BINARY_PATH;
-    if (binaryPath.empty())
-    {
-        binaryPath = "stellar-overlay";
-    }
-
-    CLOG_INFO(Overlay,
-              "Creating RustOverlayManager with socket={}, binary={}, port={}",
-              socketPath, binaryPath, cfg.PEER_PORT);
-
-    mOverlayIPC =
-        std::make_unique<OverlayIPC>(socketPath, binaryPath, cfg.PEER_PORT);
+    mOverlayIPC = std::make_unique<OverlayIPC>(
+        cfg.OVERLAY_SOCKET_PATH, cfg.OVERLAY_BINARY_PATH, cfg.PEER_PORT);
 }
 
 RustOverlayManager::~RustOverlayManager()
@@ -88,6 +74,7 @@ RustOverlayManager::start()
     if (!mOverlayIPC->start())
     {
         CLOG_ERROR(Overlay, "Failed to start Rust overlay process");
+        printCurrentBacktrace();
         throw std::runtime_error("Failed to start Rust overlay");
     }
 
@@ -308,8 +295,8 @@ RustOverlayManager::syncOverlayMetrics()
     auto markDelta = [&](medida::Meter& meter, std::string const& jsonField) {
         if (root.isMember(jsonField))
         {
-            markMeterDelta(meter, root[jsonField].asInt64(),
-                           mLastSyncedValues, jsonField);
+            markMeterDelta(meter, root[jsonField].asInt64(), mLastSyncedValues,
+                           jsonField);
         }
     };
 
@@ -348,8 +335,7 @@ RustOverlayManager::syncOverlayMetrics()
     if (root.isMember("recv_scp_sum_us") && root.isMember("recv_scp_count"))
     {
         auto sum = static_cast<int64_t>(root["recv_scp_sum_us"].asUInt64());
-        auto count =
-            static_cast<int64_t>(root["recv_scp_count"].asUInt64());
+        auto count = static_cast<int64_t>(root["recv_scp_count"].asUInt64());
         auto lastSum = mLastSyncedValues["recv_scp_sum_us"];
         auto lastCount = mLastSyncedValues["recv_scp_count"];
         auto deltaSum = sum - lastSum;
@@ -359,8 +345,7 @@ RustOverlayManager::syncOverlayMetrics()
             auto avgUs = deltaSum / deltaCount;
             for (int64_t i = 0; i < deltaCount; ++i)
             {
-                m.mRecvSCPMessageTimer.Update(
-                    std::chrono::microseconds{avgUs});
+                m.mRecvSCPMessageTimer.Update(std::chrono::microseconds{avgUs});
             }
         }
         mLastSyncedValues["recv_scp_sum_us"] = sum;
@@ -373,8 +358,8 @@ RustOverlayManager::syncOverlayMetrics()
     {
         auto sum =
             static_cast<int64_t>(root["flood_tx_batch_size_sum"].asUInt64());
-        auto count = static_cast<int64_t>(
-            root["flood_tx_batch_size_count"].asUInt64());
+        auto count =
+            static_cast<int64_t>(root["flood_tx_batch_size_count"].asUInt64());
         auto lastSum = mLastSyncedValues["flood_tx_batch_size_sum"];
         auto lastCount = mLastSyncedValues["flood_tx_batch_size_count"];
         auto deltaSum = sum - lastSum;
@@ -395,10 +380,8 @@ RustOverlayManager::syncOverlayMetrics()
     if (root.isMember("fetch_txset_sum_us") &&
         root.isMember("fetch_txset_count"))
     {
-        auto sum =
-            static_cast<int64_t>(root["fetch_txset_sum_us"].asUInt64());
-        auto count =
-            static_cast<int64_t>(root["fetch_txset_count"].asUInt64());
+        auto sum = static_cast<int64_t>(root["fetch_txset_sum_us"].asUInt64());
+        auto count = static_cast<int64_t>(root["fetch_txset_count"].asUInt64());
         auto lastSum = mLastSyncedValues["fetch_txset_sum_us"];
         auto lastCount = mLastSyncedValues["fetch_txset_count"];
         auto deltaSum = sum - lastSum;
@@ -408,8 +391,7 @@ RustOverlayManager::syncOverlayMetrics()
             auto avgUs = deltaSum / deltaCount;
             for (int64_t i = 0; i < deltaCount; ++i)
             {
-                m.mFetchTxSetTimer.Update(
-                    std::chrono::microseconds{avgUs});
+                m.mFetchTxSetTimer.Update(std::chrono::microseconds{avgUs});
             }
         }
         mLastSyncedValues["fetch_txset_sum_us"] = sum;
@@ -433,8 +415,7 @@ RustOverlayManager::syncOverlayMetrics()
             auto avgUs = deltaSum / deltaCount;
             for (int64_t i = 0; i < deltaCount; ++i)
             {
-                m.mTxPullLatency.Update(
-                    std::chrono::microseconds{avgUs});
+                m.mTxPullLatency.Update(std::chrono::microseconds{avgUs});
             }
         }
         mLastSyncedValues["flood_tx_pull_latency_sum_us"] = sum;
