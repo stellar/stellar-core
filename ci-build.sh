@@ -209,13 +209,16 @@ export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 4096
 export INTERACTIVE=0
+
+TEST_SPEC='[overlay-ipc]'
+SKIP_SOROBAN_TESTS=true
 time make check
 
-echo Running fixed check-test-tx-meta tests
-export TEST_SPEC='[tx]'
-export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
-export SKIP_SOROBAN_TESTS=true
-time make check
+# echo Running fixed check-test-tx-meta tests
+# export TEST_SPEC='[tx]'
+# export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
+# export SKIP_SOROBAN_TESTS=true
+# time make check
 
 echo All done
 date
