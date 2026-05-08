@@ -291,6 +291,7 @@ class TxGenerator
 
     void updateMinBalance();
     bool isLive(LedgerKey const& lk, uint32_t ledgerNum) const;
+    void maybeLoadAccountSequenceNumber(TestAccountPtr const& account);
 
     Application& mApp;
 
