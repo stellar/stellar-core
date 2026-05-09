@@ -3,10 +3,8 @@
 //! Network communication is handled by the libp2p QUIC overlay.
 //! This module provides:
 //! - Transaction mempool (fee-ordered, with dedup)
-//! - TX set caching for consensus
 //! - Core command handling for mempool operations
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -49,15 +47,6 @@ pub enum CoreCommand {
         tx_hashes: Vec<[u8; 32]>,
         reply: Option<mpsc::Sender<()>>,
     },
-
-    /// Fetch a TX set from peers by hash (libp2p handles network)
-    FetchTxSet {
-        hash: [u8; 32],
-        reply: mpsc::Sender<Option<Vec<u8>>>,
-    },
-
-    /// Cache a locally-built TX set
-    CacheTxSet { hash: [u8; 32], xdr: Vec<u8> },
 }
 
 /// Events from Overlay to Core
@@ -87,9 +76,6 @@ pub struct Overlay {
 
     /// TX mempool
     mempool: Arc<RwLock<Mempool>>,
-
-    /// Local TX set cache (hash -> XDR)
-    local_tx_sets: Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>>,
 }
 
 impl Overlay {
@@ -98,7 +84,6 @@ impl Overlay {
         Self {
             core_commands,
             mempool: Arc::new(RwLock::new(Mempool::new(100000, Duration::from_secs(300)))),
-            local_tx_sets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -177,32 +162,12 @@ impl Overlay {
                     let _ = tx.send(()).await;
                 }
             }
-
-            CoreCommand::FetchTxSet { hash, reply } => {
-                let cache = self.local_tx_sets.read().await;
-                if let Some(xdr) = cache.get(&hash) {
-                    let _ = reply.send(Some(xdr.clone())).await;
-                } else {
-                    let _ = reply.send(None).await;
-                }
-            }
-
-            CoreCommand::CacheTxSet { hash, xdr } => {
-                info!("Caching TX set {:?} ({} bytes)", &hash[..4], xdr.len());
-                let mut cache = self.local_tx_sets.write().await;
-                cache.insert(hash, xdr);
-            }
         }
     }
 
     /// Get mempool reference (for testing)
     pub fn mempool(&self) -> &Arc<RwLock<Mempool>> {
         &self.mempool
-    }
-
-    /// Get TX set cache reference (for testing)
-    pub fn tx_set_cache(&self) -> &Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>> {
-        &self.local_tx_sets
     }
 }
 
@@ -252,21 +217,6 @@ impl OverlayHandle {
             reply: Some(reply_tx),
         });
         let _ = reply_rx.recv().await;
-    }
-
-    /// Cache a TX set.
-    pub fn cache_tx_set(&self, hash: [u8; 32], xdr: Vec<u8>) {
-        let _ = self.cmd_tx.send(CoreCommand::CacheTxSet { hash, xdr });
-    }
-
-    /// Fetch a TX set from cache.
-    pub async fn fetch_tx_set(&self, hash: [u8; 32]) -> Option<Vec<u8>> {
-        let (reply_tx, mut reply_rx) = mpsc::channel(1);
-        let _ = self.cmd_tx.send(CoreCommand::FetchTxSet {
-            hash,
-            reply: reply_tx,
-        });
-        reply_rx.recv().await.flatten()
     }
 }
 
@@ -342,32 +292,6 @@ mod tests {
         // Only one should remain
         let mp = mempool.read().await;
         assert_eq!(mp.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_cache_and_fetch_tx_set() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        let hash = [42u8; 32];
-        let xdr = vec![1, 2, 3, 4, 5];
-
-        // Cache it
-        handle.cache_tx_set(hash, xdr.clone());
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Fetch it
-        let result = handle.fetch_tx_set(hash).await;
-        assert_eq!(result, Some(xdr));
-
-        // Fetch non-existent
-        let result = handle.fetch_tx_set([0u8; 32]).await;
-        assert_eq!(result, None);
     }
 
     // ═══ Additional Tests ═══
@@ -466,56 +390,6 @@ mod tests {
 
         let top = handle.get_top_txs(10).await;
         assert!(top.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_cache_multiple_tx_sets() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Cache multiple TX sets
-        let hash1 = [1u8; 32];
-        let hash2 = [2u8; 32];
-        let hash3 = [3u8; 32];
-
-        handle.cache_tx_set(hash1, vec![1, 1, 1]);
-        handle.cache_tx_set(hash2, vec![2, 2, 2]);
-        handle.cache_tx_set(hash3, vec![3, 3, 3]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // All should be retrievable
-        assert_eq!(handle.fetch_tx_set(hash1).await, Some(vec![1, 1, 1]));
-        assert_eq!(handle.fetch_tx_set(hash2).await, Some(vec![2, 2, 2]));
-        assert_eq!(handle.fetch_tx_set(hash3).await, Some(vec![3, 3, 3]));
-    }
-
-    #[tokio::test]
-    async fn test_cache_overwrite_tx_set() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        let hash = [42u8; 32];
-
-        // Cache original
-        handle.cache_tx_set(hash, vec![1, 2, 3]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Overwrite with new data
-        handle.cache_tx_set(hash, vec![4, 5, 6, 7]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Should return new data
-        assert_eq!(handle.fetch_tx_set(hash).await, Some(vec![4, 5, 6, 7]));
     }
 
     #[tokio::test]
