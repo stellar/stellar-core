@@ -291,7 +291,10 @@ mod tests {
 
         let retrieved = cache.get(&[1u8; 32]);
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().ledger_seq, 100);
+        let retrieved = retrieved.unwrap();
+        assert_eq!(retrieved.ledger_seq, 100);
+        assert_eq!(retrieved.xdr, vec![1, 2, 3]);
+        assert!(cache.get(&[2u8; 32]).is_none());
     }
 
     #[test]

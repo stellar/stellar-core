@@ -430,6 +430,24 @@ fn collect_local_addrs(libp2p_port: u16) -> Arc<RwLock<HashSet<SocketAddr>>> {
     local_addrs
 }
 
+fn get_cached_tx_set_xdr(tx_set_cache: &TxSetCache, hash: &Hash256) -> Option<Vec<u8>> {
+    tx_set_cache.get(hash).map(|cached| cached.xdr.clone())
+}
+
+fn cache_tx_set_xdr(
+    tx_set_cache: &mut TxSetCache,
+    current_ledger_seq: u32,
+    hash: Hash256,
+    xdr: Vec<u8>,
+) {
+    tx_set_cache.insert(CachedTxSet {
+        hash,
+        xdr,
+        ledger_seq: current_ledger_seq,
+        tx_hashes: vec![],
+    });
+}
+
 /// Application state
 struct App {
     #[allow(dead_code)]
@@ -437,11 +455,11 @@ struct App {
     core_ipc: CoreIpc,
     overlay_handle: OverlayHandle,
     /// Cache for built TX sets
-    tx_set_cache: Arc<RwLock<TxSetCache>>,
+    tx_set_cache: TxSetCache,
     /// TX set hashes already pushed to Core (reset on ledger close)
-    pushed_tx_sets: Arc<RwLock<HashSet<Hash256>>>,
+    pushed_tx_sets: HashSet<Hash256>,
     /// Current ledger sequence
-    current_ledger_seq: Arc<RwLock<u32>>,
+    current_ledger_seq: u32,
     /// libp2p overlay handle (QUIC-based SCP + TX)
     libp2p_handle: LibP2pOverlayHandle,
     /// libp2p overlay events (SCP, TxSet - critical, unbounded)
@@ -449,7 +467,7 @@ struct App {
     /// libp2p TX events (bounded, may drop under backpressure)
     tx_events: mpsc::Receiver<LibP2pOverlayEvent>,
     /// TX sets that Core has requested but we're still fetching from peers
-    pending_core_txset_requests: Arc<RwLock<HashSet<Hash256>>>,
+    pending_core_txset_requests: HashSet<Hash256>,
     /// Pending SCP state requests: maps request_id to requesting peer
     /// When Core responds with ScpStateResponse containing request_id, we look up the peer
     pending_scp_state_requests: Arc<RwLock<HashMap<u64, PeerId>>>,
@@ -532,13 +550,13 @@ impl App {
             config,
             core_ipc,
             overlay_handle,
-            tx_set_cache: Arc::new(RwLock::new(TxSetCache::new(100))),
-            pushed_tx_sets: Arc::new(RwLock::new(HashSet::new())),
-            current_ledger_seq: Arc::new(RwLock::new(0)),
+            tx_set_cache: TxSetCache::new(100),
+            pushed_tx_sets: HashSet::new(),
+            current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events: libp2p_event_rx,
             tx_events: tx_event_rx,
-            pending_core_txset_requests: Arc::new(RwLock::new(HashSet::new())),
+            pending_core_txset_requests: HashSet::new(),
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs,
@@ -730,10 +748,7 @@ impl App {
 
                     // Proactively fetch if not already cached
                     // (libp2p layer deduplicates if fetch already in progress)
-                    let is_cached = {
-                        let cache = self.tx_set_cache.read().await;
-                        cache.get(txhash).is_some()
-                    };
+                    let is_cached = self.tx_set_cache.get(txhash).is_some();
                     if !is_cached {
                         info!(
                             "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
@@ -779,17 +794,12 @@ impl App {
 
                 // IMPORTANT: Cache the TxSet FIRST, before pushing to Core
                 // This ensures the TxSet is available when SCP processing resumes
-                // and Core subsequently broadcasts the SCP to other peers
-                {
-                    let current_seq = *self.current_ledger_seq.read().await;
-                    let mut cache = self.tx_set_cache.write().await;
-                    cache.insert(CachedTxSet {
-                        hash,
-                        xdr: data.clone(),
-                        ledger_seq: current_seq,
-                        tx_hashes: vec![],
-                    });
-                }
+                cache_tx_set_xdr(
+                    &mut self.tx_set_cache,
+                    self.current_ledger_seq,
+                    hash,
+                    data.clone(),
+                );
 
                 // Always push TX set to Core (Core handles dedup)
                 info!(
@@ -808,8 +818,7 @@ impl App {
             LibP2pOverlayEvent::TxSetRequested { hash, from } => {
                 info!("Peer {} requesting TxSet {:02x?}...", from, &hash[..4]);
                 // Look up in local cache and respond
-                let cache = self.tx_set_cache.read().await;
-                if let Some(cached) = cache.get(&hash) {
+                if let Some(cached) = self.tx_set_cache.get(&hash) {
                     info!(
                         "Serving TxSet {:02x?}... ({} bytes) to {}",
                         &hash[..4],
@@ -826,7 +835,7 @@ impl App {
                         "TxSet {:02x?}... NOT IN CACHE - cannot serve to {} (cache has {} entries)",
                         &hash[..4],
                         from,
-                        cache.len()
+                        self.tx_set_cache.len()
                     );
                 }
             }
@@ -1057,38 +1066,25 @@ impl App {
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
 
-                let tx_set_cache = Arc::clone(&self.tx_set_cache);
-                let core_sender = self.core_ipc.sender.clone();
-                let libp2p_handle = self.libp2p_handle.clone();
-                let pending_requests = Arc::clone(&self.pending_core_txset_requests);
-
-                tokio::spawn(async move {
-                    // First check local cache
-                    {
-                        let cache = tx_set_cache.read().await;
-                        if let Some(cached) = cache.get(&hash) {
-                            info!(
-                                "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
-                                &hash[..4],
-                                cached.xdr.len()
-                            );
-                            if let Err(e) =
-                                core_sender.send_tx_set_available(hash, cached.xdr.clone())
-                            {
-                                error!("Failed to send TX set: {}", e);
-                            }
-                            return;
-                        }
+                // First check local cache
+                if let Some(xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) {
+                    info!(
+                        "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
+                        &hash[..4],
+                        xdr.len()
+                    );
+                    if let Err(e) = self.core_ipc.sender.send_tx_set_available(hash, xdr) {
+                        error!("Failed to send TX set: {}", e);
                     }
-
+                } else {
                     // Not in local cache - mark as pending and request from peers
                     info!(
                         "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
                         &hash[..4]
                     );
-                    pending_requests.write().await.insert(hash);
-                    libp2p_handle.fetch_txset(hash).await;
-                });
+                    self.pending_core_txset_requests.insert(hash);
+                    self.libp2p_handle.fetch_txset(hash).await;
+                }
             }
 
             MessageType::CacheTxSet => {
@@ -1109,14 +1105,7 @@ impl App {
                     xdr.len()
                 );
 
-                let current_seq = *self.current_ledger_seq.read().await;
-                let mut cache = self.tx_set_cache.write().await;
-                cache.insert(CachedTxSet {
-                    hash,
-                    xdr,
-                    ledger_seq: current_seq,
-                    tx_hashes: vec![],
-                });
+                cache_tx_set_xdr(&mut self.tx_set_cache, self.current_ledger_seq, hash, xdr);
             }
 
             MessageType::SubmitTx => {
@@ -1170,23 +1159,15 @@ impl App {
                     let ledger_seq = u32::from_le_bytes(msg.payload[0..4].try_into().unwrap());
                     info!("Ledger {} closed", ledger_seq);
 
-                    let current_seq = Arc::clone(&self.current_ledger_seq);
-                    let pushed = Arc::clone(&self.pushed_tx_sets);
-                    let cache = Arc::clone(&self.tx_set_cache);
+                    // Update current ledger
+                    self.current_ledger_seq = ledger_seq;
 
-                    tokio::spawn(async move {
-                        // Update current ledger
-                        *current_seq.write().await = ledger_seq;
+                    // Clear pushed TX sets (reset dedup tracking)
+                    self.pushed_tx_sets.clear();
 
-                        // Clear pushed TX sets (reset dedup tracking)
-                        pushed.write().await.clear();
-
-                        // Evict old TX sets from cache
-                        cache
-                            .write()
-                            .await
-                            .evict_before(ledger_seq.saturating_sub(12));
-                    });
+                    // Evict old TX sets from cache
+                    self.tx_set_cache
+                        .evict_before(ledger_seq.saturating_sub(12));
                 }
             }
 
