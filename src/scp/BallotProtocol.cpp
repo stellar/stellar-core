@@ -192,16 +192,8 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 
     auto validationRes = validateValues(statement);
 
-    // Log validation results
-    CLOG_TRACE(Proto,
-               "BallotProtocol::processEnvelope slot:{} "
-               "received statement with {} value from node:{}",
-               mSlot.getSlotIndex(),
-               SCPDriver::validationLevelToString(validationRes),
-               mSlot.getSCP().getDriver().toShortString(statement.nodeID));
-
     // If the value is not valid, we just ignore it.
-    if (validationRes == SCPDriver::kInvalidValue)
+    if (validationRes == ValidateValuesResult::kInvalid)
     {
         if (self)
         {
@@ -218,13 +210,15 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 
     if (mPhase != SCP_PHASE_EXTERNALIZE)
     {
-        if (validationRes == SCPDriver::kMaybeValidValue)
+        if (validationRes == ValidateValuesResult::kMaybeValidNotCurrent)
         {
+            // We will not be able to fully validate this, as it's not for LCL+1
             mSlot.setFullyValidated(false);
         }
 
         recordEnvelope(envelope);
         advanceSlot(statement);
+        releaseAssert(validationRes != ValidateValuesResult::kInvalid);
         return SCP::EnvelopeState::VALID;
     }
 
@@ -355,9 +349,22 @@ BallotProtocol::abandonBallot(uint32 n)
 bool
 BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
 {
+
+    if (mPhase != SCP_PHASE_PREPARE)
+    {
+        // Can only replace with skip in the PREPARE phase
+        return false;
+    }
+
     // Check validation value
-    auto validationLevel =
-        mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, false);
+    SCPDriver::ValidationExtraInfo extraInfo;
+    auto validationLevel = mSlot.getSCPDriver().validateValue(
+        mSlot.getSlotIndex(), v, false, &extraInfo);
+    if (!extraInfo.mIsCurrentLedger)
+    {
+        // Cannot replace with skip for non-current ledgers
+        return false;
+    }
 
     switch (validationLevel)
     {
@@ -389,9 +396,13 @@ BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
         }
     }
     break;
-    default:
-        // Value is valid or maybe valid, so we shouldn't replace it with skip
+    case SCPDriver::kFullyValidatedValue:
+        // Value is valid, no need to replace with skip
         return false;
+    case SCPDriver::kMaybeValidValue:
+        // This shouldn't be possible. The check for `mIsCurrentLedger` above
+        // should catch all cases where `kMaybeValidValue` is returned
+        releaseAssert(false);
     }
 
     // Choose highest seen skip value, or create one if no such values exist.
@@ -2144,23 +2155,10 @@ BallotProtocol::getStatementValues(SCPStatement const& st)
     return values;
 }
 
-SCPDriver::ValidationLevel
+BallotProtocol::ValidateValuesResult
 BallotProtocol::validateValues(SCPStatement const& st)
 {
     ZoneScoped;
-
-    if (st.pledges.type() == SCPStatementType::SCP_ST_PREPARE)
-    {
-        // Don't validate any values in PREPARE statements. With parallel
-        // downloading, ballot.value may be kAwaitingDownload that later
-        // becomes kInvalidValue, and prepared/preparedPrime are protocol
-        // facts (accepted-prepared ballots) that cannot be unilaterally
-        // changed. Incoming PREPAREs with invalid ballot values must be
-        // accepted so that checkHeardFromQuorum can see a quorum and arm
-        // the ballot timer. The commit gate in setConfirmPrepared
-        // independently validates values before voting to commit.
-        return SCPDriver::kFullyValidatedValue;
-    }
 
     std::set<Value> values;
 
@@ -2173,16 +2171,20 @@ BallotProtocol::validateValues(SCPStatement const& st)
                    "found empty value set in statement",
                    mSlot.getSlotIndex());
         // This shouldn't happen
-        return SCPDriver::kInvalidValue;
+        return ValidateValuesResult::kInvalid;
     }
 
-    SCPDriver::ValidationLevel res = std::accumulate(
+    bool validForPrepare =
+        st.pledges.type() == SCPStatementType::SCP_ST_PREPARE;
+
+    SCPDriver::ValidationLevel minValidationLevel = std::accumulate(
         values.begin(), values.end(), SCPDriver::kFullyValidatedValue,
         [&](SCPDriver::ValidationLevel lv, stellar::Value const& v) {
             if (lv > SCPDriver::kInvalidValue)
             {
+                SCPDriver::ValidationExtraInfo extraInfo{};
                 auto tr = mSlot.getSCPDriver().validateValue(
-                    mSlot.getSlotIndex(), v, false);
+                    mSlot.getSlotIndex(), v, false, &extraInfo);
 
                 if (tr == SCPDriver::kAwaitingDownload)
                 {
@@ -2191,21 +2193,36 @@ BallotProtocol::validateValues(SCPStatement const& st)
                                "found kAwaitingDownload value in statement",
                                mSlot.getSlotIndex());
                 }
+                else if (tr == SCPDriver::kInvalidValue && validForPrepare &&
+                         (!extraInfo.mIsCurrentLedger ||
+                          !extraInfo.mIsTxSetInvalid))
+                {
+                    // This statement is not valid for PREPARE if:
+                    // * it contains any single invalid value where the invalid
+                    //   value is NOT due to an invalid tx set, or
+                    // * The statement is not for the known next ledger
+                    validForPrepare = false;
+                }
 
                 lv = std::min(tr, lv);
             }
             return lv;
         });
 
-    if (res == SCPDriver::kInvalidValue)
+    switch (minValidationLevel)
     {
-        CLOG_DEBUG(Proto,
-                   "BallotProtocol::validateValues slot:{} found "
-                   "kInvalidValue value in statement",
-                   mSlot.getSlotIndex());
+    case SCPDriver::kInvalidValue:
+        return validForPrepare ? ValidateValuesResult::kValidForPrepare
+                               : ValidateValuesResult::kInvalid;
+    case SCPDriver::kMaybeValidValue:
+        return ValidateValuesResult::kMaybeValidNotCurrent;
+    case SCPDriver::kAwaitingDownload:
+        return ValidateValuesResult::kValidForPrepare;
+    case SCPDriver::kFullyValidatedValue:
+        return ValidateValuesResult::kFullyValid;
+    default:
+        releaseAssert(false);
     }
-
-    return res;
 }
 
 void

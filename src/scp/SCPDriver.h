@@ -139,13 +139,22 @@ class SCPDriver
     // is done. It should be used to filter out values that are not compatible
     // with the current state of that node. Invalid values can never
     // externalize.
-    // If the value cannot be validated (node is missing some context) but
+    // If the value cannot be validated (node is missing some context due to
+    // the value belonging to a ledger other than LCL+1) but
     // passes
     // the validity checks, kMaybeValidValue can be returned. This will cause
     // the current slot to be marked as a non validating slot: the local node
     // will abstain from emitting its position.
+    // kMaybeValidValue should only be returned if the value is for a ledger
+    // other than current ledger (that is, not LCL+1). If a value cannot be
+    // validated due to parallel downloading (e.g. it's for LCL+1 but the node
+    // is still downloading the tx set), then kAwaitingDownload should be
+    // used.
     // validation can be *more* restrictive during nomination as needed
     // NB: validation levels are ordered
+    // Callers who want additional information about the validation result can
+    // optionally pass a `ValidationExtraInfo` struct pointer, which will be
+    // populated with additional information about the validation result.
     enum ValidationLevel
     {
         kInvalidValue = 0,       // value is invalid for sure
@@ -153,8 +162,21 @@ class SCPDriver
         kAwaitingDownload = 2,   // value is being fetched
         kFullyValidatedValue = 3 // value is valid for sure
     };
+    struct ValidationExtraInfo
+    {
+        // True iff the value is for the current ledger
+        bool mIsCurrentLedger = false;
+        // True iff the value is invalid because of an invalid tx set. Note that
+        // a value that is determined to be invalid due to early checks (e.g.
+        // close time too far in the future) will not have this flag set even if
+        // the transaction set it references is also invalid. This flag captures
+        // only values that are determined to be invalid specifically due to an
+        // invalid transaction set.
+        bool mIsTxSetInvalid = false;
+    };
     virtual ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value, bool nomination)
+    validateValue(uint64 slotIndex, Value const& value, bool nomination,
+                  ValidationExtraInfo* extraInfo = nullptr) const
     {
         return kMaybeValidValue;
     }

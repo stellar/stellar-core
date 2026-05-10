@@ -175,8 +175,31 @@ class BallotProtocol
     // to make progress
     void advanceSlot(SCPStatement const& hint);
 
-    // returns true if all values in statement are valid
-    SCPDriver::ValidationLevel validateValues(SCPStatement const& st);
+    // `validateValues` aggregates validation results for all values referenced
+    // by `st` and returns an overall validation result for the statement
+    // itself.
+    enum class ValidateValuesResult
+    {
+        // All values are downloaded and fully valid. `validateValues` will only
+        // return this if `st` is for the current ledger (LCL+1).
+        kFullyValid,
+        // All values are sufficiently valid for the PREPARE phase, but at least
+        // one value is either not downloaded or not fully valid. The protocol
+        // allows this and should treat these statements as fully valid (see
+        // CAP-0083).  `validateValues` will only return this if `st` is a
+        // PREPARE statement for the current ledger (LCL+1).
+        kValidForPrepare,
+        // All values are considered "maybe valid". `validateValues` will only
+        // return this if `st` is for some ledger other than the current ledger
+        // (not LCL+1).
+        kMaybeValidNotCurrent,
+        // At least one value is known to be invalid or not downloaded. If
+        // `validateValues` returns `kInvalid`, then `st` is not valid for any
+        // phase of the protocol (including PREPARE).
+        kInvalid
+
+    };
+    ValidateValuesResult validateValues(SCPStatement const& st);
 
     // send latest envelope if needed
     void sendLatestEnvelope();

@@ -67,9 +67,9 @@ class HerderSCPDriver : public SCPDriver
     bool isEnvelopeReady(SCPEnvelope const& env) const override;
 
     // value validation
-    SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
-                                             Value const& value,
-                                             bool nomination) override;
+    SCPDriver::ValidationLevel validateValue(
+        uint64_t slotIndex, Value const& value, bool nomination,
+        SCPDriver::ValidationExtraInfo* extraInfo = nullptr) const override;
     ValueWrapperPtr extractValidValue(uint64_t slotIndex,
                                       Value const& value) override;
 
@@ -318,9 +318,9 @@ class HerderSCPDriver : public SCPDriver
     // TODO: Docs
     bool checkValueTypeAndSkipHashInvariant(StellarValue const& sv) const;
 
-    SCPDriver::ValidationLevel
-    validateValueAgainstLocalState(uint64_t slotIndex, StellarValue const& sv,
-                                   bool nomination) const;
+    SCPDriver::ValidationLevel validateValueAgainstLocalState(
+        uint64_t slotIndex, StellarValue const& sv, bool nomination,
+        SCPDriver::ValidationExtraInfo* extraInfo) const;
 
     SCPDriver::ValidationLevel
     validatePastOrFutureValue(uint64_t slotIndex, StellarValue const& b,
