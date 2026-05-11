@@ -201,6 +201,13 @@ class SCPDriver
     // `isSkipLedgerValue` checks if a value is a skip ledger value.
     virtual bool isSkipLedgerValue(Value const& v) const = 0;
 
+    // Whether or not to allow downloading of transaction sets in parallel with
+    // SCP
+    virtual bool isParallelTxSetDownloadEnabled() const = 0;
+
+    // The protocol version allows the use of STELLAR_VALUE_SKIP
+    virtual bool protocolAllowsSkipValues() const = 0;
+
     // `getValueString` is used for debugging
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;

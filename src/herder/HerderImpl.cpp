@@ -1149,7 +1149,6 @@ void
 HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     ZoneScoped;
-    CLOG_TRACE(Proto, "Processing SCP queue up to index {}", slotIndex);
     while (true)
     {
         SCPEnvelopeWrapperPtr envW = mPendingEnvelopes.pop(slotIndex);

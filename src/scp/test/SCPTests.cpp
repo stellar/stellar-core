@@ -166,6 +166,22 @@ class TestSCP : public SCPDriver
                v[4] == ':';
     }
 
+    // TODO: Make configurable? Mix-and-match different nodes with this
+    // enabled/disabled?
+    bool
+    isParallelTxSetDownloadEnabled() const override
+    {
+        return true;
+    }
+
+    // TODO: Make this configurable? Test that we reject skip values prior to
+    // protocol upgrade?
+    bool
+    protocolAllowsSkipValues() const override
+    {
+        return true;
+    }
+
     void
     emitEnvelope(SCPEnvelope const& envelope) override
     {

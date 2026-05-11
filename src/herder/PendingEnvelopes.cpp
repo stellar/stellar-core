@@ -347,9 +347,20 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     auto const& values = maybeValues.value();
-    if (std::any_of(values.begin(), values.end(), [](auto const& value) {
-            return value.ext.v() != STELLAR_VALUE_SIGNED &&
-                   value.ext.v() != STELLAR_VALUE_SKIP;
+    if (std::any_of(values.begin(), values.end(), [this](auto const& value) {
+            switch (value.ext.v())
+            {
+            case STELLAR_VALUE_BASIC:
+                // Unsigned values are not permitted
+                return true;
+            case STELLAR_VALUE_SIGNED:
+                // Signed values are allowed
+                return false;
+            case STELLAR_VALUE_SKIP:
+                return !mHerder.getHerderSCPDriver().protocolAllowsSkipValues();
+            default:
+                releaseAssert(false);
+            }
         }))
     {
         CLOG_TRACE(Herder, "Dropping envelope from {} (value not signed)",
@@ -383,13 +394,12 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);
-            CLOG_TRACE(
-                Perf,
-                "Herder fetched for envelope {} with txsets {} and qset "
-                "{} in {} seconds",
-                hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
-                hexAbbrev(h),
-                std::chrono::duration<double>(durationNano).count());
+            CLOG_TRACE(Perf,
+                       "Herder fetched for envelope {} with txsets {} and qset "
+                       "{} in {} seconds",
+                       hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
+                       hexAbbrev(h),
+                       std::chrono::duration<double>(durationNano).count());
             fetching.erase(fetchIt);
         };
 
@@ -399,8 +409,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         {
             if (fetchIt != fetching.end() && isFullyFetched(envelope))
             {
-                // Record that we've fully fetched this envelope and drop from
-                // `fetching`
+                // Record that we've fully fetched this envelope and drop
+                // from `fetching`
                 retireFromFetching(fetchIt);
                 updateMetrics();
             }
@@ -419,14 +429,15 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 
         if (mHerder.getHerderSCPDriver().isEnvelopeReady(envelope))
         {
-            // This envelope is sufficiently downloaded for SCP to process it
+            // This envelope is sufficiently downloaded for SCP to process
+            // it
             processed.emplace(envelope);
             envelopeReady(envelope);
 
             if (isFullyFetched(envelope))
             {
-                // Record that we've fully fetched this envelope and drop from
-                // `fetching`
+                // Record that we've fully fetched this envelope and drop
+                // from `fetching`
                 retireFromFetching(fetchIt);
             }
 
@@ -435,8 +446,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
-            // Keep waiting for necessary data to arrive and refresh fetchers as
-            // needed
+            // Keep waiting for necessary data to arrive and refresh
+            // fetchers as needed
             startFetch(envelope);
         }
 
@@ -750,8 +761,8 @@ PendingEnvelopes::eraseOutsideRange(std::optional<uint64> minSlot,
 {
     stopAllOutsideRange(minSlot, maxSlot, slotToKeep);
 
-    // Erases the envelope pointed to by `iter` if it is not for `slotToKeep`.
-    // Always advances the iterator.
+    // Erases the envelope pointed to by `iter` if it is not for
+    // `slotToKeep`. Always advances the iterator.
     auto const maybeEraseEnvelope = [&](auto& iter) {
         if (iter->first == slotToKeep)
         {
@@ -767,7 +778,8 @@ PendingEnvelopes::eraseOutsideRange(std::optional<uint64> minSlot,
     {
         if (*minSlot > 0)
         {
-            // report only for the highest non-future slot that we're purging
+            // report only for the highest non-future slot that we're
+            // purging
             reportCostOutliersForSlot(*minSlot - 1, true);
         }
 
@@ -1007,7 +1019,8 @@ shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
 
     if (possibleOutlierCost / expectedCost > ratioLimit)
     {
-        // If we're off by too much from the selected cluster, report the value
+        // If we're off by too much from the selected cluster, report the
+        // value
         return true;
     }
     return false;

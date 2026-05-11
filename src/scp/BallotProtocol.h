@@ -184,11 +184,17 @@ class BallotProtocol
         // return this if `st` is for the current ledger (LCL+1).
         kFullyValid,
         // All values are sufficiently valid for the PREPARE phase, but at least
-        // one value is either not downloaded or not fully valid. The protocol
-        // allows this and should treat these statements as fully valid (see
-        // CAP-0083).  `validateValues` will only return this if `st` is a
-        // PREPARE statement for the current ledger (LCL+1).
+        // one value contained in the statement is invalid. The protocol allows
+        // this and validators must treat these statements as fully valid (see
+        // CAP-0083). `validateValues` will only return this if `st` is for the
+        // current ledger (LCL+1) and `st` is a PREPARE statement.
         kValidForPrepare,
+        // All values are either fully valid or awaiting download, but at least
+        // one value is still awaiting download. CAP-0083 dictates that nodes
+        // may choose to accept PREPARE statements in this state, but they are
+        // not required to. `validateValues` will only return this if `st` is
+        // for the current ledger (LCL+1).
+        kValidAwaitingDownload,
         // All values are considered "maybe valid". `validateValues` will only
         // return this if `st` is for some ledger other than the current ledger
         // (not LCL+1).

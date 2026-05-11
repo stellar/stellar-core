@@ -174,8 +174,6 @@ ItemFetcher::recv(Hash const& itemHash, medida::Timer& timer)
         timer.Update(tracker->getDuration());
         while (!tracker->empty())
         {
-            // NOTE: This calls back into herder upon receiving a tx set. Should
-            // ensure that we proceed to SCP once receiving all tx sets.
             mApp.getHerder().recvSCPEnvelope(tracker->pop());
         }
         // stop the timer, stop requesting the item as we have it

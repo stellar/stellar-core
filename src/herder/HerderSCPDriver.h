@@ -86,6 +86,9 @@ class HerderSCPDriver : public SCPDriver
     // TODO(4): Do I even need this function?
     bool isSkipLedgerValue(Value const& v) const override;
 
+    bool isParallelTxSetDownloadEnabled() const override;
+    bool protocolAllowsSkipValues() const override;
+
     // timer handling
     void setupTimer(uint64_t slotIndex, int timerID,
                     std::chrono::milliseconds timeout,

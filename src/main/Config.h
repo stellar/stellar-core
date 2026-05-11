@@ -547,6 +547,9 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool PARALLEL_LEDGER_APPLY;
 
+    // Allow downloading of transaction sets in parallel with SCP (experimental)
+    bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
+
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 

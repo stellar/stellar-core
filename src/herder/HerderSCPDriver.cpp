@@ -215,6 +215,12 @@ HerderSCPDriver::isEnvelopeReady(SCPEnvelope const& env) const
         return true;
     }
 
+    if (!isParallelTxSetDownloadEnabled())
+    {
+        // Parallel downloading is disabled, so we need all tx sets
+        return false;
+    }
+
     // Beyond this point all checks relate to whether SCP can process `env`
     // in parallel with downloading the missing tx sets it references.
 
@@ -236,6 +242,21 @@ HerderSCPDriver::isEnvelopeReady(SCPEnvelope const& env) const
     // Parallel downloading is only enabled when tracking and in sync
     return mHerder.isTracking() &&
            mApp.getState() == Application::State::APP_SYNCED_STATE;
+}
+
+bool
+HerderSCPDriver::protocolAllowsSkipValues() const
+{
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    return protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                     SKIP_LEDGER_PROTOCOL_VERSION);
+}
+
+bool
+HerderSCPDriver::isParallelTxSetDownloadEnabled() const
+{
+    return mApp.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD &&
+           protocolAllowsSkipValues();
 }
 
 // value validation
@@ -283,6 +304,11 @@ HerderSCPDriver::validatePastOrFutureValue(
         }
         if (b.ext.v() == STELLAR_VALUE_SKIP)
         {
+            if (!protocolAllowsSkipValues())
+            {
+                return SCPDriver::kInvalidValue;
+            }
+
             auto const& ov = b.ext.originalValue();
             // We can check previousLedgerHash because the LCL header
             // contains the hash of its parent. We cannot check
@@ -364,6 +390,13 @@ HerderSCPDriver::validatePastOrFutureValue(
 bool
 HerderSCPDriver::checkValueTypeAndSkipHashInvariant(StellarValue const& b) const
 {
+    if (!protocolAllowsSkipValues())
+    {
+        // Before SKIP_LEDGER_PROTOCOL_VERSION, skip values are not valid at
+        // all, so we can just check that the value is a normal signed value.
+        return b.ext.v() == STELLAR_VALUE_SIGNED;
+    }
+
     // Only signed and skip values participate in SCP.
     // TODO(8): Grep for signature checks and update them for SKIP values
     if (b.ext.v() != STELLAR_VALUE_SIGNED && b.ext.v() != STELLAR_VALUE_SKIP)
@@ -409,6 +442,11 @@ HerderSCPDriver::validateValueAgainstLocalState(
         // our LCL. Skip values don't have a real tx set to validate.
         if (b.ext.v() == STELLAR_VALUE_SKIP)
         {
+            if (!protocolAllowsSkipValues())
+            {
+                return SCPDriver::kInvalidValue;
+            }
+
             if (nomination)
             {
                 // Skip values should only appear in balloting, and so are
@@ -443,7 +481,8 @@ HerderSCPDriver::validateValueAgainstLocalState(
 
         if (!txSet)
         {
-            if (mPendingEnvelopes.getTxSetWaitingTime(txSetHash).has_value())
+            if (isParallelTxSetDownloadEnabled() &&
+                mPendingEnvelopes.getTxSetWaitingTime(txSetHash).has_value())
             {
                 res = SCPDriver::kAwaitingDownload;
             }

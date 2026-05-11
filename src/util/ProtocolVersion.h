@@ -39,6 +39,7 @@ enum class ProtocolVersion : uint32_t
     V_24,
     V_25,
     V_26,
+    V_27
 };
 
 // Checks whether provided protocolVersion is before (i.e. strictly lower than)
@@ -59,4 +60,5 @@ constexpr ProtocolVersion PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION =
 constexpr ProtocolVersion REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION =
     ProtocolVersion::V_23;
 constexpr ProtocolVersion AUTO_RESTORE_PROTOCOL_VERSION = ProtocolVersion::V_23;
+constexpr ProtocolVersion SKIP_LEDGER_PROTOCOL_VERSION = ProtocolVersion::V_27;
 }

@@ -133,6 +133,22 @@ class TestNominationSCP : public SCPDriver
         releaseAssert(false);
     }
 
+    // TODO: Make configurable? Mix-and-match different nodes with this
+    // enabled/disabled?
+    bool
+    isParallelTxSetDownloadEnabled() const override
+    {
+        return true;
+    }
+
+    // TODO: Make this configurable? Test that we reject skip values prior to
+    // protocol upgrade?
+    bool
+    protocolAllowsSkipValues() const override
+    {
+        return true;
+    }
+
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
 
     Value const&

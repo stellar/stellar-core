@@ -192,9 +192,10 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 
     auto validationRes = validateValues(statement);
 
-    // If the value is not valid, we just ignore it.
-    if (validationRes == ValidateValuesResult::kInvalid)
+    switch (validationRes)
     {
+    case ValidateValuesResult::kInvalid:
+        // If the value is not valid, we just ignore it.
         if (self)
         {
             CLOG_ERROR(SCP, "invalid value from self, skipping   e: {}",
@@ -206,6 +207,17 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
         }
 
         return SCP::EnvelopeState::INVALID;
+    case ValidateValuesResult::kValidForPrepare:
+        // Sanity check: This should only happen if the protocol allows it
+        releaseAssert(mSlot.getSCPDriver().protocolAllowsSkipValues());
+        break;
+    case ValidateValuesResult::kValidAwaitingDownload:
+        // Sanity check: This should only happen if parallel tx set download is
+        // enabled
+        releaseAssert(mSlot.getSCPDriver().isParallelTxSetDownloadEnabled());
+        break;
+    default:
+        break;
     }
 
     if (mPhase != SCP_PHASE_EXTERNALIZE)
@@ -349,6 +361,11 @@ BallotProtocol::abandonBallot(uint32 n)
 bool
 BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
 {
+    if (!mSlot.getSCPDriver().protocolAllowsSkipValues())
+    {
+        // Protocol does not allow skip values
+        return false;
+    }
 
     if (mPhase != SCP_PHASE_PREPARE)
     {
@@ -1169,6 +1186,11 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
 
             if (validationLevel == SCPDriver::kAwaitingDownload)
             {
+                // It should not be possible to get `kAwaitingDownload` without
+                // parallel downloading enabled.
+                releaseAssert(
+                    mSlot.getSCPDriver().isParallelTxSetDownloadEnabled());
+
                 // Record the start time if this is the first time balloting
                 // becomes blocked on this txset
                 mSlot.getSCPDriver().recordBallotBlockedOnTxSet(
@@ -2174,7 +2196,13 @@ BallotProtocol::validateValues(SCPStatement const& st)
         return ValidateValuesResult::kInvalid;
     }
 
-    bool validForPrepare =
+    // Whether or not this value qualifies for relaxed validation of prepare
+    // messages (allows certain types of invalid values in the PREPARE
+    // statement).
+    bool relaxedValidationForPrepare =
+        // Skip votes must be allowed at the protocol level
+        mSlot.getSCPDriver().protocolAllowsSkipValues() &&
+        // Must be a PREPARE statement
         st.pledges.type() == SCPStatementType::SCP_ST_PREPARE;
 
     SCPDriver::ValidationLevel minValidationLevel = std::accumulate(
@@ -2193,15 +2221,17 @@ BallotProtocol::validateValues(SCPStatement const& st)
                                "found kAwaitingDownload value in statement",
                                mSlot.getSlotIndex());
                 }
-                else if (tr == SCPDriver::kInvalidValue && validForPrepare &&
+                else if (tr == SCPDriver::kInvalidValue &&
+                         relaxedValidationForPrepare &&
                          (!extraInfo.mIsCurrentLedger ||
                           !extraInfo.mIsTxSetInvalid))
                 {
-                    // This statement is not valid for PREPARE if:
+                    // This statement does not satisfy relaxed PREPARE
+                    // validation rules if:
                     // * it contains any single invalid value where the invalid
                     //   value is NOT due to an invalid tx set, or
                     // * The statement is not for the known next ledger
-                    validForPrepare = false;
+                    relaxedValidationForPrepare = false;
                 }
 
                 lv = std::min(tr, lv);
@@ -2212,13 +2242,21 @@ BallotProtocol::validateValues(SCPStatement const& st)
     switch (minValidationLevel)
     {
     case SCPDriver::kInvalidValue:
-        return validForPrepare ? ValidateValuesResult::kValidForPrepare
-                               : ValidateValuesResult::kInvalid;
+        // Statement contains an invalid value. If all values have been
+        // determined to be sufficiently valid for PREPARE, then return
+        // kValidForPrepare, otherwise return kInvalid.
+        return relaxedValidationForPrepare
+                   ? ValidateValuesResult::kValidForPrepare
+                   : ValidateValuesResult::kInvalid;
     case SCPDriver::kMaybeValidValue:
+        // Value may or may not be valid, but we cannot tell because it is for
+        // some ledger other than LCL+1
         return ValidateValuesResult::kMaybeValidNotCurrent;
     case SCPDriver::kAwaitingDownload:
-        return ValidateValuesResult::kValidForPrepare;
+        // Still waiting on some values, but none we have so far are invalid.
+        return ValidateValuesResult::kValidAwaitingDownload;
     case SCPDriver::kFullyValidatedValue:
+        // All values within the statement are downloaded and valid.
         return ValidateValuesResult::kFullyValid;
     default:
         releaseAssert(false);
