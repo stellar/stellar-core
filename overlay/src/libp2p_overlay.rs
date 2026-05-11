@@ -12,8 +12,7 @@
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxMessageType,
-    TxStreamMessage, GETDATA_PEER_TIMEOUT, INV_BATCH_MAX_DELAY,
+    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
 };
 use crate::metrics::OverlayMetrics;
 use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
@@ -295,8 +294,6 @@ struct SharedState {
     tx_seen: RwLock<lru::LruCache<[u8; 32], ()>>,
     /// Track which peers we've sent each SCP message to (prevent duplicate sends)
     scp_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
-    /// Track which peers we've sent each TX to (prevent duplicate sends) - LEGACY
-    tx_sent_to: RwLock<lru::LruCache<[u8; 32], HashSet<PeerId>>>,
     /// TX set sources: which peer has which TX set (learned from SCP messages)
     txset_sources: RwLock<lru::LruCache<[u8; 32], PeerId>>,
     /// Pending TX set requests: hash -> (peer, request_time) to avoid duplicate fetches and track latency
@@ -340,9 +337,6 @@ impl SharedState {
             )),
             scp_sent_to: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(10000).unwrap(),
-            )),
-            tx_sent_to: RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(100000).unwrap(),
             )),
             txset_sources: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(1000).unwrap(),
@@ -1919,8 +1913,6 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
 /// 1. Flushes INV batches that have timed out (100ms)
 /// 2. Checks GETDATA timeouts and retries to other peers
 async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
-    use crate::flood::{GETDATA_PEER_TIMEOUT, INV_BATCH_MAX_DELAY};
-
     // Run every 50ms (half the batch timeout for responsiveness)
     let mut interval = tokio::time::interval(Duration::from_millis(50));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1940,7 +1932,7 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
 
         // 2. Handle GETDATA timeouts
         let (to_retry, gave_up) = {
-            let mut pending = state.pending_getdata.write().await;
+            let pending = state.pending_getdata.write().await;
             pending.process_timeouts()
         };
 
@@ -2004,104 +1996,6 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
     }
 }
 
-// TODO: add proper retries
-// /// TX set fetch retry task.
-// ///
-// /// Periodically checks for timed-out TX set fetch requests and retries from different peers.
-// /// Runs every 500ms (half the timeout for responsiveness).
-// async fn txset_retry_task(state: Arc<SharedState>) {
-//     let mut interval = tokio::time::interval(Duration::from_millis(500));
-//     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-//     loop {
-//         interval.tick().await;
-
-//         // Find timed-out requests
-//         let timed_out: Vec<([u8; 32], std::collections::HashSet<PeerId>)> = {
-//             let pending = state.pending_txset_requests.read().await;
-//             pending
-//                 .iter()
-//                 .filter(|(_, req)| req.requested_at.elapsed() >= TXSET_FETCH_TIMEOUT)
-//                 .map(|(hash, req)| (*hash, req.tried_peers.clone()))
-//                 .collect()
-//         };
-
-//         if timed_out.is_empty() {
-//             continue;
-//         }
-
-//         // Get connected peers
-//         let connected_peers: Vec<PeerId> = {
-//             let streams = state.peer_streams.read().await;
-//             streams.keys().cloned().collect()
-//         };
-
-//         // Retry each timed-out request to a different peer
-//         for (hash, tried_peers) in timed_out {
-//             // Find an untried peer
-//             let next_peer = connected_peers
-//                 .iter()
-//                 .find(|p| !tried_peers.contains(*p))
-//                 .cloned();
-
-//             let peer = match next_peer {
-//                 Some(p) => p,
-//                 None => {
-//                     // All peers tried - reset and start over with first peer
-//                     if let Some(p) = connected_peers.first().cloned() {
-//                         info!(
-//                             "TXSET_RETRY: All peers tried for {:02x?}..., restarting with {}",
-//                             &hash[..4],
-//                             p
-//                         );
-//                         // Clear tried peers
-//                         let mut pending = state.pending_txset_requests.write().await;
-//                         if let Some(req) = pending.get_mut(&hash) {
-//                             req.tried_peers.clear();
-//                         }
-//                         p
-//                     } else {
-//                         warn!(
-//                             "TXSET_RETRY_FAIL: No peers available to retry TX set {:02x?}...",
-//                             &hash[..4]
-//                         );
-//                         continue;
-//                     }
-//                 }
-//             };
-
-//             info!(
-//                 "TXSET_RETRY: Retrying TX set {:02x?}... from {} (timeout after {:?})",
-//                 &hash[..4],
-//                 peer,
-//                 TXSET_FETCH_TIMEOUT
-//             );
-
-//             // Update pending request
-//             {
-//                 let mut pending = state.pending_txset_requests.write().await;
-//                 if let Some(req) = pending.get_mut(&hash) {
-//                     req.peer = peer.clone();
-//                     req.requested_at = Instant::now();
-//                     req.tried_peers.insert(peer.clone());
-//                 }
-//             }
-
-//             // Send request on TxSet stream
-//             if let Err(e) =
-//                 try_send_to_existing_stream(&state, peer.clone(), StreamType::TxSet, &hash).await
-//             {
-//                 warn!(
-//                     "TXSET_RETRY_FAIL: Failed to send retry request for {:02x?}... to {}: {:?}",
-//                     &hash[..4],
-//                     peer,
-//                     e
-//                 );
-//             }
-//         }
-//     }
-// }
-
 /// Blake2b hash for deduplication
 fn blake2b_hash(data: &[u8]) -> [u8; 32] {
     use blake2::{Blake2b, Digest};
@@ -2139,19 +2033,19 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) =
+        let (handle1, _events1, _tx_events1, overlay1) =
             create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
         let (handle2, mut events2, _tx_events2, overlay2) =
             create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
         let listen_port = 19101;
-        let overlay1_task = tokio::spawn(async move {
+        let _overlay1_task = tokio::spawn(async move {
             overlay1.run("127.0.0.1", listen_port).await;
         });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let overlay2_task = tokio::spawn(async move {
+        let _overlay2_task = tokio::spawn(async move {
             overlay2.run("127.0.0.1", 19102).await;
         });
 
@@ -2196,7 +2090,7 @@ mod tests {
         let keypair1 = Keypair::generate_ed25519();
         let keypair2 = Keypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx_events1, overlay1) =
+        let (handle1, _events1, _tx_events1, overlay1) =
             create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
         let (handle2, mut events2, _tx_events2, overlay2) =
             create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
@@ -3086,11 +2980,10 @@ mod tests {
 async fn test_txset_source_tracking() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
-    let peer2_id = PeerId::from_public_key(&keypair2.public());
 
     let (handle1, _events1, _tx_events1, overlay1) =
         create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
+    let (handle2, _events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20101;
@@ -3134,7 +3027,7 @@ async fn test_txset_fetch_flow() {
 
     let (handle1, mut events1, _tx_events1, overlay1) =
         create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
-    let (handle2, mut events2, _tx_events2, overlay2) =
+    let (handle2, _events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
 
     let listen_port = 20201;
@@ -3182,7 +3075,7 @@ async fn test_peer_disconnect_detection() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
+    let (handle1, _events1, _tx_events1, overlay1) =
         create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
     let (handle2, _events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
@@ -3277,16 +3170,7 @@ async fn test_large_txset_doesnt_block_scp() {
     while events1.try_recv().is_ok() {}
     while events2.try_recv().is_ok() {}
 
-    // Create a large TX set (1MB)
-    let large_txset = vec![0xAB; 1024 * 1024];
-    let txset_hash: [u8; 32] = [0x11; 32];
-
-    // Start sending large TX set from node1
-    let handle1_clone = handle1.clone();
-    let large_txset_clone = large_txset.clone();
     let send_task = tokio::spawn(async move {
-        // Simulate responding to TX set request with large data
-        // We'll use the event system - node2 requests, node1 responds
         tokio::time::sleep(Duration::from_millis(100)).await;
     });
 
@@ -3577,7 +3461,7 @@ async fn test_quic_keepalive_survives_idle() {
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
-    let (handle1, mut events1, _tx_events1, overlay1) =
+    let (handle1, _events1, _tx_events1, overlay1) =
         create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
     let (handle2, mut events2, _tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
@@ -4004,7 +3888,7 @@ async fn test_inv_getdata_tx_propagation() {
     let keypair2 = Keypair::generate_ed25519();
 
     // Create overlays with INV/GETDATA enabled
-    let (handle1, _events1, mut tx_events1, overlay1) =
+    let (handle1, _events1, tx_events1, overlay1) =
         create_overlay(keypair1.clone(), Arc::new(OverlayMetrics::new())).unwrap();
     let (handle2, _events2, mut tx_events2, overlay2) =
         create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
@@ -4508,7 +4392,7 @@ async fn test_simultaneous_dial_dedup() {
 
     let m1 = Arc::new(OverlayMetrics::new());
     let m2 = Arc::new(OverlayMetrics::new());
-    let (handle1, mut events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
+    let (handle1, _events1, _tx1, overlay1) = create_overlay(keypair1, Arc::clone(&m1)).unwrap();
     let (handle2, mut events2, _tx2, overlay2) = create_overlay(keypair2, Arc::clone(&m2)).unwrap();
 
     let port1 = 23100;
@@ -4739,9 +4623,8 @@ async fn test_20_node_mesh_with_dedup() {
     eprintln!("\n=== Convergence timeline (20 nodes) ===");
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     let mut prev_total_peers = 0usize;
-    let mut converge_time = Duration::ZERO;
-    let mut converged = false;
-    loop {
+    let mut first_sample = true;
+    let convergence_time = loop {
         let elapsed = dial_start.elapsed();
         let mut min_peers = usize::MAX;
         let mut max_peers = 0usize;
@@ -4757,21 +4640,17 @@ async fn test_20_node_mesh_with_dedup() {
             total_peers += count;
         }
         // Only print when something changed
-        if total_peers != prev_total_peers || !converged {
+        if total_peers != prev_total_peers || first_sample {
             eprintln!(
                 "  t={:5.0?}ms  min_peers={:2}  max_peers={:2}  total_conns={:4}  out_est={:4}  in_est={:4}",
                 elapsed.as_millis(), min_peers, max_peers, total_peers, total_out_est, total_in_est
             );
             prev_total_peers = total_peers;
+            first_sample = false;
         }
-        if min_peers >= N - 1 && !converged {
-            converge_time = elapsed;
-            converged = true;
-            eprintln!(
-                "  *** CONVERGED at t={:.0?}ms ***",
-                converge_time.as_millis()
-            );
-            break;
+        if min_peers >= N - 1 {
+            eprintln!("  *** CONVERGED at t={:.0?}ms ***", elapsed.as_millis());
+            break elapsed;
         }
         if tokio::time::Instant::now() >= deadline {
             for i in 0..N {
@@ -4782,7 +4661,7 @@ async fn test_20_node_mesh_with_dedup() {
             panic!("Timed out: not all {} nodes have {} peers", N, N - 1);
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
-    }
+    };
 
     // ── Post-convergence stability: sample every 500ms for 3s ──
     eprintln!("\n=== Post-convergence stability (3s hold) ===");
@@ -4896,7 +4775,7 @@ async fn test_20_node_mesh_with_dedup() {
         total_outbound_drop,
         total_duplicate_conns
     );
-    eprintln!("Convergence time: {:.0?}ms", converge_time.as_millis());
+    eprintln!("Convergence time: {:.0?}ms", convergence_time.as_millis());
     eprintln!(
         "Unique peer pairs: {} (expected C({},2) = {})",
         total_outbound_establish / 2, // rough: each pair has ~2 outbound establishes

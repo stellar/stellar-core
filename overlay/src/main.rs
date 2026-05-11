@@ -10,7 +10,6 @@
 
 mod config;
 mod flood;
-mod http;
 pub mod integrated;
 mod ipc;
 pub mod libp2p_overlay;
@@ -22,12 +21,12 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
 use config::Config;
-use flood::{build_tx_set_xdr, hash_tx_set, CachedTxSet, Hash256, TxSetCache};
-use integrated::{CoreCommand, Overlay, OverlayHandle};
+use flood::{CachedTxSet, Hash256, TxSetCache};
+use integrated::{Overlay, OverlayHandle};
 use ipc::{CoreIpc, Message, MessageType};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
@@ -444,20 +443,15 @@ fn cache_tx_set_xdr(
         hash,
         xdr,
         ledger_seq: current_ledger_seq,
-        tx_hashes: vec![],
     });
 }
 
 /// Application state
 struct App {
-    #[allow(dead_code)]
-    config: Config,
     core_ipc: CoreIpc,
     overlay_handle: OverlayHandle,
     /// Cache for built TX sets
     tx_set_cache: TxSetCache,
-    /// TX set hashes already pushed to Core (reset on ledger close)
-    pushed_tx_sets: HashSet<Hash256>,
     /// Current ledger sequence
     current_ledger_seq: u32,
     /// libp2p overlay handle (QUIC-based SCP + TX)
@@ -466,8 +460,6 @@ struct App {
     libp2p_events: mpsc::UnboundedReceiver<LibP2pOverlayEvent>,
     /// libp2p TX events (bounded, may drop under backpressure)
     tx_events: mpsc::Receiver<LibP2pOverlayEvent>,
-    /// TX sets that Core has requested but we're still fetching from peers
-    pending_core_txset_requests: HashSet<Hash256>,
     /// Pending SCP state requests: maps request_id to requesting peer
     /// When Core responds with ScpStateResponse containing request_id, we look up the peer
     pending_scp_state_requests: Arc<RwLock<HashMap<u64, PeerId>>>,
@@ -547,16 +539,13 @@ impl App {
         );
 
         Ok(Self {
-            config,
             core_ipc,
             overlay_handle,
             tx_set_cache: TxSetCache::new(100),
-            pushed_tx_sets: HashSet::new(),
             current_ledger_seq: 0,
             libp2p_handle,
             libp2p_events: libp2p_event_rx,
             tx_events: tx_event_rx,
-            pending_core_txset_requests: HashSet::new(),
             pending_scp_state_requests: Arc::new(RwLock::new(HashMap::new())),
             next_scp_request_id: Arc::new(AtomicU64::new(1)),
             local_addrs,
@@ -760,7 +749,7 @@ impl App {
                 }
 
                 // Forward to Core
-                if let Err(e) = self.core_ipc.sender.send_scp_received(envelope, 0) {
+                if let Err(e) = self.core_ipc.sender.send_scp_received(envelope) {
                     error!(
                         "SCP_TO_CORE_FAIL: Failed to send SCP (id={:02x?}) to Core: {}",
                         &id_bytes[..id_len],
@@ -1082,7 +1071,6 @@ impl App {
                         "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
                         &hash[..4]
                     );
-                    self.pending_core_txset_requests.insert(hash);
                     self.libp2p_handle.fetch_txset(hash).await;
                 }
             }
@@ -1161,9 +1149,6 @@ impl App {
 
                     // Update current ledger
                     self.current_ledger_seq = ledger_seq;
-
-                    // Clear pushed TX sets (reset dedup tracking)
-                    self.pushed_tx_sets.clear();
 
                     // Evict old TX sets from cache
                     self.tx_set_cache
@@ -1471,12 +1456,6 @@ async fn main() {
     // Override peer port from command line
     if let Some(port) = args.peer_port {
         config.peer_port = port;
-    }
-
-    // Validate config
-    if let Err(e) = config.validate() {
-        eprintln!("Invalid config: {}", e);
-        std::process::exit(1);
     }
 
     // Setup logging
