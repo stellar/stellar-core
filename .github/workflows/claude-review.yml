@@ -1,0 +1,137 @@
+# SECURITY NOTE
+# ─────────────
+# This workflow uses `pull_request_target` rather than `pull_request` so that
+# fork PRs from org members can be reviewed by Claude. `pull_request_target`
+# runs in the context of the BASE repository, which means:
+#
+#   1. `secrets.ANTHROPIC_API_KEY` is available even when the PR comes from a
+#      fork. With `pull_request` this secret would be absent on fork PRs and
+#      the action would fail.
+#   2. The workflow definition that runs is the one on the base branch, NOT
+#      the version in the PR. A fork therefore cannot edit this file to
+#      bypass the author-association gate or exfiltrate secrets by editing
+#      the workflow itself.
+#
+# However, `pull_request_target` is also the source of GitHub's well-known
+# "pwn request" class of vulnerabilities. The risks specific to this file:
+#
+#   A. We check out `github.event.pull_request.head.sha` below into an
+#      isolated `pr-head/` subdirectory, NOT the workspace root. The base
+#      ref is checked out at the workspace root instead. This follows
+#      claude-code-action's recommended pattern for `pull_request_target`
+#      (see https://github.com/anthropics/claude-code-action/blob/main/docs/security.md):
+#      tools that consult repo-local config (.git/config, .git/hooks,
+#      .gitignore, .npmrc, Makefile, pre-commit hooks, etc.) at the
+#      workspace root see only trusted base-branch files, while Claude
+#      can still read the PR's files via `--add-dir pr-head`.
+#
+#      The PR head is still attacker-controlled code, so any future step
+#      that executes, sources, or interprets files from `pr-head/` (build
+#      scripts, package install hooks, test runners) would run with
+#      access to the secrets injected into this job. Treat any new step
+#      added below that touches `pr-head/` as if it were running attacker
+#      code with secrets in scope.
+#
+#   B. The mitigation is the `if:` gate: only PRs whose author_association
+#      is MEMBER (member of the org that owns this repo) or OWNER (the repo
+#      owner) get this far. `author_association` is set by GitHub from the
+#      author's relationship to the repo at event time and cannot be forged
+#      from the PR. A compromised org-member account would defeat this
+#      gate, which is the residual risk we are accepting — same trust
+#      boundary as merge access.
+#
+#   C. COLLABORATOR (outside collaborators invited to this repo) and
+#      CONTRIBUTOR (anyone who has previously had a commit merged) are
+#      intentionally NOT allowed. CONTRIBUTOR in particular is dangerous:
+#      a single merged typo fix would otherwise grant a stranger the
+#      ability to run code with secrets.
+#
+#   D. The PR head is re-evaluated on every `synchronize` event, so an
+#      org member cannot open a benign PR, get it approved for review,
+#      and then push malicious commits afterward — each push re-runs
+#      the gate. But note: the gate is on the AUTHOR, not the pusher.
+#      If a malicious actor gains write access to a fork owned by an
+#      org member, they can push to that fork's PR branch and trigger
+#      this workflow. This is the same trust model as the rest of CI.
+#
+#   E. `permissions:` is scoped to the minimum needed (contents: read,
+#      pull-requests: write, id-token: write). Do not broaden without
+#      reconsidering the threat model — `contents: write` here would
+#      let attacker-controlled code in the head ref push to the base
+#      repo.
+#
+# Before adding ANY new step to this job, ask: does it execute, source,
+# or interpret files from the checked-out PR head? If yes, the secrets
+# in this job's environment are exposed to whatever that step does.
+name: Claude Review
+on:
+  pull_request_target:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+# Revoke all default GITHUB_TOKEN permissions at the workflow level. Each job
+# below must explicitly opt in to whatever it needs. This is defense in depth:
+# if a future job is added without its own `permissions:` block it inherits
+# nothing, rather than whatever the repo or org default happens to be.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: |
+      github.event.pull_request.draft == false &&
+      (github.event.pull_request.head.repo.fork == false ||
+       github.event.pull_request.author_association == 'MEMBER' ||
+       github.event.pull_request.author_association == 'OWNER')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      # Check out the BASE ref at the workspace root. This is trusted code from
+      # the base branch, so it's safe for the action to operate against (e.g.
+      # reading .git/config, .git/hooks, etc. that the action and its tools
+      # consult). Do NOT check out the PR head here — see security note above.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # Check out the PR head into an isolated subdirectory. The action is told
+      # about it via `--add-dir` below so Claude can read the PR's files, but
+      # any attacker-controlled config (.git/config, .git/hooks, etc.) inside
+      # this subdirectory is NOT picked up by tools running at the workspace
+      # root. See: https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            The PR's checked-out files are in the `pr-head/` subdirectory.
+
+            Please review this pull request with a focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Security implications
+            - Performance considerations
+
+            Provide detailed feedback using inline comments for specific issues.
+
+          # --max-turns caps how many tool-use cycles Claude can run, which
+          # bounds token spend per invocation. The allowed `gh pr` commands are
+          # scoped to this PR's number so a misfire can't reach into another PR.
+          claude_args: |
+            --add-dir pr-head
+            --max-turns 30
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment ${{ github.event.pull_request.number }}:*),Bash(gh pr diff ${{ github.event.pull_request.number }}:*),Bash(gh pr view ${{ github.event.pull_request.number }}:*)"
