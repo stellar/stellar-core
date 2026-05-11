@@ -215,12 +215,16 @@ async fn resolve_peer_addr(addr_str: &str, default_port: u16) -> Result<SocketAd
     };
 
     // DNS resolution via tokio (async, non-blocking)
-    let mut addrs = tokio::net::lookup_host(&host_port)
+    let addrs: Vec<_> = tokio::net::lookup_host(&host_port)
         .await
-        .map_err(|e| format!("failed to resolve '{}': {}", host_port, e))?;
+        .map_err(|e| format!("failed to resolve '{}': {}", host_port, e))?
+        .collect();
 
     addrs
-        .next()
+        .iter()
+        .copied()
+        .find(|addr| addr.is_ipv4())
+        .or_else(|| addrs.into_iter().next())
         .ok_or_else(|| format!("DNS returned no addresses for '{}'", host_port))
 }
 
@@ -1916,7 +1920,7 @@ mod tests {
         let kp2 = Libp2pKeypair::generate_ed25519();
         let kp3 = Libp2pKeypair::generate_ed25519();
 
-        let (handle1, mut events1, _tx1, overlay1) =
+        let (handle1, _events1, _tx1, overlay1) =
             create_overlay(kp1, Arc::new(OverlayMetrics::new())).unwrap();
         let (handle2, mut events2, _tx2, overlay2) =
             create_overlay(kp2, Arc::new(OverlayMetrics::new())).unwrap();
