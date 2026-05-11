@@ -462,6 +462,14 @@ ImmutableLedgerView::scanLiveEntriesOfType(
     mLiveSnapshot.scanForEntriesOfType(type, std::move(callback));
 }
 
+void
+ImmutableLedgerView::scanCurrentLiveEntriesOfType(
+    LedgerEntryType type,
+    std::function<void(LedgerEntry const&, LedgerKey const&)> callback) const
+{
+    mLiveSnapshot.scanForLiveEntriesOfType(type, std::move(callback));
+}
+
 // === Hot Archive BucketList wrapper methods ===
 
 std::shared_ptr<HotArchiveBucketEntry const>
