@@ -14,6 +14,7 @@ pub mod integrated;
 mod ipc;
 pub mod libp2p_overlay;
 mod metrics;
+mod xdr;
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
@@ -141,57 +142,9 @@ fn multiaddr_to_socket_addr(addr: &Multiaddr) -> Option<SocketAddr> {
     }
 }
 
-/// Extract TX set hashes from an SCP envelope (best effort, may return empty)
-/// The SCP envelope contains StellarValue(s) which start with a 32-byte txSetHash.
-/// We look for these hashes without fully parsing the XDR - just scanning for them.
+/// Extract TX set hashes from an SCP envelope.
 fn extract_txset_hashes_from_scp(envelope: &[u8]) -> Vec<[u8; 32]> {
-    // StellarValue structure:
-    //   Hash txSetHash;      // 32 bytes
-    //   TimePoint closeTime; // uint64 (8 bytes)
-    //   UpgradeType upgrades<6>;
-    //   union switch (StellarValueType v) { ... }
-    //
-    // The txSetHash appears in SCPBallot.value within various statement types.
-    // Rather than fully parsing, we look for 32-byte sequences that could be hashes.
-    // This is imperfect but catches most cases.
-    //
-    // SCP statement types that contain StellarValue:
-    // - PREPARE: ballot.value, prepared.value, preparedPrime.value
-    // - CONFIRM: ballot.value
-    // - EXTERNALIZE: commit.value
-    // - NOMINATE: votes<>, accepted<>
-
-    let mut hashes = Vec::new();
-
-    // Skip the nodeID (32 bytes) and slotIndex (8 bytes) at the start of SCPStatement
-    // Then we have the pledges union...
-    // This is too complex to parse reliably without proper XDR decoding.
-
-    // Simple heuristic: look for 32-byte sequences followed by a reasonable timestamp
-    // (timestamps are 8-byte uint64s, Stellar timestamps are ~1.7B for year 2024)
-    if envelope.len() < 48 {
-        return hashes;
-    }
-
-    // Scan through looking for potential StellarValue structures
-    for i in 0..envelope.len().saturating_sub(40) {
-        // Check if bytes [i..i+32] could be a hash followed by a valid timestamp
-        if i + 40 <= envelope.len() {
-            let potential_timestamp =
-                u64::from_be_bytes(envelope[i + 32..i + 40].try_into().unwrap_or([0; 8]));
-            // Stellar timestamps are Unix time, valid range ~1.5B to ~2B for 2020-2033
-            if potential_timestamp > 1_500_000_000 && potential_timestamp < 2_500_000_000 {
-                let mut hash = [0u8; 32];
-                hash.copy_from_slice(&envelope[i..i + 32]);
-                // Avoid duplicates
-                if !hashes.contains(&hash) {
-                    hashes.push(hash);
-                }
-            }
-        }
-    }
-
-    hashes
+    xdr::extract_txset_hashes_from_scp(envelope)
 }
 
 /// Resolve a peer address string to a SocketAddr.
@@ -764,14 +717,7 @@ impl App {
             }
             LibP2pOverlayEvent::TxReceived { tx, from } => {
                 debug!("Received TX via QUIC from {}: {} bytes", from, tx.len());
-                // Add to mempool
-                // TODO: Parse XDR to extract fee and ops instead of hardcoding fee=0, ops=1
-                // This causes network-flooded TXs to have wrong priority in mempool
-                // and breaks fee-based eviction. Need to:
-                // 1. Parse TransactionEnvelope XDR to get tx.fee and operation count
-                // 2. Extract source account and sequence number
-                // 3. Consider signature validation to prevent spam
-                self.overlay_handle.submit_tx(tx, 0, 1);
+                self.overlay_handle.submit_tx(tx, 0, 0);
             }
             LibP2pOverlayEvent::TxSetReceived { hash, data, from } => {
                 info!(
@@ -780,6 +726,18 @@ impl App {
                     data.len(),
                     from
                 );
+                let data = match xdr::verify_generalized_tx_set_xdr(&hash, &data) {
+                    Ok(canonical) => canonical,
+                    Err(e) => {
+                        warn!(
+                            "TXSET_RECV_DROP: Dropping invalid TxSet {:02x?}... from {}: {}",
+                            &hash[..4],
+                            from,
+                            e
+                        );
+                        return;
+                    }
+                };
 
                 // IMPORTANT: Cache the TxSet FIRST, before pushing to Core
                 // This ensures the TxSet is available when SCP processing resumes
@@ -1085,15 +1043,31 @@ impl App {
 
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
-                let xdr = msg.payload[32..].to_vec();
+                let tx_set_xdr = match xdr::verify_generalized_tx_set_xdr(&hash, &msg.payload[32..])
+                {
+                    Ok(canonical) => canonical,
+                    Err(e) => {
+                        warn!(
+                            "TXSET_CACHE_DROP: Dropping invalid TX set {:02x?}... from Core: {}",
+                            &hash[..4],
+                            e
+                        );
+                        return true;
+                    }
+                };
 
                 info!(
                     "TXSET_CACHE: Caching locally-built TX set {:02x?}... ({} bytes)",
                     &hash[..4],
-                    xdr.len()
+                    tx_set_xdr.len()
                 );
 
-                cache_tx_set_xdr(&mut self.tx_set_cache, self.current_ledger_seq, hash, xdr);
+                cache_tx_set_xdr(
+                    &mut self.tx_set_cache,
+                    self.current_ledger_seq,
+                    hash,
+                    tx_set_xdr,
+                );
             }
 
             MessageType::SubmitTx => {
@@ -1107,12 +1081,30 @@ impl App {
                 let num_ops = u32::from_le_bytes(msg.payload[8..12].try_into().unwrap());
                 let tx_data = msg.payload[12..].to_vec();
 
+                let parsed_tx = match xdr::parse_supported_transaction(&tx_data) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        warn!("SUBMIT_TX_DROP: Dropping unsupported TX from Core: {}", e);
+                        return true;
+                    }
+                };
+                if u64::try_from(fee).ok() != Some(parsed_tx.fee) || num_ops != parsed_tx.num_ops {
+                    debug!(
+                        "SUBMIT_TX_METADATA_MISMATCH: Core fee/ops=({}/{}) XDR fee/ops=({}/{})",
+                        fee, num_ops, parsed_tx.fee, parsed_tx.num_ops
+                    );
+                }
+
                 // Add to mempool
-                self.overlay_handle
-                    .submit_tx(tx_data.clone(), fee as u64, num_ops);
+                self.overlay_handle.submit_tx(
+                    parsed_tx.envelope_xdr.clone(),
+                    parsed_tx.fee,
+                    parsed_tx.num_ops,
+                );
 
                 // Broadcast TX via libp2p QUIC (dedicated stream)
                 let handle = self.libp2p_handle.clone();
+                let tx_data = parsed_tx.envelope_xdr;
                 tokio::spawn(async move {
                     handle.broadcast_tx(tx_data).await;
                 });
@@ -1185,12 +1177,7 @@ impl App {
                     // Remove TXs from mempool and WAIT for completion
                     // This prevents race where next nomination queries stale mempool
                     if !tx_hashes.is_empty() {
-                        let overlay_handle = self.overlay_handle.clone();
-                        // Spawn but await the task to ensure completion before returning
-                        let task = tokio::spawn(async move {
-                            overlay_handle.remove_txs_sync(tx_hashes).await;
-                        });
-                        let _ = task.await;
+                        self.overlay_handle.remove_txs_sync(tx_hashes).await;
                     }
 
                     // NOTE: Don't remove TX set from cache on externalization!
@@ -1510,108 +1497,18 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
+
+    fn test_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
+        let mut envelope = ScpEnvelope::default();
+        envelope.statement.slot_index = slot_index;
+        envelope.to_xdr(Limits::none()).unwrap()
+    }
 
     #[test]
-    fn test_extract_txset_hashes_empty() {
-        // Empty envelope should return no hashes
+    fn test_extract_txset_hashes_rejects_invalid_xdr() {
         assert!(extract_txset_hashes_from_scp(&[]).is_empty());
-
-        // Short envelope should return no hashes
         assert!(extract_txset_hashes_from_scp(&[0u8; 40]).is_empty());
-    }
-
-    #[test]
-    fn test_extract_txset_hashes_with_valid_timestamp() {
-        // Create a mock envelope with a known hash followed by a valid timestamp
-        let mut envelope = vec![0u8; 100];
-
-        // Place a known hash at offset 10
-        let expected_hash: [u8; 32] = [
-            0x88, 0x71, 0x32, 0x79, 0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
-            0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x12, 0x34, 0x56, 0x78,
-            0x9A, 0xBC, 0xDE, 0xF0,
-        ];
-        envelope[10..42].copy_from_slice(&expected_hash);
-
-        // Place a valid timestamp (2024 = ~1704067200 = 0x65944600) after the hash
-        // XDR uses big-endian, timestamp ~1.7B = 0x00000000_65944600
-        let timestamp: u64 = 1704067200; // Jan 1, 2024
-        envelope[42..50].copy_from_slice(&timestamp.to_be_bytes());
-
-        let hashes = extract_txset_hashes_from_scp(&envelope);
-
-        assert_eq!(hashes.len(), 1, "Should find exactly one hash");
-        assert_eq!(hashes[0], expected_hash, "Should match expected hash");
-    }
-
-    #[test]
-    fn test_extract_txset_hashes_invalid_timestamp() {
-        // Create envelope with hash followed by invalid timestamp (too old)
-        // Use 0x00 fill with specific placement to avoid accidental valid timestamps
-        // The heuristic scanner can find false positives, so we construct carefully
-        let mut envelope = vec![0x00u8; 50]; // Minimal size, all zeros
-
-        let hash: [u8; 32] = [0x42u8; 32];
-        envelope[0..32].copy_from_slice(&hash);
-
-        // Invalid timestamp (year 1970) at offset 32
-        let bad_timestamp: u64 = 100;
-        envelope[32..40].copy_from_slice(&bad_timestamp.to_be_bytes());
-
-        // Pad with zeros (which won't form valid timestamps)
-        let hashes = extract_txset_hashes_from_scp(&envelope);
-
-        // The hash at offset 0 has an invalid timestamp (100), so shouldn't be found
-        // Note: This test verifies the timestamp validation, not hash detection
-        let found_our_hash = hashes.iter().any(|h| *h == hash);
-        assert!(
-            !found_our_hash,
-            "Should not find hash 0x42... with invalid timestamp 100"
-        );
-    }
-
-    #[test]
-    fn test_extract_txset_hashes_multiple() {
-        // Create envelope with multiple valid hash+timestamp pairs
-        let mut envelope = vec![0u8; 200];
-
-        let hash1: [u8; 32] = [0x11u8; 32];
-        let hash2: [u8; 32] = [0x22u8; 32];
-        let timestamp: u64 = 1704067200;
-
-        // First hash at offset 10
-        envelope[10..42].copy_from_slice(&hash1);
-        envelope[42..50].copy_from_slice(&timestamp.to_be_bytes());
-
-        // Second hash at offset 100
-        envelope[100..132].copy_from_slice(&hash2);
-        envelope[132..140].copy_from_slice(&timestamp.to_be_bytes());
-
-        let hashes = extract_txset_hashes_from_scp(&envelope);
-
-        assert_eq!(hashes.len(), 2, "Should find two hashes");
-        assert!(hashes.contains(&hash1), "Should contain first hash");
-        assert!(hashes.contains(&hash2), "Should contain second hash");
-    }
-
-    #[test]
-    fn test_extract_txset_hashes_dedup() {
-        // Create envelope with same hash appearing twice
-        let mut envelope = vec![0u8; 200];
-
-        let hash: [u8; 32] = [0x33u8; 32];
-        let timestamp: u64 = 1704067200;
-
-        // Same hash at two offsets
-        envelope[10..42].copy_from_slice(&hash);
-        envelope[42..50].copy_from_slice(&timestamp.to_be_bytes());
-
-        envelope[100..132].copy_from_slice(&hash);
-        envelope[132..140].copy_from_slice(&timestamp.to_be_bytes());
-
-        let hashes = extract_txset_hashes_from_scp(&envelope);
-
-        assert_eq!(hashes.len(), 1, "Should deduplicate same hash");
     }
 
     // --- DNS resolution tests ---
@@ -1918,7 +1815,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Verify connectivity by broadcasting SCP from node1 and receiving on node2 and node3
-        let scp_msg = b"connectivity-test-message".to_vec();
+        let scp_msg = test_scp_envelope_xdr(1);
         handle1.broadcast_scp(scp_msg.clone()).await;
 
         let mut node2_received = false;

@@ -3791,6 +3791,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile",
  "tokio",
  "toml",

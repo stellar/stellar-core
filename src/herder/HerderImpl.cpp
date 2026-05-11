@@ -1429,20 +1429,39 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
 
-    // Convert TransactionEnvelopes to TransactionFrameBasePtrs
+    // Convert TransactionEnvelopes to TransactionFrameBasePtrs and place them
+    // into the phase expected by TxSetFrame.
     TxFrameList classicTxs;
+    TxFrameList sorobanTxs;
     Hash const& networkID = mApp.getNetworkID();
+    bool const supportsSoroban = protocolVersionStartsFrom(
+        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
     for (auto const& env : txEnvelopes)
     {
         auto txFrame =
             TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        classicTxs.push_back(txFrame);
+        if (txFrame->isSoroban())
+        {
+            if (supportsSoroban)
+            {
+                sorobanTxs.push_back(txFrame);
+            }
+            else
+            {
+                CLOG_DEBUG(Herder,
+                           "Ignoring Soroban transaction before Soroban "
+                           "protocol support");
+            }
+        }
+        else
+        {
+            classicTxs.push_back(txFrame);
+        }
     }
     txPhases.emplace_back(std::move(classicTxs));
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    if (supportsSoroban)
     {
-        txPhases.emplace_back(); // empty Soroban phase
+        txPhases.emplace_back(std::move(sorobanTxs));
     }
 
     PerPhaseTransactionList invalidTxPhases;

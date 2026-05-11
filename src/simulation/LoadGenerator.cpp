@@ -1370,6 +1370,11 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         // All Wasms should be deployed
         releaseAssert(cfg.getSorobanConfig().nWasms == 0);
 
+        // The first setup phase has fully applied, so its source accounts are
+        // safe to reuse for the instance-creation phase.
+        mAccountsAvailable.insert(mAccountsInUse.begin(), mAccountsInUse.end());
+        mAccountsInUse.clear();
+
         // 1 deploy TX per instance
         cfg.nTxs = cfg.getSorobanConfig().nInstances;
         scheduleLoadGeneration(cfg);

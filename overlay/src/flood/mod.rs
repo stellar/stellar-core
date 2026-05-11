@@ -13,7 +13,7 @@ mod txset;
 pub use inv_batcher::InvBatcher;
 pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage};
 pub use inv_tracker::InvTracker;
-pub use mempool::{compute_tx_hash, Mempool, TxEntry};
+pub use mempool::{Mempool, TxEntry};
 pub use pending_requests::PendingRequests;
 pub use tx_buffer::TxBuffer;
 pub use txset::{CachedTxSet, Hash256, TxSetCache};
