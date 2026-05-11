@@ -114,6 +114,23 @@ pub struct OverlayMetrics {
     /// overlay.flood.tx-batch-size — number of entries per INV batch
     pub flood_tx_batch_size_sum: AtomicU64,
     pub flood_tx_batch_size_count: AtomicU64,
+
+    // Compact-block specific metrics (note these are all from the perspective of the peer who
+    // receives the compact block, not the peer who sends it)
+    /// overlay.compact.reconstructed-size (total size of compact blocks reconstructed)
+    pub reconstructed_size: AtomicU64,
+    /// overlay.compact.reconstructed-count (number of compact blocks reconstructed)
+    pub reconstructed_count: AtomicU64,
+    /// overlay.compact.compact-size (total size of compact blocks received)
+    pub compact_size: AtomicU64,
+    /// overlay.compact.compact-count (number of compact blocks received)
+    pub compact_count: AtomicU64,
+    /// overlay.compact.txs-requested (number of TXs requested in SetGetTxs messages)
+    pub txs_requested: AtomicU64,
+    /// overlay.compact.tx-bytes-requested (bytes sent in SetGetTxs messages)
+    pub tx_bytes_requested: AtomicU64,
+    /// overlay.compact.tx-bytes-received (bytes received in SetTxs messages)
+    pub tx_bytes_received: AtomicU64,
 }
 
 impl Default for OverlayMetrics {
@@ -160,6 +177,13 @@ impl Default for OverlayMetrics {
             flood_tx_pull_latency_count: AtomicU64::new(0),
             flood_tx_batch_size_sum: AtomicU64::new(0),
             flood_tx_batch_size_count: AtomicU64::new(0),
+            reconstructed_size: AtomicU64::new(0),
+            reconstructed_count: AtomicU64::new(0),
+            compact_size: AtomicU64::new(0),
+            compact_count: AtomicU64::new(0),
+            txs_requested: AtomicU64::new(0),
+            tx_bytes_requested: AtomicU64::new(0),
+            tx_bytes_received: AtomicU64::new(0),
         }
     }
 }
@@ -221,6 +245,13 @@ impl OverlayMetrics {
             flood_tx_pull_latency_count: self.flood_tx_pull_latency_count.load(ORD),
             flood_tx_batch_size_sum: self.flood_tx_batch_size_sum.load(ORD),
             flood_tx_batch_size_count: self.flood_tx_batch_size_count.load(ORD),
+            reconstructed_size: self.reconstructed_size.load(ORD),
+            reconstructed_count: self.reconstructed_count.load(ORD),
+            compact_size: self.compact_size.load(ORD),
+            compact_count: self.compact_count.load(ORD),
+            txs_requested: self.txs_requested.load(ORD),
+            tx_bytes_requested: self.tx_bytes_requested.load(ORD),
+            tx_bytes_received: self.tx_bytes_received.load(ORD),
         }
     }
 
@@ -290,6 +321,13 @@ pub struct MetricsSnapshot {
     pub flood_tx_pull_latency_count: u64,
     pub flood_tx_batch_size_sum: u64,
     pub flood_tx_batch_size_count: u64,
+    pub reconstructed_size: u64,
+    pub reconstructed_count: u64,
+    pub compact_size: u64,
+    pub compact_count: u64,
+    pub txs_requested: u64,
+    pub tx_bytes_requested: u64,
+    pub tx_bytes_received: u64,
 }
 
 #[cfg(test)]

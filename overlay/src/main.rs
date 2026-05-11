@@ -24,7 +24,7 @@ use std::num::NonZero;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
@@ -568,6 +568,7 @@ fn reconstruct_tx_set(
     request: PendingCompactTxSet,
     from: PeerId,
     send_txset: mpsc::UnboundedSender<([u8; 32], Vec<u8>, PeerId)>,
+    metrics: Arc<OverlayMetrics>,
 ) {
     let txs: Vec<_> = request
         .txs
@@ -616,6 +617,17 @@ fn reconstruct_tx_set(
         );
     }
 
+    let fetch_us = request.request_time.elapsed().as_micros() as u64;
+    metrics
+        .fetch_txset_sum_us
+        .fetch_add(fetch_us, Ordering::Relaxed);
+    metrics.fetch_txset_count.fetch_add(1, Ordering::Relaxed);
+
+    metrics
+        .reconstructed_size
+        .fetch_add(full_xdr.len() as u64, Ordering::Relaxed);
+    metrics.reconstructed_count.fetch_add(1, Ordering::Relaxed);
+
     send_txset
         .send((request.tx_set.tx_set_hash.0, full_xdr, from))
         .expect("Failed to send full TX set to main task after receiving SetTxs");
@@ -624,6 +636,7 @@ fn reconstruct_tx_set(
 struct PendingCompactTxSet {
     tx_set: CompactTxSet,
     txs: Vec<Option<TransactionEnvelope>>,
+    request_time: Instant,
 }
 
 /// Application state
@@ -1007,13 +1020,19 @@ impl App {
                 self.overlay_handle.submit_tx(tx, 0, 1);
             }
 
-            LibP2pOverlayEvent::CompactReceived { msg, from } => match msg {
+            LibP2pOverlayEvent::CompactReceived { msg, from, size } => match msg {
                 CompactTxSetMessage::Set(compact_tx_set) => {
                     let overlay_handle = self.overlay_handle.clone();
                     let pending_cache = Arc::clone(&self.pending_compact_txsets);
                     let p2p_handle = self.libp2p_handle.clone();
                     let send_txset = self.send_tx_set_to_core.clone();
+                    let metrics = Arc::clone(&self.metrics);
+                    metrics.compact_count.fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .compact_size
+                        .fetch_add(size as u64, Ordering::Relaxed);
                     tokio::spawn(async move {
+                        let begin = Instant::now();
                         let hashes = compact_tx_set.txs.clone();
                         let key: [u8; 16] = compact_tx_set.tx_set_hash.0[..16].try_into().unwrap();
                         let mut missing = Vec::new();
@@ -1037,11 +1056,14 @@ impl App {
                                 PendingCompactTxSet {
                                     tx_set: compact_tx_set,
                                     txs,
+                                    request_time: begin,
                                 },
                                 from,
                                 send_txset,
+                                metrics,
                             );
                         } else {
+                            let num_missing = missing.len();
                             let missing = create_differential_indices(missing);
                             let mut msg: Vec<u8> = Vec::new();
                             msg.extend_from_slice(
@@ -1052,6 +1074,12 @@ impl App {
                             msg.extend_from_slice(&missing);
                             let rounded_size = msg.len().next_multiple_of(4);
                             msg.resize(rounded_size, 0);
+                            metrics
+                                .txs_requested
+                                .fetch_add(num_missing as u64, Ordering::Relaxed);
+                            metrics
+                                .tx_bytes_requested
+                                .fetch_add(msg.len() as u64, Ordering::Relaxed);
                             p2p_handle.send_compact_msg(msg, from).await;
 
                             let mut cache = pending_cache.lock().unwrap();
@@ -1060,6 +1088,7 @@ impl App {
                                 PendingCompactTxSet {
                                     tx_set: compact_tx_set,
                                     txs,
+                                    request_time: begin,
                                 },
                             );
                         }
@@ -1107,6 +1136,7 @@ impl App {
                 CompactTxSetMessage::SetTxs(compact_tx_set_txs) => {
                     let pending_cache = Arc::clone(&self.pending_compact_txsets);
                     let send_txset = self.send_tx_set_to_core.clone();
+                    let metrics = Arc::clone(&self.metrics);
                     tokio::spawn(async move {
                         let mut request = {
                             let mut pending = pending_cache.lock().unwrap();
@@ -1149,7 +1179,10 @@ impl App {
                             }
                         }
 
-                        reconstruct_tx_set(request, from, send_txset);
+                        metrics
+                            .tx_bytes_received
+                            .fetch_add(size as u64, Ordering::Relaxed);
+                        reconstruct_tx_set(request, from, send_txset, metrics);
                     });
                 }
             },

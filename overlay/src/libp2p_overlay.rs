@@ -58,6 +58,7 @@ pub enum OverlayEvent {
     CompactReceived {
         msg: CompactTxSetMessage,
         from: PeerId,
+        size: usize,
     },
     /// Received TX from peer
     TxReceived { tx: Vec<u8>, from: PeerId },
@@ -1737,6 +1738,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                         if let Err(e) = state.event_tx.send(OverlayEvent::CompactReceived {
                             msg: txset_msg,
                             from: peer_id,
+                            size: data.len(),
                         }) {
                             warn!(
                                 "Failed to forward CompactReceived event from {}: {}",
