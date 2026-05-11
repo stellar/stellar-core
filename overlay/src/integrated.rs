@@ -10,7 +10,8 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
-use crate::flood::{compute_tx_hash, Mempool};
+use crate::flood::Mempool;
+use crate::xdr::parse_supported_transaction;
 
 /// Commands from Core to Overlay
 #[derive(Debug, Clone)]
@@ -69,29 +70,36 @@ impl Overlay {
     async fn handle_core_command(&self, cmd: CoreCommand) {
         match cmd {
             CoreCommand::SubmitTx { data, fee, num_ops } => {
-                let hash = compute_tx_hash(&data);
+                let parsed = match parse_supported_transaction(&data) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        debug!("[SubmitTx] dropping unsupported TX: {}", e);
+                        return;
+                    }
+                };
                 debug!(
-                    "[SubmitTx] TX: hash={:?}, size={}, fee={}, ops={}",
-                    &hash[..4],
-                    data.len(),
-                    fee,
-                    num_ops
+                    "[SubmitTx] TX: hash={:?}, size={}, fee={}, ops={}, class={:?}",
+                    &parsed.full_hash[..4],
+                    parsed.envelope_xdr.len(),
+                    parsed.fee,
+                    parsed.num_ops,
+                    parsed.class
                 );
+                if fee != parsed.fee || num_ops != parsed.num_ops {
+                    debug!(
+                        "[SubmitTx] caller metadata fee/ops=({}/{}) differs from XDR fee/ops=({}/{})",
+                        fee, num_ops, parsed.fee, parsed.num_ops
+                    );
+                }
 
-                // TODO: Parse XDR to extract source_account and sequence instead of zeros
-                // This breaks:
-                // 1. Account-based TX ordering in mempool
-                // 2. Per-account TX queries
-                // 3. Sequence number validation
-                // Need to parse TransactionEnvelope.tx.sourceAccount and seqNum from XDR
                 let mut mempool = self.mempool.write().await;
                 let entry = crate::flood::TxEntry {
-                    data,
-                    hash,
-                    source_account: [0u8; 32], // TODO: Parse from XDR
-                    sequence: 0,               // TODO: Parse from XDR
-                    fee,
-                    num_ops,
+                    data: parsed.envelope_xdr,
+                    hash: parsed.full_hash,
+                    source_account: parsed.source_account,
+                    sequence: parsed.sequence,
+                    fee: parsed.fee,
+                    num_ops: parsed.num_ops,
                     received_at: std::time::Instant::now(),
                 };
                 mempool.insert(entry);
@@ -172,6 +180,7 @@ impl OverlayHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::xdr::tests::valid_transaction_xdr;
 
     #[tokio::test]
     async fn test_submit_tx_adds_to_mempool() {
@@ -186,7 +195,8 @@ mod tests {
         });
 
         // Submit a TX
-        handle.submit_tx(vec![1, 2, 3], 100, 1);
+        let tx = valid_transaction_xdr(100, 1, 1);
+        handle.submit_tx(tx, 100, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Verify it's in mempool
@@ -205,16 +215,19 @@ mod tests {
         });
 
         // Submit TXs with different fees
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 500, 1);
-        handle.submit_tx(vec![3], 200, 1);
+        let tx1 = valid_transaction_xdr(100, 1, 1);
+        let tx2 = valid_transaction_xdr(500, 2, 1);
+        let tx3 = valid_transaction_xdr(200, 3, 1);
+        handle.submit_tx(tx1, 100, 1);
+        handle.submit_tx(tx2.clone(), 500, 1);
+        handle.submit_tx(tx3, 200, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Get top 2
         let top = handle.get_top_txs(2).await;
         assert_eq!(top.len(), 2);
         // First should be highest fee
-        assert_eq!(top[0].1, vec![2]);
+        assert_eq!(top[0].1, tx2);
     }
 
     #[tokio::test]
@@ -228,8 +241,8 @@ mod tests {
         });
 
         // Submit only 2 TXs
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 200, 1);
+        handle.submit_tx(valid_transaction_xdr(100, 1, 1), 100, 1);
+        handle.submit_tx(valid_transaction_xdr(200, 2, 1), 200, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Ask for 10
@@ -268,17 +281,20 @@ mod tests {
         // TX1: 200 fee / 2 ops = 100 per op
         // TX2: 150 fee / 1 op = 150 per op (HIGHER priority)
         // TX3: 300 fee / 4 ops = 75 per op (LOWER priority)
-        handle.submit_tx(vec![1], 200, 2);
-        handle.submit_tx(vec![2], 150, 1);
-        handle.submit_tx(vec![3], 300, 4);
+        let tx1 = valid_transaction_xdr(200, 1, 2);
+        let tx2 = valid_transaction_xdr(150, 2, 1);
+        let tx3 = valid_transaction_xdr(300, 3, 4);
+        handle.submit_tx(tx1.clone(), 200, 2);
+        handle.submit_tx(tx2.clone(), 150, 1);
+        handle.submit_tx(tx3.clone(), 300, 4);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         let top = handle.get_top_txs(3).await;
         assert_eq!(top.len(), 3);
 
         // Order should be: TX2 (150/op), TX1 (100/op), TX3 (75/op)
-        assert_eq!(top[0].1, vec![2]);
-        assert_eq!(top[1].1, vec![1]);
-        assert_eq!(top[2].1, vec![3]);
+        assert_eq!(top[0].1, tx2);
+        assert_eq!(top[1].1, tx1);
+        assert_eq!(top[2].1, tx3);
     }
 }
