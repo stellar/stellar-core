@@ -54,20 +54,13 @@ pub struct CoreSender {
 }
 
 impl CoreSender {
-    /// Create a new CoreSender (for testing)
-    #[cfg(test)]
-    pub fn new(tx: mpsc::UnboundedSender<Message>) -> Self {
-        Self { tx }
-    }
-
     /// Send a message to Core. Never blocks.
     pub fn send(&self, msg: Message) -> Result<(), IpcError> {
         self.tx.send(msg).map_err(|_| IpcError::ChannelClosed)
     }
 
     /// Convenience: send SCP received notification
-    pub fn send_scp_received(&self, envelope: Vec<u8>, _from_peer: u64) -> Result<(), IpcError> {
-        // TODO: encode peer_id in payload format
+    pub fn send_scp_received(&self, envelope: Vec<u8>) -> Result<(), IpcError> {
         self.send(Message::new(MessageType::ScpReceived, envelope))
     }
 
@@ -120,10 +113,6 @@ pub struct CoreIpc {
     pub sender: CoreSender,
     /// Receiver for incoming messages
     pub receiver: CoreReceiver,
-    /// Join handle for reader task
-    reader_handle: tokio::task::JoinHandle<()>,
-    /// Join handle for writer task  
-    writer_handle: tokio::task::JoinHandle<()>,
 }
 
 impl CoreIpc {
@@ -180,21 +169,19 @@ impl CoreIpc {
 
         // Spawn reader task
         let reader_stream = Arc::clone(&stream);
-        let reader_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             Self::reader_loop(reader_stream, inbound_tx).await;
         });
 
         // Spawn writer task
         let writer_stream = Arc::clone(&stream);
-        let writer_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             Self::writer_loop(writer_stream, outbound_rx).await;
         });
 
         Ok(Self {
             sender: CoreSender { tx: outbound_tx },
             receiver: CoreReceiver { rx: inbound_rx },
-            reader_handle,
-            writer_handle,
         })
     }
 
@@ -278,19 +265,6 @@ impl CoreIpc {
         }
 
         debug!("IPC writer: channel closed, stopping");
-    }
-
-    /// Gracefully shutdown the IPC connection.
-    pub async fn shutdown(self) {
-        // Dropping sender will close the writer loop
-        drop(self.sender);
-
-        // Wait for tasks to finish (with timeout)
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            let _ = self.writer_handle.await;
-            let _ = self.reader_handle.await;
-        })
-        .await;
     }
 }
 
@@ -515,9 +489,7 @@ mod tests {
 
         // Simulate overlay receiving SCP from network and forwarding to Core
         let scp_envelope = vec![0x01, 0x02, 0x03, 0x04, 0x05];
-        ipc.sender
-            .send_scp_received(scp_envelope.clone(), 42)
-            .unwrap();
+        ipc.sender.send_scp_received(scp_envelope.clone()).unwrap();
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 

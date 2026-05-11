@@ -86,11 +86,6 @@ impl InvBatch {
         self.entries.push(entry);
     }
 
-    /// Check if batch is at capacity
-    pub fn is_full(&self) -> bool {
-        self.entries.len() >= INV_BATCH_MAX_SIZE
-    }
-
     /// Encode to wire format: [type:1][count:4][entries...]
     /// Note: type byte is written by caller in framed message
     pub fn encode(&self) -> Vec<u8> {
@@ -164,10 +159,6 @@ impl GetData {
 
     pub fn push(&mut self, hash: [u8; 32]) {
         self.hashes.push(hash);
-    }
-
-    pub fn is_full(&self) -> bool {
-        self.hashes.len() >= GETDATA_MAX_SIZE
     }
 
     /// Encode to wire format: [count:4][hashes...]
@@ -357,7 +348,6 @@ mod tests {
             });
         }
 
-        assert!(batch.is_full());
         let encoded = batch.encode();
         assert_eq!(encoded.len(), 4 + INV_BATCH_MAX_SIZE * InvEntry::SIZE);
 
@@ -407,7 +397,6 @@ mod tests {
             gd.push([(i % 256) as u8; 32]);
         }
 
-        assert!(gd.is_full());
         let encoded = gd.encode();
         assert_eq!(encoded.len(), 4 + GETDATA_MAX_SIZE * 32);
 

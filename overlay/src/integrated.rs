@@ -5,23 +5,16 @@
 //! - Transaction mempool (fee-ordered, with dedup)
 //! - Core command handling for mempool operations
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, trace};
+use tracing::{debug, info};
 
 use crate::flood::{compute_tx_hash, Mempool};
-
-/// Peer ID type
-pub type PeerId = u64;
 
 /// Commands from Core to Overlay
 #[derive(Debug, Clone)]
 pub enum CoreCommand {
-    /// Broadcast SCP envelope to all peers (handled by libp2p)
-    BroadcastScp { envelope: Vec<u8> },
-
     /// Submit a transaction for flooding
     SubmitTx {
         data: Vec<u8>,
@@ -35,38 +28,11 @@ pub enum CoreCommand {
         reply: mpsc::Sender<Vec<([u8; 32], Vec<u8>)>>,
     },
 
-    /// Configure peer connections
-    SetPeerConfig {
-        known_peers: Vec<String>,
-        preferred_peers: Vec<String>,
-        listen_port: u16,
-    },
-
     /// Remove transactions from mempool (after ledger close)
     RemoveTxsFromMempool {
         tx_hashes: Vec<[u8; 32]>,
         reply: Option<mpsc::Sender<()>>,
     },
-}
-
-/// Events from Overlay to Core
-#[derive(Debug, Clone)]
-pub enum OverlayEvent {
-    /// SCP envelope received from a peer
-    ScpReceived {
-        envelope: Vec<u8>,
-        from_peer: PeerId,
-    },
-
-    /// Peer connected
-    PeerConnected {
-        peer_id: PeerId,
-        addr: SocketAddr,
-        public_key: [u8; 32],
-    },
-
-    /// Peer disconnected
-    PeerDisconnected { peer_id: PeerId },
 }
 
 /// Mempool manager (no longer handles network connections).
@@ -102,10 +68,6 @@ impl Overlay {
     /// Handle a command from Core.
     async fn handle_core_command(&self, cmd: CoreCommand) {
         match cmd {
-            CoreCommand::BroadcastScp { .. } => {
-                trace!("BroadcastScp ignored (handled by libp2p)");
-            }
-
             CoreCommand::SubmitTx { data, fee, num_ops } => {
                 let hash = compute_tx_hash(&data);
                 debug!(
@@ -131,7 +93,6 @@ impl Overlay {
                     fee,
                     num_ops,
                     received_at: std::time::Instant::now(),
-                    from_peer: 0,
                 };
                 mempool.insert(entry);
             }
@@ -144,10 +105,6 @@ impl Overlay {
                     .filter_map(|h| mempool.get(h).map(|e| (*h, e.data.clone())))
                     .collect();
                 let _ = reply.send(txs).await;
-            }
-
-            CoreCommand::SetPeerConfig { .. } => {
-                trace!("SetPeerConfig ignored (handled by libp2p)");
             }
 
             CoreCommand::RemoveTxsFromMempool { tx_hashes, reply } => {
@@ -198,14 +155,6 @@ impl OverlayHandle {
             reply: reply_tx,
         });
         reply_rx.recv().await.unwrap_or_default()
-    }
-
-    /// Remove transactions from mempool (fire-and-forget).
-    pub fn remove_txs(&self, tx_hashes: Vec<[u8; 32]>) {
-        let _ = self.cmd_tx.send(CoreCommand::RemoveTxsFromMempool {
-            tx_hashes,
-            reply: None,
-        });
     }
 
     /// Remove transactions from mempool and wait for completion.
@@ -266,92 +215,6 @@ mod tests {
         assert_eq!(top.len(), 2);
         // First should be highest fee
         assert_eq!(top[0].1, vec![2]);
-    }
-
-    #[tokio::test]
-    async fn test_remove_txs() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit TXs
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 200, 1);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Remove first TX
-        let hash1 = compute_tx_hash(&[1]);
-        handle.remove_txs(vec![hash1]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Only one should remain
-        let mp = mempool.read().await;
-        assert_eq!(mp.len(), 1);
-    }
-
-    // ═══ Additional Tests ═══
-
-    #[tokio::test]
-    async fn test_remove_multiple_txs_at_once() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit 5 TXs
-        for i in 0..5u8 {
-            handle.submit_tx(vec![i], (i as u64 + 1) * 100, 1);
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        assert_eq!(mempool.read().await.len(), 5);
-
-        // Remove 3 of them at once
-        let hashes_to_remove = vec![
-            compute_tx_hash(&[0]),
-            compute_tx_hash(&[2]),
-            compute_tx_hash(&[4]),
-        ];
-        handle.remove_txs(hashes_to_remove);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Should have 2 remaining
-        let mp = mempool.read().await;
-        assert_eq!(mp.len(), 2);
-        assert!(mp.contains(&compute_tx_hash(&[1])));
-        assert!(mp.contains(&compute_tx_hash(&[3])));
-    }
-
-    #[tokio::test]
-    async fn test_remove_nonexistent_tx() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit 1 TX
-        handle.submit_tx(vec![1], 100, 1);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Try to remove a TX that doesn't exist
-        handle.remove_txs(vec![[0u8; 32]]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Original TX should still be there
-        assert_eq!(mempool.read().await.len(), 1);
     }
 
     #[tokio::test]

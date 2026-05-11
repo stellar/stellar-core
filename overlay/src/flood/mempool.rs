@@ -5,8 +5,6 @@
 //! - Fee-based ordering for nomination
 //! - Sequence tracking by account
 
-use blake2::{Blake2b, Digest};
-use digest::consts::U32;
 use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 use tracing::trace;
@@ -34,8 +32,6 @@ pub struct TxEntry {
     pub num_ops: u32,
     /// When we received this transaction
     pub received_at: Instant,
-    /// Which peer sent it (0 = local submission)
-    pub from_peer: u64,
 }
 
 impl TxEntry {
@@ -267,7 +263,6 @@ mod tests {
             fee,
             num_ops,
             received_at: Instant::now(),
-            from_peer: 0,
         }
     }
 
@@ -574,7 +569,6 @@ mod tests {
             fee: 500,
             num_ops: 1,
             received_at: Instant::now(),
-            from_peer: 0,
         };
         let tx2 = TxEntry {
             data: vec![2],
@@ -584,7 +578,6 @@ mod tests {
             fee: 500,
             num_ops: 1,
             received_at: Instant::now(),
-            from_peer: 0,
         };
 
         assert!(mempool.insert(tx1));

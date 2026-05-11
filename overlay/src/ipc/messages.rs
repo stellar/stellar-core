@@ -72,23 +72,8 @@ pub enum MessageType {
     /// Payload: [hash:32][txSetXDR...]
     TxSetAvailable = 103,
 
-    /// Here's a quorum set referenced in SCP
-    QuorumSetAvailable = 104,
-
     /// Overlay metrics snapshot response (JSON payload)
     OverlayMetricsResponse = 105,
-}
-
-impl MessageType {
-    /// Check if this is a Core → Overlay message
-    pub fn is_core_to_overlay(&self) -> bool {
-        (*self as u32) < 100
-    }
-
-    /// Check if this is an Overlay → Core message
-    pub fn is_overlay_to_core(&self) -> bool {
-        (*self as u32) >= 100
-    }
 }
 
 impl TryFrom<u32> for MessageType {
@@ -112,7 +97,6 @@ impl TryFrom<u32> for MessageType {
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
             103 => Ok(MessageType::TxSetAvailable),
-            104 => Ok(MessageType::QuorumSetAvailable),
             105 => Ok(MessageType::OverlayMetricsResponse),
             _ => Err(InvalidMessageType(value)),
         }
@@ -140,13 +124,6 @@ pub struct Message {
 impl Message {
     pub fn new(msg_type: MessageType, payload: Vec<u8>) -> Self {
         Self { msg_type, payload }
-    }
-
-    pub fn empty(msg_type: MessageType) -> Self {
-        Self {
-            msg_type,
-            payload: Vec::new(),
-        }
     }
 }
 
@@ -227,29 +204,6 @@ mod tests {
 
         assert_eq!(decoded.msg_type, MessageType::BroadcastScp);
         assert_eq!(decoded.payload, vec![1, 2, 3, 4]);
-    }
-
-    #[test]
-    fn test_empty_payload() {
-        let msg = Message::empty(MessageType::Shutdown);
-
-        let mut buf = Vec::new();
-        MessageCodec::write(&mut buf, &msg).unwrap();
-
-        let mut cursor = Cursor::new(buf);
-        let decoded = MessageCodec::read(&mut cursor).unwrap();
-
-        assert_eq!(decoded.msg_type, MessageType::Shutdown);
-        assert!(decoded.payload.is_empty());
-    }
-
-    #[test]
-    fn test_message_type_classification() {
-        assert!(MessageType::BroadcastScp.is_core_to_overlay());
-        assert!(!MessageType::BroadcastScp.is_overlay_to_core());
-
-        assert!(MessageType::ScpReceived.is_overlay_to_core());
-        assert!(!MessageType::ScpReceived.is_core_to_overlay());
     }
 
     // ═══ Error Handling Tests ═══
@@ -339,7 +293,6 @@ mod tests {
             MessageType::TopTxsResponse,
             MessageType::PeerRequestsScpState,
             MessageType::TxSetAvailable,
-            MessageType::QuorumSetAvailable,
             MessageType::OverlayMetricsResponse,
         ];
 
@@ -423,10 +376,6 @@ mod tests {
             MessageType::TxSetAvailable
         );
         assert_eq!(
-            MessageType::try_from(104).unwrap(),
-            MessageType::QuorumSetAvailable
-        );
-        assert_eq!(
             MessageType::try_from(105).unwrap(),
             MessageType::OverlayMetricsResponse
         );
@@ -437,6 +386,7 @@ mod tests {
         assert!(MessageType::try_from(0).is_err());
         assert!(MessageType::try_from(9).is_err()); // gap between 8 and 10
         assert!(MessageType::try_from(99).is_err());
+        assert!(MessageType::try_from(104).is_err());
         assert!(MessageType::try_from(106).is_err());
         assert!(MessageType::try_from(u32::MAX).is_err());
     }
