@@ -312,9 +312,6 @@ class LedgerManagerImpl : public LedgerManager
     ImmutableLedgerDataPtr
         mLastClosedLedgerState GUARDED_BY(mLastClosedLedgerStateMutex);
 
-    // Max number of historical snapshots to maintain.
-    uint32_t const mNumHistoricalSnapshots;
-
     VirtualClock::time_point mLastClose;
 
     // Use mutex to guard ledger state during apply
@@ -465,13 +462,11 @@ class LedgerManagerImpl : public LedgerManager
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerHeader lh, uint32_t initialLedgerVers);
 
-    // Build a new ImmutableLedgerData from the current BucketLists,
-    // copying then updating historical snapshots from prevState. If
+    // Build a new ImmutableLedgerData from the current BucketLists. If
     // sorobanConfig is not provided, it is loaded from a temporary bucket
     // snapshot when the protocol requires it.
     ImmutableLedgerDataPtr
     buildLedgerState(LedgerHeader const& header, HistoryArchiveState const& has,
-                     ImmutableLedgerDataPtr prevState,
                      std::optional<SorobanNetworkConfig> sorobanConfig);
 
     // Build a new ledger state and advance ApplyState snapshot to it. This does

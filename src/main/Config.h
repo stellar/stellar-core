@@ -729,6 +729,14 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of ledger snapshots to maintain for querying
     uint32_t QUERY_SNAPSHOT_LEDGERS;
 
+#ifdef BUILD_TESTS
+    // When true, CommandHandler creates a QueryServer using the main thread
+    // for snapshot lookups (no network I/O). This allows tests to call
+    // QueryServer functions directly and ensures it has
+    // all snapshots from startup.
+    bool QUERY_SERVER_FOR_TESTING{false};
+#endif
+
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;
 

@@ -14,6 +14,8 @@
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
+#include "main/QueryServer.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -75,9 +77,11 @@ makeHeader(uint32_t seq, uint32_t protocolVersion)
 // ---------------------------------------------------------------------------
 struct PregenData
 {
-    // Each element is the set of entries to write to the live BucketList
+    // Each element is the set of new entries to write to the live BucketList
     // for a given ledger, in order.  Index 0 = first ledger closed.
     std::vector<std::vector<LedgerEntry>> liveEntriesToWrite;
+    // Updates to existing live entries for each ledger.
+    std::vector<std::vector<LedgerEntry>> liveUpdatesToWrite;
     // Same for the hot archive BucketList.
     std::vector<std::vector<LedgerEntry>> archiveEntriesToWrite;
 
@@ -107,6 +111,7 @@ pregenEntries(uint32_t startSeq, int numLedgers, int entriesPerLedger)
         auto seq = startSeq + 1 + i;
 
         // --- Live entries ---
+        // Generate new unique entries for this ledger.
         auto entries =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
                 SOROBAN_TYPES, entriesPerLedger, seenKeys);
@@ -115,8 +120,31 @@ pregenEntries(uint32_t startSeq, int numLedgers, int entriesPerLedger)
             e.lastModifiedLedgerSeq = seq;
             runningLiveState[LedgerEntryKey(e)] = e;
         }
+
+        // Modify some existing entries so that adjacent ledgers have
+        // distinguishable data for the same keys. This ensures that loading
+        // from the wrong snapshot is detected by the data comparison.
+        std::vector<LedgerEntry> updates;
+        if (i > 0)
+        {
+            int updated = 0;
+            for (auto& [key, entry] : runningLiveState)
+            {
+                if (entry.lastModifiedLedgerSeq < seq)
+                {
+                    entry.lastModifiedLedgerSeq = seq;
+                    updates.push_back(entry);
+                    if (++updated >= entriesPerLedger / 2)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         data.stateAtLedger[seq] = runningLiveState;
         data.liveEntriesToWrite.push_back(std::move(entries));
+        data.liveUpdatesToWrite.push_back(std::move(updates));
 
         auto archiveEntries =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -295,7 +323,7 @@ class SnapshotStressTest
 {
   public:
     SnapshotStressTest(int numThreads, unsigned seed, Application& app,
-                       PregenData const& pregen);
+                       PregenData const& pregen, QueryServer& queryServer);
     ~SnapshotStressTest() = default;
 
     void run();
@@ -322,6 +350,7 @@ class SnapshotStressTest
     int const mNumThreads;
     unsigned const mSeed;
     Application& mApp;
+    QueryServer& mQueryServer;
     uint32_t const mProtocolVersion;
     uint32_t const mNumHistorical;
     PregenData const& mPregen;
@@ -329,6 +358,7 @@ class SnapshotStressTest
     // --- Shared state ---
     std::atomic<bool> mDone{false};
     std::atomic<bool> mError{false};
+    std::atomic<int> mHistoricalVerifications{0};
     std::vector<std::unique_ptr<SnapshotThread>> mThreads;
 
     bool
@@ -369,10 +399,12 @@ class SnapshotStressTest
 
 SnapshotStressTest::SnapshotStressTest(int numThreads, unsigned seed,
                                        Application& app,
-                                       PregenData const& pregen)
+                                       PregenData const& pregen,
+                                       QueryServer& queryServer)
     : mNumThreads(numThreads)
     , mSeed(seed)
     , mApp(app)
+    , mQueryServer(queryServer)
     , mProtocolVersion(getAppLedgerVersion(app))
     , mNumHistorical(app.getConfig().QUERY_SNAPSHOT_LEDGERS)
     , mPregen(pregen)
@@ -391,20 +423,38 @@ SnapshotStressTest::SnapshotStressTest(int numThreads, unsigned seed,
 void
 SnapshotStressTest::run()
 {
+    std::atomic<int> numRegistered{0};
+
     ThreadGroup tg;
     for (int t = 0; t < mNumThreads; ++t)
     {
-        tg.launch(1, [this, t]() { workerLoop(t); });
+        tg.launch(1, [this, t, &numRegistered]() {
+            mQueryServer.registerThread();
+            ++numRegistered;
+
+            // Wait until all threads are registered before proceeding.
+            while (numRegistered.load(std::memory_order_acquire) < mNumThreads)
+            {
+                std::this_thread::yield();
+            }
+            workerLoop(t);
+        });
     }
     tg.start();
     closeLedgers();
 
     // Give workers a brief window to exercise the final state.
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
     mDone.store(true, std::memory_order_release);
     tg.join();
 
     REQUIRE(!mError.load());
+
+    // Ensure historical queries were actually exercised and verified
+    if (mNumHistorical > 0)
+    {
+        REQUIRE(mHistoricalVerifications.load() > 0);
+    }
 
     // Liveness check: after all ledgers are closed, a fresh snapshot must
     // reflect the final ledger sequence.
@@ -631,7 +681,7 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     auto const& histState = histStateIt->second;
 
     // Build query: positive keys (exist at histSeq) + negative keys
-    // (exist at currentSeq but not at histSeq).  We only need to track
+    // (exist at a later ledger but not at histSeq).  We only need to track
     // negativeKeys separately; any queried key not in negativeKeys is
     // positive.
     std::set<LedgerKey, LedgerEntryIdCmp> queryKeys;
@@ -642,15 +692,17 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     }
 
     std::set<LedgerKey, LedgerEntryIdCmp> negativeKeys;
-    if (histSeq < currentSeq)
+
+    // Add negative keys from nearby ledgers (histSeq+1, histSeq+2, etc.)
+    // to catch off-by-one bugs in snapshot selection.
+    for (uint32_t futureSeq = histSeq + 1;
+         futureSeq <= std::min(histSeq + 3, currentSeq); ++futureSeq)
     {
-        auto curStateIt = stateMap.find(currentSeq);
-        if (curStateIt != stateMap.end())
+        auto futureStateIt = stateMap.find(futureSeq);
+        if (futureStateIt != stateMap.end())
         {
-            auto const& curState = curStateIt->second;
-            for (int c = 0; c < 5; c++)
+            for (auto const& [key, _] : futureStateIt->second)
             {
-                auto const& [key, _] = randMapEntry(curState, rng);
                 if (histState.find(key) == histState.end())
                 {
                     queryKeys.insert(key);
@@ -660,33 +712,40 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
         }
     }
 
-    // Call the appropriate bulk historical load and extract LedgerEntries
-    // from the result into a uniform map for verification.
-    bool retained = shouldHistoricalExist(currentSeq, histSeq);
+    // Look up the historical snapshot from the QueryServer. Use the QS's
+    // latest seq to determine the expected window: there is a brief window
+    // where the LedgerManager has advanced to seq N but addSnapshot(N) hasn't
+    // been called yet, so the worker's currentSeq may be ahead of the QS.
+    auto* latestSnapshot =
+        mQueryServer.getSnapshotForLedgerForTesting(std::nullopt);
+    releaseAssert(latestSnapshot);
+    auto qsCurrentSeq = latestSnapshot->getLedgerSeq();
+
+    bool retained = shouldHistoricalExist(qsCurrentSeq, histSeq);
+    auto* histSnapshot = mQueryServer.getSnapshotForLedgerForTesting(histSeq);
+
+    // We use lazy GC for the per-thread cache, so it's possible we retain
+    // something outside the window.
+    if (!retained && !histSnapshot)
+    {
+        return;
+    }
+    if (!histSnapshot)
+    {
+        fail(fmt::format("{} unexpected nullptr histSeq={} "
+                         "currentSeq={} seed={}",
+                         opName, histSeq, currentSeq, mSeed));
+        return;
+    }
+
+    // Load from the historical snapshot and extract LedgerEntries
+    // into a uniform map for verification.
     UnorderedMap<LedgerKey, LedgerEntry> resultMap;
 
     if (archive)
     {
-        auto result =
-            sthread.ledgerView().loadArchiveKeysFromLedger(queryKeys, histSeq);
-        if (!retained)
-        {
-            if (result.has_value())
-            {
-                fail(fmt::format("{} expected nullopt histSeq={} "
-                                 "currentSeq={} seed={}",
-                                 opName, histSeq, currentSeq, mSeed));
-            }
-            return;
-        }
-        if (!result.has_value())
-        {
-            fail(fmt::format("{} unexpected nullopt histSeq={} "
-                             "currentSeq={} seed={}",
-                             opName, histSeq, currentSeq, mSeed));
-            return;
-        }
-        for (auto const& habe : *result)
+        auto result = histSnapshot->loadArchiveKeys(queryKeys, "test");
+        for (auto const& habe : result)
         {
             if (habe.type() != HOT_ARCHIVE_ARCHIVED)
             {
@@ -700,26 +759,8 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
     }
     else
     {
-        auto result =
-            sthread.ledgerView().loadLiveKeysFromLedger(queryKeys, histSeq);
-        if (!retained)
-        {
-            if (result.has_value())
-            {
-                fail(fmt::format("{} expected nullopt histSeq={} "
-                                 "currentSeq={} seed={}",
-                                 opName, histSeq, currentSeq, mSeed));
-            }
-            return;
-        }
-        if (!result.has_value())
-        {
-            fail(fmt::format("{} unexpected nullopt histSeq={} "
-                             "currentSeq={} seed={}",
-                             opName, histSeq, currentSeq, mSeed));
-            return;
-        }
-        for (auto const& entry : *result)
+        auto result = histSnapshot->loadLiveKeys(queryKeys, "hist-query");
+        for (auto const& entry : result)
         {
             resultMap[LedgerEntryKey(entry)] = entry;
         }
@@ -759,6 +800,8 @@ SnapshotStressTest::readHistoricalQuery(SnapshotThread& sthread, bool archive,
             }
         }
     }
+
+    ++mHistoricalVerifications;
 }
 
 // Copy a snapshot from a random peer thread.  The peer's copySnapshot()
@@ -820,9 +863,9 @@ SnapshotStressTest::closeLedgers()
         // Add both live and archive batches to their bucket lists, then
         // update the canonical state once so the snapshot atomically
         // includes both.
-        bm.getLiveBucketList().addBatch(mApp, header.ledgerSeq,
-                                        header.ledgerVersion,
-                                        mPregen.liveEntriesToWrite[i], {}, {});
+        bm.getLiveBucketList().addBatch(
+            mApp, header.ledgerSeq, header.ledgerVersion,
+            mPregen.liveEntriesToWrite[i], mPregen.liveUpdatesToWrite[i], {});
         if (i < mPregen.archiveEntriesToWrite.size())
         {
             bm.getHotArchiveBucketList().addBatch(
@@ -966,11 +1009,14 @@ TEST_CASE("snapshot concurrent stress test", "[snapshot][acceptance]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.QUERY_SNAPSHOT_LEDGERS = numHistorical;
+    cfg.QUERY_SERVER_FOR_TESTING = true;
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
     auto startSeq = app->getLedgerManager().getLastClosedLedgerNum();
     auto pregen = pregenEntries(startSeq, NUM_LEDGERS, ENTRIES_PER_LEDGER);
 
-    SnapshotStressTest test(NUM_THREADS, seed, *app, pregen);
+    auto& qServer = app->getCommandHandler().getQueryServer();
+
+    SnapshotStressTest test(NUM_THREADS, seed, *app, pregen, qServer);
     test.run();
 }
 

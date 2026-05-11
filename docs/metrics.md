@@ -47,6 +47,7 @@ bucketlistDB-live.bulk.poolshareTrustlines  | timer     | time to load poolshare
 bucketlistDB-live.bulk.prefetch             | timer     | time to prefetch
 bucketlistDB-live.bulk.eviction           | timer     | time to load for eviction scan
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
+bucketlistDB-hotArchive.bulk.hot-query    | timer     | time to load hot archive entries for query server
 bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
 bucketlistDB-<X>.<Y>.max                  | counter   | max (since last metrics call) of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
