@@ -128,10 +128,8 @@ struct LedgerEntryIdCmp
  * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
  * bodies).
  */
-template <typename BucketT> struct BucketEntryIdCmp
+template <IsBucketType BucketT> struct BucketEntryIdCmp
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     bool
     compareHotArchive(HotArchiveBucketEntry const& a,
                       HotArchiveBucketEntry const& b) const

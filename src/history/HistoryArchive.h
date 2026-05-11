@@ -34,9 +34,8 @@ namespace stellar
 
 class Application;
 
-template <class BucketT> struct HistoryStateBucket
+template <IsBucketType BucketT> struct HistoryStateBucket
 {
-    BUCKET_TYPE_ASSERT(BucketT);
     using bucket_type = BucketT;
     std::string curr;
 

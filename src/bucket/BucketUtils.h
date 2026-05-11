@@ -30,10 +30,9 @@ class HotArchiveBucket;
 class SearchableLiveBucketListSnapshot;
 class SearchableHotArchiveBucketListSnapshot;
 
-#define BUCKET_TYPE_ASSERT(BucketT) \
-    static_assert(std::is_same_v<BucketT, LiveBucket> || \
-                      std::is_same_v<BucketT, HotArchiveBucket>, \
-                  "BucketT must be a Bucket type")
+template <class T>
+concept IsBucketType =
+    std::same_as<T, LiveBucket> || std::same_as<T, HotArchiveBucket>;
 
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not
@@ -199,7 +198,8 @@ struct BucketEntryCounters
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeSizes;
 
-    template <class BucketT> void count(typename BucketT::EntryT const& be);
+    template <IsBucketType BucketT>
+    void count(typename BucketT::EntryT const& be);
     BucketEntryCounters& operator+=(BucketEntryCounters const& other);
     bool operator==(BucketEntryCounters const& other) const;
     bool operator!=(BucketEntryCounters const& other) const;
@@ -215,10 +215,10 @@ struct BucketEntryCounters
     BucketEntryCounters();
 };
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool isBucketMetaEntry(typename BucketT::EntryT const& be);
 
-template <class BucketT>
+template <IsBucketType BucketT>
 LedgerEntryTypeAndDurability
 bucketEntryToLedgerEntryAndDurabilityType(typename BucketT::EntryT const& be);
 std::string toString(LedgerEntryTypeAndDurability let);

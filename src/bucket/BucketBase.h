@@ -20,7 +20,7 @@ class io_context;
 namespace stellar
 {
 
-template <class BucketT> class SearchableBucketListSnapshot;
+template <IsBucketType BucketT> class SearchableBucketListSnapshot;
 
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
@@ -54,22 +54,14 @@ class LiveBucket;
 class LiveBucketIndex;
 class HotArchiveBucketIndex;
 
-template <class BucketT, class IndexT>
-class BucketBase : public NonMovableOrCopyable
+template <IsBucketType BucketT> class BucketBase : public NonMovableOrCopyable
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
+  public:
     // Because of the CRTP design with derived Bucket classes, this base class
-    // does not have direct access to BucketT::IndexT, so we take two templates
-    // and make this assert.
-    static_assert(
-        std::is_same_v<
-            IndexT,
-            std::conditional_t<
-                std::is_same_v<BucketT, LiveBucket>, LiveBucketIndex,
-                std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
-                                   HotArchiveBucketIndex, void>>>,
-        "IndexT must match BucketT::IndexT");
+    // does not have direct access to BucketT::IndexT, so we hardcode the
+    // index types
+    using IndexT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                      LiveBucketIndex, HotArchiveBucketIndex>;
 
   protected:
     std::filesystem::path const mFilename;
@@ -202,6 +194,6 @@ class BucketBase : public NonMovableOrCopyable
 
 #endif // BUILD_TESTS
 
-    template <class T> friend class SearchableBucketListSnapshot;
+    template <IsBucketType T> friend class SearchableBucketListSnapshot;
 };
 }

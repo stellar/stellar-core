@@ -15,7 +15,7 @@ namespace stellar
  * Helper class that reads from the file underlying a bucket, keeping the bucket
  * alive for the duration of its existence.
  */
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketInputIterator<BucketT>::loadEntry()
 {
@@ -84,47 +84,48 @@ BucketInputIterator<BucketT>::loadEntry()
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::streamoff
 BucketInputIterator<BucketT>::pos()
 {
     return mIn.pos();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 size_t
 BucketInputIterator<BucketT>::size() const
 {
     return mIn.size();
 }
 
-template <typename BucketT> BucketInputIterator<BucketT>::operator bool() const
+template <IsBucketType BucketT>
+BucketInputIterator<BucketT>::operator bool() const
 {
     return mEntryPtr != nullptr;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 typename BucketT::EntryT const&
 BucketInputIterator<BucketT>::operator*()
 {
     return *mEntryPtr;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketInputIterator<BucketT>::seenMetadata() const
 {
     return mSeenMetadata;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketMetadata const&
 BucketInputIterator<BucketT>::getMetadata() const
 {
     return mMetadata;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketInputIterator<BucketT>::BucketInputIterator(
     std::shared_ptr<BucketT const> bucket)
     : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
@@ -145,12 +146,13 @@ BucketInputIterator<BucketT>::BucketInputIterator(
     }
 }
 
-template <typename BucketT> BucketInputIterator<BucketT>::~BucketInputIterator()
+template <IsBucketType BucketT>
+BucketInputIterator<BucketT>::~BucketInputIterator()
 {
     mIn.close();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketInputIterator<BucketT>&
 BucketInputIterator<BucketT>::operator++()
 {
@@ -165,7 +167,7 @@ BucketInputIterator<BucketT>::operator++()
     return *this;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketInputIterator<BucketT>::seek(std::streamoff offset)
 {

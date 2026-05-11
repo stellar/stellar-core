@@ -13,8 +13,8 @@ namespace stellar
 {
 
 class HotArchiveBucket;
-template <typename T> class BucketOutputIterator;
-template <typename T> class BucketInputIterator;
+template <IsBucketType T> class BucketOutputIterator;
+template <IsBucketType T> class BucketInputIterator;
 
 typedef BucketInputIterator<HotArchiveBucket> HotArchiveBucketInputIterator;
 typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
@@ -23,9 +23,8 @@ typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
  * Hot Archive Buckets are used by the HotBucketList to store recently evicted
  * entries. They contain entries of type HotArchiveBucketEntry.
  */
-class HotArchiveBucket
-    : public BucketBase<HotArchiveBucket, HotArchiveBucketIndex>,
-      public std::enable_shared_from_this<HotArchiveBucket>
+class HotArchiveBucket : public BucketBase<HotArchiveBucket>,
+                         public std::enable_shared_from_this<HotArchiveBucket>
 {
   public:
     // Entry type that this bucket stores

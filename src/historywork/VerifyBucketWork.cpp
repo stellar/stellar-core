@@ -21,7 +21,7 @@
 namespace stellar
 {
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 VerifyBucketWork<BucketT>::VerifyBucketWork(
     Application& app, std::string const& bucketFile, uint256 const& hash,
     std::shared_ptr<typename BucketT::IndexT const>& index,
@@ -34,7 +34,7 @@ VerifyBucketWork<BucketT>::VerifyBucketWork(
 {
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BasicWork::State
 VerifyBucketWork<BucketT>::onRun()
 {
@@ -52,7 +52,7 @@ VerifyBucketWork<BucketT>::onRun()
     return State::WORK_WAITING;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 VerifyBucketWork<BucketT>::spawnVerifier()
 {
@@ -151,7 +151,7 @@ VerifyBucketWork<BucketT>::spawnVerifier()
         "VerifyBucket: start in background");
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 VerifyBucketWork<BucketT>::onFailureRaise()
 {
