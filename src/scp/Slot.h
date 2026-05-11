@@ -197,7 +197,13 @@ class Slot : public std::enable_shared_from_this<Slot>
     enum timerIDs
     {
         NOMINATION_TIMER = 0,
-        BALLOT_PROTOCOL_TIMER = 1
+        BALLOT_PROTOCOL_TIMER = 1,
+#ifdef BUILD_TESTS
+        // Test-only: defers broadcast of a nomination vote by
+        // ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING. Used to simulate
+        // slow nominators without breaking the protocol.
+        NOMINATION_EMIT_TIMER = 2,
+#endif
     };
 
     // The number of times the timer has to expire before we consider the node

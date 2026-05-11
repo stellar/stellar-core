@@ -68,6 +68,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
+    "ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING",
     "ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
     "SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING",
@@ -173,6 +174,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PARALLEL_LEDGER_APPLY = true;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
+    EXPERIMENTAL_TRIGGER_TIMER = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_MEMORY_FOR_CACHING = 0;
@@ -356,6 +358,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
     SKIP_HIGH_CRITICAL_VALIDATOR_CHECKS_FOR_TESTING = false;
+    ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+        std::chrono::milliseconds::zero();
+    ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
+        std::chrono::milliseconds::zero();
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -1197,6 +1203,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
+                {"EXPERIMENTAL_TRIGGER_TIMER",
+                 [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
@@ -1908,6 +1916,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                          std::chrono::microseconds(readInt<uint32_t>(item));
                  }},
+#ifdef BUILD_TESTS
+                {"ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                         std::chrono::milliseconds(readInt<int64_t>(item));
+                 }},
+                {"ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
+                         std::chrono::milliseconds(readInt<uint32_t>(item));
+                 }},
+#endif
                 {"MAX_DEX_TX_OPERATIONS_IN_TX_SET",
                  [&]() {
                      auto value = readInt<uint32_t>(item);

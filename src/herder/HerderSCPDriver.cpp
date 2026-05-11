@@ -484,6 +484,18 @@ void
 HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
                                       std::function<void()> cb)
 {
+#ifdef BUILD_TESTS
+    if (timerID == Slot::NOMINATION_EMIT_TIMER)
+    {
+        if (!mHerder.isTracking() ||
+            mHerder.nextConsensusLedgerIndex() == slotIndex)
+        {
+            cb();
+        }
+        return;
+    }
+#endif
+
     // reschedule timers for future slots when tracking
     if (mHerder.isTracking() && mHerder.nextConsensusLedgerIndex() != slotIndex)
     {
@@ -608,6 +620,14 @@ HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
     }
     return std::chrono::milliseconds(timeoutMS);
 }
+
+#ifdef BUILD_TESTS
+std::chrono::milliseconds
+HerderSCPDriver::getNominationEmitDelayForTesting() const
+{
+    return mApp.getConfig().ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING;
+}
+#endif
 
 // returns true if l < r
 // lh, rh are the hashes of l,h
@@ -1540,7 +1560,6 @@ HerderSCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
     return qualityWeightIt->second / homeDomainSizeIt->second;
 }
 
-#ifdef BUILD_TESTS
 std::optional<int64_t>
 HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
 {
@@ -1551,6 +1570,5 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
     }
     return std::nullopt;
 }
-#endif
 
 }

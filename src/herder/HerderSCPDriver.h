@@ -84,6 +84,9 @@ class HerderSCPDriver : public SCPDriver
     void stopTimer(uint64 slotIndex, int timerID) override;
     std::chrono::milliseconds computeTimeout(uint32 roundNumber,
                                              bool isNomination) override;
+#ifdef BUILD_TESTS
+    std::chrono::milliseconds getNominationEmitDelayForTesting() const override;
+#endif
 
     // hashing support
     Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override;
@@ -167,15 +170,16 @@ class HerderSCPDriver : public SCPDriver
     void cacheValidTxSet(ApplicableTxSetFrame const& txSet,
                          LedgerHeaderHistoryEntry const& lcl,
                          uint64_t closeTimeOffset) const;
+
+    // Get the number of nomination timeouts that occurred for a given slot
+    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
+
 #ifdef BUILD_TESTS
     RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>&
     getTxSetValidityCache()
     {
         return mTxSetValidCache;
     }
-
-    // Get the number of nomination timeouts that occurred for a given slot
-    std::optional<int64_t> getNominationTimeouts(uint64_t slotIndex) const;
 #endif
 
   private:

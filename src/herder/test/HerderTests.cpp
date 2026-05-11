@@ -8297,3 +8297,164 @@ TEST_CASE("far-future slots cleanup", "[herder]")
     // Check that far-future slots have been removed
     REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
 }
+
+TEST_CASE("experimental trigger timer", "[herder][hide]")
+{
+    constexpr uint32_t LEDGERS_TO_RUN = 10;
+    constexpr int64_t MIN_DRIFT_FALLBACKS = (LEDGERS_TO_RUN + 1) / 2;
+    auto const driftOffset = std::chrono::seconds(4);
+
+    struct RunResult
+    {
+        std::chrono::milliseconds elapsed;
+        int64_t totalFallbacks{0};
+        int64_t driftedNodeFallbacks{0};
+        int64_t otherNodeFallbacks{0};
+        bool sawNominationTimeout{false};
+    };
+
+    auto fallbackCount = [](Application::pointer const& app) {
+        auto const metrics = app->getMetrics().GetAllMetrics();
+        auto const it =
+            metrics.find({"scp", "trigger", "prepare-start-fallback"});
+        if (it == metrics.end())
+        {
+            return int64_t{0};
+        }
+        auto meter = dynamic_cast<medida::Meter const*>(it->second.get());
+        releaseAssert(meter);
+        return static_cast<int64_t>(meter->count());
+    };
+
+    auto runSimulation =
+        [&](bool experimentalTriggerTimer,
+            std::chrono::milliseconds nominationEmitDelay,
+            std::chrono::milliseconds triggerClockOffset =
+                std::chrono::milliseconds::zero()) -> RunResult {
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+        auto simulation = Topologies::separateAllHighQuality(
+            4, Simulation::OVER_TCP, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+                cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+                cfg.EXPERIMENTAL_TRIGGER_TIMER = experimentalTriggerTimer;
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                    std::chrono::milliseconds(1000);
+                cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
+                    nominationEmitDelay;
+
+                // Drift one validator. Note: i == 0 is the Simulation's
+                // idle app (its config is generated first by the constructor),
+                // so the first real validator is i == 1.
+                if (i == 1)
+                {
+                    cfg.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                        triggerClockOffset;
+                }
+                return cfg;
+            });
+
+        simulation->fullyConnectAllPending();
+        simulation->startAllNodes();
+        auto nodes = simulation->getNodes();
+        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+        REQUIRE(expectedClose == std::chrono::seconds(5));
+
+        std::vector<int64_t> fallbackCounts;
+        std::transform(nodes.begin(), nodes.end(),
+                       std::back_inserter(fallbackCounts), fallbackCount);
+
+        auto minLedger = [&]() {
+            return std::min_element(nodes.begin(), nodes.end(),
+                                    [](Application::pointer const& lhs,
+                                       Application::pointer const& rhs) {
+                                        return lhs->getLedgerManager()
+                                                   .getLastClosedLedgerNum() <
+                                               rhs->getLedgerManager()
+                                                   .getLastClosedLedgerNum();
+                                    })
+                ->get()
+                ->getLedgerManager()
+                .getLastClosedLedgerNum();
+        };
+
+        auto const startLedger = minLedger();
+        auto targetLedger = startLedger + LEDGERS_TO_RUN;
+        auto const startTime = nodes.front()->getClock().now();
+
+        simulation->crankUntil(
+            [&]() { return simulation->haveAllExternalized(targetLedger, 1); },
+            10 * (LEDGERS_TO_RUN + 1) * expectedClose, true);
+
+        RunResult result;
+        result.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            nodes.front()->getClock().now() - startTime);
+
+        for (size_t i = 0; i < nodes.size(); ++i)
+        {
+            auto const delta = fallbackCount(nodes[i]) - fallbackCounts.at(i);
+            result.totalFallbacks += delta;
+
+            auto const isDriftedNode =
+                triggerClockOffset != std::chrono::milliseconds::zero() &&
+                nodes[i]->getConfig()
+                        .ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING ==
+                    triggerClockOffset;
+            if (isDriftedNode)
+            {
+                result.driftedNodeFallbacks = delta;
+            }
+            else
+            {
+                result.otherNodeFallbacks += delta;
+            }
+
+            auto const& driver =
+                dynamic_cast<HerderImpl&>(nodes[i]->getHerder())
+                    .getHerderSCPDriver();
+            for (uint32_t ledger = startLedger + 1; ledger <= targetLedger;
+                 ++ledger)
+            {
+                auto timeouts = driver.getNominationTimeouts(ledger);
+                result.sawNominationTimeout =
+                    result.sawNominationTimeout ||
+                    (timeouts.has_value() && timeouts.value() > 0);
+            }
+        }
+
+        return result;
+    };
+
+    // New timer is faster without drift.
+    {
+        auto const nominationDelay = std::chrono::milliseconds(1000);
+        auto const oldTimer = runSimulation(false, nominationDelay);
+        auto const newTimer = runSimulation(true, nominationDelay);
+
+        REQUIRE(oldTimer.elapsed > newTimer.elapsed);
+        REQUIRE(newTimer.elapsed < oldTimer.elapsed);
+        REQUIRE(newTimer.totalFallbacks == 0);
+    }
+
+    // One node drifting ahead falls back.
+    {
+        auto const nodeAhead =
+            runSimulation(true, std::chrono::milliseconds::zero(), driftOffset);
+        REQUIRE(nodeAhead.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
+    }
+
+    // One node drifting behind falls back.
+    {
+        auto const nodeBehind = runSimulation(
+            true, std::chrono::milliseconds::zero(), -driftOffset);
+        REQUIRE(nodeBehind.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
+    }
+
+    // Long nomination does not cause timer fallback
+    {
+        auto const nominationDelay = std::chrono::milliseconds(5000);
+        auto const slowNomination = runSimulation(true, nominationDelay);
+        REQUIRE(slowNomination.sawNominationTimeout);
+        REQUIRE(slowNomination.totalFallbacks == 0);
+    }
+}
