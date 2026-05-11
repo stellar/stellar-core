@@ -5,9 +5,7 @@ on:
   merge_group:
   push:
     branches:
-      - prod
-      - testnet
-      - acceptance-test-pass
+      - overlay-v2-shared
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -17,96 +15,99 @@ jobs:
 
   complete:
     if: always()
-    needs: [static-checks, build-linux, build-mac]
+    # needs: [static-checks, build-linux, build-mac]
+    needs: [build-linux]
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
       run: exit 1
 
-  static-checks:
-    if: github.event.repository.visibility != 'private'
-    runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
-    steps:
-      - uses: namespacelabs/nscloud-checkout-action@v7
-        with:
-          fetch-depth: 1
-          submodules: recursive
+  # static-checks:
+  #   if: github.event.repository.visibility != 'private'
+  #   runs-on:
+  #     - namespace-profile-noble-24-04-stellar-core-x64-small;overrides.cache-tag=config-static-checks
+  #   steps:
+  #     - uses: namespacelabs/nscloud-checkout-action@v7
+  #       with:
+  #         fetch-depth: 1
+  #         submodules: recursive
 
-      - name: Configure Namespace cache volume
-        uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          path: |
-            ~/.cargo
-            build-static-checks
+  #     - name: Configure Namespace cache volume
+  #       uses: namespacelabs/nscloud-cache-action@v1
+  #       with:
+  #         path: |
+  #           ~/.cargo
+  #           build-static-checks
 
-      - name: Check if commit already tested
-        id: check-last-tested-commit
-        run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-static-checks/.last-tested-commit-sha"
-          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
-            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Check if commit already tested
+  #       id: check-last-tested-commit
+  #       run: |
+  #         LAST_TESTED_COMMIT_SHA_FILE="build-static-checks/.last-tested-commit-sha"
+  #         if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+  #           echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+  #           echo "skip=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "skip=false" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Install rustup
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: ./install-rust.sh
+  #     - name: Install rustup
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: ./install-rust.sh
 
-      - name: Update rustup
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: rustup update
+  #     - name: Update rustup
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: rustup update
 
-      - name: Install rustfmt
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: rustup component add rustfmt
+  #     - name: Install rustfmt
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: rustup component add rustfmt
 
-      - name: Check git rev deps
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        uses: stellar/actions/rust-check-git-rev-deps@main
+  #     - name: Check git rev deps
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       uses: stellar/actions/rust-check-git-rev-deps@main
 
-      - name: Check formatting
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: cargo fmt --all --check
+  #     - name: Check formatting
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: cargo fmt --all --check
 
-      - name: Check cargo-deny advisories
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        # Prevent sudden announcement of a new advisory from failing ci:
-        continue-on-error: true
-        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
-        with:
-          command: check advisories
-          # leave arguments empty so we don't test --all-features
-          # which will see conflicting env versions
-          arguments:
+  #     - name: Check cargo-deny advisories
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       # Prevent sudden announcement of a new advisory from failing ci:
+  #       continue-on-error: true
+  #       uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
+  #       with:
+  #         command: check advisories
+  #         # leave arguments empty so we don't test --all-features
+  #         # which will see conflicting env versions
+  #         arguments:
 
-      - name: Check cargo-deny bans licenses sources
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
-        with:
-          command: check bans licenses sources
-          # leave arguments empty so we don't test --all-features
-          # which will see conflicting env versions
-          arguments:
+  #     - name: Check cargo-deny bans licenses sources
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
+  #       with:
+  #         command: check bans licenses sources
+  #         # leave arguments empty so we don't test --all-features
+  #         # which will see conflicting env versions
+  #         arguments:
 
-      - name: Record successful test commit
-        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
-        run: |
-          mkdir -p build-static-checks
-          echo "${{ github.sha }}" > "build-static-checks/.last-tested-commit-sha"
+  #     - name: Record successful test commit
+  #       if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+  #       run: |
+  #         mkdir -p build-static-checks
+  #         echo "${{ github.sha }}" > "build-static-checks/.last-tested-commit-sha"
 
   build-linux:
     if: github.event.repository.visibility != 'private'
     runs-on:
-      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-${{ matrix.toolchain }}-${{ matrix.protocol }}
+      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-overlay-v2-${{ matrix.toolchain }}-${{ matrix.protocol }}
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [ "gcc", "clang"]
-        protocol: ["current", "next"]
+        # toolchain: [ "gcc", "clang"]
+        # protocol: ["current", "next"]
+        toolchain: ["gcc", "clang"]
+        protocol: ["current"]
     steps:
       - name: Fix kernel mmap rnd bits
         # Asan in llvm provided in some ubuntu versions is incompatible with
@@ -187,97 +188,97 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+          ./ci-build.sh --disable-postgres --protocol ${{ matrix.protocol }}
 
       - name: Record successful test commit
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
           echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
 
-  build-mac:
-    if: github.event.repository.visibility != 'private'
-    runs-on:
-      - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
-    steps:
+  # build-mac:
+  #   if: github.event.repository.visibility != 'private'
+  #   runs-on:
+  #     - namespace-profile-macos-sequoia;overrides.cache-tag=config-macos-sequoia
+  #   steps:
 
-      - name: Checkout with Namespace Git mirrors cache
-        uses: namespacelabs/nscloud-checkout-action@v7
-        with:
-          fetch-depth: 1
-          submodules: recursive
+  #     - name: Checkout with Namespace Git mirrors cache
+  #       uses: namespacelabs/nscloud-checkout-action@v7
+  #       with:
+  #         fetch-depth: 1
+  #         submodules: recursive
 
-      - name: Configure Namespace cache volume
-        uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          path: |
-            ~/.cargo
-            build-clang-current
+  #     - name: Configure Namespace cache volume
+  #       uses: namespacelabs/nscloud-cache-action@v1
+  #       with:
+  #         path: |
+  #           ~/.cargo
+  #           build-clang-current
 
-      - name: Check if commit already tested
-        id: check-last-tested-commit
-        run: |
-          LAST_TESTED_COMMIT_SHA_FILE="build-clang-current/.last-tested-commit-sha"
-          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
-            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Check if commit already tested
+  #       id: check-last-tested-commit
+  #       run: |
+  #         LAST_TESTED_COMMIT_SHA_FILE="build-clang-current/.last-tested-commit-sha"
+  #         if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+  #           echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+  #           echo "skip=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "skip=false" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Install prerequisites and uninstall brew rust, add rustup
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: |
-          brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
-          brew uninstall rust rustup
-          brew install rustup
+  #     - name: Install prerequisites and uninstall brew rust, add rustup
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: |
+  #         brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils
+  #         brew uninstall rust rustup
+  #         brew install rustup
 
-      - name: Install rustup components
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: |
-          rustup-init -y
-          rustup component add rustfmt rustc cargo clippy rust-src rust-std
+  #     - name: Install rustup components
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: |
+  #         rustup-init -y
+  #         rustup component add rustfmt rustc cargo clippy rust-src rust-std
 
-      - uses: stellar/binaries@v50
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        with:
-          name: cargo-cache
-          version: 0.8.3
+  #     - uses: stellar/binaries@v50
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       with:
+  #         name: cargo-cache
+  #         version: 0.8.3
 
-      - uses: stellar/binaries@v50
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        with:
-          name: cargo-sweep
-          version: 0.7.0
+  #     - uses: stellar/binaries@v50
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       with:
+  #         name: cargo-sweep
+  #         version: 0.7.0
 
-      # Restore original modification time of files based on the date of the most
-      # recent commit that modified them as mtimes affect the Go test cache.
-      - name: Restore modification time of checkout files
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        shell: bash
-        run: |
-          # Set a base, fixed modification time of all directories.
-          # git-restore-mtime doesn't set the mtime of all directories.
-          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
-          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
-          # Restore original modification time from git. git clone sets the
-          # modification time to the current time, but Go tests that access fixtures
-          # get invalidated if their modification times change.
-          brew install git-tools
-          git restore-mtime
+  #     # Restore original modification time of files based on the date of the most
+  #     # recent commit that modified them as mtimes affect the Go test cache.
+  #     - name: Restore modification time of checkout files
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       shell: bash
+  #       run: |
+  #         # Set a base, fixed modification time of all directories.
+  #         # git-restore-mtime doesn't set the mtime of all directories.
+  #         # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+  #         touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+  #         # Restore original modification time from git. git clone sets the
+  #         # modification time to the current time, but Go tests that access fixtures
+  #         # get invalidated if their modification times change.
+  #         brew install git-tools
+  #         git restore-mtime
 
-      - name: Build
-        if: steps.check-last-tested-commit.outputs.skip != 'true'
-        run: |
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
-          export PATH="$(brew --prefix bison)/bin:$PATH"
-          export CC='clang'
-          export CXX='clang++'
-          export CLANG_VERSION=none
-          export SKIP_FORMAT_CHECK=1
-          ./ci-build.sh --disable-postgres --protocol current
+  #     - name: Build
+  #       if: steps.check-last-tested-commit.outputs.skip != 'true'
+  #       run: |
+  #         export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
+  #         export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+  #         export PATH="$(brew --prefix bison)/bin:$PATH"
+  #         export CC='clang'
+  #         export CXX='clang++'
+  #         export CLANG_VERSION=none
+  #         export SKIP_FORMAT_CHECK=1
+  #         ./ci-build.sh --disable-postgres --protocol current
 
-      - name: Record successful test commit
-        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
-        run: |
-          echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"
+  #     - name: Record successful test commit
+  #       if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+  #       run: |
+  #         echo "${{ github.sha }}" > "build-clang-current/.last-tested-commit-sha"

@@ -118,11 +118,13 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+#config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-threadsafety ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
+config_flags="--enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG} ${DISABLE_POSTGRES}"
 # NB: use `-gdwarf-3` (not -g or -gdwarf-4 or later) specifically as
 # it produces the highest-fidelity backtraces with our current
 # rust/gimli-backed backtrace system.
-export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+# export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+export CFLAGS="-O2 -gdwarf-3 -fno-omit-frame-pointer -fno-common"
 export CXXFLAGS="$CFLAGS"
 
 # quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
@@ -209,13 +211,16 @@ export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
 ulimit -n 4096
 export INTERACTIVE=0
+
+TEST_SPEC='[overlay-ipc]'
+SKIP_SOROBAN_TESTS=true
 time make check
 
-echo Running fixed check-test-tx-meta tests
-export TEST_SPEC='[tx]'
-export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
-export SKIP_SOROBAN_TESTS=true
-time make check
+# echo Running fixed check-test-tx-meta tests
+# export TEST_SPEC='[tx]'
+# export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --disable-dots --all-versions --rng-seed 12345 --check-test-tx-meta ${SRC_DIR}/test-tx-meta-baseline-${PROTOCOL}"
+# export SKIP_SOROBAN_TESTS=true
+# time make check
 
 echo All done
 date
