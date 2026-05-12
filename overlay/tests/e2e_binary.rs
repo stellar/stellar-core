@@ -5,9 +5,9 @@
 
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// IPC message types (must match src/ipc/messages.rs)
 mod ipc {
@@ -92,17 +92,55 @@ fn find_binary() -> PathBuf {
 /// Spawn an overlay process
 fn spawn_overlay(socket_path: &str, peer_port: u16) -> Child {
     let binary = find_binary();
+    let show_child_logs = std::env::var_os("STELLAR_OVERLAY_TEST_LOGS").is_some();
 
-    Command::new(binary)
+    if show_child_logs {
+        eprintln!(
+            "spawning stellar-overlay: {} --listen {} --peer-port {}",
+            binary.display(),
+            socket_path,
+            peer_port
+        );
+    }
+
+    let mut command = Command::new(binary);
+    command
         .arg("--listen")
         .arg(socket_path)
         .arg("--peer-port")
-        .arg(peer_port.to_string())
-        .env("RUST_LOG", "debug")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn overlay process")
+        .arg(peer_port.to_string());
+
+    if std::env::var_os("RUST_LOG").is_none() {
+        command.env("RUST_LOG", "debug");
+    }
+
+    if show_child_logs {
+        command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    } else {
+        command.stdout(Stdio::null()).stderr(Stdio::null());
+    }
+
+    command.spawn().expect("Failed to spawn overlay process")
+}
+
+fn wait_for_child_exit(child: &mut Child, name: &str) -> ExitStatus {
+    let start = Instant::now();
+    let timeout = Duration::from_secs(10);
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status,
+            Ok(None) if start.elapsed() < timeout => {
+                thread::sleep(Duration::from_millis(50));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("{} did not exit within {:?}", name, timeout);
+            }
+            Err(e) => panic!("Failed waiting for {}: {}", name, e),
+        }
+    }
 }
 
 /// Wait for socket to be ready and return the connected stream
@@ -143,9 +181,10 @@ mod tests {
 
         // Send shutdown
         ipc::send_message(&mut stream, ipc::SHUTDOWN, &[]).expect("Should send shutdown");
+        drop(stream);
 
         // Wait for process to exit
-        let _status = child.wait().expect("Should wait");
+        let _status = wait_for_child_exit(&mut child, "overlay");
         // Process exits with 0 on shutdown
 
         // Cleanup
@@ -176,7 +215,8 @@ mod tests {
 
         // Shutdown
         ipc::send_message(&mut stream, ipc::SHUTDOWN, &[]).expect("Should send shutdown");
-        child.wait().expect("Should wait");
+        drop(stream);
+        wait_for_child_exit(&mut child, "overlay");
 
         let _ = std::fs::remove_file(&socket_path);
 
@@ -260,8 +300,10 @@ mod tests {
         // Shutdown both
         ipc::send_message(&mut stream_a, ipc::SHUTDOWN, &[]).ok();
         ipc::send_message(&mut stream_b, ipc::SHUTDOWN, &[]).ok();
-        child_a.wait().ok();
-        child_b.wait().ok();
+        drop(stream_a);
+        drop(stream_b);
+        wait_for_child_exit(&mut child_a, "overlay A");
+        wait_for_child_exit(&mut child_b, "overlay B");
 
         let _ = std::fs::remove_file(&socket_a);
         let _ = std::fs::remove_file(&socket_b);
