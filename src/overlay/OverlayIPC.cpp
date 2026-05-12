@@ -24,6 +24,8 @@ namespace stellar
 namespace
 {
 
+constexpr char OVERLAY_BINARY_ENV_VAR[] = "STELLAR_OVERLAY_BINARY";
+
 bool
 isExecutable(std::string const& path)
 {
@@ -62,6 +64,14 @@ OverlayIPC::defaultSocketPath(uint16_t peerPort)
 std::optional<std::string>
 OverlayIPC::findOverlayBinaryPath()
 {
+    if (auto const binaryEnv = std::getenv(OVERLAY_BINARY_ENV_VAR))
+    {
+        if (binaryEnv[0] != '\0')
+        {
+            return std::filesystem::absolute(binaryEnv).string();
+        }
+    }
+
     std::vector<std::string> paths = {
         "stellar-overlay",
         "../stellar-overlay",
