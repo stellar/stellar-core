@@ -225,7 +225,14 @@ impl CoreIpc {
                         break;
                     }
                 }
-                Ok(Err(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                Ok(Err(e))
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::UnexpectedEof
+                            | std::io::ErrorKind::ConnectionReset
+                            | std::io::ErrorKind::BrokenPipe
+                    ) =>
+                {
                     info!("Core IPC connection closed");
                     break;
                 }
@@ -290,7 +297,6 @@ impl CoreIpc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
     use std::os::unix::net::UnixStream as StdUnixStream;
 
     #[tokio::test]
