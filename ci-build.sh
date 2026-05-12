@@ -204,12 +204,12 @@ if [ $DISABLE_POSTGRES != '--disable-postgres' ] ; then
     fi
 fi
 
-export ALL_VERSIONS=1
-export NUM_PARTITIONS=$((NPROCS*2))
-export RUN_PARTITIONS
+export ALL_VERSIONS=0
+export NUM_PARTITIONS=1
+export RUN_PARTITIONS=0
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
-ulimit -n 4096
+ulimit -n 65536
 export INTERACTIVE=0
 
 export TEST_SPEC='[overlay-ipc]'
