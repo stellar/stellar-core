@@ -47,6 +47,7 @@
 #include "xdrpp/marshal.h"
 #include "xdrpp/types.h"
 #include <Tracy.hpp>
+#include "simulation/LoadGenerator.h"
 
 #include "util/GlobalChecks.h"
 #include <algorithm>
@@ -62,9 +63,6 @@ namespace stellar
 constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
 // 10 seconds of drift threshold
 constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
-
-constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
-constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -343,6 +341,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                 txHashes.push_back(txFrame->getFullHash());
             }
         }
+#ifdef BUILD_TESTS
+        mApp.getLoadGenerator().cleanupAccounts(txFramesList);
+#endif
     }
     mApp.getOverlayManager().notifyTxSetExternalized(value.txSetHash, txHashes);
 
