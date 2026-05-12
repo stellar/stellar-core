@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use stellar_xdr::curr::{Limits, ScpEnvelope, WriteXdr};
 
 /// IPC message types (must match src/ipc/messages.rs)
 mod ipc {
@@ -57,14 +58,6 @@ fn find_binary() -> PathBuf {
     }
 
     // The test runs from the overlay directory, so look in parent's target
-    let release = PathBuf::from("../target/release/stellar-overlay");
-    if release.exists() {
-        return release;
-    }
-    let release2 = PathBuf::from("target/release/stellar-overlay");
-    if release2.exists() {
-        return release2;
-    }
     let debug = PathBuf::from("../target/debug/stellar-overlay");
     if debug.exists() {
         return debug;
@@ -73,16 +66,24 @@ fn find_binary() -> PathBuf {
     if debug2.exists() {
         return debug2;
     }
+    let release = PathBuf::from("../target/release/stellar-overlay");
+    if release.exists() {
+        return release;
+    }
+    let release2 = PathBuf::from("target/release/stellar-overlay");
+    if release2.exists() {
+        return release2;
+    }
 
     // Try manifest dir
     if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        let release = PathBuf::from(&manifest).join("../target/release/stellar-overlay");
-        if release.exists() {
-            return release;
-        }
         let debug = PathBuf::from(&manifest).join("../target/debug/stellar-overlay");
         if debug.exists() {
             return debug;
+        }
+        let release = PathBuf::from(&manifest).join("../target/release/stellar-overlay");
+        if release.exists() {
+            return release;
         }
     }
 
@@ -141,6 +142,25 @@ fn wait_for_child_exit(child: &mut Child, name: &str) -> ExitStatus {
             Err(e) => panic!("Failed waiting for {}: {}", name, e),
         }
     }
+}
+
+fn valid_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
+    let mut envelope = ScpEnvelope::default();
+    envelope.statement.slot_index = slot_index;
+    envelope.to_xdr(Limits::none()).unwrap()
+}
+
+fn wait_or_kill(child: &mut Child) {
+    for _ in 0..50 {
+        if child.try_wait().expect("Should poll child").is_some() {
+            return;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    child.kill().expect("Should kill hung overlay process");
+    let _ = child.wait();
+    panic!("overlay process did not exit after shutdown");
 }
 
 /// Wait for socket to be ready and return the connected stream
@@ -207,7 +227,7 @@ mod tests {
             .unwrap();
 
         // Send SCP broadcast (overlay should accept it even with no peers)
-        let scp_envelope = vec![0u8; 100]; // Mock SCP envelope
+        let scp_envelope = valid_scp_envelope_xdr(1);
         ipc::send_message(&mut stream, ipc::BROADCAST_SCP, &scp_envelope).expect("Should send SCP");
 
         // Give it time to process
@@ -255,9 +275,7 @@ mod tests {
         thread::sleep(Duration::from_millis(500));
 
         // A broadcasts SCP
-        let mut scp_envelope = vec![0u8; 100];
-        scp_envelope[3] = 10; // SCP_MESSAGE discriminant
-        scp_envelope[10..20].copy_from_slice(b"test12345!");
+        let scp_envelope = valid_scp_envelope_xdr(2);
 
         ipc::send_message(&mut stream_a, ipc::BROADCAST_SCP, &scp_envelope)
             .expect("Should send SCP from A");

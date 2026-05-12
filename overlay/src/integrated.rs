@@ -3,27 +3,19 @@
 //! Network communication is handled by the libp2p QUIC overlay.
 //! This module provides:
 //! - Transaction mempool (fee-ordered, with dedup)
-//! - TX set caching for consensus
 //! - Core command handling for mempool operations
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, trace};
+use tracing::{debug, info};
 
-use crate::flood::{compute_tx_hash, Mempool};
-
-/// Peer ID type
-pub type PeerId = u64;
+use crate::flood::Mempool;
+use crate::xdr::parse_supported_transaction;
 
 /// Commands from Core to Overlay
 #[derive(Debug, Clone)]
 pub enum CoreCommand {
-    /// Broadcast SCP envelope to all peers (handled by libp2p)
-    BroadcastScp { envelope: Vec<u8> },
-
     /// Submit a transaction for flooding
     SubmitTx {
         data: Vec<u8>,
@@ -37,47 +29,11 @@ pub enum CoreCommand {
         reply: mpsc::Sender<Vec<([u8; 32], Vec<u8>)>>,
     },
 
-    /// Configure peer connections
-    SetPeerConfig {
-        known_peers: Vec<String>,
-        preferred_peers: Vec<String>,
-        listen_port: u16,
-    },
-
     /// Remove transactions from mempool (after ledger close)
     RemoveTxsFromMempool {
         tx_hashes: Vec<[u8; 32]>,
         reply: Option<mpsc::Sender<()>>,
     },
-
-    /// Fetch a TX set from peers by hash (libp2p handles network)
-    FetchTxSet {
-        hash: [u8; 32],
-        reply: mpsc::Sender<Option<Vec<u8>>>,
-    },
-
-    /// Cache a locally-built TX set
-    CacheTxSet { hash: [u8; 32], xdr: Vec<u8> },
-}
-
-/// Events from Overlay to Core
-#[derive(Debug, Clone)]
-pub enum OverlayEvent {
-    /// SCP envelope received from a peer
-    ScpReceived {
-        envelope: Vec<u8>,
-        from_peer: PeerId,
-    },
-
-    /// Peer connected
-    PeerConnected {
-        peer_id: PeerId,
-        addr: SocketAddr,
-        public_key: [u8; 32],
-    },
-
-    /// Peer disconnected
-    PeerDisconnected { peer_id: PeerId },
 }
 
 /// Mempool manager (no longer handles network connections).
@@ -87,9 +43,6 @@ pub struct Overlay {
 
     /// TX mempool
     mempool: Arc<RwLock<Mempool>>,
-
-    /// Local TX set cache (hash -> XDR)
-    local_tx_sets: Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>>,
 }
 
 impl Overlay {
@@ -98,7 +51,6 @@ impl Overlay {
         Self {
             core_commands,
             mempool: Arc::new(RwLock::new(Mempool::new(100000, Duration::from_secs(300)))),
-            local_tx_sets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -117,36 +69,38 @@ impl Overlay {
     /// Handle a command from Core.
     async fn handle_core_command(&self, cmd: CoreCommand) {
         match cmd {
-            CoreCommand::BroadcastScp { .. } => {
-                trace!("BroadcastScp ignored (handled by libp2p)");
-            }
-
             CoreCommand::SubmitTx { data, fee, num_ops } => {
-                let hash = compute_tx_hash(&data);
+                let parsed = match parse_supported_transaction(&data) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        debug!("[SubmitTx] dropping unsupported TX: {}", e);
+                        return;
+                    }
+                };
                 debug!(
-                    "[SubmitTx] TX: hash={:?}, size={}, fee={}, ops={}",
-                    &hash[..4],
-                    data.len(),
-                    fee,
-                    num_ops
+                    "[SubmitTx] TX: hash={:?}, size={}, fee={}, ops={}, class={:?}",
+                    &parsed.full_hash[..4],
+                    parsed.envelope_xdr.len(),
+                    parsed.fee,
+                    parsed.num_ops,
+                    parsed.class
                 );
+                if fee != parsed.fee || num_ops != parsed.num_ops {
+                    debug!(
+                        "[SubmitTx] caller metadata fee/ops=({}/{}) differs from XDR fee/ops=({}/{})",
+                        fee, num_ops, parsed.fee, parsed.num_ops
+                    );
+                }
 
-                // TODO: Parse XDR to extract source_account and sequence instead of zeros
-                // This breaks:
-                // 1. Account-based TX ordering in mempool
-                // 2. Per-account TX queries
-                // 3. Sequence number validation
-                // Need to parse TransactionEnvelope.tx.sourceAccount and seqNum from XDR
                 let mut mempool = self.mempool.write().await;
                 let entry = crate::flood::TxEntry {
-                    data,
-                    hash,
-                    source_account: [0u8; 32], // TODO: Parse from XDR
-                    sequence: 0,               // TODO: Parse from XDR
-                    fee,
-                    num_ops,
+                    data: parsed.envelope_xdr,
+                    hash: parsed.full_hash,
+                    source_account: parsed.source_account,
+                    sequence: parsed.sequence,
+                    fee: parsed.fee,
+                    num_ops: parsed.num_ops,
                     received_at: std::time::Instant::now(),
-                    from_peer: 0,
                 };
                 mempool.insert(entry);
             }
@@ -161,10 +115,6 @@ impl Overlay {
                 let _ = reply.send(txs).await;
             }
 
-            CoreCommand::SetPeerConfig { .. } => {
-                trace!("SetPeerConfig ignored (handled by libp2p)");
-            }
-
             CoreCommand::RemoveTxsFromMempool { tx_hashes, reply } => {
                 let mut mempool = self.mempool.write().await;
                 let count = tx_hashes.len();
@@ -177,32 +127,12 @@ impl Overlay {
                     let _ = tx.send(()).await;
                 }
             }
-
-            CoreCommand::FetchTxSet { hash, reply } => {
-                let cache = self.local_tx_sets.read().await;
-                if let Some(xdr) = cache.get(&hash) {
-                    let _ = reply.send(Some(xdr.clone())).await;
-                } else {
-                    let _ = reply.send(None).await;
-                }
-            }
-
-            CoreCommand::CacheTxSet { hash, xdr } => {
-                info!("Caching TX set {:?} ({} bytes)", &hash[..4], xdr.len());
-                let mut cache = self.local_tx_sets.write().await;
-                cache.insert(hash, xdr);
-            }
         }
     }
 
     /// Get mempool reference (for testing)
     pub fn mempool(&self) -> &Arc<RwLock<Mempool>> {
         &self.mempool
-    }
-
-    /// Get TX set cache reference (for testing)
-    pub fn tx_set_cache(&self) -> &Arc<RwLock<HashMap<[u8; 32], Vec<u8>>>> {
-        &self.local_tx_sets
     }
 }
 
@@ -235,14 +165,6 @@ impl OverlayHandle {
         reply_rx.recv().await.unwrap_or_default()
     }
 
-    /// Remove transactions from mempool (fire-and-forget).
-    pub fn remove_txs(&self, tx_hashes: Vec<[u8; 32]>) {
-        let _ = self.cmd_tx.send(CoreCommand::RemoveTxsFromMempool {
-            tx_hashes,
-            reply: None,
-        });
-    }
-
     /// Remove transactions from mempool and wait for completion.
     /// This prevents race conditions where GetTopTxs queries stale data.
     pub async fn remove_txs_sync(&self, tx_hashes: Vec<[u8; 32]>) {
@@ -253,26 +175,12 @@ impl OverlayHandle {
         });
         let _ = reply_rx.recv().await;
     }
-
-    /// Cache a TX set.
-    pub fn cache_tx_set(&self, hash: [u8; 32], xdr: Vec<u8>) {
-        let _ = self.cmd_tx.send(CoreCommand::CacheTxSet { hash, xdr });
-    }
-
-    /// Fetch a TX set from cache.
-    pub async fn fetch_tx_set(&self, hash: [u8; 32]) -> Option<Vec<u8>> {
-        let (reply_tx, mut reply_rx) = mpsc::channel(1);
-        let _ = self.cmd_tx.send(CoreCommand::FetchTxSet {
-            hash,
-            reply: reply_tx,
-        });
-        reply_rx.recv().await.flatten()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::xdr::tests::valid_transaction_xdr;
 
     #[tokio::test]
     async fn test_submit_tx_adds_to_mempool() {
@@ -287,7 +195,8 @@ mod tests {
         });
 
         // Submit a TX
-        handle.submit_tx(vec![1, 2, 3], 100, 1);
+        let tx = valid_transaction_xdr(100, 1, 1);
+        handle.submit_tx(tx, 100, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Verify it's in mempool
@@ -306,128 +215,19 @@ mod tests {
         });
 
         // Submit TXs with different fees
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 500, 1);
-        handle.submit_tx(vec![3], 200, 1);
+        let tx1 = valid_transaction_xdr(100, 1, 1);
+        let tx2 = valid_transaction_xdr(500, 2, 1);
+        let tx3 = valid_transaction_xdr(200, 3, 1);
+        handle.submit_tx(tx1, 100, 1);
+        handle.submit_tx(tx2.clone(), 500, 1);
+        handle.submit_tx(tx3, 200, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Get top 2
         let top = handle.get_top_txs(2).await;
         assert_eq!(top.len(), 2);
         // First should be highest fee
-        assert_eq!(top[0].1, vec![2]);
-    }
-
-    #[tokio::test]
-    async fn test_remove_txs() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit TXs
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 200, 1);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Remove first TX
-        let hash1 = compute_tx_hash(&[1]);
-        handle.remove_txs(vec![hash1]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Only one should remain
-        let mp = mempool.read().await;
-        assert_eq!(mp.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_cache_and_fetch_tx_set() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        let hash = [42u8; 32];
-        let xdr = vec![1, 2, 3, 4, 5];
-
-        // Cache it
-        handle.cache_tx_set(hash, xdr.clone());
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Fetch it
-        let result = handle.fetch_tx_set(hash).await;
-        assert_eq!(result, Some(xdr));
-
-        // Fetch non-existent
-        let result = handle.fetch_tx_set([0u8; 32]).await;
-        assert_eq!(result, None);
-    }
-
-    // ═══ Additional Tests ═══
-
-    #[tokio::test]
-    async fn test_remove_multiple_txs_at_once() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit 5 TXs
-        for i in 0..5u8 {
-            handle.submit_tx(vec![i], (i as u64 + 1) * 100, 1);
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        assert_eq!(mempool.read().await.len(), 5);
-
-        // Remove 3 of them at once
-        let hashes_to_remove = vec![
-            compute_tx_hash(&[0]),
-            compute_tx_hash(&[2]),
-            compute_tx_hash(&[4]),
-        ];
-        handle.remove_txs(hashes_to_remove);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Should have 2 remaining
-        let mp = mempool.read().await;
-        assert_eq!(mp.len(), 2);
-        assert!(mp.contains(&compute_tx_hash(&[1])));
-        assert!(mp.contains(&compute_tx_hash(&[3])));
-    }
-
-    #[tokio::test]
-    async fn test_remove_nonexistent_tx() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-        let mempool = overlay.mempool.clone();
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Submit 1 TX
-        handle.submit_tx(vec![1], 100, 1);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Try to remove a TX that doesn't exist
-        handle.remove_txs(vec![[0u8; 32]]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Original TX should still be there
-        assert_eq!(mempool.read().await.len(), 1);
+        assert_eq!(top[0].1, tx2);
     }
 
     #[tokio::test]
@@ -441,8 +241,8 @@ mod tests {
         });
 
         // Submit only 2 TXs
-        handle.submit_tx(vec![1], 100, 1);
-        handle.submit_tx(vec![2], 200, 1);
+        handle.submit_tx(valid_transaction_xdr(100, 1, 1), 100, 1);
+        handle.submit_tx(valid_transaction_xdr(200, 2, 1), 200, 1);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Ask for 10
@@ -469,56 +269,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_multiple_tx_sets() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        // Cache multiple TX sets
-        let hash1 = [1u8; 32];
-        let hash2 = [2u8; 32];
-        let hash3 = [3u8; 32];
-
-        handle.cache_tx_set(hash1, vec![1, 1, 1]);
-        handle.cache_tx_set(hash2, vec![2, 2, 2]);
-        handle.cache_tx_set(hash3, vec![3, 3, 3]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // All should be retrievable
-        assert_eq!(handle.fetch_tx_set(hash1).await, Some(vec![1, 1, 1]));
-        assert_eq!(handle.fetch_tx_set(hash2).await, Some(vec![2, 2, 2]));
-        assert_eq!(handle.fetch_tx_set(hash3).await, Some(vec![3, 3, 3]));
-    }
-
-    #[tokio::test]
-    async fn test_cache_overwrite_tx_set() {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let overlay = Overlay::new(cmd_rx);
-        let handle = OverlayHandle::new(cmd_tx);
-
-        tokio::spawn(async move {
-            let _ = overlay.run().await;
-        });
-
-        let hash = [42u8; 32];
-
-        // Cache original
-        handle.cache_tx_set(hash, vec![1, 2, 3]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Overwrite with new data
-        handle.cache_tx_set(hash, vec![4, 5, 6, 7]);
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        // Should return new data
-        assert_eq!(handle.fetch_tx_set(hash).await, Some(vec![4, 5, 6, 7]));
-    }
-
-    #[tokio::test]
     async fn test_tx_ordering_by_fee_per_op() {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let overlay = Overlay::new(cmd_rx);
@@ -531,17 +281,20 @@ mod tests {
         // TX1: 200 fee / 2 ops = 100 per op
         // TX2: 150 fee / 1 op = 150 per op (HIGHER priority)
         // TX3: 300 fee / 4 ops = 75 per op (LOWER priority)
-        handle.submit_tx(vec![1], 200, 2);
-        handle.submit_tx(vec![2], 150, 1);
-        handle.submit_tx(vec![3], 300, 4);
+        let tx1 = valid_transaction_xdr(200, 1, 2);
+        let tx2 = valid_transaction_xdr(150, 2, 1);
+        let tx3 = valid_transaction_xdr(300, 3, 4);
+        handle.submit_tx(tx1.clone(), 200, 2);
+        handle.submit_tx(tx2.clone(), 150, 1);
+        handle.submit_tx(tx3.clone(), 300, 4);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         let top = handle.get_top_txs(3).await;
         assert_eq!(top.len(), 3);
 
         // Order should be: TX2 (150/op), TX1 (100/op), TX3 (75/op)
-        assert_eq!(top[0].1, vec![2]);
-        assert_eq!(top[1].1, vec![1]);
-        assert_eq!(top[2].1, vec![3]);
+        assert_eq!(top[0].1, tx2);
+        assert_eq!(top[1].1, tx1);
+        assert_eq!(top[2].1, tx3);
     }
 }

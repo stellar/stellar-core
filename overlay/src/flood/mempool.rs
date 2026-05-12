@@ -5,8 +5,6 @@
 //! - Fee-based ordering for nomination
 //! - Sequence tracking by account
 
-use blake2::{Blake2b, Digest};
-use digest::consts::U32;
 use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 use tracing::trace;
@@ -27,15 +25,13 @@ pub struct TxEntry {
     /// Source account
     pub source_account: AccountId,
     /// Sequence number
-    pub sequence: u64,
+    pub sequence: i64,
     /// Fee (in stroops)
     pub fee: u64,
     /// Number of operations
     pub num_ops: u32,
     /// When we received this transaction
     pub received_at: Instant,
-    /// Which peer sent it (0 = local submission)
-    pub from_peer: u64,
 }
 
 impl TxEntry {
@@ -239,7 +235,8 @@ impl Mempool {
 }
 
 /// Compute transaction hash from raw bytes.
-pub fn compute_tx_hash(data: &[u8]) -> TxHash {
+#[cfg(test)]
+fn compute_tx_hash(data: &[u8]) -> TxHash {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -253,7 +250,7 @@ pub fn compute_tx_hash(data: &[u8]) -> TxHash {
 mod tests {
     use super::*;
 
-    fn make_tx(fee: u64, num_ops: u32, seq: u64, account_byte: u8) -> TxEntry {
+    fn make_tx(fee: u64, num_ops: u32, seq: i64, account_byte: u8) -> TxEntry {
         let data = vec![account_byte, (seq & 0xFF) as u8, (fee & 0xFF) as u8];
         let hash = compute_tx_hash(&data);
         let mut source_account = [0u8; 32];
@@ -267,7 +264,6 @@ mod tests {
             fee,
             num_ops,
             received_at: Instant::now(),
-            from_peer: 0,
         }
     }
 
@@ -429,7 +425,7 @@ mod tests {
 
         // Insert 200 transactions (staying within u8 range for account)
         for i in 0..200u8 {
-            let tx = make_tx((i as u64 + 1) * 10, 1, i as u64, i);
+            let tx = make_tx((i as u64 + 1) * 10, 1, i as i64, i);
             assert!(mempool.insert(tx));
         }
 
@@ -521,7 +517,7 @@ mod tests {
         // Insert 10 TXs
         let mut hashes = Vec::new();
         for i in 0..10u8 {
-            let tx = make_tx(100, 1, i as u64, i);
+            let tx = make_tx(100, 1, i as i64, i);
             hashes.push(tx.hash);
             mempool.insert(tx);
         }
@@ -574,7 +570,6 @@ mod tests {
             fee: 500,
             num_ops: 1,
             received_at: Instant::now(),
-            from_peer: 0,
         };
         let tx2 = TxEntry {
             data: vec![2],
@@ -584,7 +579,6 @@ mod tests {
             fee: 500,
             num_ops: 1,
             received_at: Instant::now(),
-            from_peer: 0,
         };
 
         assert!(mempool.insert(tx1));

@@ -31,6 +31,7 @@
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "simulation/LoadGenerator.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
@@ -62,9 +63,6 @@ namespace stellar
 constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
 // 10 seconds of drift threshold
 constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
-
-constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
-constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -343,6 +341,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                 txHashes.push_back(txFrame->getFullHash());
             }
         }
+#ifdef BUILD_TESTS
+        mApp.getLoadGenerator().cleanupAccounts(txFramesList);
+#endif
     }
     mApp.getOverlayManager().notifyTxSetExternalized(value.txSetHash, txHashes);
 
@@ -1429,20 +1430,39 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     CLOG_INFO(Herder, "Got {} transactions from Rust overlay mempool",
               txEnvelopes.size());
 
-    // Convert TransactionEnvelopes to TransactionFrameBasePtrs
+    // Convert TransactionEnvelopes to TransactionFrameBasePtrs and place them
+    // into the phase expected by TxSetFrame.
     TxFrameList classicTxs;
+    TxFrameList sorobanTxs;
     Hash const& networkID = mApp.getNetworkID();
+    bool const supportsSoroban = protocolVersionStartsFrom(
+        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
     for (auto const& env : txEnvelopes)
     {
         auto txFrame =
             TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        classicTxs.push_back(txFrame);
+        if (txFrame->isSoroban())
+        {
+            if (supportsSoroban)
+            {
+                sorobanTxs.push_back(txFrame);
+            }
+            else
+            {
+                CLOG_DEBUG(Herder,
+                           "Ignoring Soroban transaction before Soroban "
+                           "protocol support");
+            }
+        }
+        else
+        {
+            classicTxs.push_back(txFrame);
+        }
     }
     txPhases.emplace_back(std::move(classicTxs));
-    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    if (supportsSoroban)
     {
-        txPhases.emplace_back(); // empty Soroban phase
+        txPhases.emplace_back(std::move(sorobanTxs));
     }
 
     PerPhaseTransactionList invalidTxPhases;

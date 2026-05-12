@@ -2,11 +2,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/TxSetFrame.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayIPC.h"
+#include "rust/RustBridge.h"
+#include "test/TestUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/TmpDir.h"
 #include "xdr/Stellar-SCP.h"
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -1273,7 +1278,6 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
                          /* offset */ 0);
 
     auto pregenStart = std::chrono::steady_clock::now();
-    uint32_t ledgerNum = nodes[0]->getLedgerManager().getLastClosedLedgerNum();
 
     auto pregenEnd = std::chrono::steady_clock::now();
     auto pregenMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1431,7 +1435,6 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
     REQUIRE(nodes.size() == 10);
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG, "Starting all 10 nodes...");
-    auto startTime = std::chrono::steady_clock::now();
     simulation->startAllNodes();
 
     // Give Rust overlay time for Kademlia bootstrap and GossipSub mesh
@@ -1482,8 +1485,7 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
  * At protocol 19, TX sets are NOT cached to Rust overlay since it only
  * supports GeneralizedTransactionSet.
  */
-TEST_CASE("Rust overlay pre-Soroban TX set handling",
-          "[overlay-ipc-rust][simulation][!hide][.]")
+TEST_CASE("Rust overlay pre-Soroban TX set handling", "[overlay-ipc]")
 {
     // Network at protocol 19 (pre-Soroban, non-generalized TX sets)
     Hash networkID = sha256("Test network passphrase for pre-Soroban");
@@ -1621,4 +1623,97 @@ TEST_CASE("Rust overlay Soroban TX set handling",
     REQUIRE(simulation->haveAllExternalized(5, 2));
     LOG_INFO(DEFAULT_LOG,
              "✓ Soroban consensus works with Rust overlay TX set caching");
+}
+
+TEST_CASE("Rust overlay applies Soroban TX count upgrade", "[overlay-ipc]")
+{
+    requireOverlayBinary();
+
+    Hash networkID =
+        sha256("Test network passphrase for Soroban TX count upgrade");
+    Simulation::pointer simulation = std::make_shared<Simulation>(networkID);
+
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    int basePort = 11980;
+    int baseHttpPort = 12080;
+
+    std::vector<SecretKey> keys = {v0SecretKey, v1SecretKey, v2SecretKey};
+
+    for (size_t i = 0; i < keys.size(); i++)
+    {
+        auto cfg = simulation->newConfig();
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 100;
+        cfg.PEER_PORT = basePort + static_cast<int>(i);
+        cfg.HTTP_PORT = baseHttpPort + static_cast<int>(i);
+
+        for (size_t j = 0; j < keys.size(); j++)
+        {
+            if (i != j)
+            {
+                cfg.KNOWN_PEERS.push_back(
+                    fmt::format("127.0.0.1:{}", basePort + j));
+            }
+        }
+
+        simulation->addNode(keys[i], qSet, &cfg);
+    }
+
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 2); },
+        5 * simulation->getExpectedLedgerCloseTime(), false);
+    REQUIRE(simulation->haveAllExternalized(3, 2));
+
+    auto nodes = simulation->getNodes();
+    REQUIRE(nodes.size() == 3);
+
+    for (auto const& node : nodes)
+    {
+        REQUIRE(node->getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion ==
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+
+    auto initialTxCount = nodes[0]
+                              ->getLedgerManager()
+                              .getLastClosedSorobanNetworkConfig()
+                              .ledgerMaxTxCount();
+    auto upgradedTxCount = initialTxCount + 1;
+    REQUIRE(upgradedTxCount > initialTxCount);
+
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = upgradedTxCount;
+        },
+        simulation);
+
+    REQUIRE(std::all_of(nodes.begin(), nodes.end(), [&](auto const& node) {
+        return node->getLedgerManager()
+                   .getLastClosedSorobanNetworkConfig()
+                   .ledgerMaxTxCount() == upgradedTxCount;
+    }));
+
+    for (auto const& node : nodes)
+    {
+        REQUIRE(node->getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion ==
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+
+    LOG_INFO(DEFAULT_LOG, "✓ Soroban TX count upgrade works with Rust overlay");
 }

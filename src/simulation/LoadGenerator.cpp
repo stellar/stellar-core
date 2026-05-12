@@ -233,17 +233,34 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
 }
 
 void
-LoadGenerator::cleanupAccounts()
+LoadGenerator::cleanupAccounts(PerPhaseTransactionList const& perPhaseTxs)
 {
     ZoneScoped;
+    auto const& accounts = mTxGenerator.getAccounts();
 
-    // "Free" any accounts that aren't used by the tx queue anymore
+    UnorderedSet<AccountID> externalized;
+    for (auto const& txs : perPhaseTxs)
+    {
+        for (auto const& tx : txs)
+        {
+            externalized.insert(tx->getSourceID());
+        }
+    }
+
     for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
     {
-        auto const& accounts = mTxGenerator.getAccounts();
         auto accIt = accounts.find(*it);
         releaseAssert(accIt != accounts.end());
-        it++;
+        if (externalized.find(accIt->second->getPublicKey()) ==
+            externalized.end())
+        {
+            mAccountsAvailable.insert(*it);
+            it = mAccountsInUse.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
     }
 }
 
@@ -721,12 +738,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     auto submitScope = mStepTimer.TimeScope();
 
     uint64_t now = mApp.timeNow();
-    // Cleaning up accounts every second, so we don't call potentially expensive
-    // cleanup function too often
-    if (now != mLastSecond && cfg.mode != LoadGenMode::PAY_PREGENERATED)
-    {
-        cleanupAccounts();
-    }
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     uint32_t count = 0;
@@ -1369,6 +1380,11 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 
         // All Wasms should be deployed
         releaseAssert(cfg.getSorobanConfig().nWasms == 0);
+
+        // The first setup phase has fully applied, so its source accounts are
+        // safe to reuse for the instance-creation phase.
+        mAccountsAvailable.insert(mAccountsInUse.begin(), mAccountsInUse.end());
+        mAccountsInUse.clear();
 
         // 1 deploy TX per instance
         cfg.nTxs = cfg.getSorobanConfig().nInstances;
