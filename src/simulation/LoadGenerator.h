@@ -225,7 +225,10 @@ class LoadGenerator
 
     void stop();
 
+    void cleanupAccounts(PerPhaseTransactionList const& perPhaseTxs);
   private:
+
+
     struct TxMetrics
     {
         medida::Meter& mNativePayment;
@@ -398,7 +401,6 @@ class LoadGenerator
 
     std::optional<uint32_t> chooseByteCount(Config const& cfg) const;
 
-    void cleanupAccounts();
 
     void start(GeneratedLoadConfig& cfg);
 

@@ -1278,7 +1278,6 @@ TEST_CASE("Rust overlay 15-node 2000 TPS stress test", "[overlay-ipc-large]")
                          /* offset */ 0);
 
     auto pregenStart = std::chrono::steady_clock::now();
-    uint32_t ledgerNum = nodes[0]->getLedgerManager().getLastClosedLedgerNum();
 
     auto pregenEnd = std::chrono::steady_clock::now();
     auto pregenMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1436,7 +1435,6 @@ TEST_CASE("Rust overlay 10-node network consensus", "[overlay-ipc-large]")
     REQUIRE(nodes.size() == 10);
     LOG_INFO(DEFAULT_LOG, "");
     LOG_INFO(DEFAULT_LOG, "Starting all 10 nodes...");
-    auto startTime = std::chrono::steady_clock::now();
     simulation->startAllNodes();
 
     // Give Rust overlay time for Kademlia bootstrap and GossipSub mesh
