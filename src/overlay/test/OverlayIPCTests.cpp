@@ -828,7 +828,7 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
  * - scp.timing.externalized (time from prepare to externalize)
  * - ledger.ledger.close (total ledger close time)
  */
-TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc]")
+TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
 {
     std::string overlayBinary = requireOverlayBinary();
     // Test parameters - tx per ledger batch

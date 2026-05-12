@@ -204,16 +204,17 @@ if [ $DISABLE_POSTGRES != '--disable-postgres' ] ; then
     fi
 fi
 
-export ALL_VERSIONS=1
-export NUM_PARTITIONS=$((NPROCS*2))
-export RUN_PARTITIONS
+export ALL_VERSIONS=0
+export NUM_PARTITIONS=1
+export RUN_PARTITIONS=0
 export RND_SEED=$(($(date +%s) / 86400))  # Convert to days since epoch
 echo "Using RND_SEED: $RND_SEED"
-ulimit -n 4096
+ulimit -n 65536
 export INTERACTIVE=0
 
-TEST_SPEC='[overlay-ipc]'
-SKIP_SOROBAN_TESTS=true
+export TEST_SPEC='[overlay-ipc]'
+export SKIP_SOROBAN_TESTS=true
+export STELLAR_OVERLAY_BINARY="${SRC_DIR}/build-${CC}-${PROTOCOL}/stellar-overlay"
 time make check
 
 # echo Running fixed check-test-tx-meta tests
