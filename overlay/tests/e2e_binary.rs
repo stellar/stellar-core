@@ -50,6 +50,12 @@ mod ipc {
 
 /// Find the stellar-overlay binary
 fn find_binary() -> PathBuf {
+    if let Ok(path) = std::env::var("STELLAR_OVERLAY_BINARY") {
+        if !path.is_empty() {
+            return PathBuf::from(path);
+        }
+    }
+
     // The test runs from the overlay directory, so look in parent's target
     let release = PathBuf::from("../target/release/stellar-overlay");
     if release.exists() {

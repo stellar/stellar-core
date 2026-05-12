@@ -212,8 +212,9 @@ echo "Using RND_SEED: $RND_SEED"
 ulimit -n 4096
 export INTERACTIVE=0
 
-TEST_SPEC='[overlay-ipc]'
-SKIP_SOROBAN_TESTS=true
+export TEST_SPEC='[overlay-ipc]'
+export SKIP_SOROBAN_TESTS=true
+export STELLAR_OVERLAY_BINARY="${SRC_DIR}/build-${CC}-${PROTOCOL}/stellar-overlay"
 time make check
 
 # echo Running fixed check-test-tx-meta tests
