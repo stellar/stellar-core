@@ -64,6 +64,7 @@ class HerderSCPDriver : public SCPDriver
     SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope) override;
     void signEnvelope(SCPEnvelope& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
+    // Returns true if `env` is ready to hand off to SCP?
     bool isEnvelopeReady(SCPEnvelope const& env) const override;
 
     // value validation
@@ -77,16 +78,20 @@ class HerderSCPDriver : public SCPDriver
     std::string toShortString(NodeID const& pk) const override;
     std::string getValueString(Value const& v) const override;
 
-    // TODO: Docs. Mention that this function can throw if `v` cannot be
-    // converted to a `StellarValue`
-    // TODO: Mention in docs that this should only be called from slots with
-    // slot indicies equal to LCL+1.
+    // Construct a skip ledger value from `v`. A few caveats about this function:
+    // * `v` must be a STELLAR_VALUE_SIGNED value.
+    // * This function should only be called from slots with slot indicies equal
+    //   to LCL+1
     Value makeSkipLedgerValueFromValue(Value const& v) const override;
 
-    // TODO(4): Do I even need this function?
+    // Returns true iff `v` is a skip ledger value
     bool isSkipLedgerValue(Value const& v) const override;
 
+    // Returns true iff parallel tx set downloading is enabled and the protocol
+    // supports it
     bool isParallelTxSetDownloadEnabled() const override;
+
+    // Returns true iff the protocol allows skip values
     bool protocolAllowsSkipValues() const override;
 
     // timer handling
@@ -111,7 +116,8 @@ class HerderSCPDriver : public SCPDriver
     ValueWrapperPtr stripAllUpgrades(Value const& v) override;
     uint32_t getUpgradeNominationTimeoutLimit() const override;
 
-    // TODO: Docs
+    // Update metrics indicating that a value was replaced with a skip value for
+    // slotIndex.
     void noteSkipValueReplaced(uint64_t slotIndex) override;
 
     // Submit a value to consider for slotIndex
@@ -135,12 +141,11 @@ class HerderSCPDriver : public SCPDriver
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot) override;
 
-    // Ballot blocked on txset tracking methods
     // Called when balloting becomes blocked waiting for a txset download
     void recordBallotBlockedOnTxSet(uint64_t slotIndex,
                                     Value const& value) override;
-    // Called when balloting is unblocked (setting mCommit) to measure and
-    // record how long we were blocked
+    // Called when balloting is unblocked to measure and record how long it was
+    // blocked
     void measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
                                               Value const& value) override;
 
@@ -161,7 +166,7 @@ class HerderSCPDriver : public SCPDriver
                                 std::optional<uint64_t> maxSlotIndex,
                                 uint64 slotToKeep);
 
-    // Called when a tx set is received to update any ValueWrappers that were
+    // Called when a tx set is received. Updates any ValueWrappers that were
     // created before the tx set was available (for parallel tx set
     // downloading).
     void onTxSetReceived(Hash const& txSetHash, TxSetXDRFrameConstPtr txSet);
@@ -221,16 +226,12 @@ class HerderSCPDriver : public SCPDriver
     SCP mSCP;
 
     // Registry of ValueWrappers that were created before their tx set was
-    // available. Maps txSetHash -> weak_ptrs to wrappers awaiting that tx set.
-    // When onTxSetReceived() is called, we update any waiting wrappers.
-    // Cleanup of expired weak_ptrs happens in purgeSlots().
+    // available.
     std::map<Hash, std::vector<std::weak_ptr<ValueWrapper>>>
         mPendingTxSetWrappers;
 
     // Registry of EnvelopeWrappers that were created before their tx set was
-    // available. Maps txSetHash -> weak_ptrs to wrappers awaiting that tx set.
-    // When onTxSetReceived() is called, we update any waiting wrappers.
-    // Cleanup of expired weak_ptrs happens in purgeSlots().
+    // available.
     std::map<Hash, std::vector<std::weak_ptr<SCPEnvelopeWrapper>>>
         mPendingTxSetEnvelopeWrappers;
 
@@ -253,13 +254,13 @@ class HerderSCPDriver : public SCPDriver
         medida::Timer& mSelfToOthersExternalizeLag;
 
         // Timer tracking how long balloting was blocked waiting for a txset
-        // download (time spent in kAwaitingDownload before setting mCommit)
+        // download
         medida::Timer& mBallotBlockedOnTxSet;
 
-        // Tracks how many ledgers we externalized using a skip value.
+        // Tracks how many ledgers we externalized a skip value.
         medida::Counter& mSkipExternalized;
-        // Counts replacements of proposed values with the synthesized skip
-        // value.
+
+        // Counts replacements of proposed values with skip values.
         medida::Counter& mSkipValueReplaced;
 
         SCPMetrics(Application& app);
@@ -317,9 +318,6 @@ class HerderSCPDriver : public SCPDriver
     // validity of txSet
     mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;
-
-    // TODO: Docs
-    bool checkValueTypeAndSkipHashInvariant(StellarValue const& sv) const;
 
     SCPDriver::ValidationLevel validateValueAgainstLocalState(
         uint64_t slotIndex, StellarValue const& sv, bool nomination,

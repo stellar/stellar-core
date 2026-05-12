@@ -269,23 +269,6 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
         return false;
     }
 
-    // Log successful download of a previously awaited tx set
-    auto waitingTime = mTxSetFetcher.getWaitingTime(hash);
-    if (waitingTime.has_value())
-    {
-        CLOG_DEBUG(
-            Proto,
-            "Successfully downloaded tx set {} that was kAwaitingDownload - "
-            "download took {} ms",
-            hexAbbrev(hash), waitingTime.value().count());
-    }
-    else
-    {
-        CLOG_DEBUG(Proto,
-                   "Successfully downloaded tx set {} that was requested",
-                   hexAbbrev(hash));
-    }
-
     addTxSet(hash, lastSeenSlotIndex, txset);
 
     // Update any ValueWrappers that were created before this tx set was
@@ -675,10 +658,6 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     {
         if (!hasTxSet(h2))
         {
-            CLOG_TRACE(
-                Proto,
-                "PendingEnvelopes::startFetch: requesting missing txset {}",
-                hexAbbrev(h2));
             mTxSetFetcher.fetch(h2, envelope);
             needSomething = true;
         }

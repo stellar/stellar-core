@@ -55,6 +55,7 @@ stellarValueToString(Config const& c, StellarValue const& sv)
     switch (sv.ext.v())
     {
     case STELLAR_VALUE_BASIC:
+        res << " BASIC";
         break;
     case STELLAR_VALUE_SIGNED:
         res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);

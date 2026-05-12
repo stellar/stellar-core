@@ -373,6 +373,12 @@ BallotProtocol::maybeReplaceValueWithSkip(Value& v) const
         return false;
     }
 
+    if (mSlot.getSCPDriver().isSkipLedgerValue(v))
+    {
+        // Already a skip value. Nothing to replace.
+        return false;
+    }
+
     // Check validation value
     SCPDriver::ValidationExtraInfo extraInfo;
     auto validationLevel = mSlot.getSCPDriver().validateValue(

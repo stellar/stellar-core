@@ -87,7 +87,7 @@ class Herder
 
     static std::chrono::minutes const TX_SET_GC_DELAY;
 
-    // TODO: Docs
+    // Hash value indicating a skip value
     static Hash const SKIP_LEDGER_HASH;
 
     enum State

@@ -18,6 +18,77 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
+namespace
+{
+using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
+
+TxPair
+makeTxPair(HerderImpl& herder, SecretKey const& s,
+           TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
+           StellarValueType svt)
+{
+    StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(),
+                                              closeTime, emptyUpgradeSteps, s);
+    sv.ext.v(svt);
+    return TxPair{xdr::xdr_to_opaque(sv), txSet};
+}
+
+SCPEnvelope
+makeEnvelope(HerderImpl& herder, SecretKey const& s, TxPair const& p,
+             Hash qSetHash, uint64_t slotIndex)
+{
+    auto envelope = SCPEnvelope{};
+    envelope.statement.slotIndex = slotIndex;
+    envelope.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& conf = envelope.statement.pledges.confirm();
+    conf.ballot.counter = 1;
+    conf.ballot.value = p.first;
+    conf.nPrepared = 1;
+    conf.nCommit = 1;
+    conf.nH = 1;
+    conf.quorumSetHash = qSetHash;
+    envelope.statement.nodeID = s.getPublicKey();
+    herder.signEnvelope(s, envelope);
+    return envelope;
+}
+
+SCPEnvelope
+makePrepareEnvelope(HerderImpl& herder, SecretKey const& s, TxPair const& p,
+                    Hash qSetHash, uint64_t slotIndex)
+{
+    auto envelope = SCPEnvelope{};
+    envelope.statement.slotIndex = slotIndex;
+    envelope.statement.pledges.type(SCP_ST_PREPARE);
+    auto& prep = envelope.statement.pledges.prepare();
+    prep.ballot.counter = 1;
+    prep.ballot.value = p.first;
+    prep.quorumSetHash = qSetHash;
+    envelope.statement.nodeID = s.getPublicKey();
+    herder.signEnvelope(s, envelope);
+    return envelope;
+}
+
+TxSetXDRFrameConstPtr
+makeTransactions(Application& app, std::vector<TestAccount>& accs,
+                 TestAccount& root, size_t n)
+{
+    REQUIRE(n <= accs.size());
+    std::vector<TransactionFrameBasePtr> txs(n);
+    size_t index = 0;
+    std::generate(std::begin(txs), std::end(txs),
+                  [&]() { return accs[index++].tx({payment(root, 1)}); });
+    return makeTxSetFromTransactions(txs, app, 0, 0).first;
+}
+
+PublicKey
+makePublicKey(int i)
+{
+    auto hash = sha256("NODE_SEED_" + std::to_string(i));
+    auto secretKey = SecretKey::fromSeed(hash);
+    return secretKey.getPublicKey();
+}
+} // namespace
+
 TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
     Config cfg(getTestConfig());
@@ -43,78 +114,15 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
         accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
     }
 
-    using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
-    auto makeTxPair = [&](TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
-                          StellarValueType svt) {
-        StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), closeTime, emptyUpgradeSteps, s);
-        sv.ext.v(svt);
-        auto v = xdr::xdr_to_opaque(sv);
-
-        return TxPair{v, txSet};
-    };
-    auto makeEnvelope = [&](TxPair const& p, Hash qSetHash,
-                            uint64_t slotIndex) {
-        // herder must want the TxSet before receiving it, so we are sending it
-        // fake envelope
-        auto envelope = SCPEnvelope{};
-        envelope.statement.slotIndex = slotIndex;
-        envelope.statement.pledges.type(SCP_ST_CONFIRM);
-        auto& conf = envelope.statement.pledges.confirm();
-        conf.ballot.counter = 1;
-        conf.ballot.value = p.first;
-        conf.nPrepared = 1;
-        conf.nCommit = 1;
-        conf.nH = 1;
-        conf.quorumSetHash = qSetHash;
-        envelope.statement.nodeID = s.getPublicKey();
-        herder.signEnvelope(s, envelope);
-        return envelope;
-    };
-    // PREPARE counterpart used by sections that explicitly exercise
-    // parallel tx set downloading logic
-    auto makePrepareEnvelope = [&](TxPair const& p, Hash qSetHash,
-                                   uint64_t slotIndex) {
-        auto envelope = SCPEnvelope{};
-        envelope.statement.slotIndex = slotIndex;
-        envelope.statement.pledges.type(SCP_ST_PREPARE);
-        auto& prep = envelope.statement.pledges.prepare();
-        prep.ballot.counter = 1;
-        prep.ballot.value = p.first;
-        prep.quorumSetHash = qSetHash;
-        envelope.statement.nodeID = s.getPublicKey();
-        herder.signEnvelope(s, envelope);
-        return envelope;
-    };
-    size_t index = 0;
-    auto makeTransactions = [&](Hash hash, size_t n) {
-        REQUIRE(n <= accs.size());
-        std::vector<TransactionFrameBasePtr> txs(n);
-        std::generate(std::begin(txs), std::end(txs),
-                      [&]() { return accs[index++].tx({payment(*root, 1)}); });
-        return makeTxSetFromTransactions(txs, *app, 0, 0).first;
-    };
-
-    auto makePublicKey = [](int i) {
-        auto hash = sha256("NODE_SEED_" + std::to_string(i));
-        auto secretKey = SecretKey::fromSeed(hash);
-        return secretKey.getPublicKey();
-    };
-
-    auto makeSingleton = [](PublicKey const& key) {
-        auto result = SCPQuorumSet{};
-        result.threshold = 1;
-        result.validators.push_back(key);
-        return result;
-    };
-
     auto keys = std::vector<PublicKey>{};
     for (auto i = 0; i < 1001; i++)
     {
         keys.push_back(makePublicKey(i));
     }
 
-    auto saneQSet = makeSingleton(keys[0]);
+    auto saneQSet = SCPQuorumSet{};
+    saneQSet.threshold = 1;
+    saneQSet.validators.push_back(keys[0]);
     auto saneQSetHash = sha256(xdr::xdr_to_opaque(saneQSet));
 
     auto bigQSet = SCPQuorumSet{};
@@ -129,10 +137,12 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     }
     auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
-    auto txSet = makeTransactions(lcl.hash, numAccounts);
-    auto p = makeTxPair(txSet, 10, STELLAR_VALUE_SIGNED);
-    auto saneEnvelope = makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
-    auto bigEnvelope = makeEnvelope(p, bigQSetHash, lcl.header.ledgerSeq + 1);
+    auto txSet = makeTransactions(*app, accs, *root, numAccounts);
+    auto p = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_SIGNED);
+    auto saneEnvelope =
+        makeEnvelope(herder, s, p, saneQSetHash, lcl.header.ledgerSeq + 1);
+    auto bigEnvelope =
+        makeEnvelope(herder, s, p, bigQSetHash, lcl.header.ledgerSeq + 1);
 
     auto& pendingEnvelopes = herder.getPendingEnvelopes();
 
@@ -157,7 +167,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
 
             REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
-
             // -> processes saneEnvelope
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                p.second));
@@ -238,8 +247,9 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                 // Exercises the parallel tx set downloading code path: PREPARE
                 // qualifies for early handoff to SCP once the qset is cached,
                 // even while the tx set is still in flight
-                auto prepEnv = makePrepareEnvelope(p, saneQSetHash,
-                                                   lcl.header.ledgerSeq + 1);
+                auto prepEnv =
+                    makePrepareEnvelope(herder, s, p, saneQSetHash,
+                                        lcl.header.ledgerSeq + 1);
                 auto& fetchTimer =
                     app->getMetrics().NewTimer({"scp", "fetch", "envelope"});
                 auto const initialCount = fetchTimer.count();
@@ -282,8 +292,8 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
         pendingEnvelopes.addSCPQuorumSet(saneQSetHash, saneQSet);
         pendingEnvelopes.addTxSet(p.second->getContentsHash(), 0, p.second);
 
-        auto prepEnv =
-            makePrepareEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto prepEnv = makePrepareEnvelope(herder, s, p, saneQSetHash,
+                                           lcl.header.ledgerSeq + 1);
         auto& fetchTimer =
             app->getMetrics().NewTimer({"scp", "fetch", "envelope"});
         auto const initialCount = fetchTimer.count();
@@ -329,12 +339,12 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     SECTION("different slots asking for same qset txset")
     {
         auto saneEnvelope2 = makeEnvelope(
-            p, saneQSetHash,
+            herder, s, p, saneQSetHash,
             lcl.header.ledgerSeq + app->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
-        auto saneEnvelope3 =
-            makeEnvelope(p, saneQSetHash,
-                         lcl.header.ledgerSeq +
-                             2 * app->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
+        auto saneEnvelope3 = makeEnvelope(
+            herder, s, p, saneQSetHash,
+            lcl.header.ledgerSeq +
+                2 * app->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
 
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
@@ -478,9 +488,9 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     SECTION("do not fetch if txsets are not signed")
     {
-        auto p2 = makeTxPair(txSet, 10, STELLAR_VALUE_BASIC);
-        auto envNoSign =
-            makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto p2 = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_BASIC);
+        auto envNoSign = makeEnvelope(herder, s, p2, saneQSetHash,
+                                      lcl.header.ledgerSeq + 1);
 
         // Make sure to discard the envelope
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(envNoSign) ==
@@ -489,14 +499,11 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     SECTION("skip-value envelopes gated by SKIP_LEDGER_PROTOCOL_VERSION")
     {
-        // Build a skip-value envelope by wrapping a signed StellarValue with
-        // makeSkipLedgerValueFromValue. The skip XDR is well-formed at any
-        // protocol version; whether `recvSCPEnvelope` admits it is what's
-        // gated.
+        // Build a skip-value envelope
         auto& scpDriver = herder.getHerderSCPDriver();
         Value skipValue = scpDriver.makeSkipLedgerValueFromValue(p.first);
         auto skipEnvelope =
-            makeEnvelope(TxPair{skipValue, p.second}, saneQSetHash,
+            makeEnvelope(herder, s, TxPair{skipValue, p.second}, saneQSetHash,
                          lcl.header.ledgerSeq + 1);
 
         SECTION("rejected before SKIP_LEDGER_PROTOCOL_VERSION")
@@ -514,11 +521,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
             for_versions_from(
                 static_cast<uint32_t>(SKIP_LEDGER_PROTOCOL_VERSION), *app,
                 [&] {
-                    // Passes the value-type filter; qset is not cached so
-                    // the envelope still has work to do. Assert it's not
-                    // DISCARDED rather than asserting a specific status,
-                    // since the downstream outcome depends on details of
-                    // the tx-set fetcher's treatment of SKIP_LEDGER_HASH.
                     REQUIRE(pendingEnvelopes.recvSCPEnvelope(skipEnvelope) !=
                             Herder::ENVELOPE_STATUS_DISCARDED);
                 });
@@ -529,9 +531,10 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     {
         GeneralizedTransactionSet malformedXdrSet(1);
         auto malformedTxSet = TxSetXDRFrame::makeFromWire(malformedXdrSet);
-        auto p2 = makeTxPair(malformedTxSet, 10, STELLAR_VALUE_SIGNED);
-        auto malformedEnvelope =
-            makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto p2 = makeTxPair(herder, s, malformedTxSet, 10,
+                             STELLAR_VALUE_SIGNED);
+        auto malformedEnvelope = makeEnvelope(herder, s, p2, saneQSetHash,
+                                              lcl.header.ledgerSeq + 1);
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
@@ -632,18 +635,13 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
     }
 }
 
-// TODO: There's a lot of duplicate setup code in this test. Refactor
-TEST_CASE_VERSIONS(
+TEST_CASE(
     "PendingEnvelopes recvSCPEnvelope without parallel tx set download",
     "[herder]")
 {
-    // Mirrors the gates-on TEST_CASE above, but leaves
-    // EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD at its default (false). With Gate
-    // B off, a PREPARE envelope missing its tx set must stay in FETCHING
-    // even when the qset is cached -- the inverse of the gates-on test in
-    // "PREPARE: process before tx set arrives".
     Config cfg(getTestConfig());
     cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
 
     VirtualClock clock;
 
@@ -664,67 +662,27 @@ TEST_CASE_VERSIONS(
         accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
     }
 
-    using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
-    auto makeTxPair = [&](TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
-                          StellarValueType svt) {
-        StellarValue sv = herder.makeStellarValue(
-            txSet->getContentsHash(), closeTime, emptyUpgradeSteps, s);
-        sv.ext.v(svt);
-        auto v = xdr::xdr_to_opaque(sv);
-        return TxPair{v, txSet};
-    };
-    auto makePrepareEnvelope = [&](TxPair const& p, Hash qSetHash,
-                                   uint64_t slotIndex) {
-        auto envelope = SCPEnvelope{};
-        envelope.statement.slotIndex = slotIndex;
-        envelope.statement.pledges.type(SCP_ST_PREPARE);
-        auto& prep = envelope.statement.pledges.prepare();
-        prep.ballot.counter = 1;
-        prep.ballot.value = p.first;
-        prep.quorumSetHash = qSetHash;
-        envelope.statement.nodeID = s.getPublicKey();
-        herder.signEnvelope(s, envelope);
-        return envelope;
-    };
-    size_t index = 0;
-    auto makeTransactions = [&](Hash hash, size_t n) {
-        REQUIRE(n <= accs.size());
-        std::vector<TransactionFrameBasePtr> txs(n);
-        std::generate(std::begin(txs), std::end(txs),
-                      [&]() { return accs[index++].tx({payment(*root, 1)}); });
-        return makeTxSetFromTransactions(txs, *app, 0, 0).first;
-    };
-
-    auto makePublicKey = [](int i) {
-        auto hash = sha256("NODE_SEED_" + std::to_string(i));
-        auto secretKey = SecretKey::fromSeed(hash);
-        return secretKey.getPublicKey();
-    };
-
     auto saneQSet = SCPQuorumSet{};
     saneQSet.threshold = 1;
     saneQSet.validators.push_back(makePublicKey(0));
     auto saneQSetHash = sha256(xdr::xdr_to_opaque(saneQSet));
 
-    auto txSet = makeTransactions(lcl.hash, numAccounts);
-    auto p = makeTxPair(txSet, 10, STELLAR_VALUE_SIGNED);
+    auto txSet = makeTransactions(*app, accs, *root, numAccounts);
+    auto p = makeTxPair(herder, s, txSet, 10, STELLAR_VALUE_SIGNED);
 
     auto& pendingEnvelopes = herder.getPendingEnvelopes();
 
-    SECTION("PREPARE stays in FETCHING without tx set, even with qset cached")
+    SECTION("PREPARE stays in FETCHING without tx set")
     {
-        auto prepEnv =
-            makePrepareEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+        auto prepEnv = makePrepareEnvelope(herder, s, p, saneQSetHash,
+                                           lcl.header.ledgerSeq + 1);
 
         // Initial receipt: nothing cached → FETCHING
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
         REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
 
-        // Qset arrives. With Gate B off, the envelope must STAY in FETCHING
-        // (and SCP must not see it yet). This is the inverse of the
-        // gates-on test in the TEST_CASE above, which asserts SCP did
-        // receive the envelope at exactly this point.
+        // Qset arrives. The envelope must STAY in FETCHING
         REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(prepEnv) ==
                 Herder::ENVELOPE_STATUS_FETCHING);

@@ -385,36 +385,6 @@ HerderSCPDriver::validatePastOrFutureValue(
     return SCPDriver::kMaybeValidValue;
 }
 
-// TODO(rebase): Consider just folding this into
-// deserializeAndValidateStellarValue.
-bool
-HerderSCPDriver::checkValueTypeAndSkipHashInvariant(StellarValue const& b) const
-{
-    if (!protocolAllowsSkipValues())
-    {
-        // Before SKIP_LEDGER_PROTOCOL_VERSION, skip values are not valid at
-        // all, so we can just check that the value is a normal signed value.
-        return b.ext.v() == STELLAR_VALUE_SIGNED;
-    }
-
-    // Only signed and skip values participate in SCP.
-    // TODO(8): Grep for signature checks and update them for SKIP values
-    if (b.ext.v() != STELLAR_VALUE_SIGNED && b.ext.v() != STELLAR_VALUE_SKIP)
-    {
-        return false;
-    }
-
-    // Skip values must have the skip hash, and non-skip values must not have
-    // the skip hash
-    if ((b.txSetHash == Herder::SKIP_LEDGER_HASH) !=
-        (b.ext.v() == STELLAR_VALUE_SKIP))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValueAgainstLocalState(
     uint64_t slotIndex, StellarValue const& b, bool nomination,
@@ -544,15 +514,28 @@ HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
         return false;
     }
 
-    // TODO(rebase): Remove slot index after rebase
-    if (!checkValueTypeAndSkipHashInvariant(sv))
+    bool const skipsAllowed = protocolAllowsSkipValues();
+    if (sv.ext.v() != STELLAR_VALUE_SIGNED)
     {
-        return false;
+        if (!skipsAllowed)
+        {
+            // Skip values are not allowed, and the value is not a signed value,
+            // so it is invalid.
+            return false;
+        }
+
+        if (sv.ext.v() != STELLAR_VALUE_SKIP)
+        {
+            // The value is not a signed value or a skip value, so it is
+            // invalid.
+            return false;
+        }
     }
 
-    // TODO(8): Grep for signature checks and update them for SKIP values
-
-    if (sv.ext.v() != STELLAR_VALUE_SIGNED && sv.ext.v() != STELLAR_VALUE_SKIP)
+    // Skip values must have the skip hash, and non-skip values must not have
+    // the skip hash
+    if (skipsAllowed && (sv.txSetHash == Herder::SKIP_LEDGER_HASH) !=
+                            (sv.ext.v() == STELLAR_VALUE_SKIP))
     {
         return false;
     }
@@ -701,6 +684,7 @@ HerderSCPDriver::makeSkipLedgerValueFromValue(Value const& v) const
 {
     ZoneScoped;
     StellarValue originalValue = toStellarValueOrThrow(v);
+    releaseAssert(originalValue.ext.v() == STELLAR_VALUE_SIGNED);
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
     StellarValue sv;
@@ -871,18 +855,12 @@ compareTxSets(ApplicableTxSetFrameConstPtr const& l,
 {
     if (!l && !r)
     {
-        CLOG_TRACE(Proto, "Comparing tx sets but both are null");
         // Do not have either tx set. Compare hashes
         return lessThanXored(lh, rh, s);
     }
 
     if (!l || !r)
     {
-        CLOG_TRACE(
-            Proto,
-            "Comparing tx sets but one is null: l: {}, r: {}, lh: {}, rh: {}",
-            l ? "exists" : "null", r ? "exists" : "null", hexAbbrev(lh),
-            hexAbbrev(rh));
         // If one exists, choose it
         return !l;
     }
@@ -1056,20 +1034,10 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                 cTxSet = *ptr;
             }
             // else: SkipTxSet -> cTxSet stays null, handled by existing
-            // !cTxSet logic
 
             // Only valid applicable tx sets should be combined.
             auto cApplicableTxSet =
                 cTxSet ? cTxSet->prepareForApply(mApp, lcl.header) : nullptr;
-            // releaseAssert(cApplicableTxSet);
-            // TODO(12): When cTxSet is null we skip the previousLedgerHash
-            // check here, but it will be caught later: once the tx set is
-            // downloaded, checkAndCacheTxSetValid (called from validateValue)
-            // checks previousLedgerHash == lcl.hash before prepareForApply.
-            // A mismatch makes validateValue return kInvalidValue, preventing
-            // the node from voting to commit.
-            // Should write a test that causes combineCandidates to use a tx
-            // set with a bad previous ledger hash to verify this.
             if (!cTxSet || cTxSet->previousLedgerHash() == lcl.hash)
             {
 
@@ -1716,12 +1684,6 @@ HerderSCPDriver::purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
     getSCP().purgeSlotsOutsideRange(minSlotIndex, maxSlotIndex, slotToKeep);
 
     // Clean up expired weak_ptrs from the pending tx set registries.
-    // This cleanup is correct because:
-    // 1. When SCP purges a slot via getSCP().purgeSlots() above, it destroys
-    //    the Slot object along with its NominationProtocol/BallotProtocol
-    // 2. This destroys the ValueWrapperPtrs/EnvelopeWrapperPtrs stored there
-    // 3. If those were the only remaining references, the weak_ptrs here expire
-    // 4. We remove expired entries to prevent unbounded growth of the map
     purgeExpiredWeakPtrs(mPendingTxSetWrappers);
     purgeExpiredWeakPtrs(mPendingTxSetEnvelopeWrappers);
 }
