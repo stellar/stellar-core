@@ -5,6 +5,10 @@ if USE_TCMALLOC
 SUBDIRS += gperftools
 endif
 
+# gperftools is a vendored dependency; stellar-core's test suite should not
+# run its upstream allocator tests.
+check-recursive: SUBDIRS = $(PKGCONFIG_SUBDIRS)
+
 include $(top_srcdir)/common.mk
 
 $(srcdir)/lib.mk $(srcdir)/libmedida.mk: $(top_srcdir)/make-mks
