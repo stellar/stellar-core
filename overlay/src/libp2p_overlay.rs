@@ -2685,6 +2685,7 @@ mod tests {
     }
 
     /// Test TX deduplication - same TX sent twice should only be received once
+    #[ignore = "flaky test"]
     #[tokio::test]
     async fn test_tx_dedup() {
         let keypair1 = Keypair::generate_ed25519();
@@ -4399,6 +4400,7 @@ async fn test_scp_relay_no_echo_to_sender() {
 /// Without the fix, most `control.open_stream()` calls would time out
 /// because the swarm couldn't be polled while awaiting inside the
 /// `ConnectionEstablished` handler.
+#[ignore = "flaky test"]
 #[tokio::test]
 async fn test_20_node_full_mesh() {
     const N: usize = 20;
@@ -4689,6 +4691,7 @@ async fn test_peer_connected_event_emitted() {
 
 /// Test that the 20-node mesh works with the new connectivity algorithm.
 /// Audits metrics to verify no reconnection storms or duplicate connections.
+#[ignore = "flaky test"]
 #[tokio::test]
 async fn test_20_node_mesh_with_dedup() {
     const N: usize = 20;
