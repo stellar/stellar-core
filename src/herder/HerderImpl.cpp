@@ -31,6 +31,7 @@
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "simulation/LoadGenerator.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
@@ -47,7 +48,6 @@
 #include "xdrpp/marshal.h"
 #include "xdrpp/types.h"
 #include <Tracy.hpp>
-#include "simulation/LoadGenerator.h"
 
 #include "util/GlobalChecks.h"
 #include <algorithm>

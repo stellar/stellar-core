@@ -42,19 +42,18 @@ configureOverlayV2Pair(Config& cfg, int i)
 TEST_CASE("loadgen in overlay-only mode", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::pointer simulation =
-        Topologies::pair(networkID, [&](int i) {
-            auto cfg = getTestConfig(i);
-            configureOverlayV2Pair(cfg, i);
-            cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
-            cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
-            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
-            return cfg;
-        });
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
+        cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = 1000;
+        return cfg;
+    });
 
     simulation->startAllNodes();
     simulation->crankUntil(
@@ -122,17 +121,16 @@ TEST_CASE("mixed pregen and synthetic soroban in overlay-only mode",
     uint32_t const nTxs = 60;
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::pointer simulation =
-        Topologies::pair(networkID, [&](int i) {
-            auto cfg = getTestConfig(i);
-            configureOverlayV2Pair(cfg, i);
-            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-            cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            cfg.GENESIS_TEST_ACCOUNT_COUNT = genesisAccountCount;
-            return cfg;
-        });
+    Simulation::pointer simulation = Topologies::pair(networkID, [&](int i) {
+        auto cfg = getTestConfig(i);
+        configureOverlayV2Pair(cfg, i);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.GENESIS_TEST_ACCOUNT_COUNT = genesisAccountCount;
+        return cfg;
+    });
 
     simulation->startAllNodes();
     simulation->crankUntil(
