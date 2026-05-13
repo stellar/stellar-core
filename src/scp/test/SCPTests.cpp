@@ -63,11 +63,6 @@ class TestSCP : public SCPDriver
         mQuorumSets[qSetHash] = qSet;
     }
 
-    // TODO: Add test somewhere else for:
-    // * Awaiting download message is invalid (due to close time or something).
-    //   this might not be the right test layer for this one, since this layer
-    //   leans so heavily on a simulated validation function.
-
     SCPDriver::ValidationLevel
     validateValue(
         uint64 slotIndex, Value const& value, bool nomination,

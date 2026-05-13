@@ -8339,3 +8339,65 @@ TEST_CASE("far-future slots cleanup", "[herder]")
     // Check that far-future slots have been removed
     REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
 }
+
+// This test checks that the parallel tx set downloading mechanism does not
+// interfere with Herder's envelope validation
+TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
+                   "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+
+    VirtualClock clock;
+
+    auto peerKey = SecretKey::pseudoRandomForTesting();
+    auto const& peerPk = peerKey.getPublicKey();
+    cfg.QUORUM_SET.validators.emplace_back(peerPk);
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    for_versions_from(
+        static_cast<uint32_t>(SKIP_LEDGER_PROTOCOL_VERSION), *app, [&] {
+            auto const lcl =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+            auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+            // Custom qset (single peer, threshold 1), pre-cached so the
+            // envelope wouldn't be stuck waiting for the qset to arrive.
+            SCPQuorumSet qSet;
+            qSet.threshold = 1;
+            qSet.validators.push_back(peerPk);
+            auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+            pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+            // Tx set hash deliberately fake and *not* cached.
+            Hash fakeTxSetHash;
+            fakeTxSetHash.fill(0xAB);
+
+            auto makePrepareFromPeer = [&](uint64_t closeTime) {
+                auto sv = herder.makeStellarValue(fakeTxSetHash, closeTime,
+                                                  emptyUpgradeSteps, peerKey);
+                auto opaqueValue = xdr::xdr_to_opaque(sv);
+
+                SCPEnvelope env;
+                env.statement.slotIndex = lcl.header.ledgerSeq + 1;
+                env.statement.pledges.type(SCP_ST_PREPARE);
+                auto& prep = env.statement.pledges.prepare();
+                prep.ballot.counter = 1;
+                prep.ballot.value = opaqueValue;
+                prep.quorumSetHash = qSetHash;
+                env.statement.nodeID = peerPk;
+                herder.signEnvelope(peerKey, env);
+                return env;
+            };
+
+            uint64_t const badCloseTime =
+                app->timeNow() + Herder::MAX_TIME_SLIP_SECONDS.count() + 60;
+            auto env = makePrepareFromPeer(badCloseTime);
+
+            // Envelope should be rejected as it has a bad close time
+            REQUIRE(herder.recvSCPEnvelope(env) ==
+                    Herder::ENVELOPE_STATUS_DISCARDED);
+        });
+}
