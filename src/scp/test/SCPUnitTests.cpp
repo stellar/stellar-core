@@ -109,7 +109,6 @@ class TestNominationSCP : public SCPDriver
     std::optional<std::chrono::milliseconds>
     getTxSetDownloadWaitTime(Value const& v) const override
     {
-        // TODO: Implement?
         return std::nullopt;
     }
 
@@ -122,27 +121,21 @@ class TestNominationSCP : public SCPDriver
     Value
     makeSkipLedgerValueFromValue(Value const& value) const override
     {
-        // TODO: Implement?
         releaseAssert(false);
     }
 
     bool
     isSkipLedgerValue(Value const& v) const override
     {
-        // TODO: Implement?
         releaseAssert(false);
     }
 
-    // TODO: Make configurable? Mix-and-match different nodes with this
-    // enabled/disabled?
     bool
     isParallelTxSetDownloadEnabled() const override
     {
         return true;
     }
 
-    // TODO: Make this configurable? Test that we reject skip values prior to
-    // protocol upgrade?
     bool
     protocolAllowsSkipValues() const override
     {

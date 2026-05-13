@@ -21,8 +21,7 @@
 namespace stellar
 {
 
-// TODO: revert
-std::array<std::string const, 16> const Logging::kPartitionNames = {
+std::array<std::string const, 15> const Logging::kPartitionNames = {
 #define LOG_PARTITION(name) #name,
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION

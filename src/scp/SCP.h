@@ -164,14 +164,6 @@ class SCP
         return mKnownSlots.empty() ? 0 : mKnownSlots.rbegin()->first;
     }
 
-#ifdef BUILD_TESTS
-    std::shared_ptr<Slot>
-    getSlotForTesting(uint64 slotIndex)
-    {
-        return getSlot(slotIndex, false);
-    }
-#endif
-
   private:
     // Calculate the state of the node for the given slot index.
     QuorumInfoNodeState getState(NodeID const& node, uint64 slotIndex);

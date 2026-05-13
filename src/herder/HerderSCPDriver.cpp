@@ -458,7 +458,7 @@ HerderSCPDriver::validateValueAgainstLocalState(
             }
             else
             {
-                CLOG_DEBUG(Proto, "validateValue i:{} unknown txSet {}",
+                CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}",
                            slotIndex, hexAbbrev(txSetHash));
 
                 res = SCPDriver::kInvalidValue;

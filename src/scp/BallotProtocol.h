@@ -244,9 +244,10 @@ class BallotProtocol
     bool setConfirmCommit(SCPBallot const& acceptCommitLow,
                           SCPBallot const& acceptCommitHigh);
 
-    // Throws std::runtime_error if validateValue(value, nomination=false)
-    // returns kInvalidValue. Called from setAcceptCommit / setConfirmCommit
-    // to fail fast when a quorum pulls us into committing a value we reject.
+    // Throws if a quorum pulls a node into committing a value that it sees as
+    // invalid. Used to provide a useful error message in this case, which is
+    // most likely caused by a failure to update stellar-core prior to a
+    // protocol upgrade.
     void throwIfValueInvalidForCommit(Value const& value, char const* caller);
 
     // step 9 from the SCP paper
@@ -323,7 +324,7 @@ class BallotProtocol
     // check: verifies that ballot is greater than old one
     void bumpToBallot(SCPBallot const& ballot, bool check);
 
-    // TODO: Docs
+    // Replaces `v` with a skip value if appropriate. Otherwise does nothing.
     bool maybeReplaceValueWithSkip(Value& v) const;
 
     // switch the local node to the given ballot's value
