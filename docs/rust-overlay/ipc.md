@@ -66,6 +66,7 @@ are rejected with `InvalidData`.
 | 11 | `RequestTxSet`        | `[hash:32]`                                  | Fetch TX set body by hash                         |
 | 12 | `CacheTxSet`          | `[hash:32][txset_xdr]`                       | Tell overlay to cache a locally-built TX set      |
 | 13 | `RequestOverlayMetrics` | (empty)                                    | Request metrics snapshot                          |
+| 14 | `BroadcastTxSetShards` | `[hash:32]`                                | Eagerly broadcast cached TX set via shard path    |
 
 ### Overlay → Core
 

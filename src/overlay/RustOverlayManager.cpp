@@ -27,7 +27,8 @@ RustOverlayManager::RustOverlayManager(Application& app)
               cfg.PEER_PORT);
 
     mOverlayIPC = std::make_unique<OverlayIPC>(
-        cfg.OVERLAY_SOCKET_PATH, cfg.OVERLAY_BINARY_PATH, cfg.PEER_PORT);
+        cfg.OVERLAY_SOCKET_PATH, cfg.OVERLAY_BINARY_PATH, cfg.PEER_PORT,
+        cfg.NODE_SEED.getPublicKey());
 }
 
 RustOverlayManager::~RustOverlayManager()

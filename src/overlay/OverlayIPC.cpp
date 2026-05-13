@@ -4,6 +4,8 @@
 
 #include "overlay/OverlayIPC.h"
 #include "crypto/Hex.h"
+#include "herder/HerderUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-ledger.h"
 #include <fmt/format.h>
@@ -42,16 +44,33 @@ absoluteIfExecutable(std::string const& path)
     return std::nullopt;
 }
 
+PublicKey
+defaultNodePublicKey()
+{
+    PublicKey nodeId(PUBLIC_KEY_TYPE_ED25519);
+    nodeId.ed25519().fill(0);
+    return nodeId;
+}
+
 } // namespace
 
 OverlayIPC::OverlayIPC(std::optional<std::string> socketPath,
                        std::optional<std::string> overlayBinaryPath,
                        uint16_t peerPort)
+    : OverlayIPC(std::move(socketPath), std::move(overlayBinaryPath), peerPort,
+                 defaultNodePublicKey())
+{
+}
+
+OverlayIPC::OverlayIPC(std::optional<std::string> socketPath,
+                       std::optional<std::string> overlayBinaryPath,
+                       uint16_t peerPort, PublicKey const& nodeId)
     : mSocketPath(socketPath && !socketPath->empty()
                       ? std::move(*socketPath)
                       : defaultSocketPath(peerPort))
     , mOverlayBinaryPath(std::move(overlayBinaryPath))
     , mPeerPort(peerPort)
+    , mNodePublicKey(nodeId)
 {
 }
 
@@ -416,10 +435,43 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
 bool
 OverlayIPC::broadcastSCP(SCPEnvelope const& envelope)
 {
+#define assertMessage(cond, msg)                                               \
+    do                                                                         \
+    {                                                                          \
+        if (!(cond))                                                           \
+        {                                                                      \
+            CLOG_FATAL(Overlay, msg);                                          \
+            releaseAssert(false);                                              \
+        }                                                                      \
+    } while (0)
     if (!mChannel || !mChannel->isConnected())
     {
         CLOG_WARNING(Overlay, "Cannot broadcast SCP: not connected to overlay");
         return false;
+    }
+
+    std::optional<Hash> broadcastHash;
+    if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+    {
+        auto const maybeValues = getStellarValues(envelope.statement);
+        // assertMessage(maybeValues.has_value(),
+        //               "Failed to extract StellarValues from SCP envelope for "
+        //               "nomination");
+        if (maybeValues)
+        {
+            for (auto const& sv : *maybeValues)
+            {
+                assertMessage(sv.ext.v() == STELLAR_VALUE_SIGNED,
+                            "Expected signed StellarValue in nomination");
+                if (sv.ext.lcValueSignature().nodeID == mNodePublicKey)
+                {
+                    assertMessage(!broadcastHash,
+                                "Multiple StellarValues signed by self in "
+                                "nomination");
+                    broadcastHash = sv.txSetHash;
+                }
+            }
+        }
     }
 
     IPCMessage msg;
@@ -427,7 +479,22 @@ OverlayIPC::broadcastSCP(SCPEnvelope const& envelope)
     msg.payload = xdr::xdr_to_opaque(envelope);
 
     std::lock_guard<std::mutex> lock(mSendMutex);
+    if (broadcastHash)
+    {
+        IPCMessage broadcastMsg;
+        broadcastMsg.type = IPCMessageType::BROADCAST_TX_SET_SHARDS;
+        broadcastMsg.payload.resize(broadcastHash->size());
+        std::memcpy(broadcastMsg.payload.data(), broadcastHash->data(),
+                    broadcastHash->size());
+        if (!mChannel->send(broadcastMsg))
+        {
+            CLOG_WARNING(Overlay,
+                         "Failed to send TX set shard broadcast message");
+            return false;
+        }
+    }
     return mChannel->send(msg);
+#undef assertMessage
 }
 
 void

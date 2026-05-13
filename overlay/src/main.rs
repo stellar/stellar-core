@@ -1083,6 +1083,37 @@ impl App {
                 );
             }
 
+            MessageType::BroadcastTxSetShards => {
+                if msg.payload.len() != 32 {
+                    warn!(
+                        "BroadcastTxSetShards payload has invalid length: {}",
+                        msg.payload.len()
+                    );
+                    return true;
+                }
+
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&msg.payload);
+
+                let Some(tx_set_xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) else {
+                    warn!(
+                        "TXSET_SHARD_BROADCAST_DROP: TX set {:02x?}... not cached",
+                        &hash[..4]
+                    );
+                    return true;
+                };
+
+                info!(
+                    "TXSET_SHARD_BROADCAST_FROM_CORE: Broadcasting cached TX set {:02x?}... ({} bytes)",
+                    &hash[..4],
+                    tx_set_xdr.len()
+                );
+
+                self.libp2p_handle
+                    .broadcast_txset_shards(hash, tx_set_xdr)
+                    .await;
+            }
+
             MessageType::SubmitTx => {
                 // Parse payload: [fee:i64][numOps:u32][txEnvelope...]
                 if msg.payload.len() < 12 {

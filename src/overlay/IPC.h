@@ -76,6 +76,11 @@ enum class IPCMessageType : uint32_t
     /// Response: OVERLAY_METRICS_RESPONSE with JSON payload
     REQUEST_OVERLAY_METRICS = 13,
 
+    /// Eagerly broadcast a locally-built TX set via the Rust overlay shard
+    /// dissemination path.
+    /// Payload: [hash:32]
+    BROADCAST_TX_SET_SHARDS = 14,
+
     // ═══ Overlay → Core (Critical Path) ═══
 
     /// Received SCP envelope from network

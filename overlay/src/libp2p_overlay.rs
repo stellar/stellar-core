@@ -85,6 +85,8 @@ pub enum OverlayCommand {
         data: Vec<u8>,
         to: PeerId,
     },
+    /// Broadcast a locally-built TX set through the shard dissemination path
+    BroadcastTxSetShards { hash: [u8; 32], data: Vec<u8> },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
     /// Connect to a peer by address (bootstrap — PeerId unknown)
@@ -193,6 +195,19 @@ impl OverlayHandle {
         {
             warn!(
                 "Overlay command channel closed, failed to send SendTxSet: {}",
+                e
+            );
+        }
+    }
+
+    pub async fn broadcast_txset_shards(&self, hash: [u8; 32], data: Vec<u8>) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::BroadcastTxSetShards { hash, data })
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send BroadcastTxSetShards: {}",
                 e
             );
         }
@@ -516,6 +531,9 @@ impl StellarOverlay {
                         }
                         OverlayCommand::SendTxSet { hash, data, to } => {
                             self.send_txset_response(to, hash, data).await;
+                        }
+                        OverlayCommand::BroadcastTxSetShards { hash, data } => {
+                            self.broadcast_txset_shards(hash, data).await;
                         }
                         OverlayCommand::RecordTxSetSource { hash, peer } => {
                             let mut sources = self.state.txset_sources.write().await;
@@ -1073,6 +1091,69 @@ impl StellarOverlay {
                     e
                 );
             }
+        }
+    }
+
+    async fn broadcast_txset_shards(&mut self, hash: [u8; 32], data: Vec<u8>) {
+        let message = match crate::xdr::encode_generalized_tx_set_message(&data, &hash) {
+            Ok(message) => message,
+            Err(e) => {
+                warn!(
+                    "TXSET_SHARD_BROADCAST_DROP: Dropping invalid TxSet {:02x?}... from Core: {}",
+                    &hash[..4],
+                    e
+                );
+                return;
+            }
+        };
+
+        let streams = self.state.peer_streams.read().await;
+        let peers: Vec<_> = streams.keys().cloned().collect();
+        drop(streams);
+
+        if peers.is_empty() {
+            debug!(
+                "TXSET_SHARD_BROADCAST_SKIP: No peers to broadcast TxSet {:02x?}...",
+                &hash[..4]
+            );
+            return;
+        }
+
+        info!(
+            "TXSET_SHARD_BROADCAST: Broadcasting TxSet {:02x?}... ({} bytes) to {} peers",
+            &hash[..4],
+            data.len(),
+            peers.len()
+        );
+        self.state
+            .metrics
+            .message_broadcast
+            .fetch_add(1, Ordering::Relaxed);
+
+        for peer_id in peers {
+            let state = Arc::clone(&self.state);
+            let message = message.clone();
+            tokio::spawn(async move {
+                match send_to_peer_stream(&state, peer_id, StreamType::TxSet, &message).await {
+                    Ok(_) => {
+                        state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                        state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_write
+                            .fetch_add(message.len() as u64, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                        warn!(
+                            "TXSET_SHARD_SEND_FAIL: Failed to send TxSet {:02x?}... to {}: {}",
+                            &hash[..4],
+                            peer_id,
+                            e
+                        );
+                    }
+                }
+            });
         }
     }
 
