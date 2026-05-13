@@ -20,6 +20,16 @@ pub struct Config {
 
     /// Log level
     pub log_level: String,
+
+    /// Target payload bytes per TX set shard. The overlay may increase this to
+    /// keep the original + recovery shard count below 256.
+    pub txset_target_shard_size: usize,
+
+    /// Recovery shards as a percentage of original shards.
+    pub txset_shard_recovery_factor_percent: usize,
+
+    /// Initial shard rebroadcast TTL.
+    pub txset_shard_ttl: u8,
 }
 
 impl Default for Config {
@@ -29,6 +39,9 @@ impl Default for Config {
             libp2p_listen_ip: "0.0.0.0".to_string(), // Bind to all interfaces for internet operation
             peer_port: 11625,
             log_level: "info".to_string(),
+            txset_target_shard_size: 1024,
+            txset_shard_recovery_factor_percent: 50,
+            txset_shard_ttl: 1,
         }
     }
 }
@@ -76,6 +89,9 @@ mod tests {
         );
         assert_eq!(config.peer_port, 11625);
         assert_eq!(config.log_level, "info");
+        assert_eq!(config.txset_target_shard_size, 1024);
+        assert_eq!(config.txset_shard_recovery_factor_percent, 50);
+        assert_eq!(config.txset_shard_ttl, 1);
     }
 
     #[test]
@@ -85,6 +101,9 @@ mod tests {
             libp2p_listen_ip = "127.0.0.1"
             peer_port = 12625
             log_level = "debug"
+            txset_target_shard_size = 2048
+            txset_shard_recovery_factor_percent = 75
+            txset_shard_ttl = 2
         "#;
 
         let config = Config::from_str(toml).unwrap();
@@ -92,6 +111,9 @@ mod tests {
         assert_eq!(config.libp2p_listen_ip, "127.0.0.1");
         assert_eq!(config.peer_port, 12625);
         assert_eq!(config.log_level, "debug");
+        assert_eq!(config.txset_target_shard_size, 2048);
+        assert_eq!(config.txset_shard_recovery_factor_percent, 75);
+        assert_eq!(config.txset_shard_ttl, 2);
     }
 
     // ═══ Parse Error Cases ═══

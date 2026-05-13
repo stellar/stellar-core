@@ -31,8 +31,11 @@ use integrated::{Overlay, OverlayHandle};
 use ipc::{CoreIpc, Message, MessageType};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
+#[cfg(test)]
+use libp2p_overlay::create_overlay;
 use libp2p_overlay::{
-    create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
+    create_overlay_with_txset_shard_config, OverlayEvent as LibP2pOverlayEvent,
+    OverlayHandle as LibP2pOverlayHandle, TxSetShardConfig,
 };
 use metrics::OverlayMetrics;
 
@@ -470,9 +473,18 @@ impl App {
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
         let metrics = Arc::new(OverlayMetrics::new());
+        let txset_shard_config = TxSetShardConfig {
+            target_shard_size: config.txset_target_shard_size,
+            recovery_factor_percent: config.txset_shard_recovery_factor_percent,
+            initial_ttl: config.txset_shard_ttl,
+        };
         let (libp2p_handle, libp2p_event_rx, tx_event_rx, libp2p_overlay) =
-            create_overlay(libp2p_keypair, Arc::clone(&metrics))
-                .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
+            create_overlay_with_txset_shard_config(
+                libp2p_keypair,
+                Arc::clone(&metrics),
+                txset_shard_config,
+            )
+            .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
         let libp2p_port = config.peer_port + 1000;

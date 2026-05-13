@@ -454,20 +454,23 @@ OverlayIPC::broadcastSCP(SCPEnvelope const& envelope)
     if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
     {
         auto const maybeValues = getStellarValues(envelope.statement);
-        // assertMessage(maybeValues.has_value(),
-        //               "Failed to extract StellarValues from SCP envelope for "
-        //               "nomination");
-        if (maybeValues)
+        if (!maybeValues)
+        {
+            CLOG_WARNING(Overlay,
+                         "Failed to extract StellarValues from SCP "
+                         "nomination; skipping TX set shard broadcast");
+        }
+        else
         {
             for (auto const& sv : *maybeValues)
             {
                 assertMessage(sv.ext.v() == STELLAR_VALUE_SIGNED,
-                            "Expected signed StellarValue in nomination");
+                              "Expected signed StellarValue in nomination");
                 if (sv.ext.lcValueSignature().nodeID == mNodePublicKey)
                 {
                     assertMessage(!broadcastHash,
-                                "Multiple StellarValues signed by self in "
-                                "nomination");
+                                  "Multiple StellarValues signed by self in "
+                                  "nomination");
                     broadcastHash = sv.txSetHash;
                 }
             }
