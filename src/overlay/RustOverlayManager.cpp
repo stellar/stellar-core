@@ -325,6 +325,34 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mSendTransactionMeter, "send_transaction");
     markDelta(m.mSendTxSetMeter, "send_txset");
 
+    // TX set shard dissemination metrics
+    markDelta(m.mTxSetShardBroadcast, "txset_shard_broadcast");
+    markDelta(m.mTxSetShardOriginalSent, "txset_shard_original_sent");
+    markDelta(m.mTxSetShardRecoverySent, "txset_shard_recovery_sent");
+    markDelta(m.mTxSetShardOriginalRecvUnique,
+              "txset_shard_original_recv_unique");
+    markDelta(m.mTxSetShardRecoveryRecvUnique,
+              "txset_shard_recovery_recv_unique");
+    markDelta(m.mTxSetShardOriginalRecvRedundant,
+              "txset_shard_original_recv_redundant");
+    markDelta(m.mTxSetShardRecoveryRecvRedundant,
+              "txset_shard_recovery_recv_redundant");
+    markDelta(m.mTxSetShardOriginalForwarded,
+              "txset_shard_original_forwarded");
+    markDelta(m.mTxSetShardRecoveryForwarded,
+              "txset_shard_recovery_forwarded");
+    markDelta(m.mTxSetShardReconstructSuccessOriginal,
+              "txset_shard_reconstruct_success_original");
+    markDelta(m.mTxSetShardReconstructSuccessRecovery,
+              "txset_shard_reconstruct_success_recovery");
+    markDelta(m.mTxSetShardReconstructFailOriginal,
+              "txset_shard_reconstruct_fail_original");
+    markDelta(m.mTxSetShardReconstructFailRecovery,
+              "txset_shard_reconstruct_fail_recovery");
+    markDelta(m.mTxSetShardFetchPreempted, "txset_shard_fetch_preempted");
+    markDelta(m.mTxSetShardEagerAlsoServed,
+              "txset_shard_eager_also_served");
+
     // Connection lifecycle — these aren't registered as medida meters on
     // the C++ side yet, so they'll just be tracked by the existing counters.
     // The inbound/outbound attempt/establish/drop are already covered
@@ -397,6 +425,33 @@ RustOverlayManager::syncOverlayMetrics()
         }
         mLastSyncedValues["fetch_txset_sum_us"] = sum;
         mLastSyncedValues["fetch_txset_count"] = count;
+    }
+
+    // ── Recovery-assisted TxSet shard reconstruction timer ──
+    if (root.isMember("txset_shard_reconstruct_recovery_sum_us") &&
+        root.isMember("txset_shard_reconstruct_recovery_count"))
+    {
+        auto sum = static_cast<int64_t>(
+            root["txset_shard_reconstruct_recovery_sum_us"].asUInt64());
+        auto count = static_cast<int64_t>(
+            root["txset_shard_reconstruct_recovery_count"].asUInt64());
+        auto lastSum =
+            mLastSyncedValues["txset_shard_reconstruct_recovery_sum_us"];
+        auto lastCount =
+            mLastSyncedValues["txset_shard_reconstruct_recovery_count"];
+        auto deltaSum = sum - lastSum;
+        auto deltaCount = count - lastCount;
+        if (deltaCount > 0 && deltaSum > 0)
+        {
+            auto avgUs = deltaSum / deltaCount;
+            for (int64_t i = 0; i < deltaCount; ++i)
+            {
+                m.mTxSetShardReconstructRecoveryTimer.Update(
+                    std::chrono::microseconds{avgUs});
+            }
+        }
+        mLastSyncedValues["txset_shard_reconstruct_recovery_sum_us"] = sum;
+        mLastSyncedValues["txset_shard_reconstruct_recovery_count"] = count;
     }
 
     // ── Flood TX pull latency timer ──

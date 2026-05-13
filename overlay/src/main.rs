@@ -35,7 +35,7 @@ use libp2p::{Multiaddr, PeerId};
 use libp2p_overlay::create_overlay;
 use libp2p_overlay::{
     create_overlay_with_txset_shard_config, OverlayEvent as LibP2pOverlayEvent,
-    OverlayHandle as LibP2pOverlayHandle, TxSetShardConfig,
+    OverlayHandle as LibP2pOverlayHandle, TxSetReceiveSource, TxSetShardConfig,
 };
 use metrics::OverlayMetrics;
 
@@ -434,6 +434,8 @@ struct App {
     peer_hostnames: Arc<RwLock<HashMap<PeerId, String>>>,
     /// Shared metrics counters for the overlay
     metrics: Arc<OverlayMetrics>,
+    /// Tracks txsets sent or received through eager sharding for effectiveness metrics.
+    eager_txset_tracker: EagerTxSetTracker,
 }
 
 /// Peer addresses configured via SetPeerConfig, used for reconnection.
@@ -445,6 +447,38 @@ struct ConfiguredPeers {
     /// Map from resolved SocketAddr (at libp2p port) to original address string,
     /// so we can reconnect by address when a PeerId disconnects.
     resolved: HashMap<SocketAddr, String>,
+}
+
+#[derive(Default)]
+struct EagerTxSetTracker {
+    received_via_shards: HashSet<Hash256>,
+    sent_via_shards: HashSet<Hash256>,
+}
+
+impl EagerTxSetTracker {
+    fn record_received_via_shards(&mut self, hash: Hash256) {
+        self.received_via_shards.insert(hash);
+    }
+
+    fn record_sent_via_shards(&mut self, hash: Hash256) {
+        self.sent_via_shards.insert(hash);
+    }
+
+    fn record_core_request_cache_hit(&self, hash: &Hash256, metrics: &OverlayMetrics) {
+        if self.received_via_shards.contains(hash) {
+            metrics
+                .txset_shard_fetch_preempted
+                .fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn record_peer_request_served(&self, hash: &Hash256, metrics: &OverlayMetrics) {
+        if self.sent_via_shards.contains(hash) {
+            metrics
+                .txset_shard_eager_also_served
+                .fetch_add(1, Ordering::Relaxed);
+        }
+    }
 }
 
 impl App {
@@ -522,6 +556,7 @@ impl App {
             known_peers: Arc::new(RwLock::new(HashMap::new())),
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
             metrics,
+            eager_txset_tracker: EagerTxSetTracker::default(),
         })
     }
 
@@ -740,7 +775,12 @@ impl App {
                 debug!("Received TX via QUIC from {}: {} bytes", from, tx.len());
                 self.overlay_handle.submit_tx(tx, 0, 0);
             }
-            LibP2pOverlayEvent::TxSetReceived { hash, data, from } => {
+            LibP2pOverlayEvent::TxSetReceived {
+                hash,
+                data,
+                from,
+                source,
+            } => {
                 info!(
                     "TXSET_RECV: Received TxSet {:02x?}... ({} bytes) from {}",
                     &hash[..4],
@@ -768,6 +808,9 @@ impl App {
                     hash,
                     data.clone(),
                 );
+                if source == TxSetReceiveSource::Shard {
+                    self.eager_txset_tracker.record_received_via_shards(hash);
+                }
 
                 // Always push TX set to Core (Core handles dedup)
                 info!(
@@ -787,6 +830,8 @@ impl App {
                 info!("Peer {} requesting TxSet {:02x?}...", from, &hash[..4]);
                 // Look up in local cache and respond
                 if let Some(cached) = self.tx_set_cache.get(&hash) {
+                    self.eager_txset_tracker
+                        .record_peer_request_served(&hash, &self.metrics);
                     info!(
                         "Serving TxSet {:02x?}... ({} bytes) to {}",
                         &hash[..4],
@@ -1036,6 +1081,8 @@ impl App {
 
                 // First check local cache
                 if let Some(xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) {
+                    self.eager_txset_tracker
+                        .record_core_request_cache_hit(&hash, &self.metrics);
                     info!(
                         "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
                         &hash[..4],
@@ -1120,6 +1167,8 @@ impl App {
                     &hash[..4],
                     tx_set_xdr.len()
                 );
+
+                self.eager_txset_tracker.record_sent_via_shards(hash);
 
                 self.libp2p_handle
                     .broadcast_txset_shards(hash, tx_set_xdr)
@@ -1960,5 +2009,51 @@ mod tests {
         let bare: Multiaddr = "/ip4/10.0.0.1/udp/9000/quic-v1".parse().unwrap();
         let stripped = strip_p2p_suffix(&bare);
         assert_eq!(stripped, bare);
+    }
+
+    #[test]
+    fn test_eager_txset_tracker_counts_preempted_core_requests() {
+        let metrics = OverlayMetrics::new();
+        let mut tracker = EagerTxSetTracker::default();
+        let eager_hash = [7u8; 32];
+        let ordinary_hash = [8u8; 32];
+
+        tracker.record_received_via_shards(eager_hash);
+        tracker.record_core_request_cache_hit(&ordinary_hash, &metrics);
+        assert_eq!(
+            metrics.txset_shard_fetch_preempted.load(Ordering::Relaxed),
+            0
+        );
+
+        tracker.record_core_request_cache_hit(&eager_hash, &metrics);
+        assert_eq!(
+            metrics.txset_shard_fetch_preempted.load(Ordering::Relaxed),
+            1
+        );
+    }
+
+    #[test]
+    fn test_eager_txset_tracker_counts_eager_shards_later_served() {
+        let metrics = OverlayMetrics::new();
+        let mut tracker = EagerTxSetTracker::default();
+        let eager_hash = [9u8; 32];
+        let ordinary_hash = [10u8; 32];
+
+        tracker.record_sent_via_shards(eager_hash);
+        tracker.record_peer_request_served(&ordinary_hash, &metrics);
+        assert_eq!(
+            metrics
+                .txset_shard_eager_also_served
+                .load(Ordering::Relaxed),
+            0
+        );
+
+        tracker.record_peer_request_served(&eager_hash, &metrics);
+        assert_eq!(
+            metrics
+                .txset_shard_eager_also_served
+                .load(Ordering::Relaxed),
+            1
+        );
     }
 }

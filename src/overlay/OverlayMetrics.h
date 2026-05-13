@@ -68,5 +68,23 @@ struct OverlayMetrics
 
     // ── TxSet fetch latency ──
     medida::Timer& mFetchTxSetTimer;
+
+    // ── TxSet shard dissemination ──
+    medida::Meter& mTxSetShardBroadcast;
+    medida::Meter& mTxSetShardOriginalSent;
+    medida::Meter& mTxSetShardRecoverySent;
+    medida::Meter& mTxSetShardOriginalRecvUnique;
+    medida::Meter& mTxSetShardRecoveryRecvUnique;
+    medida::Meter& mTxSetShardOriginalRecvRedundant;
+    medida::Meter& mTxSetShardRecoveryRecvRedundant;
+    medida::Meter& mTxSetShardOriginalForwarded;
+    medida::Meter& mTxSetShardRecoveryForwarded;
+    medida::Meter& mTxSetShardReconstructSuccessOriginal;
+    medida::Meter& mTxSetShardReconstructSuccessRecovery;
+    medida::Meter& mTxSetShardReconstructFailOriginal;
+    medida::Meter& mTxSetShardReconstructFailRecovery;
+    medida::Timer& mTxSetShardReconstructRecoveryTimer;
+    medida::Meter& mTxSetShardFetchPreempted;
+    medida::Meter& mTxSetShardEagerAlsoServed;
 };
 }

@@ -446,6 +446,7 @@ pub enum OverlayEvent {
         hash: [u8; 32],
         data: Vec<u8>,
         from: PeerId,
+        source: TxSetReceiveSource,
     },
     /// Peer is requesting a TX set (need to look up and respond)
     TxSetRequested { hash: [u8; 32], from: PeerId },
@@ -455,6 +456,12 @@ pub enum OverlayEvent {
     PeerConnected { peer_id: PeerId, addr: Multiaddr },
     /// Peer disconnected - clean up any pending requests
     PeerDisconnected { peer_id: PeerId },
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum TxSetReceiveSource {
+    Response,
+    Shard,
 }
 
 /// Commands to the overlay
@@ -1563,6 +1570,10 @@ impl StellarOverlay {
         );
         self.state
             .metrics
+            .txset_shard_broadcast
+            .fetch_add(1, Ordering::Relaxed);
+        self.state
+            .metrics
             .message_broadcast
             .fetch_add(1, Ordering::Relaxed);
 
@@ -1572,7 +1583,9 @@ impl StellarOverlay {
             for shard_offset in shard_offsets {
                 let shard = &shards[shard_offset];
                 match shard.encode() {
-                    Ok(message) => messages.push(message),
+                    Ok(message) => {
+                        messages.push((message, shard.shard_index < shard.original_shards))
+                    }
                     Err(e) => warn!(
                         "TXSET_SHARD_ENCODE_DROP: Failed to encode shard {} for TxSet {:02x?}...: {}",
                         shard.shard_index,
@@ -1590,7 +1603,7 @@ impl StellarOverlay {
             }
             let state = Arc::clone(&self.state);
             tokio::spawn(async move {
-                for message in messages {
+                for (message, is_original) in messages {
                     match send_to_peer_stream(
                         &state,
                         peer_id.clone(),
@@ -1600,12 +1613,22 @@ impl StellarOverlay {
                     .await
                     {
                         Ok(_) => {
-                            state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
                             state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
                             state
                                 .metrics
                                 .byte_write
                                 .fetch_add(message.len() as u64, Ordering::Relaxed);
+                            if is_original {
+                                state
+                                    .metrics
+                                    .txset_shard_original_sent
+                                    .fetch_add(1, Ordering::Relaxed);
+                            } else {
+                                state
+                                    .metrics
+                                    .txset_shard_recovery_sent
+                                    .fetch_add(1, Ordering::Relaxed);
+                            }
                         }
                         Err(e) => {
                             state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
@@ -2574,6 +2597,7 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     hash,
                                     data: txset_data,
                                     from: peer_id,
+                                    source: TxSetReceiveSource::Response,
                                 }) {
                                     warn!(
                                         "Failed to forward TxSetReceived event from {}: {}",
@@ -2649,6 +2673,7 @@ async fn handle_txset_shard_message(state: &Arc<SharedState>, from: PeerId, data
     {
         let completed = state.completed_txset_shards.read().await;
         if completed.peek(&shard.hash).is_some() {
+            record_redundant_txset_shard(state, &shard);
             trace!(
                 "TXSET_SHARD_SKIP: TxSet {:02x?}... already reconstructed",
                 &shard.hash[..4]
@@ -2680,9 +2705,31 @@ async fn handle_txset_shard_message(state: &Arc<SharedState>, from: PeerId, data
         };
 
         if inserted {
+            record_unique_txset_shard(state, &shard);
             should_rebroadcast = shard.ttl > 0;
+            let used_recovery = accumulator.originals.len() < accumulator.original_shards;
+            let recovery_reconstruct_start = used_recovery.then(Instant::now);
             match accumulator.reconstruct() {
                 Ok(Some(txset)) => {
+                    if let Some(start) = recovery_reconstruct_start {
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_recovery_sum_us
+                            .fetch_add(start.elapsed().as_micros() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_recovery_count
+                            .fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_success_recovery
+                            .fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_success_original
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
                     info!(
                         "TXSET_SHARD_RECONSTRUCTED: Reconstructed TxSet {:02x?}... ({} bytes) from {} shards in {:?}",
                         &shard.hash[..4],
@@ -2694,13 +2741,35 @@ async fn handle_txset_shard_message(state: &Arc<SharedState>, from: PeerId, data
                     accumulators.remove(&shard.hash);
                 }
                 Ok(None) => {}
-                Err(e) => warn!(
-                    "TXSET_SHARD_DECODE_FAIL: Failed to decode TxSet {:02x?}...: {}",
-                    &shard.hash[..4],
-                    e
-                ),
+                Err(e) => {
+                    if let Some(start) = recovery_reconstruct_start {
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_recovery_sum_us
+                            .fetch_add(start.elapsed().as_micros() as u64, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_recovery_count
+                            .fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_fail_recovery
+                            .fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        state
+                            .metrics
+                            .txset_shard_reconstruct_fail_original
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
+                    warn!(
+                        "TXSET_SHARD_DECODE_FAIL: Failed to decode TxSet {:02x?}...: {}",
+                        &shard.hash[..4],
+                        e
+                    );
+                }
             }
         } else {
+            record_redundant_txset_shard(state, &shard);
             trace!(
                 "TXSET_SHARD_DUP: Duplicate shard {} for TxSet {:02x?}... from {}",
                 shard.shard_index,
@@ -2720,6 +2789,7 @@ async fn handle_txset_shard_message(state: &Arc<SharedState>, from: PeerId, data
             hash: shard.hash,
             data: txset,
             from,
+            source: TxSetReceiveSource::Shard,
         }) {
             warn!(
                 "TXSET_SHARD_TO_APP_FAIL: Failed to forward reconstructed TxSet {:02x?}...: {}",
@@ -2731,6 +2801,34 @@ async fn handle_txset_shard_message(state: &Arc<SharedState>, from: PeerId, data
 
     if should_rebroadcast {
         rebroadcast_txset_shard(state, &shard.with_ttl(shard.ttl - 1), from).await;
+    }
+}
+
+fn record_unique_txset_shard(state: &Arc<SharedState>, shard: &TxSetShardMessage) {
+    if shard.shard_index < shard.original_shards {
+        state
+            .metrics
+            .txset_shard_original_recv_unique
+            .fetch_add(1, Ordering::Relaxed);
+    } else {
+        state
+            .metrics
+            .txset_shard_recovery_recv_unique
+            .fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn record_redundant_txset_shard(state: &Arc<SharedState>, shard: &TxSetShardMessage) {
+    if shard.shard_index < shard.original_shards {
+        state
+            .metrics
+            .txset_shard_original_recv_redundant
+            .fetch_add(1, Ordering::Relaxed);
+    } else {
+        state
+            .metrics
+            .txset_shard_recovery_recv_redundant
+            .fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -2765,17 +2863,28 @@ async fn rebroadcast_txset_shard(
         let message = message.clone();
         let hash = shard.hash;
         let shard_index = shard.shard_index;
+        let is_original = shard.shard_index < shard.original_shards;
         tokio::spawn(async move {
             match send_to_peer_stream(&state, peer_id.clone(), StreamType::TxSetShard, &message)
                 .await
             {
                 Ok(_) => {
-                    state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
                     state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
                     state
                         .metrics
                         .byte_write
                         .fetch_add(message.len() as u64, Ordering::Relaxed);
+                    if is_original {
+                        state
+                            .metrics
+                            .txset_shard_original_forwarded
+                            .fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        state
+                            .metrics
+                            .txset_shard_recovery_forwarded
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 Err(e) => {
                     state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
@@ -2971,6 +3080,121 @@ mod tests {
 
         let reconstructed = accumulator.reconstruct().unwrap().unwrap();
         assert_eq!(reconstructed, data);
+    }
+
+    #[tokio::test]
+    async fn test_txset_shard_metrics_original_reconstruction_and_redundant() {
+        let metrics = Arc::new(OverlayMetrics::new());
+        let keypair = Keypair::generate_ed25519();
+        let (_handle, mut events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::clone(&metrics)).unwrap();
+        let state = overlay.state.clone();
+
+        let data = b"original-only reconstruction".to_vec();
+        let shards = make_txset_shards([0x31; 32], &data, TxSetShardConfig::default()).unwrap();
+        let original_count = shards[0].original_shards;
+        let peer = PeerId::random();
+
+        for shard in shards.iter().take(original_count) {
+            handle_txset_shard_message(&state, peer, shard.encode().unwrap()).await;
+        }
+
+        let event = events.recv().await.unwrap();
+        match event {
+            OverlayEvent::TxSetReceived {
+                hash,
+                data: reconstructed,
+                source,
+                ..
+            } => {
+                assert_eq!(hash, [0x31; 32]);
+                assert_eq!(reconstructed, data);
+                assert_eq!(source, TxSetReceiveSource::Shard);
+            }
+            other => panic!("unexpected event: {:?}", other),
+        }
+
+        assert_eq!(
+            metrics
+                .txset_shard_original_recv_unique
+                .load(Ordering::Relaxed),
+            original_count as u64
+        );
+        assert_eq!(
+            metrics
+                .txset_shard_reconstruct_success_original
+                .load(Ordering::Relaxed),
+            1
+        );
+
+        handle_txset_shard_message(&state, peer, shards[0].encode().unwrap()).await;
+        assert_eq!(
+            metrics
+                .txset_shard_original_recv_redundant
+                .load(Ordering::Relaxed),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn test_txset_shard_metrics_recovery_reconstruction() {
+        let metrics = Arc::new(OverlayMetrics::new());
+        let keypair = Keypair::generate_ed25519();
+        let (_handle, mut events, _tx_events, overlay) =
+            create_overlay(keypair, Arc::clone(&metrics)).unwrap();
+        let state = overlay.state.clone();
+
+        let data = b"recovery-assisted reconstruction needs parity".to_vec();
+        let config = TxSetShardConfig {
+            target_shard_size: 8,
+            recovery_factor_percent: 50,
+            initial_ttl: 0,
+        };
+        let shards = make_txset_shards([0x32; 32], &data, config).unwrap();
+        let original_count = shards[0].original_shards;
+        let peer = PeerId::random();
+
+        for shard in shards
+            .iter()
+            .filter(|shard| shard.shard_index != 1)
+            .take(original_count)
+        {
+            handle_txset_shard_message(&state, peer, shard.encode().unwrap()).await;
+        }
+
+        let event = events.recv().await.unwrap();
+        match event {
+            OverlayEvent::TxSetReceived {
+                hash,
+                data: reconstructed,
+                source,
+                ..
+            } => {
+                assert_eq!(hash, [0x32; 32]);
+                assert_eq!(reconstructed, data);
+                assert_eq!(source, TxSetReceiveSource::Shard);
+            }
+            other => panic!("unexpected event: {:?}", other),
+        }
+
+        assert_eq!(
+            metrics
+                .txset_shard_recovery_recv_unique
+                .load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            metrics
+                .txset_shard_reconstruct_success_recovery
+                .load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            metrics
+                .txset_shard_reconstruct_recovery_count
+                .load(Ordering::Relaxed),
+            1
+        );
     }
 
     #[test]

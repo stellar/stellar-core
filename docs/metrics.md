@@ -172,6 +172,22 @@ overlay.recv-transaction.max              | counter   | maximum time (microsecon
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
 overlay.timeout.straggler                 | meter     | straggler peer timeout
+overlay.txset-shard.broadcast             | meter     | txsets sent through eager sharded broadcast
+overlay.txset-shard.original-sent         | meter     | original txset shards sent eagerly
+overlay.txset-shard.recovery-sent         | meter     | recovery txset shards sent eagerly
+overlay.txset-shard.original-recv-unique  | meter     | unique original txset shards received
+overlay.txset-shard.recovery-recv-unique  | meter     | unique recovery txset shards received
+overlay.txset-shard.original-recv-redundant | meter   | redundant original txset shards received
+overlay.txset-shard.recovery-recv-redundant | meter   | redundant recovery txset shards received
+overlay.txset-shard.original-forwarded    | meter     | original txset shards forwarded through shard TTL
+overlay.txset-shard.recovery-forwarded    | meter     | recovery txset shards forwarded through shard TTL
+overlay.txset-shard.reconstruct-success-original | meter | txsets reconstructed from original shards only
+overlay.txset-shard.reconstruct-success-recovery | meter | txsets reconstructed with recovery shards
+overlay.txset-shard.reconstruct-fail-original | meter | failed reconstruction attempts using original shards only
+overlay.txset-shard.reconstruct-fail-recovery | meter | failed reconstruction attempts using recovery shards
+overlay.txset-shard.reconstruct-recovery  | timer     | time spent reconstructing txsets with recovery shards
+overlay.txset-shard.fetch-preempted       | meter     | Core txset requests satisfied by prior eager shard reconstruction
+overlay.txset-shard.eager-also-served     | meter     | eagerly sharded txsets later served as full txset responses
 process.action.queue                      | counter   | number of items waiting in internal action-queue
 process.action.overloaded                 | counter   | 0-or-1 value indicating action-queue overloading
 process.file.handles                      | counter   | number of open file handles
