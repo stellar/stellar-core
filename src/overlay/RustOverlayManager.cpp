@@ -337,10 +337,8 @@ RustOverlayManager::syncOverlayMetrics()
               "txset_shard_original_recv_redundant");
     markDelta(m.mTxSetShardRecoveryRecvRedundant,
               "txset_shard_recovery_recv_redundant");
-    markDelta(m.mTxSetShardOriginalForwarded,
-              "txset_shard_original_forwarded");
-    markDelta(m.mTxSetShardRecoveryForwarded,
-              "txset_shard_recovery_forwarded");
+    markDelta(m.mTxSetShardOriginalForwarded, "txset_shard_original_forwarded");
+    markDelta(m.mTxSetShardRecoveryForwarded, "txset_shard_recovery_forwarded");
     markDelta(m.mTxSetShardReconstructSuccessOriginal,
               "txset_shard_reconstruct_success_original");
     markDelta(m.mTxSetShardReconstructSuccessRecovery,
@@ -350,8 +348,7 @@ RustOverlayManager::syncOverlayMetrics()
     markDelta(m.mTxSetShardReconstructFailRecovery,
               "txset_shard_reconstruct_fail_recovery");
     markDelta(m.mTxSetShardFetchPreempted, "txset_shard_fetch_preempted");
-    markDelta(m.mTxSetShardEagerAlsoServed,
-              "txset_shard_eager_also_served");
+    markDelta(m.mTxSetShardEagerAlsoServed, "txset_shard_eager_also_served");
 
     // Connection lifecycle — these aren't registered as medida meters on
     // the C++ side yet, so they'll just be tracked by the existing counters.

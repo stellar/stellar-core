@@ -435,14 +435,14 @@ OverlayIPC::handleMessage(IPCMessage const& msg)
 bool
 OverlayIPC::broadcastSCP(SCPEnvelope const& envelope)
 {
-#define assertMessage(cond, msg)                                               \
-    do                                                                         \
-    {                                                                          \
-        if (!(cond))                                                           \
-        {                                                                      \
-            CLOG_FATAL(Overlay, msg);                                          \
-            releaseAssert(false);                                              \
-        }                                                                      \
+#define assertMessage(cond, msg) \
+    do \
+    { \
+        if (!(cond)) \
+        { \
+            CLOG_FATAL(Overlay, msg); \
+            releaseAssert(false); \
+        } \
     } while (0)
     if (!mChannel || !mChannel->isConnected())
     {

@@ -87,9 +87,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mTxSetShardReconstructFailRecovery(app.getMetrics().NewMeter(
           {"overlay", "txset-shard", "reconstruct-fail-recovery"},
           "reconstruction"))
-    , mTxSetShardReconstructRecoveryTimer(
-          app.getMetrics().NewTimer({"overlay", "txset-shard",
-                                     "reconstruct-recovery"}))
+    , mTxSetShardReconstructRecoveryTimer(app.getMetrics().NewTimer(
+          {"overlay", "txset-shard", "reconstruct-recovery"}))
     , mTxSetShardFetchPreempted(app.getMetrics().NewMeter(
           {"overlay", "txset-shard", "fetch-preempted"}, "request"))
     , mTxSetShardEagerAlsoServed(app.getMetrics().NewMeter(
