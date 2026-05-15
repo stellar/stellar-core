@@ -100,8 +100,7 @@ pub(super) fn ttl_key_hash_for(key: &LedgerKey) -> TtlKeyHash {
     if let LedgerKey::Ttl(ttl_key) = key {
         return ttl_key.key_hash.0;
     }
-    let serialized = key
-        .to_xdr(Limits::none())
+    let serialized = xdr_to_vec(key)
         .expect("XDR serialize of LedgerKey cannot fail at finite-size limits");
     Sha256::digest(&serialized).into()
 }
@@ -320,10 +319,26 @@ pub(super) fn bytes_to_cxx_buf(bytes: &[u8]) -> CxxBuf {
 }
 
 pub(super) fn xdr_to_cxx_buf<T: WriteXdr>(value: &T) -> CxxBuf {
-    let bytes = value
-        .to_xdr(Limits::none())
+    let bytes = xdr_to_vec(value)
         .expect("XDR serialize cannot fail at finite-size limits");
     bytes_to_cxx_buf(&bytes)
+}
+
+// Pre-allocated `to_xdr` replacement. `WriteXdr::to_xdr` ships in
+// stellar-xdr with a default impl that starts from `vec![]` and grows
+// via Vec push as the encoder writes, which shows up as a hot spot in
+// `alloc::raw_vec::finish_grow`. Starting from a 512-byte buffer covers
+// the vast majority of LedgerKey/LedgerEntry/TtlEntry sizes we encode
+// on the apply-phase commit path, so the typical case avoids any
+// reallocation. The Cursor still grows the Vec when needed, so the
+// fallback (oversized entries) remains correct.
+pub(super) fn xdr_to_vec<T: WriteXdr>(value: &T) -> Result<Vec<u8>, crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::Error> {
+    use crate::soroban_proto_all::soroban_curr::soroban_env_host::xdr::Limited;
+    use std::io::Cursor;
+    let buf: Vec<u8> = Vec::with_capacity(512);
+    let mut cursor = Limited::new(Cursor::new(buf), Limits::none());
+    value.write_xdr(&mut cursor)?;
+    Ok(cursor.inner.into_inner())
 }
 
 // Convert a `MuxedAccount` to its underlying `AccountId`. Mirrors the

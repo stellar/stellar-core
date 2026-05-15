@@ -22,7 +22,7 @@ use super::common::{
     build_prefetch_map, compute_contract_code_size_for_rent, copy_rent_fee_config,
     derive_per_tx_prng_seed, extract_tx_parts, extract_tx_parts_owned,
     has_test_internal_error_memo, merge_ttl_max, ttl_live_until_in_writes, ttl_live_until_of,
-    ttl_lookup_key_for, AccumulatedWrites, FastMap, FxBuildHasher, TtlKeyHash,
+    ttl_lookup_key_for, xdr_to_vec, AccumulatedWrites, FastMap, FxBuildHasher, TtlKeyHash,
 };
 use super::extend::apply_extend_footprint_ttl;
 use super::invoke::apply_invoke_host_function;
@@ -97,7 +97,7 @@ pub fn apply_soroban_phase(
     // LedgerEntryUpdate without a re-serialize.
     let mut accumulated_host_bytes: FastMap<LedgerKey, Vec<u8>> =
         FastMap::with_capacity_and_hasher(est_total_writes, FxBuildHasher::default());
-    let mut per_tx: Vec<crate::SorobanTxApplyResult> = Vec::new();
+    let mut per_tx: Vec<crate::SorobanTxApplyResult> = Vec::with_capacity(total_txs);
 
     // Per stage: run all clusters in parallel via std::thread::scope.
     // Workers borrow `&state`, `&accumulated_writes`, and the prefetch
@@ -269,10 +269,14 @@ fn apply_phase_writes_to_state(
 ) -> Result<SplitPhaseUpdates, Box<dyn std::error::Error>> {
     // Soroban init/live ship just the encoded entry; C++ derives the
     // LedgerKey from the entry on its side via `InternalLedgerEntry`.
-    let mut soroban_init_entry_xdrs: Vec<RustBuf> = Vec::new();
-    let mut soroban_live_entry_xdrs: Vec<RustBuf> = Vec::new();
-    let mut soroban_dead_key_xdrs: Vec<RustBuf> = Vec::new();
-    let mut classic_updates: Vec<LedgerEntryUpdate> = Vec::new();
+    // Upper-bound: every accumulated_writes entry lands in exactly one of
+    // these four destination vecs after bucketing, so reserving the full
+    // count avoids reallocation churn during the final phase commit.
+    let total_writes = accumulated_writes.len();
+    let mut soroban_init_entry_xdrs: Vec<RustBuf> = Vec::with_capacity(total_writes);
+    let mut soroban_live_entry_xdrs: Vec<RustBuf> = Vec::with_capacity(total_writes);
+    let mut soroban_dead_key_xdrs: Vec<RustBuf> = Vec::with_capacity(total_writes);
+    let mut classic_updates: Vec<LedgerEntryUpdate> = Vec::with_capacity(total_writes);
 
     // Bucket entries by category for ordered application. Classic entries
     // (Account, Trustline, etc.) are emitted as plain ledger_updates the
@@ -280,10 +284,10 @@ fn apply_phase_writes_to_state(
     // SorobanState. Soroban entries go through the typed CRUD path
     // below, which mutates SorobanState in place AND emits the same
     // ledger_update for bucket writeback.
-    let mut data_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::new();
-    let mut code_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::new();
-    let mut ttl_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::new();
-    let mut classic_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::new();
+    let mut data_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::with_capacity(total_writes);
+    let mut code_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::with_capacity(total_writes);
+    let mut ttl_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::with_capacity(total_writes);
+    let mut classic_writes: Vec<(LedgerKey, Option<LedgerEntry>)> = Vec::with_capacity(total_writes);
 
     for (k, v) in accumulated_writes {
         match &k {
@@ -311,8 +315,7 @@ fn apply_phase_writes_to_state(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let bytes = match host_bytes_cache.remove(key) {
             Some(cached) => cached,
-            None => entry
-                .to_xdr(Limits::none())
+            None => xdr_to_vec(entry)
                 .map_err(|e| format!("serialize LedgerEntry: {}", e))?,
         };
         entry_xdrs.push(RustBuf::from(bytes));
@@ -335,14 +338,12 @@ fn apply_phase_writes_to_state(
         key: &LedgerKey,
         entry: Option<&LedgerEntry>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let key_xdr = key
-            .to_xdr(Limits::none())
+        let key_xdr = xdr_to_vec(key)
             .map_err(|e| format!("serialize LedgerKey: {}", e))?;
         let value_xdr = match entry {
             Some(e) => match host_bytes_cache.remove(key) {
                 Some(cached) => cached,
-                None => e
-                    .to_xdr(Limits::none())
+                None => xdr_to_vec(e)
                     .map_err(|e| format!("serialize LedgerEntry: {}", e))?,
             },
             None => Vec::<u8>::new(),
@@ -379,8 +380,7 @@ fn apply_phase_writes_to_state(
     //    entry. The init/live path doesn't ship the key over the
     //    bridge — C++ derives it from the entry on its side.
     for (k, v_opt) in data_writes.into_iter() {
-        let key_xdr = k
-            .to_xdr(Limits::none())
+        let key_xdr = xdr_to_vec(&k)
             .map_err(|e| -> Box<dyn std::error::Error> {
                 format!("serialize ContractData LedgerKey: {}", e).into()
             })?;
@@ -422,8 +422,7 @@ fn apply_phase_writes_to_state(
     //    feeds the protocol-aware rent-fee compute (xdr_size + parsed
     //    module memory on protocol ≥ 23).
     for (k, v_opt) in code_writes.into_iter() {
-        let key_xdr = k
-            .to_xdr(Limits::none())
+        let key_xdr = xdr_to_vec(&k)
             .map_err(|e| -> Box<dyn std::error::Error> {
                 format!("serialize ContractCode LedgerKey: {}", e).into()
             })?;
@@ -481,7 +480,7 @@ fn apply_phase_writes_to_state(
                 if state.has_ttl(&k) {
                     // TTL delete: ship the encoded TTL key on the
                     // dead-key wire so the bucket layer erases it.
-                    let key_xdr = k.to_xdr(Limits::none()).map_err(|e| {
+                    let key_xdr = xdr_to_vec(&k).map_err(|e| {
                         format!("serialize TTL LedgerKey: {}", e)
                     })?;
                     push_dead_key_xdr(&mut soroban_dead_key_xdrs, key_xdr);
@@ -562,7 +561,7 @@ fn run_cluster(
     // entry. The host-fn path (apply_invoke_host_function) supplies
     // real bytes so the phase-end emit reuses them verbatim.
     let mut ro_ttl_bumps: FastMap<LedgerKey, (LedgerEntry, Vec<u8>)> =
-        FastMap::default();
+        FastMap::with_capacity_and_hasher(est_writes, FxBuildHasher::default());
     // Per-cluster cache of host-supplied encoded bytes. Each TX's
     // typed-host call returns `(LedgerEntry, encoded bytes)` pairs; we
     // stash the bytes here keyed by `LedgerKey` so the phase-end
@@ -576,7 +575,7 @@ fn run_cluster(
     // Lives at run_cluster scope so a footprint key read by TX 0 can
     // be served as `Rc::clone` for TXs 1..N in the same cluster.
     let mut state_entry_rc_cache: FastMap<TtlKeyHash, std::rc::Rc<LedgerEntry>> =
-        FastMap::default();
+        FastMap::with_capacity_and_hasher(est_writes, FxBuildHasher::default());
     let mut tx_results = Vec::with_capacity(cluster.len());
     for (i, tx_envelope) in cluster.into_iter().enumerate() {
         let tx_num = starting_tx_num + i as u64;

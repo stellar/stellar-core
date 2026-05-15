@@ -19,7 +19,7 @@ use super::common::{
     build_tx_delta, build_tx_delta_with_cached_new, bytes_to_cxx_buf, layered_get,
     ledger_entry_key, make_tx_failure_result, muxed_to_account_id_owned,
     patch_last_modified_seq, ttl_key_hash_for, ttl_lookup_key_for, xdr_serialized_size,
-    xdr_to_cxx_buf, AccumulatedWrites, FastMap, FastSet, SorobanTxFailure, TtlKeyHash,
+    xdr_to_cxx_buf, xdr_to_vec, AccumulatedWrites, FastMap, FastSet, SorobanTxFailure, TtlKeyHash,
 };
 use super::state::SorobanState;
 use crate::{
@@ -1303,8 +1303,7 @@ fn append_core_metrics_for_invocation(
     // host (RO + RW that were actually loaded / auto-restored).
     metrics.read_entry = typed_ledger_entries.len() as u32;
     for k in footprint_keys {
-        let key_size: u32 = k
-            .to_xdr(Limits::none())
+        let key_size: u32 = xdr_to_vec(*k)
             .map(|b| b.len() as u32)
             .unwrap_or(0);
         metrics.read_key_byte = metrics.read_key_byte.saturating_add(key_size);
@@ -1336,8 +1335,7 @@ fn append_core_metrics_for_invocation(
         }
         let entry_size = encoded.len() as u32;
         let key = ledger_entry_key(entry);
-        let key_size: u32 = key
-            .to_xdr(Limits::none())
+        let key_size: u32 = xdr_to_vec(&key)
             .map(|b| b.len() as u32)
             .unwrap_or(0);
         metrics.write_entry = metrics.write_entry.saturating_add(1);
@@ -1384,8 +1382,8 @@ fn build_auto_restore_records(
     ) -> Result<(), Box<dyn std::error::Error>> {
         for (key, entry) in pairs {
             target.push(LedgerEntryUpdate {
-                key_xdr: RustBuf::from(key.to_xdr(Limits::none())?),
-                value_xdr: RustBuf::from(entry.as_ref().to_xdr(Limits::none())?),
+                key_xdr: RustBuf::from(xdr_to_vec(key)?),
+                value_xdr: RustBuf::from(xdr_to_vec(entry.as_ref())?),
             });
         }
         Ok(())
@@ -1396,8 +1394,8 @@ fn build_auto_restore_records(
     ) -> Result<(), Box<dyn std::error::Error>> {
         for (key, entry) in pairs {
             target.push(LedgerEntryUpdate {
-                key_xdr: RustBuf::from(key.to_xdr(Limits::none())?),
-                value_xdr: RustBuf::from(entry.to_xdr(Limits::none())?),
+                key_xdr: RustBuf::from(xdr_to_vec(key)?),
+                value_xdr: RustBuf::from(xdr_to_vec(entry)?),
             });
         }
         Ok(())
