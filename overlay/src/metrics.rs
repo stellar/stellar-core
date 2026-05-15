@@ -97,6 +97,42 @@ pub struct OverlayMetrics {
     /// overlay.send.txset — TX set messages sent
     pub send_txset: AtomicU64,
 
+    // TX set shard dissemination metrics
+    /// overlay.txset-shard.broadcast — sharded TX set broadcast operations
+    pub txset_shard_broadcast: AtomicU64,
+    /// overlay.txset-shard.original-sent — original shards sent eagerly
+    pub txset_shard_original_sent: AtomicU64,
+    /// overlay.txset-shard.recovery-sent — recovery shards sent eagerly
+    pub txset_shard_recovery_sent: AtomicU64,
+    /// overlay.txset-shard.original-recv-unique — unique original shards received
+    pub txset_shard_original_recv_unique: AtomicU64,
+    /// overlay.txset-shard.recovery-recv-unique — unique recovery shards received
+    pub txset_shard_recovery_recv_unique: AtomicU64,
+    /// overlay.txset-shard.original-recv-redundant — redundant original shards received
+    pub txset_shard_original_recv_redundant: AtomicU64,
+    /// overlay.txset-shard.recovery-recv-redundant — redundant recovery shards received
+    pub txset_shard_recovery_recv_redundant: AtomicU64,
+    /// overlay.txset-shard.original-forwarded — original shards forwarded through TTL rebroadcast
+    pub txset_shard_original_forwarded: AtomicU64,
+    /// overlay.txset-shard.recovery-forwarded — recovery shards forwarded through TTL rebroadcast
+    pub txset_shard_recovery_forwarded: AtomicU64,
+    /// overlay.txset-shard.reconstruct-success-original — reconstructions using only original shards
+    pub txset_shard_reconstruct_success_original: AtomicU64,
+    /// overlay.txset-shard.reconstruct-success-recovery — reconstructions requiring recovery shards
+    pub txset_shard_reconstruct_success_recovery: AtomicU64,
+    /// overlay.txset-shard.reconstruct-fail-original — failed reconstruction attempts using only originals
+    pub txset_shard_reconstruct_fail_original: AtomicU64,
+    /// overlay.txset-shard.reconstruct-fail-recovery — failed reconstruction attempts requiring recovery shards
+    pub txset_shard_reconstruct_fail_recovery: AtomicU64,
+    /// overlay.txset-shard.reconstruct-recovery.sum — microseconds spent reconstructing with recovery shards
+    pub txset_shard_reconstruct_recovery_sum_us: AtomicU64,
+    /// overlay.txset-shard.reconstruct-recovery.count — recovery-assisted reconstruction attempts
+    pub txset_shard_reconstruct_recovery_count: AtomicU64,
+    /// overlay.txset-shard.fetch-preempted — Core TX set requests satisfied from eager shard cache
+    pub txset_shard_fetch_preempted: AtomicU64,
+    /// overlay.txset-shard.eager-also-served — eager-sharded TX sets later served via GET_TX_SET
+    pub txset_shard_eager_also_served: AtomicU64,
+
     // Receive timers (per message type, tracked as sum_us + count)
     /// overlay.recv.scp-message — time processing SCP messages
     pub recv_scp_sum_us: AtomicU64,
@@ -152,6 +188,23 @@ impl Default for OverlayMetrics {
             send_scp_message: AtomicU64::new(0),
             send_transaction: AtomicU64::new(0),
             send_txset: AtomicU64::new(0),
+            txset_shard_broadcast: AtomicU64::new(0),
+            txset_shard_original_sent: AtomicU64::new(0),
+            txset_shard_recovery_sent: AtomicU64::new(0),
+            txset_shard_original_recv_unique: AtomicU64::new(0),
+            txset_shard_recovery_recv_unique: AtomicU64::new(0),
+            txset_shard_original_recv_redundant: AtomicU64::new(0),
+            txset_shard_recovery_recv_redundant: AtomicU64::new(0),
+            txset_shard_original_forwarded: AtomicU64::new(0),
+            txset_shard_recovery_forwarded: AtomicU64::new(0),
+            txset_shard_reconstruct_success_original: AtomicU64::new(0),
+            txset_shard_reconstruct_success_recovery: AtomicU64::new(0),
+            txset_shard_reconstruct_fail_original: AtomicU64::new(0),
+            txset_shard_reconstruct_fail_recovery: AtomicU64::new(0),
+            txset_shard_reconstruct_recovery_sum_us: AtomicU64::new(0),
+            txset_shard_reconstruct_recovery_count: AtomicU64::new(0),
+            txset_shard_fetch_preempted: AtomicU64::new(0),
+            txset_shard_eager_also_served: AtomicU64::new(0),
             recv_scp_sum_us: AtomicU64::new(0),
             recv_scp_count: AtomicU64::new(0),
             fetch_txset_sum_us: AtomicU64::new(0),
@@ -213,6 +266,35 @@ impl OverlayMetrics {
             send_scp_message: self.send_scp_message.load(ORD),
             send_transaction: self.send_transaction.load(ORD),
             send_txset: self.send_txset.load(ORD),
+            txset_shard_broadcast: self.txset_shard_broadcast.load(ORD),
+            txset_shard_original_sent: self.txset_shard_original_sent.load(ORD),
+            txset_shard_recovery_sent: self.txset_shard_recovery_sent.load(ORD),
+            txset_shard_original_recv_unique: self.txset_shard_original_recv_unique.load(ORD),
+            txset_shard_recovery_recv_unique: self.txset_shard_recovery_recv_unique.load(ORD),
+            txset_shard_original_recv_redundant: self.txset_shard_original_recv_redundant.load(ORD),
+            txset_shard_recovery_recv_redundant: self.txset_shard_recovery_recv_redundant.load(ORD),
+            txset_shard_original_forwarded: self.txset_shard_original_forwarded.load(ORD),
+            txset_shard_recovery_forwarded: self.txset_shard_recovery_forwarded.load(ORD),
+            txset_shard_reconstruct_success_original: self
+                .txset_shard_reconstruct_success_original
+                .load(ORD),
+            txset_shard_reconstruct_success_recovery: self
+                .txset_shard_reconstruct_success_recovery
+                .load(ORD),
+            txset_shard_reconstruct_fail_original: self
+                .txset_shard_reconstruct_fail_original
+                .load(ORD),
+            txset_shard_reconstruct_fail_recovery: self
+                .txset_shard_reconstruct_fail_recovery
+                .load(ORD),
+            txset_shard_reconstruct_recovery_sum_us: self
+                .txset_shard_reconstruct_recovery_sum_us
+                .load(ORD),
+            txset_shard_reconstruct_recovery_count: self
+                .txset_shard_reconstruct_recovery_count
+                .load(ORD),
+            txset_shard_fetch_preempted: self.txset_shard_fetch_preempted.load(ORD),
+            txset_shard_eager_also_served: self.txset_shard_eager_also_served.load(ORD),
             recv_scp_sum_us: self.recv_scp_sum_us.load(ORD),
             recv_scp_count: self.recv_scp_count.load(ORD),
             fetch_txset_sum_us: self.fetch_txset_sum_us.load(ORD),
@@ -282,6 +364,23 @@ pub struct MetricsSnapshot {
     pub send_scp_message: u64,
     pub send_transaction: u64,
     pub send_txset: u64,
+    pub txset_shard_broadcast: u64,
+    pub txset_shard_original_sent: u64,
+    pub txset_shard_recovery_sent: u64,
+    pub txset_shard_original_recv_unique: u64,
+    pub txset_shard_recovery_recv_unique: u64,
+    pub txset_shard_original_recv_redundant: u64,
+    pub txset_shard_recovery_recv_redundant: u64,
+    pub txset_shard_original_forwarded: u64,
+    pub txset_shard_recovery_forwarded: u64,
+    pub txset_shard_reconstruct_success_original: u64,
+    pub txset_shard_reconstruct_success_recovery: u64,
+    pub txset_shard_reconstruct_fail_original: u64,
+    pub txset_shard_reconstruct_fail_recovery: u64,
+    pub txset_shard_reconstruct_recovery_sum_us: u64,
+    pub txset_shard_reconstruct_recovery_count: u64,
+    pub txset_shard_fetch_preempted: u64,
+    pub txset_shard_eager_also_served: u64,
     pub recv_scp_sum_us: u64,
     pub recv_scp_count: u64,
     pub fetch_txset_sum_us: u64,
@@ -302,6 +401,9 @@ mod tests {
         assert_eq!(m.connection_authenticated.load(ORD), 0);
         assert_eq!(m.byte_read.load(ORD), 0);
         assert_eq!(m.flood_advertised.load(ORD), 0);
+        assert_eq!(m.txset_shard_broadcast.load(ORD), 0);
+        assert_eq!(m.txset_shard_original_sent.load(ORD), 0);
+        assert_eq!(m.txset_shard_fetch_preempted.load(ORD), 0);
     }
 
     #[test]
@@ -310,11 +412,18 @@ mod tests {
         m.byte_read.fetch_add(1000, ORD);
         m.connection_authenticated.store(3, ORD);
         m.flood_advertised.fetch_add(42, ORD);
+        m.txset_shard_broadcast.fetch_add(2, ORD);
+        m.txset_shard_reconstruct_success_recovery.fetch_add(1, ORD);
+        m.txset_shard_reconstruct_recovery_sum_us
+            .fetch_add(1234, ORD);
 
         let snap = m.snapshot();
         assert_eq!(snap.byte_read, 1000);
         assert_eq!(snap.connection_authenticated, 3);
         assert_eq!(snap.flood_advertised, 42);
+        assert_eq!(snap.txset_shard_broadcast, 2);
+        assert_eq!(snap.txset_shard_reconstruct_success_recovery, 1);
+        assert_eq!(snap.txset_shard_reconstruct_recovery_sum_us, 1234);
     }
 
     #[test]
@@ -342,5 +451,7 @@ mod tests {
         let json = serde_json::to_string(&snap).unwrap();
         assert!(json.contains("\"connection_authenticated\":5"));
         assert!(json.contains("\"byte_read\":2048"));
+        assert!(json.contains("\"txset_shard_broadcast\":0"));
+        assert!(json.contains("\"txset_shard_fetch_preempted\":0"));
     }
 }

@@ -56,6 +56,10 @@ pub enum MessageType {
     /// Request overlay metrics snapshot (empty payload)
     RequestOverlayMetrics = 13,
 
+    /// Eagerly broadcast a locally-built TX set via the shard dissemination path.
+    /// Payload: [hash:32]
+    BroadcastTxSetShards = 14,
+
     // ═══ Overlay → Core (Critical Path) ═══
     /// Received SCP envelope from network
     ScpReceived = 100,
@@ -93,6 +97,7 @@ impl TryFrom<u32> for MessageType {
             11 => Ok(MessageType::RequestTxSet),
             12 => Ok(MessageType::CacheTxSet),
             13 => Ok(MessageType::RequestOverlayMetrics),
+            14 => Ok(MessageType::BroadcastTxSetShards),
             100 => Ok(MessageType::ScpReceived),
             101 => Ok(MessageType::TopTxsResponse),
             102 => Ok(MessageType::PeerRequestsScpState),
@@ -204,6 +209,25 @@ mod tests {
 
         assert_eq!(decoded.msg_type, MessageType::BroadcastScp);
         assert_eq!(decoded.payload, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_broadcast_tx_set_shards_roundtrip() {
+        assert_eq!(
+            MessageType::try_from(14).unwrap(),
+            MessageType::BroadcastTxSetShards
+        );
+
+        let msg = Message::new(MessageType::BroadcastTxSetShards, vec![0x42; 32]);
+
+        let mut buf = Vec::new();
+        MessageCodec::write(&mut buf, &msg).unwrap();
+
+        let mut cursor = Cursor::new(buf);
+        let decoded = MessageCodec::read(&mut cursor).unwrap();
+
+        assert_eq!(decoded.msg_type, MessageType::BroadcastTxSetShards);
+        assert_eq!(decoded.payload, vec![0x42; 32]);
     }
 
     // ═══ Error Handling Tests ═══

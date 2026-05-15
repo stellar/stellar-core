@@ -639,6 +639,30 @@ mod tests {
         assert_eq!(&response.payload[32..], &tx_set_data[..]);
     }
 
+    #[tokio::test]
+    async fn test_broadcast_tx_set_shards_message() {
+        let (overlay_side, core_side) = StdUnixStream::pair().unwrap();
+        let ipc = CoreIpc::from_stream(overlay_side).unwrap();
+
+        let mut core = core_side;
+        let payload = vec![0x42; 32];
+
+        MessageCodec::write(
+            &mut core,
+            &Message::new(MessageType::BroadcastTxSetShards, payload.clone()),
+        )
+        .unwrap();
+
+        let mut receiver = ipc.receiver;
+        let received = tokio::time::timeout(std::time::Duration::from_secs(1), receiver.recv())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(received.msg_type, MessageType::BroadcastTxSetShards);
+        assert_eq!(received.payload, payload);
+    }
+
     // ═══ Multiple Messages in Sequence ═══
 
     #[tokio::test]
