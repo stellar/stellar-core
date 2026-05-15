@@ -52,6 +52,7 @@ const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
 const TXSET_TARGET_SHARD_SIZE: usize = 1024;
 const TXSET_SHARD_RECOVERY_FACTOR_PERCENT: usize = 50;
 const TXSET_SHARD_INITIAL_TTL: u8 = 1;
+const TXSET_TARGET_SHARDS_PER_PEER: usize = 2;
 const TXSET_MAX_TOTAL_SHARDS: usize = 255;
 const TXSET_SHARD_HEADER_LEN: usize = 32 + 2 + 2 + 2 + 4 + 8 + 1 + 4;
 
@@ -79,11 +80,11 @@ impl TxSetShardConfig {
             .max(1)
     }
 
-    fn max_original_shards(&self) -> Option<usize> {
-        (2..=TXSET_MAX_TOTAL_SHARDS).rev().find(|original_shards| {
+    fn max_original_shards(&self, total_shard_limit: usize) -> Option<usize> {
+        let total_shard_limit = total_shard_limit.min(TXSET_MAX_TOTAL_SHARDS);
+        (2..=total_shard_limit).rev().find(|original_shards| {
             original_shards % 2 == 0
-                && *original_shards + self.recovery_shards(*original_shards)
-                    <= TXSET_MAX_TOTAL_SHARDS
+                && *original_shards + self.recovery_shards(*original_shards) <= total_shard_limit
         })
     }
 }
@@ -99,26 +100,37 @@ fn make_even(value: usize) -> usize {
     value + (value % 2)
 }
 
-fn plan_txset_shards(data_len: usize, config: TxSetShardConfig) -> Result<TxSetShardPlan, String> {
+fn plan_txset_shards(
+    data_len: usize,
+    peer_count: usize,
+    config: TxSetShardConfig,
+) -> Result<TxSetShardPlan, String> {
     if config.target_shard_size == 0 {
         return Err("configured target shard size must be non-zero".to_string());
     }
 
-    let max_original_shards = config.max_original_shards().ok_or_else(|| {
-        format!(
+    let min_total_shards = 2 + config.recovery_shards(2);
+    let target_total_shards = peer_count
+        .max(1)
+        .saturating_mul(TXSET_TARGET_SHARDS_PER_PEER)
+        .max(min_total_shards)
+        .min(TXSET_MAX_TOTAL_SHARDS);
+    let max_original_shards = config
+        .max_original_shards(target_total_shards)
+        .ok_or_else(|| {
+            format!(
             "recovery factor {}% leaves no valid even original shard count under {} total shards",
-            config.recovery_factor_percent, TXSET_MAX_TOTAL_SHARDS
+            config.recovery_factor_percent, target_total_shards
         )
-    })?;
+        })?;
 
     let target_shard_size = make_even(config.target_shard_size);
-    let mut shard_size = target_shard_size;
-    let mut original_shards = make_even(data_len.max(1).div_ceil(shard_size)).max(2);
-
-    if original_shards > max_original_shards {
-        original_shards = max_original_shards;
-        shard_size = make_even(data_len.max(1).div_ceil(original_shards)).max(2);
-    }
+    let size_limited_original_shards =
+        make_even(data_len.max(1).div_ceil(target_shard_size)).max(2);
+    let original_shards = size_limited_original_shards.min(max_original_shards);
+    let shard_size = make_even(data_len.max(1).div_ceil(original_shards))
+        .max(target_shard_size)
+        .max(2);
 
     let recovery_shards = config.recovery_shards(original_shards);
     if original_shards + recovery_shards > TXSET_MAX_TOTAL_SHARDS {
@@ -359,9 +371,10 @@ impl TxSetShardAccumulator {
 fn make_txset_shards(
     hash: [u8; 32],
     data: &[u8],
+    peer_count: usize,
     config: TxSetShardConfig,
 ) -> Result<Vec<TxSetShardMessage>, String> {
-    let plan = plan_txset_shards(data.len(), config)?;
+    let plan = plan_txset_shards(data.len(), peer_count, config)?;
     let original_shards = plan.original_shards;
     let recovery_shards = plan.recovery_shards;
     let shard_size = plan.shard_size;
@@ -1534,18 +1547,6 @@ impl StellarOverlay {
     }
 
     async fn broadcast_txset_shards(&mut self, hash: [u8; 32], data: Vec<u8>) {
-        let shards = match make_txset_shards(hash, &data, self.state.txset_shard_config) {
-            Ok(shards) => shards,
-            Err(e) => {
-                warn!(
-                    "TXSET_SHARD_BROADCAST_DROP: Failed to shard TxSet {:02x?}... from Core: {}",
-                    &hash[..4],
-                    e
-                );
-                return;
-            }
-        };
-
         let streams = self.state.peer_streams.read().await;
         let peers: Vec<_> = streams.keys().cloned().collect();
         drop(streams);
@@ -1557,6 +1558,19 @@ impl StellarOverlay {
             );
             return;
         }
+
+        let shards =
+            match make_txset_shards(hash, &data, peers.len(), self.state.txset_shard_config) {
+                Ok(shards) => shards,
+                Err(e) => {
+                    warn!(
+                    "TXSET_SHARD_BROADCAST_DROP: Failed to shard TxSet {:02x?}... from Core: {}",
+                    &hash[..4],
+                    e
+                );
+                    return;
+                }
+            };
 
         info!(
             "TXSET_SHARD_BROADCAST: Broadcasting TxSet {:02x?}... ({} bytes, {} shards: {} original + {} recovery, shard_size={}) to {} peers",
@@ -3067,7 +3081,7 @@ mod tests {
             recovery_factor_percent: 50,
             initial_ttl: 1,
         };
-        let shards = make_txset_shards([0x24; 32], &data, config).unwrap();
+        let shards = make_txset_shards([0x24; 32], &data, 2, config).unwrap();
 
         let mut accumulator = TxSetShardAccumulator::new(&shards[0]);
         for shard in shards
@@ -3091,7 +3105,7 @@ mod tests {
         let state = overlay.state.clone();
 
         let data = b"original-only reconstruction".to_vec();
-        let shards = make_txset_shards([0x31; 32], &data, TxSetShardConfig::default()).unwrap();
+        let shards = make_txset_shards([0x31; 32], &data, 2, TxSetShardConfig::default()).unwrap();
         let original_count = shards[0].original_shards;
         let peer = PeerId::random();
 
@@ -3150,7 +3164,7 @@ mod tests {
             recovery_factor_percent: 50,
             initial_ttl: 0,
         };
-        let shards = make_txset_shards([0x32; 32], &data, config).unwrap();
+        let shards = make_txset_shards([0x32; 32], &data, 2, config).unwrap();
         let original_count = shards[0].original_shards;
         let peer = PeerId::random();
 
@@ -3199,7 +3213,7 @@ mod tests {
 
     #[test]
     fn test_txset_shard_plan_uses_even_original_count() {
-        let plan = plan_txset_shards(3 * 1024, TxSetShardConfig::default()).unwrap();
+        let plan = plan_txset_shards(3 * 1024, 16, TxSetShardConfig::default()).unwrap();
 
         assert_eq!(plan.original_shards % 2, 0);
         assert!(plan.original_shards >= 2);
@@ -3208,8 +3222,19 @@ mod tests {
     }
 
     #[test]
+    fn test_txset_shard_plan_targets_about_twice_peer_count() {
+        let peer_count = 20;
+        let plan =
+            plan_txset_shards(10 * 1024 * 1024, peer_count, TxSetShardConfig::default()).unwrap();
+
+        assert_eq!(plan.original_shards % 2, 0);
+        assert!(plan.original_shards + plan.recovery_shards <= peer_count * 2);
+        assert!(plan.shard_size > TXSET_TARGET_SHARD_SIZE);
+    }
+
+    #[test]
     fn test_txset_shard_plan_increases_size_to_stay_under_256_total_shards() {
-        let plan = plan_txset_shards(10 * 1024 * 1024, TxSetShardConfig::default()).unwrap();
+        let plan = plan_txset_shards(10 * 1024 * 1024, 200, TxSetShardConfig::default()).unwrap();
 
         assert_eq!(plan.original_shards % 2, 0);
         assert!(plan.original_shards + plan.recovery_shards <= TXSET_MAX_TOTAL_SHARDS);
