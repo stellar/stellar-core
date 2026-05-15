@@ -724,17 +724,12 @@ impl App {
                     from
                 );
 
-                // Extract TX set hashes and proactively fetch them. Snapshot the
-                // cache-hit check on the main loop, then move the libp2p cmd_tx
-                // awaits into a spawned task so the loop never blocks on the
-                // bounded command channel.
+                // Extract TX set hashes and remember which peer advertised
+                // them. Core decides when a missing txset should be fetched;
+                // the overlay must not race shard reconstruction by eagerly
+                // sending a full GetTxSet request from this path.
                 let txset_hashes = extract_txset_hashes_from_scp(&envelope);
                 if !txset_hashes.is_empty() {
-                    let needs_fetch: HashSet<[u8; 32]> = txset_hashes
-                        .iter()
-                        .filter(|h| self.tx_set_cache.get(h).is_none())
-                        .copied()
-                        .collect();
                     let handle = self.libp2p_handle.clone();
                     let from_peer = from;
                     tokio::spawn(async move {
@@ -745,14 +740,6 @@ impl App {
                                 &txhash[..4]
                             );
                             handle.record_txset_source(*txhash, from_peer).await;
-                            if needs_fetch.contains(txhash) {
-                                info!(
-                                    "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
-                                    &txhash[..4],
-                                    from_peer
-                                );
-                                handle.fetch_txset(*txhash).await;
-                            }
                         }
                     });
                 }
