@@ -38,6 +38,9 @@ blake2 = "0.10"
 digest = "0.10"
 sha2 = "0.10"
 
+# Erasure coding for TX set shard dissemination
+reed-solomon-simd = "3.1"
+
 # Hostname detection (for self-dial prevention in K8s)
 hostname = "0.4"
 

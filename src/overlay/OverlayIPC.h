@@ -58,6 +58,9 @@ class OverlayIPC
      */
     OverlayIPC(std::optional<std::string> socketPath,
                std::optional<std::string> overlayBinaryPath, uint16_t peerPort);
+    OverlayIPC(std::optional<std::string> socketPath,
+               std::optional<std::string> overlayBinaryPath, uint16_t peerPort,
+               PublicKey const& nodeId);
 
     static std::string defaultSocketPath(uint16_t peerPort);
     static std::optional<std::string> findOverlayBinaryPath();
@@ -217,6 +220,7 @@ class OverlayIPC
     std::string mSocketPath;
     std::optional<std::string> mOverlayBinaryPath;
     uint16_t mPeerPort;
+    PublicKey mNodePublicKey;
 
     std::unique_ptr<IPCChannel> mChannel;
     std::thread mReaderThread;
