@@ -236,6 +236,7 @@ pub(crate) mod rust_bridge {
         fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 
         fn get_auth_wasm() -> Result<RustBuf>;
+        fn get_delegated_auth_wasm() -> Result<RustBuf>;
 
         fn get_no_arg_constructor_wasm() -> Result<RustBuf>;
         fn get_constructor_with_args_p21_wasm() -> Result<RustBuf>;
