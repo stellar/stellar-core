@@ -1079,16 +1079,10 @@ impl App {
                         error!("Failed to send TX set: {}", e);
                     }
                 } else {
-                    // Not in local cache - request from peers. Spawn so the main
-                    // loop never awaits on the bounded libp2p cmd channel.
                     info!(
-                        "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
+                        "TXSET_SHARDS_ONLY: TX set {:02x?}... not in cache; waiting for shard reconstruction",
                         &hash[..4]
                     );
-                    let handle = self.libp2p_handle.clone();
-                    tokio::spawn(async move {
-                        handle.fetch_txset(hash).await;
-                    });
                 }
             }
 
