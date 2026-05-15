@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="overlay">
@@ -159,9 +159,6 @@
     </Filter>
     <Filter Include="rust">
       <UniqueIdentifier>{e85a896a-28e3-423b-b896-d7df4e8b8907}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="xdr\next">
-      <UniqueIdentifier>{9a05704b-1f74-41a9-9fdb-7e76d91e0f7b}</UniqueIdentifier>
     </Filter>
     <Filter Include="xdr\curr">
       <UniqueIdentifier>{452dffd8-d0b1-4918-a8a5-f06e09b5b90f}</UniqueIdentifier>
@@ -2788,33 +2785,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract-config-setting.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-overlay.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger-entries.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-SCP.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-internal.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
     </CustomBuild>

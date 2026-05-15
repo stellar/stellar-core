@@ -5,12 +5,12 @@
 set "project_dir=%~dp0..\.."
 set "toolchain_file=%project_dir%\rust-toolchain.toml"
 set "out_dir=%1\rust"
-set features=
+set "host_features="
+set "core_features="
 set release_profile=
 set "set_linker_flags=cd ."
 if "%2"=="debug" set "set_linker_flags=(set CFLAGS=-MDd) & (set CXXFLAGS=-MDd)"
 if "%2"=="release" set "release_profile=--release"
-if "%3"=="next" set "features=--features next"
 
 if not exist "%toolchain_file%" (
     echo Error: "%toolchain_file%" not found.
@@ -35,7 +35,15 @@ rem -- range to use for stable host envs
 set MIN_P=21
 set MAX_P=26
 rem -- version of the latest WIP protocol
-set LATEST_P=26
+set LATEST_P=27
+rem -- source host used to build the latest protocol. When this differs from
+rem -- LATEST_P, the latest build reuses an older host with --features next.
+set LATEST_HOST_P=27
+
+if "%3"=="next" (
+    set "core_features=--features next"
+    if not "%LATEST_HOST_P%"=="%LATEST_P%" set "host_features=--features next"
+)
 
 rem ---- Accumulators for final rustc link flags ----
 set "EXTERNS="
@@ -67,7 +75,7 @@ for /l %%P in (%MIN_P%,1,%MAX_P%) do (
 
     rem -- Decide whether to skip building this protocol in the loop --
     set "skip_build="
-    if defined features if %%P==%LATEST_P% set "skip_build=1"
+    if "%3"=="next" if %%P==%LATEST_P% set "skip_build=1"
 
     if not defined skip_build (
         if defined stamp_ok (
@@ -83,15 +91,16 @@ for /l %%P in (%MIN_P%,1,%MAX_P%) do (
         )
     )
 
-  if not defined skip_build (
-    set "EXTERNS=!EXTERNS! --extern soroban_env_host_p%%P=%out_dir%\soroban-p%%P-target\%2\libsoroban_env_host.rlib"
-    set "LPATHS=!LPATHS! -L dependency=%out_dir%\soroban-p%%P-target\%2\deps"
-  )
+    if not defined skip_build (
+        set "EXTERNS=!EXTERNS! --extern soroban_env_host_p%%P=%out_dir%\soroban-p%%P-target\%2\libsoroban_env_host.rlib"
+        set "LPATHS=!LPATHS! -L dependency=%out_dir%\soroban-p%%P-target\%2\deps"
+    )
 )
 
-rem ---- Build LATEST_P with features (only when "next" is passed) ----
-if defined features (
-    set "latest_proto_dir=%project_dir%\src\rust\soroban\p%LATEST_P%"
+rem ---- Build LATEST_P for next builds. If LATEST_HOST_P differs from LATEST_P,
+rem ---- the latest build reuses that host source with --features next. ----
+if "%3"=="next" (
+    set "latest_proto_dir=%project_dir%\src\rust\soroban\p%LATEST_HOST_P%"
     set "latest_proto_target=%out_dir%\soroban-p%LATEST_P%-target"
 
     set "latest_rev="
@@ -109,8 +118,8 @@ if defined features (
     if defined latest_stamp_ok (
         echo p%LATEST_P% ^(latest^): up to date, skipping.
     ) else (
-        echo p%LATEST_P% ^(latest^): building soroban-env-host with %features%...
-        %set_linker_flags% & pushd "!latest_proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%-!latest_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked %features% --target-dir "!latest_proto_target!" & popd
+        echo p%LATEST_P% ^(latest^): building soroban-env-host with %host_features%...
+        %set_linker_flags% & pushd "!latest_proto_dir!" & (set RUSTFLAGS=-Cmetadata=p%LATEST_P%-!latest_rev:~0,12!) & cargo +%version% build %release_profile% --package soroban-env-host --locked %host_features% --target-dir "!latest_proto_target!" & popd
         if errorlevel 1 exit /b 1
         if not "!latest_rev!"=="" (
             if not exist "!latest_proto_target!" mkdir "!latest_proto_target!"
@@ -147,7 +156,8 @@ rem Always invoke cargo here: cargo's own incremental-build tracking will
 rem no-op quickly when nothing changed, and the .soroban-revs file
 rem (tracked via build.rs) forces a rebuild when submodules change.
 echo Building stellar-core Rust library...
-%set_linker_flags% & cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
+echo Build command: cargo +%version% rustc %release_profile% --package stellar-core --locked %core_features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
+%set_linker_flags% & cd /d "%project_dir%" & cargo +%version% rustc %release_profile% --package stellar-core --locked %core_features% --target-dir "%out_dir%\target" -- %EXTERNS% %LPATHS%
 
 endlocal
 

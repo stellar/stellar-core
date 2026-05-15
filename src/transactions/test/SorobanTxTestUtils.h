@@ -178,8 +178,14 @@ class SorobanSigner
     SorobanSigner(SorobanTest& test, SCAddress const& address,
                   xdr::xvector<LedgerKey> const& keys,
                   std::function<SCVal(uint256)> signFn);
+    // Signs the invocation with the signer, returning the respective
+    // credentials.
+    // If `forceAddressCredentialsV2` force v1/v2 address credentials for the
+    // signer (for false/true respectively), otherwise the version is determined
+    // randomly.
     SorobanCredentials
-    sign(SorobanAuthorizedInvocation const& invocation) const;
+    sign(SorobanAuthorizedInvocation const& invocation,
+         std::optional<bool> forceAddressCredentialsV2 = std::nullopt) const;
 
     SCVal getAddressVal() const;
 
