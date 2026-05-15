@@ -677,28 +677,37 @@ impl App {
                     from
                 );
 
-                // Extract TX set hashes and proactively fetch them
+                // Extract TX set hashes and proactively fetch them. Snapshot the
+                // cache-hit check on the main loop, then move the libp2p cmd_tx
+                // awaits into a spawned task so the loop never blocks on the
+                // bounded command channel.
                 let txset_hashes = extract_txset_hashes_from_scp(&envelope);
-                for txhash in &txset_hashes {
-                    // Record peer as source for this TX set
-                    debug!(
-                        "Recording peer {} as source for TX set {:02x?}...",
-                        from,
-                        &txhash[..4]
-                    );
-                    self.libp2p_handle.record_txset_source(*txhash, from).await;
-
-                    // Proactively fetch if not already cached
-                    // (libp2p layer deduplicates if fetch already in progress)
-                    let is_cached = self.tx_set_cache.get(txhash).is_some();
-                    if !is_cached {
-                        info!(
-                            "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
-                            &txhash[..4],
-                            from
-                        );
-                        self.libp2p_handle.fetch_txset(*txhash).await;
-                    }
+                if !txset_hashes.is_empty() {
+                    let needs_fetch: HashSet<[u8; 32]> = txset_hashes
+                        .iter()
+                        .filter(|h| self.tx_set_cache.get(h).is_none())
+                        .copied()
+                        .collect();
+                    let handle = self.libp2p_handle.clone();
+                    let from_peer = from;
+                    tokio::spawn(async move {
+                        for txhash in &txset_hashes {
+                            debug!(
+                                "Recording peer {} as source for TX set {:02x?}...",
+                                from_peer,
+                                &txhash[..4]
+                            );
+                            handle.record_txset_source(*txhash, from_peer).await;
+                            if needs_fetch.contains(txhash) {
+                                info!(
+                                    "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
+                                    &txhash[..4],
+                                    from_peer
+                                );
+                                handle.fetch_txset(*txhash).await;
+                            }
+                        }
+                    });
                 }
 
                 // Forward to Core
@@ -1024,12 +1033,16 @@ impl App {
                         error!("Failed to send TX set: {}", e);
                     }
                 } else {
-                    // Not in local cache - mark as pending and request from peers
+                    // Not in local cache - request from peers. Spawn so the main
+                    // loop never awaits on the bounded libp2p cmd channel.
                     info!(
                         "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
                         &hash[..4]
                     );
-                    self.libp2p_handle.fetch_txset(hash).await;
+                    let handle = self.libp2p_handle.clone();
+                    tokio::spawn(async move {
+                        handle.fetch_txset(hash).await;
+                    });
                 }
             }
 

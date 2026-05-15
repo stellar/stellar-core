@@ -150,19 +150,6 @@ fn valid_scp_envelope_xdr(slot_index: u64) -> Vec<u8> {
     envelope.to_xdr(Limits::none()).unwrap()
 }
 
-fn wait_or_kill(child: &mut Child) {
-    for _ in 0..50 {
-        if child.try_wait().expect("Should poll child").is_some() {
-            return;
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-
-    child.kill().expect("Should kill hung overlay process");
-    let _ = child.wait();
-    panic!("overlay process did not exit after shutdown");
-}
-
 /// Wait for socket to be ready and return the connected stream
 fn wait_for_socket(path: &str, timeout_ms: u64) -> Option<UnixStream> {
     let start = std::time::Instant::now();
