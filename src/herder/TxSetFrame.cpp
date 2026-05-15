@@ -419,7 +419,7 @@ addWireTxsToList(Hash const& networkID,
     for (auto const& env : xdrTxs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        if (!tx->XDRProvidesValidFee())
+        if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
         {
             return false;
         }
@@ -1504,7 +1504,8 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 {
                     auto tx = TransactionFrameBase::makeTransactionFromWire(
                         networkID, env);
-                    if (!tx->XDRProvidesValidFee())
+                    if (!tx->XDRProvidesValidFee() ||
+                        tx->getInclusionFee() <= 0)
                     {
                         CLOG_DEBUG(Herder, "Got bad generalized txSet: "
                                            "transaction has invalid XDR");
@@ -1566,7 +1567,7 @@ TxSetPhaseFrame::makeFromWireLegacy(
         CLOG_DEBUG(
             Herder,
             "Got bad legacy txSet: transactions are not ordered correctly "
-            "or contain invalid phase transactions");
+            "or contain invalid transactions");
         return std::nullopt;
     }
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
