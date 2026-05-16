@@ -724,6 +724,8 @@ struct SharedState {
     txset_shards: RwLock<HashMap<[u8; 32], TxSetShardAccumulator>>,
     /// TX sets already reconstructed through shards, used to drop duplicate shards.
     completed_txset_shards: RwLock<lru::LruCache<[u8; 32], ()>>,
+    /// Full TX sets already received or sent through eager full push.
+    eager_full_txsets: RwLock<lru::LruCache<[u8; 32], ()>>,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -770,6 +772,9 @@ impl SharedState {
             )),
             txset_shards: RwLock::new(HashMap::new()),
             completed_txset_shards: RwLock::new(lru::LruCache::new(
+                std::num::NonZeroUsize::new(1000).unwrap(),
+            )),
+            eager_full_txsets: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(1000).unwrap(),
             )),
             event_tx,
@@ -1405,74 +1410,8 @@ impl StellarOverlay {
     }
 
     async fn broadcast_txset_full(&mut self, hash: [u8; 32], data: Vec<u8>) {
-        let streams = self.state.peer_streams.read().await;
-        let peers: Vec<_> = streams.keys().cloned().collect();
-        drop(streams);
-
-        if peers.is_empty() {
-            debug!(
-                "TXSET_FULL_BROADCAST_SKIP: No peers to broadcast TxSet {:02x?}...",
-                &hash[..4]
-            );
-            return;
-        }
-
-        let message = match crate::xdr::encode_generalized_tx_set_message(&data, &hash) {
-            Ok(message) => Arc::new(message),
-            Err(e) => {
-                warn!(
-                    "TXSET_FULL_BROADCAST_DROP: Dropping invalid TxSet {:02x?}... from Core: {}",
-                    &hash[..4],
-                    e
-                );
-                return;
-            }
-        };
-
-        info!(
-            "TXSET_FULL_BROADCAST: Broadcasting full TxSet {:02x?}... ({} bytes, {} bytes on wire) to {} peers",
-            &hash[..4],
-            data.len(),
-            message.len(),
-            peers.len()
-        );
-        self.state
-            .metrics
-            .message_broadcast
-            .fetch_add(1, Ordering::Relaxed);
-
-        for peer_id in peers {
-            let state = Arc::clone(&self.state);
-            let message = Arc::clone(&message);
-            tokio::spawn(async move {
-                match send_to_peer_stream(
-                    &state,
-                    peer_id.clone(),
-                    StreamType::TxSet,
-                    message.as_ref(),
-                )
-                .await
-                {
-                    Ok(_) => {
-                        state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
-                        state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                        state
-                            .metrics
-                            .byte_write
-                            .fetch_add(message.len() as u64, Ordering::Relaxed);
-                    }
-                    Err(e) => {
-                        state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
-                        warn!(
-                            "TXSET_FULL_SEND_FAIL: Failed to send full TxSet {:02x?}... to {}: {}",
-                            &hash[..4],
-                            peer_id,
-                            e
-                        );
-                    }
-                }
-            });
-        }
+        self.state.eager_full_txsets.write().await.put(hash, ());
+        broadcast_full_txset_to_peers(&self.state, hash, &data, None, "BROADCAST").await;
     }
 
     /// Request SCP state from all connected peers
@@ -1508,6 +1447,83 @@ impl StellarOverlay {
         let message = crate::xdr::encode_scp_message(envelope)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
         send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &message).await
+    }
+}
+
+async fn broadcast_full_txset_to_peers(
+    state: &Arc<SharedState>,
+    hash: [u8; 32],
+    data: &[u8],
+    exclude: Option<PeerId>,
+    reason: &'static str,
+) {
+    let streams = state.peer_streams.read().await;
+    let peers: Vec<_> = streams
+        .keys()
+        .filter(|peer_id| Some(**peer_id) != exclude)
+        .cloned()
+        .collect();
+    drop(streams);
+
+    if peers.is_empty() {
+        debug!(
+            "TXSET_FULL_{}_SKIP: No peers to broadcast TxSet {:02x?}...",
+            reason,
+            &hash[..4]
+        );
+        return;
+    }
+
+    let message = match crate::xdr::encode_generalized_tx_set_message(data, &hash) {
+        Ok(message) => Arc::new(message),
+        Err(e) => {
+            warn!(
+                "TXSET_FULL_{}_DROP: Dropping invalid TxSet {:02x?}...: {}",
+                reason,
+                &hash[..4],
+                e
+            );
+            return;
+        }
+    };
+
+    info!(
+        "TXSET_FULL_{}: Broadcasting full TxSet {:02x?}... ({} bytes, {} bytes on wire) to {} peers",
+        reason,
+        &hash[..4],
+        data.len(),
+        message.len(),
+        peers.len()
+    );
+    state
+        .metrics
+        .message_broadcast
+        .fetch_add(1, Ordering::Relaxed);
+
+    for peer_id in peers {
+        let state = Arc::clone(state);
+        let message = Arc::clone(&message);
+        tokio::spawn(async move {
+            match send_to_peer_stream(&state, peer_id, StreamType::TxSet, message.as_ref()).await {
+                Ok(_) => {
+                    state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                    state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                    state
+                        .metrics
+                        .byte_write
+                        .fetch_add(message.len() as u64, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                    warn!(
+                        "TXSET_FULL_SEND_FAIL: Failed to send full TxSet {:02x?}... to {}: {}",
+                        &hash[..4],
+                        peer_id,
+                        e
+                    );
+                }
+            }
+        });
     }
 }
 
@@ -2403,9 +2419,28 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     txset_data.len(),
                                     peer_id
                                 );
+
+                                let first_seen = {
+                                    let mut seen = state.eager_full_txsets.write().await;
+                                    if seen.peek(&hash).is_some() {
+                                        false
+                                    } else {
+                                        seen.put(hash, ());
+                                        true
+                                    }
+                                };
+                                if !first_seen {
+                                    trace!(
+                                        "TXSET_FULL_DUP: Already processed eager full TxSet {:02x?}... from {}",
+                                        &hash[..4],
+                                        peer_id
+                                    );
+                                    continue;
+                                }
+
                                 if let Err(e) = state.event_tx.send(OverlayEvent::TxSetReceived {
                                     hash,
-                                    data: txset_data,
+                                    data: txset_data.clone(),
                                     from: peer_id,
                                     source: TxSetReceiveSource::FullPush,
                                 }) {
@@ -2414,6 +2449,15 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                         peer_id, e
                                     );
                                 }
+
+                                broadcast_full_txset_to_peers(
+                                    &state,
+                                    hash,
+                                    &txset_data,
+                                    Some(peer_id),
+                                    "FORWARD",
+                                )
+                                .await;
                             }
                             other => {
                                 warn!(
@@ -3511,6 +3555,67 @@ mod tests {
 
         handle1.shutdown().await;
         handle2.shutdown().await;
+    }
+
+    /// Test first-seen eager full TxSet forwarding across a sparse topology.
+    #[tokio::test]
+    async fn test_eager_full_txset_forwarding() {
+        let keypair1 = Keypair::generate_ed25519();
+        let keypair2 = Keypair::generate_ed25519();
+        let keypair3 = Keypair::generate_ed25519();
+
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, _events2, _tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle3, mut events3, _tx_events3, overlay3) =
+            create_overlay(keypair3, Arc::new(OverlayMetrics::new())).unwrap();
+
+        let port1 = 19611;
+        let port2 = 19612;
+        let port3 = 19613;
+        tokio::spawn(async move { overlay1.run("127.0.0.1", port1).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::spawn(async move { overlay2.run("127.0.0.1", port2).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::spawn(async move { overlay3.run("127.0.0.1", port3).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let addr2: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port2)
+            .parse()
+            .unwrap();
+        handle1.dial(addr2.clone()).await;
+        handle3.dial(addr2).await;
+        tokio::time::sleep(Duration::from_millis(700)).await;
+
+        while events3.try_recv().is_ok() {}
+
+        let (txset_hash, txset_data) = test_txset_xdr(0x43);
+        handle1
+            .broadcast_txset_full(txset_hash, txset_data.clone())
+            .await;
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+        let mut received = false;
+        while tokio::time::Instant::now() < deadline && !received {
+            tokio::select! {
+                Some(event) = events3.recv() => {
+                    if let OverlayEvent::TxSetReceived { hash, data, source, .. } = event {
+                        assert_eq!(hash, txset_hash);
+                        assert_eq!(data, txset_data);
+                        assert_eq!(source, TxSetReceiveSource::FullPush);
+                        received = true;
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+            }
+        }
+
+        assert!(received, "Node3 should receive TxSet forwarded by node2");
+
+        handle1.shutdown().await;
+        handle2.shutdown().await;
+        handle3.shutdown().await;
     }
 
     /// Test multiple TXs flood with correct ordering (by fee)

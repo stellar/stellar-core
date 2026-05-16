@@ -1065,7 +1065,7 @@ impl App {
                     }
                 } else {
                     info!(
-                        "TXSET_SHARDS_ONLY: TX set {:02x?}... not in cache; waiting for shard reconstruction",
+                        "TXSET_EAGER_ONLY: TX set {:02x?}... not in cache; waiting for eager dissemination",
                         &hash[..4]
                     );
                 }
