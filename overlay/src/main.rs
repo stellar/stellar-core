@@ -434,7 +434,7 @@ struct App {
     peer_hostnames: Arc<RwLock<HashMap<PeerId, String>>>,
     /// Shared metrics counters for the overlay
     metrics: Arc<OverlayMetrics>,
-    /// Tracks txsets sent or received through eager sharding for effectiveness metrics.
+    /// Tracks txsets received through eager sharding for effectiveness metrics.
     eager_txset_tracker: EagerTxSetTracker,
 }
 
@@ -452,7 +452,6 @@ struct ConfiguredPeers {
 #[derive(Default)]
 struct EagerTxSetTracker {
     received_via_shards: HashSet<Hash256>,
-    sent_via_shards: HashSet<Hash256>,
 }
 
 impl EagerTxSetTracker {
@@ -460,22 +459,10 @@ impl EagerTxSetTracker {
         self.received_via_shards.insert(hash);
     }
 
-    fn record_sent_via_shards(&mut self, hash: Hash256) {
-        self.sent_via_shards.insert(hash);
-    }
-
     fn record_core_request_cache_hit(&self, hash: &Hash256, metrics: &OverlayMetrics) {
         if self.received_via_shards.contains(hash) {
             metrics
                 .txset_shard_fetch_preempted
-                .fetch_add(1, Ordering::Relaxed);
-        }
-    }
-
-    fn record_peer_request_served(&self, hash: &Hash256, metrics: &OverlayMetrics) {
-        if self.sent_via_shards.contains(hash) {
-            metrics
-                .txset_shard_eager_also_served
                 .fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -817,8 +804,6 @@ impl App {
                 info!("Peer {} requesting TxSet {:02x?}...", from, &hash[..4]);
                 // Look up in local cache and respond
                 if let Some(cached) = self.tx_set_cache.get(&hash) {
-                    self.eager_txset_tracker
-                        .record_peer_request_served(&hash, &self.metrics);
                     info!(
                         "Serving TxSet {:02x?}... ({} bytes) to {}",
                         &hash[..4],
@@ -1137,22 +1122,20 @@ impl App {
 
                 let Some(tx_set_xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) else {
                     warn!(
-                        "TXSET_SHARD_BROADCAST_DROP: TX set {:02x?}... not cached",
+                        "TXSET_FULL_BROADCAST_DROP: TX set {:02x?}... not cached",
                         &hash[..4]
                     );
                     return true;
                 };
 
                 info!(
-                    "TXSET_SHARD_BROADCAST_FROM_CORE: Broadcasting cached TX set {:02x?}... ({} bytes)",
+                    "TXSET_FULL_BROADCAST_FROM_CORE: Broadcasting cached TX set {:02x?}... ({} bytes)",
                     &hash[..4],
                     tx_set_xdr.len()
                 );
 
-                self.eager_txset_tracker.record_sent_via_shards(hash);
-
                 self.libp2p_handle
-                    .broadcast_txset_shards(hash, tx_set_xdr)
+                    .broadcast_txset_full(hash, tx_set_xdr)
                     .await;
             }
 
@@ -2009,31 +1992,6 @@ mod tests {
         tracker.record_core_request_cache_hit(&eager_hash, &metrics);
         assert_eq!(
             metrics.txset_shard_fetch_preempted.load(Ordering::Relaxed),
-            1
-        );
-    }
-
-    #[test]
-    fn test_eager_txset_tracker_counts_eager_shards_later_served() {
-        let metrics = OverlayMetrics::new();
-        let mut tracker = EagerTxSetTracker::default();
-        let eager_hash = [9u8; 32];
-        let ordinary_hash = [10u8; 32];
-
-        tracker.record_sent_via_shards(eager_hash);
-        tracker.record_peer_request_served(&ordinary_hash, &metrics);
-        assert_eq!(
-            metrics
-                .txset_shard_eager_also_served
-                .load(Ordering::Relaxed),
-            0
-        );
-
-        tracker.record_peer_request_served(&eager_hash, &metrics);
-        assert_eq!(
-            metrics
-                .txset_shard_eager_also_served
-                .load(Ordering::Relaxed),
             1
         );
     }

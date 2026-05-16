@@ -26,7 +26,9 @@ use libp2p::{
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
-use reed_solomon_simd::{ReedSolomonDecoder, ReedSolomonEncoder};
+use reed_solomon_simd::ReedSolomonDecoder;
+#[cfg(test)]
+use reed_solomon_simd::ReedSolomonEncoder;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,7 +54,9 @@ const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
 const TXSET_TARGET_SHARD_SIZE: usize = 1024;
 const TXSET_SHARD_RECOVERY_FACTOR_PERCENT: usize = 50;
 const TXSET_SHARD_INITIAL_TTL: u8 = 1;
+#[cfg(test)]
 const TXSET_TARGET_SHARDS_PER_PEER: usize = 2;
+#[cfg(test)]
 const TXSET_MAX_TOTAL_SHARDS: usize = 255;
 const TXSET_SHARD_HEADER_LEN: usize = 32 + 2 + 2 + 2 + 4 + 8 + 1 + 4;
 
@@ -74,12 +78,14 @@ impl Default for TxSetShardConfig {
 }
 
 impl TxSetShardConfig {
+    #[cfg(test)]
     fn recovery_shards(&self, original_shards: usize) -> usize {
         (original_shards * self.recovery_factor_percent)
             .div_ceil(100)
             .max(1)
     }
 
+    #[cfg(test)]
     fn max_original_shards(&self, total_shard_limit: usize) -> Option<usize> {
         let total_shard_limit = total_shard_limit.min(TXSET_MAX_TOTAL_SHARDS);
         (2..=total_shard_limit).rev().find(|original_shards| {
@@ -89,6 +95,7 @@ impl TxSetShardConfig {
     }
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct TxSetShardPlan {
     original_shards: usize,
@@ -96,10 +103,12 @@ struct TxSetShardPlan {
     shard_size: usize,
 }
 
+#[cfg(test)]
 fn make_even(value: usize) -> usize {
     value + (value % 2)
 }
 
+#[cfg(test)]
 fn plan_txset_shards(
     data_len: usize,
     peer_count: usize,
@@ -368,6 +377,7 @@ impl TxSetShardAccumulator {
     }
 }
 
+#[cfg(test)]
 fn make_txset_shards(
     hash: [u8; 32],
     data: &[u8],
@@ -436,6 +446,7 @@ fn make_txset_shards(
     Ok(messages)
 }
 
+#[cfg(test)]
 fn assign_shards_to_peer_offsets(shard_count: usize, peer_count: usize) -> Vec<Vec<usize>> {
     let mut assignments = vec![Vec::new(); peer_count];
     if peer_count == 0 {
@@ -473,6 +484,7 @@ pub enum OverlayEvent {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum TxSetReceiveSource {
+    FullPush,
     Shard,
 }
 
@@ -489,8 +501,8 @@ pub enum OverlayCommand {
         data: Vec<u8>,
         to: PeerId,
     },
-    /// Broadcast a locally-built TX set through the shard dissemination path
-    BroadcastTxSetShards { hash: [u8; 32], data: Vec<u8> },
+    /// Eagerly broadcast a locally-built full TX set to all peers
+    BroadcastTxSetFull { hash: [u8; 32], data: Vec<u8> },
     /// Record that a peer has a specific TX set (learned from SCP message)
     RecordTxSetSource { hash: [u8; 32], peer: PeerId },
     /// Connect to a peer by address (bootstrap — PeerId unknown)
@@ -597,14 +609,14 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn broadcast_txset_shards(&self, hash: [u8; 32], data: Vec<u8>) {
+    pub async fn broadcast_txset_full(&self, hash: [u8; 32], data: Vec<u8>) {
         if let Err(e) = self
             .cmd_tx
-            .send(OverlayCommand::BroadcastTxSetShards { hash, data })
+            .send(OverlayCommand::BroadcastTxSetFull { hash, data })
             .await
         {
             warn!(
-                "Overlay command channel closed, failed to send BroadcastTxSetShards: {}",
+                "Overlay command channel closed, failed to send BroadcastTxSetFull: {}",
                 e
             );
         }
@@ -712,8 +724,6 @@ struct SharedState {
     txset_shards: RwLock<HashMap<[u8; 32], TxSetShardAccumulator>>,
     /// TX sets already reconstructed through shards, used to drop duplicate shards.
     completed_txset_shards: RwLock<lru::LruCache<[u8; 32], ()>>,
-    /// Tunables for TX set shard fanout and erasure coding.
-    txset_shard_config: TxSetShardConfig,
     /// Event sender for non-TX events (SCP, TxSet - critical path, unbounded)
     event_tx: mpsc::UnboundedSender<OverlayEvent>,
     /// Bounded TX event sender (backpressure - drops allowed)
@@ -741,7 +751,7 @@ impl SharedState {
         event_tx: mpsc::UnboundedSender<OverlayEvent>,
         tx_event_tx: mpsc::Sender<OverlayEvent>,
         control: Control,
-        txset_shard_config: TxSetShardConfig,
+        _txset_shard_config: TxSetShardConfig,
         metrics: Arc<OverlayMetrics>,
     ) -> Self {
         Self {
@@ -762,7 +772,6 @@ impl SharedState {
             completed_txset_shards: RwLock::new(lru::LruCache::new(
                 std::num::NonZeroUsize::new(1000).unwrap(),
             )),
-            txset_shard_config,
             event_tx,
             tx_event_tx,
             tx_dropped_count: AtomicU64::new(0),
@@ -966,8 +975,8 @@ impl StellarOverlay {
                         OverlayCommand::SendTxSet { hash, data, to } => {
                             self.send_txset_response(to, hash, data).await;
                         }
-                        OverlayCommand::BroadcastTxSetShards { hash, data } => {
-                            self.broadcast_txset_shards(hash, data).await;
+                        OverlayCommand::BroadcastTxSetFull { hash, data } => {
+                            self.broadcast_txset_full(hash, data).await;
                         }
                         OverlayCommand::RecordTxSetSource { hash, peer } => {
                             let mut sources = self.state.txset_sources.write().await;
@@ -1395,113 +1404,71 @@ impl StellarOverlay {
         }
     }
 
-    async fn broadcast_txset_shards(&mut self, hash: [u8; 32], data: Vec<u8>) {
+    async fn broadcast_txset_full(&mut self, hash: [u8; 32], data: Vec<u8>) {
         let streams = self.state.peer_streams.read().await;
         let peers: Vec<_> = streams.keys().cloned().collect();
         drop(streams);
 
         if peers.is_empty() {
             debug!(
-                "TXSET_SHARD_BROADCAST_SKIP: No peers to broadcast TxSet {:02x?}...",
+                "TXSET_FULL_BROADCAST_SKIP: No peers to broadcast TxSet {:02x?}...",
                 &hash[..4]
             );
             return;
         }
 
-        let shards =
-            match make_txset_shards(hash, &data, peers.len(), self.state.txset_shard_config) {
-                Ok(shards) => shards,
-                Err(e) => {
-                    warn!(
-                    "TXSET_SHARD_BROADCAST_DROP: Failed to shard TxSet {:02x?}... from Core: {}",
+        let message = match crate::xdr::encode_generalized_tx_set_message(&data, &hash) {
+            Ok(message) => Arc::new(message),
+            Err(e) => {
+                warn!(
+                    "TXSET_FULL_BROADCAST_DROP: Dropping invalid TxSet {:02x?}... from Core: {}",
                     &hash[..4],
                     e
                 );
-                    return;
-                }
-            };
+                return;
+            }
+        };
 
         info!(
-            "TXSET_SHARD_BROADCAST: Broadcasting TxSet {:02x?}... ({} bytes, {} shards: {} original + {} recovery, shard_size={}) to {} peers",
+            "TXSET_FULL_BROADCAST: Broadcasting full TxSet {:02x?}... ({} bytes, {} bytes on wire) to {} peers",
             &hash[..4],
             data.len(),
-            shards.len(),
-            shards[0].original_shards,
-            shards[0].recovery_shards,
-            shards[0].shard_size,
+            message.len(),
             peers.len()
         );
-        self.state
-            .metrics
-            .txset_shard_broadcast
-            .fetch_add(1, Ordering::Relaxed);
         self.state
             .metrics
             .message_broadcast
             .fetch_add(1, Ordering::Relaxed);
 
-        let mut messages_by_peer = Vec::new();
-        for shard_offsets in assign_shards_to_peer_offsets(shards.len(), peers.len()) {
-            let mut messages = Vec::with_capacity(shard_offsets.len());
-            for shard_offset in shard_offsets {
-                let shard = &shards[shard_offset];
-                match shard.encode() {
-                    Ok(message) => {
-                        messages.push((message, shard.shard_index < shard.original_shards))
-                    }
-                    Err(e) => warn!(
-                        "TXSET_SHARD_ENCODE_DROP: Failed to encode shard {} for TxSet {:02x?}...: {}",
-                        shard.shard_index,
-                        &hash[..4],
-                        e
-                    ),
-                }
-            }
-            messages_by_peer.push(messages);
-        }
-
-        for (peer_id, messages) in peers.into_iter().zip(messages_by_peer) {
-            if messages.is_empty() {
-                continue;
-            }
+        for peer_id in peers {
             let state = Arc::clone(&self.state);
+            let message = Arc::clone(&message);
             tokio::spawn(async move {
-                for (message, is_original) in messages {
-                    match send_to_peer_stream(
-                        &state,
-                        peer_id.clone(),
-                        StreamType::TxSetShard,
-                        &message,
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
-                            state
-                                .metrics
-                                .byte_write
-                                .fetch_add(message.len() as u64, Ordering::Relaxed);
-                            if is_original {
-                                state
-                                    .metrics
-                                    .txset_shard_original_sent
-                                    .fetch_add(1, Ordering::Relaxed);
-                            } else {
-                                state
-                                    .metrics
-                                    .txset_shard_recovery_sent
-                                    .fetch_add(1, Ordering::Relaxed);
-                            }
-                        }
-                        Err(e) => {
-                            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
-                            warn!(
-                                "TXSET_SHARD_SEND_FAIL: Failed to send TxSet shard {:02x?}... to {}: {}",
-                                &hash[..4],
-                                peer_id,
-                                e
-                            );
-                        }
+                match send_to_peer_stream(
+                    &state,
+                    peer_id.clone(),
+                    StreamType::TxSet,
+                    message.as_ref(),
+                )
+                .await
+                {
+                    Ok(_) => {
+                        state.metrics.send_txset.fetch_add(1, Ordering::Relaxed);
+                        state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+                        state
+                            .metrics
+                            .byte_write
+                            .fetch_add(message.len() as u64, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+                        warn!(
+                            "TXSET_FULL_SEND_FAIL: Failed to send full TxSet {:02x?}... to {}: {}",
+                            &hash[..4],
+                            peer_id,
+                            e
+                        );
                     }
                 }
             });
@@ -2417,11 +2384,36 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     );
                                 }
                             }
-                            stellar_xdr::curr::StellarMessage::GeneralizedTxSet(_) => {
-                                warn!(
-                                    "TXSET_FULL_DROP: Dropping full TxSet from {}; shard-only mode is enabled",
+                            stellar_xdr::curr::StellarMessage::GeneralizedTxSet(tx_set) => {
+                                let (hash, txset_data) =
+                                    match crate::xdr::canonical_generalized_tx_set_xdr(tx_set) {
+                                        Ok(value) => value,
+                                        Err(e) => {
+                                            warn!(
+                                                "TXSET_PARSE_ERR: Dropping invalid TxSet from {}: {}",
+                                                peer_id, e
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                                info!(
+                                    "TXSET_FULL_RECV: Received eager full TxSet {:02x?}... ({} bytes) from {}",
+                                    &hash[..4],
+                                    txset_data.len(),
                                     peer_id
                                 );
+                                if let Err(e) = state.event_tx.send(OverlayEvent::TxSetReceived {
+                                    hash,
+                                    data: txset_data,
+                                    from: peer_id,
+                                    source: TxSetReceiveSource::FullPush,
+                                }) {
+                                    warn!(
+                                        "Failed to forward eager full TxSet from {}: {}",
+                                        peer_id, e
+                                    );
+                                }
                             }
                             other => {
                                 warn!(
@@ -3463,6 +3455,59 @@ mod tests {
         }
 
         assert!(received, "Should receive TX message");
+
+        handle1.shutdown().await;
+        handle2.shutdown().await;
+    }
+
+    /// Test eager full TxSet broadcast without request/fetch cycle.
+    #[tokio::test]
+    async fn test_eager_full_txset_broadcast() {
+        let keypair1 = Keypair::generate_ed25519();
+        let keypair2 = Keypair::generate_ed25519();
+
+        let (handle1, _events1, _tx_events1, overlay1) =
+            create_overlay(keypair1, Arc::new(OverlayMetrics::new())).unwrap();
+        let (handle2, mut events2, _tx_events2, overlay2) =
+            create_overlay(keypair2, Arc::new(OverlayMetrics::new())).unwrap();
+
+        let listen_port = 19601;
+        tokio::spawn(async move { overlay1.run("127.0.0.1", listen_port).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        tokio::spawn(async move { overlay2.run("127.0.0.1", 19602).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", listen_port)
+            .parse()
+            .unwrap();
+        handle2.dial(addr).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        while events2.try_recv().is_ok() {}
+
+        let (txset_hash, txset_data) = test_txset_xdr(0x42);
+        handle1
+            .broadcast_txset_full(txset_hash, txset_data.clone())
+            .await;
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        let mut received = false;
+        while tokio::time::Instant::now() < deadline && !received {
+            tokio::select! {
+                Some(event) = events2.recv() => {
+                    if let OverlayEvent::TxSetReceived { hash, data, source, .. } = event {
+                        assert_eq!(hash, txset_hash);
+                        assert_eq!(data, txset_data);
+                        assert_eq!(source, TxSetReceiveSource::FullPush);
+                        received = true;
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+            }
+        }
+
+        assert!(received, "Should receive eager full TxSet broadcast");
 
         handle1.shutdown().await;
         handle2.shutdown().await;

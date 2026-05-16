@@ -163,7 +163,6 @@ pub(crate) fn encode_generalized_tx_set_message(
     encode_stellar_message(&StellarMessage::GeneralizedTxSet(tx_set))
 }
 
-#[cfg(test)]
 pub(crate) fn canonical_generalized_tx_set_xdr(
     tx_set: GeneralizedTransactionSet,
 ) -> Result<([u8; 32], Vec<u8>), XdrError> {
