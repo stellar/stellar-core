@@ -31,8 +31,11 @@ use integrated::{Overlay, OverlayHandle};
 use ipc::{CoreIpc, Message, MessageType};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
+#[cfg(test)]
+use libp2p_overlay::create_overlay;
 use libp2p_overlay::{
-    create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
+    create_overlay_with_txset_shard_config, OverlayEvent as LibP2pOverlayEvent,
+    OverlayHandle as LibP2pOverlayHandle, TxSetReceiveSource, TxSetShardConfig,
 };
 use metrics::OverlayMetrics;
 
@@ -431,6 +434,8 @@ struct App {
     peer_hostnames: Arc<RwLock<HashMap<PeerId, String>>>,
     /// Shared metrics counters for the overlay
     metrics: Arc<OverlayMetrics>,
+    /// Tracks txsets received through eager sharding for effectiveness metrics.
+    eager_txset_tracker: EagerTxSetTracker,
 }
 
 /// Peer addresses configured via SetPeerConfig, used for reconnection.
@@ -442,6 +447,25 @@ struct ConfiguredPeers {
     /// Map from resolved SocketAddr (at libp2p port) to original address string,
     /// so we can reconnect by address when a PeerId disconnects.
     resolved: HashMap<SocketAddr, String>,
+}
+
+#[derive(Default)]
+struct EagerTxSetTracker {
+    received_via_shards: HashSet<Hash256>,
+}
+
+impl EagerTxSetTracker {
+    fn record_received_via_shards(&mut self, hash: Hash256) {
+        self.received_via_shards.insert(hash);
+    }
+
+    fn record_core_request_cache_hit(&self, hash: &Hash256, metrics: &OverlayMetrics) {
+        if self.received_via_shards.contains(hash) {
+            metrics
+                .txset_shard_fetch_preempted
+                .fetch_add(1, Ordering::Relaxed);
+        }
+    }
 }
 
 impl App {
@@ -470,9 +494,18 @@ impl App {
         // Create libp2p QUIC overlay for SCP + TX + TxSet (unified, independent streams)
         let libp2p_keypair = Libp2pKeypair::generate_ed25519();
         let metrics = Arc::new(OverlayMetrics::new());
+        let txset_shard_config = TxSetShardConfig {
+            target_shard_size: config.txset_target_shard_size,
+            recovery_factor_percent: config.txset_shard_recovery_factor_percent,
+            initial_ttl: config.txset_shard_ttl,
+        };
         let (libp2p_handle, libp2p_event_rx, tx_event_rx, libp2p_overlay) =
-            create_overlay(libp2p_keypair, Arc::clone(&metrics))
-                .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
+            create_overlay_with_txset_shard_config(
+                libp2p_keypair,
+                Arc::clone(&metrics),
+                txset_shard_config,
+            )
+            .map_err(|e| format!("Failed to create libp2p overlay: {}", e))?;
 
         // Use peer_port + 1000 for libp2p QUIC to avoid collision with legacy TCP
         let libp2p_port = config.peer_port + 1000;
@@ -510,6 +543,7 @@ impl App {
             known_peers: Arc::new(RwLock::new(HashMap::new())),
             peer_hostnames: Arc::new(RwLock::new(HashMap::new())),
             metrics,
+            eager_txset_tracker: EagerTxSetTracker::default(),
         })
     }
 
@@ -677,17 +711,12 @@ impl App {
                     from
                 );
 
-                // Extract TX set hashes and proactively fetch them. Snapshot the
-                // cache-hit check on the main loop, then move the libp2p cmd_tx
-                // awaits into a spawned task so the loop never blocks on the
-                // bounded command channel.
+                // Extract TX set hashes and remember which peer advertised
+                // them. Core decides when a missing txset should be fetched;
+                // the overlay must not race shard reconstruction by eagerly
+                // sending a full GetTxSet request from this path.
                 let txset_hashes = extract_txset_hashes_from_scp(&envelope);
                 if !txset_hashes.is_empty() {
-                    let needs_fetch: HashSet<[u8; 32]> = txset_hashes
-                        .iter()
-                        .filter(|h| self.tx_set_cache.get(h).is_none())
-                        .copied()
-                        .collect();
                     let handle = self.libp2p_handle.clone();
                     let from_peer = from;
                     tokio::spawn(async move {
@@ -698,14 +727,6 @@ impl App {
                                 &txhash[..4]
                             );
                             handle.record_txset_source(*txhash, from_peer).await;
-                            if needs_fetch.contains(txhash) {
-                                info!(
-                                    "TXSET_AUTO_FETCH: Proactively fetching TX set {:02x?}... referenced in SCP from {}",
-                                    &txhash[..4],
-                                    from_peer
-                                );
-                                handle.fetch_txset(*txhash).await;
-                            }
                         }
                     });
                 }
@@ -728,7 +749,12 @@ impl App {
                 debug!("Received TX via QUIC from {}: {} bytes", from, tx.len());
                 self.overlay_handle.submit_tx(tx, 0, 0);
             }
-            LibP2pOverlayEvent::TxSetReceived { hash, data, from } => {
+            LibP2pOverlayEvent::TxSetReceived {
+                hash,
+                data,
+                from,
+                source,
+            } => {
                 info!(
                     "TXSET_RECV: Received TxSet {:02x?}... ({} bytes) from {}",
                     &hash[..4],
@@ -756,6 +782,9 @@ impl App {
                     hash,
                     data.clone(),
                 );
+                if source == TxSetReceiveSource::Shard {
+                    self.eager_txset_tracker.record_received_via_shards(hash);
+                }
 
                 // Always push TX set to Core (Core handles dedup)
                 info!(
@@ -1024,6 +1053,8 @@ impl App {
 
                 // First check local cache
                 if let Some(xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) {
+                    self.eager_txset_tracker
+                        .record_core_request_cache_hit(&hash, &self.metrics);
                     info!(
                         "TXSET_FROM_CACHE: Sending TX set {:02x?}... ({} bytes) from local cache",
                         &hash[..4],
@@ -1033,16 +1064,10 @@ impl App {
                         error!("Failed to send TX set: {}", e);
                     }
                 } else {
-                    // Not in local cache - request from peers. Spawn so the main
-                    // loop never awaits on the bounded libp2p cmd channel.
                     info!(
-                        "TXSET_FETCH_START: TX set {:02x?}... not in cache, fetching from peers",
+                        "TXSET_EAGER_ONLY: TX set {:02x?}... not in cache; waiting for eager dissemination",
                         &hash[..4]
                     );
-                    let handle = self.libp2p_handle.clone();
-                    tokio::spawn(async move {
-                        handle.fetch_txset(hash).await;
-                    });
                 }
             }
 
@@ -1081,6 +1106,37 @@ impl App {
                     hash,
                     tx_set_xdr,
                 );
+            }
+
+            MessageType::BroadcastTxSetShards => {
+                if msg.payload.len() != 32 {
+                    warn!(
+                        "BroadcastTxSetShards payload has invalid length: {}",
+                        msg.payload.len()
+                    );
+                    return true;
+                }
+
+                let mut hash = [0u8; 32];
+                hash.copy_from_slice(&msg.payload);
+
+                let Some(tx_set_xdr) = get_cached_tx_set_xdr(&self.tx_set_cache, &hash) else {
+                    warn!(
+                        "TXSET_FULL_BROADCAST_DROP: TX set {:02x?}... not cached",
+                        &hash[..4]
+                    );
+                    return true;
+                };
+
+                info!(
+                    "TXSET_FULL_BROADCAST_FROM_CORE: Broadcasting cached TX set {:02x?}... ({} bytes)",
+                    &hash[..4],
+                    tx_set_xdr.len()
+                );
+
+                self.libp2p_handle
+                    .broadcast_txset_full(hash, tx_set_xdr)
+                    .await;
             }
 
             MessageType::SubmitTx => {
@@ -1917,5 +1973,26 @@ mod tests {
         let bare: Multiaddr = "/ip4/10.0.0.1/udp/9000/quic-v1".parse().unwrap();
         let stripped = strip_p2p_suffix(&bare);
         assert_eq!(stripped, bare);
+    }
+
+    #[test]
+    fn test_eager_txset_tracker_counts_preempted_core_requests() {
+        let metrics = OverlayMetrics::new();
+        let mut tracker = EagerTxSetTracker::default();
+        let eager_hash = [7u8; 32];
+        let ordinary_hash = [8u8; 32];
+
+        tracker.record_received_via_shards(eager_hash);
+        tracker.record_core_request_cache_hit(&ordinary_hash, &metrics);
+        assert_eq!(
+            metrics.txset_shard_fetch_preempted.load(Ordering::Relaxed),
+            0
+        );
+
+        tracker.record_core_request_cache_hit(&eager_hash, &metrics);
+        assert_eq!(
+            metrics.txset_shard_fetch_preempted.load(Ordering::Relaxed),
+            1
+        );
     }
 }

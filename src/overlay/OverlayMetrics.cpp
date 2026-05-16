@@ -57,6 +57,42 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
     , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mTxSetShardBroadcast(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "broadcast"}, "message"))
+    , mTxSetShardOriginalSent(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "original-sent"}, "shard"))
+    , mTxSetShardRecoverySent(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "recovery-sent"}, "shard"))
+    , mTxSetShardOriginalRecvUnique(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "original-recv-unique"}, "shard"))
+    , mTxSetShardRecoveryRecvUnique(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "recovery-recv-unique"}, "shard"))
+    , mTxSetShardOriginalRecvRedundant(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "original-recv-redundant"}, "shard"))
+    , mTxSetShardRecoveryRecvRedundant(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "recovery-recv-redundant"}, "shard"))
+    , mTxSetShardOriginalForwarded(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "original-forwarded"}, "shard"))
+    , mTxSetShardRecoveryForwarded(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "recovery-forwarded"}, "shard"))
+    , mTxSetShardReconstructSuccessOriginal(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "reconstruct-success-original"},
+          "reconstruction"))
+    , mTxSetShardReconstructSuccessRecovery(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "reconstruct-success-recovery"},
+          "reconstruction"))
+    , mTxSetShardReconstructFailOriginal(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "reconstruct-fail-original"},
+          "reconstruction"))
+    , mTxSetShardReconstructFailRecovery(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "reconstruct-fail-recovery"},
+          "reconstruction"))
+    , mTxSetShardReconstructRecoveryTimer(app.getMetrics().NewTimer(
+          {"overlay", "txset-shard", "reconstruct-recovery"}))
+    , mTxSetShardFetchPreempted(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "fetch-preempted"}, "request"))
+    , mTxSetShardEagerAlsoServed(app.getMetrics().NewMeter(
+          {"overlay", "txset-shard", "eager-also-served"}, "request"))
 {
 }
 }

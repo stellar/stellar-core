@@ -15,9 +15,9 @@
 		// Note that these options have security implications and should be used with caution.
 		// We have them disabled currently because we don't want to allow copilot LLMs to use ptrace
 		// to escape the container sandbox.
-		// "--cap-add=SYS_PTRACE",
-		// "--security-opt",
-		// "seccomp=unconfined",
+		"--cap-add=SYS_PTRACE",
+		"--security-opt",
+		"seccomp=unconfined",
 
 		// Uncomment the next line to use a non-root user. On Linux, this will prevent
 		// new files getting created as root, but you may need to update the USER_UID

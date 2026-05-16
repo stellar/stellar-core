@@ -5,8 +5,7 @@ use std::fmt;
 use stellar_xdr::curr as xdr;
 use xdr::{
     GeneralizedTransactionSet, Limits, MuxedAccount, Operation, OperationBody, ReadXdr, ScpBallot,
-    ScpEnvelope, ScpStatementPledges, StellarMessage, StellarValue, TransactionEnvelope, Uint256,
-    WriteXdr,
+    ScpEnvelope, ScpStatementPledges, StellarMessage, StellarValue, TransactionEnvelope, WriteXdr,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,10 +144,6 @@ pub(crate) fn canonical_scp_envelope_xdr(envelope: ScpEnvelope) -> Result<Vec<u8
 
 pub(crate) fn encode_get_scp_state(ledger_seq: u32) -> Result<Vec<u8>, XdrError> {
     encode_stellar_message(&StellarMessage::GetScpState(ledger_seq))
-}
-
-pub(crate) fn encode_get_tx_set(hash: [u8; 32]) -> Result<Vec<u8>, XdrError> {
-    encode_stellar_message(&StellarMessage::GetTxSet(Uint256(hash)))
 }
 
 pub(crate) fn encode_generalized_tx_set_message(
