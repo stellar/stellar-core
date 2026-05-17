@@ -2203,6 +2203,28 @@ TEST_CASE("initialize existing history store fails", "[history]")
     }
 }
 
+TEST_CASE("initialize existing history store idempotently succeeds",
+          "[history]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
+    TmpDirHistoryConfigurator tcfg;
+    cfg = tcfg.configure(cfg, true);
+
+    {
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+        REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName()));
+    }
+
+    {
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+        REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName(), true));
+    }
+}
+
 TEST_CASE("Catchup failure recovery with buffered checkpoint",
           "[history][catchup]")
 {
