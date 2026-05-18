@@ -40,9 +40,15 @@ SignatureChecker::isOverlayValidation() const
 }
 
 bool
+SignatureChecker::isOverVerificationBudget() const
+{
+    return mIsOverlayValidation &&
+           mTxEd25519Verifications >= OVERLAY_TX_ED25519_VERIFY_BUDGET;
+}
+
+bool
 SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
-                                 int neededWeight,
-                                 bool checkEd25519SignedPayload)
+                                 int neededWeight)
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     return true;
@@ -127,6 +133,10 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     verified =
         verifyAll(signers[SIGNER_KEY_TYPE_ED25519],
                   [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      if (isOverVerificationBudget())
+                      {
+                          return false;
+                      }
                       auto [valid, cacheLookupRes] = SignatureUtils::verify(
                           sig, signerKey.key, mContentsHash);
                       updateTxSigCacheMetrics(cacheLookupRes);
@@ -136,26 +146,26 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     {
         return true;
     }
-
-    if (checkEd25519SignedPayload)
+    if (isOverVerificationBudget())
     {
-        verified = verifyAll(
-            signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
-            [&](DecoratedSignature const& sig, Signer const& signerKey) {
-                auto [valid, cacheLookupRes] =
-                    SignatureUtils::verifyEd25519SignedPayload(sig,
-                                                               signerKey.key);
-                updateTxSigCacheMetrics(cacheLookupRes);
-                return valid;
-            });
-        if (verified)
-        {
-            return true;
-        }
+        return false;
     }
-    else
+
+    verified = verifyAll(
+        signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
+        [&](DecoratedSignature const& sig, Signer const& signerKey) {
+            if (isOverVerificationBudget())
+            {
+                return false;
+            }
+            auto [valid, cacheLookupRes] =
+                SignatureUtils::verifyEd25519SignedPayload(sig, signerKey.key);
+            updateTxSigCacheMetrics(cacheLookupRes);
+            return valid;
+        });
+    if (verified)
     {
-        releaseAssert(mIsOverlayValidation);
+        return true;
     }
 
     return false;
@@ -204,6 +214,11 @@ void
 SignatureChecker::updateTxSigCacheMetrics(
     PubKeyUtils::VerifySigCacheLookupResult cacheLookupRes)
 {
+    if (cacheLookupRes != PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP)
+    {
+        ++mTxEd25519Verifications;
+    }
+
     if (!mTrackCacheMetrics)
     {
         return;

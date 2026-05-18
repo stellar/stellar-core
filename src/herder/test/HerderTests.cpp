@@ -478,6 +478,62 @@ testTxSet(uint32 protocolVersion)
                         TxSetValidationResult::TX_VALIDATION_FAILED);
             }
         }
+        SECTION("negative inclusion fee tx")
+        {
+            auto sorobanTx =
+                createUploadWasmTx(*app, *root, 100, 1000, SorobanResources{});
+            auto negFeeSorobanTxEnvelope = sorobanTx->getEnvelope();
+            negFeeSorobanTxEnvelope.v1().tx.fee = 1;
+            auto negFeeBump = feeBump(*app, *root, sorobanTx, 1,
+                                      /* useInclusionAsFullFee */ true);
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash = lclHeader.hash;
+                txSet.txs.push_back(negFeeSorobanTxEnvelope);
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet == nullptr);
+
+                txSet.txs[0] = negFeeBump->getEnvelope();
+                auto applicableTxSet2 =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet2 == nullptr);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{
+                                 TransactionFrameBase::makeTransactionFromWire(
+                                     app->getNetworkID(),
+                                     negFeeSorobanTxEnvelope)})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet == nullptr);
+
+                auto txSet2 =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(std::nullopt,
+                                         std::vector<TransactionFrameBasePtr>{
+                                             negFeeBump})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet2 == nullptr);
+            }
+        }
     }
 }
 

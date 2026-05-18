@@ -33,7 +33,7 @@
 		25,
 		26
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 19" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 19" : 
 	[
 		"bXrfFM/EOrA=",
 		"rECFR5Iw8QU=",
@@ -46,9 +46,9 @@
 		"bXrfFM/EOrA=",
 		"rECFR5Iw8QU="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 19|apply accepts ed25519 signed payload signer" : [ "f/lspPIlEJE=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 19|fee bump with ed25519 signed payload signer on inner tx" : [ "pT6FVEnfK2c=", "pT6FVEnfK2c=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 20" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 19|apply accepts ed25519 signed payload signer" : [ "f/lspPIlEJE=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 19|fee bump with ed25519 signed payload signer on inner tx" : [ "pT6FVEnfK2c=", "pT6FVEnfK2c=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 20" : 
 	[
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I=",
@@ -61,9 +61,9 @@
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 20|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 20|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 21" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 20|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 20|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 21" : 
 	[
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I=",
@@ -76,9 +76,9 @@
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 21|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 21|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 22" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 21|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 21|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 22" : 
 	[
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I=",
@@ -91,9 +91,9 @@
 		"HpD9Mjd9S7c=",
 		"B3eXrJXit4I="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 22|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 22|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 23" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 22|apply accepts ed25519 signed payload signer" : [ "U1HC+iGTUaI=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 22|fee bump with ed25519 signed payload signer on inner tx" : [ "CtGT8+mogGs=", "CtGT8+mogGs=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 23" : 
 	[
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM=",
@@ -106,9 +106,9 @@
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 23|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 23|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 24" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 23|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 23|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 24" : 
 	[
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM=",
@@ -121,9 +121,9 @@
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 24|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 24|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 25" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 24|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 24|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 25" : 
 	[
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM=",
@@ -136,9 +136,9 @@
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 25|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 25|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 26" : 
+	"overlay validation handles ed25519 signed payload signers|protocol version 25|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 25|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 26" : 
 	[
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM=",
@@ -151,8 +151,8 @@
 		"87LN58OHZJg=",
 		"0mSd/56ZnGM="
 	],
-	"overlay validation skips ed25519 signed payload signers|protocol version 26|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
-	"overlay validation skips ed25519 signed payload signers|protocol version 26|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 26|apply accepts ed25519 signed payload signer" : [ "cH76q/exaD0=" ],
+	"overlay validation handles ed25519 signed payload signers|protocol version 26|fee bump with ed25519 signed payload signer on inner tx" : [ "4XnA/b67rpA=", "4XnA/b67rpA=" ],
 	"txenvelope|protocol version 0|alternative signatures" : 
 	[
 		"49rU55h6rBs=",
