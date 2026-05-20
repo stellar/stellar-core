@@ -40,7 +40,7 @@ randomBytes(size_t length)
 #endif
 
 #ifdef MSAN_ENABLED
-    __msan_unpoison(out.key.data(), out.key.size());
+    __msan_unpoison(vec.data(), vec.size());
 #endif
     return vec;
 }
