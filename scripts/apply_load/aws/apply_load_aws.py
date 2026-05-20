@@ -31,8 +31,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Optional, Sequence
 
-# Instance type to use. Matches SDF validator instance type.
-INSTANCE_TYPE = "c5d.2xlarge"
+# Default instance type to use. Matches SDF validator instance type.
+DEFAULT_INSTANCE_TYPE = "c5d.2xlarge"
 
 # Directory containing helper files for this script.
 APPLY_LOAD_SCRIPT_DIR = Path(__file__).resolve().parent
@@ -461,7 +461,8 @@ def build_remote_apply_load_command(mode_name: str, values: Mapping[str, Any],
 
 
 def start_ec2_instance(ami: str, region: str, security_group: str,
-                       iam_instance_profile: str) -> str:
+                       iam_instance_profile: str,
+                       instance_type: str) -> str:
     """Start an EC2 instance and return its instance id."""
     print("Starting EC2 instance...")
     command = [
@@ -471,7 +472,7 @@ def start_ec2_instance(ami: str, region: str, security_group: str,
         "--image-id",
         ami,
         "--instance-type",
-        INSTANCE_TYPE,
+        instance_type,
         "--security-groups",
         security_group,
         "--iam-instance-profile",
@@ -737,10 +738,11 @@ def local_aws_init() -> None:
 
 
 def aws_init(ami: str, region: str, security_group: str,
-             iam_instance_profile: str, s3_bucket: str) -> None:
+             iam_instance_profile: str, s3_bucket: str,
+             instance_type: str) -> None:
     """Create and initialize an AWS instance for running apply-load."""
     instance_id = start_ec2_instance(
-        ami, region, security_group, iam_instance_profile
+        ami, region, security_group, iam_instance_profile, instance_type
     )
     install_script_on_instance(instance_id, region, s3_bucket)
     run_ssm_command(
@@ -886,6 +888,7 @@ def handle_aws_init(args: argparse.Namespace) -> None:
         args.security_group,
         args.iam_instance_profile,
         args.s3_bucket,
+        args.instance_type,
     )
 
 
@@ -949,6 +952,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--s3-bucket",
         required=True,
         help="S3 bucket to use for file transfer.",
+    )
+    aws_init_parser.add_argument(
+        "--instance-type",
+        default=DEFAULT_INSTANCE_TYPE,
+        help=(
+            f"EC2 instance type to use. Defaults to {DEFAULT_INSTANCE_TYPE}."
+        ),
     )
     aws_init_parser.set_defaults(handler=handle_aws_init)
 
