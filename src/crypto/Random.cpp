@@ -4,6 +4,7 @@
 
 #include "crypto/Random.h"
 #include "lib/util/stdrandom.h"
+#include "util/GlobalChecks.h"
 #include "util/Math.h"
 
 #include <algorithm>
@@ -19,10 +20,21 @@ randomBytes(size_t length)
     std::vector<uint8_t> vec(length);
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    stellar::uniform_int_distribution<unsigned short> dist(0, 255);
-    std::generate(vec.begin(), vec.end(), [&]() {
-        return static_cast<uint8_t>(dist(stellar::getGlobalRandomEngine()));
-    });
+    if (stellar::threadIsMain())
+    {
+        // Only do this when threadIsMain because (a) we assert it
+        // inside the getGlobalRandomEngine() and (b) if we're not
+        // on main thread then thread scheduling is non-deterministic
+        // anyways and there's no point in trying to be deterministic.
+        stellar::uniform_int_distribution<unsigned short> dist(0, 255);
+        std::generate(vec.begin(), vec.end(), [&]() {
+            return static_cast<uint8_t>(dist(stellar::getGlobalRandomEngine()));
+        });
+    }
+    else
+    {
+        randombytes_buf(vec.data(), length);
+    }
 #else
     randombytes_buf(vec.data(), length);
 #endif
