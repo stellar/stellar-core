@@ -45,14 +45,20 @@ struct TTLData
 
 // ContractDataMapEntryT stores a ContractData LedgerEntry and its TTL. TTL is
 // stored directly with the data to avoid an additional lookup and save memory.
+// We also cache the XDR size to avoid repeated xdr_size() calls during updates.
 struct ContractDataMapEntryT
 {
     std::shared_ptr<LedgerEntry const> const ledgerEntry;
     TTLData const ttlData;
+    // Cached XDR serialized size to avoid repeated xdr_size() calls
+    uint32_t const sizeBytes;
 
     explicit ContractDataMapEntryT(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
-        : ledgerEntry(std::move(ledgerEntry)), ttlData(ttlData)
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
+        uint32_t sizeBytes)
+        : ledgerEntry(std::move(ledgerEntry))
+        , ttlData(ttlData)
+        , sizeBytes(sizeBytes)
     {
     }
 };
@@ -131,8 +137,6 @@ class InternalContractDataMapEntry
         }
     };
 
-    // ValueEntry stores actual ContractData entries in the map.
-    // Contains both the LedgerEntry and its TTL information.
     struct ValueEntry : public AbstractEntry
     {
       private:
@@ -140,8 +144,8 @@ class InternalContractDataMapEntry
 
       public:
         ValueEntry(std::shared_ptr<LedgerEntry const>&& ledgerEntry,
-                   TTLData ttlData)
-            : entry(std::move(ledgerEntry), ttlData)
+                   TTLData ttlData, uint32_t sizeBytes)
+            : entry(std::move(ledgerEntry), ttlData, sizeBytes)
         {
         }
 
@@ -169,7 +173,7 @@ class InternalContractDataMapEntry
         {
             return std::make_unique<ValueEntry>(
                 std::make_shared<LedgerEntry const>(*entry.ledgerEntry),
-                entry.ttlData);
+                entry.ttlData, entry.sizeBytes);
         }
     };
 
@@ -223,16 +227,19 @@ class InternalContractDataMapEntry
 
     // Creates a ValueEntry from a LedgerEntry (copies the entry)
     InternalContractDataMapEntry(LedgerEntry const& ledgerEntry,
-                                 TTLData ttlData)
+                                 TTLData ttlData, uint32_t sizeBytes)
         : impl(std::make_unique<ValueEntry>(
-              std::make_shared<LedgerEntry const>(ledgerEntry), ttlData))
+              std::make_shared<LedgerEntry const>(ledgerEntry), ttlData,
+              sizeBytes))
     {
     }
 
     // Creates a ValueEntry from a shared_ptr (avoids copying)
     InternalContractDataMapEntry(
-        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData)
-        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry), ttlData))
+        std::shared_ptr<LedgerEntry const>&& ledgerEntry, TTLData ttlData,
+        uint32_t sizeBytes)
+        : impl(std::make_unique<ValueEntry>(std::move(ledgerEntry), ttlData,
+                                            sizeBytes))
     {
     }
 

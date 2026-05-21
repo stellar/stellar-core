@@ -1628,6 +1628,7 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries)
 {
+    ZoneScoped;
     abortIfWrongThread("getAllEntries");
     std::vector<LedgerEntry> resInit, resLive;
     std::vector<LedgerKey> resDead;

@@ -75,6 +75,7 @@
 
 #include "LedgerManagerImpl.h"
 #include <chrono>
+#include <future>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -1606,8 +1607,9 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     }
 
 #ifdef BUILD_TESTS
-    // We always store the ledgerCloseMeta in tests so we can inspect it.
-    if (!ledgerCloseMeta)
+    // We always store the ledgerCloseMeta in tests so we can inspect it,
+    // unless explicitly disabled for benchmarking.
+    if (!ledgerCloseMeta && !mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
     {
         ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
             header.current().ledgerVersion);
@@ -1928,10 +1930,6 @@ LedgerManagerImpl::setLastClosedLedger(
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_25))
-    {
-        PubKeyUtils::enableRustDalekVerify();
-    }
 
     if (rebuildInMemoryState)
     {
@@ -2498,10 +2496,13 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
     AppConnector& app, ApplyStage const& stage, Config const& config,
     ParallelLedgerInfo const& ledgerInfo, LedgerHeader const& header)
 {
+    bool const hasInvariants = !config.INVARIANT_CHECKS.empty();
     for (auto const& txBundle : stage)
     {
-        // First check the invariants
-        if (txBundle.getResPayload().isSuccess())
+        // Only run invariant checks if any invariants are enabled.
+        // The delta is not built when invariants are disabled (see
+        // parallelApply), so we must not call getDelta() in that case.
+        if (hasInvariants && txBundle.getResPayload().isSuccess())
         {
             try
             {
@@ -2529,7 +2530,6 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
 
         // We don't call processPostApply for post v23 transactions at the
         // moment because processPostApply is currently a no-op for those
-        // transactions.
 
         txBundle.getEffects().getMeta().maybeSetRefundableFeeMeta(
             txBundle.getResPayload().getRefundableFeeTracker());
@@ -2612,7 +2612,10 @@ LedgerManagerImpl::processResultAndMeta(
     {
         auto metaXDR = txMetaBuilder.finalize(result.isSuccess());
 #ifdef BUILD_TESTS
-        mLastLedgerTxMeta.emplace_back(metaXDR);
+        if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+        {
+            mLastLedgerTxMeta.emplace_back(metaXDR);
+        }
 #endif
 
         ledgerCloseMeta->setTxProcessingMetaAndResultPair(
@@ -2621,8 +2624,11 @@ LedgerManagerImpl::processResultAndMeta(
     else
     {
 #ifdef BUILD_TESTS
-        mLastLedgerTxMeta.emplace_back(
-            txMetaBuilder.finalize(result.isSuccess()));
+        if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+        {
+            mLastLedgerTxMeta.emplace_back(
+                txMetaBuilder.finalize(result.isSuccess()));
+        }
 #endif
     }
 }
@@ -2668,8 +2674,11 @@ LedgerManagerImpl::applyTransactions(
     bool enableTxMeta = ledgerCloseMeta != nullptr;
 #ifdef BUILD_TESTS
     // In tests we want to always enable tx meta because we store it in
-    // mLastLedgerTxMeta.
-    enableTxMeta = true;
+    // mLastLedgerTxMeta, unless explicitly disabled for benchmarking.
+    if (!mApp.getConfig().DISABLE_TX_META_FOR_TESTING)
+    {
+        enableTxMeta = true;
+    }
 #endif
     std::optional<SorobanNetworkConfig> sorobanConfig;
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
@@ -2971,6 +2980,11 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
+
+    std::future<void> hotArchiveBatchFuture;
+    EvictedStateVectors evictedState;
+    std::vector<LedgerKey> restoredHotArchiveKeys;
+
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
@@ -2980,16 +2994,13 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
         auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
-        auto evictedState =
-            mApp.getBucketManager().resolveBackgroundEvictionScan(
-                lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
+        evictedState = mApp.getBucketManager().resolveBackgroundEvictionScan(
+            lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
 
         if (protocolVersionStartsFrom(
                 initialLedgerVers,
                 LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
-            std::vector<LedgerKey> restoredHotArchiveKeys;
-
             auto const& restoredHotArchiveKeyMap =
                 ltx.getRestoredHotArchiveKeys();
             for (auto const& [key, entry] : restoredHotArchiveKeyMap)
@@ -3019,9 +3030,14 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
             }
             else
             {
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries,
-                    restoredHotArchiveKeys);
+                hotArchiveBatchFuture =
+                    std::async(std::launch::async, [this, lh, &evictedState,
+                                                    &restoredHotArchiveKeys]() {
+                        mApp.getBucketManager().addHotArchiveBatch(
+                            mApp, lh, evictedState.archivedEntries,
+                            restoredHotArchiveKeys);
+                    });
+
                 // Validate evicted entries against Protocol 23 corruption
                 // data if configured
                 if (mApp.getProtocol23CorruptionDataVerifier())
@@ -3061,12 +3077,29 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     }
     // NB: getAllEntries seals the ltx.
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // Launch async task to update in-memory Soroban state. This is independent
+    // from both addHotArchiveBatch and addLiveBatch, so all can run in
+    // parallel.
+    std::future<void> inMemoryStateUpdateFuture;
+
+    inMemoryStateUpdateFuture = std::async(
+        std::launch::async, [this, &initEntries, &liveEntries, &deadEntries,
+                             &lh, &finalSorobanConfig]() {
+            mApplyState.updateInMemorySorobanState(
+                initEntries, liveEntries, deadEntries, lh, finalSorobanConfig);
+        });
+
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
-    mApplyState.updateInMemorySorobanState(initEntries, liveEntries,
-                                           deadEntries, lh, finalSorobanConfig);
+    // Wait for all async operations to complete before returning.
+    if (hotArchiveBatchFuture.valid())
+    {
+        hotArchiveBatchFuture.get();
+    }
+    inMemoryStateUpdateFuture.get();
     return finalSorobanConfig;
 }
 

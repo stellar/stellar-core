@@ -670,7 +670,9 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
             auto ttlData = entryData.ttlData;
             modifiedState.mContractDataEntries.erase(it);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(modifiedEntry, ttlData));
+                InternalContractDataMapEntry(
+                    modifiedEntry, ttlData,
+                    static_cast<uint32_t>(xdr::xdr_size(modifiedEntry))));
         }
 
         auto result =
@@ -711,7 +713,9 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
                 createContractDataWithTTL(PERSISTENT, 1000);
             TTLData ttlData(extraTTL.data.ttl().liveUntilLedgerSeq, 1);
             modifiedState.mContractDataEntries.emplace(
-                InternalContractDataMapEntry(extraEntry, ttlData));
+                InternalContractDataMapEntry(
+                    extraEntry, ttlData,
+                    static_cast<uint32_t>(xdr::xdr_size(extraEntry))));
         }
 
         auto result =
@@ -741,8 +745,9 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         TTLData wrongTTL(42, 1);
         modifiedState.mContractDataEntries.erase(it);
-        modifiedState.mContractDataEntries.emplace(
-            InternalContractDataMapEntry(entryCopy, wrongTTL));
+        modifiedState.mContractDataEntries.emplace(InternalContractDataMapEntry(
+            entryCopy, wrongTTL,
+            static_cast<uint32_t>(xdr::xdr_size(entryCopy))));
 
         auto result =
             invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
