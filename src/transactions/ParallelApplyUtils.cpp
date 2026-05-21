@@ -787,9 +787,8 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
 }
 
 void
-ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
-    ParallelTxSuccessVal const& res, ParallelLedgerInfo const& ledgerInfo,
-    TxEffects& effects) const
+ThreadParallelApplyLedgerState::setDeltaForInvariantsFromSuccessfulTx(
+    ParallelTxSuccessVal const& res, TxEffects& effects) const
 {
     ZoneScoped;
     for (auto const& [lk, scopedEntryOpt] : res.getModifiedEntryMap())
@@ -824,7 +823,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
                 std::make_shared<InternalLedgerEntry>(entryOpt.value());
         }
         releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
-        effects.setDeltaEntry(lk, entryDelta);
+        effects.setDeltaEntryForInvariants(lk, entryDelta);
     }
 }
 

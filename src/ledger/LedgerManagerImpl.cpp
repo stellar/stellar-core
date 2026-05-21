@@ -2500,7 +2500,6 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
 {
     for (auto const& txBundle : stage)
     {
-        // First check the invariants
         if (txBundle.getResPayload().isSuccess())
         {
             try
@@ -2513,7 +2512,7 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
                 app.checkOnOperationApply(
                     txBundle.getTx()->getRawOperations().at(0),
                     txBundle.getResPayload().getOpResultAt(0),
-                    txBundle.getEffects().getDelta(),
+                    txBundle.getEffects().getDeltaForInvariants(),
                     txBundle.getEffects()
                         .getMeta()
                         .getOperationMetaBuilderAt(0)
@@ -2526,13 +2525,6 @@ LedgerManagerImpl::checkAllTxBundleInvariants(
                     "Invariant failure while applying operations: ", e.what());
             }
         }
-
-        // We don't call processPostApply for post v23 transactions at the
-        // moment because processPostApply is currently a no-op for those
-        // transactions.
-
-        txBundle.getEffects().getMeta().maybeSetRefundableFeeMeta(
-            txBundle.getResPayload().getRefundableFeeTracker());
     }
 }
 
@@ -2549,7 +2541,18 @@ LedgerManagerImpl::applySorobanStage(
     auto threadStates = applySorobanStageClustersInParallel(
         app, stage, globalParState, sorobanBasePrngSeed, config, ledgerInfo);
 
-    checkAllTxBundleInvariants(app, stage, config, ledgerInfo, header);
+    if (config.invariantsEnabled())
+    {
+        checkAllTxBundleInvariants(app, stage, config, ledgerInfo, header);
+    }
+    // We don't call processPostApply for post v23 transactions at the
+    // moment because processPostApply is currently a no-op for those
+    // transactions, so just set refundable fee meta here.
+    for (auto const& txBundle : stage)
+    {
+        txBundle.getEffects().getMeta().maybeSetRefundableFeeMeta(
+            txBundle.getResPayload().getRefundableFeeTracker());
+    }
 
     globalParState.commitChangesFromThreads(app, threadStates, stage);
 }

@@ -2704,6 +2704,12 @@ Config::toString(SCPQuorumSet const& qset)
     return fw.write(json);
 }
 
+bool
+Config::invariantsEnabled() const
+{
+    return !INVARIANT_CHECKS.empty();
+}
+
 size_t
 Config::getSorobanByteAllowance() const
 {
