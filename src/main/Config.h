@@ -525,6 +525,11 @@ class Config : public std::enable_shared_from_this<Config>
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 
+    // Disable transaction metadata collection in test builds.
+    // This is useful for benchmarking, which is typically done in BUILD_TESTS
+    // builds.
+    bool DISABLE_TX_META_FOR_TESTING;
+
     // Batch transactions for flooding purposes (experimental).
     // Has no effect on non-test builds.
     size_t EXPERIMENTAL_TX_BATCH_MAX_SIZE;
