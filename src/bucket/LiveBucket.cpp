@@ -383,34 +383,47 @@ LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
-    std::vector<BucketEntry> bucket;
-    bucket.reserve(initEntries.size() + liveEntries.size() +
-                   deadEntries.size());
+    size_t totalSize =
+        initEntries.size() + liveEntries.size() + deadEntries.size();
+
+    std::vector<BucketEntry> entries;
+    entries.reserve(totalSize);
+
+    std::vector<BucketEntry*> sortedEntries;
+    sortedEntries.reserve(totalSize);
 
     for (auto const& e : initEntries)
     {
-        BucketEntry ce;
+        auto& ce = entries.emplace_back();
         ce.type(useInit ? INITENTRY : LIVEENTRY);
         ce.liveEntry() = e;
-        bucket.push_back(ce);
+        sortedEntries.push_back(&ce);
     }
     for (auto const& e : liveEntries)
     {
-        BucketEntry ce;
+        auto& ce = entries.emplace_back();
         ce.type(LIVEENTRY);
         ce.liveEntry() = e;
-        bucket.push_back(ce);
+        sortedEntries.push_back(&ce);
     }
     for (auto const& e : deadEntries)
     {
-        BucketEntry ce;
+        auto& ce = entries.emplace_back();
         ce.type(DEADENTRY);
         ce.deadEntry() = e;
-        bucket.push_back(ce);
+        sortedEntries.push_back(&ce);
     }
 
     BucketEntryIdCmp<LiveBucket> cmp;
-    std::sort(bucket.begin(), bucket.end(), cmp);
+    std::sort(sortedEntries.begin(), sortedEntries.end(),
+              [&cmp](auto const& a, auto const& b) { return cmp(*a, *b); });
+
+    std::vector<BucketEntry> bucket;
+    bucket.reserve(sortedEntries.size());
+    for (auto* entry : sortedEntries)
+    {
+        bucket.emplace_back(std::move(*entry));
+    }
     releaseAssert(std::adjacent_find(
                       bucket.begin(), bucket.end(),
                       [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
