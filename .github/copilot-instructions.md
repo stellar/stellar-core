@@ -56,7 +56,7 @@ For vnext tests, configure with
 
 ```sh
 # regenerate captured LedgerCloseMeta golden data, then commit test-lcm/
-$ ./src/stellar-core test --rng-seed 12345 --capture-lcm "[tx]"
+$ ./src/stellar-core test --ll fatal -r simple --abort --disable-dots --rng-seed 12345 --capture-lcm "[tx]"
 ```
 
 
