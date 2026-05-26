@@ -121,7 +121,11 @@ impl Overlay {
                 for hash in tx_hashes {
                     mempool.remove(&hash);
                 }
-                info!("Removed {} TXs from mempool", count);
+                let expired = mempool.evict_expired();
+                info!(
+                    "Removed {} (requested) + {} (expired) TXs from mempool",
+                    count, expired
+                );
                 // Signal completion if caller is waiting
                 if let Some(tx) = reply {
                     let _ = tx.send(()).await;
