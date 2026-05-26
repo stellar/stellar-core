@@ -98,18 +98,22 @@ impl PendingRequests {
 
     /// Process timeouts: returns (retry_list, give_up_list)
     /// - retry_list: hashes that timed out but haven't given up
-    /// - give_up_list: hashes that should be abandoned
-    pub fn process_timeouts(&self) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
+    /// - give_up_list: hashes that have been abandoned
+    pub fn process_timeouts(&mut self) -> (Vec<[u8; 32]>, Vec<[u8; 32]>) {
         let mut retry = Vec::new();
         let mut give_up = Vec::new();
 
-        for (hash, req) in &self.requests {
+        self.requests.retain(|hash, req| {
             if req.should_give_up(self.total_timeout) {
                 give_up.push(*hash);
+                false
             } else if req.is_timed_out(self.peer_timeout) {
                 retry.push(*hash);
+                true
+            } else {
+                true
             }
-        }
+        });
 
         (retry, give_up)
     }
