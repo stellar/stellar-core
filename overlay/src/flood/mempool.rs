@@ -201,7 +201,7 @@ impl Mempool {
     }
 
     /// Remove transactions that are too old.
-    pub fn evict_expired(&mut self) {
+    pub fn evict_expired(&mut self) -> usize {
         let now = Instant::now();
         let to_remove: Vec<TxHash> = self
             .by_hash
@@ -210,9 +210,11 @@ impl Mempool {
             .map(|tx| tx.hash)
             .collect();
 
+        let count = to_remove.len();
         for hash in to_remove {
             self.remove(&hash);
         }
+        count
     }
 
     /// Current number of transactions.
