@@ -797,15 +797,31 @@ TestContract::Invocation::withAuthorization(
     SorobanCredentials credentials)
 {
     mOp.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto addNonce = [this](auto const& credentials) {
+        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key().nonce = credentials.nonce;
+        mSpec = mSpec.extendReadWriteFootprint({contractDataKey(
+            credentials.address, nonceKey, ContractDataDurability::TEMPORARY)});
+    };
+
     if (credentials.type() ==
         SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS)
     {
-        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
-        nonceKey.nonce_key().nonce = credentials.address().nonce;
-        mSpec = mSpec.extendReadWriteFootprint(
-            {contractDataKey(credentials.address().address, nonceKey,
-                             ContractDataDurability::TEMPORARY)});
+        addNonce(credentials.address());
     }
+#ifdef CAP_0071
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2)
+    {
+        addNonce(credentials.addressV2());
+    }
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_WITH_DELEGATES)
+    {
+        addNonce(credentials.addressWithDelegates().addressCredentials);
+    }
+#endif
     return *this;
 }
 
@@ -1379,12 +1395,19 @@ SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 TransactionResult
 SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
+    auto diagnostics =
+        DiagnosticEventManager::createForValidation(mApp->getConfig());
     {
-        auto diagnostics = DiagnosticEventManager::createDisabled();
         CheckValidLedgerViewWrapper ledgerView(getApp());
-        REQUIRE(tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
-                               diagnostics)
-                    ->isSuccess());
+        auto result = tx->checkValid(getApp().getAppConnector(), ledgerView, 0,
+                                     0, 0, diagnostics);
+        if (!result->isSuccess())
+        {
+            CLOG_ERROR(Tx, "invokeTx: invalid transaction {}",
+                       result->getXDR().result.code());
+            diagnostics.debugLogEvents();
+        }
+        REQUIRE(result->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});
@@ -2243,22 +2266,75 @@ SorobanSigner::SorobanSigner(SorobanTest& test, SCAddress const& address,
 }
 
 SorobanCredentials
-SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
+SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
+                    std::optional<bool> forceAddressCredentialsV2) const
 {
-    SorobanCredentials fullCredentials(
-        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS);
+    auto credentialsType = SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+#ifdef CAP_0071
+    if (protocolVersionStartsFrom(mTest.getLedgerVersion(),
+                                  ProtocolVersion::V_27))
+    {
+        if (uniform_int_distribution<>()(Catch::rng()) % 2 == 0)
+        {
+            credentialsType =
+                SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2;
+        }
+    }
+#endif
+    if (forceAddressCredentialsV2)
+    {
+#ifdef CAP_0071
+        credentialsType =
+            *forceAddressCredentialsV2
+                ? SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2
+                : SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+#else
+        REQUIRE(!*forceAddressCredentialsV2);
+#endif
+    }
+    SorobanCredentials fullCredentials(credentialsType);
+#ifdef CAP_0071
+    auto& credentials =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? fullCredentials.address()
+            : fullCredentials.addressV2();
+#else
     auto& credentials = fullCredentials.address();
+#endif
     credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
     credentials.signatureExpirationLedger = mTest.getLCLSeq() + 10'000;
     credentials.address = mAddress;
 
-    HashIDPreimage signaturePreimage(
-        EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION);
-    auto& preimage = signaturePreimage.sorobanAuthorization();
-    preimage.invocation = invocation;
-    preimage.networkID = mTest.getApp().getNetworkID();
-    preimage.nonce = credentials.nonce;
-    preimage.signatureExpirationLedger = credentials.signatureExpirationLedger;
+#ifdef CAP_0071
+    auto preimageType =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION
+            : EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION_WITH_ADDRESS;
+#else
+    auto preimageType = EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION;
+#endif
+    HashIDPreimage signaturePreimage(preimageType);
+    if (preimageType == EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION)
+    {
+        auto& preimage = signaturePreimage.sorobanAuthorization();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+    }
+    else
+    {
+#ifdef CAP_0071
+        auto& preimage = signaturePreimage.sorobanAuthorizationWithAddress();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+        preimage.address = mAddress;
+#endif
+    }
 
     credentials.signature = mSignFn(xdrSha256(signaturePreimage));
     return fullCredentials;

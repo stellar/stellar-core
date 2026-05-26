@@ -243,7 +243,7 @@ soroban-env-host v26.1.2 (src/rust/soroban/p27/soroban-env-host)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
 ├── soroban-env-common v26.1.2 (src/rust/soroban/p27/soroban-env-common)
-│   ├── ethnum v1.5.0
+│   ├── ethnum v1.5.3
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
 │   ├── soroban-env-macros v26.1.2 (proc-macro) (src/rust/soroban/p27/soroban-env-macros)
@@ -259,9 +259,9 @@ soroban-env-host v26.1.2 (src/rust/soroban/p27/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v26.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=f0ed902950d517ec3cc31d5af7c268e2f025d093#f0ed9029)
+│   │   ├── stellar-xdr v26.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=a749b69b3471aec0c20ec431b0297f3414d66421#a749b69b)
 │   │   │   ├── escape-bytes v0.1.1
-│   │   │   ├── ethnum v1.5.0
+│   │   │   ├── ethnum v1.5.3
 │   │   │   ├── hex v0.4.3
 │   │   │   ├── sha2 v0.10.9 (*)
 │   │   │   └── stellar-strkey v0.0.13
@@ -286,10 +286,10 @@ soroban-env-host v26.1.2 (src/rust/soroban/p27/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v26.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=f0ed902950d517ec3cc31d5af7c268e2f025d093#f0ed9029)
+│   ├── stellar-xdr v26.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=a749b69b3471aec0c20ec431b0297f3414d66421#a749b69b)
 │   │   ├── base64 v0.22.1
 │   │   ├── escape-bytes v0.1.1
-│   │   ├── ethnum v1.5.0
+│   │   ├── ethnum v1.5.3
 │   │   ├── hex v0.4.3
 │   │   ├── sha2 v0.10.9 (*)
 │   │   └── stellar-strkey v0.0.13 (*)

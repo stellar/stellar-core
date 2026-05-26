@@ -561,7 +561,7 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
-AM_CONDITIONAL(ENABLE_CAP_0071,
+AM_CONDITIONAL(CAP_0071,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
 AC_PATH_PROG(CARGO, cargo)
