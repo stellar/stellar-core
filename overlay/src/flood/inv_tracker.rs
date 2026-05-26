@@ -11,13 +11,35 @@ use std::num::NonZeroUsize;
 /// Default capacity for tracking TX sources
 pub const INV_TRACKER_CAPACITY: usize = 100_000;
 
+#[derive(Debug)]
+struct InvSource {
+    peers: Vec<PeerId>,
+    next_idx: usize,
+}
+
+impl InvSource {
+    fn new() -> Self {
+        InvSource {
+            peers: Vec::new(),
+            next_idx: 0,
+        }
+    }
+
+    fn next_peer(&mut self) -> Option<PeerId> {
+        if self.peers.is_empty() {
+            return None;
+        }
+        let peer = self.peers[self.next_idx % self.peers.len()];
+        self.next_idx += 1;
+        Some(peer)
+    }
+}
+
 /// Tracks which peers have advertised which transactions
 #[derive(Debug)]
 pub struct InvTracker {
-    /// TX hash -> ordered list of peers who INV'd it
-    sources: LruCache<[u8; 32], Vec<PeerId>>,
-    /// TX hash -> next peer index for round-robin GETDATA
-    next_idx: LruCache<[u8; 32], usize>,
+    /// TX hash -> (ordered list of peers who INV'd it, peer index)
+    sources: LruCache<[u8; 32], InvSource>,
 }
 
 impl InvTracker {
@@ -28,7 +50,6 @@ impl InvTracker {
     fn with_capacity(capacity: usize) -> Self {
         InvTracker {
             sources: LruCache::new(NonZeroUsize::new(capacity).unwrap()),
-            next_idx: LruCache::new(NonZeroUsize::new(capacity).unwrap()),
         }
     }
 
@@ -36,10 +57,10 @@ impl InvTracker {
     pub fn record_source(&mut self, hash: [u8; 32], peer: PeerId) -> bool {
         let is_first = !self.sources.contains(&hash);
 
-        let sources = self.sources.get_or_insert_mut(hash, Vec::new);
+        let sources = self.sources.get_or_insert_mut(hash, InvSource::new);
         // Avoid duplicates
-        if !sources.contains(&peer) {
-            sources.push(peer);
+        if !sources.peers.contains(&peer) {
+            sources.peers.push(peer);
         }
 
         is_first
@@ -47,23 +68,12 @@ impl InvTracker {
 
     /// Get the next peer to request from (round-robin)
     pub fn get_next_peer(&mut self, hash: &[u8; 32]) -> Option<PeerId> {
-        let sources = self.sources.get(hash)?;
-        if sources.is_empty() {
-            return None;
-        }
-
-        let idx = *self.next_idx.get_or_insert(*hash, || 0);
-        let peer = sources[idx % sources.len()];
-
-        // Advance for next call
-        self.next_idx.put(*hash, idx + 1);
-
-        Some(peer)
+        self.sources.get_mut(hash)?.next_peer()
     }
 
     /// Peek at sources without updating LRU (for read-only access)
     pub fn peek_sources(&self, hash: &[u8; 32]) -> Option<&Vec<PeerId>> {
-        self.sources.peek(hash)
+        self.sources.peek(hash).map(|source| &source.peers)
     }
 }
 
