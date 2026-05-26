@@ -28,8 +28,8 @@ typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> binary_fuse_seed_t;
 
 // Test-only flags: force specific rare paths in populate() so tests can
 // exercise them without needing pathological hash distributions.
-inline bool gBinaryFuseForcePopulateError = false;
-inline bool gBinaryFuseForcePeelingFailure = false;
+inline uint32_t gBinaryFuseForcePopulateErrorRetries = 0;
+inline uint32_t gBinaryFuseForcePeelingFailureRetries = 0;
 #endif
 
 #ifndef XOR_MAX_ITERATIONS
@@ -266,6 +266,19 @@ template <typename T> class binary_fuse_t
         return h;
     }
 
+    void
+    rotate_seed(int loop)
+    {
+        auto seedIndex = loop % crypto_shorthash_KEYBYTES;
+#ifdef BUILD_TESTS
+        if (loop >= crypto_shorthash_KEYBYTES)
+        {
+            COVMARK_HIT(BINARY_FUSE_SEED_INDEX_WRAP);
+        }
+#endif
+        Seed.at(seedIndex)++;
+    }
+
     // Construct the filter. Throws std::runtime_error if population fails
     // after max iterations (practically impossible).
     // For best performance, the caller should ensure that there are not
@@ -316,6 +329,7 @@ template <typename T> class binary_fuse_t
                 // The probability of this happening is lower than the
                 // the cosmic-ray probability (i.e., a cosmic ray corrupts your
                 // system).
+                COVMARK_HIT(BINARY_FUSE_MAX_RETRIES_EXHAUSTED);
                 throw std::runtime_error(
                     "BinaryFuseFilter failed to populate after max iterations");
             }
@@ -378,10 +392,10 @@ template <typename T> class binary_fuse_t
                 error = (t2count.at(h2) < 4) ? 1 : error;
             }
 #ifdef BUILD_TESTS
-            if (!error && gBinaryFuseForcePopulateError && loop == 0)
+            if (!error && gBinaryFuseForcePopulateErrorRetries > 0)
             {
                 error = 1;
-                gBinaryFuseForcePopulateError = false;
+                --gBinaryFuseForcePopulateErrorRetries;
             }
 #endif
             if (error)
@@ -392,11 +406,8 @@ template <typename T> class binary_fuse_t
                 std::fill(t2hash.begin(), t2hash.end(), 0);
 
                 // Rotate seed deterministically
-                auto seedIndex = loop / crypto_shorthash_KEYBYTES;
-
-                // Seed is a carray of size crypto_shorthash_KEYBYTES, can't
-                // segfault
-                Seed[seedIndex]++;
+                rotate_seed(loop);
+                continue;
             }
 
             // End of key addition
@@ -442,11 +453,11 @@ template <typename T> class binary_fuse_t
                 }
             }
 #ifdef BUILD_TESTS
-            if (gBinaryFuseForcePeelingFailure && loop == 0)
+            if (gBinaryFuseForcePeelingFailureRetries > 0)
             {
                 stacksize = 0;
                 duplicates = 0;
-                gBinaryFuseForcePeelingFailure = false;
+                --gBinaryFuseForcePeelingFailureRetries;
             }
 #endif
             if (stacksize + duplicates == size)
@@ -475,8 +486,7 @@ template <typename T> class binary_fuse_t
             std::fill(t2hash.begin(), t2hash.end(), 0);
 
             // Rotate seed deterministically
-            auto seedIndex = loop / crypto_shorthash_KEYBYTES;
-            Seed[seedIndex]++;
+            rotate_seed(loop);
         }
 
         for (uint32_t i = size - 1; i < size; i--)

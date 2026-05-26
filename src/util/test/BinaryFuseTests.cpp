@@ -139,23 +139,15 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 
 // During populate(), the t2count array can underflow when the hash distribution
 // is degenerate (many keys collide into the same filter positions). This sets
-// the error flag, which triggers a reset-and-retry with a rotated seed. This
-// test forces the error path and verifies the retry produces a correct filter.
+// the error flag, which triggers a reset-and-retry with a rotated seed. The
+// retry should restart immediately after clearing scratch state, not continue
+// into the peeling phase with cleared t2count/t2hash values.
 TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
 {
-    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
-
-    // Force the error path on the first populate iteration
-    gBinaryFuseForcePopulateError = true;
-
     LedgerKeySet keys;
-    auto gen = autocheck::such_that(
-        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
-        autocheck::generator<LedgerKey>());
-
     while (keys.size() < 100)
     {
-        keys.insert(gen());
+        keys.insert(ledgerKeyGenerator());
     }
 
     auto seed = shortHash::getShortHashInitKey();
@@ -169,13 +161,35 @@ TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
         hashes.emplace_back(hasher.digest());
     }
 
-    // Construction should succeed despite forced error on first attempt
-    BinaryFuseFilter8 filter(hashes, seed);
+    auto requireFilterAfterPopulateErrors = [&]() {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
 
-    // All keys must still be found despite the error
-    for (auto const& k : keys)
+        auto peelingRetriesBefore =
+            gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+
+        BinaryFuseFilter8 filter(hashes, seed);
+
+        for (auto const& k : keys)
+        {
+            REQUIRE(filter.contains(k));
+        }
+
+        REQUIRE(gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY) ==
+                peelingRetriesBefore);
+    };
+
+    SECTION("one retry")
     {
-        REQUIRE(filter.contains(k));
+        gBinaryFuseForcePopulateErrorRetries = 1;
+        requireFilterAfterPopulateErrors();
+    }
+
+    SECTION("multiple retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_INDEX_WRAP);
+
+        gBinaryFuseForcePopulateErrorRetries = crypto_shorthash_KEYBYTES + 1;
+        requireFilterAfterPopulateErrors();
     }
 }
 
@@ -228,22 +242,15 @@ TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
 // fingerprint assignment order. When the hash structure has too many cycles,
 // peeling cannot remove all keys (stacksize + duplicates < size). populate()
 // then resets the working arrays, rotates the seed, and retries with a
-// different internal hash layout. This test forces a peeling failure on the
-// first iteration and verifies the retry produces a correct filter.
-TEST_CASE("binary fuse filter peeling failure retry", "[BinaryFuseFilter]")
+// different internal hash layout. This test forces peeling failures at several
+// retry depths and verifies seed rotation remains in-bounds and keys remain
+// valid.
+TEST_CASE("binary fuse filter peeling failure retries", "[BinaryFuseFilter]")
 {
-    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
-
-    gBinaryFuseForcePeelingFailure = true;
-
     LedgerKeySet keys;
-    auto gen = autocheck::such_that(
-        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
-        autocheck::generator<LedgerKey>());
-
     while (keys.size() < 100)
     {
-        keys.insert(gen());
+        keys.insert(ledgerKeyGenerator());
     }
 
     auto seed = shortHash::getShortHashInitKey();
@@ -257,10 +264,41 @@ TEST_CASE("binary fuse filter peeling failure retry", "[BinaryFuseFilter]")
         hashes.emplace_back(hasher.digest());
     }
 
-    BinaryFuseFilter8 filter(hashes, seed);
+    auto requireFilterAfterPeelingRetries = [&]() {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(
+            BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
 
-    for (auto const& k : keys)
+        BinaryFuseFilter8 filter(hashes, seed);
+
+        for (auto const& k : keys)
+        {
+            REQUIRE(filter.contains(k));
+        }
+    };
+
+    SECTION("one retry")
     {
-        REQUIRE(filter.contains(k));
+        gBinaryFuseForcePeelingFailureRetries = 1;
+        requireFilterAfterPeelingRetries();
+    }
+
+    SECTION("half max retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_INDEX_WRAP);
+
+        gBinaryFuseForcePeelingFailureRetries = XOR_MAX_ITERATIONS / 2;
+        requireFilterAfterPeelingRetries();
+    }
+
+    SECTION("max retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(
+            BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_INDEX_WRAP);
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_MAX_RETRIES_EXHAUSTED);
+
+        gBinaryFuseForcePeelingFailureRetries = XOR_MAX_ITERATIONS;
+
+        REQUIRE_THROWS_AS(BinaryFuseFilter8(hashes, seed), std::runtime_error);
     }
 }
