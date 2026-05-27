@@ -2069,7 +2069,7 @@ TxSetPhaseFrame::TxSetPhaseFrame(
     TxSetPhase phase, TxStageFrameList&& txs,
     std::shared_ptr<InclusionFeeMap> inclusionFeeMap)
     : mPhase(phase)
-    , mStages(txs)
+    , mStages(std::move(txs))
     , mInclusionFeeMap(inclusionFeeMap)
     , mIsParallel(true)
 {

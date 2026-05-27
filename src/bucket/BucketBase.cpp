@@ -256,7 +256,7 @@ mergeCasesWithDefaultAcceptance(
     if (inputSource.oldFirst())
     {
         // Take old entry
-        auto entry = inputSource.getOldEntry();
+        auto const& entry = inputSource.getOldEntry();
         ++mc.mOldEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countOldEntryType(mc, entry);
@@ -272,7 +272,7 @@ mergeCasesWithDefaultAcceptance(
     // In both cases: take new entry.
     else if (inputSource.newFirst())
     {
-        auto entry = inputSource.getNewEntry();
+        auto const& entry = inputSource.getNewEntry();
         ++mc.mNewEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countNewEntryType(mc, entry);
