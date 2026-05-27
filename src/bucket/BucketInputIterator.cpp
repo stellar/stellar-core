@@ -22,6 +22,7 @@ BucketInputIterator<BucketT>::loadEntry()
     ZoneScoped;
     if (mIn.readOne(mEntry))
     {
+        mRawEntry = mIn.moveRawBytes();
         mEntryPtr = &mEntry;
         bool isMeta;
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
@@ -108,6 +109,13 @@ typename BucketT::EntryT const&
 BucketInputIterator<BucketT>::operator*()
 {
     return *mEntryPtr;
+}
+
+template <typename BucketT>
+std::vector<char>
+BucketInputIterator<BucketT>::moveRawBytes()
+{
+    return std::move(mRawEntry);
 }
 
 template <typename BucketT>

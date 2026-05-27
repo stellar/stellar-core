@@ -41,6 +41,7 @@ class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
+    std::vector<char> mRawBuf; // Complete framed record (header + payload)
     size_t mSizeLimit;
     size_t mSize;
 
@@ -161,6 +162,13 @@ class XDRInputFileStream
                 "malformed XDR file or IO failure in readOne");
         }
 
+        // Retain the complete framed record (4-byte header + payload) for
+        // potential raw passthrough during bucket merge.
+        size_t framedSize = 4 + sz;
+        mRawBuf.resize(framedSize);
+        std::memcpy(mRawBuf.data(), szBuf, 4);
+        std::memcpy(mRawBuf.data() + 4, mBuf.data(), sz);
+
         if (hasher)
         {
             hasher->add(ByteSlice(szBuf, sizeof(szBuf)));
@@ -170,6 +178,13 @@ class XDRInputFileStream
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
         xdr::xdr_argpack_archive(g, out);
         return true;
+    }
+
+    // Move out the raw framed record bytes from the most recent readOne.
+    std::vector<char>
+    moveRawBytes()
+    {
+        return std::move(mRawBuf);
     }
 
     // `readPage` reads records of XDR type `T` from the stream into output

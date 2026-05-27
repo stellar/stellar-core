@@ -394,8 +394,22 @@ BucketBase<BucketT, IndexT>::merge(
                                       doFsync);
 
     FileMergeInput<BucketT> inputSource(oi, ni);
-    auto putFunc = [&out](typename BucketT::EntryT const& entry) {
-        out.put(entry);
+    auto putFunc = [&out, &oi, &ni](typename BucketT::EntryT const& entry) {
+        // If the entry is the unmodified current entry from one of the
+        // input iterators (address comparison), use raw byte passthrough
+        // to avoid re-serialization.
+        if (oi && &entry == &(*oi))
+        {
+            out.putWithRaw(entry, oi.moveRawBytes());
+        }
+        else if (ni && &entry == &(*ni))
+        {
+            out.putWithRaw(entry, ni.moveRawBytes());
+        }
+        else
+        {
+            out.put(entry);
+        }
     };
 
     // Perform the merge

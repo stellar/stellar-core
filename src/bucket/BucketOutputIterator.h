@@ -30,6 +30,7 @@ template <typename BucketT> class BucketOutputIterator
     BucketEntryIdCmp<BucketT> mCmp;
     asio::io_context& mCtx;
     std::unique_ptr<typename BucketT::EntryT> mBuf;
+    std::vector<char> mBufRaw; // Raw framed bytes for buffered entry (empty = none)
     SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
@@ -51,6 +52,12 @@ template <typename BucketT> class BucketOutputIterator
                          asio::io_context& ctx, bool doFsync);
 
     void put(typename BucketT::EntryT const& e);
+
+    // Like put(), but associates pre-serialized raw framed bytes with the
+    // entry. When flushed to disk, writes raw bytes directly instead of
+    // re-serializing, saving a full XDR traversal per entry.
+    void putWithRaw(typename BucketT::EntryT const& e,
+                    std::vector<char>&& rawBytes);
 
     std::shared_ptr<BucketT> getBucket(
         BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
