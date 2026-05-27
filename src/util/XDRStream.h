@@ -14,6 +14,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -483,16 +484,54 @@ class XDROutputFileStream : public OutputFileStream
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
         ZoneScoped;
+
+        // Optimistic single-pass: since mBuf persists across calls and grows
+        // monotonically, after a few entries it will be large enough to hold
+        // any entry without needing the xdr_size pre-computation.
+        if (mBuf.size() >= 8)
+        {
+            try
+            {
+                xdr::xdr_put p(mBuf.data() + 4,
+                               mBuf.data() + mBuf.size());
+                xdr_argpack_archive(p, t);
+                uint32_t sz = static_cast<uint32_t>(
+                    reinterpret_cast<char*>(p.p_) - (mBuf.data() + 4));
+                releaseAssertOrThrow(sz < 0x80000000);
+                mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
+                mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
+                mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
+                mBuf[3] = static_cast<char>(sz & 0xFF);
+                size_t const toWrite = sz + 4;
+                writeBytes(mBuf.data(), toWrite);
+                if (hasher)
+                {
+                    hasher->add(ByteSlice(mBuf.data(), toWrite));
+                }
+                if (bytesPut)
+                {
+                    *bytesPut += toWrite;
+                }
+                return;
+            }
+            catch (xdr::xdr_overflow const&)
+            {
+                // Buffer too small — fall through to two-pass path which
+                // will resize the buffer appropriately.
+            }
+        }
+
+        // Two-pass fallback: compute exact size, resize buffer, serialize.
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         releaseAssertOrThrow(sz < 0x80000000);
 
-        if (mBuf.size() < sz + 4)
+        // Grow buffer with some headroom to reduce future fallbacks.
+        size_t needed = sz + 4;
+        if (mBuf.size() < needed)
         {
-            mBuf.resize(sz + 4);
+            mBuf.resize(std::max(needed, needed * 2));
         }
 
-        // Write 4 bytes of size, big-endian, with the last-fragment flag set
-        // on high bit of high byte.
         mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
         mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
         mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
@@ -500,7 +539,6 @@ class XDROutputFileStream : public OutputFileStream
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
 
-        // Buffer is 4 bytes of encoded size, followed by encoded object
         size_t const toWrite = sz + 4;
         writeBytes(mBuf.data(), toWrite);
 
@@ -510,7 +548,25 @@ class XDROutputFileStream : public OutputFileStream
         }
         if (bytesPut)
         {
-            *bytesPut += (sz + 4);
+            *bytesPut += toWrite;
+        }
+    }
+
+    // Writes a pre-serialized framed record (4-byte header + XDR payload)
+    // directly to the stream, bypassing serialization entirely.
+    void
+    writeRaw(char const* data, size_t size, SHA256* hasher = nullptr,
+             size_t* bytesPut = nullptr)
+    {
+        ZoneScoped;
+        writeBytes(data, size);
+        if (hasher)
+        {
+            hasher->add(ByteSlice(data, size));
+        }
+        if (bytesPut)
+        {
+            *bytesPut += size;
         }
     }
 };
