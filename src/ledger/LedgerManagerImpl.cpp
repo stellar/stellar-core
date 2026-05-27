@@ -2043,6 +2043,11 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
     // to be from the same ledger.
     maybeRunSnapshotInvariantFromLedgerState(mApplyState.copyApplyLedgerView());
 
+#ifdef BUILD_TESTS
+    maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
+                       applyLedgerTime, mApplySleepRng);
+#endif
+
     // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
     // NB: appliedLedgerState is invalidated after this call.
     if (threadIsMain())
@@ -2063,10 +2068,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
         mApp.postOnMainThread(std::move(cb), "advanceLedgerStateAndPublish");
     }
 
-#ifdef BUILD_TESTS
-    maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
-                       applyLedgerTime, mApplySleepRng);
-#endif
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger {} in {} seconds", ledgerSeq,
                ledgerTimeSeconds.count());
