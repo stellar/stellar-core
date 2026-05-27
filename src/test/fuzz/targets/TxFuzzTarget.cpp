@@ -716,6 +716,8 @@ TxFuzzTarget::description() const
     return "Fuzz transaction application with compact XDR operations";
 }
 
+TxFuzzTarget::~TxFuzzTarget() = default;
+
 void
 TxFuzzTarget::initialize()
 {
@@ -725,20 +727,34 @@ TxFuzzTarget::initialize()
     auto root = mApp->getRoot();
     mSourceAccountID = root->getPublicKey();
 
+    mApp->getInvariantManager().snapshotForFuzzer();
+    {
+        LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
+        applySetupLedgerState(ltxOuter);
+        storeSetupLedgerKeysAndPoolIDs(ltxOuter);
+    }
     resetTxInternalState(*mApp);
-    LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
 
-    initializeAccounts(ltxOuter);
-    initializeTrustLines(ltxOuter);
-    initializeClaimableBalances(ltxOuter);
-    initializeOffers(ltxOuter);
-    initializeLiquidityPools(ltxOuter);
-    reduceNativeBalancesAfterSetup(ltxOuter);
-    adjustTrustLineBalancesAfterSetup(ltxOuter);
-    reduceTrustLineLimitsAfterSetup(ltxOuter);
-    storeSetupLedgerKeysAndPoolIDs(ltxOuter);
+    mSetupLedgerTxn = std::make_unique<LedgerTxn>(mApp->getLedgerTxnRoot());
+    applySetupLedgerState(*mSetupLedgerTxn);
+    mApp->getInvariantManager().snapshotForFuzzer();
+    resetTxInternalState(*mApp);
+}
 
-    ltxOuter.commit();
+void
+TxFuzzTarget::applySetupLedgerState(AbstractLedgerTxn& ltxSetup)
+{
+    LedgerTxn ltx(ltxSetup);
+    initializeAccounts(ltx);
+    initializeTrustLines(ltx);
+    initializeClaimableBalances(ltx);
+    initializeOffers(ltx);
+    initializeLiquidityPools(ltx);
+    reduceNativeBalancesAfterSetup(ltx);
+    adjustTrustLineBalancesAfterSetup(ltx);
+    reduceTrustLineLimitsAfterSetup(ltx);
+
+    ltx.commit();
 
     mApp->getInvariantManager().snapshotForFuzzer();
 }
@@ -776,7 +792,7 @@ TxFuzzTarget::run(uint8_t const* data, size_t size)
     LOG_TRACE(DEFAULT_LOG, "{}",
               xdrToCerealString(ops, fmt::format("Fuzz ops ({})", ops.size())));
 
-    LedgerTxn ltx(mApp->getLedgerTxnRoot());
+    LedgerTxn ltx(*mSetupLedgerTxn);
     applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
     return FuzzResultCode::FUZZ_SUCCESS;
@@ -785,6 +801,7 @@ TxFuzzTarget::run(uint8_t const* data, size_t size)
 void
 TxFuzzTarget::shutdown()
 {
+    mSetupLedgerTxn.reset();
     mApp.reset();
 }
 
@@ -1193,6 +1210,18 @@ TxFuzzTarget::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
     ltx.commit();
+}
+
+TEST_CASE("tx fuzz regression preserves setup ledger entries", "[fuzz][tx]")
+{
+    TxFuzzTarget target;
+    target.initialize();
+    std::vector<uint8_t> input = {
+        0x03, 0x00, 0x00, 0x01, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x31,
+        0x1a, 0x00, 0x0d, 0x00, 0x16, 0x7e, 0x01, 0x01, 0x0b, 0x00, 0x00};
+    REQUIRE(target.run(input.data(), input.size()) ==
+            FuzzResultCode::FUZZ_SUCCESS);
+    target.shutdown();
 }
 
 // Register the target with the global registry
