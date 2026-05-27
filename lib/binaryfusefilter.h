@@ -28,8 +28,8 @@ typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> binary_fuse_seed_t;
 
 // Test-only flags: force specific rare paths in populate() so tests can
 // exercise them without needing pathological hash distributions.
-inline bool gBinaryFuseForcePopulateError = false;
-inline bool gBinaryFuseForcePeelingFailure = false;
+inline uint32_t gBinaryFuseForcePopulateErrorRetries = 0;
+inline uint32_t gBinaryFuseForcePeelingFailureRetries = 0;
 #endif
 
 #ifndef XOR_MAX_ITERATIONS
@@ -240,6 +240,77 @@ template <typename T> class binary_fuse_t
         uint32_t h2;
     };
 
+    static constexpr stellar::BinaryFuseFilterType
+    filter_type()
+    {
+        if constexpr (std::is_same_v<T, uint8_t>)
+        {
+            return stellar::BINARY_FUSE_FILTER_8_BIT;
+        }
+        else if constexpr (std::is_same_v<T, uint16_t>)
+        {
+            return stellar::BINARY_FUSE_FILTER_16_BIT;
+        }
+        else if constexpr (std::is_same_v<T, uint32_t>)
+        {
+            return stellar::BINARY_FUSE_FILTER_32_BIT;
+        }
+        else
+        {
+            throw std::runtime_error("Invalid BinaryFuseFilter type");
+        }
+    }
+
+    static void
+    validate(stellar::SerializedBinaryFuseFilter const& xdrFilter)
+    {
+        if (xdrFilter.type != filter_type())
+        {
+            throw std::runtime_error("SerializedBinaryFuseFilter type mismatch");
+        }
+        if (xdrFilter.segmentLength == 0)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter segmentLength must be nonzero");
+        }
+        if (xdrFilter.segmentCount == 0)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter segmentCount must be nonzero");
+        }
+        if (xdrFilter.segementLengthMask != xdrFilter.segmentLength - 1)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter segmentLengthMask mismatch");
+        }
+
+        auto expectedFingerprintLength =
+            (static_cast<uint64_t>(xdrFilter.segmentCount) + 2) *
+            xdrFilter.segmentLength;
+        if (xdrFilter.fingerprintLength != expectedFingerprintLength)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter fingerprintLength mismatch");
+        }
+
+        auto expectedSegmentCountLength =
+            static_cast<uint64_t>(xdrFilter.segmentCount) *
+            xdrFilter.segmentLength;
+        if (xdrFilter.segmentCountLength != expectedSegmentCountLength)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter segmentCountLength mismatch");
+        }
+
+        auto expectedFingerprintBytes =
+            static_cast<uint64_t>(xdrFilter.fingerprintLength) * sizeof(T);
+        if (xdrFilter.fingerprints.size() != expectedFingerprintBytes)
+        {
+            throw std::runtime_error(
+                "SerializedBinaryFuseFilter fingerprints size mismatch");
+        }
+    }
+
     binary_hashes_t
     hash_batch(uint64_t hash) const
     {
@@ -264,6 +335,28 @@ template <typename T> class binary_fuse_t
         // shift
         h ^= (size_t)((hh >> (36 - 18 * index)) & SegmentLengthMask);
         return h;
+    }
+
+    void
+    rotate_seed()
+    {
+        bool carried = false;
+        for (auto& byte : Seed)
+        {
+            ++byte;
+            if (byte != 0)
+            {
+                break;
+            }
+            carried = true;
+        }
+
+#ifdef BUILD_TESTS
+        if (carried)
+        {
+            COVMARK_HIT(BINARY_FUSE_SEED_COUNTER_CARRY);
+        }
+#endif
     }
 
     // Construct the filter. Throws std::runtime_error if population fails
@@ -316,6 +409,7 @@ template <typename T> class binary_fuse_t
                 // The probability of this happening is lower than the
                 // the cosmic-ray probability (i.e., a cosmic ray corrupts your
                 // system).
+                COVMARK_HIT(BINARY_FUSE_MAX_RETRIES_EXHAUSTED);
                 throw std::runtime_error(
                     "BinaryFuseFilter failed to populate after max iterations");
             }
@@ -378,10 +472,10 @@ template <typename T> class binary_fuse_t
                 error = (t2count.at(h2) < 4) ? 1 : error;
             }
 #ifdef BUILD_TESTS
-            if (!error && gBinaryFuseForcePopulateError && loop == 0)
+            if (!error && gBinaryFuseForcePopulateErrorRetries > 0)
             {
                 error = 1;
-                gBinaryFuseForcePopulateError = false;
+                --gBinaryFuseForcePopulateErrorRetries;
             }
 #endif
             if (error)
@@ -392,11 +486,8 @@ template <typename T> class binary_fuse_t
                 std::fill(t2hash.begin(), t2hash.end(), 0);
 
                 // Rotate seed deterministically
-                auto seedIndex = loop / crypto_shorthash_KEYBYTES;
-
-                // Seed is a carray of size crypto_shorthash_KEYBYTES, can't
-                // segfault
-                Seed[seedIndex]++;
+                rotate_seed();
+                continue;
             }
 
             // End of key addition
@@ -442,11 +533,11 @@ template <typename T> class binary_fuse_t
                 }
             }
 #ifdef BUILD_TESTS
-            if (gBinaryFuseForcePeelingFailure && loop == 0)
+            if (gBinaryFuseForcePeelingFailureRetries > 0)
             {
                 stacksize = 0;
                 duplicates = 0;
-                gBinaryFuseForcePeelingFailure = false;
+                --gBinaryFuseForcePeelingFailureRetries;
             }
 #endif
             if (stacksize + duplicates == size)
@@ -475,8 +566,7 @@ template <typename T> class binary_fuse_t
             std::fill(t2hash.begin(), t2hash.end(), 0);
 
             // Rotate seed deterministically
-            auto seedIndex = loop / crypto_shorthash_KEYBYTES;
-            Seed[seedIndex]++;
+            rotate_seed();
         }
 
         for (uint32_t i = size - 1; i < size; i--)
@@ -541,6 +631,8 @@ template <typename T> class binary_fuse_t
         , SegmentCountLength(xdrFilter.segmentCountLength)
         , ArrayLength(xdrFilter.fingerprintLength)
     {
+        validate(xdrFilter);
+
         std::copy(xdrFilter.filterSeed.seed.begin(),
                   xdrFilter.filterSeed.seed.end(), Seed.begin());
 

@@ -139,23 +139,15 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 
 // During populate(), the t2count array can underflow when the hash distribution
 // is degenerate (many keys collide into the same filter positions). This sets
-// the error flag, which triggers a reset-and-retry with a rotated seed. This
-// test forces the error path and verifies the retry produces a correct filter.
+// the error flag, which triggers a reset-and-retry with a rotated seed. The
+// retry should restart immediately after clearing scratch state, not continue
+// into the peeling phase with cleared t2count/t2hash values.
 TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
 {
-    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
-
-    // Force the error path on the first populate iteration
-    gBinaryFuseForcePopulateError = true;
-
     LedgerKeySet keys;
-    auto gen = autocheck::such_that(
-        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
-        autocheck::generator<LedgerKey>());
-
     while (keys.size() < 100)
     {
-        keys.insert(gen());
+        keys.insert(ledgerKeyGenerator());
     }
 
     auto seed = shortHash::getShortHashInitKey();
@@ -169,13 +161,38 @@ TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
         hashes.emplace_back(hasher.digest());
     }
 
-    // Construction should succeed despite forced error on first attempt
-    BinaryFuseFilter8 filter(hashes, seed);
+    auto requireFilterAfterPopulateErrors = [&](bool requireNoPeelingRetry) {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
 
-    // All keys must still be found despite the error
-    for (auto const& k : keys)
+        auto peelingRetriesBefore =
+            gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+
+        BinaryFuseFilter8 filter(hashes, seed);
+
+        for (auto const& k : keys)
+        {
+            REQUIRE(filter.contains(k));
+        }
+
+        if (requireNoPeelingRetry)
+        {
+            REQUIRE(gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY) ==
+                    peelingRetriesBefore);
+        }
+    };
+
+    SECTION("one retry")
     {
-        REQUIRE(filter.contains(k));
+        gBinaryFuseForcePopulateErrorRetries = 1;
+        requireFilterAfterPopulateErrors(true);
+    }
+
+    SECTION("multiple retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_COUNTER_CARRY);
+
+        gBinaryFuseForcePopulateErrorRetries = 257;
+        requireFilterAfterPopulateErrors(false);
     }
 }
 
@@ -223,27 +240,13 @@ TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
     }
 }
 
-// After placing keys and computing t2count, populate() runs a "peeling" phase
-// that iteratively removes positions with exactly one key, building the
-// fingerprint assignment order. When the hash structure has too many cycles,
-// peeling cannot remove all keys (stacksize + duplicates < size). populate()
-// then resets the working arrays, rotates the seed, and retries with a
-// different internal hash layout. This test forces a peeling failure on the
-// first iteration and verifies the retry produces a correct filter.
-TEST_CASE("binary fuse filter peeling failure retry", "[BinaryFuseFilter]")
+TEST_CASE("binary fuse filter rejects malformed serialized filters",
+          "[BinaryFuseFilter]")
 {
-    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
-
-    gBinaryFuseForcePeelingFailure = true;
-
     LedgerKeySet keys;
-    auto gen = autocheck::such_that(
-        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
-        autocheck::generator<LedgerKey>());
-
     while (keys.size() < 100)
     {
-        keys.insert(gen());
+        keys.insert(ledgerKeyGenerator());
     }
 
     auto seed = shortHash::getShortHashInitKey();
@@ -257,10 +260,141 @@ TEST_CASE("binary fuse filter peeling failure retry", "[BinaryFuseFilter]")
         hashes.emplace_back(hasher.digest());
     }
 
-    BinaryFuseFilter8 filter(hashes, seed);
+    SerializedBinaryFuseFilter xdrFilter;
+    {
+        std::stringstream ss;
+        BinaryFuseFilter16 filter(hashes, seed);
+        cereal::BinaryOutputArchive oarchive(ss);
+        oarchive(filter);
 
+        cereal::BinaryInputArchive iarchive(ss);
+        iarchive(xdrFilter);
+    }
+
+    // valid serialized filter
+    {
+        REQUIRE_NOTHROW(BinaryFuseFilter16(xdrFilter));
+    }
+
+    auto requireMalformedFilterThrows = [&](auto mutate) {
+        auto invalid = xdrFilter;
+        mutate(invalid);
+        REQUIRE_THROWS_AS(BinaryFuseFilter16(invalid), std::runtime_error);
+    };
+
+    // type mismatch
+    {
+        requireMalformedFilterThrows(
+            [](auto& f) { f.type = BINARY_FUSE_FILTER_8_BIT; });
+    }
+
+    // zero segment length
+    {
+        requireMalformedFilterThrows([](auto& f) { f.segmentLength = 0; });
+    }
+
+    // zero segment count
+    {
+        requireMalformedFilterThrows([](auto& f) { f.segmentCount = 0; });
+    }
+
+    // segment length mask mismatch
+    {
+        requireMalformedFilterThrows(
+            [](auto& f) { f.segementLengthMask ^= 1; });
+    }
+
+    // fingerprint length mismatch
+    {
+        requireMalformedFilterThrows([](auto& f) { ++f.fingerprintLength; });
+    }
+
+    // segment count length mismatch
+    {
+        requireMalformedFilterThrows([](auto& f) { ++f.segmentCountLength; });
+    }
+
+    // fingerprint byte size mismatch
+    {
+        requireMalformedFilterThrows(
+            [](auto& f) { f.fingerprints.pop_back(); });
+    }
+}
+
+TEST_CASE("binary fuse filter requires at least two key hashes",
+          "[BinaryFuseFilter]")
+{
+    auto seed = shortHash::getShortHashInitKey();
+
+    std::vector<uint64_t> noHashes;
+    REQUIRE_THROWS_AS(BinaryFuseFilter8(noHashes, seed), std::runtime_error);
+
+    std::vector<uint64_t> oneHash{0};
+    REQUIRE_THROWS_AS(BinaryFuseFilter8(oneHash, seed), std::runtime_error);
+}
+
+// After placing keys and computing t2count, populate() runs a "peeling" phase
+// that iteratively removes positions with exactly one key, building the
+// fingerprint assignment order. When the hash structure has too many cycles,
+// peeling cannot remove all keys (stacksize + duplicates < size). populate()
+// then resets the working arrays, rotates the seed, and retries with a
+// different internal hash layout. This test forces peeling failures at several
+// retry depths and verifies seed rotation remains in-bounds and keys remain
+// valid.
+TEST_CASE("binary fuse filter peeling failure retries", "[BinaryFuseFilter]")
+{
+    LedgerKeySet keys;
+    while (keys.size() < 100)
+    {
+        keys.insert(ledgerKeyGenerator());
+    }
+
+    auto seed = shortHash::getShortHashInitKey();
+    std::vector<uint64_t> hashes;
+    hashes.reserve(keys.size());
     for (auto const& k : keys)
     {
-        REQUIRE(filter.contains(k));
+        auto keyBuf = xdr::xdr_to_opaque(k);
+        SipHash24 hasher(seed.data());
+        hasher.update(keyBuf.data(), keyBuf.size());
+        hashes.emplace_back(hasher.digest());
+    }
+
+    auto requireFilterAfterPeelingRetries = [&]() {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(
+            BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+
+        BinaryFuseFilter8 filter(hashes, seed);
+
+        for (auto const& k : keys)
+        {
+            REQUIRE(filter.contains(k));
+        }
+    };
+
+    SECTION("one retry")
+    {
+        gBinaryFuseForcePeelingFailureRetries = 1;
+        requireFilterAfterPeelingRetries();
+    }
+
+    SECTION("half max retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_COUNTER_CARRY);
+
+        gBinaryFuseForcePeelingFailureRetries = XOR_MAX_ITERATIONS / 2;
+        requireFilterAfterPeelingRetries();
+    }
+
+    SECTION("max retries")
+    {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(
+            BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_COUNTER_CARRY);
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_MAX_RETRIES_EXHAUSTED);
+
+        gBinaryFuseForcePeelingFailureRetries = XOR_MAX_ITERATIONS;
+
+        REQUIRE_THROWS_AS(BinaryFuseFilter8(hashes, seed), std::runtime_error);
     }
 }
