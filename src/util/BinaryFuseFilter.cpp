@@ -33,9 +33,10 @@ template <typename T>
 bool
 BinaryFuseFilter<T>::contains(LedgerKey const& key) const
 {
+    thread_local xdr::opaque_vec<> keyBuf;
+    xdr::xdr_to_opaque(keyBuf, key);
     SipHash24 hasher(mHashSeed.data());
-    auto keybuf = xdr::xdr_to_opaque(key);
-    hasher.update(keybuf.data(), keybuf.size());
+    hasher.update(keyBuf.data(), keyBuf.size());
     return mFilter.contain(hasher.digest());
 }
 

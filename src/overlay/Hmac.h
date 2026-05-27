@@ -8,6 +8,7 @@
 #include "util/ThreadAnnotations.h"
 #include "xdr/Stellar-overlay.h"
 #include "xdr/Stellar-types.h"
+#include <xdrpp/types.h>
 
 using namespace stellar;
 
@@ -28,6 +29,7 @@ class Hmac
     HmacSha256Key mRecvMacKey GUARDED_BY(mMutex);
     uint64_t mSendMacSeq GUARDED_BY(mMutex){0};
     uint64_t mRecvMacSeq GUARDED_BY(mMutex){0};
+        xdr::opaque_vec<> mScratch GUARDED_BY(mMutex);
 
   public:
     bool setSendMackey(HmacSha256Key const& key);

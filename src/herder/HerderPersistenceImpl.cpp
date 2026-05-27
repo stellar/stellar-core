@@ -69,6 +69,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     std::vector<std::string> nodeIDs;
     std::vector<uint32_t> seqs;
     std::vector<std::string> envelopes;
+    xdr::opaque_vec<> scratch;
     for (auto const& e : envs)
     {
         auto const& qHash =
@@ -78,10 +79,9 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
 
         std::string nodeIDStrKey = KeyUtils::toStrKey(e.statement.nodeID);
 
-        auto envelopeBytes(xdr::xdr_to_opaque(e));
-
+        xdr::xdr_to_opaque(scratch, e);
         std::string envelopeEncoded;
-        envelopeEncoded = decoder::encode_b64(envelopeBytes);
+        envelopeEncoded = decoder::encode_b64(scratch);
 
         nodeIDs.push_back(nodeIDStrKey);
         seqs.push_back(seq);
@@ -199,10 +199,10 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         }
         else
         {
-            auto qSetBytes(xdr::xdr_to_opaque(*p.second));
+            xdr::xdr_to_opaque(scratch, *p.second);
 
             std::string qSetEncoded;
-            qSetEncoded = decoder::encode_b64(qSetBytes);
+            qSetEncoded = decoder::encode_b64(scratch);
 
             auto prepInsQSet = db.getPreparedStatement(
                 "INSERT INTO scpquorums "

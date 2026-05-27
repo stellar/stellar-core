@@ -1956,14 +1956,17 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
     SHA256 hasher;
+    xdr::opaque_vec<> scratch;
     std::map<NodeID, QuorumTracker::NodeInfo> ordered_map(qmap.begin(),
                                                           qmap.end());
     for (auto const& pair : ordered_map)
     {
-        hasher.add(xdr::xdr_to_opaque(pair.first));
+        xdr::xdr_to_opaque(scratch, pair.first);
+        hasher.add(scratch);
         if (pair.second.mQuorumSet)
         {
-            hasher.add(xdr::xdr_to_opaque(*(pair.second.mQuorumSet)));
+            xdr::xdr_to_opaque(scratch, *(pair.second.mQuorumSet));
+            hasher.add(scratch);
         }
         else
         {
