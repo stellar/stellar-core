@@ -7550,6 +7550,96 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
     REQUIRE(!wasmsAreCached(*app, contractHashes));
 }
 
+TEST_CASE("module cache rebuild on incremental wasm uploads",
+          "[soroban][modulecache]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+
+    // This test uses/tests/requires the reusable module cache.
+    if (!protocolVersionStartsFrom(
+            cfg.LEDGER_PROTOCOL_VERSION,
+            REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION))
+        return;
+
+    std::vector<RustBuf> initialWasms = {rust_bridge::get_test_wasm_add_i32(),
+                                         rust_bridge::get_test_wasm_sum_i32()};
+    std::vector<RustBuf> additionalWasms = {
+        rust_bridge::get_test_wasm_err(),
+        rust_bridge::get_test_wasm_contract_data(),
+        rust_bridge::get_test_wasm_complex(),
+        rust_bridge::get_test_wasm_loadgen()};
+
+    std::vector<Hash> initialHashes;
+    for (auto const& wasm : initialWasms)
+    {
+        initialHashes.push_back(sha256(wasm));
+    }
+
+    // Populate persistent DB with an initial set of wasm entries.
+    {
+        SorobanTest stest(cfg);
+        for (auto const& wasm : initialWasms)
+        {
+            stest.deployWasmContract(wasm);
+        }
+        REQUIRE(wasmsAreCached(stest.getApp(), initialHashes));
+    }
+
+    // Restart and verify startup compilation rebuilt cache from the DB state.
+    auto app = createTestApplication(clock, cfg, false, true);
+    REQUIRE(wasmsAreCached(*app, initialHashes));
+
+    auto& metrics = app->getLedgerManager().getSorobanMetrics();
+    auto rebuildBytesAtStartup = metrics.mModuleCacheRebuildBytes.count();
+    REQUIRE(rebuildBytesAtStartup > 0);
+
+    auto uploader = app->getRoot();
+    auto uploadWasm = [&](RustBuf const& wasm) {
+        auto uploadResources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(*app));
+        auto uploadTx = makeSorobanWasmUploadTx(*app, *uploader, wasm,
+                                                uploadResources, 1000);
+        auto txResults = closeLedger(*app, {uploadTx});
+        REQUIRE(txResults.results.size() == 1);
+        REQUIRE(isSuccessResult(txResults.results[0].result));
+    };
+
+    uint64_t uploadedRawBeforeTrigger = 0;
+    uint64_t uploadedRawAtTrigger = 0;
+    uint64_t uploadedRawBytes = 0;
+    bool rebuilt = false;
+
+    for (auto const& wasm : additionalWasms)
+    {
+        uploadedRawBeforeTrigger = uploadedRawBytes;
+        uploadWasm(wasm);
+        uploadedRawBytes += wasm.data.size();
+
+        // If a rebuild was started by this upload, it completes on next
+        // ledger close at apply start.
+        closeLedger(*app);
+
+        if (metrics.mModuleCacheRebuildBytes.count() != rebuildBytesAtStartup)
+        {
+            rebuilt = true;
+            uploadedRawAtTrigger = uploadedRawBytes;
+            break;
+        }
+    }
+
+    REQUIRE(rebuilt);
+
+    // maybeRebuildModuleCache rebuilds when current cache bytes exceed
+    // 2 * bytes from the previous full rebuild. Since this test starts from a
+    // freshly rebuilt cache, that means a rebuild should start after crossing
+    // roughly one rebuild's worth of additional wasm bytes.
+    REQUIRE(uploadedRawBeforeTrigger <=
+            static_cast<uint64_t>(rebuildBytesAtStartup));
+    REQUIRE(uploadedRawAtTrigger >
+            static_cast<uint64_t>(rebuildBytesAtStartup));
+}
+
 TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
 {
     VirtualClock clock;
@@ -7583,6 +7673,20 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     int moduleCacheProtocolCount =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION -
         static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) + 1;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Note: depending on the state of vnext over in soroban_module_cache.rs, we
+    // sometimes direct the next protocol version to another copy of the current
+    // protocol (i.e. v27 just points to the v26 host). If this happens, this
+    // test will break, and you'll need to uncomment the following line of code
+    // to subtract an additional 1 to account for the fact that the next
+    // protocol version doesn't actually add to the module cache count.
+    //
+    // On the other hand, sometimes vnext is configured to point to an actual
+    // work-in-progress next host, in which case there _is_ a separate module
+    // cache and the following line of code should be commented-out.
+    //
+    // moduleCacheProtocolCount -= 1;
+#endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
                 .mModuleCacheNumEntries.count() ==
