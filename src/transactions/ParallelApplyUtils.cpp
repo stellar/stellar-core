@@ -138,17 +138,14 @@ readOnlyPreParallelApplyRange(AppConnector& app,
                               size_t begin, size_t end,
                               SorobanNetworkConfig const& sorobanConfig)
 {
-    snapshot.executeWithMaybeInnerSnapshot(
-        [&](CheckValidLedgerViewWrapper const& ls) {
-            for (size_t i = begin; i < end; ++i)
-            {
-                auto const& txBundle = *txBundles.at(i);
-                txBundle.getTx()->preParallelApplyReadOnly(
-                    app, ls, txBundle.getEffects().getMeta(),
-                    txBundle.getResPayload(), sorobanConfig,
-                    txBundle.getEffects().getParallelPreApplyInfo());
-            }
-        });
+    CheckValidLedgerViewWrapper ls(snapshot.asImmutableView());
+    for (size_t i = begin; i < end; ++i)
+    {
+        auto const& txBundle = *txBundles.at(i);
+        txBundle.getTx()->preParallelApplyReadOnly(
+            app, ls, txBundle.getEffects().getMeta(), txBundle.getResPayload(),
+            sorobanConfig, txBundle.getEffects().getParallelPreApplyInfo());
+    }
 }
 
 bool
@@ -445,26 +442,24 @@ GlobalParallelApplyLedgerState::
     {
         std::vector<TxBundle const*> txBundles;
         CheckValidLedgerViewWrapper current(ltx);
-        mLCLApplyView.executeWithMaybeInnerSnapshot(
-            [&](CheckValidLedgerViewWrapper const& previous) {
-                for (auto const& stage : stages)
+        CheckValidLedgerViewWrapper previous(mLCLApplyView.asImmutableView());
+        for (auto const& stage : stages)
+        {
+            for (auto const& txBundle : stage)
+            {
+                if (requiresSequentialPreParallelApply(current, previous,
+                                                       *txBundle.getTx()))
                 {
-                    for (auto const& txBundle : stage)
-                    {
-                        if (requiresSequentialPreParallelApply(
-                                current, previous, *txBundle.getTx()))
-                        {
-                            txBundle.getTx()->preParallelApply(
-                                app, ltx, txBundle.getEffects().getMeta(),
-                                txBundle.getResPayload(), mSorobanConfig);
-                        }
-                        else
-                        {
-                            txBundles.emplace_back(&txBundle);
-                        }
-                    }
+                    txBundle.getTx()->preParallelApply(
+                        app, ltx, txBundle.getEffects().getMeta(),
+                        txBundle.getResPayload(), mSorobanConfig);
                 }
-            });
+                else
+                {
+                    txBundles.emplace_back(&txBundle);
+                }
+            }
+        }
 
         readOnlyPreParallelApply(app, txBundles);
         commitBufferedPreParallelApplyWrites(app, ltx, txBundles);
