@@ -195,6 +195,7 @@ scp.timing.nominated                      | timer     | time spent in nomination
 scp.timing.externalized                   | timer     | time spent in ballot protocol
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes
+scp.trigger.prepare-start-fallback        | meter     | experimental trigger timer fell back from the network-close-time anchor to the local prepare-start anchor
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
