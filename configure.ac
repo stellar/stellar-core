@@ -97,10 +97,24 @@ AX_APPEND_COMPILE_FLAGS($WFLAGS)
 AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_LANG_POP(C)
 
-AC_ARG_ENABLE(unified-rust-unsafe-for-production,
-    AS_HELP_STRING([--enable-unified-rust-unsafe-for-production],
-        [Build rust crates as a single cargo library, risking version drift]))
-AM_CONDITIONAL(UNIFIED_RUST, [test "x$enable_unified_rust_unsafe_for_production" = "xyes"])
+AC_ARG_ENABLE(fastdev-unsafe-for-production,
+    AS_HELP_STRING([--enable-fastdev-unsafe-for-production],
+        [Build in fast development mode UNSAFE FOR PRODUCTION]))
+AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
+  AC_MSG_NOTICE([enabling fastdev build profile UNSAFE FOR PRODUCTION])
+  fastdev_cxx_version=`$CXX --version 2>/dev/null`
+  case "$fastdev_cxx_version" in
+    *clang*)
+      CXXFLAGS="$CXXFLAGS -gline-tables-only"
+      AC_MSG_NOTICE([added -gline-tables-only to CXXFLAGS])
+      ;;
+    *)
+      AC_MSG_ERROR([fastdev build requires clang compiler])
+      ;;
+  esac
+])
+AM_CONDITIONAL(ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION,
+    [test "x$enable_fastdev_unsafe_for_production" = "xyes"])
 
 unset sanitizeopts
 
@@ -110,8 +124,8 @@ AC_ARG_ENABLE([asan],
 AS_IF([test "x$enable_asan" = "xyes"], [
   AC_MSG_NOTICE([ Enabling asan, see https://clang.llvm.org/docs/AddressSanitizer.html ])
 
-  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
-    AC_MSG_WARN(Asan will not instrument rust without --enable-unified-rust-unsafe-for-production)
+  AS_IF([test "xyes" != "x$enable_fastdev_unsafe_for_production"], [
+    AC_MSG_WARN(Asan will not instrument rust without --enable-fastdev-unsafe-for-production)
   ])
 
   sanitizeopts="address"
@@ -134,8 +148,8 @@ AC_ARG_ENABLE([threadsanitizer],
 AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
   AC_MSG_NOTICE([ enabling thread-sanitizer, see https://clang.llvm.org/docs/ThreadSanitizer.html ])
 
-  AS_IF([test "xyes" != "x$enable_unified_rust_unsafe_for_production"], [
-    AC_MSG_ERROR(Enabling tsan requires --enable-unified-rust-unsafe-for-production)
+  AS_IF([test "xyes" != "x$enable_fastdev_unsafe_for_production"], [
+    AC_MSG_ERROR(Enabling tsan requires --enable-fastdev-unsafe-for-production)
   ])
   AS_IF([test x != "x$sanitizeopts"], [
     AC_MSG_ERROR(Cannot enable multiple sanitizers at once)
