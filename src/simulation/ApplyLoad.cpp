@@ -346,8 +346,7 @@ logPhaseTimingsTable(
 }
 
 void
-logTxSetBuildTimingsTable(
-    std::vector<TxSetBuildPhaseTimings> const& allTimings)
+logTxSetBuildTimingsTable(std::vector<TxSetBuildPhaseTimings> const& allTimings)
 {
     if (allTimings.empty())
     {
@@ -366,11 +365,9 @@ logTxSetBuildTimingsTable(
 
     auto total = extract(&TxSetBuildPhaseTimings::totalMs);
     auto trimClassic = extract(&TxSetBuildPhaseTimings::trimInvalidClassicMs);
-    auto surgeClassic =
-        extract(&TxSetBuildPhaseTimings::surgePricingClassicMs);
+    auto surgeClassic = extract(&TxSetBuildPhaseTimings::surgePricingClassicMs);
     auto trimSoroban = extract(&TxSetBuildPhaseTimings::trimInvalidSorobanMs);
-    auto surgeSoroban =
-        extract(&TxSetBuildPhaseTimings::surgePricingSorobanMs);
+    auto surgeSoroban = extract(&TxSetBuildPhaseTimings::surgePricingSorobanMs);
     auto parallelBuild =
         extract(&TxSetBuildPhaseTimings::buildParallelSorobanPhaseMs);
     auto buildApplicable =
@@ -425,12 +422,11 @@ logTxSetBuildTimingsTable(
         "Tx-set build timing breakdown ({} ledgers, all values in ms):", n);
     CLOG_WARNING(
         Perf, "{:<28s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}",
-        "phase", "mean", "stddev", "median", "p25", "p75", "p95",
-        "p99");
+        "phase", "mean", "stddev", "median", "p25", "p75", "p95", "p99");
     CLOG_WARNING(
         Perf,
-        "{:-<28s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s}",
-        "", "", "", "", "", "", "", "");
+        "{:-<28s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s} {:->8s}", "",
+        "", "", "", "", "", "", "");
     for (auto const& r : rows)
     {
         CLOG_WARNING(Perf,
@@ -1129,9 +1125,8 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                        bool recordSorobanUtilization,
                        TxSetBuildPhaseTimings* txSetBuildTimings)
 {
-    auto txSet =
-        makeTxSetFromTransactions(txs, mApp, 0, 0, false, {},
-                                  txSetBuildTimings);
+    auto txSet = makeTxSetFromTransactions(txs, mApp, 0, 0, false, {},
+                                           txSetBuildTimings);
 
     if (recordSorobanUtilization)
     {
@@ -2087,10 +2082,9 @@ ApplyLoad::benchmarkModelTx()
 }
 
 double
-ApplyLoad::benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
-                                           uint32_t txsPerLedger,
-                                           TxSetBuildPhaseTimings*
-                                               txSetBuildTimings)
+ApplyLoad::benchmarkModelTxTpsSingleLedger(
+    ApplyLoadModelTx modelTx, uint32_t txsPerLedger,
+    TxSetBuildPhaseTimings* txSetBuildTimings)
 {
     auto& totalTxApplyTimer =
         mApp.getConfig().APPLY_LOAD_TIME_WRITES

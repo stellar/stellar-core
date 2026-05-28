@@ -415,7 +415,8 @@ class TxSetPhaseFrame
     // Creates a new phase from `TransactionPhase` XDR coming from a
     // `GeneralizedTransactionSet`.
     // maxThreads specifies the maximum number of threads to use for parallel
-    // TxFrame creation (typically from soroban config ledgerMaxDependentTxClusters).
+    // TxFrame creation (typically from soroban config
+    // ledgerMaxDependentTxClusters).
     static std::optional<TxSetPhaseFrame>
     makeFromWire(TxSetPhase phase, Hash const& networkID,
                  TransactionPhase const& xdrPhase, size_t maxThreads);

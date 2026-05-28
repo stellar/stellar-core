@@ -393,8 +393,8 @@ LiveBucket::convertToBucketEntry(bool useInit,
     {
         BucketEntryType type;
         // Exactly one of these is non-null.
-        LedgerEntry const* livePtr;  // for INITENTRY / LIVEENTRY
-        LedgerKey const* deadPtr;    // for DEADENTRY
+        LedgerEntry const* livePtr; // for INITENTRY / LIVEENTRY
+        LedgerKey const* deadPtr;   // for DEADENTRY
     };
 
     size_t totalSize =
@@ -653,9 +653,8 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
 
     {
         ZoneNamedN(zoneMerge, "mergeInMemory merge", true);
-        mergeInternal(bucketManager, inputSource, putFunc,
-                      maxProtocolVersion, mc, shadowIterators,
-                      keepShadowedLifecycleEntries);
+        mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion,
+                      mc, shadowIterators, keepShadowedLifecycleEntries);
     }
 
     if (countMergeEvents)

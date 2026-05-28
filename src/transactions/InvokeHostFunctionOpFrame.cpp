@@ -19,8 +19,8 @@
 
 #include "ledger/LedgerTxnImpl.h"
 #include "rust/CppShims.h"
-#include "xdr/Stellar-transaction.h"
 #include "util/BitSet.h"
+#include "xdr/Stellar-transaction.h"
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
@@ -84,9 +84,9 @@ getCachedLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
     if (!cachedLedgerSeq || *cachedLedgerSeq != ledgerSeq)
     {
         cachedLedgerSeq = ledgerSeq;
-        cachedLedgerInfo = buildLedgerInfo(sorobanConfig, ledgerVersion,
-                                           ledgerSeq, baseReserve, closeTime,
-                                           networkID);
+        cachedLedgerInfo =
+            buildLedgerInfo(sorobanConfig, ledgerVersion, ledgerSeq,
+                            baseReserve, closeTime, networkID);
     }
 
     releaseAssertOrThrow(cachedLedgerInfo);
@@ -648,9 +648,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         BitSet rwKeyCovered(rwKeys.size());
         size_t numCreatedSorobanEntries = 0;
         size_t numCreatedTTLEntries = 0;
-        bool const allowClassicCreations =
-            protocolVersionStartsFrom(getLedgerVersion(),
-                                      ProtocolVersion::V_26);
+        bool const allowClassicCreations = protocolVersionStartsFrom(
+            getLedgerVersion(), ProtocolVersion::V_26);
 
         for (auto const& buf : out.modified_ledger_entries)
         {
@@ -741,11 +740,9 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             }
         }
 
-
         // Verify that each newly created Soroban entry has a corresponding
         // newly created TTL entry (1:1 pairing guaranteed by the host).
-        releaseAssertOrThrow(numCreatedSorobanEntries ==
-                             numCreatedTTLEntries);
+        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
 
         // Erase every entry not returned.
         // NB: The entries that haven't been touched are passed through
@@ -886,11 +883,12 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
 
         // Streaming SHA256 calculation of xdrSha256(success)
-        // This avoids round-trip serialization of the potentially large `InvokeHostFunctionSuccessPreImage`
-        // struct, which is significant for large return values or many contract events.
+        // This avoids round-trip serialization of the potentially large
+        // `InvokeHostFunctionSuccessPreImage` struct, which is significant for
+        // large return values or many contract events.
         //
-        // The structure being hashed is `InvokeHostFunctionSuccessPreImage`, defined as:
-        // struct InvokeHostFunctionSuccessPreImage {
+        // The structure being hashed is `InvokeHostFunctionSuccessPreImage`,
+        // defined as: struct InvokeHostFunctionSuccessPreImage {
         //     SCVal returnValue;
         //     ContractEvent events<>;
         // };
@@ -902,7 +900,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         //    - [ContractEvent, ContractEvent, ...]
 
         SHA256 hasher;
-        
+
         // 1. Add returnValue (SCVal)
         // out.result_value.data is already the XDR encoded bytes of returnValue
         hasher.add(out.result_value.data);
@@ -1077,9 +1075,9 @@ class InvokeHostFunctionPreV23ApplyHelper
     {
         auto hdr = mLtx.loadHeader();
         auto const& lh = hdr.current();
-        return getCachedLedgerInfo(
-            mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, mApp.getNetworkID());
+        return getCachedLedgerInfo(mSorobanConfig, lh.ledgerVersion,
+                                   lh.ledgerSeq, lh.baseReserve,
+                                   lh.scpValue.closeTime, mApp.getNetworkID());
     }
 
   public:

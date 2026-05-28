@@ -744,9 +744,8 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
 
         TTLData wrongTTL(42, 1);
         modifiedState.mContractDataEntries.erase(it);
-        modifiedState.mContractDataEntries.emplace(
-            InternalContractDataMapEntry(entryCopy, wrongTTL,
-                                         entryData.sizeBytes));
+        modifiedState.mContractDataEntries.emplace(InternalContractDataMapEntry(
+            entryCopy, wrongTTL, entryData.sizeBytes));
 
         auto result =
             invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);

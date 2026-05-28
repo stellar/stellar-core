@@ -92,8 +92,7 @@ FeeBumpTransactionFrame::preParallelApply(
     {
         ParallelPreApplyInfo info;
         LedgerSnapshot ls(ltx);
-        preParallelApplyReadOnly(app, ls, meta, txResult, sorobanConfig,
-                                 info);
+        preParallelApplyReadOnly(app, ls, meta, txResult, sorobanConfig, info);
         preParallelApplyWrite(app, ltx, meta, info);
     }
     catch (std::exception& e)
@@ -110,8 +109,7 @@ void
 FeeBumpTransactionFrame::preParallelApplyReadOnly(
     AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
-    SorobanNetworkConfig const& sorobanConfig,
-    ParallelPreApplyInfo& info) const
+    SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
 {
     try
     {

@@ -313,8 +313,7 @@ template <StaticLedgerEntryScope S> class ScopedLedgerEntryOpt
     // Move the entry out of the scoped wrapper, leaving it in a moved-from
     // state. This is only safe when the scoped state will not be accessed
     // again (e.g., during final consumption of a GlobalParallelApplyState).
-    std::optional<LedgerEntry>
-    moveFromScope(LedgerEntryScope<S> const& scope);
+    std::optional<LedgerEntry> moveFromScope(LedgerEntryScope<S> const& scope);
 
     bool operator==(ScopedLedgerEntryOpt const& other) const;
     bool operator<(ScopedLedgerEntryOpt const& other) const;
@@ -387,15 +386,13 @@ template <StaticLedgerEntryScope S> class LedgerEntryScope
     void scopeModifyOptionalEntry(
         OptionalEntryT& w,
         std::function<void(std::optional<LedgerEntry>&)> func) const;
-    std::optional<LedgerEntry>
-    scopeMoveOptionalEntry(OptionalEntryT& w) const;
+    std::optional<LedgerEntry> scopeMoveOptionalEntry(OptionalEntryT& w) const;
 
     EntryT scopeAdoptEntry(LedgerEntry&& entry) const;
     EntryT scopeAdoptEntry(LedgerEntry const& entry) const;
     OptionalEntryT
     scopeAdoptEntryOpt(std::optional<LedgerEntry> const& entry) const;
-    OptionalEntryT
-    scopeAdoptEntryOpt(std::optional<LedgerEntry>&& entry) const;
+    OptionalEntryT scopeAdoptEntryOpt(std::optional<LedgerEntry>&& entry) const;
 
     template <StaticLedgerEntryScope OtherScope>
     EntryT
