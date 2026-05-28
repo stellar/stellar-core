@@ -478,7 +478,7 @@ createTxFramesParallel(Hash const& networkID,
         }
         auto tx =
             TransactionFrameBase::makeTransactionFromWire(networkID, xdrTxs[index]);
-        if (!tx->XDRProvidesValidFee())
+        if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
         {
             validationFailed.store(true, std::memory_order_relaxed);
             return;
@@ -1928,7 +1928,7 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
         {
             auto tx = TransactionFrameBase::makeTransactionFromWire(
                 networkID, *allTxs[0].env);
-            if (!tx->XDRProvidesValidFee())
+            if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
             {
                 validationFailed.store(true, std::memory_order_relaxed);
             }
