@@ -2333,8 +2333,8 @@ LedgerManagerImpl::processFeesSeqNums(
         // Cache protocol version to avoid repeated loadHeader() calls
         // in the per-TX loop below.
         auto const cachedLedgerVersion = header.ledgerVersion;
-        bool const isV19OrLater =
-            protocolVersionStartsFrom(cachedLedgerVersion, ProtocolVersion::V_19);
+        bool const isV19OrLater = protocolVersionStartsFrom(
+            cachedLedgerVersion, ProtocolVersion::V_19);
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
 #ifdef BUILD_TESTS
@@ -2368,9 +2368,8 @@ LedgerManagerImpl::processFeesSeqNums(
                     {
                         releaseAssert(*expectedResultsIter !=
                                       expectedResults->results.end());
-                        releaseAssert(
-                            (*expectedResultsIter)->transactionHash ==
-                            tx->getContentsHash());
+                        releaseAssert((*expectedResultsIter)->transactionHash ==
+                                      tx->getContentsHash());
                         txResults.back()->setReplayTransactionResult(
                             (*expectedResultsIter)->result);
 
@@ -2389,8 +2388,8 @@ LedgerManagerImpl::processFeesSeqNums(
                                                        tx->getSeqNum());
                         if (!res.second)
                         {
-                            res.first->second = std::max(
-                                res.first->second, tx->getSeqNum());
+                            res.first->second =
+                                std::max(res.first->second, tx->getSeqNum());
                         }
 
                         if (mergeOpInTx(tx->getRawOperations()))
@@ -3355,21 +3354,18 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // - updateState modifies mInMemorySorobanState
     // All three can run in parallel.
     std::future<void> inMemoryStateUpdateFuture;
-    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
-    {
-        auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
-        auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
 
-        inMemoryStateUpdateFuture = std::async(
-            std::launch::async,
-            [&inMemoryState, &initEntries, &liveEntries, &deadEntries, &lh,
-             &finalSorobanConfig, &sorobanMetrics]() {
-                ZoneScopedN("updateInMemorySorobanState (async)");
-                inMemoryState.updateState(initEntries, liveEntries, deadEntries,
-                                          lh, finalSorobanConfig,
-                                          sorobanMetrics);
-            });
-    }
+    auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
+    auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
+
+    inMemoryStateUpdateFuture = std::async(
+        std::launch::async,
+        [&inMemoryState, &initEntries, &liveEntries, &deadEntries, &lh,
+         &finalSorobanConfig, &sorobanMetrics]() {
+            ZoneScopedN("updateInMemorySorobanState (async)");
+            inMemoryState.updateState(initEntries, liveEntries, deadEntries, lh,
+                                      finalSorobanConfig, sorobanMetrics);
+        });
 
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
