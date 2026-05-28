@@ -581,13 +581,11 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
         throw std::runtime_error("Bucket directory is corrupt");
     }
 
-    // Only restart merges in full startup mode. Many modes in core
-    // (standalone offline commands, in-memory setup) do not need to
-    // spin up expensive merge processes.
     auto assumeStart = mApp.getClock().now();
+    // We don't restart merges here so that in-memory state population is
+    // faster.
     auto assumeStateWork = mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-        has, latestLedgerHeader->ledgerVersion,
-        /* restartMerges */ !skipBuildingFullState);
+        has, latestLedgerHeader->ledgerVersion, /* restartMerges */ false);
     if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
     {
         std::chrono::duration<double> assumeSecs =
@@ -630,6 +628,12 @@ LedgerManagerImpl::loadLastKnownLedgerInternal(bool skipBuildingFullState)
 
         maybeRunSnapshotInvariantFromLedgerState(copyApplyLedgerView(),
                                                  /* runInParallel */ false);
+
+        // Only restart merges in full startup mode. Many modes in core
+        // (standalone offline commands, in-memory setup) do not need to spin up
+        // expensive merge processes.
+        mApp.getBucketManager().restartMerges(
+            mApp, has, latestLedgerHeader->ledgerVersion);
     }
     mApplyState.markEndOfSetupPhase();
 

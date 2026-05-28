@@ -169,9 +169,19 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
         uint32_t ledgerSeq, EvictionMetrics& metrics, EvictionIterator iter,
         std::shared_ptr<EvictionStatistics> stats,
         StateArchivalSettings const& sas, uint32_t ledgerVers) const;
+
+    // Scan the live bucket list for entries of a given type. Note this iterates
+    // over all BucketEntry, so some may be shadowed and outdated.
     void scanLiveEntriesOfType(
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
+
+    // Scan the live bucket list for entries of a given type. Calls callback
+    // with the latest live version for each entry.
+    void scanCurrentLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<void(LedgerEntry const&, LedgerKey const&)> callback)
+        const;
 
     // === Hot Archive BucketList methods ===
     std::shared_ptr<HotArchiveBucketEntry const>
@@ -211,6 +221,7 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::loadLiveKeysFromLedger;
     using ImmutableLedgerView::loadPoolShareTrustLinesByAccountAndAsset;
     using ImmutableLedgerView::scanAllArchiveEntries;
+    using ImmutableLedgerView::scanCurrentLiveEntriesOfType;
     using ImmutableLedgerView::scanForEviction;
     using ImmutableLedgerView::scanLiveEntriesOfType;
 };

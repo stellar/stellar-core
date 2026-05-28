@@ -234,6 +234,13 @@ class SearchableLiveBucketListSnapshot
         LedgerEntryType type,
         std::function<Loop(BucketEntry const&)> callback) const;
 
+    // Iterate over all live entries of a given type. Note that this handles
+    // shadowing and only returns the latest live entry for each key.
+    void scanForLiveEntriesOfType(
+        LedgerEntryType type,
+        std::function<void(LedgerEntry const&, LedgerKey const&)> callback)
+        const;
+
     friend class ImmutableLedgerData;
     friend class ImmutableLedgerView;
 };
