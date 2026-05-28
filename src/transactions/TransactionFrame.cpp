@@ -2161,7 +2161,7 @@ TransactionFrame::commonPreApply(bool chargeFee, AppConnector& app,
 
 std::unique_ptr<SignatureChecker>
 TransactionFrame::commonParallelPreApplyReadOnly(
-    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+    bool chargeFee, AppConnector& app, CheckValidLedgerViewWrapper const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const* sorobanConfig,
     Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
@@ -2201,7 +2201,7 @@ TransactionFrame::commonParallelPreApplyReadOnly(
     auto cv = commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
                           chargeFee, 0, 0, envelopeContentsHash,
                           sorobanResourceFee, txResult,
-                          meta.getDiagnosticEventManager());
+                          meta.getDiagnosticEventManager(), std::nullopt);
     info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
 
     bool signaturesValid =
@@ -2217,7 +2217,7 @@ TransactionFrame::commonParallelPreApplyReadOnly(
 bool
 TransactionFrame::processSignaturesReadOnly(ValidationType cv,
                                             SignatureChecker& signatureChecker,
-                                            LedgerSnapshot const& ls,
+                                            CheckValidLedgerViewWrapper const& ls,
                                             MutableTransactionResultBase& txResult,
                                             ParallelPreApplyInfo& info) const
 {
@@ -2277,7 +2277,7 @@ TransactionFrame::preParallelApply(
 
 void
 TransactionFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig,
     ParallelPreApplyInfo& info) const
@@ -2288,7 +2288,7 @@ TransactionFrame::preParallelApplyReadOnly(
 
 void
 TransactionFrame::preParallelApplyReadOnly(
-    bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+    bool chargeFee, AppConnector& app, CheckValidLedgerViewWrapper const& ls,
     TransactionMetaBuilder& meta, MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig,
     Hash const& envelopeContentsHash, ParallelPreApplyInfo& info) const
@@ -2383,7 +2383,7 @@ TransactionFrame::preParallelApply(bool chargeFee, AppConnector& app,
         releaseAssertOrThrow(isSoroban());
 
         ParallelPreApplyInfo info;
-        LedgerSnapshot ls(ltx);
+        CheckValidLedgerViewWrapper ls(ltx);
         preParallelApplyReadOnly(chargeFee, app, ls, meta, txResult,
                                  sorobanConfig, envelopeContentsHash, info);
         preParallelApplyWrite(app, ltx, meta, info);

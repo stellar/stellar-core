@@ -8343,7 +8343,7 @@ TEST_CASE("protocol 26 parallel apply removes soroban pre-auth signer",
     installOneTimeSigner(test.getApp(), test.getRoot(), source, txSigner);
 
     {
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ls(test.getApp());
         auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
         REQUIRE(sourceAccount);
         REQUIRE(sourceAccount.current().data.account().seqNum ==
@@ -8355,7 +8355,7 @@ TEST_CASE("protocol 26 parallel apply removes soroban pre-auth signer",
     REQUIRE(r.results.size() == 1);
     checkTx(0, r, txSUCCESS);
 
-    LedgerSnapshot ls(test.getApp());
+    CheckValidLedgerViewWrapper ls(test.getApp());
     auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
     REQUIRE(sourceAccount);
     REQUIRE(sourceAccount.current().data.account().seqNum ==
@@ -8405,7 +8405,7 @@ TEST_CASE("protocol 26 parallel apply removes soroban fee bump pre-auth "
                          feeBumpSigner);
 
     {
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ls(test.getApp());
         auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
         auto feeBumpAccount = ls.load(accountKey(feeBumper.getPublicKey()));
         REQUIRE(sourceAccount);
@@ -8422,7 +8422,7 @@ TEST_CASE("protocol 26 parallel apply removes soroban fee bump pre-auth "
     REQUIRE(r.results.size() == 1);
     checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
-    LedgerSnapshot ls(test.getApp());
+    CheckValidLedgerViewWrapper ls(test.getApp());
     auto sourceAccount = ls.load(accountKey(source.getPublicKey()));
     auto feeBumpAccount = ls.load(accountKey(feeBumper.getPublicKey()));
     REQUIRE(sourceAccount);

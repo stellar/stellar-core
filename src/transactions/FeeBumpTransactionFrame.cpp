@@ -91,7 +91,7 @@ FeeBumpTransactionFrame::preParallelApply(
     try
     {
         ParallelPreApplyInfo info;
-        LedgerSnapshot ls(ltx);
+        CheckValidLedgerViewWrapper ls(ltx);
         preParallelApplyReadOnly(app, ls, meta, txResult, sorobanConfig, info);
         preParallelApplyWrite(app, ltx, meta, info);
     }
@@ -107,7 +107,7 @@ FeeBumpTransactionFrame::preParallelApply(
 
 void
 FeeBumpTransactionFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& txResult,
     SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
 {

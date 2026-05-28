@@ -231,7 +231,7 @@ class TransactionFrameBase
                      SorobanNetworkConfig const& sorobanConfig) const = 0;
 
     virtual void
-    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+    preParallelApplyReadOnly(AppConnector& app, CheckValidLedgerViewWrapper const& ls,
                              TransactionMetaBuilder& meta,
                              MutableTransactionResultBase& txResult,
                              SorobanNetworkConfig const& sorobanConfig,

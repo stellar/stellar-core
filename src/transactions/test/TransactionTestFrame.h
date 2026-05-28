@@ -163,7 +163,7 @@ class TransactionTestFrame : public TransactionFrameBase
                      MutableTransactionResultBase& resPayload,
                      SorobanNetworkConfig const& sorobanConfig) const override;
 
-    void preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+    void preParallelApplyReadOnly(AppConnector& app, CheckValidLedgerViewWrapper const& ls,
                                   TransactionMetaBuilder& meta,
                                   MutableTransactionResultBase& resPayload,
                                   SorobanNetworkConfig const& sorobanConfig,

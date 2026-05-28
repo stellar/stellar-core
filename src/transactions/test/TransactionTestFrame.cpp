@@ -135,19 +135,6 @@ TransactionTestFrame::checkValidForOverlay(
     return mTransactionTxResult->clone();
 }
 
-MutableTxResultPtr
-TransactionTestFrame::checkValid(
-    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-    DiagnosticEventManager& diagnosticEvents,
-    SorobanNetworkConfig const* sorobanConfig) const
-{
-    mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        diagnosticEvents, sorobanConfig);
-    return mTransactionTxResult->clone();
-}
-
 bool
 TransactionTestFrame::checkValidForTesting(AppConnector& app,
                                            AbstractLedgerTxn& ltxOuter,
@@ -396,7 +383,7 @@ TransactionTestFrame::preParallelApply(
 
 void
 TransactionTestFrame::preParallelApplyReadOnly(
-    AppConnector& app, LedgerSnapshot const& ls, TransactionMetaBuilder& meta,
+    AppConnector& app, CheckValidLedgerViewWrapper const& ls, TransactionMetaBuilder& meta,
     MutableTransactionResultBase& resPayload,
     SorobanNetworkConfig const& sorobanConfig, ParallelPreApplyInfo& info) const
 {

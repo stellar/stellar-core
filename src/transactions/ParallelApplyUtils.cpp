@@ -133,24 +133,27 @@ getReadWriteKeysForStage(ApplyStage const& stage)
 
 void
 readOnlyPreParallelApplyRange(AppConnector& app,
-                              ApplyLedgerStateSnapshot const& snapshot,
+                              ApplyLedgerView const& snapshot,
                               std::vector<TxBundle const*> const& txBundles,
                               size_t begin, size_t end,
                               SorobanNetworkConfig const& sorobanConfig)
 {
-    LedgerSnapshot ls(snapshot);
-    for (size_t i = begin; i < end; ++i)
-    {
-        auto const& txBundle = *txBundles.at(i);
-        txBundle.getTx()->preParallelApplyReadOnly(
-            app, ls, txBundle.getEffects().getMeta(), txBundle.getResPayload(),
-            sorobanConfig, txBundle.getEffects().getParallelPreApplyInfo());
-    }
+    snapshot.executeWithMaybeInnerSnapshot(
+        [&](CheckValidLedgerViewWrapper const& ls) {
+            for (size_t i = begin; i < end; ++i)
+            {
+                auto const& txBundle = *txBundles.at(i);
+                txBundle.getTx()->preParallelApplyReadOnly(
+                    app, ls, txBundle.getEffects().getMeta(),
+                    txBundle.getResPayload(), sorobanConfig,
+                    txBundle.getEffects().getParallelPreApplyInfo());
+            }
+        });
 }
 
 bool
-isModifiedClassicKey(LedgerSnapshot const& current,
-                     LedgerSnapshot const& previous, LedgerKey const& key)
+isModifiedClassicKey(CheckValidLedgerViewWrapper const& current,
+                     CheckValidLedgerViewWrapper const& previous, LedgerKey const& key)
 {
     if (isSorobanEntry(key))
     {
@@ -168,8 +171,8 @@ isModifiedClassicKey(LedgerSnapshot const& current,
 }
 
 bool
-requiresSequentialPreParallelApply(LedgerSnapshot const& current,
-                                   LedgerSnapshot const& previous,
+requiresSequentialPreParallelApply(CheckValidLedgerViewWrapper const& current,
+                                   CheckValidLedgerViewWrapper const& previous,
                                    TransactionFrameBase const& tx)
 {
     if (isModifiedClassicKey(current, previous, accountKey(tx.getSourceID())) ||
@@ -384,19 +387,19 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 // them are complete.
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
-    AppConnector& app, ApplyLedgerStateSnapshot snapshot,
+    AppConnector& app, ApplyLedgerView snapshot,
     AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mLCLSnapshot(std::move(snapshot))
+    , mLCLApplyView(std::move(snapshot))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
-    releaseAssertOrThrow(mLCLSnapshot.getLedgerSeq() ==
+    releaseAssertOrThrow(mLCLApplyView.getLedgerSeq() ==
                          mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         mLCLSnapshot.getLedgerSeq() + 1);
+                         mLCLApplyView.getLedgerSeq() + 1);
 
     // Pre-reserve global entry map to avoid rehashing as entries accumulate
     // from classic fee processing, Soroban RO pre-loading, and thread commits.
@@ -441,25 +444,27 @@ GlobalParallelApplyLedgerState::
                                   ProtocolVersion::V_26))
     {
         std::vector<TxBundle const*> txBundles;
-        LedgerSnapshot current(ltx);
-        LedgerSnapshot previous(mLCLSnapshot);
-        for (auto const& stage : stages)
-        {
-            for (auto const& txBundle : stage)
-            {
-                if (requiresSequentialPreParallelApply(current, previous,
-                                                       *txBundle.getTx()))
+        CheckValidLedgerViewWrapper current(ltx);
+        mLCLApplyView.executeWithMaybeInnerSnapshot(
+            [&](CheckValidLedgerViewWrapper const& previous) {
+                for (auto const& stage : stages)
                 {
-                    txBundle.getTx()->preParallelApply(
-                        app, ltx, txBundle.getEffects().getMeta(),
-                        txBundle.getResPayload(), mSorobanConfig);
+                    for (auto const& txBundle : stage)
+                    {
+                        if (requiresSequentialPreParallelApply(
+                                current, previous, *txBundle.getTx()))
+                        {
+                            txBundle.getTx()->preParallelApply(
+                                app, ltx, txBundle.getEffects().getMeta(),
+                                txBundle.getResPayload(), mSorobanConfig);
+                        }
+                        else
+                        {
+                            txBundles.emplace_back(&txBundle);
+                        }
+                    }
                 }
-                else
-                {
-                    txBundles.emplace_back(&txBundle);
-                }
-            }
-        }
+            });
 
         readOnlyPreParallelApply(app, txBundles);
         commitBufferedPreParallelApplyWrites(app, ltx, txBundles);
@@ -539,7 +544,7 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
 
     if (workerCount == 1)
     {
-        readOnlyPreParallelApplyRange(app, mLCLSnapshot, txBundles, 0,
+        readOnlyPreParallelApplyRange(app, mLCLApplyView, txBundles, 0,
                                       txBundles.size(), mSorobanConfig);
         return;
     }
@@ -557,7 +562,7 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
         auto const end = begin + chunkSize;
         futures.emplace_back(std::async(
             std::launch::async, readOnlyPreParallelApplyRange, std::ref(app),
-            std::cref(mLCLSnapshot), std::cref(txBundles), begin, end,
+            std::cref(mLCLApplyView), std::cref(txBundles), begin, end,
             std::cref(mSorobanConfig)));
         begin = end;
     }
@@ -677,7 +682,7 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
                     }
                     else
                     {
-                        res = mLCLSnapshot.loadLiveEntry(lk);
+                        res = mLCLApplyView.loadLiveEntry(lk);
                     }
 
                     if (res)
@@ -699,7 +704,7 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
                             }
                             else
                             {
-                                ttlRes = mLCLSnapshot.loadLiveEntry(ttlKey);
+                                ttlRes = mLCLApplyView.loadLiveEntry(ttlKey);
                             }
                             if (ttlRes)
                             {
@@ -989,7 +994,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    , mLCLSnapshot(global.mLCLSnapshot)
+    , mLCLApplyView(global.mLCLApplyView)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -1114,7 +1119,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mLCLSnapshot.loadLiveEntry(key);
+        res = mLCLApplyView.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -1270,10 +1275,10 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-ApplyLedgerStateSnapshot const&
+ApplyLedgerView const&
 ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mLCLSnapshot;
+    return mLCLApplyView;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&

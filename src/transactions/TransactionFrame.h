@@ -310,7 +310,7 @@ class TransactionFrame : public TransactionFrameBase
                    Hash const& envelopeContentsHash) const;
 
     std::unique_ptr<SignatureChecker> commonParallelPreApplyReadOnly(
-        bool chargeFee, AppConnector& app, LedgerSnapshot const& ls,
+        bool chargeFee, AppConnector& app, CheckValidLedgerViewWrapper const& ls,
         TransactionMetaBuilder& meta,
         MutableTransactionResultBase& txResult,
         SorobanNetworkConfig const* sorobanConfig,
@@ -319,7 +319,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool processSignaturesReadOnly(ValidationType cv,
                                    SignatureChecker& signatureChecker,
-                                   LedgerSnapshot const& ls,
+                                   CheckValidLedgerViewWrapper const& ls,
                                    MutableTransactionResultBase& txResult,
                                    ParallelPreApplyInfo& info) const;
 
@@ -330,7 +330,7 @@ class TransactionFrame : public TransactionFrameBase
                           Hash const& envelopeContentsHash) const;
 
     void preParallelApplyReadOnly(bool chargeFee, AppConnector& app,
-                                  LedgerSnapshot const& ls,
+                                  CheckValidLedgerViewWrapper const& ls,
                                   TransactionMetaBuilder& meta,
                                   MutableTransactionResultBase& txResult,
                                   SorobanNetworkConfig const& sorobanConfig,
@@ -344,7 +344,7 @@ class TransactionFrame : public TransactionFrameBase
                      SorobanNetworkConfig const& sorobanConfig) const override;
 
     void
-    preParallelApplyReadOnly(AppConnector& app, LedgerSnapshot const& ls,
+    preParallelApplyReadOnly(AppConnector& app, CheckValidLedgerViewWrapper const& ls,
                              TransactionMetaBuilder& meta,
                              MutableTransactionResultBase& txResult,
                              SorobanNetworkConfig const& sorobanConfig,

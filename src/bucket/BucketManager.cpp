@@ -1191,10 +1191,9 @@ BucketManager::resolveBackgroundEvictionScan(
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
     auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
-    auto ls = LedgerSnapshot(ltx);
-    auto ledgerSeq = ls.getLedgerHeader().current().ledgerSeq;
-    auto ledgerVers = ls.getLedgerHeader().current().ledgerVersion;
-    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ls);
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    auto ledgerVers = ltx.loadHeader().current().ledgerVersion;
+    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ltx);
     releaseAssert(ledgerSeq == lclApplyView.getLedgerSeq() + 1);
 
     if (!mEvictionFuture.valid())
