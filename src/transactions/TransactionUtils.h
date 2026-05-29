@@ -381,30 +381,33 @@ toCxxBuf(T const& t)
     return CxxBuf{std::move(v)};
 }
 
-//! Decode an XDR value out of a byte container (e.g. \c rust::Vec<uint8_t>
-//! returned by the soroban host) using the shared-buffer decoder: the
-//! bytes are copied once into a freshly-allocated \c shared_ptr buffer,
-//! then any \c shared_bytes / \c opaque_vec fields in the decoded value
-//! alias into that buffer rather than each allocating their own. Saves
-//! one per-field allocation for every variable-length opaque<> field
-//! that exceeds the inline threshold.
+//! Decode an XDR value out of a byte container returned by the soroban
+//! host (e.g. \c rust::Vec<uint8_t>) using the shared-buffer decoder.
+//!
+//! The caller surrenders ownership of \c src; we move it into a
+//! reference-counted holder and hand the decoder a \c shared_ptr that
+//! aliases the holder's bytes via the aliasing constructor. The
+//! resulting decoded value's \c shared_bytes fields share that holder
+//! — no payload memcpy and no extra byte buffer alongside the original
+//! one. The holder (and the Rust-side allocation it owns) is released
+//! when the last refcount drops.
 template <typename Bytes, typename T>
 void
-xdrFromHostBytes(Bytes const& src, T& out)
+xdrFromHostBytes(Bytes&& src, T& out)
 {
+    using Holder = std::remove_cv_t<std::remove_reference_t<Bytes>>;
     std::size_t n = src.size();
     if (n == 0)
     {
-        // The xdr_get constructor still validates alignment; an empty
-        // payload is a malformed XDR record but we surface it the same
-        // way the regular decoder would (truncation / size mismatch).
         xdr::xdr_get g(nullptr, nullptr);
         xdr::xdr_argpack_archive(g, out);
         g.done();
         return;
     }
-    std::shared_ptr<std::uint8_t[]> buf(new std::uint8_t[n]);
-    std::memcpy(buf.get(), src.data(), n);
+    auto holder = std::make_shared<Holder>(std::forward<Bytes>(src));
+    std::shared_ptr<std::uint8_t[]> buf(
+        holder, const_cast<std::uint8_t*>(
+                    reinterpret_cast<std::uint8_t const*>(holder->data())));
     xdr::xdr_from_opaque_shared(std::move(buf), n, out);
 }
 

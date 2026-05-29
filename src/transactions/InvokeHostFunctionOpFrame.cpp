@@ -110,17 +110,17 @@ metricsEvent(bool success, std::string&& topic, uint64_t value)
 
 void
 maybePopulateOutputDiagnosticEvents(Config const& cfg,
-                                    InvokeHostFunctionOutput const& output,
+                                    InvokeHostFunctionOutput& output,
                                     DiagnosticEventManager& buffer)
 {
     if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
         return;
     }
-    for (auto const& e : output.diagnostic_events)
+    for (auto& e : output.diagnostic_events)
     {
         DiagnosticEvent evt;
-        xdrFromHostBytes(e.data, evt);
+        xdrFromHostBytes(std::move(e.data), evt);
         buffer.pushEvent(std::move(evt));
     }
 }
@@ -304,6 +304,12 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     std::vector<p23_hot_archive_bug::Protocol23CorruptionEventReconciler::
                     SACReconciliationInfo>
         mProtocol23SACReconciliationEvents;
+
+    // Hash of the XDR-encoded \c InvokeHostFunctionSuccessPreImage,
+    // computed in \c collectEvents from the original host-returned bytes
+    // before they are moved into the decoder. Consumed in
+    // \c finalizeSuccess. Empty when no success has been computed yet.
+    Hash mSuccessPreImageHash;
 
     InvokeHostFunctionApplyHelper(
         AppConnector& app, Hash const& sorobanBasePrngSeed,
@@ -638,7 +644,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
     bool
-    recordStorageChanges(InvokeHostFunctionOutput const& out)
+    recordStorageChanges(InvokeHostFunctionOutput& out)
     {
         ZoneScoped;
         // Track which RW footprint keys appear in the host output without
@@ -651,23 +657,22 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         bool const allowClassicCreations = protocolVersionStartsFrom(
             getLedgerVersion(), ProtocolVersion::V_26);
 
-        for (auto const& buf : out.modified_ledger_entries)
+        for (auto& buf : out.modified_ledger_entries)
         {
+            uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
             LedgerEntry le;
-            xdrFromHostBytes(buf.data, le);
+            xdrFromHostBytes(std::move(buf.data), le);
             auto lk = LedgerEntryKey(le);
             size_t matchedRwKey = rwKeys.size();
             size_t relatedRwKey = rwKeys.size();
             if (!validateContractLedgerEntry(
-                    lk, buf.data.size(), mSorobanConfig, mAppConfig,
+                    lk, entrySize, mSorobanConfig, mAppConfig,
                     mOpFrame.mParentTx, mDiagnosticEvents))
             {
                 mOpFrame.innerResult(mRes).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
-
-            uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
 
             for (size_t j = 0; j < rwKeys.size(); ++j)
             {
@@ -767,14 +772,29 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
     bool
-    collectEvents(InvokeHostFunctionOutput const& out,
+    collectEvents(InvokeHostFunctionOutput& out,
                   InvokeHostFunctionSuccessPreImage& success)
     {
         ZoneScoped;
+        // Compute the streaming SHA256 of the XDR encoding of
+        // \c InvokeHostFunctionSuccessPreImage upfront, before the
+        // host-returned event payloads are moved into the decoder. The
+        // preimage XDR is [returnValue bytes][events count][events bytes...].
+        SHA256 hasher;
+        hasher.add(out.result_value.data);
+        uint32_t eventsSizeNet =
+            htonl(static_cast<uint32_t>(out.contract_events.size()));
+        hasher.add(ByteSlice(&eventsSizeNet, sizeof(eventsSizeNet)));
+        for (auto const& buf : out.contract_events)
+        {
+            hasher.add(buf.data);
+        }
+        mSuccessPreImageHash = hasher.finish();
+
         // We collect the events into a preimage that will be hashed
         // into the ledger.
         success.events.reserve(out.contract_events.size());
-        for (auto const& buf : out.contract_events)
+        for (auto& buf : out.contract_events)
         {
             mMetrics.mEmitEvent++;
             uint32_t eventSize = static_cast<uint32_t>(buf.data.size());
@@ -795,8 +815,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
             ContractEvent evt;
-            xdrFromHostBytes(buf.data, evt);
-            success.events.emplace_back(evt);
+            xdrFromHostBytes(std::move(buf.data), evt);
+            success.events.emplace_back(std::move(evt));
         }
 
         mMetrics.mEmitEventByte +=
@@ -876,48 +896,18 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     }
 
     void
-    finalizeSuccess(InvokeHostFunctionOutput const& out,
+    finalizeSuccess(InvokeHostFunctionOutput& out,
                     InvokeHostFunctionSuccessPreImage& success)
     {
-        xdrFromHostBytes(out.result_value.data, success.returnValue);
+        xdrFromHostBytes(std::move(out.result_value.data), success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
 
-        // Streaming SHA256 calculation of xdrSha256(success)
-        // This avoids round-trip serialization of the potentially large
-        // `InvokeHostFunctionSuccessPreImage` struct, which is significant for
-        // large return values or many contract events.
-        //
-        // The structure being hashed is `InvokeHostFunctionSuccessPreImage`,
-        // defined as: struct InvokeHostFunctionSuccessPreImage {
-        //     SCVal returnValue;
-        //     ContractEvent events<>;
-        // };
-        //
-        // XDR encoding of this struct is:
-        // 1. returnValue (SCVal)
-        // 2. events (array of ContractEvent)
-        //    - length (uint32)
-        //    - [ContractEvent, ContractEvent, ...]
-
-        SHA256 hasher;
-
-        // 1. Add returnValue (SCVal)
-        // out.result_value.data is already the XDR encoded bytes of returnValue
-        hasher.add(out.result_value.data);
-
-        // 2. Add events length (uint32)
-        uint32_t eventsSize = static_cast<uint32_t>(out.contract_events.size());
-        uint32_t eventsSizeNet = htonl(eventsSize);
-        hasher.add(ByteSlice(&eventsSizeNet, sizeof(eventsSizeNet)));
-
-        // 3. Add each event
-        for (auto const& buf : out.contract_events)
-        {
-            // buf.data is already the XDR encoded bytes of the ContractEvent
-            hasher.add(buf.data);
-        }
-
-        mOpFrame.innerResult(mRes).success() = hasher.finish();
+        // The contents hash (streaming SHA256 of the XDR encoding of
+        // \c InvokeHostFunctionSuccessPreImage) was computed up-front in
+        // \c collectEvents — the host-returned event and return-value
+        // payloads have been moved into the decoder by this point, so
+        // they are no longer available for hashing here.
+        mOpFrame.innerResult(mRes).success() = mSuccessPreImageHash;
 
         // success.events is moved in setEvents, so don't use it after this
         // call.
