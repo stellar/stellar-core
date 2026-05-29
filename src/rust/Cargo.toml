@@ -197,7 +197,8 @@ rev = "f67e9e2f080c2cc1a332d894c42277c64845e257"
 # Turn on the optional fastdev build. This is typically only useful in an IDE or when
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
 fastdev = ["dep:soroban-env-host-p26",
-           "dep:soroban-env-host-p27"]
+           "dep:soroban-env-host-p27",
+           "next"]
 
 tracy = ["dep:tracy-client"]
 
