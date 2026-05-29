@@ -15,6 +15,12 @@ concurrency:
 
 jobs:
 
+  injected-bad-idea:
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-small
+    steps:
+      - run: echo "This job should never run, but it is here to test whose workflow runs"
+
   complete:
     if: always()
     needs: [static-checks, build-linux, build-mac]
