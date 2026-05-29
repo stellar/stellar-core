@@ -278,6 +278,13 @@ ScopedLedgerEntryOpt<S>::modifyInScope(
 }
 
 template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+ScopedLedgerEntryOpt<S>::moveFromScope(LedgerEntryScope<S> const& scope)
+{
+    return scope.scopeMoveOptionalEntry(*this);
+}
+
+template <StaticLedgerEntryScope S>
 bool
 ScopedLedgerEntryOpt<S>::operator==(ScopedLedgerEntryOpt<S> const& other) const
 {
@@ -396,6 +403,19 @@ LedgerEntryScope<S>::scopeModifyOptionalEntry(
 }
 
 template <StaticLedgerEntryScope S>
+std::optional<LedgerEntry>
+LedgerEntryScope<S>::scopeMoveOptionalEntry(ScopedLedgerEntryOpt<S>& w) const
+{
+    if (w.mScopeID != mScopeID)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeMoveOptionalEntry: scope ID '{}' != entry scope ID '{}'",
+            mScopeID, w.mScopeID));
+    }
+    return std::move(w.mEntry);
+}
+
+template <StaticLedgerEntryScope S>
 ScopedLedgerEntry<S>
 LedgerEntryScope<S>::scopeAdoptEntry(LedgerEntry&& entry) const
 {
@@ -415,6 +435,14 @@ LedgerEntryScope<S>::scopeAdoptEntryOpt(
     std::optional<LedgerEntry> const& entry) const
 {
     return ScopedLedgerEntryOpt(mScopeID, entry);
+}
+
+template <StaticLedgerEntryScope S>
+ScopedLedgerEntryOpt<S>
+LedgerEntryScope<S>::scopeAdoptEntryOpt(
+    std::optional<LedgerEntry>&& entry) const
+{
+    return ScopedLedgerEntryOpt(mScopeID, std::move(entry));
 }
 
 template <StaticLedgerEntryScope S>
@@ -440,6 +468,23 @@ LedgerEntryScope<S>::scopeAdoptEntryFromImpl(
 
 template <StaticLedgerEntryScope S>
 template <StaticLedgerEntryScope OtherScope>
+ScopedLedgerEntry<S>
+LedgerEntryScope<S>::scopeAdoptEntryFromImpl(
+    ScopedLedgerEntry<OtherScope>&& entry,
+    LedgerEntryScope<OtherScope> const& scope) const
+{
+    if (scope.mActive)
+    {
+        throw std::runtime_error(fmt::format(
+            "scopeAdoptEntryFrom: adopting entry with scope ID {} from "
+            "still-active scope ID '{}'",
+            entry.mScopeID, scope.mScopeID));
+    }
+    return EntryT{mScopeID, std::move(entry.mEntry)};
+}
+
+template <StaticLedgerEntryScope S>
+template <StaticLedgerEntryScope OtherScope>
 ScopedLedgerEntryOpt<S>
 LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
     ScopedLedgerEntryOpt<OtherScope> const& entry,
@@ -454,6 +499,24 @@ LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
                         entry.mScopeID, scope.mScopeID));
     }
     return ScopedLedgerEntryOpt<S>{mScopeID, entry.mEntry};
+}
+
+template <StaticLedgerEntryScope S>
+template <StaticLedgerEntryScope OtherScope>
+ScopedLedgerEntryOpt<S>
+LedgerEntryScope<S>::scopeAdoptEntryOptFromImpl(
+    ScopedLedgerEntryOpt<OtherScope>&& entry,
+    LedgerEntryScope<OtherScope> const& scope) const
+{
+    if (scope.mActive)
+    {
+        throw std::runtime_error(
+            fmt::format("scopeAdoptEntryOptFrom: adopting entry with "
+                        "scope ID {} from "
+                        "still-active scope ID '{}'",
+                        entry.mScopeID, scope.mScopeID));
+    }
+    return ScopedLedgerEntryOpt<S>{mScopeID, std::move(entry.mEntry)};
 }
 
 /////////////////////////////////
@@ -494,6 +557,20 @@ FOREACH_STATIC_LEDGER_ENTRY_SCOPE(INSTANTIATE_SCOPE_CLASSES)
     LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
         scopeAdoptEntryOptFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
             ScopedLedgerEntryOpt<StaticLedgerEntryScope::SOURCE_SCOPE> const&, \
+            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
+            const; \
+\
+    template ScopedLedgerEntry<StaticLedgerEntryScope::DEST_SCOPE> \
+    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
+        scopeAdoptEntryFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
+            ScopedLedgerEntry<StaticLedgerEntryScope::SOURCE_SCOPE>&&, \
+            LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
+            const; \
+\
+    template ScopedLedgerEntryOpt<StaticLedgerEntryScope::DEST_SCOPE> \
+    LedgerEntryScope<StaticLedgerEntryScope::DEST_SCOPE>:: \
+        scopeAdoptEntryOptFromImpl<StaticLedgerEntryScope::SOURCE_SCOPE>( \
+            ScopedLedgerEntryOpt<StaticLedgerEntryScope::SOURCE_SCOPE>&&, \
             LedgerEntryScope<StaticLedgerEntryScope::SOURCE_SCOPE> const&) \
             const;
 

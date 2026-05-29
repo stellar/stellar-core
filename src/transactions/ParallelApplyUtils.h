@@ -109,20 +109,20 @@ class ThreadParallelApplyLedgerState
     // Contains a buffered set of RO TTL bumps that should only be observed
     // when/if the corresponding entry is modified, otherwise they are merged
     // (by taking maximums) into the global map at the end of the thread's life.
-    UnorderedMap<LedgerKey, uint32_t> mRoTTLBumps;
+    ParallelApplyLedgerKeyMap<uint32_t> mRoTTLBumps;
 
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
 
     void upsertEntry(LedgerKey const& key,
-                     ThreadParApplyLedgerEntry const& entry,
-                     uint32_t ledgerSeq);
-    void eraseEntry(LedgerKey const& key);
+                     ThreadParApplyLedgerEntry const& entry, uint32_t ledgerSeq,
+                     bool isNew = false);
+    void eraseEntry(LedgerKey const& key, bool isNew = false);
     void
-    commitChangeFromSuccessfulTx(LedgerKey const& key,
+    commitChangeFromSuccessfulTx(ParallelApplyLedgerKey const& key,
                                  ThreadParApplyLedgerEntryOpt const& entryOpt,
-                                 UnorderedSet<LedgerKey> const& roTTLSet);
+                                 ParallelApplyLedgerKeySet const& roTTLSet);
 
   public:
     ThreadParallelApplyLedgerState(AppConnector& app,
@@ -155,6 +155,7 @@ class ThreadParallelApplyLedgerState
     void flushRemainingRoTTLBumps();
 
     ParallelApplyEntryMap<staticScope> const& getEntryMap() const;
+    ParallelApplyEntryMap<staticScope>& getEntryMap();
 
     RestoredEntries const& getRestoredEntries() const;
 
@@ -224,22 +225,30 @@ class GlobalParallelApplyLedgerState
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages);
 
-    bool
-    maybeMergeRoTTLBumps(LedgerKey const& key,
-                         GlobalParallelApplyEntry const& newEntry,
-                         GlobalParallelApplyEntry& oldEntry,
-                         std::unordered_set<LedgerKey> const& readWriteSet);
-
     void
-    commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
-                           LedgerKey const& key,
-                           ThreadParallelApplyEntry const& parEntry,
-                           std::unordered_set<LedgerKey> const& readWriteSet);
+    readOnlyPreParallelApply(AppConnector& app,
+                             std::vector<TxBundle const*> const& txBundles);
 
-    void
-    commitChangesFromThread(AppConnector& app,
-                            ThreadParallelApplyLedgerState const& thread,
-                            std::unordered_set<LedgerKey> const& readWriteSet);
+    void commitBufferedPreParallelApplyWrites(
+        AppConnector& app, AbstractLedgerTxn& ltx,
+        std::vector<TxBundle const*> const& txBundles);
+
+    void collectModifiedClassicEntries(AbstractLedgerTxn& ltx,
+                                       std::vector<ApplyStage> const& stages);
+
+    bool maybeMergeRoTTLBumps(ParallelApplyLedgerKey const& key,
+                              GlobalParallelApplyEntry const& newEntry,
+                              GlobalParallelApplyEntry& oldEntry,
+                              ParallelApplyLedgerKeySet const& readWriteSet);
+
+    void commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
+                                ParallelApplyLedgerKey const& key,
+                                ThreadParallelApplyEntry&& parEntry,
+                                ParallelApplyLedgerKeySet const& readWriteSet);
+
+    void commitChangesFromThread(AppConnector& app,
+                                 ThreadParallelApplyLedgerState& thread,
+                                 ParallelApplyLedgerKeySet const& readWriteSet);
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
@@ -257,7 +266,10 @@ class GlobalParallelApplyLedgerState
             threads,
         ApplyStage const& stage);
 
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
+    // Consumes the global entry map: moves entries into the LedgerTxn
+    // instead of copying. Must only be called once, as the final operation
+    // on this state (entries are left in a moved-from state afterwards).
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
@@ -307,7 +319,7 @@ class TxParallelApplyLedgerState
 
     // Upsert the entry and sets the lastModifiedLedgerSeq to the given ledger
     // sequence number.
-    bool upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
+    void upsertEntry(LedgerKey const& key, LedgerEntry const& entry,
                      uint32_t ledgerSeq);
     bool eraseEntryIfExists(LedgerKey const& key);
     bool entryWasRestored(LedgerKey const& key) const;
@@ -329,12 +341,7 @@ class LedgerAccessHelper
     virtual std::optional<LedgerEntry>
     getLedgerEntryOpt(LedgerKey const& key) = 0;
 
-    // upsert returns true if the entry was created, false if it was updated.
-    // "created" here is interpreted narrowly to mean there was no
-    // populated/non-null entry in any parent level of the ledger state; a
-    // "local" map-insert that shadows an existing entry is not considered a
-    // create.
-    virtual bool upsertLedgerEntry(LedgerKey const& key,
+    virtual void upsertLedgerEntry(LedgerKey const& key,
                                    LedgerEntry const& entry) = 0;
 
     // erase returns true if the entry was erased, false if it wasn't present.
@@ -355,7 +362,7 @@ class PreV23LedgerAccessHelper : virtual public LedgerAccessHelper
     AbstractLedgerTxn& mLtx;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
-    bool upsertLedgerEntry(LedgerKey const& key,
+    void upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
     bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;
@@ -374,7 +381,7 @@ class ParallelLedgerAccessHelper : virtual public LedgerAccessHelper
     TxParallelApplyLedgerState mTxState;
 
     std::optional<LedgerEntry> getLedgerEntryOpt(LedgerKey const& key) override;
-    bool upsertLedgerEntry(LedgerKey const& key,
+    void upsertLedgerEntry(LedgerKey const& key,
                            LedgerEntry const& entry) override;
     bool eraseLedgerEntryIfExists(LedgerKey const& key) override;
     uint32_t getLedgerVersion() override;

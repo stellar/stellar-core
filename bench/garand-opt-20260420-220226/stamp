@@ -1,0 +1,52 @@
+Warning: running non-release version v25.1.1-151-g7b5e768e5-dirty of stellar-core
+v25.1.1-151-g7b5e768e5-dirty
+ledger protocol version: 25
+rust version: rustc 1.88.0 (6b00bc388 2025-06-23)
+soroban-env-host versions: 
+    host[0]:
+        package version: 21.2.2
+        git version: 7eeddd897cfb0f700f938b0c8d6f0541150d1fcb
+        ledger protocol version: 21
+        pre-release version: 0
+        rs-stellar-xdr:
+            package version: 21.2.0
+            git version: 9bea881f2057e412fdbb98875841626bf77b4b88
+            base XDR git version: 70180d5e8d9caee9e8645ed8a38c36a8cf403cd9
+    host[1]:
+        package version: 22.0.0
+        git version: 1cd8b8dca9aeeca9ce45b129cd923992b32dc258
+        ledger protocol version: 22
+        pre-release version: 0
+        rs-stellar-xdr:
+            package version: 22.0.0
+            git version: 715003372ea6380044b5a4a02907ff73e56ae9e7
+            base XDR git version: 529d5176f24c73eeccfa5eba481d4e89c19b1181
+    host[2]:
+        package version: 23.0.0
+        git version: 688bc34e6cd15c71742139e625268c7f30f55a92
+        ledger protocol version: 23
+        pre-release version: 0
+        rs-stellar-xdr:
+            package version: 23.0.0
+            git version: e83a6337204ecfdb0ac0d44ffb857130c1249b1b
+            base XDR git version: 4b7a2ef7931ab2ca2499be68d849f38190b443ca
+    host[3]:
+        package version: 24.0.0
+        git version: a37eeda815e626f416eff13f2eacb32a8b0c3729
+        ledger protocol version: 24
+        pre-release version: 0
+        rs-stellar-xdr:
+            package version: 24.0.0
+            git version: 07b765d3ab146f7f7ea951af1f9e41e0ece8fb48
+            base XDR git version: 4b7a2ef7931ab2ca2499be68d849f38190b443ca
+    host[4]:
+        package version: 25.0.0
+        git version: d84d264e734dc9187e93961a819606a1bd1386b6
+        ledger protocol version: 25
+        pre-release version: 0
+        rs-stellar-xdr:
+            package version: 25.0.0
+            git version: dc9f40fcb83c3054341f70b65a2222073369b37b
+            base XDR git version: 0a621ec7811db000a60efae5b35f78dee3aa2533
+
+Benchmark ledgers=200

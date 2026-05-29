@@ -15,7 +15,7 @@ noinst_HEADERS = $(SRC_H_FILES)
 # is done by setting the CXXSTDLIB flag, which Rust's C++-building machinery is
 # sensitive to. Rust passes-on, but does not look inside, CXXFLAGS itself to
 # realize that it needs this setting.
-CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
+CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,stdc++))
 
 if USE_TRACY
 # NB: this unfortunately long list has to be provided here and kept in sync with
@@ -83,7 +83,7 @@ main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 # tcmalloc must be linked early to properly override malloc/free
 stellar_core_LDADD = $(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
-	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
+	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS) -lcrypto
 
 TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg \
