@@ -86,6 +86,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         // Step 2: open writable files and pass them to watcher config
         cfg4.NODE_IS_VALIDATOR = false;
         cfg4.FORCE_SCP = false;
+        cfg4.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
 #ifdef _WIN32
         cfg4.METADATA_OUTPUT_STREAM = metaPath;
 #else

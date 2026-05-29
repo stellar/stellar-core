@@ -67,4 +67,11 @@ constexpr ProtocolVersion FIRST_PROTOCOL_CAP71 = ProtocolVersion::V_27;
 #else
 constexpr ProtocolVersion FIRST_PROTOCOL_CAP71 = ProtocolVersion::V_UINT32_MAX;
 #endif
+
+#ifdef CAP_0083
+constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_27;
+#else
+constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
+    ProtocolVersion::V_UINT32_MAX;
+#endif
 }

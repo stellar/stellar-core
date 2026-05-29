@@ -36,6 +36,19 @@
 namespace stellar
 {
 
+namespace
+{
+bool
+isEmptyTxSetStellarValue(StellarValue const& sv)
+{
+#ifdef CAP_0083
+    return sv.ext.v() == STELLAR_VALUE_EMPTY_TX_SET;
+#else
+    return false;
+#endif
+}
+}
+
 uint32_t const TXSETVALID_CACHE_SIZE = 1000;
 
 Hash
@@ -65,6 +78,12 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "timing", "first-to-self-externalize-lag"}))
     , mSelfToOthersExternalizeLag(app.getMetrics().NewTimer(
           {"scp", "timing", "self-to-others-externalize-lag"}))
+    , mBallotBlockedOnTxSet(app.getMetrics().NewTimer(
+          {"scp", "timing", "ballot-blocked-on-txset"}))
+    , mEmptyTxSetExternalized(
+          app.getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"}))
+    , mEmptyTxSetValueReplaced(app.getMetrics().NewCounter(
+          {"scp", "empty-tx-set", "value-replaced"}))
 {
 }
 
@@ -117,9 +136,15 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
     std::vector<TxSetXDRFrameConstPtr> mTxSets;
 
   public:
-    explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder)
+    // Wrap an SCP envelope `e`, using `herder` to fetch the quorum set. This
+    // function inserts hashes corresponding to missing transaction sets into
+    // the output parameter `missingTxSets`.
+    explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder,
+                                      std::set<Hash>& missingTxSets)
         : SCPEnvelopeWrapper(e), mHerder(herder)
     {
+        releaseAssert(missingTxSets.empty());
+
         // attach everything we can to the wrapper
         auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
         mQSet = mHerder.getQSet(qSetH);
@@ -133,26 +158,43 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
         auto txSets = getValidatedTxSetHashes(e);
         for (auto const& txSetH : txSets)
         {
-            auto txSet = mHerder.getTxSet(txSetH);
-            if (txSet)
+            auto result = mHerder.getTxSet(txSetH);
+            if (auto* txSet = std::get_if<TxSetXDRFrameConstPtr>(&result))
             {
-                mTxSets.emplace_back(txSet);
+                if (*txSet)
+                {
+                    mTxSets.emplace_back(*txSet);
+                }
+                else
+                {
+                    missingTxSets.insert(txSetH);
+                }
             }
-            else
-            {
-                throw std::runtime_error(fmt::format(
-                    FMT_STRING("SCPHerderEnvelopeWrapper: Wrapping an unknown "
-                               "tx set {} from envelope"),
-                    hexAbbrev(txSetH)));
-            }
+            // EmptyTxSet: not missing, nothing to store
         }
+    }
+
+    void
+    addTxSet(TxSetXDRFrameConstPtr txSet) override
+    {
+        mTxSets.emplace_back(txSet);
     }
 };
 
 SCPEnvelopeWrapperPtr
 HerderSCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
 {
-    auto r = std::make_shared<SCPHerderEnvelopeWrapper>(envelope, mHerder);
+    std::set<Hash> missingTxSets;
+    auto r = std::make_shared<SCPHerderEnvelopeWrapper>(envelope, mHerder,
+                                                        missingTxSets);
+
+    // Register this wrapper for any tx sets that weren't available
+    // so we can update it later when the tx set arrives
+    for (auto const& h : missingTxSets)
+    {
+        mPendingTxSetEnvelopeWrappers[h].push_back(r);
+    }
+
     return r;
 }
 
@@ -169,6 +211,65 @@ HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     mHerder.emitEnvelope(envelope);
+}
+
+bool
+HerderSCPDriver::isEnvelopeReady(SCPEnvelope const& env) const
+{
+    if (!mPendingEnvelopes.isQsetFetched(env))
+    {
+        // QSet must be available
+        return false;
+    }
+
+    if (mPendingEnvelopes.areTxSetsFetched(env))
+    {
+        // Have all tx sets and the qset. This envelope is ready to be processed
+        return true;
+    }
+
+    if (!isParallelTxSetDownloadEnabled())
+    {
+        // Parallel downloading is disabled, so we need all tx sets
+        return false;
+    }
+
+    // Beyond this point all checks relate to whether SCP can process `env`
+    // in parallel with downloading the missing tx sets it references.
+
+    auto const type = env.statement.pledges.type();
+    if (type != SCP_ST_NOMINATE && type != SCP_ST_PREPARE)
+    {
+        // Parallel tx set downloading is only allowed for nomination and
+        // prepare messages.
+        return false;
+    }
+
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (env.statement.slotIndex != lcl.header.ledgerSeq + 1)
+    {
+        // Parallel tx set downloading is only enabled for LCL+1
+        return false;
+    }
+
+    // Parallel downloading is only enabled when tracking and in sync
+    return mHerder.isTracking() &&
+           mApp.getState() == Application::State::APP_SYNCED_STATE;
+}
+
+bool
+HerderSCPDriver::protocolAllowsEmptyTxSetValues() const
+{
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    return protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                     EMPTY_TX_SET_PROTOCOL_VERSION);
+}
+
+bool
+HerderSCPDriver::isParallelTxSetDownloadEnabled() const
+{
+    return mApp.getConfig().EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD &&
+           protocolAllowsEmptyTxSetValues();
 }
 
 // value validation
@@ -214,6 +315,30 @@ HerderSCPDriver::validatePastOrFutureValue(
                        slotIndex, b.closeTime, lcl.header.scpValue.closeTime);
             return SCPDriver::kInvalidValue;
         }
+#ifdef CAP_0083
+        if (isEmptyTxSetStellarValue(b))
+        {
+            if (!protocolAllowsEmptyTxSetValues())
+            {
+                return SCPDriver::kInvalidValue;
+            }
+
+            auto const& ov = b.ext.proposedValue();
+            // We can check previousLedgerHash because the LCL header
+            // contains the hash of its parent. We cannot check
+            // previousLedgerVersion because the LCL header only has
+            // its own version, and a protocol upgrade on the LCL
+            // could make it differ from its parent's version.
+            if (ov.previousLedgerHash != lcl.header.previousLedgerHash)
+            {
+                CLOG_TRACE(Herder,
+                           "Got a bad previousLedgerHash for empty-tx-set "
+                           "value in ledger {}",
+                           slotIndex);
+                return SCPDriver::kInvalidValue;
+            }
+        }
+#endif // CAP_0083
     }
     else if (slotIndex < lcl.header.ledgerSeq)
     {
@@ -238,7 +363,7 @@ HerderSCPDriver::validatePastOrFutureValue(
         // validate
         CLOG_TRACE(Herder, "MaybeValidValue (not tracking) for slot {}",
                    slotIndex);
-        return SCPDriver::kMaybeValidValue;
+        return SCPDriver::kMaybeValidNotCurrentValue;
     }
 
     // Check slotIndex.
@@ -249,7 +374,7 @@ HerderSCPDriver::validatePastOrFutureValue(
         CLOG_TRACE(Herder,
                    "MaybeValidValue (already moved on) for slot {}, at {}",
                    slotIndex, mHerder.nextConsensusLedgerIndex());
-        return SCPDriver::kMaybeValidValue;
+        return SCPDriver::kMaybeValidNotCurrentValue;
     }
     if (mHerder.nextConsensusLedgerIndex() < slotIndex)
     {
@@ -272,7 +397,7 @@ HerderSCPDriver::validatePastOrFutureValue(
     // this is as far as we can go if we don't have the state
     CLOG_TRACE(Herder, "Can't validate locally, value may be valid for slot {}",
                slotIndex);
-    return SCPDriver::kMaybeValidValue;
+    return SCPDriver::kMaybeValidNotCurrentValue;
 }
 
 SCPDriver::ValidationLevel
@@ -298,24 +423,72 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
             return SCPDriver::kInvalidValue;
         }
 
+#ifdef CAP_0083
+        // For empty-tx-set values, validate that the previous ledger context
+        // matches our LCL. Empty-tx-set values don't have a real tx set to
+        // validate.
+        if (isEmptyTxSetStellarValue(b))
+        {
+            if (!protocolAllowsEmptyTxSetValues())
+            {
+                return SCPDriver::kInvalidValue;
+            }
+
+            if (nomination)
+            {
+                // Empty-tx-set values should only appear in balloting, and so
+                // are considered invalid during nomination.
+                CLOG_DEBUG(Herder,
+                           "HerderSCPDriver::validateValue i: {} rejecting "
+                           "empty-tx-set value during nomination",
+                           slotIndex);
+                return SCPDriver::kInvalidValue;
+            }
+            auto const& ov = b.ext.proposedValue();
+            if (ov.previousLedgerHash != lcl.hash ||
+                ov.previousLedgerVersion != lcl.header.ledgerVersion)
+            {
+                CLOG_DEBUG(Herder,
+                           "HerderSCPDriver::validateValue i: {} empty-tx-set "
+                           "value has mismatched previous ledger context",
+                           slotIndex);
+                return SCPDriver::kInvalidValue;
+            }
+            return SCPDriver::kFullyValidatedValue;
+        }
+#endif // CAP_0083
+
         Hash const& txSetHash = b.txSetHash;
-        TxSetXDRFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+        // Empty-tx-set values return early above, so this only runs for
+        // non-empty-tx-set hashes. Extract the TxSetXDRFrameConstPtr.
+        TxSetXDRFrameConstPtr txSet = std::get<TxSetXDRFrameConstPtr>(
+            mPendingEnvelopes.getTxSet(txSetHash));
 
         auto closeTimeOffset = b.closeTime - lcl.header.scpValue.closeTime;
 
         if (!txSet)
         {
-            CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
-                       hexAbbrev(txSetHash));
+            if (isParallelTxSetDownloadEnabled() &&
+                mPendingEnvelopes.getTxSetWaitingTime(txSetHash).has_value())
+            {
+                res = SCPDriver::kStructurallyValidValue;
+            }
+            else
+            {
+                CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}",
+                           slotIndex, hexAbbrev(txSetHash));
 
-            res = SCPDriver::kInvalidValue;
+                res = SCPDriver::kInvalidValue;
+            }
         }
         else if (!checkAndCacheTxSetValid(*txSet, lcl, closeTimeOffset))
         {
             CLOG_DEBUG(Herder,
                        "HerderSCPDriver::validateValue i: {} invalid txSet {}",
                        slotIndex, hexAbbrev(txSetHash));
-            res = SCPDriver::kInvalidValue;
+            res = protocolAllowsEmptyTxSetValues()
+                      ? SCPDriver::kStructurallyValidValue
+                      : SCPDriver::kInvalidValue;
         }
         else
         {
@@ -324,10 +497,20 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
                        slotIndex, hexAbbrev(txSetHash));
             res = SCPDriver::kFullyValidatedValue;
         }
+
+        // kMaybeValidNotCurrentValue should never be returned for LCL+1 values,
+        // as these values should always be fully valid/invalid, or awaiting
+        // download
+        releaseAssert(res != SCPDriver::kMaybeValidNotCurrentValue);
     }
     else
     {
         res = validatePastOrFutureValue(slotIndex, b, lcl);
+
+        // Non-LCL+1 values cannot be fully validated and are not eligible for
+        // parallel downloading.
+        releaseAssert(res != SCPDriver::kStructurallyValidValue &&
+                      res != SCPDriver::kFullyValidatedValue);
     }
     return res;
 }
@@ -347,7 +530,28 @@ HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
         return false;
     }
 
+    bool const emptyTxSetsAllowed = protocolAllowsEmptyTxSetValues();
     if (sv.ext.v() != STELLAR_VALUE_SIGNED)
+    {
+        if (!emptyTxSetsAllowed)
+        {
+            // Empty-tx-set values are not allowed, and the value is not a
+            // signed value, so it is invalid.
+            return false;
+        }
+
+        if (!isEmptyTxSetStellarValue(sv))
+        {
+            // The value is not a signed value or an empty-tx-set value, so it
+            // is invalid.
+            return false;
+        }
+    }
+
+    // Empty-tx-set values must have the empty-tx-set hash, and
+    // non-explicitly-empty-tx-set values must not have the empty-tx-set hash.
+    if (emptyTxSetsAllowed && (sv.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
+                                  isEmptyTxSetStellarValue(sv))
     {
         return false;
     }
@@ -390,7 +594,7 @@ HerderSCPDriver::extractValidUpgrades(StellarValue& sv, bool nomination) const
 
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
-                               bool nomination)
+                               bool nomination) const
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -440,8 +644,8 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
     }
 
     ValueWrapperPtr res;
-    if (validateValueAgainstLocalState(slotIndex, b, true) ==
-        SCPDriver::kFullyValidatedValue)
+    if (validateValueAgainstLocalState(slotIndex, b, true) >=
+        SCPDriver::kStructurallyValidValue)
     {
         extractValidUpgrades(b, true);
         res = wrapStellarValue(b);
@@ -477,6 +681,43 @@ HerderSCPDriver::getValueString(Value const& v) const
     {
         return "[:invalid:]";
     }
+}
+
+#ifdef CAP_0083
+Value
+HerderSCPDriver::makeEmptyTxSetValueFromValue(Value const& v) const
+{
+    ZoneScoped;
+    StellarValue proposedValue = toStellarValueOrThrow(v);
+    releaseAssert(proposedValue.ext.v() == STELLAR_VALUE_SIGNED);
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    StellarValue sv;
+    sv.ext.v(STELLAR_VALUE_EMPTY_TX_SET);
+    sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
+    sv.closeTime = proposedValue.closeTime;
+    sv.upgrades = proposedValue.upgrades;
+    sv.ext.proposedValue().txSetHash = proposedValue.txSetHash;
+    sv.ext.proposedValue().previousLedgerHash = lcl.hash;
+    sv.ext.proposedValue().previousLedgerVersion = lcl.header.ledgerVersion;
+    sv.ext.proposedValue().lcValueSignature =
+        proposedValue.ext.lcValueSignature();
+    return xdr::xdr_to_opaque(sv);
+}
+#endif
+
+bool
+HerderSCPDriver::isEmptyTxSetValue(Value const& v) const
+{
+    ZoneScoped;
+    StellarValue sv;
+    bool success = toStellarValue(v, sv);
+    if (!success)
+    {
+        return false;
+    }
+
+    return isEmptyTxSetStellarValue(sv);
 }
 
 // timer handling
@@ -612,12 +853,26 @@ HerderSCPDriver::computeTimeout(uint32 roundNumber, bool isNomination)
 // returns true if l < r
 // lh, rh are the hashes of l,h
 static bool
-compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
-              Hash const& lh, Hash const& rh, size_t lEncodedSize,
-              size_t rEncodedSize, LedgerHeader const& header, Hash const& s)
+compareTxSets(ApplicableTxSetFrameConstPtr const& l,
+              ApplicableTxSetFrameConstPtr const& r, Hash const& lh,
+              Hash const& rh, std::optional<size_t> lEncodedSize,
+              std::optional<size_t> rEncodedSize, LedgerHeader const& header,
+              Hash const& s)
 {
-    auto lSize = l.size(header);
-    auto rSize = r.size(header);
+    if (!l && !r)
+    {
+        // Do not have either tx set. Compare hashes
+        return lessThanXored(lh, rh, s);
+    }
+
+    if (!l || !r)
+    {
+        // If one exists, choose it
+        return !l;
+    }
+
+    auto lSize = l->size(header);
+    auto rSize = r->size(header);
     if (lSize != rSize)
     {
         return lSize < rSize;
@@ -625,8 +880,8 @@ compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        auto lBids = l.getTotalInclusionFees();
-        auto rBids = r.getTotalInclusionFees();
+        auto lBids = l->getTotalInclusionFees();
+        auto rBids = r->getTotalInclusionFees();
         if (lBids != rBids)
         {
             return lBids < rBids;
@@ -634,8 +889,8 @@ compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
     }
     if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
-        auto lFee = l.getTotalFees(header);
-        auto rFee = r.getTotalFees(header);
+        auto lFee = l->getTotalFees(header);
+        auto rFee = r->getTotalFees(header);
         if (lFee != rFee)
         {
             return lFee < rFee;
@@ -644,10 +899,10 @@ compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        if (lEncodedSize != rEncodedSize)
+        if (lEncodedSize.value() != rEncodedSize.value())
         {
             // Look for the smallest encoded size.
-            return lEncodedSize > rEncodedSize;
+            return lEncodedSize.value() > rEncodedSize.value();
         }
     }
     return lessThanXored(lh, rh, s);
@@ -777,20 +1032,31 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
              ++it)
         {
             auto const& sv = *it;
-            auto cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
-            releaseAssert(cTxSet);
+            TxSetXDRFrameConstPtr cTxSet;
+            auto const cTxSetResult = mPendingEnvelopes.getTxSet(sv.txSetHash);
+            if (auto const* ptr =
+                    std::get_if<TxSetXDRFrameConstPtr>(&cTxSetResult))
+            {
+                cTxSet = *ptr;
+            }
+            // else: EmptyTxSet -> cTxSet stays null, handled by existing
+
             // Only valid applicable tx sets should be combined.
-            auto cApplicableTxSet = cTxSet->prepareForApply(mApp, lcl.header);
-            releaseAssert(cApplicableTxSet);
-            if (cTxSet->previousLedgerHash() == lcl.hash)
+            auto cApplicableTxSet =
+                cTxSet ? cTxSet->prepareForApply(mApp, lcl.header) : nullptr;
+            if (!cTxSet || cTxSet->previousLedgerHash() == lcl.hash)
             {
 
-                if (!highestTxSet ||
-                    compareTxSets(*highestApplicableTxSet, *cApplicableTxSet,
-                                  highest->txSetHash, sv.txSetHash,
-                                  highestTxSet->encodedSize(),
-                                  cTxSet->encodedSize(), lcl.header,
-                                  candidatesHash))
+                if (highest == candidateValues.cend() ||
+                    compareTxSets(
+                        highestApplicableTxSet, cApplicableTxSet,
+                        highest->txSetHash, sv.txSetHash,
+                        highestTxSet
+                            ? std::make_optional(highestTxSet->encodedSize())
+                            : std::nullopt,
+                        cTxSet ? std::make_optional(cTxSet->encodedSize())
+                               : std::nullopt,
+                        lcl.header, candidatesHash))
                 {
                     highest = it;
                     highestTxSet = cTxSet;
@@ -850,6 +1116,19 @@ HerderSCPDriver::getUpgradeNominationTimeoutLimit() const
         std::numeric_limits<uint32_t>::max());
 }
 
+std::optional<std::chrono::milliseconds>
+HerderSCPDriver::getTxSetDownloadWaitTime(Value const& v) const
+{
+    StellarValue sv = toStellarValueOrThrow(v);
+    return mPendingEnvelopes.getTxSetWaitingTime(sv.txSetHash);
+}
+
+std::chrono::milliseconds
+HerderSCPDriver::getTxSetDownloadTimeout() const
+{
+    return mApp.getConfig().TX_SET_DOWNLOAD_TIMEOUT;
+}
+
 void
 HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {
@@ -883,6 +1162,11 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     // deliver externalize events to LedgerManager
     bool isLatestSlot =
         slotIndex > mApp.getHerder().trackingConsensusLedgerIndex();
+
+    if (isEmptyTxSetStellarValue(b))
+    {
+        mSCPMetrics.mEmptyTxSetExternalized.inc();
+    }
 
     // Only update tracking state when newer slot comes in
     if (isLatestSlot)
@@ -927,6 +1211,13 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     {
         mHerder.valueExternalized(slotIndex, b, isLatestSlot);
     }
+}
+
+void
+HerderSCPDriver::noteEmptyTxSetValueReplaced(uint64_t)
+{
+    ZoneScoped;
+    mSCPMetrics.mEmptyTxSetValueReplaced.inc();
 }
 
 void
@@ -1000,6 +1291,41 @@ HerderSCPDriver::getQSet(Hash const& qSetHash)
 void
 HerderSCPDriver::ballotDidHearFromQuorum(uint64_t, SCPBallot const&)
 {
+}
+
+void
+HerderSCPDriver::recordBallotBlockedOnTxSet(uint64_t slotIndex,
+                                            Value const& value)
+{
+    auto& timing = mSCPExecutionTimes[slotIndex];
+    if (timing.mBallotBlockedOnTxSetStart.find(value) ==
+        timing.mBallotBlockedOnTxSetStart.end())
+    {
+        timing.mBallotBlockedOnTxSetStart[value] = mApp.getClock().now();
+    }
+}
+
+void
+HerderSCPDriver::measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
+                                                      Value const& value)
+{
+    auto it = mSCPExecutionTimes.find(slotIndex);
+    if (it != mSCPExecutionTimes.end())
+    {
+        auto& timing = it->second;
+        auto valueIt = timing.mBallotBlockedOnTxSetStart.find(value);
+        if (valueIt != timing.mBallotBlockedOnTxSetStart.end())
+        {
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    mApp.getClock().now() - valueIt->second);
+            mSCPMetrics.mBallotBlockedOnTxSet.Update(elapsed);
+            return;
+        }
+    }
+
+    // No blocking - record zero duration
+    mSCPMetrics.mBallotBlockedOnTxSet.Update(std::chrono::milliseconds(0));
 }
 
 void
@@ -1297,6 +1623,32 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     }
 }
 
+namespace
+{
+// Remove expired weak_ptrs from each vector in the map, and erase map entries
+// whose vectors become empty.
+template <typename T>
+void
+purgeExpiredWeakPtrs(std::map<Hash, std::vector<std::weak_ptr<T>>>& map)
+{
+    for (auto mapIt = map.begin(); mapIt != map.end();)
+    {
+        auto& vec = mapIt->second;
+        vec.erase(std::remove_if(vec.begin(), vec.end(),
+                                 [](auto& wp) { return wp.expired(); }),
+                  vec.end());
+        if (vec.empty())
+        {
+            mapIt = map.erase(mapIt);
+        }
+        else
+        {
+            ++mapIt;
+        }
+    }
+}
+}
+
 void
 HerderSCPDriver::purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
                                         std::optional<uint64_t> maxSlotIndex,
@@ -1336,6 +1688,43 @@ HerderSCPDriver::purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
     }
 
     getSCP().purgeSlotsOutsideRange(minSlotIndex, maxSlotIndex, slotToKeep);
+
+    // Clean up expired weak_ptrs from the pending tx set registries.
+    purgeExpiredWeakPtrs(mPendingTxSetWrappers);
+    purgeExpiredWeakPtrs(mPendingTxSetEnvelopeWrappers);
+}
+
+void
+HerderSCPDriver::onTxSetReceived(Hash const& txSetHash,
+                                 TxSetXDRFrameConstPtr txSet)
+{
+    // Update any ValueWrappers waiting for this tx set
+    auto it = mPendingTxSetWrappers.find(txSetHash);
+    if (it != mPendingTxSetWrappers.end())
+    {
+        for (auto& wp : it->second)
+        {
+            if (auto sp = wp.lock())
+            {
+                sp->setTxSet(txSet);
+            }
+        }
+        mPendingTxSetWrappers.erase(it);
+    }
+
+    // Update any EnvelopeWrappers waiting for this tx set
+    auto envIt = mPendingTxSetEnvelopeWrappers.find(txSetHash);
+    if (envIt != mPendingTxSetEnvelopeWrappers.end())
+    {
+        for (auto& wp : envIt->second)
+        {
+            if (auto sp = wp.lock())
+            {
+                sp->addTxSet(txSet);
+            }
+        }
+        mPendingTxSetEnvelopeWrappers.erase(envIt);
+    }
 }
 
 void
@@ -1350,35 +1739,57 @@ class SCPHerderValueWrapper : public ValueWrapper
     HerderImpl& mHerder;
 
     TxSetXDRFrameConstPtr mTxSet;
+    Hash const mTxSetHash;
 
   public:
     explicit SCPHerderValueWrapper(StellarValue const& sv, Value const& value,
                                    HerderImpl& herder)
-        : ValueWrapper(value), mHerder(herder)
+        : ValueWrapper(value), mHerder(herder), mTxSetHash(sv.txSetHash)
     {
-        mTxSet = mHerder.getTxSet(sv.txSetHash);
-        if (!mTxSet)
+        auto const result = mHerder.getTxSet(sv.txSetHash);
+        if (auto const* ptr = std::get_if<TxSetXDRFrameConstPtr>(&result))
         {
-            throw std::runtime_error(fmt::format(
-                FMT_STRING(
-                    "SCPHerderValueWrapper tried to bind an unknown tx set {}"),
-                hexAbbrev(sv.txSetHash)));
+            mTxSet = *ptr;
         }
+        // else: EmptyTxSet -> mTxSet stays null
+        // mTxSet may also be null if tx set hasn't been received yet
+        // (parallel downloading). It will be set later via setTxSet()
+        // when the tx set arrives.
+    }
+
+    bool
+    hasTxSet() const
+    {
+        return mTxSet != nullptr || mTxSetHash == Herder::EMPTY_TX_SET_HASH;
+    }
+
+    Hash const&
+    getTxSetHash() const
+    {
+        return mTxSetHash;
+    }
+
+    void
+    setTxSet(TxSetXDRFrameConstPtr txSet) override
+    {
+        releaseAssert(txSet->getContentsHash() == mTxSetHash);
+        mTxSet = txSet;
     }
 };
 
 ValueWrapperPtr
 HerderSCPDriver::wrapValue(Value const& val)
 {
-    StellarValue sv;
-    auto b = toStellarValue(val, sv);
-    if (!b)
-    {
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Invalid value in SCPHerderValueWrapper {}"),
-                        binToHex(val)));
-    }
+    StellarValue sv = toStellarValueOrThrow(val);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
+
+    // If tx set wasn't available, register this wrapper to be updated later
+    // when the tx set arrives via onTxSetReceived()
+    if (!res->hasTxSet())
+    {
+        mPendingTxSetWrappers[res->getTxSetHash()].push_back(res);
+    }
+
     return res;
 }
 
@@ -1387,6 +1798,14 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 {
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
+
+    // If tx set wasn't available, register this wrapper to be updated later
+    // when the tx set arrives via onTxSetReceived()
+    if (!res->hasTxSet())
+    {
+        mPendingTxSetWrappers[res->getTxSetHash()].push_back(res);
+    }
+
     return res;
 }
 

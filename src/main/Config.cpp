@@ -153,6 +153,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
+    TESTING_NOMINATE_RANDOM_VALUES = false;
 #endif
 
     FORCE_SCP = false;
@@ -171,6 +172,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
+    EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
@@ -248,6 +250,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
+    TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(5000);
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
@@ -1152,6 +1155,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                                      "upgrade bounds for testing");
                      }
                  }},
+                {"TESTING_NOMINATE_RANDOM_VALUES",
+                 [&]() { TESTING_NOMINATE_RANDOM_VALUES = readBool(item); }},
 #endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
@@ -1184,6 +1189,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"PARALLEL_LEDGER_APPLY",
                  [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
+                {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
+                 [&]() {
+                     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
+                 }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
@@ -1380,6 +1389,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
                          item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"TX_SET_DOWNLOAD_TIMEOUT",
+                 [&]() {
+                     TX_SET_DOWNLOAD_TIMEOUT =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
                  }},
                 {"MAX_BATCH_WRITE_COUNT",
                  [&]() { MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1); }},

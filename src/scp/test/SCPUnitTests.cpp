@@ -46,7 +46,7 @@ class TestNominationSCP : public SCPDriver
 
     SCPDriver::ValidationLevel
     validateValue(uint64 slotIndex, Value const& value,
-                  bool nomination) override
+                  bool nomination) const override
     {
         return SCPDriver::kFullyValidatedValue;
     }
@@ -105,6 +105,44 @@ class TestNominationSCP : public SCPDriver
     {
     }
 
+    std::optional<std::chrono::milliseconds>
+    getTxSetDownloadWaitTime(Value const& v) const override
+    {
+        return std::nullopt;
+    }
+
+    std::chrono::milliseconds
+    getTxSetDownloadTimeout() const override
+    {
+        return std::chrono::milliseconds(100);
+    }
+
+#ifdef CAP_0083
+    Value
+    makeEmptyTxSetValueFromValue(Value const& value) const override
+    {
+        releaseAssert(false);
+    }
+#endif
+
+    bool
+    isEmptyTxSetValue(Value const& v) const override
+    {
+        releaseAssert(false);
+    }
+
+    bool
+    isParallelTxSetDownloadEnabled() const override
+    {
+        return true;
+    }
+
+    bool
+    protocolAllowsEmptyTxSetValues() const override
+    {
+        return true;
+    }
+
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
 
     Value const&
@@ -151,6 +189,14 @@ class TestNominationSCP : public SCPDriver
             timeoutMS = MAX_TIMEOUT_MS;
         }
         return std::chrono::milliseconds(timeoutMS);
+    }
+
+    bool
+    isEnvelopeReady(SCPEnvelope const& envelope) const override
+    {
+        // Not implemented. These tests do not use PendingEnvelopes, and so do
+        // not require this method.
+        releaseAssert(false);
     }
 };
 

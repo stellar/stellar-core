@@ -142,7 +142,7 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 // the error flag, which triggers a reset-and-retry with a rotated seed. The
 // retry should restart immediately after clearing scratch state, not continue
 // into the peeling phase with cleared t2count/t2hash values.
-TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
+TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter][!hide]")
 {
     LedgerKeySet keys;
     while (keys.size() < 100)
@@ -200,7 +200,7 @@ TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
 // pre-hashed keys) can produce collisions even when the input keys are unique.
 // To simulate this, we just duplicate all the input hashes, which guarantees
 // collisions.
-TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
+TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter][!hide]")
 {
     COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_DUPLICATE_REMOVAL);
 

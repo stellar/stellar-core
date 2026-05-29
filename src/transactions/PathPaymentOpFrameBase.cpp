@@ -94,7 +94,7 @@ bool
 PathPaymentOpFrameBase::convert(
     AppConnector& app,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig,
-    AbstractLedgerTxn& ltx, int64_t maxOffersToCross, Asset const& sendAsset,
+    AbstractLedgerTxn& ltx, int64_t& maxOffersToCross, Asset const& sendAsset,
     int64_t maxSend, int64_t& amountSend, Asset const& recvAsset,
     int64_t maxRecv, int64_t& amountRecv, RoundingType round,
     std::vector<ClaimAtom>& offerTrail, OperationResult& res) const

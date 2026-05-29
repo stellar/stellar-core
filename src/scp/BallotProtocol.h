@@ -175,8 +175,10 @@ class BallotProtocol
     // to make progress
     void advanceSlot(SCPStatement const& hint);
 
-    // returns true if all values in statement are valid
-    SCPDriver::ValidationLevel validateValues(SCPStatement const& st);
+    // Returns a validation level for `st`. The function determines the
+    // appropriate validation level by computing the minimum validation level of
+    // all values in `st`.
+    SCPDriver::ValidationLevel statementValidationLevel(SCPStatement const& st);
 
     // send latest envelope if needed
     void sendLatestEnvelope();
@@ -214,6 +216,11 @@ class BallotProtocol
     bool attemptConfirmCommit(SCPStatement const& hint);
     bool setConfirmCommit(SCPBallot const& acceptCommitLow,
                           SCPBallot const& acceptCommitHigh);
+
+    // The final invariant check before confirm-commit. Checks whether `value`
+    // is valid, and throws otherwise. This should never happen and indicates a
+    // bug in envelope processing.
+    void throwIfValueInvalidForConfirmCommit(Value const& value);
 
     // step 9 from the SCP paper
     bool attemptBump();
@@ -288,6 +295,10 @@ class BallotProtocol
     // such doesn't do any validation
     // check: verifies that ballot is greater than old one
     void bumpToBallot(SCPBallot const& ballot, bool check);
+
+    // Replaces `v` with an empty-tx-set value if appropriate. Otherwise does
+    // nothing.
+    bool maybeReplaceValueWithEmptyTxSet(Value& v) const;
 
     // switch the local node to the given ballot's value
     // with the assumption that the ballot is more recent than the one
