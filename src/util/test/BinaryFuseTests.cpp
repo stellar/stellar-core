@@ -21,8 +21,23 @@ static auto ledgerKeyGenerator = autocheck::such_that(
     [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
     autocheck::generator<LedgerKey>());
 
+namespace
+{
+
+void
+rotateSeed(binary_fuse_seed_t& s)
+{
+    for (auto& byte : s)
+    {
+        if (++byte != 0)
+        {
+            break;
+        }
+    }
+}
+
 template <class FilterT>
-static void
+void
 testFilter(double expectedFalsePositiveRate)
 {
     LedgerKeySet keys;
@@ -114,6 +129,7 @@ testFilter(double expectedFalsePositiveRate)
         }
     }
 }
+} // namespace
 
 TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 {
@@ -142,7 +158,7 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
 // the error flag, which triggers a reset-and-retry with a rotated seed. The
 // retry should restart immediately after clearing scratch state, not continue
 // into the peeling phase with cleared t2count/t2hash values.
-TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter][!hide]")
+TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter]")
 {
     LedgerKeySet keys;
     while (keys.size() < 100)
@@ -151,48 +167,63 @@ TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter][!hide]")
     }
 
     auto seed = shortHash::getShortHashInitKey();
-    std::vector<uint64_t> hashes;
-    hashes.reserve(keys.size());
-    for (auto const& k : keys)
-    {
-        auto keyBuf = xdr::xdr_to_opaque(k);
-        SipHash24 hasher(seed.data());
-        hasher.update(keyBuf.data(), keyBuf.size());
-        hashes.emplace_back(hasher.digest());
-    }
 
-    auto requireFilterAfterPopulateErrors = [&](bool requireNoPeelingRetry) {
-        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
+    auto buildAndCheck = [&](binary_fuse_seed_t const& s) {
+        std::vector<uint64_t> hashes;
+        hashes.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            auto keyBuf = xdr::xdr_to_opaque(k);
+            SipHash24 hasher(s.data());
+            hasher.update(keyBuf.data(), keyBuf.size());
+            hashes.emplace_back(hasher.digest());
+        }
 
-        auto peelingRetriesBefore =
-            gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
-
-        BinaryFuseFilter8 filter(hashes, seed);
-
+        BinaryFuseFilter8 filter(hashes, s);
         for (auto const& k : keys)
         {
             REQUIRE(filter.contains(k));
-        }
-
-        if (requireNoPeelingRetry)
-        {
-            REQUIRE(gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY) ==
-                    peelingRetriesBefore);
         }
     };
 
     SECTION("one retry")
     {
-        gBinaryFuseForcePopulateErrorRetries = 1;
-        requireFilterAfterPopulateErrors(true);
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
+
+        // While we deterministically trigger a populate error, it's possible
+        // that a legitimate peeling error could occur based on our random seed
+        // before we get the chance to trigger the populate error. This is
+        // pretty unlikely, but common enough to mess up CI, so in this case we
+        // just rotate seeds and try again until we just see the error we
+        // intended to test.
+        bool sawCleanErrorRetry = false;
+        auto s = seed;
+        for (int attempt = 0; attempt < 100 && !sawCleanErrorRetry; ++attempt)
+        {
+            auto peelingRetriesBefore =
+                gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY);
+
+            gBinaryFuseForcePopulateErrorRetries = 1;
+            buildAndCheck(s);
+
+            sawCleanErrorRetry =
+                gCovMarks.get(BINARY_FUSE_POPULATE_PEELING_FAILURE_RETRY) ==
+                peelingRetriesBefore;
+            if (!sawCleanErrorRetry)
+            {
+                rotateSeed(s);
+            }
+        }
+        REQUIRE(sawCleanErrorRetry);
     }
 
     SECTION("multiple retries")
     {
+        COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_POPULATE_ERROR_RETRY);
         COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_SEED_COUNTER_CARRY);
 
         gBinaryFuseForcePopulateErrorRetries = 257;
-        requireFilterAfterPopulateErrors(false);
+        buildAndCheck(seed);
     }
 }
 
@@ -200,12 +231,8 @@ TEST_CASE("binary fuse filter error retry", "[BinaryFuseFilter][!hide]")
 // pre-hashed keys) can produce collisions even when the input keys are unique.
 // To simulate this, we just duplicate all the input hashes, which guarantees
 // collisions.
-TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter][!hide]")
+TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter]")
 {
-    COVMARK_CHECK_HIT_IN_CURR_SCOPE(BINARY_FUSE_DUPLICATE_REMOVAL);
-
-    auto seed = shortHash::getShortHashInitKey();
-
     // Generate some unique keys
     LedgerKeySet keys;
     auto gen = autocheck::such_that(
@@ -217,27 +244,50 @@ TEST_CASE("binary fuse filter duplicate removal", "[BinaryFuseFilter][!hide]")
         keys.insert(gen());
     }
 
-    std::vector<uint64_t> hashes;
-    for (auto const& k : keys)
+    auto buildWithDuplicateHashes = [&](binary_fuse_seed_t const& s) {
+        std::vector<uint64_t> hashes;
+        hashes.reserve(keys.size() * 2);
+        for (auto const& k : keys)
+        {
+            auto keyBuf = xdr::xdr_to_opaque(k);
+            SipHash24 hasher(s.data());
+            hasher.update(keyBuf.data(), keyBuf.size());
+            hashes.emplace_back(hasher.digest());
+        }
+
+        // Duplicate every hash to trigger the duplicate removal path
+        auto copy = hashes;
+        hashes.insert(hashes.end(), copy.begin(), copy.end());
+
+        BinaryFuseFilter8 filter(hashes, s);
+        for (auto const& k : keys)
+        {
+            REQUIRE(filter.contains(k));
+        }
+    };
+
+    // While we populate with duplicate keys correctly, it's possible
+    // that a legitimate peeling error could occur based on our random seed
+    // before we hit the duplicate removal path. This is
+    // pretty unlikely, but common enough to mess up CI, so in this case we
+    // just rotate seeds and try again.
+    bool sawDuplicateRemoval = false;
+    auto s = shortHash::getShortHashInitKey();
+    for (int attempt = 0; attempt < 100 && !sawDuplicateRemoval; ++attempt)
     {
-        auto keyBuf = xdr::xdr_to_opaque(k);
-        SipHash24 hasher(seed.data());
-        hasher.update(keyBuf.data(), keyBuf.size());
-        hashes.emplace_back(hasher.digest());
+        auto duplicateRemovalsBefore =
+            gCovMarks.get(BINARY_FUSE_DUPLICATE_REMOVAL);
+
+        buildWithDuplicateHashes(s);
+
+        sawDuplicateRemoval = gCovMarks.get(BINARY_FUSE_DUPLICATE_REMOVAL) !=
+                              duplicateRemovalsBefore;
+        if (!sawDuplicateRemoval)
+        {
+            rotateSeed(s);
+        }
     }
-
-    // Duplicate every hash to trigger the duplicate removal path
-    auto originalSize = hashes.size();
-    auto copy = hashes;
-    hashes.insert(hashes.end(), copy.begin(), copy.end());
-    REQUIRE(hashes.size() == originalSize * 2);
-
-    BinaryFuseFilter8 filter(hashes, seed);
-
-    for (auto const& k : keys)
-    {
-        REQUIRE(filter.contains(k));
-    }
+    REQUIRE(sawDuplicateRemoval);
 }
 
 TEST_CASE("binary fuse filter rejects malformed serialized filters",
