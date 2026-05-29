@@ -351,3 +351,9 @@ It is fine for debugging though. In practice those different versions of
 transitive dependencies are rarely "all that different". You will _probably_ not
 be able to observe any differences. We just don't want to chance it in
 production.
+
+To reduce the set of possible configurations and flags, fastdev also acts as
+a superset of `--enable-next-protocol-version-unsafe-for-production` (i.e. it
+also turns on the `next` feature and links in whatever the next-protocol soroban
+host is).
+
