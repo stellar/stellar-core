@@ -62,6 +62,11 @@ class ByteSlice
         : mData(arr.data()), mSize(arr.size())
     {
     }
+    template <uint32_t N>
+    ByteSlice(xdr::shared_bytes<N> const& sb)
+        : mData(sb.data()), mSize(sb.size())
+    {
+    }
     ByteSlice(xdr::msg_ptr const& p) : mData(p->data()), mSize(p->size())
     {
     }

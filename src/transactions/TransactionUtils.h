@@ -371,8 +371,9 @@ template <typename T>
 CxxBuf
 toCxxBuf(T const& t)
 {
-    return CxxBuf{
-        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};
+    auto opaque = xdr::xdr_to_opaque(t);
+    return CxxBuf{std::make_unique<std::vector<uint8_t>>(opaque.begin(),
+                                                         opaque.end())};
 }
 
 // Creates a ledger entry change for the rent computation via Rust bridge.

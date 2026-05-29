@@ -56,9 +56,9 @@ TEST_CASE("Streaming SHA256 for InvokeHostFunctionSuccessPreImage",
     // In the real implementation, we would have raw bytes from the host.
     // Here we simulate that by pre-serializing the components.
 
-    xdr::xvector<uint8_t> returnValueBytes =
+    xdr::opaque_vec<> returnValueBytes =
         xdr::xdr_to_opaque(preImage.returnValue);
-    std::vector<xdr::xvector<uint8_t>> eventsBytes;
+    std::vector<xdr::opaque_vec<>> eventsBytes;
     for (auto const& event : preImage.events)
     {
         eventsBytes.push_back(xdr::xdr_to_opaque(event));

@@ -449,7 +449,8 @@ KeyFunctions<PublicKey>::getEd25519Value(PublicKey const& key)
 std::vector<uint8_t>
 KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
 {
-    return xdr::xdr_to_opaque(getEd25519Value(key));
+    auto opaque = xdr::xdr_to_opaque(getEd25519Value(key));
+    return std::vector<uint8_t>(opaque.begin(), opaque.end());
 }
 
 void

@@ -40,13 +40,13 @@ SharedModuleCacheCompiler::~SharedModuleCacheCompiler()
 }
 
 void
-SharedModuleCacheCompiler::pushWasm(xdr::xvector<uint8_t> const& vec)
+SharedModuleCacheCompiler::pushWasm(xdr::opaque_vec<> const& vec)
 {
     std::unique_lock<std::mutex> lock(mMutex);
     mHaveSpace.wait(lock, [&] {
         return mBytesLoaded - mBytesCompiled < BUFFERED_WASM_CAPACITY;
     });
-    xdr::xvector<uint8_t> buf(vec);
+    xdr::opaque_vec<> buf(vec);
     auto size = buf.size();
     mWasms.emplace_back(std::move(buf));
     mBytesLoaded += size;
@@ -91,7 +91,7 @@ SharedModuleCacheCompiler::popAndCompileWasm(size_t thread,
         return false;
     }
 
-    xdr::xvector<uint8_t> wasm = std::move(mWasms.front());
+    xdr::opaque_vec<> wasm = std::move(mWasms.front());
     mWasms.pop_front();
     lock.unlock();
 
