@@ -572,6 +572,12 @@ AM_CONDITIONAL(USE_SPDLOG, [test x$enable_spdlog != xno])
 AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
     AS_HELP_STRING([--enable-next-protocol-version-unsafe-for-production],
         [Enable next protocol version UNSAFE FOR PRODUCTION]))
+AS_IF([test "x$enable_fastdev_unsafe_for_production" = "xyes"], [
+  AS_IF([test "x$enable_next_protocol_version_unsafe_for_production" != "xyes"], [
+    AC_MSG_NOTICE([enabling next protocol version due to fastdev build profile])
+  ])
+  enable_next_protocol_version_unsafe_for_production=yes
+])
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
