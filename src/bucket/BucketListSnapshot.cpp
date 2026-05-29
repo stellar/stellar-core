@@ -24,13 +24,13 @@ namespace stellar
 // BucketListSnapshotData
 //
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BucketListSnapshotData<BucketT>::Level::Level(BucketLevel<BucketT> const& level)
     : curr(level.getCurr()), snap(level.getSnap())
 {
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BucketListSnapshotData<BucketT>::Level::Level(
     std::shared_ptr<BucketT const> currBucket,
     std::shared_ptr<BucketT const> snapBucket)
@@ -38,7 +38,7 @@ BucketListSnapshotData<BucketT>::Level::Level(
 {
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 BucketListSnapshotData<BucketT>::BucketListSnapshotData(
     BucketListBase<BucketT> const& bl)
     : levels([&bl]() {
@@ -57,7 +57,7 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
 // SearchableBucketListSnapshot
 //
 
-template <class BucketT>
+template <IsBucketType BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
@@ -81,7 +81,7 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     SearchableBucketListSnapshot const& other)
     : mData(other.mData)
@@ -95,7 +95,7 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
 {
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 SearchableBucketListSnapshot<BucketT>&
 SearchableBucketListSnapshot<BucketT>::operator=(
     SearchableBucketListSnapshot const& other)
@@ -116,7 +116,7 @@ SearchableBucketListSnapshot<BucketT>::operator=(
 
 // File streams are fairly expensive to create, so they are lazily created and
 // stored in mStreams.
-template <class BucketT>
+template <IsBucketType BucketT>
 XDRInputFileStream&
 SearchableBucketListSnapshot<BucketT>::getStream(
     std::shared_ptr<BucketT const> const& bucket) const
@@ -135,7 +135,7 @@ SearchableBucketListSnapshot<BucketT>::getStream(
 // Loads an entry from the bucket file at the given offset. Returns a pair of
 // (entry, bloomMiss) where bloomMiss is true if the bloom filter indicated the
 // key might exist but it wasn't actually found (a false positive).
-template <class BucketT>
+template <IsBucketType BucketT>
 std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
 SearchableBucketListSnapshot<BucketT>::getEntryAtOffset(
     std::shared_ptr<BucketT const> const& bucket, LedgerKey const& k,
@@ -166,7 +166,7 @@ SearchableBucketListSnapshot<BucketT>::getEntryAtOffset(
 // Looks up a single key in a bucket using its index. Returns (entry, bloomMiss)
 // where entry is nullptr if not found, and bloomMiss indicates a bloom filter
 // false positive (key appeared to exist but wasn't actually in the bucket).
-template <class BucketT>
+template <IsBucketType BucketT>
 std::pair<std::shared_ptr<typename BucketT::EntryT const>, bool>
 SearchableBucketListSnapshot<BucketT>::getBucketEntry(
     std::shared_ptr<BucketT const> const& bucket, LedgerKey const& k) const
@@ -205,7 +205,7 @@ SearchableBucketListSnapshot<BucketT>::getBucketEntry(
 // remove it from keys so that later buckets do not load shadowed entries. If we
 // don't find the entry, we keep it in keys so it will be searched for in lower
 // levels.
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 SearchableBucketListSnapshot<BucketT>::loadKeysFromBucket(
     std::shared_ptr<BucketT const> const& bucket,
@@ -276,7 +276,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysFromBucket(
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 template <typename Func>
 void
 SearchableBucketListSnapshot<BucketT>::loopAllBuckets(
@@ -301,7 +301,7 @@ SearchableBucketListSnapshot<BucketT>::loopAllBuckets(
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 template <typename Func>
 void
 SearchableBucketListSnapshot<BucketT>::loopAllBuckets(Func&& f) const
@@ -310,7 +310,7 @@ SearchableBucketListSnapshot<BucketT>::loopAllBuckets(Func&& f) const
     loopAllBuckets(std::forward<Func>(f), *mData);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<typename BucketT::LoadT const>
 SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 {
@@ -345,7 +345,7 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
     return result;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
@@ -381,7 +381,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
     return entries;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::optional<std::vector<typename BucketT::LoadT>>
 SearchableBucketListSnapshot<BucketT>::loadKeysFromLedger(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
@@ -390,7 +390,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeysFromLedger(
     return loadKeysInternal(inKeys, ledgerSeq);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 medida::Timer&
 SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     std::string const& label, size_t numEntries) const
@@ -411,14 +411,14 @@ SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     return iter->second.get();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketListSnapshotData<BucketT> const> const&
 SearchableBucketListSnapshot<BucketT>::getSnapshotData() const
 {
     return mData;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::map<uint32_t,
          std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
 SearchableBucketListSnapshot<BucketT>::getHistoricalSnapshots() const

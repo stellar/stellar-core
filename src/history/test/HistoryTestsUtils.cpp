@@ -144,7 +144,7 @@ RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
     return mCfg;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketOutputIteratorForTesting<BucketT>::BucketOutputIteratorForTesting(
     std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc,
     asio::io_context& ctx)
@@ -154,7 +154,7 @@ BucketOutputIteratorForTesting<BucketT>::BucketOutputIteratorForTesting(
 {
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::pair<std::string, uint256>
 BucketOutputIteratorForTesting<BucketT>::writeTmpTestBucket()
 {
@@ -202,11 +202,10 @@ TestBucketGenerator::TestBucketGenerator(
         mApp.getTmpDirManager().tmpDir("tmp-bucket-generator"));
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::string
 TestBucketGenerator::generateBucket(TestBucketState state)
 {
-    BUCKET_TYPE_ASSERT(BucketT);
 
     uint256 hash = HashUtils::pseudoRandomForTesting();
     if (state == TestBucketState::FILE_NOT_UPLOADED)

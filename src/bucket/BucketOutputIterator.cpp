@@ -21,7 +21,7 @@ namespace stellar
  * Helper class that points to an output tempfile. Absorbs BucketEntries and
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                                                     bool keepTombstoneEntries,
                                                     BucketMetadata const& meta,
@@ -73,7 +73,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 {
@@ -164,7 +164,7 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
     *mBuf = e;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,

@@ -39,18 +39,16 @@ struct EvictionResultEntry;
 struct InflationWinner;
 struct StateArchivalSettings;
 class EvictionStatistics;
-template <class BucketT> class BucketListBase;
-template <class BucketT> class BucketLevel;
+template <IsBucketType BucketT> class BucketListBase;
+template <IsBucketType BucketT> class BucketLevel;
 class ImmutableLedgerData;
 class ImmutableLedgerView;
 
 // BucketListSnapshotData holds the immutable bucket references that can be
 // safely shared across threads. It contains only bucket pointers and no
 // metadata (headers, sequence numbers, etc.) or mutable state (file streams).
-template <class BucketT> struct BucketListSnapshotData
+template <IsBucketType BucketT> struct BucketListSnapshotData
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     struct Level
     {
         std::shared_ptr<BucketT const> const curr;
@@ -74,10 +72,8 @@ template <class BucketT> struct BucketListSnapshotData
 // - A single snapshot instance must only be used by one thread at a time.
 // - The underlying snapshot data (shared via shared_ptr) is immutable and
 //   can be safely shared.
-template <class BucketT> class SearchableBucketListSnapshot
+template <IsBucketType BucketT> class SearchableBucketListSnapshot
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
   protected:
     // Shared immutable snapshot data
     std::shared_ptr<BucketListSnapshotData<BucketT> const> mData;

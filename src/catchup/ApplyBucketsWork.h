@@ -14,7 +14,7 @@ namespace stellar
 class AssumeStateWork;
 class LiveBucketList;
 class Bucket;
-template <class BucketT> class IndexBucketsWork;
+template <IsBucketType BucketT> class IndexBucketsWork;
 class LiveBucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;

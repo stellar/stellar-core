@@ -22,7 +22,7 @@
 namespace stellar
 {
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketLevel<BucketT>::BucketLevel(uint32_t i)
     : mLevel(i)
     , mNextCurr(FutureBucket<BucketT>())
@@ -31,7 +31,7 @@ BucketLevel<BucketT>::BucketLevel(uint32_t i)
 {
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint256
 BucketLevel<BucketT>::getHash() const
 {
@@ -41,7 +41,7 @@ BucketLevel<BucketT>::getHash() const
     return hsh.finish();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 FutureBucket<BucketT> const&
 BucketLevel<BucketT>::getNext() const
 {
@@ -49,7 +49,7 @@ BucketLevel<BucketT>::getNext() const
     return std::get<FutureBucket<BucketT>>(mNextCurr);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 FutureBucket<BucketT>&
 BucketLevel<BucketT>::getNext()
 {
@@ -57,7 +57,7 @@ BucketLevel<BucketT>::getNext()
     return std::get<FutureBucket<BucketT>>(mNextCurr);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::setNext(FutureBucket<BucketT> const& fb)
 {
@@ -65,7 +65,7 @@ BucketLevel<BucketT>::setNext(FutureBucket<BucketT> const& fb)
     mNextCurr = fb;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::setNextInMemory(std::shared_ptr<BucketT>&& bucket)
 {
@@ -73,28 +73,28 @@ BucketLevel<BucketT>::setNextInMemory(std::shared_ptr<BucketT>&& bucket)
     mNextCurr = std::move(bucket);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::clearNext()
 {
     mNextCurr = FutureBucket<BucketT>();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketLevel<BucketT>::getCurr() const
 {
     return mCurr;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketLevel<BucketT>::getSnap() const
 {
     return mSnap;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::setCurr(std::shared_ptr<BucketT> b)
 {
@@ -102,11 +102,11 @@ BucketLevel<BucketT>::setCurr(std::shared_ptr<BucketT> b)
     mCurr = b;
 }
 
-template <typename BucketT> BucketListBase<BucketT>::~BucketListBase()
+template <IsBucketType BucketT> BucketListBase<BucketT>::~BucketListBase()
 {
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketListBase<BucketT>::shouldMergeWithEmptyCurr(uint32_t ledger,
                                                   uint32_t level)
@@ -135,7 +135,7 @@ BucketListBase<BucketT>::shouldMergeWithEmptyCurr(uint32_t ledger,
     return false;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::setSnap(std::shared_ptr<BucketT> b)
 {
@@ -143,28 +143,28 @@ BucketLevel<BucketT>::setSnap(std::shared_ptr<BucketT> b)
     mSnap = b;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketLevel<BucketT>::hasInMemoryMerge() const
 {
     return std::holds_alternative<std::shared_ptr<BucketT>>(mNextCurr);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketLevel<BucketT>::hasFutureBucketMerge() const
 {
     return std::holds_alternative<FutureBucket<BucketT>>(mNextCurr);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketLevel<BucketT>::hasInProgressMerge() const
 {
     return hasInMemoryMerge() || getNext().isMerging();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::commit()
 {
@@ -287,7 +287,7 @@ BucketLevel<HotArchiveBucket>::prepareFirstLevel(
 // ----------------------------------------------------------------------------------------
 // ...
 // clang-format on
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketLevel<BucketT>::prepare(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
@@ -315,7 +315,7 @@ BucketLevel<BucketT>::prepare(
     releaseAssert(getNext().isMerging());
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 BucketLevel<BucketT>::snap()
 {
@@ -356,7 +356,7 @@ operator uint32_t() const
 // levelSize(8)  =  262144=0x040000
 // levelSize(9)  = 1048576=0x100000
 // levelSize(10) = 4194304=0x400000
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::levelSize(uint32_t level)
 {
@@ -379,14 +379,14 @@ BucketListBase<BucketT>::levelSize(uint32_t level)
 // levelHalf(8)  =  131072=0x020000
 // levelHalf(9)  =  524288=0x080000
 // levelHalf(10) = 2097152=0x200000
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::levelHalf(uint32_t level)
 {
     return levelSize(level) >> 1;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
@@ -436,7 +436,7 @@ BucketListBase<BucketT>::sizeOfCurr(uint32_t ledger, uint32_t level)
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::sizeOfSnap(uint32_t ledger, uint32_t level)
 {
@@ -463,7 +463,7 @@ BucketListBase<BucketT>::sizeOfSnap(uint32_t ledger, uint32_t level)
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 {
@@ -484,7 +484,7 @@ BucketListBase<BucketT>::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
     return count + 1;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 {
@@ -504,7 +504,7 @@ BucketListBase<BucketT>::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
     return count + 1;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint256
 BucketListBase<BucketT>::getHash() const
 {
@@ -536,7 +536,7 @@ BucketListBase<BucketT>::getHash() const
 //
 // clang-format on
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketListBase<BucketT>::levelShouldSpill(uint32_t ledger, uint32_t level)
 {
@@ -555,7 +555,7 @@ BucketListBase<BucketT>::levelShouldSpill(uint32_t ledger, uint32_t level)
 // spill frequency of the level below.
 // incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
 // incoming_spill_frequency(0) = 1
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::bucketUpdatePeriod(uint32_t level, bool isCurr)
 {
@@ -574,21 +574,21 @@ BucketListBase<BucketT>::bucketUpdatePeriod(uint32_t level, bool isCurr)
     return 1u << (2 * level - 1);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketListBase<BucketT>::keepTombstoneEntries(uint32_t level)
 {
     return level < BucketListBase<BucketT>::kNumLevels - 1;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketLevel<BucketT> const&
 BucketListBase<BucketT>::getLevel(uint32_t i) const
 {
     return mLevels.at(i);
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 BucketLevel<BucketT>&
 BucketListBase<BucketT>::getLevel(uint32_t i)
 {
@@ -596,7 +596,7 @@ BucketListBase<BucketT>::getLevel(uint32_t i)
 }
 
 #ifdef BUILD_TESTS
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketListBase<BucketT>::resolveAllFutures()
 {
@@ -611,7 +611,7 @@ BucketListBase<BucketT>::resolveAllFutures()
 }
 #endif
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketListBase<BucketT>::resolveAnyReadyFutures()
 {
@@ -625,7 +625,7 @@ BucketListBase<BucketT>::resolveAnyReadyFutures()
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 bool
 BucketListBase<BucketT>::futuresAllResolved(uint32_t maxLevel) const
 {
@@ -642,7 +642,7 @@ BucketListBase<BucketT>::futuresAllResolved(uint32_t maxLevel) const
     return true;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint32_t
 BucketListBase<BucketT>::getMaxMergeLevel(uint32_t currLedger) const
 {
@@ -657,7 +657,7 @@ BucketListBase<BucketT>::getMaxMergeLevel(uint32_t currLedger) const
     return i;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 uint64_t
 BucketListBase<BucketT>::getSize() const
 {
@@ -678,7 +678,7 @@ BucketListBase<BucketT>::getSize() const
     return sum;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 template <typename... VectorT>
 void
 BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
@@ -796,7 +796,7 @@ BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
     }
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 BucketListBase<BucketT>::restartMerges(Application& app,
                                        uint32_t maxProtocolVersion,
@@ -870,7 +870,7 @@ BucketListBase<BucketT>::restartMerges(Application& app,
     }
 }
 
-template <typename BucketT> BucketListBase<BucketT>::BucketListBase()
+template <IsBucketType BucketT> BucketListBase<BucketT>::BucketListBase()
 {
     for (uint32_t i = 0; i < kNumLevels; ++i)
     {
