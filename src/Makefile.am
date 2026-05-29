@@ -77,6 +77,12 @@ else
 CARGO_FEATURE_NEXT =
 endif
 
+if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+CARGO_FEATURE_FASTDEV = --features fastdev
+else
+CARGO_FEATURE_FASTDEV =
+endif
+
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
 
@@ -131,11 +137,12 @@ stellar_core_SOURCES += $(GENERATED_XDRQUERY_SOURCES) util/xdrquery/XDRQueryPars
 BUILT_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 stellar_core_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 
-if UNIFIED_RUST
-RUST_TOOLCHAIN_CHANNEL=nightly
-else
 RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
-RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+RUST_TOOLCHAIN_FILE_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+RUST_TOOLCHAIN_CHANNEL=$(if $(findstring -fsanitize=,$(CXXFLAGS)),nightly,$(RUST_TOOLCHAIN_FILE_CHANNEL))
+else
+RUST_TOOLCHAIN_CHANNEL=$(RUST_TOOLCHAIN_FILE_CHANNEL)
 endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
 RUSTC_WRAPPER=@RUSTC_WRAPPER@
@@ -151,22 +158,27 @@ RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
+
+if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+RUST_PROFILE=fastdev
+else
 RUST_PROFILE=release
+endif
 
 check-rust-profile: Makefile
 	@case "$(RUST_PROFILE)" in \
-		release|dev) ;; \
-		*) echo "Error: RUST_PROFILE must be 'release' or 'dev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
+		release|dev|fastdev) ;; \
+		*) echo "Error: RUST_PROFILE must be 'release', 'dev', or 'fastdev', got '$(RUST_PROFILE)'" >&2; exit 1;; \
 	esac
 
 # Of course, RUST_PROFILE can't be used as an argument directly because cargo
 # doesn't let you pass --debug, that's the default! you can only pass --release.
 # So we have to derive a new variable here.
-RUST_PROFILE_ARG := $(if $(findstring release,$(RUST_PROFILE)),--release,)
+RUST_PROFILE_ARG := $(if $(findstring fastdev,$(RUST_PROFILE)),--profile fastdev,$(if $(findstring release,$(RUST_PROFILE)),--release,))
 
 # Also for even more nonsense reasons the debug profile name is actually `dev`
 # but only in the command line, the target subdirectory gets called `debug`.
-RUST_PROFILE_DIR := $(if $(findstring release,$(RUST_PROFILE)),release,debug)
+RUST_PROFILE_DIR := $(if $(findstring fastdev,$(RUST_PROFILE)),fastdev,$(if $(findstring release,$(RUST_PROFILE)),release,debug))
 
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
 SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
@@ -201,7 +213,11 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # variable empty (and include or exclude submodules from the list of
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
+if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+ALL_SOROBAN_PROTOCOLS=p26
+else
 ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26
+endif
 WIP_SOROBAN_PROTOCOL=p27
 
 CARGO_XDR_FEATURE_FLAGS =
@@ -287,23 +303,23 @@ $(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust
 	printf '%s\n' "$$state" > $@.tmp; \
 	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
-# The "unified" rust build is a special non-production mode that builds all of
+# The fastdev rust build is a special non-production mode that builds all of
 # the rust dependencies of librust_stellar_core.a through a single cargo
 # invocation, which is actually the "normal" way cargo operates, but which also
 # has the negative side effect of resolving (merging) different point releases
 # and pre-release minor versions across transitive dependencies, which means we
 # can't control the _exact_ transitive dependencies as well as we'd like.
 #
-# So we only use the unified rust build for certain special cases such as
+# So we only use the fastdev rust build for certain special cases such as
 # testing with asan/tsan (they seem to only work well when built this way) and
 # use the non-unified build (with separate .a files for each separate soroban
 # version) for production builds.
 
-if UNIFIED_RUST
+if ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
-# In the unified build, we have to pass the --target flag. This actually breaks
+# In the fastdev build, we have to pass the --target flag. This actually breaks
 # the non-unified build, so we wind up setting LIBRUST_STELLAR_CORE separately
-# in unified and non-unified builds.
+# in fastdev and non-unified builds.
 RUST_TARGET=$(shell rustc -vV | sed -n 's/host: //p')
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_TARGET)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
@@ -323,14 +339,13 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 		$(CARGOFLAGS_BUILDSTD) \
 		--package stellar-core \
 		--target $(RUST_TARGET) \
-		--features unified \
 		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
-		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
+		$(CARGO_FEATURE_FASTDEV) $(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
 	ranlib $@
 
-else # !UNIFIED_RUST
+else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
@@ -444,7 +459,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 		$(ALL_SOROBAN_DEPEND_ARGS)
 	ranlib $@
 
-endif # UNIFIED_RUST
+endif # ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
