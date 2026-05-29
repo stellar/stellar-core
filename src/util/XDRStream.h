@@ -40,8 +40,14 @@ namespace stellar
 class XDRInputFileStream
 {
     std::ifstream mIn;
-    std::vector<char> mBuf;
-    std::vector<char> mRawBuf; // Complete framed record (header + payload)
+    std::vector<char> mBuf; // Used by readPage (multi-record buffer).
+    std::vector<char> mRawBuf; // Complete framed record (header + payload).
+    // Per-record buffer used by readOne. Shared so that shared_bytes fields
+    // decoded from this record can alias into the buffer instead of
+    // allocating + memcpying their payload. Reused across readOne calls when
+    // no outstanding references remain.
+    std::shared_ptr<std::uint8_t[]> mReadBuf;
+    size_t mReadBufCap = 0;
     size_t mSizeLimit;
     size_t mSize;
 
@@ -152,11 +158,44 @@ class XDRInputFileStream
         {
             return false;
         }
-        if (sz > mBuf.size())
+
+        // XDR-encoded records are always a multiple of 4 bytes by
+        // RFC 4506. The frame-header length field is exactly that
+        // encoded size — bail out cleanly if a malformed file violates
+        // the alignment invariant.
+        if (sz & 3)
         {
-            mBuf.resize(sz);
+            throw xdr::xdr_runtime_error(
+                "malformed XDR record: size not a multiple of 4");
         }
-        if (!mIn.read(mBuf.data(), sz))
+
+        // Make sure mReadBuf is large enough and uniquely owned before
+        // writing into it. If a prior decoded entry (or the bucket-merge
+        // raw passthrough path) still holds shared_bytes views into the
+        // previous buffer, mReadBuf.use_count() will be > 1, and we
+        // allocate a fresh buffer for this record rather than corrupting
+        // those views. In that case we size the fresh buffer to exactly
+        // \c sz so that outstanding shared_bytes references don't pin a
+        // large capacity-grown buffer alive — important when callers
+        // accumulate many decoded records (e.g. bucket index build).
+        if (!mReadBuf || mReadBuf.use_count() > 1)
+        {
+            mReadBufCap = std::max<size_t>(sz, size_t(1));
+            mReadBuf = std::shared_ptr<std::uint8_t[]>(
+                new std::uint8_t[mReadBufCap]);
+        }
+        else if (sz > mReadBufCap)
+        {
+            // Uniquely-owned but too small: grow with amortized doubling
+            // since no outstanding references will be pinning the buffer.
+            size_t newCap = std::max<size_t>(sz, mReadBufCap * 2);
+            mReadBuf = std::shared_ptr<std::uint8_t[]>(
+                new std::uint8_t[newCap]);
+            mReadBufCap = newCap;
+        }
+
+        if (sz != 0 &&
+            !mIn.read(reinterpret_cast<char*>(mReadBuf.get()), sz))
         {
             throw xdr::xdr_runtime_error(
                 "malformed XDR file or IO failure in readOne");
@@ -167,16 +206,20 @@ class XDRInputFileStream
         size_t framedSize = 4 + sz;
         mRawBuf.resize(framedSize);
         std::memcpy(mRawBuf.data(), szBuf, 4);
-        std::memcpy(mRawBuf.data() + 4, mBuf.data(), sz);
+        std::memcpy(mRawBuf.data() + 4, mReadBuf.get(), sz);
 
         if (hasher)
         {
             hasher->add(ByteSlice(szBuf, sizeof(szBuf)));
-            hasher->add(ByteSlice(mBuf.data(), sz));
+            hasher->add(ByteSlice(mReadBuf.get(), sz));
         }
 
-        xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
+        // Zero-copy decode: shared_bytes fields in \c out alias into
+        // mReadBuf via shared_bytes::share rather than allocating fresh
+        // buffers and memcpying their payloads.
+        xdr::xdr_get g(mReadBuf, 0, sz);
         xdr::xdr_argpack_archive(g, out);
+        g.done();
         return true;
     }
 
