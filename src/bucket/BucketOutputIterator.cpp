@@ -150,7 +150,15 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
         if (mCmp(*mBuf, e))
         {
             ++mMergeCounters.mOutputIteratorActualWrites;
-            mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+            if (!mBufRaw.empty())
+            {
+                mOut.writeRaw(mBufRaw.data(), mBufRaw.size(), &mHasher,
+                              &mBytesPut);
+            }
+            else
+            {
+                mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+            }
             mObjectsPut++;
         }
     }
@@ -162,18 +170,121 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
     // In any case, replace *mBuf with e.
     ++mMergeCounters.mOutputIteratorBufferUpdates;
     *mBuf = e;
+    mBufRaw.clear();
+}
+
+template <typename BucketT>
+void
+BucketOutputIterator<BucketT>::putWithRaw(typename BucketT::EntryT const& e,
+                                          std::vector<char>&& rawBytes)
+{
+    ZoneScoped;
+
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        LiveBucket::checkProtocolLegality(e, mMeta.ledgerVersion);
+        if (e.type() == METAENTRY)
+        {
+            if (mPutMeta)
+            {
+                throw std::runtime_error(
+                    "putting META entry in bucket after initial entry");
+            }
+        }
+
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
+        {
+            ++mMergeCounters.mOutputIteratorTombstoneElisions;
+            return;
+        }
+    }
+    else
+    {
+        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                      "unexpected bucket type");
+        if (e.type() == HOT_ARCHIVE_METAENTRY)
+        {
+            if (mPutMeta)
+            {
+                throw std::runtime_error(
+                    "putting META entry in bucket after initial entry");
+            }
+        }
+        else
+        {
+            if (e.type() == HOT_ARCHIVE_ARCHIVED)
+            {
+                if (!isSorobanEntry(e.archivedEntry().data))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+            else
+            {
+                if (!isSorobanEntry(e.key()))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+        }
+
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
+        {
+            ++mMergeCounters.mOutputIteratorTombstoneElisions;
+            return;
+        }
+    }
+
+    if (mBuf)
+    {
+        releaseAssert(!mCmp(e, *mBuf));
+
+        if (mCmp(*mBuf, e))
+        {
+            ++mMergeCounters.mOutputIteratorActualWrites;
+            if (!mBufRaw.empty())
+            {
+                mOut.writeRaw(mBufRaw.data(), mBufRaw.size(), &mHasher,
+                              &mBytesPut);
+            }
+            else
+            {
+                mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+            }
+            mObjectsPut++;
+        }
+    }
+    else
+    {
+        mBuf = std::make_unique<typename BucketT::EntryT>();
+    }
+
+    ++mMergeCounters.mOutputIteratorBufferUpdates;
+    *mBuf = e;
+    mBufRaw = std::move(rawBytes);
 }
 
 template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
-    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState)
+    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState,
+    std::shared_ptr<typename BucketT::IndexT const> preBuiltIndex)
 {
     ZoneScoped;
     if (mBuf)
     {
-        mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+        if (!mBufRaw.empty())
+        {
+            mOut.writeRaw(mBufRaw.data(), mBufRaw.size(), &mHasher,
+                          &mBytesPut);
+        }
+        else
+        {
+            mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+        }
         mObjectsPut++;
         mBuf.reset();
     }
@@ -219,7 +330,11 @@ BucketOutputIterator<BucketT>::getBucket(
 
     if (!index)
     {
-        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        if (preBuiltIndex)
+        {
+            index = std::move(preBuiltIndex);
+        }
+        else if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             if (inMemoryState)
             {

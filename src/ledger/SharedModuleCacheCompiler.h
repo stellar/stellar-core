@@ -26,7 +26,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
 {
     ::rust::Box<stellar::rust_bridge::SorobanModuleCache> mModuleCache;
     ApplyLedgerView mApplyLedgerView;
-    std::deque<xdr::xvector<uint8_t>> mWasms;
+    std::deque<xdr::opaque_vec<>> mWasms;
 
     size_t const mNumThreads;
     std::vector<std::thread> mThreads;
@@ -49,7 +49,7 @@ class SharedModuleCacheCompiler : NonMovableOrCopyable
     void setFinishedLoading(size_t nContracts);
     bool isFinishedCompiling(std::unique_lock<std::mutex>& lock);
     // This gets called in a loop on the loader/producer thread.
-    void pushWasm(xdr::xvector<uint8_t> const& vec);
+    void pushWasm(xdr::opaque_vec<> const& vec);
     // This gets called in a loop on the compiler/consumer threads. It returns
     // true if anything was actually compiled.
     bool popAndCompileWasm(size_t thread, std::unique_lock<std::mutex>& lock);

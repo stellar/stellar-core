@@ -29,6 +29,7 @@ template <typename BucketT> class BucketInputIterator
     typename BucketT::EntryT const* mEntryPtr{nullptr};
     XDRInputFileStream mIn;
     typename BucketT::EntryT mEntry;
+    std::vector<char> mRawEntry; // Raw framed record for current entry
     bool mSeenMetadata{false};
     bool mSeenOtherEntries{false};
     BucketMetadata mMetadata;
@@ -48,6 +49,11 @@ template <typename BucketT> class BucketInputIterator
     BucketMetadata const& getMetadata() const;
 
     typename BucketT::EntryT const& operator*();
+
+    // Move out the raw framed record bytes for the current entry.
+    // This invalidates the raw bytes; subsequent calls return empty until
+    // the iterator advances.
+    std::vector<char> moveRawBytes();
 
     BucketInputIterator(std::shared_ptr<BucketT const> bucket);
 

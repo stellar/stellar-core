@@ -120,16 +120,19 @@ KeyFunctions<SignerKey>::getEd25519Value(SignerKey const& key)
 std::vector<uint8_t>
 KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
 {
+    auto toVec = [](auto const& v) {
+        return std::vector<uint8_t>(v.begin(), v.end());
+    };
     switch (key.type())
     {
     case SIGNER_KEY_TYPE_ED25519:
-        return xdr::xdr_to_opaque(key.ed25519());
+        return toVec(xdr::xdr_to_opaque(key.ed25519()));
     case SIGNER_KEY_TYPE_PRE_AUTH_TX:
-        return xdr::xdr_to_opaque(key.preAuthTx());
+        return toVec(xdr::xdr_to_opaque(key.preAuthTx()));
     case SIGNER_KEY_TYPE_HASH_X:
-        return xdr::xdr_to_opaque(key.hashX());
+        return toVec(xdr::xdr_to_opaque(key.hashX()));
     case SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
-        return xdr::xdr_to_opaque(key.ed25519SignedPayload());
+        return toVec(xdr::xdr_to_opaque(key.ed25519SignedPayload()));
     default:
         throw std::invalid_argument("invalid signer key type");
     }

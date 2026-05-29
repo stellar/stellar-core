@@ -14,6 +14,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -39,7 +40,14 @@ namespace stellar
 class XDRInputFileStream
 {
     std::ifstream mIn;
-    std::vector<char> mBuf;
+    std::vector<char> mBuf; // Used by readPage (multi-record buffer).
+    std::vector<char> mRawBuf; // Complete framed record (header + payload).
+    // Per-record buffer used by readOne. Shared so that shared_bytes fields
+    // decoded from this record can alias into the buffer instead of
+    // allocating + memcpying their payload. Reused across readOne calls when
+    // no outstanding references remain.
+    std::shared_ptr<std::uint8_t[]> mReadBuf;
+    size_t mReadBufCap = 0;
     size_t mSizeLimit;
     size_t mSize;
 
@@ -150,25 +158,76 @@ class XDRInputFileStream
         {
             return false;
         }
-        if (sz > mBuf.size())
+
+        // XDR-encoded records are always a multiple of 4 bytes by
+        // RFC 4506. The frame-header length field is exactly that
+        // encoded size — bail out cleanly if a malformed file violates
+        // the alignment invariant.
+        if (sz & 3)
         {
-            mBuf.resize(sz);
+            throw xdr::xdr_runtime_error(
+                "malformed XDR record: size not a multiple of 4");
         }
-        if (!mIn.read(mBuf.data(), sz))
+
+        // Make sure mReadBuf is large enough and uniquely owned before
+        // writing into it. If a prior decoded entry (or the bucket-merge
+        // raw passthrough path) still holds shared_bytes views into the
+        // previous buffer, mReadBuf.use_count() will be > 1, and we
+        // allocate a fresh buffer for this record rather than corrupting
+        // those views. In that case we size the fresh buffer to exactly
+        // \c sz so that outstanding shared_bytes references don't pin a
+        // large capacity-grown buffer alive — important when callers
+        // accumulate many decoded records (e.g. bucket index build).
+        if (!mReadBuf || mReadBuf.use_count() > 1)
+        {
+            mReadBufCap = std::max<size_t>(sz, size_t(1));
+            mReadBuf = std::shared_ptr<std::uint8_t[]>(
+                new std::uint8_t[mReadBufCap]);
+        }
+        else if (sz > mReadBufCap)
+        {
+            // Uniquely-owned but too small: grow with amortized doubling
+            // since no outstanding references will be pinning the buffer.
+            size_t newCap = std::max<size_t>(sz, mReadBufCap * 2);
+            mReadBuf = std::shared_ptr<std::uint8_t[]>(
+                new std::uint8_t[newCap]);
+            mReadBufCap = newCap;
+        }
+
+        if (sz != 0 &&
+            !mIn.read(reinterpret_cast<char*>(mReadBuf.get()), sz))
         {
             throw xdr::xdr_runtime_error(
                 "malformed XDR file or IO failure in readOne");
         }
 
+        // Retain the complete framed record (4-byte header + payload) for
+        // potential raw passthrough during bucket merge.
+        size_t framedSize = 4 + sz;
+        mRawBuf.resize(framedSize);
+        std::memcpy(mRawBuf.data(), szBuf, 4);
+        std::memcpy(mRawBuf.data() + 4, mReadBuf.get(), sz);
+
         if (hasher)
         {
             hasher->add(ByteSlice(szBuf, sizeof(szBuf)));
-            hasher->add(ByteSlice(mBuf.data(), sz));
+            hasher->add(ByteSlice(mReadBuf.get(), sz));
         }
 
-        xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
+        // Zero-copy decode: shared_bytes fields in \c out alias into
+        // mReadBuf via shared_bytes::share rather than allocating fresh
+        // buffers and memcpying their payloads.
+        xdr::xdr_get g(mReadBuf, 0, sz);
         xdr::xdr_argpack_archive(g, out);
+        g.done();
         return true;
+    }
+
+    // Move out the raw framed record bytes from the most recent readOne.
+    std::vector<char>
+    moveRawBytes()
+    {
+        return std::move(mRawBuf);
     }
 
     // `readPage` reads records of XDR type `T` from the stream into output
@@ -483,16 +542,54 @@ class XDROutputFileStream : public OutputFileStream
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
         ZoneScoped;
+
+        // Optimistic single-pass: since mBuf persists across calls and grows
+        // monotonically, after a few entries it will be large enough to hold
+        // any entry without needing the xdr_size pre-computation.
+        if (mBuf.size() >= 8)
+        {
+            try
+            {
+                xdr::xdr_put p(mBuf.data() + 4,
+                               mBuf.data() + mBuf.size());
+                xdr_argpack_archive(p, t);
+                uint32_t sz = static_cast<uint32_t>(
+                    reinterpret_cast<char*>(p.p_) - (mBuf.data() + 4));
+                releaseAssertOrThrow(sz < 0x80000000);
+                mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
+                mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
+                mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
+                mBuf[3] = static_cast<char>(sz & 0xFF);
+                size_t const toWrite = sz + 4;
+                writeBytes(mBuf.data(), toWrite);
+                if (hasher)
+                {
+                    hasher->add(ByteSlice(mBuf.data(), toWrite));
+                }
+                if (bytesPut)
+                {
+                    *bytesPut += toWrite;
+                }
+                return;
+            }
+            catch (xdr::xdr_overflow const&)
+            {
+                // Buffer too small — fall through to two-pass path which
+                // will resize the buffer appropriately.
+            }
+        }
+
+        // Two-pass fallback: compute exact size, resize buffer, serialize.
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         releaseAssertOrThrow(sz < 0x80000000);
 
-        if (mBuf.size() < sz + 4)
+        // Grow buffer with some headroom to reduce future fallbacks.
+        size_t needed = sz + 4;
+        if (mBuf.size() < needed)
         {
-            mBuf.resize(sz + 4);
+            mBuf.resize(std::max(needed, needed * 2));
         }
 
-        // Write 4 bytes of size, big-endian, with the last-fragment flag set
-        // on high bit of high byte.
         mBuf[0] = static_cast<char>((sz >> 24) & 0xFF) | '\x80';
         mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
         mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
@@ -500,7 +597,6 @@ class XDROutputFileStream : public OutputFileStream
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
 
-        // Buffer is 4 bytes of encoded size, followed by encoded object
         size_t const toWrite = sz + 4;
         writeBytes(mBuf.data(), toWrite);
 
@@ -510,7 +606,25 @@ class XDROutputFileStream : public OutputFileStream
         }
         if (bytesPut)
         {
-            *bytesPut += (sz + 4);
+            *bytesPut += toWrite;
+        }
+    }
+
+    // Writes a pre-serialized framed record (4-byte header + XDR payload)
+    // directly to the stream, bypassing serialization entirely.
+    void
+    writeRaw(char const* data, size_t size, SHA256* hasher = nullptr,
+             size_t* bytesPut = nullptr)
+    {
+        ZoneScoped;
+        writeBytes(data, size);
+        if (hasher)
+        {
+            hasher->add(ByteSlice(data, size));
+        }
+        if (bytesPut)
+        {
+            *bytesPut += size;
         }
     }
 };

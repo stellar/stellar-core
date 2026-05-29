@@ -13,6 +13,8 @@
 #include <xdrpp/marshal.h>
 
 #include <algorithm>
+#include <cstring>
+#include <memory>
 #include <optional>
 
 namespace stellar
@@ -371,8 +373,42 @@ template <typename T>
 CxxBuf
 toCxxBuf(T const& t)
 {
-    return CxxBuf{
-        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(t))};
+    // Encode directly into the destination std::vector so that we don't
+    // pay the cost of an intermediate xdr::shared_bytes allocation +
+    // copy on the way to CxxBuf's std::vector<uint8_t>.
+    auto v = std::make_unique<std::vector<uint8_t>>();
+    xdr::xdr_to_vector(*v, t);
+    return CxxBuf{std::move(v)};
+}
+
+//! Decode an XDR value out of a byte container returned by the soroban
+//! host (e.g. \c rust::Vec<uint8_t>) using the shared-buffer decoder.
+//!
+//! The caller surrenders ownership of \c src; we move it into a
+//! reference-counted holder and hand the decoder a \c shared_ptr that
+//! aliases the holder's bytes via the aliasing constructor. The
+//! resulting decoded value's \c shared_bytes fields share that holder
+//! — no payload memcpy and no extra byte buffer alongside the original
+//! one. The holder (and the Rust-side allocation it owns) is released
+//! when the last refcount drops.
+template <typename Bytes, typename T>
+void
+xdrFromHostBytes(Bytes&& src, T& out)
+{
+    using Holder = std::remove_cv_t<std::remove_reference_t<Bytes>>;
+    std::size_t n = src.size();
+    if (n == 0)
+    {
+        xdr::xdr_get g(nullptr, nullptr);
+        xdr::xdr_argpack_archive(g, out);
+        g.done();
+        return;
+    }
+    auto holder = std::make_shared<Holder>(std::forward<Bytes>(src));
+    std::shared_ptr<std::uint8_t[]> buf(
+        holder, const_cast<std::uint8_t*>(
+                    reinterpret_cast<std::uint8_t const*>(holder->data())));
+    xdr::xdr_from_opaque_shared(std::move(buf), n, out);
 }
 
 // Creates a ledger entry change for the rent computation via Rust bridge.

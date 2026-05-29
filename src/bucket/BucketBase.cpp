@@ -256,7 +256,7 @@ mergeCasesWithDefaultAcceptance(
     if (inputSource.oldFirst())
     {
         // Take old entry
-        auto entry = inputSource.getOldEntry();
+        auto const& entry = inputSource.getOldEntry();
         ++mc.mOldEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countOldEntryType(mc, entry);
@@ -272,7 +272,7 @@ mergeCasesWithDefaultAcceptance(
     // In both cases: take new entry.
     else if (inputSource.newFirst())
     {
-        auto entry = inputSource.getNewEntry();
+        auto const& entry = inputSource.getNewEntry();
         ++mc.mNewEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countNewEntryType(mc, entry);
@@ -394,8 +394,22 @@ BucketBase<BucketT, IndexT>::merge(
                                       doFsync);
 
     FileMergeInput<BucketT> inputSource(oi, ni);
-    auto putFunc = [&out](typename BucketT::EntryT const& entry) {
-        out.put(entry);
+    auto putFunc = [&out, &oi, &ni](typename BucketT::EntryT const& entry) {
+        // If the entry is the unmodified current entry from one of the
+        // input iterators (address comparison), use raw byte passthrough
+        // to avoid re-serialization.
+        if (oi && &entry == &(*oi))
+        {
+            out.putWithRaw(entry, oi.moveRawBytes());
+        }
+        else if (ni && &entry == &(*ni))
+        {
+            out.putWithRaw(entry, ni.moveRawBytes());
+        }
+        else
+        {
+            out.put(entry);
+        }
     };
 
     // Perform the merge

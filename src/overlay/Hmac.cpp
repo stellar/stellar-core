@@ -52,7 +52,9 @@ Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
     }
     if (!hmacSha256Verify(
             msg.v0().mac, mRecvMacKey,
-            xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
+            (xdr::xdr_to_opaque(mScratch, msg.v0().sequence,
+                    msg.v0().message),
+             mScratch)))
     {
         errorMsg = "unexpected MAC";
         return false;
@@ -73,8 +75,8 @@ Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
     if (msg.type() != HELLO && msg.type() != ERROR_MSG)
     {
         aMsg.v0().sequence = mSendMacSeq;
-        aMsg.v0().mac =
-            hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
+        xdr::xdr_to_opaque(mScratch, mSendMacSeq, msg);
+        aMsg.v0().mac = hmacSha256(mSendMacKey, mScratch);
         mSendMacSeq++;
     }
 }

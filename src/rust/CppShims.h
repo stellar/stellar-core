@@ -5,6 +5,10 @@
 #pragma once
 
 #include "util/Logging.h"
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <vector>
 
 // This file just contains "shims" which are global C++ functions that cxx.rs
 // can understand how to call, that themselves call through to C++ code in some
@@ -35,5 +39,17 @@ shim_logAtPartitionAndLevel(std::string const& partition, LogLevel level,
                             std::string const& msg)
 {
     Logging::logAtPartitionAndLevel(partition, level, msg);
+}
+
+inline std::unique_ptr<std::vector<std::uint8_t>>
+shim_copyU8Vector(std::uint8_t const* data, std::size_t len)
+{
+    auto copy = std::make_unique<std::vector<std::uint8_t>>();
+    copy->reserve(len);
+    for (std::size_t i = 0; i < len; ++i)
+    {
+        copy->emplace_back(data[i]);
+    }
+    return copy;
 }
 }

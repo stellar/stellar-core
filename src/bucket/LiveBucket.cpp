@@ -10,6 +10,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
+#include <future>
 #include <medida/counter.h>
 
 namespace stellar
@@ -383,39 +384,102 @@ LiveBucket::convertToBucketEntry(bool useInit,
                                  std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
-    std::vector<BucketEntry> bucket;
-    bucket.reserve(initEntries.size() + liveEntries.size() +
-                   deadEntries.size());
 
+    // Lightweight reference for indirect sorting: avoids copying and
+    // swapping full BucketEntry objects (which contain large XDR
+    // LedgerEntry payloads).  Instead we sort small 24-byte ref structs
+    // and materialise the final BucketEntry vector in one pass.
+    struct EntryRef
+    {
+        BucketEntryType type;
+        // Exactly one of these is non-null.
+        LedgerEntry const* livePtr; // for INITENTRY / LIVEENTRY
+        LedgerKey const* deadPtr;   // for DEADENTRY
+    };
+
+    size_t totalSize =
+        initEntries.size() + liveEntries.size() + deadEntries.size();
+
+    std::vector<EntryRef> refs;
+    refs.reserve(totalSize);
+
+    BucketEntryType initType = useInit ? INITENTRY : LIVEENTRY;
     for (auto const& e : initEntries)
     {
-        BucketEntry ce;
-        ce.type(useInit ? INITENTRY : LIVEENTRY);
-        ce.liveEntry() = e;
-        bucket.push_back(ce);
+        refs.push_back({initType, &e, nullptr});
     }
     for (auto const& e : liveEntries)
     {
-        BucketEntry ce;
-        ce.type(LIVEENTRY);
-        ce.liveEntry() = e;
-        bucket.push_back(ce);
+        refs.push_back({LIVEENTRY, &e, nullptr});
     }
     for (auto const& e : deadEntries)
     {
-        BucketEntry ce;
-        ce.type(DEADENTRY);
-        ce.deadEntry() = e;
-        bucket.push_back(ce);
+        refs.push_back({DEADENTRY, nullptr, &e});
     }
 
+    // Sort using the same LedgerEntryIdCmp logic but through pointers.
+    LedgerEntryIdCmp idCmp;
+    std::sort(refs.begin(), refs.end(),
+              [&idCmp](EntryRef const& a, EntryRef const& b) {
+                  // METAENTRY sorts below all others; not expected here but
+                  // handled for safety.
+                  if (a.type == METAENTRY || b.type == METAENTRY)
+                  {
+                      return a.type < b.type;
+                  }
+
+                  // Compare by ledger-entry identity, same as
+                  // BucketEntryIdCmp<LiveBucket>::compareLive but using
+                  // pointers into the source vectors.
+                  bool aIsLive = (a.type == LIVEENTRY || a.type == INITENTRY);
+                  bool bIsLive = (b.type == LIVEENTRY || b.type == INITENTRY);
+
+                  if (aIsLive && bIsLive)
+                  {
+                      return idCmp(a.livePtr->data, b.livePtr->data);
+                  }
+                  else if (aIsLive && !bIsLive)
+                  {
+                      return idCmp(a.livePtr->data, *b.deadPtr);
+                  }
+                  else if (!aIsLive && bIsLive)
+                  {
+                      return idCmp(*a.deadPtr, b.livePtr->data);
+                  }
+                  else
+                  {
+                      return idCmp(*a.deadPtr, *b.deadPtr);
+                  }
+              });
+
+    // Materialise sorted BucketEntry vector in one pass.
+    std::vector<BucketEntry> bucket;
+    bucket.reserve(totalSize);
+
+    for (auto const& r : refs)
+    {
+        bucket.emplace_back();
+        auto& ce = bucket.back();
+        if (r.type == DEADENTRY)
+        {
+            ce.type(DEADENTRY);
+            ce.deadEntry() = *r.deadPtr;
+        }
+        else
+        {
+            ce.type(r.type);
+            ce.liveEntry() = *r.livePtr;
+        }
+    }
+
+#ifndef NDEBUG
     BucketEntryIdCmp<LiveBucket> cmp;
-    std::sort(bucket.begin(), bucket.end(), cmp);
     releaseAssert(std::adjacent_find(
                       bucket.begin(), bucket.end(),
                       [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
                           return !cmp(lhs, rhs);
                       }) == bucket.end());
+#endif
     return bucket;
 }
 
@@ -587,29 +651,50 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
             mergedEntries.emplace_back(entry);
         };
 
-    mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion, mc,
-                  shadowIterators, keepShadowedLifecycleEntries);
+    {
+        ZoneNamedN(zoneMerge, "mergeInMemory merge", true);
+        mergeInternal(bucketManager, inputSource, putFunc, maxProtocolVersion,
+                      mc, shadowIterators, keepShadowedLifecycleEntries);
+    }
 
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
+    // Start index construction on worker thread — reads mergedEntries (const),
+    // completely independent of the put loop's serialize/hash/write work.
+    auto indexFuture = std::async(std::launch::async, [&]() {
+        return std::make_shared<LiveBucketIndex>(bucketManager, mergedEntries,
+                                                 meta);
+    });
+
     // Write merge output to a bucket and save to disk
     LiveBucketOutputIterator out(bucketManager.getTmpDir(),
                                  /*keepTombstoneEntries=*/true, meta, mc, ctx,
                                  doFsync);
 
-    for (auto const& e : mergedEntries)
     {
-        out.put(e);
+        ZoneNamedN(zonePut, "mergeInMemory put loop", true);
+        for (auto const& e : mergedEntries)
+        {
+            out.put(e);
+        }
+    }
+
+    // Collect the pre-built index
+    std::shared_ptr<LiveBucketIndex const> preBuiltIndex;
+    {
+        ZoneNamedN(zoneWait, "mergeInMemory index future wait", true);
+        preBuiltIndex = indexFuture.get();
     }
 
     // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
     return out.getBucket(
         bucketManager, nullptr,
-        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)));
+        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)),
+        std::move(preBuiltIndex));
 }
 
 BucketEntryCounters const&

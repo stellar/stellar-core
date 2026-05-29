@@ -160,6 +160,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
 
     std::vector<uint64_t> keyHashes;
     auto seed = shortHash::getShortHashInitKey();
+    xdr::opaque_vec<> keyBuf;
 
     // Track first and last offsets for each type
     std::map<LedgerEntryType, std::streamoff> typeStartOffsets;
@@ -225,7 +226,7 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                 static_assert(std::is_same_v<BucketT, HotArchiveBucket>);
             }
 
-            auto keyBuf = xdr::xdr_to_opaque(key);
+            xdr::xdr_to_opaque(keyBuf, key);
             SipHash24 hasher(seed.data());
             hasher.update(keyBuf.data(), keyBuf.size());
             keyHashes.emplace_back(hasher.digest());

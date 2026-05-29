@@ -241,6 +241,10 @@ class LedgerManagerImpl : public LedgerManager
             std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
             std::optional<SorobanNetworkConfig const> const& sorobanConfig);
 
+        // Returns mutable reference to in-memory state for direct updates.
+        // Only safe during COMMITTING phase when no readers are active.
+        InMemorySorobanState& getInMemorySorobanStateForUpdate();
+
         // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;
@@ -530,6 +534,37 @@ class LedgerManagerImpl : public LedgerManager
     std::chrono::milliseconds getExpectedLedgerCloseTime() const override;
 
 #ifdef BUILD_TESTS
+    struct LedgerClosePhaseTimings
+    {
+        double prepareTxSetMs = 0;
+        double prefetchSourceAccountsMs = 0;
+        double processFeesSeqNumsMs = 0;
+        double applyTransactionsMs = 0;
+        double applyTxSetupMs = 0;
+        double prefetchTxDataMs = 0;
+        double applyTxMidSetupMs = 0;
+        double loadSorobanConfigMs = 0;
+        double buildTxBundlesMs = 0;
+        double sorobanSetupGlobalMs = 0;
+        double sorobanParallelApplyMs = 0;
+        double sorobanCheckInvariantsMs = 0;
+        double sorobanCommitFromThreadsMs = 0;
+        double sorobanDestroyThreadStatesMs = 0;
+        double sorobanCommitToLtxMs = 0;
+        double sorobanDestroyGlobalStateMs = 0;
+        double applyParallelPhaseTotalMs = 0;
+        double applySeqClassicMs = 0;
+        double postTxSetApplyMs = 0;
+        double applyTxTailMs = 0;
+        double destroyApplyStagesMs = 0;
+        double applyUpgradesMs = 0;
+        double sealAndBucketMs = 0;
+        double sqlCommitMs = 0;
+        double postCommitMs = 0;
+    };
+
+    LedgerClosePhaseTimings const& getLastPhaseTimings() const;
+
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     std::optional<LedgerCloseMetaFrame> const&
@@ -542,6 +577,8 @@ class LedgerManagerImpl : public LedgerManager
     getModuleCacheForTesting() override;
     void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
     uint64_t getSorobanInMemoryStateSizeForTesting() override;
+
+    LedgerClosePhaseTimings mLastPhaseTimings;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
