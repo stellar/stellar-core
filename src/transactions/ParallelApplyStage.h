@@ -30,29 +30,31 @@ class TxEffects
     {
         return mMeta;
     }
+
     LedgerTxnDelta const&
-    getDelta()
+    getDeltaForInvariants()
     {
-        return mDelta;
+        return mDeltaForInvariants;
     }
 
     void
-    setDeltaEntry(LedgerKey const& key, LedgerTxnDelta::EntryDelta const& delta)
+    setDeltaEntryForInvariants(LedgerKey const& key,
+                               LedgerTxnDelta::EntryDelta const& delta)
     {
-        auto [_, inserted] = mDelta.entry.emplace(key, delta);
+        auto [_, inserted] = mDeltaForInvariants.entry.emplace(key, delta);
         releaseAssertOrThrow(inserted);
     }
 
     void
     setDeltaHeader(LedgerHeader const& header)
     {
-        mDelta.header.current = header;
-        mDelta.header.previous = header;
+        mDeltaForInvariants.header.current = header;
+        mDeltaForInvariants.header.previous = header;
     }
 
   private:
     TransactionMetaBuilder mMeta;
-    LedgerTxnDelta mDelta;
+    LedgerTxnDelta mDeltaForInvariants;
 };
 
 // TxBundle contains a transaction, its associated result payload, and its

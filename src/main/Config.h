@@ -969,6 +969,8 @@ class Config : public std::enable_shared_from_this<Config>
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);
 
+    bool invariantsEnabled() const;
+
     // A special name to be used for stdin in stead of a file name in command
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;

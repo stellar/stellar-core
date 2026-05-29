@@ -2277,8 +2277,11 @@ TransactionFrame::parallelApply(
 
         if (res)
         {
-            threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
-                                                        effects);
+            if (config.invariantsEnabled())
+            {
+                threadState.setDeltaForInvariantsFromSuccessfulTx(*res,
+                                                                  effects);
+            }
             opMeta.setLedgerChangesFromSuccessfulOp(threadState, *res,
                                                     ledgerInfo.getLedgerSeq());
         }
