@@ -651,6 +651,12 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
 
     virtual void createWithoutLoading(InternalLedgerEntry const& entry) = 0;
     virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    // Move overloads: avoid deep-copying InternalLedgerEntry when the caller
+    // is consuming a temporary or explicitly moving ownership. Default
+    // implementations forward to the const& versions; LedgerTxn overrides
+    // to move directly into make_shared for zero-copy insertion.
+    virtual void createWithoutLoading(InternalLedgerEntry&& entry);
+    virtual void updateWithoutLoading(InternalLedgerEntry&& entry);
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
     // getChanges, getDelta, and getAllEntries are used to
@@ -678,10 +684,10 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
 
-    // Returns all TTL keys that have been modified (create, update, and
-    // delete), but does not cause the AbstractLedgerTxn or update last
-    // modified.
-    virtual LedgerKeySet getAllKeysWithoutSealing() const = 0;
+    // Returns true if the given LedgerKey has been modified (created, updated,
+    // or deleted) in this LedgerTxn. This is an O(1) lookup that avoids
+    // building the full key set.
+    virtual bool isModifiedKey(LedgerKey const& key) const = 0;
 
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
@@ -817,7 +823,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
-    LedgerKeySet getAllKeysWithoutSealing() const override;
+    bool isModifiedKey(LedgerKey const& key) const override;
 
     UnorderedMap<LedgerKey, LedgerEntry>
     getRestoredHotArchiveKeys() const override;
@@ -834,6 +840,8 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void createWithoutLoading(InternalLedgerEntry const& entry) override;
     void updateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry&& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry&& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;

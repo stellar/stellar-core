@@ -11,6 +11,7 @@
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
+#include <arpa/inet.h>
 #include <json/json.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
@@ -18,6 +19,7 @@
 
 #include "ledger/LedgerTxnImpl.h"
 #include "rust/CppShims.h"
+#include "util/BitSet.h"
 #include "xdr/Stellar-transaction.h"
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
@@ -39,9 +41,10 @@ namespace stellar
 namespace
 {
 CxxLedgerInfo
-getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
-              uint32_t ledgerSeq, uint32_t baseReserve, TimePoint closeTime,
-              Hash const& networkID)
+buildLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
+                uint32_t ledgerVersion, uint32_t ledgerSeq,
+                uint32_t baseReserve, TimePoint closeTime,
+                Hash const& networkID)
 {
     CxxLedgerInfo info{};
     info.base_reserve = baseReserve;
@@ -67,6 +70,27 @@ getLedgerInfo(SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion,
         info.network_id.emplace_back(static_cast<unsigned char>(c));
     }
     return info;
+}
+
+CxxLedgerInfo const&
+getCachedLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
+                    uint32_t ledgerVersion, uint32_t ledgerSeq,
+                    uint32_t baseReserve, TimePoint closeTime,
+                    Hash const& networkID)
+{
+    thread_local std::optional<uint32_t> cachedLedgerSeq;
+    thread_local std::optional<CxxLedgerInfo> cachedLedgerInfo;
+
+    if (!cachedLedgerSeq || *cachedLedgerSeq != ledgerSeq)
+    {
+        cachedLedgerSeq = ledgerSeq;
+        cachedLedgerInfo =
+            buildLedgerInfo(sorobanConfig, ledgerVersion, ledgerSeq,
+                            baseReserve, closeTime, networkID);
+    }
+
+    releaseAssertOrThrow(cachedLedgerInfo);
+    return cachedLedgerInfo.value();
 }
 
 DiagnosticEvent
@@ -270,9 +294,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
+    BitSet mRwKeyExisted;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
-    ApplyLedgerView mApplyLedgerView;
+    ApplyLedgerView mStateSnapshot;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
@@ -285,7 +310,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
+        SorobanNetworkConfig const& sorobanConfig,
+        ApplyLedgerView stateSnapshot,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
@@ -296,9 +322,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mResources(mOpFrame.mParentTx.sorobanResources())
         , mSorobanConfig(sorobanConfig)
         , mAppConfig(app.getConfig())
+        , mRwKeyExisted(mResources.footprint.readWrite.size())
         , mMetrics(app.getSorobanMetrics(),
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        , mApplyLedgerView(std::move(applyView))
+        , mStateSnapshot(std::move(stateSnapshot))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
@@ -312,7 +339,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         mTtlEntryCxxBufs.reserve(footprintLength);
     }
 
-    virtual CxxLedgerInfo getLedgerInfo() = 0;
+    virtual CxxLedgerInfo const& getLedgerInfo() = 0;
 
     // Helper called on all archived keys in the footprint. Returns false if
     // the operation should fail and populates result code and diagnostic
@@ -425,7 +452,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         continue;
                     }
 
-                    auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
+                    auto archiveEntry = mStateSnapshot.loadArchiveEntry(lk);
                     if (archiveEntry)
                     {
                         releaseAssertOrThrow(
@@ -449,6 +476,11 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 auto entryOpt = getLedgerEntryOpt(lk);
                 if (entryOpt)
                 {
+                    if (!isReadOnly)
+                    {
+                        mRwKeyExisted.set(i);
+                    }
+
                     auto leBuf = toCxxBuf(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
 
@@ -609,20 +641,23 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
-        // Every modified entry is either a newly created entry or an updated
-        // entry. Gather the modified entry keys in order to identify deleted
-        // entries (that don't exist in the modified entry list but do exist in
-        // the read-write footprint).
-        UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        uint32_t numCreatedSorobanEntries = 0;
-        uint32_t numCreatedTTLEntries = 0;
+        // Track which RW footprint keys appear in the host output without
+        // hashing LedgerKeys. Footprints are small, so a linear scan over a
+        // BitSet-backed coverage map is cheaper than maintaining hash sets.
+        auto const& rwKeys = mResources.footprint.readWrite;
+        BitSet rwKeyCovered(rwKeys.size());
+        size_t numCreatedSorobanEntries = 0;
+        size_t numCreatedTTLEntries = 0;
         bool const allowClassicCreations = protocolVersionStartsFrom(
             getLedgerVersion(), ProtocolVersion::V_26);
+
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
             xdr::xdr_from_opaque(buf.data, le);
             auto lk = LedgerEntryKey(le);
+            size_t matchedRwKey = rwKeys.size();
+            size_t relatedRwKey = rwKeys.size();
             if (!validateContractLedgerEntry(
                     lk, buf.data.size(), mSorobanConfig, mAppConfig,
                     mOpFrame.mParentTx, mDiagnosticEvents))
@@ -632,9 +667,32 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
 
-            createdAndModifiedKeys.insert(lk);
-
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
+
+            for (size_t j = 0; j < rwKeys.size(); ++j)
+            {
+                bool directMatch = rwKeys[j] == lk;
+                if (directMatch)
+                {
+                    relatedRwKey = j;
+                    if (!rwKeyCovered.get(j))
+                    {
+                        rwKeyCovered.set(j);
+                        matchedRwKey = j;
+                    }
+                }
+                else if (lk.type() == TTL && isSorobanEntry(rwKeys[j]) &&
+                         getTTLKey(rwKeys[j]) == lk)
+                {
+                    relatedRwKey = j;
+                }
+
+                if (matchedRwKey != rwKeys.size() &&
+                    relatedRwKey != rwKeys.size())
+                {
+                    break;
+                }
+            }
 
             // ttlEntry write fees come out of refundableFee, already
             // accounted for by the host
@@ -657,7 +715,10 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 }
             }
 
-            if (upsertLedgerEntry(lk, le))
+            bool created = relatedRwKey != rwKeys.size() &&
+                           !mRwKeyExisted.get(relatedRwKey);
+            upsertLedgerEntry(lk, le);
+            if (created)
             {
                 if (isSorobanEntry(lk))
                 {
@@ -687,10 +748,11 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         // NB: The entries that haven't been touched are passed through
         // from host, so this should never result in removing an entry
         // that hasn't been removed by host explicitly.
-        for (auto const& lk : mResources.footprint.readWrite)
+        for (size_t j = 0; j < rwKeys.size(); ++j)
         {
-            if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
+            if (!rwKeyCovered.get(j))
             {
+                auto const& lk = rwKeys[j];
                 if (eraseLedgerEntryIfExists(lk))
                 {
                     releaseAssertOrThrow(isSorobanEntry(lk));
@@ -819,7 +881,43 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     {
         xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
-        mOpFrame.innerResult(mRes).success() = xdrSha256(success);
+
+        // Streaming SHA256 calculation of xdrSha256(success)
+        // This avoids round-trip serialization of the potentially large
+        // `InvokeHostFunctionSuccessPreImage` struct, which is significant for
+        // large return values or many contract events.
+        //
+        // The structure being hashed is `InvokeHostFunctionSuccessPreImage`,
+        // defined as: struct InvokeHostFunctionSuccessPreImage {
+        //     SCVal returnValue;
+        //     ContractEvent events<>;
+        // };
+        //
+        // XDR encoding of this struct is:
+        // 1. returnValue (SCVal)
+        // 2. events (array of ContractEvent)
+        //    - length (uint32)
+        //    - [ContractEvent, ContractEvent, ...]
+
+        SHA256 hasher;
+
+        // 1. Add returnValue (SCVal)
+        // out.result_value.data is already the XDR encoded bytes of returnValue
+        hasher.add(out.result_value.data);
+
+        // 2. Add events length (uint32)
+        uint32_t eventsSize = static_cast<uint32_t>(out.contract_events.size());
+        uint32_t eventsSizeNet = htonl(eventsSize);
+        hasher.add(ByteSlice(&eventsSizeNet, sizeof(eventsSizeNet)));
+
+        // 3. Add each event
+        for (auto const& buf : out.contract_events)
+        {
+            // buf.data is already the XDR encoded bytes of the ContractEvent
+            hasher.add(buf.data);
+        }
+
+        mOpFrame.innerResult(mRes).success() = hasher.finish();
 
         // success.events is moved in setEvents, so don't use it after this
         // call.
@@ -972,14 +1070,14 @@ class InvokeHostFunctionPreV23ApplyHelper
         return false;
     }
 
-    CxxLedgerInfo
+    CxxLedgerInfo const&
     getLedgerInfo() override
     {
         auto hdr = mLtx.loadHeader();
         auto const& lh = hdr.current();
-        return stellar::getLedgerInfo(
-            mSorobanConfig, lh.ledgerVersion, lh.ledgerSeq, lh.baseReserve,
-            lh.scpValue.closeTime, mApp.getNetworkID());
+        return getCachedLedgerInfo(mSorobanConfig, lh.ledgerVersion,
+                                   lh.ledgerSeq, lh.baseReserve,
+                                   lh.scpValue.closeTime, mApp.getNetworkID());
     }
 
   public:
@@ -992,7 +1090,8 @@ class InvokeHostFunctionPreV23ApplyHelper
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
+              opFrame, sorobanConfig, app.copyApplyLedgerView(),
+              moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1158,10 +1257,10 @@ class InvokeHostFunctionParallelApplyHelper
         return mAutorestoredEntries.at(index);
     }
 
-    CxxLedgerInfo
+    CxxLedgerInfo const&
     getLedgerInfo() override
     {
-        return stellar::getLedgerInfo(
+        return getCachedLedgerInfo(
             mSorobanConfig, mLedgerInfo.getLedgerVersion(),
             mLedgerInfo.getLedgerSeq(), mLedgerInfo.getBaseReserve(),
             mLedgerInfo.getCloseTime(), mLedgerInfo.getNetworkID());

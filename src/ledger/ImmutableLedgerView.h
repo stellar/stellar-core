@@ -213,6 +213,17 @@ class ApplyLedgerView : private ImmutableLedgerView,
     using ImmutableLedgerView::scanAllArchiveEntries;
     using ImmutableLedgerView::scanForEviction;
     using ImmutableLedgerView::scanLiveEntriesOfType;
+
+    // Exposes the underlying ImmutableLedgerView for construction of a
+    // CheckValidLedgerViewWrapper for read-only validation against this
+    // apply-time snapshot. Bypasses the private inheritance that normally
+    // separates apply-time snapshots from validation views; only use when the
+    // caller actually wants to validate against the LCL apply view (e.g. the
+    // read-only parallel pre-apply path).
+    ImmutableLedgerView const& asImmutableView() const
+    {
+        return *this;
+    }
 };
 
 // A helper class to create and query read-only snapshots
