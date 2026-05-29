@@ -120,7 +120,7 @@ maybePopulateOutputDiagnosticEvents(Config const& cfg,
     for (auto const& e : output.diagnostic_events)
     {
         DiagnosticEvent evt;
-        xdr::xdr_from_opaque(e.data, evt);
+        xdrFromHostBytes(e.data, evt);
         buffer.pushEvent(std::move(evt));
     }
 }
@@ -654,7 +654,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
-            xdr::xdr_from_opaque(buf.data, le);
+            xdrFromHostBytes(buf.data, le);
             auto lk = LedgerEntryKey(le);
             size_t matchedRwKey = rwKeys.size();
             size_t relatedRwKey = rwKeys.size();
@@ -795,7 +795,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 return false;
             }
             ContractEvent evt;
-            xdr::xdr_from_opaque(buf.data, evt);
+            xdrFromHostBytes(buf.data, evt);
             success.events.emplace_back(evt);
         }
 
@@ -879,7 +879,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     finalizeSuccess(InvokeHostFunctionOutput const& out,
                     InvokeHostFunctionSuccessPreImage& success)
     {
-        xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
+        xdrFromHostBytes(out.result_value.data, success.returnValue);
         mOpFrame.innerResult(mRes).code(INVOKE_HOST_FUNCTION_SUCCESS);
 
         // Streaming SHA256 calculation of xdrSha256(success)
