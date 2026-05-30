@@ -174,6 +174,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PARALLEL_LEDGER_APPLY = true;
     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
+    DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -1197,6 +1198,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
                  }},
+                {"DISABLE_TX_META_FOR_TESTING",
+                 [&]() { DISABLE_TX_META_FOR_TESTING = readBool(item); }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
                      CLOG_WARNING(Overlay,
