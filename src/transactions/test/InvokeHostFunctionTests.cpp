@@ -10493,7 +10493,7 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     auto archivedSnap =
         test.getApp().getLedgerManager().copyImmutableLedgerView();
 
-    REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}).size() == 2);
+    REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}, "load").size() == 2);
     REQUIRE(archivedSnap.loadLiveKeys({lk1, lk2}, "load").size() == 0);
 
     // Now, invoke contract2, but also autorestore state from contract1.
@@ -10523,7 +10523,7 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         test.getApp().getLedgerManager().copyImmutableLedgerView();
 
     REQUIRE(restoredSnap.loadLiveKeys({lk1, lk2}, "load").size() == 2);
-    REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}).size() == 0);
+    REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}, "load").size() == 0);
 
     // Verify that the correct values were restored
     REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT, 111) ==

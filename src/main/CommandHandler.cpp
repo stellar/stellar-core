@@ -80,6 +80,14 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
                 mApp.getAppConnector());
         }
+#ifdef BUILD_TESTS
+        else if (mApp.getConfig().QUERY_SERVER_FOR_TESTING)
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                "127.0.0.1", 0, 1, 1, mApp.getAppConnector(), true);
+            mQueryServer->setReady();
+        }
+#endif
     }
 
     if (!mApp.getConfig().HTTP_PORT)
@@ -157,6 +165,15 @@ CommandHandler::setReady()
     if (mQueryServer)
     {
         mQueryServer->setReady();
+    }
+}
+
+void
+CommandHandler::addSnapshot(ImmutableLedgerDataPtr state)
+{
+    if (mQueryServer)
+    {
+        mQueryServer->addSnapshot(std::move(state));
     }
 }
 
