@@ -435,16 +435,9 @@ main(int argc, char* const* argv)
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-        //  The p26 rs-stellar-xdr crate uses raw file
-        //  hashes, which can't match the ifdef-stripped hashes used here.
-        //  The easiest thing to do was to just skip the check for p26. Which
-        //  should be fine as the xdr on the rust side shouldn't change, and the
-        //  xdr on the core should always be backwards compatible. This is
-        //  temporary until we bump to p27.
-        if (Config::CURRENT_LEDGER_PROTOCOL_VERSION != 26)
-        {
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             checkXDRFileIdentity();
-        }
+#endif
     }
     catch (...)
     {

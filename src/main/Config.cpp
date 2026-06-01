@@ -31,7 +31,7 @@
 
 namespace stellar
 {
-uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 26
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 27
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif

@@ -204,8 +204,8 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # variable empty (and include or exclude submodules from the list of
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
-ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26
-WIP_SOROBAN_PROTOCOL=p27
+ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26 p27
+WIP_SOROBAN_PROTOCOL=
 
 CARGO_XDR_FEATURE_FLAGS =
 
