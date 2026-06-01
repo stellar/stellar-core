@@ -161,9 +161,8 @@ class ThreadParallelApplyLedgerState
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
-    void setEffectsDeltaFromSuccessfulTx(ParallelTxSuccessVal const& res,
-                                         ParallelLedgerInfo const& ledgerInfo,
-                                         TxEffects& effects) const;
+    void setDeltaForInvariantsFromSuccessfulTx(ParallelTxSuccessVal const& res,
+                                               TxEffects& effects) const;
 
     void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                        TxBundle const& txBundle);
