@@ -43,13 +43,13 @@ pub(crate) use p27 as soroban_curr;
 // only compatible with with, say, a rust Dyn interface like Box<dyn Error>).
 pub(crate) mod protocol_agnostic {
     pub(crate) fn make_error(msg: &'static str) -> Box<dyn std::error::Error> {
-        super::p24::soroban_proto_any::CoreHostError::General(msg.into()).into()
+        super::soroban_curr::soroban_proto_any::CoreHostError::General(msg.into()).into()
     }
 
     // The i128 functions are protocol-agnostic because they're too simple to
     // ever plausibly change. If they ever _do_ change we can switch this (and
     // the callers) to pass a protocol number but it seems unlikely.
-    pub(crate) use super::p24::soroban_env_host::xdr::int128_helpers;
+    pub(crate) use super::soroban_curr::soroban_env_host::xdr::int128_helpers;
 }
 
 #[cfg(feature = "next")]
@@ -393,6 +393,7 @@ pub(crate) mod p26 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p25 {
     pub(crate) extern crate soroban_env_host_p25;
@@ -566,6 +567,7 @@ pub(crate) mod p25 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p24 {
     pub(crate) extern crate soroban_env_host_p24;
@@ -739,6 +741,7 @@ pub(crate) mod p24 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p23 {
     pub(crate) extern crate soroban_env_host_p23;
@@ -912,6 +915,7 @@ pub(crate) mod p23 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p22 {
     pub(crate) extern crate soroban_env_host_p22;
@@ -1119,6 +1123,7 @@ pub(crate) mod p22 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p21 {
     pub(crate) extern crate soroban_env_host_p21;
@@ -1463,10 +1468,15 @@ macro_rules! proto_versioned_functions_for_module {
 // NB: this list should be in ascending order. Out of order will cause
 // an assert to fail in the by-protocol-number lookup function below.
 const HOST_MODULES: &'static [HostModule] = &[
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p21),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p22),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p23),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p24),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p25),
     proto_versioned_functions_for_module!(p26),
     #[cfg(feature = "next")]
@@ -1497,13 +1507,27 @@ pub(crate) fn get_host_module_for_protocol(
 
 #[test]
 fn protocol_dispatches_as_expected() {
-    assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 21);
-    assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
-    assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
-    assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
-    assert_eq!(get_host_module_for_protocol(24, 24).unwrap().max_proto, 24);
-    assert_eq!(get_host_module_for_protocol(25, 25).unwrap().max_proto, 25);
-    assert_eq!(get_host_module_for_protocol(26, 26).unwrap().max_proto, 26);
+    #[cfg(not(feature = "fastdev"))]
+    {
+        assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 21);
+        assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
+        assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
+        assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
+        assert_eq!(get_host_module_for_protocol(24, 24).unwrap().max_proto, 24);
+        assert_eq!(get_host_module_for_protocol(25, 25).unwrap().max_proto, 25);
+        assert_eq!(get_host_module_for_protocol(26, 26).unwrap().max_proto, 26);
+    }
+
+    #[cfg(feature = "fastdev")]
+    {
+        assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 26);
+        assert_eq!(get_host_module_for_protocol(26, 26).unwrap().max_proto, 26);
+    }
+
+    #[cfg(all(feature = "fastdev", feature = "next"))]
+    {
+        assert_eq!(get_host_module_for_protocol(27, 27).unwrap().max_proto, 27);
+    }
 
     // No protocols past the max known.
     let last_proto = HOST_MODULES.last().unwrap().max_proto;

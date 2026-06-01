@@ -16,15 +16,21 @@
 
 use crate::{
     rust_bridge::CxxBuf,
-    soroban_proto_all::{get_host_module_for_protocol, p23, p24, p25, p26, protocol_agnostic},
+    soroban_proto_all::{get_host_module_for_protocol, p26, protocol_agnostic},
 };
+
+#[cfg(not(feature = "fastdev"))]
+use crate::soroban_proto_all::{p23, p24, p25};
 
 #[cfg(feature = "next")]
 use crate::soroban_proto_all::p27;
 
 pub(crate) struct SorobanModuleCache {
+    #[cfg(not(feature = "fastdev"))]
     pub(crate) p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache,
+    #[cfg(not(feature = "fastdev"))]
     pub(crate) p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache,
+    #[cfg(not(feature = "fastdev"))]
     pub(crate) p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache,
     #[cfg(feature = "next")]
@@ -34,8 +40,11 @@ pub(crate) struct SorobanModuleCache {
 impl SorobanModuleCache {
     fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
+            #[cfg(not(feature = "fastdev"))]
             p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            #[cfg(not(feature = "fastdev"))]
             p24_cache: p24::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            #[cfg(not(feature = "fastdev"))]
             p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             #[cfg(feature = "next")]
@@ -47,9 +56,13 @@ impl SorobanModuleCache {
         ledger_protocol: u32,
         _wasm: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        match ledger_protocol {
+        let hm = get_host_module_for_protocol(ledger_protocol, ledger_protocol)?;
+        match hm.max_proto {
+            #[cfg(not(feature = "fastdev"))]
             23 => self.p23_cache.compile(_wasm),
+            #[cfg(not(feature = "fastdev"))]
             24 => self.p24_cache.compile(_wasm),
+            #[cfg(not(feature = "fastdev"))]
             25 => self.p25_cache.compile(_wasm),
             26 => self.p26_cache.compile(_wasm),
             #[cfg(feature = "next")]
@@ -60,8 +73,11 @@ impl SorobanModuleCache {
     }
     pub fn shallow_clone(&self) -> Result<Box<Self>, Box<dyn std::error::Error>> {
         Ok(Box::new(Self {
+            #[cfg(not(feature = "fastdev"))]
             p23_cache: self.p23_cache.shallow_clone()?,
+            #[cfg(not(feature = "fastdev"))]
             p24_cache: self.p24_cache.shallow_clone()?,
+            #[cfg(not(feature = "fastdev"))]
             p25_cache: self.p25_cache.shallow_clone()?,
             p26_cache: self.p26_cache.shallow_clone()?,
             #[cfg(feature = "next")]
@@ -74,8 +90,11 @@ impl SorobanModuleCache {
             .as_ref()
             .try_into()
             .map_err(|_| "Invalid contract-code key length")?;
+        #[cfg(not(feature = "fastdev"))]
         self.p23_cache.evict(&_hash)?;
+        #[cfg(not(feature = "fastdev"))]
         self.p24_cache.evict(&_hash)?;
+        #[cfg(not(feature = "fastdev"))]
         self.p25_cache.evict(&_hash)?;
         self.p26_cache.evict(&_hash)?;
         #[cfg(feature = "next")]
@@ -83,8 +102,11 @@ impl SorobanModuleCache {
         Ok(())
     }
     pub fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(not(feature = "fastdev"))]
         self.p23_cache.clear()?;
+        #[cfg(not(feature = "fastdev"))]
         self.p24_cache.clear()?;
+        #[cfg(not(feature = "fastdev"))]
         self.p25_cache.clear()?;
         self.p26_cache.clear()?;
         #[cfg(feature = "next")]
@@ -101,9 +123,13 @@ impl SorobanModuleCache {
             .as_ref()
             .try_into()
             .map_err(|_| "Invalid contract-code key length")?;
-        match protocol {
+        let hm = get_host_module_for_protocol(protocol, protocol)?;
+        match hm.max_proto {
+            #[cfg(not(feature = "fastdev"))]
             23 => self.p23_cache.contains_module(&_hash),
+            #[cfg(not(feature = "fastdev"))]
             24 => self.p24_cache.contains_module(&_hash),
+            #[cfg(not(feature = "fastdev"))]
             25 => self.p25_cache.contains_module(&_hash),
             26 => self.p26_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
@@ -115,18 +141,19 @@ impl SorobanModuleCache {
         &self,
         ledger_protocol: u32,
     ) -> Result<u64, Box<dyn std::error::Error>> {
-        #[allow(unused_mut)]
-        let mut bytes = 0;
-        match ledger_protocol {
-            23 => bytes = bytes.max(self.p23_cache.get_wasm_bytes_input()?),
-            24 => bytes = bytes.max(self.p24_cache.get_wasm_bytes_input()?),
-            25 => bytes = bytes.max(self.p25_cache.get_wasm_bytes_input()?),
-            26 => bytes = bytes.max(self.p26_cache.get_wasm_bytes_input()?),
+        let hm = get_host_module_for_protocol(ledger_protocol, ledger_protocol)?;
+        match hm.max_proto {
+            #[cfg(not(feature = "fastdev"))]
+            23 => self.p23_cache.get_wasm_bytes_input(),
+            #[cfg(not(feature = "fastdev"))]
+            24 => self.p24_cache.get_wasm_bytes_input(),
+            #[cfg(not(feature = "fastdev"))]
+            25 => self.p25_cache.get_wasm_bytes_input(),
+            26 => self.p26_cache.get_wasm_bytes_input(),
             #[cfg(feature = "next")]
-            27 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
+            27 => self.p27_cache.get_wasm_bytes_input(),
             _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
         }
-        Ok(bytes)
     }
 }
 

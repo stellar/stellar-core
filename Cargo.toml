@@ -12,3 +12,10 @@ lto = true
 # (or you can build with `make RUST_PROFILE=dev` to get them built with
 # debug-and-no-opt).
 debug = true
+
+[profile.fastdev]
+inherits = "release"
+lto = false
+debug = "line-tables-only"
+codegen-units = 16
+split-debuginfo = "unpacked"
