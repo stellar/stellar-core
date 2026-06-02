@@ -6256,7 +6256,6 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
         }
-#ifdef CAP_0071
         SECTION("success with credentials v2")
         {
             auto credentialsV2 =
@@ -6265,7 +6264,6 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
             REQUIRE(singleInvocation(signer, credentialsV2) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
         }
-#endif
         if (signers.size() > 1)
         {
             SECTION("wrong signature order")
@@ -6623,7 +6621,6 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
     }
 }
 
-#ifdef CAP_0071
 TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
 {
     size_t const AUTH_CONTRACT_COUNT = 2;
@@ -6896,7 +6893,6 @@ TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
     }
 #endif
 }
-#endif
 
 TEST_CASE("Soroban authorization", "[tx][soroban]")
 {
@@ -7685,7 +7681,7 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    // moduleCacheProtocolCount -= 1;
+    moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()

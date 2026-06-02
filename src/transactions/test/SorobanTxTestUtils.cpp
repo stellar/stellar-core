@@ -810,7 +810,6 @@ TestContract::Invocation::withAuthorization(
     {
         addNonce(credentials.address());
     }
-#ifdef CAP_0071
     if (credentials.type() ==
         SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2)
     {
@@ -821,7 +820,6 @@ TestContract::Invocation::withAuthorization(
     {
         addNonce(credentials.addressWithDelegates().addressCredentials);
     }
-#endif
     return *this;
 }
 
@@ -2270,7 +2268,6 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
                     std::optional<bool> forceAddressCredentialsV2) const
 {
     auto credentialsType = SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
-#ifdef CAP_0071
     if (protocolVersionStartsFrom(mTest.getLedgerVersion(),
                                   ProtocolVersion::V_27))
     {
@@ -2280,39 +2277,26 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
                 SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2;
         }
     }
-#endif
     if (forceAddressCredentialsV2)
     {
-#ifdef CAP_0071
         credentialsType =
             *forceAddressCredentialsV2
                 ? SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2
                 : SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
-#else
-        REQUIRE(!*forceAddressCredentialsV2);
-#endif
     }
     SorobanCredentials fullCredentials(credentialsType);
-#ifdef CAP_0071
     auto& credentials =
         credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
             ? fullCredentials.address()
             : fullCredentials.addressV2();
-#else
-    auto& credentials = fullCredentials.address();
-#endif
     credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
     credentials.signatureExpirationLedger = mTest.getLCLSeq() + 10'000;
     credentials.address = mAddress;
 
-#ifdef CAP_0071
     auto preimageType =
         credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
             ? EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION
             : EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION_WITH_ADDRESS;
-#else
-    auto preimageType = EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION;
-#endif
     HashIDPreimage signaturePreimage(preimageType);
     if (preimageType == EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION)
     {
@@ -2325,7 +2309,6 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
     }
     else
     {
-#ifdef CAP_0071
         auto& preimage = signaturePreimage.sorobanAuthorizationWithAddress();
         preimage.invocation = invocation;
         preimage.networkID = mTest.getApp().getNetworkID();
@@ -2333,7 +2316,6 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
         preimage.signatureExpirationLedger =
             credentials.signatureExpirationLedger;
         preimage.address = mAddress;
-#endif
     }
 
     credentials.signature = mSignFn(xdrSha256(signaturePreimage));
