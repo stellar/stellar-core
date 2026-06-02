@@ -6557,7 +6557,7 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
         });
     auto baseCredentials =
         signer.sign(singleInvocationTree.toAuthorizedInvocation(),
-                    /* forceAddressCredentialsV2 */ false);
+                    /* forceAddressCredntialsV2 */ false);
     SECTION("successful authentication")
     {
         REQUIRE(singleInvocation(signer, baseCredentials) ==
