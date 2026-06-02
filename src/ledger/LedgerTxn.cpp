@@ -2756,10 +2756,10 @@ LedgerTxnRoot::Impl::Impl(Application& app,
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
+    , mThreadInvariant()
 #ifdef BEST_OFFER_DEBUGGING
     , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
 #endif
-    , mThreadInvariant()
 {
 }
 
@@ -2984,8 +2984,8 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
 
-    // std::shared_ptr<...>::reset does not throw
-    mSearchableBucketListSnapshot.reset();
+    // std::optional<...>::reset does not throw
+    mApplyLedgerView.reset();
 
     mThreadInvariant.clearActiveThread();
 }
@@ -3092,8 +3092,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     {
         insertIfNotLoaded(keysToSearch, key);
     }
-    auto blLoad = getSearchableLiveBucketListSnapshot().loadKeys(keysToSearch,
-                                                                 "prefetch");
+    auto blLoad = getApplyLedgerView().loadLiveKeys(keysToSearch, "prefetch");
     cacheResult(populateLoadedEntries(keysToSearch, blLoad));
 
     return total;
@@ -3364,18 +3363,15 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-SearchableLiveBucketListSnapshot const&
-LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
+ApplyLedgerView const&
+LedgerTxnRoot::Impl::getApplyLedgerView() const
 {
-    if (!mSearchableBucketListSnapshot)
+    if (!mApplyLedgerView)
     {
-        mSearchableBucketListSnapshot =
-            mApp.getBucketManager()
-                .getBucketSnapshotManager()
-                .copySearchableLiveBucketListSnapshot();
+        mApplyLedgerView = mApp.getLedgerManager().copyApplyLedgerView();
     }
 
-    return *mSearchableBucketListSnapshot;
+    return *mApplyLedgerView;
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -3511,8 +3507,8 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     try
     {
         trustLines =
-            getSearchableLiveBucketListSnapshot()
-                .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
+            getApplyLedgerView().loadPoolShareTrustLinesByAccountAndAsset(
+                account, asset);
     }
     catch (std::exception& e)
     {
@@ -3562,8 +3558,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        return getSearchableLiveBucketListSnapshot().loadInflationWinners(
-            maxWinners, minVotes);
+        return getApplyLedgerView().loadInflationWinners(maxWinners, minVotes);
     }
     catch (std::exception& e)
     {
@@ -3648,7 +3643,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         }
         else
         {
-            entry = getSearchableLiveBucketListSnapshot().load(key);
+            entry = getApplyLedgerView().loadLiveEntry(key);
         }
     }
     catch (std::exception& e)
@@ -3717,7 +3712,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
     mChild = nullptr;
     mPrefetchHits = 0;
     mPrefetchMisses = 0;
-    mSearchableBucketListSnapshot.reset();
+    mApplyLedgerView.reset();
     mThreadInvariant.clearActiveThread();
 }
 

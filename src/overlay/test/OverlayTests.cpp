@@ -26,6 +26,8 @@
 #include "herder/HerderImpl.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
+#include "test/TxTests.h"
+#include "transactions/EventManager.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include <fmt/format.h>
@@ -1843,6 +1845,84 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
     }
 }
 
+TEST_CASE("GET_SCP_STATE rate limiting", "[overlay]")
+{
+    VirtualClock clock;
+    Config cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    // Bump up close time and max slots to remember to production levels. These
+    // must be large enough that crankSome calls between requests don't cause a
+    // window reset.
+    cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+    cfg2.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 5;
+    cfg1.MAX_SLOTS_TO_REMEMBER = 12;
+    cfg2.MAX_SLOTS_TO_REMEMBER = 12;
+
+    // The window size + 1 second. Minimum time required to ensure the rate
+    // limit window resets.
+    std::chrono::seconds const WINDOW_CLEAR_DURATION(
+        cfg1.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING *
+            cfg1.MAX_SLOTS_TO_REMEMBER +
+        1);
+
+    // Should be no more than 10 processed GET_SCP_STATE messages per window
+    uint32_t constexpr MAX_PER_WINDOW = 10;
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    auto sender = conn.getInitiator();
+    auto receiver = conn.getAcceptor();
+    testutil::crankSome(clock);
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+
+    // Advance past QUERY_WINDOW so the first test request triggers a window
+    // reset
+    testutil::crankFor(clock, WINDOW_CLEAR_DURATION);
+
+    // Send requests up to the limit.
+    for (int i = 0; i < MAX_PER_WINDOW; i++)
+    {
+        sender->sendGetScpState(0);
+        testutil::crankSome(clock);
+    }
+
+    // Should have logged 10 queries, and the peers should remain connected
+    REQUIRE(receiver->getSCPStateQueryCountForTesting() == MAX_PER_WINDOW);
+
+    // Send 5 more -- all should be dropped
+    for (int i = 0; i < 5; i++)
+    {
+        sender->sendGetScpState(0);
+        testutil::crankSome(clock);
+    }
+    // Should still be at the maximum query count, as the additional messages
+    // should have been dropped
+    REQUIRE(receiver->getSCPStateQueryCountForTesting() == MAX_PER_WINDOW);
+
+    // Advance past the window duration so the next request triggers a window
+    // reset
+    testutil::crankFor(clock, WINDOW_CLEAR_DURATION);
+
+    // Send a GET_SCP_STATE message to trigger the window reset
+    sender->sendGetScpState(0);
+    testutil::crankSome(clock);
+
+    // Should just have processed the one message sent after the window clear
+    // duration
+    REQUIRE(receiver->getSCPStateQueryCountForTesting() == 1);
+
+    // Peers should still be connected
+    REQUIRE(sender->isConnectedForTesting());
+    REQUIRE(receiver->isConnectedForTesting());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
 TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
 {
     VirtualClock clock;
@@ -3291,6 +3371,64 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(finalMisses == 0);
     }
 
+    SECTION("Ed25519 signed payload signer cached during overlay validation")
+    {
+        // Add an ed25519 signed payload signer to testAccount and remove the
+        // master key, so the account can only be authorized via the payload
+        // signer.
+        SignerKey signerKey;
+        signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        signerKey.ed25519SignedPayload().ed25519 =
+            testAccountSk.getPublicKey().ed25519();
+        signerKey.ed25519SignedPayload().payload = {'t', 'e', 's', 't'};
+
+        auto setOptionsTx = testAccount.tx({txtest::setOptions(
+            txtest::setSigner(Signer{signerKey, 1}) |
+            txtest::setMasterWeight(0) | txtest::setLowThreshold(1) |
+            txtest::setMedThreshold(1) | txtest::setHighThreshold(1))});
+        txtest::applyTx(setOptionsTx, *app);
+
+        // Create a payment tx signed only with the payload signer
+        auto payTx = txtest::transactionFromOperations(
+            *app, testAccountSk, testAccount.nextSequenceNumber(),
+            {txtest::payment(testAccountSk.getPublicKey(), PAYMENT_AMOUNT)});
+        auto& sigs = txbridge::getSignatures(payTx);
+        sigs.clear();
+
+        DecoratedSignature sig;
+        sig.signature =
+            testAccountSk.sign(signerKey.ed25519SignedPayload().payload);
+        sig.hint = SignatureUtils::getSignedPayloadHint(
+            signerKey.ed25519SignedPayload());
+        payTx->addSignature(sig);
+
+        resetCache();
+
+        invokePopulateSignatureCache(payTx);
+
+        uint64_t hits, misses;
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 1);
+        // `populateSignatureCache` verifies the payload signature at the
+        // transaction level (cache miss, added to cache) and again at the
+        // operation level (cache hit from the first check within the same
+        // call).
+        REQUIRE(hits == 1);
+
+        // checkValid now sees the cache already populated: both tx-level
+        // and op-level signed-payload lookups are pure cache hits.
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ls = CheckValidLedgerViewWrapper(ltx);
+        auto diagnostics = DiagnosticEventManager::createDisabled();
+        auto result =
+            payTx->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+        REQUIRE(result->isSuccess());
+
+        PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
+        REQUIRE(misses == 0);
+        REQUIRE(hits == 2);
+    }
+
     SECTION("Signature cache invalidation after signer removal")
     {
         // Create an additional signer for this test
@@ -3341,10 +3479,10 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(!isValid);
 
         // Verify it fails with bad auth, not other reasons
-        auto ls = LedgerSnapshot(ltx);
+        auto ledgerView = CheckValidLedgerViewWrapper(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        auto result = paymentTx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                            diagnostics);
+        auto result = paymentTx->checkValid(app->getAppConnector(), ledgerView,
+                                            0, 0, 0, diagnostics);
         REQUIRE(result->getResultCode() == txBAD_AUTH);
 
         // We expect a single cache miss at this point from the application of

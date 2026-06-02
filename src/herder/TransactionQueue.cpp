@@ -4,6 +4,7 @@
 
 #include "herder/TransactionQueue.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
@@ -107,8 +108,20 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
+
+    for (auto const& addr : app.getConfig().FILTERED_G_ADDRESSES)
+    {
+        mFilteredAccounts.emplace(KeyUtils::fromStrKey<PublicKey>(addr));
+    }
+
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
+}
+
+void
+TransactionQueue::setFilteredAccounts(std::set<AccountID> const& accounts)
+{
+    mFilteredAccounts = accounts;
 }
 
 ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
@@ -140,7 +153,9 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
         app.getMetrics().NewCounter(
             {"herder", "pending-txs", "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
@@ -300,7 +315,8 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+    bool force
 #ifdef BUILD_TESTS
     ,
     bool isLoadgenTx
@@ -310,13 +326,8 @@ TransactionQueue::canAdd(
     ZoneScoped;
     if (isBanned(tx->getFullHash()))
     {
-#ifdef BUILD_TESTS
-        if (!mApp.getRunInOverlayOnlyMode())
-#endif
-        {
-            return AddResult(
-                TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
-        }
+        return AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
     if (isFiltered(tx))
     {
@@ -325,6 +336,11 @@ TransactionQueue::canAdd(
     if (!tx->validateSorobanTxForFlooding(mKeysToFilter))
     {
         mQueueMetrics->mTxsFilteredDueToFootprintKeys.inc();
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+    if (!force && !tx->validateAccountFilterForFlooding(mFilteredAccounts))
+    {
+        mQueueMetrics->mTxsFilteredDueToAccountKeys.inc();
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
@@ -418,7 +434,13 @@ TransactionQueue::canAdd(
         }
     }
 
-    LedgerSnapshot ls(mApp);
+    CheckValidLedgerViewWrapper ledgerView(mApp);
+#ifdef BUILD_TESTS
+    // Overlay-only mode freezes on-disk seqnums at genesis but LoadGenerator
+    // keeps advancing local ones, so checkValid must skip the seqnum equality
+    // check or every tx after the first fails.
+    ledgerView.mSkipSeqNumCheck = mApp.getRunInOverlayOnlyMode();
+#endif
     // Subtle: transactions are rejected based on the source account limit
     // prior to this point. This is safe because we can't evict transactions
     // from the same source account, so a newer transaction won't replace an
@@ -443,11 +465,12 @@ TransactionQueue::canAdd(
     auto closeTime = mApp.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.scpValue.closeTime;
+    // Validate minSeqLedgerGap and LedgerBounds against the next ledgerSeq,
+    // which is what will be used at apply time.
+    std::optional<uint32_t> validationLedgerSeq;
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19))
     {
-        // This is done so minSeqLedgerGap is validated against the next
-        // ledgerSeq, which is what will be used at apply time
-        ls.getLedgerHeader().currentToModify().ledgerSeq =
+        validationLedgerSeq =
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
@@ -457,9 +480,10 @@ TransactionQueue::canAdd(
     if (!isLoadgenTx)
 #endif
     {
-        auto validationResult = tx->checkValid(
-            mApp.getAppConnector(), ls, 0, 0,
-            getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents);
+        auto validationResult = tx->checkValidForOverlay(
+            mApp.getAppConnector(), ledgerView, 0, 0,
+            getUpperBoundCloseTimeOffset(mApp, closeTime), diagnosticEvents,
+            validationLedgerSeq);
         if (!validationResult->isSuccess())
         {
             return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
@@ -473,15 +497,15 @@ TransactionQueue::canAdd(
     // Loadgen transactions are given unlimited funds, and therefore do no need
     // to be checked for fees
 #ifdef BUILD_TESTS
-    if (!isLoadgenTx && !mApp.getRunInOverlayOnlyMode())
+    if (!isLoadgenTx)
 #endif
     {
-        auto const feeSource = ls.getAccount(tx->getFeeSourceID());
+        auto const feeSource = ledgerView.getAccount(tx->getFeeSourceID());
         auto feeStateIter = mAccountStates.find(tx->getFeeSourceID());
         int64_t totalFees = feeStateIter == mAccountStates.end()
                                 ? 0
                                 : feeStateIter->second.mTotalFees;
-        if (getAvailableBalance(ls.getLedgerHeader().current(),
+        if (getAvailableBalance(ledgerView.getLedgerHeader().current(),
                                 feeSource.current()) -
                 newFullFee <
             totalFees)
@@ -649,7 +673,8 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                         bool force
 #ifdef BUILD_TESTS
                          ,
                          bool isLoadgenTx
@@ -667,7 +692,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
-    auto res = canAdd(tx, stateIter, txsToEvict
+    auto res = canAdd(tx, stateIter, txsToEvict, force
 #ifdef BUILD_TESTS
                       ,
                       isLoadgenTx
@@ -1097,7 +1122,9 @@ SorobanTransactionQueue::SorobanTransactionQueue(
         app.getMetrics().NewCounter({"herder", "pending-soroban-txs",
                                      "not-included-due-to-low-fee-count"}),
         app.getMetrics().NewCounter(
-            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}));
+            {"herder", "pending-soroban-txs", "filtered-due-to-fp-keys"}),
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "filtered-due-to-account-keys"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     mKeysToFilter = keysToFilter;
 }

@@ -24,7 +24,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish,
     std::shared_ptr<HistoryArchive> archive)
-    : BatchWork(app, "download-apply-ledgers")
+    : BatchWork(app, "download-apply-ledgers", BasicWork::RETRY_A_FEW)
     , mRange(range)
     , mDownloadDir(downloadDir)
     , mLastApplied(lastApplied)
@@ -146,12 +146,6 @@ DownloadApplyTxsWork::yieldMoreWork()
         bool pqFellBehind = false;
         auto predicate = [prev, pqFellBehind, waitForPublish = mWaitForPublish,
                           maybeWaitForMerges](Application& app) mutable {
-            if (!prev)
-            {
-                throw std::runtime_error("Download and apply txs: related Work "
-                                         "is destroyed unexpectedly");
-            }
-
             // First, ensure download work is finished
             if (prev->getState() != State::WORK_SUCCESS)
             {
@@ -223,7 +217,7 @@ void
 DownloadApplyTxsWork::resetIter()
 {
     mCheckpointToQueue = HistoryManager::checkpointContainingLedger(
-        mRange.mFirst, mApp.getConfig());
+        mApp.getLedgerManager().getLastClosedLedgerNum() + 1, mApp.getConfig());
     mLastYieldedWork.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }

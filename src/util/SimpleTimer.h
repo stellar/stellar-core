@@ -43,7 +43,7 @@ class SimpleTimer
     medida::Counter& mMaxSampleValue;
     std::int64_t mMax GUARDED_BY(mLock);
 
-    Mutex mLock;
+    ANNOTATED_MUTEX(mLock);
 
     std::chrono::nanoseconds const mDurationUnit;
 

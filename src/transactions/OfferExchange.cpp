@@ -1666,7 +1666,7 @@ maybeConvertWithOffers(
     int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross,
-    ConvertResult& convertRes)
+    ConvertResult& convertRes, size_t& nonCommittedOffersCrossed)
 {
     // Compute the exchange from the liquidity pool but don't actually do the
     // exchange
@@ -1702,6 +1702,8 @@ maybeConvertWithOffers(
             ltxConvertWithOffers.commit();
             return true;
         }
+
+        nonCommittedOffersCrossed = tempOfferTrail.size();
     }
 
     return false;
@@ -1713,7 +1715,7 @@ convertWithOffersAndPools(
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross)
+    std::vector<ClaimAtom>& offerTrail, int64_t& maxOffersToCross)
 {
     ZoneScoped;
 
@@ -1726,12 +1728,26 @@ convertWithOffersAndPools(
 
     {
         ConvertResult convertRes;
+        size_t nonCommittedOffersCrossed = 0;
         if (maybeConvertWithOffers(ltxOuter, sheep, maxSheepSend, sheepSend,
                                    wheat, maxWheatReceive, wheatReceived, round,
                                    filter, offerTrail, maxOffersToCross,
-                                   convertRes))
+                                   convertRes, nonCommittedOffersCrossed))
         {
+            maxOffersToCross -= static_cast<int64_t>(offerTrail.size());
             return convertRes;
+        }
+        if (protocolVersionStartsFrom(
+                ltxOuter.loadHeader().current().ledgerVersion,
+                ProtocolVersion::V_27))
+        {
+            // `>=` leaves room for the pool atom appended below (one unit).
+            if (nonCommittedOffersCrossed >=
+                static_cast<size_t>(maxOffersToCross))
+            {
+                return ConvertResult::eCrossedTooMany;
+            }
+            maxOffersToCross -= static_cast<int64_t>(nonCommittedOffersCrossed);
         }
     }
 
@@ -1750,6 +1766,7 @@ convertWithOffersAndPools(
         ClaimLiquidityAtom(getPoolID(sheep, wheat, LIQUIDITY_POOL_FEE_V18),
                            wheat, wheatReceived, sheep, sheepSend);
     offerTrail.emplace_back(atom);
+    maxOffersToCross -= 1;
     return ConvertResult::eOK;
 }
 }

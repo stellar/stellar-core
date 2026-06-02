@@ -3,13 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ParallelApplyUtils.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
-#include "transactions/MutableTransactionResult.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
@@ -297,18 +295,19 @@ ParallelLedgerAccessHelper::eraseLedgerEntryIfExists(LedgerKey const& key)
 // them are complete.
 class ThreadParalllelApplyLedgerState;
 GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
-    AppConnector& app, AbstractLedgerTxn& ltx,
+    AppConnector& app, ApplyLedgerView applyView, AbstractLedgerTxn& ltx,
     std::vector<ApplyStage> const& stages,
     InMemorySorobanState const& inMemoryState,
     SorobanNetworkConfig const& sorobanConfig)
     : LedgerEntryScope(ScopeIdT(0, ltx.getHeader().ledgerSeq))
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mLCLApplyView(std::move(applyView))
     , mInMemorySorobanState(inMemoryState)
     , mSorobanConfig(sorobanConfig)
 {
+    releaseAssertOrThrow(mLCLApplyView.getLedgerSeq() ==
+                         mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
-                         getSnapshotLedgerSeq() + 1);
+                         mLCLApplyView.getLedgerSeq() + 1);
 
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
@@ -462,11 +461,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
 uint32_t
 GlobalParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 GlobalParallelApplyEntryMap const&
@@ -575,7 +570,7 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     // As part of the initialization of this thread state, we need to
     // collect all the keys that are in the global state map. For any keys
     // we need not in the global state, we will fetch them from the live
-    // snapshot, in memory soroban state, or the hot archive later.
+    // applyView, in memory soroban state, or the hot archive later.
     GlobalParallelApplyEntryMap const& globalEntryMap =
         global.getGlobalEntryMap();
 
@@ -616,11 +611,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster, size_t clusterIdx)
     : LedgerEntryScope(ScopeIdT(clusterIdx, global.mScopeID.mLedger))
-    // TODO: find a way to clone these from parent rather than asking the
-    // snapshot manager again. That might have changed! NB taking a shared
-    // pointer copy is not safe, the snapshot objects are not threadsafe.
-    , mHotArchiveSnapshot(app.copySearchableHotArchiveBucketListSnapshot())
-    , mLiveSnapshot(app.copySearchableLiveBucketListSnapshot())
+    , mLCLApplyView(global.mLCLApplyView)
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
@@ -727,7 +718,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     // collectClusterFootprintEntriesFromGlobal (even if it's marked for
     // deletion), so if the keys does not exist in mThreadEntryMap, it can't
     // exist in the global entry map either. We still need to check the in
-    // memory soroban state or the live snapshot.
+    // memory soroban state or the live applyView.
 
     // Check InMemorySorobanState cache for soroban types
     std::shared_ptr<LedgerEntry const> res;
@@ -737,7 +728,7 @@ ThreadParallelApplyLedgerState::getLiveEntryOpt(LedgerKey const& key) const
     }
     else
     {
-        res = mLiveSnapshot->load(key);
+        res = mLCLApplyView.loadLiveEntry(key);
     }
 
     return scopeAdoptEntryOpt(res ? std::make_optional(*res) : std::nullopt);
@@ -796,9 +787,8 @@ ThreadParallelApplyLedgerState::commitChangeFromSuccessfulTx(
 }
 
 void
-ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
-    ParallelTxSuccessVal const& res, ParallelLedgerInfo const& ledgerInfo,
-    TxEffects& effects) const
+ThreadParallelApplyLedgerState::setDeltaForInvariantsFromSuccessfulTx(
+    ParallelTxSuccessVal const& res, TxEffects& effects) const
 {
     ZoneScoped;
     for (auto const& [lk, scopedEntryOpt] : res.getModifiedEntryMap())
@@ -814,7 +804,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
         }
         else
         {
-            // If the entry was not found in the live snapshot, we check if it
+            // If the entry was not found in the live applyView, we check if it
             // was restored from the hot archive instead.
             auto const& hotArchiveRestores =
                 res.getRestoredEntries().hotArchive;
@@ -833,7 +823,7 @@ ThreadParallelApplyLedgerState::setEffectsDeltaFromSuccessfulTx(
                 std::make_shared<InternalLedgerEntry>(entryOpt.value());
         }
         releaseAssertOrThrow(entryDelta.current || entryDelta.previous);
-        effects.setDeltaEntry(lk, entryDelta);
+        effects.setDeltaEntryForInvariants(lk, entryDelta);
     }
 }
 
@@ -861,11 +851,7 @@ ThreadParallelApplyLedgerState::entryWasRestored(LedgerKey const& key) const
 uint32_t
 ThreadParallelApplyLedgerState::getSnapshotLedgerSeq() const
 {
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mHotArchiveSnapshot->getLedgerSeq());
-    releaseAssertOrThrow(mLiveSnapshot->getLedgerSeq() ==
-                         mInMemorySorobanState.getLedgerSeq());
-    return mLiveSnapshot->getLedgerSeq();
+    return mInMemorySorobanState.getLedgerSeq();
 }
 
 SorobanNetworkConfig const&
@@ -874,10 +860,10 @@ ThreadParallelApplyLedgerState::getSorobanConfig() const
     return mSorobanConfig;
 }
 
-SearchableHotArchiveSnapshotConstPtr const&
-ThreadParallelApplyLedgerState::getHotArchiveSnapshot() const
+ApplyLedgerView const&
+ThreadParallelApplyLedgerState::getSnapshot() const
 {
-    return mHotArchiveSnapshot;
+    return mLCLApplyView;
 }
 
 rust::Box<rust_bridge::SorobanModuleCache> const&
@@ -924,7 +910,7 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
     ZoneScoped;
     // There are 4 cases:
     //
-    //  1. The entry exists in the parent maps (thread state or live snapshot)
+    //  1. The entry exists in the parent maps (thread state or live applyView)
     //     but not in mTxEntryMap: we insert it into mTxEntryMap. This is a
     //     "logical update" even though it's a local insert. We return false.
     //
@@ -971,7 +957,7 @@ TxParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
     if (liveEntryExistedAlready)
     {
         // NB: we only erase an entry if it doesn't already exist in
-        // parents (thread state or live snapshot), otherwise
+        // parents (thread state or live applyView), otherwise
         // we will produce mismatched erases that don't relate to
         // any pre-state key when calculating the ledger delta.
         CLOG_TRACE(Tx, "parallel apply thread {} erasing {}",

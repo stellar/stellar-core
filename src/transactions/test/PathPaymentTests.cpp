@@ -4438,14 +4438,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                  source.op(endSponsoringFutureReserves())},
                 {sponsor});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-            ltx.commit();
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txSUCCESS);
         };
 
         auto prepareAccount = [&](std::string const& seed) {
@@ -4833,14 +4827,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                      mm.op(endSponsoringFutureReserves())},
                     {payor, mm});
 
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaBuilder txm(
-                    true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getAppConnector());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                ltx.commit();
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txSUCCESS);
             }
 
             root->pay(payor, txfee);

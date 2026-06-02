@@ -25,7 +25,6 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
-#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -36,7 +35,6 @@
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
-#include <locale>
 #include <map>
 #include <optional>
 #include <regex>
@@ -732,9 +730,8 @@ dumpLedger(Config cfg, std::string const& outputFile,
     auto& lm = app->getLedgerManager();
 
     lm.partiallyLoadLastKnownLedgerForUtils();
-    auto liveSnapshot =
-        app->getAppConnector().copySearchableLiveBucketListSnapshot();
-    auto ttlGetter = [&liveSnapshot, includeAllStates,
+    auto liveLedgerView = app->getAppConnector().copyImmutableLedgerView();
+    auto ttlGetter = [&liveLedgerView, includeAllStates,
                       dumpHotArchive](LedgerKey const& key) -> uint32_t {
         if (includeAllStates || dumpHotArchive)
         {
@@ -742,7 +739,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 "TTL is undefined when `--include-all-states` or "
                 "`--hot-archive` flag is set.");
         }
-        auto entry = liveSnapshot->load(key);
+        auto entry = liveLedgerView.loadLiveEntry(key);
         if (!entry)
         {
             throw std::runtime_error("No TTL entry found for key: " +
@@ -872,12 +869,10 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LOG_INFO(DEFAULT_LOG, "Wrote {} bytes to {}", entry.code.size(),
                  filename);
     };
-    auto snap = app->getBucketManager()
-                    .getBucketSnapshotManager()
-                    .copySearchableLiveBucketListSnapshot();
+    auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
     if (hash == "ALL")
     {
-        snap->scanForEntriesOfType(
+        ledgerView.scanLiveEntriesOfType(
             CONTRACT_CODE, [&](BucketEntry const& entry) {
                 if (entry.type() == INITENTRY || entry.type() == LIVEENTRY)
                 {
@@ -893,7 +888,7 @@ dumpWasmBlob(Config cfg, std::string const& hash, std::string const& dir)
         LedgerKey key;
         key.type(LedgerEntryType::CONTRACT_CODE);
         key.contractCode().hash = hexToBin256(hash);
-        auto entry = snap->load(key);
+        auto entry = ledgerView.loadLiveEntry(key);
         if (entry && entry->data.type() == LedgerEntryType::CONTRACT_CODE)
         {
             auto const& codeEntry = entry->data.contractCode();
@@ -1180,16 +1175,22 @@ publish(Application::pointer app)
     return 0;
 }
 
-// Returns the major release version extracted from the git tag _if_ this is a
-// release-tagged version of stellar core (one that looks like vNN.X.Y or
-// vNN.X.YrcZ or vNN.X.YHOTZ). If its version has some other name structure
+// Returns the major release version extracted from a release-version string if
+// it matches one of the supported release formats, such as vNN.X.Y,
+// vNN.X.YrcZ, vNN.X.Y-external, or the packaged form
+// `stellar-core NN.X.Y (<commit-hash>)`. If its version has some other name
 // structure, return std::nullopt.
 std::optional<uint32_t>
 getStellarCoreMajorReleaseVersion(std::string const& vstr)
 {
-    std::regex re("^v([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|HOT[0-9]+)?$");
+    std::regex releaseTagRe(
+        "^v([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|-external)?$");
+    std::regex packagedReleaseRe(
+        "^stellar-core ([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|-external)? "
+        "\\([0-9a-fA-F]+\\)$");
     std::smatch match;
-    if (std::regex_match(vstr, match, re))
+    if (std::regex_match(vstr, match, releaseTagRe) ||
+        std::regex_match(vstr, match, packagedReleaseRe))
     {
         uint32_t vers = stoi(match.str(1));
         return std::make_optional<uint32_t>(vers);

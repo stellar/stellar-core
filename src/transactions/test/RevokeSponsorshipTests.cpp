@@ -23,6 +23,14 @@ getRevokeSponsorshipResultCode(TransactionTestFramePtr tx, size_t i)
     return opRes.tr().revokeSponsorshipResult().code();
 }
 
+static RevokeSponsorshipResultCode
+getRevokeSponsorshipResultCode(TransactionResultSet const& r, size_t txIdx,
+                               size_t opIdx)
+{
+    auto const& opRes = r.results[txIdx].result.result.results()[opIdx];
+    return opRes.tr().revokeSponsorshipResult().code();
+}
+
 static Claimant
 getClaimant(TestAccount const& account)
 {
@@ -63,17 +71,12 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {a1.op(revokeSponsorship(accountKey(a1)))}, {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, accountKey(a1), 0, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("trust line")
@@ -85,17 +88,12 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {a1.op(revokeSponsorship(trustlineKey(a1, cur1)))}, {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 0, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 0, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("signer")
@@ -108,17 +106,12 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {a1.op(revokeSponsorship(a1, signer.key))}, {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, signer.key, 0, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 0, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("claimable balances")
@@ -134,21 +127,16 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             revokeSponsorship(claimableBalanceKey(balanceID)))},
                         {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r, 0, 0) ==
                             REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                                      &a1.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 2, 1, 0);
-                    ltx.commit();
                 }
             }
 
@@ -166,19 +154,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {*root});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, accountKey(a1), 1,
                                      &root->getPublicKey());
                     checkSponsorship(ltx, a1, 1, &root->getPublicKey(), 0, 2, 0,
                                      2);
-                    ltx.commit();
                 }
                 SECTION("trust line")
                 {
@@ -192,19 +175,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {*root});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
                                      &root->getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 1, 0);
-                    ltx.commit();
                 }
 
                 SECTION("signer")
@@ -226,16 +204,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                                  a1.op(endSponsoringFutureReserves())},
                                 {a1});
 
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
-                            TransactionMetaBuilder txm(
-                                true, *tx,
-                                ltx.loadHeader().current().ledgerVersion,
-                                app->getAppConnector());
-                            REQUIRE(tx->checkValidForTesting(
-                                app->getAppConnector(), ltx, 0, 0, 0));
-                            REQUIRE(
-                                tx->apply(app->getAppConnector(), ltx, txm));
-                            ltx.commit();
+                            auto r = closeLedger(*app, {tx});
+                            checkTx(0, r, txSUCCESS);
                         }
 
                         auto tx = transactionFrameFromOps(
@@ -245,14 +215,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              a1.op(endSponsoringFutureReserves())},
                             {*root});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm(
-                            true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txSUCCESS);
 
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         checkSponsorship(ltx, a1, signer.key, 2,
                                          &root->getPublicKey());
                         if (hasSponsoredEntry)
@@ -267,7 +233,6 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 1,
                                              0);
                         }
-                        ltx.commit();
                     };
 
                     SECTION("Account has sponsored entry")
@@ -295,18 +260,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {*root});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                                      &root->getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
             }
         }
@@ -327,13 +287,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {key});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -341,18 +296,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             revokeSponsorship(accountKey(a1.getPublicKey())))},
                         {});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, accountKey(a1.getPublicKey()), 1,
                                      nullptr);
                     checkSponsorship(ltx, a1, 1, nullptr, 0, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("trust line")
@@ -367,30 +318,21 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
                         {root->op(revokeSponsorship(trustlineKey(a1, cur1)))},
                         {});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("signer")
@@ -405,29 +347,20 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
                         {root->op(revokeSponsorship(a1, signer.key))}, {});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, signer.key, 2, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("claimable balance")
@@ -442,16 +375,11 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
-                    auto balanceID = tx1->getResult()
-                                         .result.results()[1]
+                    auto balanceID = r1.results[0]
+                                         .result.result.results()[1]
                                          .tr()
                                          .createClaimableBalanceResult()
                                          .balanceID();
@@ -462,20 +390,16 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             revokeSponsorship(claimableBalanceKey(balanceID)))},
                         {});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r2, 0, 0) ==
                             REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                                      &root->getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
-                    ltx.commit();
                 }
             }
 
@@ -495,13 +419,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {key});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -511,17 +430,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, 1, &a2.getPublicKey(), 0, 2, 0,
                                      2);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 2, 0);
-                    ltx.commit();
                 }
 
                 SECTION("trust line")
@@ -537,13 +452,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -552,19 +462,15 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("signer")
@@ -580,13 +486,9 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
+
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
                         {a2.op(beginSponsoringFutureReserves(*root)),
@@ -594,19 +496,15 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, signer.key, 2,
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("claimable balances")
@@ -622,16 +520,11 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
-                    auto balanceID = tx1->getResult()
-                                         .result.results()[1]
+                    auto balanceID = r1.results[0]
+                                         .result.result.results()[1]
                                          .tr()
                                          .createClaimableBalanceResult()
                                          .balanceID();
@@ -644,18 +537,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
-                    ltx.commit();
                 }
 
                 SECTION("data")
@@ -672,13 +561,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -687,19 +571,15 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, dataKey(a1, dataName), 1,
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("offer")
@@ -717,15 +597,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
-                    auto offerID = ltx.loadHeader().current().idPool;
+                    uint64_t offerID;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        offerID = ltx.loadHeader().current().idPool;
+                    }
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
                         {a2.op(beginSponsoringFutureReserves(*root)),
@@ -733,19 +612,15 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a2});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, offerKey(a1, offerID), 1,
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 1);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
             }
 
@@ -762,13 +637,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {key});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -778,18 +648,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a1});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, accountKey(a1.getPublicKey()), 1,
                                      nullptr);
                     checkSponsorship(ltx, a1, 1, nullptr, 0, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("trustline")
@@ -804,13 +670,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -819,17 +680,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a1});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("signer")
@@ -844,13 +701,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -859,17 +711,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a1});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, signer.key, 2, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("data")
@@ -885,13 +733,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
@@ -900,17 +743,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a1});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, dataKey(a1, dataName), 1, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
 
                 SECTION("offer")
@@ -927,15 +766,14 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx1, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx1->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                    auto r1 = closeLedger(*app, {tx1});
+                    checkTx(0, r1, txSUCCESS);
 
-                    auto offerID = ltx.loadHeader().current().idPool;
+                    uint64_t offerID;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        offerID = ltx.loadHeader().current().idPool;
+                    }
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), *root,
                         {a1.op(beginSponsoringFutureReserves(*root)),
@@ -943,17 +781,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                          root->op(endSponsoringFutureReserves())},
                         {a1});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, offerKey(a1, offerID), 1, nullptr);
                     checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 2, 0, 0);
-                    ltx.commit();
                 }
             }
         }
@@ -971,17 +805,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {a1.op(revokeSponsorship(trustlineKey(a1, cur1)))}, {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r, 0, 0) ==
                             REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 0, 0, 0);
                 }
@@ -994,24 +824,24 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 
                     a2.manageOffer(0, native, cur1, Price{1, 1}, 10);
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    auto offerID = ltx.loadHeader().current().idPool;
+                    uint64_t offerID;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        offerID = ltx.loadHeader().current().idPool;
+                    }
 
                     // put the wrong account on the offerKey
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a2,
                         {a2.op(revokeSponsorship(offerKey(a1, offerID)))}, {});
 
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r, 0, 0) ==
                             REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
                     checkSponsorship(ltx, a2, 0, nullptr, 2, 1, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 0, 0, 0);
@@ -1029,15 +859,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             revokeSponsorship(s1.getPublicKey(), signer.key))},
                         {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r, 0, 0) ==
                             REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
 
                     // known account, but unknown signer
@@ -1045,16 +870,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {a1.op(revokeSponsorship(a1, signer.key))}, {});
 
-                    TransactionMetaBuilder txm2(
-                        true, *tx2, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
-                                                      ltx, 0, 0, 0));
-                    REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
+                    auto r2 = closeLedger(*app, {tx2});
+                    checkTx(0, r2, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r2, 0, 0) ==
                             REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
                     checkSponsorship(ltx, *root, 0, nullptr, 0, 0, 0, 0);
                 }
@@ -1081,16 +903,13 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              a1.op(endSponsoringFutureReserves())},
                             {a1});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm1(
-                            true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm1));
-                        checkSponsorship(ltx, a1, 0, &root->getPublicKey(), 1,
-                                         2, 0, 1);
-                        ltx.commit();
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txSUCCESS);
+                        {
+                            LedgerTxn ltx(app->getLedgerTxnRoot());
+                            checkSponsorship(ltx, a1, 0, &root->getPublicKey(),
+                                             1, 2, 0, 1);
+                        }
                     }
                     else
                     {
@@ -1112,15 +931,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                     auto tx = transactionFrameFromOps(app->getNetworkID(), a2,
                                                       {op}, {});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm1(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm1));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
 
-                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REQUIRE(getRevokeSponsorshipResultCode(r, 0, 0) ==
                             REVOKE_SPONSORSHIP_NOT_SPONSOR);
 
                     if (isSponsored)
@@ -1137,27 +951,20 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                             transactionFrameFromOps(app->getNetworkID(), *root,
                                                     {opRemoveSponsorship}, {});
 
-                        TransactionMetaBuilder txm2(
-                            true, *tx2,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx2->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
-                        checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
+                        auto r2 = closeLedger(*app, {tx2});
+                        checkTx(0, r2, txSUCCESS);
+                        {
+                            LedgerTxn ltx(app->getLedgerTxnRoot());
+                            checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
+                        }
 
                         auto tx3 = transactionFrameFromOps(app->getNetworkID(),
                                                            a2, {op}, {});
 
-                        TransactionMetaBuilder txm3(
-                            true, *tx3,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx3->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(!tx3->apply(app->getAppConnector(), ltx, txm3));
+                        auto r3 = closeLedger(*app, {tx3});
+                        checkTx(0, r3, txFAILED);
 
-                        REQUIRE(getRevokeSponsorshipResultCode(tx3, 0) ==
+                        REQUIRE(getRevokeSponsorshipResultCode(r3, 0, 0) ==
                                 REVOKE_SPONSORSHIP_NOT_SPONSOR);
                     }
                 };
@@ -1204,14 +1011,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              middleOpTx1, a1.op(endSponsoringFutureReserves())},
                             {a1});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm1(
-                            true, *tx1,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx1->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                        auto r1 = closeLedger(*app, {tx1});
+                        checkTx(0, r1, txSUCCESS);
 
                         Operation middleOpTx2 =
                             entryTest
@@ -1226,15 +1027,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              root->op(endSponsoringFutureReserves())},
                             {a2});
 
-                        TransactionMetaBuilder txm2(
-                            true, *tx2,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx2->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
+                        auto r2 = closeLedger(*app, {tx2});
+                        checkTx(0, r2, txFAILED);
 
-                        REQUIRE(getRevokeSponsorshipResultCode(tx2, 1) ==
+                        REQUIRE(getRevokeSponsorshipResultCode(r2, 0, 1) ==
                                 REVOKE_SPONSORSHIP_LOW_RESERVE);
                     }
                     SECTION("remove sponsorship")
@@ -1252,14 +1048,8 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              middleOpTx1, a1.op(endSponsoringFutureReserves())},
                             {a1});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm1(
-                            true, *tx1,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx1->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(tx1->apply(app->getAppConnector(), ltx, txm1));
+                        auto r1 = closeLedger(*app, {tx1});
+                        checkTx(0, r1, txSUCCESS);
 
                         Operation opTx2 =
                             entryTest
@@ -1270,15 +1060,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                         auto tx2 = transactionFrameFromOps(app->getNetworkID(),
                                                            *root, {opTx2}, {});
 
-                        TransactionMetaBuilder txm2(
-                            true, *tx2,
-                            ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx2->checkValidForTesting(
-                            app->getAppConnector(), ltx, 0, 0, 0));
-                        REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
+                        auto r2 = closeLedger(*app, {tx2});
+                        checkTx(0, r2, txFAILED);
 
-                        REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
+                        REQUIRE(getRevokeSponsorshipResultCode(r2, 0, 0) ==
                                 REVOKE_SPONSORSHIP_LOW_RESERVE);
                     }
                     SECTION("establish sponsorship")
@@ -1308,15 +1093,10 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
                              a1.op(endSponsoringFutureReserves())},
                             {a1, a2});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm(
-                            true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
-                        REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txFAILED);
 
-                        REQUIRE(getRevokeSponsorshipResultCode(tx, 1) ==
+                        REQUIRE(getRevokeSponsorshipResultCode(r, 0, 1) ==
                                 REVOKE_SPONSORSHIP_LOW_RESERVE);
                     }
                 };

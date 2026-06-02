@@ -16,9 +16,17 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <variant>
 
 namespace stellar
 {
+
+// Returned by getTxSet to distinguish "empty tx set" values (no real tx set)
+// from "not yet downloaded" (nullptr).
+struct EmptyTxSet
+{
+};
+using TxSetResult = std::variant<TxSetXDRFrameConstPtr, EmptyTxSet>;
 class Application;
 class XDROutputFileStream;
 
@@ -78,6 +86,9 @@ class Herder
     static uint32 const FLOW_CONTROL_BYTES_EXTRA_BUFFER;
 
     static std::chrono::minutes const TX_SET_GC_DELAY;
+
+    // Hash value indicating a CAP-0083 explicitly empty-tx-set value
+    static Hash const EMPTY_TX_SET_HASH;
 
     enum State
     {
@@ -139,14 +150,15 @@ class Herder
     // generator, and therefore can skip certain expensive validity checks
     virtual TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                    bool isLoadgenTx = false) = 0;
+                    bool force = false, bool isLoadgenTx = false) = 0;
 #else
     virtual TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
+    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                    bool force = false) = 0;
 #endif
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;
-    virtual TxSetXDRFrameConstPtr getTxSet(Hash const& hash) = 0;
+    virtual TxSetResult getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
@@ -212,6 +224,9 @@ class Herder
     virtual void setUpgrades(Upgrades::UpgradeParameters const& upgrades) = 0;
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
+
+    // Override the filtered accounts at runtime using pre-parsed AccountIDs.
+    virtual void setFilteredAccounts(std::set<AccountID> const& accounts) = 0;
 
     virtual void forceSCPStateIntoSyncWithLastClosedLedger() = 0;
 

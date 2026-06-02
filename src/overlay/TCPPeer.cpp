@@ -793,6 +793,7 @@ TCPPeer::recvMessage()
                            mThreadVars.getIncomingBody().size());
         AuthenticatedMessage am;
         xdr::xdr_argpack_archive(g, am);
+        g.done();
 
         valid = Peer::recvAuthenticatedMessage(std::move(am));
     }

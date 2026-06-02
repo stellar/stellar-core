@@ -94,8 +94,8 @@ struct Cluster
 class Stage
 {
   public:
-    Stage(const Stage&) = delete;
-    Stage& operator=(const Stage&) = delete;
+    Stage(Stage const&) = delete;
+    Stage& operator=(Stage const&) = delete;
 
     Stage(Stage&&) = default;
     Stage& operator=(Stage&&) = default;

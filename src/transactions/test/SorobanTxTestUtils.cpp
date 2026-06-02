@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SorobanTxTestUtils.h"
-#include "bucket/BucketManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/Catch2.h"
@@ -12,6 +12,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Logging.h"
 #include "util/XDRCereal.h"
 #include "xdrpp/printer.h"
 
@@ -796,15 +797,31 @@ TestContract::Invocation::withAuthorization(
     SorobanCredentials credentials)
 {
     mOp.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto addNonce = [this](auto const& credentials) {
+        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key().nonce = credentials.nonce;
+        mSpec = mSpec.extendReadWriteFootprint({contractDataKey(
+            credentials.address, nonceKey, ContractDataDurability::TEMPORARY)});
+    };
+
     if (credentials.type() ==
         SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS)
     {
-        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
-        nonceKey.nonce_key().nonce = credentials.address().nonce;
-        mSpec = mSpec.extendReadWriteFootprint(
-            {contractDataKey(credentials.address().address, nonceKey,
-                             ContractDataDurability::TEMPORARY)});
+        addNonce(credentials.address());
     }
+#ifdef CAP_0071
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2)
+    {
+        addNonce(credentials.addressV2());
+    }
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_WITH_DELEGATES)
+    {
+        addNonce(credentials.addressWithDelegates().addressCredentials);
+    }
+#endif
     return *this;
 }
 
@@ -1368,22 +1385,29 @@ SorobanTest::createRestoreTx(SorobanResources const& resources,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
-    LedgerSnapshot ls(getApp());
+    CheckValidLedgerViewWrapper ledgerView(getApp());
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    auto ret =
-        tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+    auto ret = tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
+                              diagnostics);
     return ret->isSuccess();
 }
 
 TransactionResult
 SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
+    auto diagnostics =
+        DiagnosticEventManager::createForValidation(mApp->getConfig());
     {
-        auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerSnapshot ls(getApp());
-        REQUIRE(
-            tx->checkValid(getApp().getAppConnector(), ls, 0, 0, 0, diagnostics)
-                ->isSuccess());
+        CheckValidLedgerViewWrapper ledgerView(getApp());
+        auto result = tx->checkValid(getApp().getAppConnector(), ledgerView, 0,
+                                     0, 0, diagnostics);
+        if (!result->isSuccess())
+        {
+            CLOG_ERROR(Tx, "invokeTx: invalid transaction {}",
+                       result->getXDR().result.code());
+            diagnostics.debugLogEvents();
+        }
+        REQUIRE(result->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});
@@ -1434,21 +1458,17 @@ ExpirationStatus
 SorobanTest::getEntryExpirationStatus(LedgerKey const& key)
 {
     auto ttlKey = getTTLKey(key);
-    LedgerSnapshot ls(getApp());
-    if (auto lse = ls.load(ttlKey))
+    CheckValidLedgerViewWrapper ledgerView(getApp());
+    if (auto le = ledgerView.load(ttlKey))
     {
-        if (lse.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
+        if (le.current().data.ttl().liveUntilLedgerSeq <= getLCLSeq())
         {
             return ExpirationStatus::EXPIRED_IN_LIVE_STATE;
         }
         return ExpirationStatus::LIVE;
     }
-    auto hotArchive = getApp()
-                          .getBucketManager()
-                          .getBucketSnapshotManager()
-                          .copySearchableHotArchiveBucketListSnapshot();
-    releaseAssert(hotArchive);
-    if (hotArchive->load(key) != nullptr)
+    auto archiveView = getApp().getLedgerManager().copyImmutableLedgerView();
+    if (archiveView.loadArchiveEntry(key) != nullptr)
     {
         return ExpirationStatus::HOT_ARCHIVE;
     }
@@ -1839,12 +1859,21 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
                 invocation.getTxMeta().getDiagnosticEvents();
             REQUIRE(diagnosticEvents.size() > 1);
 
-            auto const& contract_ev = diagnosticEvents.at(1);
-            REQUIRE(!contract_ev.inSuccessfulContractCall);
-            REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
-            auto const& topics = contract_ev.event.body.v0().topics.at(1);
-            REQUIRE(topics.type() == SCV_ERROR);
-            REQUIRE(topics.error().type() == SCE_CONTRACT);
+            bool errorFound = false;
+            for (auto const& contract_ev : diagnosticEvents)
+            {
+                REQUIRE(!contract_ev.inSuccessfulContractCall);
+                REQUIRE(contract_ev.event.type ==
+                        ContractEventType::DIAGNOSTIC);
+
+                auto const& topics = contract_ev.event.body.v0().topics.at(1);
+                if (topics.type() == SCV_ERROR)
+                {
+                    errorFound = true;
+                    break;
+                }
+            }
+            REQUIRE(errorFound);
         }
         int64_t expectedFromBalance = preTransferFromBalance;
         if (mAsset.type() == ASSET_TYPE_NATIVE)
@@ -2237,22 +2266,75 @@ SorobanSigner::SorobanSigner(SorobanTest& test, SCAddress const& address,
 }
 
 SorobanCredentials
-SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
+SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
+                    std::optional<bool> forceAddressCredentialsV2) const
 {
-    SorobanCredentials fullCredentials(
-        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS);
+    auto credentialsType = SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+#ifdef CAP_0071
+    if (protocolVersionStartsFrom(mTest.getLedgerVersion(),
+                                  ProtocolVersion::V_27))
+    {
+        if (uniform_int_distribution<>()(Catch::rng()) % 2 == 0)
+        {
+            credentialsType =
+                SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2;
+        }
+    }
+#endif
+    if (forceAddressCredentialsV2)
+    {
+#ifdef CAP_0071
+        credentialsType =
+            *forceAddressCredentialsV2
+                ? SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2
+                : SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+#else
+        REQUIRE(!*forceAddressCredentialsV2);
+#endif
+    }
+    SorobanCredentials fullCredentials(credentialsType);
+#ifdef CAP_0071
+    auto& credentials =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? fullCredentials.address()
+            : fullCredentials.addressV2();
+#else
     auto& credentials = fullCredentials.address();
+#endif
     credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
     credentials.signatureExpirationLedger = mTest.getLCLSeq() + 10'000;
     credentials.address = mAddress;
 
-    HashIDPreimage signaturePreimage(
-        EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION);
-    auto& preimage = signaturePreimage.sorobanAuthorization();
-    preimage.invocation = invocation;
-    preimage.networkID = mTest.getApp().getNetworkID();
-    preimage.nonce = credentials.nonce;
-    preimage.signatureExpirationLedger = credentials.signatureExpirationLedger;
+#ifdef CAP_0071
+    auto preimageType =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION
+            : EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION_WITH_ADDRESS;
+#else
+    auto preimageType = EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION;
+#endif
+    HashIDPreimage signaturePreimage(preimageType);
+    if (preimageType == EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION)
+    {
+        auto& preimage = signaturePreimage.sorobanAuthorization();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+    }
+    else
+    {
+#ifdef CAP_0071
+        auto& preimage = signaturePreimage.sorobanAuthorizationWithAddress();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+        preimage.address = mAddress;
+#endif
+    }
 
     credentials.signature = mSignFn(xdrSha256(signaturePreimage));
     return fullCredentials;
@@ -2325,5 +2407,5 @@ AuthTestTreeNode::toAuthorizedInvocation() const
     return invocation;
 }
 
-} // namespace txtext
+} // namespace txtest
 } // namespace stellar

@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
-#include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
@@ -14,6 +12,7 @@
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
+#include "main/BannedAccountsPersistor.h"
 #include "main/Config.h"
 #include "main/QueryServer.h"
 #include "overlay/BanManager.h"
@@ -42,6 +41,7 @@
 #include "test/TxTests.h"
 #endif
 #include <optional>
+#include <sstream>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -118,6 +118,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("banaccounts", &CommandHandler::banaccounts);
+    addRoute("unbanaccounts", &CommandHandler::unbanaccounts);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
@@ -639,12 +641,12 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            auto ls = LedgerSnapshot(mApp);
+            auto ledgerView = CheckValidLedgerViewWrapper(mApp);
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
 
-            if (!ptr ||
-                ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+            if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
+                            Upgrades::UpgradeValidity::VALID)
             {
                 retStr = "Error setting configUpgradeSet";
                 return;
@@ -678,6 +680,121 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 }
 
 void
+CommandHandler::banaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        // No accountids param at all: list current banned accounts.
+        // parseParams drops empty values, so also check the raw params to
+        // distinguish "not specified" from "empty value".
+        if (params.find("accountids") != std::string::npos)
+        {
+            retStr =
+                R"({"error": "accountids must not be empty; use 'unbanaccounts' to remove bans"})";
+            return;
+        }
+
+        auto accounts = persistor.getBannedAccountStrKeys();
+        Json::Value root;
+        root["bannedAccounts"] = Json::arrayValue;
+        for (auto const& addr : accounts)
+        {
+            root["bannedAccounts"].append(addr);
+        }
+        retStr = root.toStyledString();
+        return;
+    }
+
+    std::vector<std::string> addresses;
+    if (!parseAccountIds(it->second, addresses, retStr))
+    {
+        return;
+    }
+
+    auto beforeCount = persistor.getBannedAccountsCount();
+    persistor.addBannedAccounts(addresses);
+    auto updated = persistor.getBannedAccounts();
+    mApp.getHerder().setFilteredAccounts(updated);
+    auto actuallyAdded = updated.size() - beforeCount;
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "added": {}, "total": {}}})"),
+        actuallyAdded, updated.size());
+}
+
+bool
+CommandHandler::parseAccountIds(std::string const& value,
+                                std::vector<std::string>& addresses,
+                                std::string& retStr)
+{
+    std::istringstream iss(value);
+    std::string addr;
+    while (std::getline(iss, addr, ','))
+    {
+        if (addr.empty())
+        {
+            continue;
+        }
+        try
+        {
+            KeyUtils::fromStrKey<PublicKey>(addr);
+        }
+        catch (std::exception const&)
+        {
+            retStr = fmt::format(
+                FMT_STRING(R"({{"error": "invalid address: '{}'"}})"), addr);
+            return false;
+        }
+        addresses.push_back(addr);
+    }
+    return true;
+}
+
+void
+CommandHandler::unbanaccounts(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto& persistor = mApp.getBannedAccountsPersistor();
+
+    auto it = retMap.find("accountids");
+    if (it == retMap.end())
+    {
+        // No accountids param: clear all bans.
+        // parseParams drops empty values, so also check the raw params.
+        persistor.clearBannedAccounts();
+        mApp.getHerder().setFilteredAccounts({});
+        retStr = R"({"status": "banned accounts cleared"})";
+        return;
+    }
+
+    std::vector<std::string> addresses;
+    if (!parseAccountIds(it->second, addresses, retStr))
+    {
+        return;
+    }
+
+    auto beforeCount = persistor.getBannedAccountsCount();
+    persistor.removeBannedAccounts(addresses);
+    auto updated = persistor.getBannedAccounts();
+    mApp.getHerder().setFilteredAccounts(updated);
+    auto actuallyRemoved = beforeCount - updated.size();
+    retStr = fmt::format(
+        FMT_STRING(
+            R"({{"status": "banned accounts updated", "removed": {}, "total": {}}})"),
+        actuallyRemoved, updated.size());
+}
+
+void
 CommandHandler::dumpProposedSettings(std::string const& params,
                                      std::string& retStr)
 {
@@ -693,11 +810,12 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        auto ls = LedgerSnapshot(mApp);
+        auto ledgerView = CheckValidLedgerViewWrapper(mApp);
 
-        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ledgerView, key);
 
-        if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+        if (!ptr || ptr->isValidForApply(mApp.getConfig()) !=
+                        Upgrades::UpgradeValidity::VALID)
         {
             retStr = "configUpgradeSet is missing or invalid";
             return;
@@ -924,12 +1042,12 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "detailed")
         {
-            LedgerSnapshot lsg(mApp);
+            CheckValidLedgerViewWrapper ledgerView(mApp);
             xdr::xvector<ConfigSettingEntry> entries;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
-                auto entry =
-                    lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                auto entry = ledgerView.load(
+                    configSettingKey(static_cast<ConfigSettingID>(c)));
                 if (!entry)
                 {
                     continue;
@@ -941,7 +1059,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "upgrade_xdr")
         {
-            LedgerSnapshot lsg(mApp);
+            CheckValidLedgerViewWrapper ledgerView(mApp);
 
             ConfigUpgradeSet upgradeSet;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
@@ -952,7 +1070,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 {
                     continue;
                 }
-                auto entry = lsg.load(configSettingKey(configSettingID));
+                auto entry = ledgerView.load(configSettingKey(configSettingID));
                 if (!entry)
                 {
                     continue;
@@ -1021,6 +1139,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> paramMap;
     http::server::server::parseParams(params, paramMap);
     std::string blob = paramMap["blob"];
+    bool force = paramMap["force"] == "true";
 
     if (!blob.empty())
     {
@@ -1044,7 +1163,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // Add it to our current set and make sure it is valid.
             auto addResult =
-                mApp.getHerder().recvTransaction(transaction, true);
+                mApp.getHerder().recvTransaction(transaction, true, force);
 
             root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
             if (addResult.code ==
@@ -1327,11 +1446,29 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
-        if (cfg.mode == LoadGenMode::PAY_PREGENERATED)
+        if (cfg.mode == LoadGenMode::PAY_PREGENERATED || cfg.modeMixesPregen())
         {
             // Always use the configuration file path
             cfg.preloadedTransactionsFile =
                 mApp.getConfig().LOADGEN_PREGENERATED_TRANSACTIONS_FILE;
+        }
+
+        if (cfg.modeMixesPregen())
+        {
+            auto& mix = cfg.getMutMixPregenSorobanConfig();
+            mix.classicTxRate =
+                parseOptionalParamOrDefault<uint32_t>(map, "classictxrate", 0);
+            mix.sorobanTxRate =
+                parseOptionalParamOrDefault<uint32_t>(map, "sorobantxrate", 0);
+            if (mix.classicTxRate == 0 && mix.sorobanTxRate == 0)
+            {
+                retStr = "At least one of classictxrate / sorobantxrate must "
+                         "be non-zero";
+                return;
+            }
+            // cfg.txRate is used for progress / step scheduling logs; set the
+            // combined rate so users see sensible throughput output.
+            cfg.txRate = mix.classicTxRate + mix.sorobanTxRate;
         }
 
         if (cfg.maxGeneratedFeeRate)
@@ -1395,15 +1532,15 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerSnapshot lsg(mApp);
-        auto acc = lsg.load(accountKey(key.getPublicKey()));
+        CheckValidLedgerViewWrapper ledgerView(mApp);
+        auto acc = ledgerView.load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();
             root["name"] = accName->second;
             root["id"] = KeyUtils::toStrKey(ae.accountID);
-            root["balance"] = (Json::Int64)ae.balance;
-            root["seqnum"] = (Json::UInt64)ae.seqNum;
+            root["balance"] = static_cast<Json::Int64>(ae.balance);
+            root["seqnum"] = static_cast<Json::UInt64>(ae.seqNum);
         }
     }
     retStr = root.toStyledString();
@@ -1446,7 +1583,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_name"] = to->second;
         root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
-        root["amount"] = (Json::UInt64)paymentAmount;
+        root["amount"] = static_cast<Json::UInt64>(paymentAmount);
 
         TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")

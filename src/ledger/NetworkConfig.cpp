@@ -6,7 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
-#include "ledger/LedgerStateSnapshot.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -25,12 +25,12 @@ namespace
 void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
                          AbstractLedgerTxn& ltxRoot,
-                         uint32_t versionToValidateAgainst)
+                         uint32_t versionToValidateAgainst, Config const& cfg)
 {
     ZoneScoped;
 
     if (!SorobanNetworkConfig::isValidConfigSettingEntry(
-            configSetting, versionToValidateAgainst))
+            configSetting, versionToValidateAgainst, cfg))
     {
         throw std::runtime_error("Invalid configSettingEntry");
     }
@@ -1322,7 +1322,8 @@ updateStateSizeWindowSetting(
 
 bool
 SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
-                                                uint32_t ledgerVersion)
+                                                uint32_t ledgerVersion,
+                                                Config const& appCfg)
 {
     bool valid = false;
     switch (cfg.configSettingID())
@@ -1450,14 +1451,23 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.contractLedgerCostExt().feeWrite1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_SCP_TIMING:
-        valid =
-            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+    {
+        bool ledgerTargetCloseTimeValid =
             cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds >=
                 MinimumSorobanNetworkConfig::
                     LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
             cfg.contractSCPTiming().ledgerTargetCloseTimeMilliseconds <=
                 MaximumSorobanNetworkConfig::
-                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS &&
+                    LEDGER_TARGET_CLOSE_TIME_MILLISECONDS;
+#ifdef BUILD_TESTS
+        if (appCfg.TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS)
+        {
+            ledgerTargetCloseTimeValid = true;
+        }
+#endif
+        valid =
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
+            ledgerTargetCloseTimeValid &&
             cfg.contractSCPTiming().nominationTimeoutInitialMilliseconds >=
                 MinimumSorobanNetworkConfig::
                     NOMINATION_TIMEOUT_INITIAL_MILLISECONDS &&
@@ -1483,6 +1493,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
                 MaximumSorobanNetworkConfig::
                     BALLOT_TIMEOUT_INCREMENT_MILLISECONDS;
         break;
+    }
     case ConfigSettingID::CONFIG_SETTING_FROZEN_LEDGER_KEYS:
         // The frozen keys entry itself is always valid (it's just a list of
         // encoded keys). But it cannot be directly upgraded — only the delta
@@ -1612,33 +1623,33 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
 
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
-                             ltx, versionToValidateAgainst);
+                             ltx, versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialCpuCostParamsEntryForV20(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialMemCostParamsEntryForV20(), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialliveSorobanStateSizeWindow(app), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
     createConfigSettingEntry(initialEvictionIterator(cfg), ltx,
-                             versionToValidateAgainst);
+                             versionToValidateAgainst, cfg);
 }
 
 void
@@ -1682,10 +1693,11 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
                                                          Application& app)
 {
     ZoneScoped;
+    auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialParallelComputeEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
+                             static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
     createConfigSettingEntry(initialScpTimingEntry(), ltx,
-                             static_cast<uint32_t>(ProtocolVersion::V_23));
+                             static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
 
     // We expect CONFIG_SETTING_CONTRACT_LEDGER_COST_V0 to exist when upgrading
     // to protocol 23 as it must be created during the protocol 20 upgrade.
@@ -1699,7 +1711,7 @@ SorobanNetworkConfig::createAndUpdateLedgerEntriesForV23(AbstractLedgerTxn& ltx,
         le.data.configSetting().contractLedgerCost();
     createConfigSettingEntry(
         initialLedgerCostExtEntry(ledgerCostSetting.txMaxDiskReadEntries), ltx,
-        static_cast<uint32_t>(ProtocolVersion::V_23));
+        static_cast<uint32_t>(ProtocolVersion::V_23), cfg);
 
     updateRentCostParamsForV23(ltx);
 }
@@ -1751,7 +1763,7 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
 }
 
 SorobanNetworkConfig
-SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFromLedger(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     SorobanNetworkConfig config;
@@ -1789,17 +1801,10 @@ SorobanNetworkConfig::loadFromLedger(LedgerSnapshot const& ls)
 }
 
 SorobanNetworkConfig
-SorobanNetworkConfig::loadFromLedger(SearchableSnapshotConstPtr snapshot)
-{
-    LedgerSnapshot ls(snapshot);
-    return SorobanNetworkConfig::loadFromLedger(ls);
-}
-
-SorobanNetworkConfig
 SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltx)
 {
-    LedgerSnapshot ls(ltx);
-    return SorobanNetworkConfig::loadFromLedger(ls);
+    LedgerTxnReadOnly snap(ltx);
+    return SorobanNetworkConfig::loadFromLedger(snap);
 }
 
 #ifdef BUILD_TESTS
@@ -1811,7 +1816,7 @@ SorobanNetworkConfig::emptyConfig()
 #endif
 
 void
-SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1825,7 +1830,7 @@ SorobanNetworkConfig::loadMaxContractSize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1840,7 +1845,7 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1855,7 +1860,7 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadComputeSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1874,7 +1879,7 @@ SorobanNetworkConfig::loadComputeSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1921,7 +1926,7 @@ SorobanNetworkConfig::loadLedgerAccessSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1937,7 +1942,7 @@ SorobanNetworkConfig::loadHistoricalSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1953,7 +1958,7 @@ SorobanNetworkConfig::loadContractEventsSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1970,7 +1975,7 @@ SorobanNetworkConfig::loadBandwidthSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1984,7 +1989,7 @@ SorobanNetworkConfig::loadCpuCostParams(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadMemCostParams(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -1998,7 +2003,7 @@ SorobanNetworkConfig::loadMemCostParams(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -2014,7 +2019,8 @@ SorobanNetworkConfig::loadExecutionLanesSettings(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(
+    AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -2044,7 +2050,7 @@ SorobanNetworkConfig::loadLiveSorobanStateSizeWindow(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -2057,7 +2063,7 @@ SorobanNetworkConfig::loadEvictionIterator(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadParallelComputeConfig(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2072,7 +2078,7 @@ SorobanNetworkConfig::loadParallelComputeConfig(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadLedgerCostExtConfig(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2087,7 +2093,7 @@ SorobanNetworkConfig::loadLedgerCostExtConfig(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadSCPTimingConfig(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadSCPTimingConfig(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     LedgerKey key(CONFIG_SETTING);
@@ -2128,7 +2134,7 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 }
 
 void
-SorobanNetworkConfig::loadStateArchivalSettings(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadStateArchivalSettings(AbstractLedgerView const& ls)
 {
     ZoneScoped;
 
@@ -2536,7 +2542,7 @@ SorobanNetworkConfig::isFreezeBypassTx(Hash const& txHash) const
 }
 
 void
-SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFrozenLedgerKeys(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     mFrozenLedgerKeys.clear();
@@ -2557,7 +2563,7 @@ SorobanNetworkConfig::loadFrozenLedgerKeys(LedgerSnapshot const& ls)
 }
 
 void
-SorobanNetworkConfig::loadFreezeBypassTxs(LedgerSnapshot const& ls)
+SorobanNetworkConfig::loadFreezeBypassTxs(AbstractLedgerView const& ls)
 {
     ZoneScoped;
     mFreezeBypassTxs.clear();

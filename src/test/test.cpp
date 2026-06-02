@@ -2,10 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "crypto/ShortHash.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include <filesystem>
+#include <fstream>
 #include <json/json.h>
 #include <sstream>
 #define CATCH_CONFIG_RUNNER
@@ -20,11 +23,14 @@
 #include "main/dumpxdr.h"
 #include "test.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/MetaUtils.h"
 #include "util/TmpDir.h"
 #include "util/XDRCereal.h"
+#include "util/XDRStream.h"
 
 #include <cstdlib>
 #include <fmt/format.h>
@@ -84,7 +90,225 @@ enum class TestTxMetaMode
     META_TEST_CHECK
 };
 
-static TestTxMetaMode gTestTxMetaMode{TestTxMetaMode::META_TEST_IGNORE};
+namespace
+{
+
+TestTxMetaMode gTestTxMetaMode{TestTxMetaMode::META_TEST_IGNORE};
+bool gLcmCaptureEnabled{false};
+
+// State tracked per section for automatic LCM capture.
+struct SectionLcmState
+{
+    Catch::SectionInfo info;
+    size_t startIndex;    // index into gAccumulatedLcm at section entry
+    bool hasChildSection; // true if any child section was entered
+};
+
+bool
+needTestCtxTracking()
+{
+    return gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE ||
+           gLcmCaptureEnabled;
+}
+
+std::string
+sanitizeForFilename(std::string const& s)
+{
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s)
+    {
+        if (c == ' ')
+            out += '_';
+        else if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' ||
+                 c == '"' || c == '<' || c == '>' || c == '|')
+            out += '-';
+        else
+            out += c;
+    }
+    return out;
+}
+
+std::string
+buildLcmHumanName(Catch::TestCaseInfo const& tc,
+                  std::vector<SectionLcmState> const& sectionStack)
+{
+    std::string name = sanitizeForFilename(tc.name);
+    // Skip the first section — Catch2 always creates an implicit root
+    // section with the same name as the test case.
+    for (size_t i = 1; i < sectionStack.size(); ++i)
+    {
+        name += "-";
+        name += sanitizeForFilename(sectionStack[i].info.name);
+    }
+    return name;
+}
+
+std::string
+buildLcmOutputDir(Catch::TestCaseInfo const& tc)
+{
+    std::filesystem::path file(tc.lineInfo.file);
+    return "test-lcm/" + file.filename().stem().string();
+}
+
+int32_t
+lcmLedgerSeq(LedgerCloseMeta const& lcm)
+{
+    switch (lcm.v())
+    {
+    case 0:
+        return lcm.v0().ledgerHeader.header.ledgerSeq;
+    case 1:
+        return lcm.v1().ledgerHeader.header.ledgerSeq;
+    case 2:
+        return lcm.v2().ledgerHeader.header.ledgerSeq;
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+checkLcmSequenceContiguity(std::vector<LedgerCloseMeta> const& metas,
+                           size_t startIndex, std::string const& path)
+{
+    if (startIndex + 1 >= metas.size())
+    {
+        // Zero or one entry — nothing to check for contiguity.
+        return;
+    }
+    for (size_t i = startIndex + 1; i < metas.size(); ++i)
+    {
+        auto prevSeq = lcmLedgerSeq(metas[i - 1]);
+        auto curSeq = lcmLedgerSeq(metas[i]);
+        REQUIRE(curSeq == prevSeq + 1);
+    }
+}
+
+// Read all LedgerCloseMeta entries from an existing XDR file.
+std::vector<LedgerCloseMeta>
+readLcmFromFile(std::string const& path)
+{
+    std::vector<LedgerCloseMeta> result;
+    XDRInputFileStream in;
+    in.open(path);
+    LedgerCloseMeta lcm;
+    while (in.readOne(lcm))
+    {
+        result.emplace_back(std::move(lcm));
+    }
+    return result;
+}
+
+// Compare two LCM vectors for semantic equality by normalizing copies of each
+// entry. This allows us to skip writing when the only differences are due to
+// non-deterministic ordering from unordered map iteration.
+bool
+lcmSemanticallyEqual(std::vector<LedgerCloseMeta> const& a,
+                     std::vector<LedgerCloseMeta> const& b)
+{
+    if (a.size() != b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i)
+    {
+        LedgerCloseMeta na = a[i];
+        LedgerCloseMeta nb = b[i];
+        normalizeMeta(na);
+        normalizeMeta(nb);
+        zeroNonDeterministicDiagnostics(na);
+        zeroNonDeterministicDiagnostics(nb);
+        if (na != nb)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void
+updateLcmIndex(std::string const& dir, std::string const& hashHex,
+               std::string const& humanName)
+{
+    std::string indexPath = dir + "/index.json";
+    Json::Value root(Json::objectValue);
+    if (std::filesystem::exists(indexPath))
+    {
+        std::ifstream in(indexPath);
+        in >> root;
+    }
+    root[hashHex] = humanName;
+
+    // Json::Value keeps keys sorted, so output is deterministic.
+    Json::StyledWriter writer;
+    std::ofstream out(indexPath);
+    out << writer.write(root);
+}
+
+void
+writeLcmToFile(std::string const& path, std::string const& dir,
+               std::string const& hashHex, std::string const& humanName,
+               size_t startIndex)
+{
+    auto const& allMetas = txtest::getAccumulatedLcm();
+    if (startIndex >= allMetas.size())
+    {
+        LOG_WARNING(DEFAULT_LOG,
+                    "LCM auto-capture: no LedgerCloseMeta entries for '{}'. "
+                    "This test may use tx->apply() instead of closeLedger().",
+                    path);
+        return;
+    }
+
+    checkLcmSequenceContiguity(allMetas, startIndex, path);
+
+    // Build the new entries with zeroed diagnostics but without
+    // normalization: some restoration ledger-entry changes must remain in
+    // their original order for downstream consumers.
+    std::vector<LedgerCloseMeta> newEntries;
+    newEntries.reserve(allMetas.size() - startIndex);
+    for (size_t i = startIndex; i < allMetas.size(); ++i)
+    {
+        newEntries.push_back(allMetas[i]);
+        zeroNonDeterministicDiagnostics(newEntries.back());
+    }
+
+    // Always ensure directory exists and update the index so it stays in sync
+    // even when the XDR write is skipped.
+    fs::mkpath(dir);
+    updateLcmIndex(dir, hashHex, humanName);
+
+    // If an existing file is present, compare normalized versions. Skip the
+    // write if the entries are semantically identical — this avoids noisy
+    // diffs caused by non-deterministic unordered map iteration order.
+    if (std::filesystem::exists(path))
+    {
+        auto oldEntries = readLcmFromFile(path);
+        if (lcmSemanticallyEqual(oldEntries, newEntries))
+        {
+            return;
+        }
+    }
+
+    // Remove any existing file (XDROutputFileStream uses O_APPEND on
+    // POSIX, so we must remove first to avoid appending to stale data)
+    if (!fs::removeWithLog(path))
+    {
+        throw std::runtime_error(fmt::format(
+            "LCM auto-capture: failed to remove existing file '{}'", path));
+    }
+
+    asio::io_context ioc;
+    XDROutputFileStream out(ioc, /*fsyncOnClose=*/false);
+    out.open(path);
+
+    for (auto const& entry : newEntries)
+    {
+        out.writeOne(entry);
+    }
+}
+
+} // namespace
 
 struct TestContextListener : Catch::TestEventListenerBase
 {
@@ -93,20 +317,43 @@ struct TestContextListener : Catch::TestEventListenerBase
     static std::optional<Catch::TestCaseInfo> sTestCtx;
     static std::vector<Catch::SectionInfo> sSectCtx;
 
+    // LCM auto-capture state
+    static std::vector<SectionLcmState> sLcmSectStack;
+    static size_t sTestCaseStartIndex;
+    static bool sTestCaseHasSection;
+
     void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
+        if (needTestCtxTracking())
         {
             releaseAssert(threadIsMain());
             releaseAssert(!sTestCtx.has_value());
             sTestCtx.emplace(testInfo);
         }
+        if (gLcmCaptureEnabled)
+        {
+            txtest::clearAccumulatedLcm();
+            sLcmSectStack.clear();
+            sTestCaseStartIndex = 0;
+            sTestCaseHasSection = false;
+        }
     }
     void
     testCaseEnded(Catch::TestCaseStats const& testCaseStats) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
+        if (gLcmCaptureEnabled && !sTestCaseHasSection)
+        {
+            releaseAssert(sTestCtx.has_value());
+            auto const& tc = sTestCtx.value();
+            auto humanName = buildLcmHumanName(tc, sLcmSectStack);
+            auto hash = sha256(humanName);
+            auto hashHex = binToHex(hash).substr(0, 16);
+            auto dir = buildLcmOutputDir(tc);
+            auto path = dir + "/" + hashHex + ".xdr";
+            writeLcmToFile(path, dir, hashHex, humanName, sTestCaseStartIndex);
+        }
+        if (needTestCtxTracking())
         {
             releaseAssert(threadIsMain());
             releaseAssert(sTestCtx.has_value());
@@ -117,16 +364,52 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     sectionStarting(Catch::SectionInfo const& sectionInfo) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
+        if (needTestCtxTracking())
         {
             releaseAssert(threadIsMain());
             sSectCtx.emplace_back(sectionInfo);
+        }
+        if (gLcmCaptureEnabled)
+        {
+            sTestCaseHasSection = true;
+            if (!sLcmSectStack.empty())
+            {
+                sLcmSectStack.back().hasChildSection = true;
+            }
+            sLcmSectStack.push_back(
+                {sectionInfo, txtest::getAccumulatedLcm().size(), false});
         }
     }
     void
     sectionEnded(Catch::SectionStats const& sectionStats) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
+        if (gLcmCaptureEnabled && !sLcmSectStack.empty())
+        {
+            auto state = sLcmSectStack.back();
+            if (!state.hasChildSection)
+            {
+                // Build path before popping so the leaf section name
+                // is included in sLcmSectStack.
+                releaseAssert(sTestCtx.has_value());
+                auto const& tc = sTestCtx.value();
+                auto humanName = buildLcmHumanName(tc, sLcmSectStack);
+                auto hash = sha256(humanName);
+                auto hashHex = binToHex(hash).substr(0, 16);
+                auto dir = buildLcmOutputDir(tc);
+                auto path = dir + "/" + hashHex + ".xdr";
+                // Use the root section's startIndex so we capture all
+                // LCM for this test run, including setup code that
+                // ran before any SECTION was entered.
+                auto runStart = sLcmSectStack.front().startIndex;
+                sLcmSectStack.pop_back();
+                writeLcmToFile(path, dir, hashHex, humanName, runStart);
+            }
+            else
+            {
+                sLcmSectStack.pop_back();
+            }
+        }
+        if (needTestCtxTracking())
         {
             releaseAssert(threadIsMain());
             sSectCtx.pop_back();
@@ -139,6 +422,9 @@ CATCH_REGISTER_LISTENER(TestContextListener)
 namespace stdfs = std::filesystem;
 std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
+std::vector<SectionLcmState> TestContextListener::sLcmSectStack;
+size_t TestContextListener::sTestCaseStartIndex = 0;
+bool TestContextListener::sTestCaseHasSection = false;
 
 static std::map<stdfs::path,
                 std::map<std::string, std::pair<bool, std::vector<uint64_t>>>>
@@ -181,6 +467,12 @@ test_versions_wrapper(std::function<void(void)> f)
 }
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
+
+bool
+isLcmCaptureEnabled()
+{
+    return gLcmCaptureEnabled;
+}
 
 static void saveTestTxMeta(stdfs::path const& dir);
 static void loadTestTxMeta(stdfs::path const& dir);
@@ -273,7 +565,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // seeds the global PRNG might have been seeded with by default (which
         // could thereby collide).
         thisConfig.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(
-            0xFFFF0000 + (instanceNumber ^ getLastGlobalStateSeed()));
+            0xFFFF0000 + (instanceNumber ^ getLastGlobalStateSeed().value()));
         thisConfig.NODE_IS_VALIDATOR = true;
 
         // single node setup
@@ -328,6 +620,14 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.PEER_READING_CAPACITY = 20;
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
         thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
+
+        // When capturing LCM, enable Soroban diagnostic events so that
+        // downstream consumers can extract runtime error details and
+        // nested contract calls from the meta.
+        if (gLcmCaptureEnabled)
+        {
+            thisConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+        }
 
         // Disable RPC endpoint in tests
         thisConfig.HTTP_QUERY_PORT = 0;
@@ -408,6 +708,9 @@ runTest(CommandLineArgs const& args)
             "dump full TxMeta from all tests to FILENAME");
     parser |= Catch::clara::Opt(
         Catch::SimpleTestReporter::gDisableDots)["--disable-dots"];
+    parser |= Catch::clara::Opt(gLcmCaptureEnabled)["--capture-lcm"](
+        "automatically capture LedgerCloseMeta to binary XDR files "
+        "in test-lcm/ at leaf section boundaries");
 
     session.cli(parser);
 

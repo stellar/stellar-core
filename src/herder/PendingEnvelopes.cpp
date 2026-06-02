@@ -1,4 +1,4 @@
-﻿#include "PendingEnvelopes.h"
+#include "PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
@@ -185,7 +185,10 @@ TxSetXDRFrameConstPtr
 PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
                            TxSetXDRFrameConstPtr txset)
 {
-    auto res = getKnownTxSet(hash, slot, true);
+    // Cannot add a tx set for the empty-tx-set hash
+    releaseAssert(hash != Herder::EMPTY_TX_SET_HASH);
+
+    auto res = std::get<TxSetXDRFrameConstPtr>(getKnownTxSet(hash, slot, true));
     if (!res)
     {
         res = txset;
@@ -198,11 +201,16 @@ PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
 // tries to find a txset in memory, setting touch also touches the LRU,
 // extending the lifetime of the result *and* updating the slot number
 // to a greater value if needed
-TxSetXDRFrameConstPtr
+TxSetResult
 PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 {
     // slot is only used when `touch` is set
     releaseAssert(touch || (slot == 0));
+    if (hash == Herder::EMPTY_TX_SET_HASH)
+    {
+        return EmptyTxSet{};
+    }
+
     TxSetXDRFrameConstPtr res;
     auto it = mKnownTxSets.find(hash);
     if (it != mKnownTxSets.end())
@@ -225,6 +233,17 @@ PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
         }
     }
     return res;
+}
+
+bool
+PendingEnvelopes::hasTxSet(Hash const& hash) const
+{
+    if (hash == Herder::EMPTY_TX_SET_HASH)
+    {
+        return true;
+    }
+    auto it = mKnownTxSets.find(hash);
+    return it != mKnownTxSets.end() && it->second.lock() != nullptr;
 }
 
 void
@@ -251,6 +270,11 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
     }
 
     addTxSet(hash, lastSeenSlotIndex, txset);
+
+    // Update any ValueWrappers that were created before this tx set was
+    // available
+    mHerder.getHerderSCPDriver().onTxSetReceived(hash, txset);
+
     return true;
 }
 
@@ -306,8 +330,23 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     auto const& values = maybeValues.value();
-    if (std::any_of(values.begin(), values.end(), [](auto const& value) {
-            return value.ext.v() != STELLAR_VALUE_SIGNED;
+    if (std::any_of(values.begin(), values.end(), [this](auto const& value) {
+            switch (value.ext.v())
+            {
+            case STELLAR_VALUE_BASIC:
+                // Unsigned values are not permitted
+                return true;
+            case STELLAR_VALUE_SIGNED:
+                // Signed values are allowed
+                return false;
+#ifdef CAP_0083
+            case STELLAR_VALUE_EMPTY_TX_SET:
+                return !mHerder.getHerderSCPDriver()
+                            .protocolAllowsEmptyTxSetValues();
+#endif
+            default:
+                releaseAssert(false);
+            }
         }))
     {
         CLOG_TRACE(Herder, "Dropping envelope from {} (value not signed)",
@@ -333,53 +372,68 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         auto& fetching = envs.mFetchingEnvelopes;
         auto& processed = envs.mProcessedEnvelopes;
 
-        auto fetchIt = fetching.find(envelope);
-
-        if (fetchIt == fetching.end())
-        { // we aren't fetching this envelope
-            if (processed.find(envelope) == processed.end())
-            { // we haven't seen this envelope before
-                // insert it into the fetching set
-                fetchIt =
-                    fetching.emplace(envelope, mApp.getClock().now()).first;
-                startFetch(envelope);
-                updateMetrics();
-            }
-            else
-            {
-                // we already have this one
-                return Herder::ENVELOPE_STATUS_PROCESSED;
-            }
-        }
-
-        // we are fetching this envelope
-        // check if we are done fetching it
-        if (isFullyFetched(envelope))
-        {
+        // Retire `envelope` from `mFetchingEnvelopes`: record the fetch
+        // duration and erase the entry.
+        auto retireFromFetching = [&](auto fetchIt) {
             std::chrono::nanoseconds durationNano =
                 mApp.getClock().now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);
             CLOG_TRACE(Perf,
-                       "Herder fetched for envelope {} with txsets {} and "
-                       "qset {} in {} seconds",
+                       "Herder fetched for envelope {} with txsets {} and qset "
+                       "{} in {} seconds",
                        hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
                        hexAbbrev(h),
                        std::chrono::duration<double>(durationNano).count());
-
-            // move the item from fetching to processed
-            processed.emplace(envelope);
             fetching.erase(fetchIt);
+        };
 
+        auto fetchIt = fetching.find(envelope);
+
+        if (processed.find(envelope) != processed.end())
+        {
+            if (fetchIt != fetching.end() && isFullyFetched(envelope))
+            {
+                // Record that we've fully fetched this envelope and drop
+                // from `fetching`
+                retireFromFetching(fetchIt);
+                updateMetrics();
+            }
+            // We've already processed this envelope. Nothing more to do.
+            return Herder::ENVELOPE_STATUS_PROCESSED;
+        }
+
+        if (fetchIt == fetching.end())
+        {
+            // First time seeing this envelope: insert into mFetching and
+            // kick off any outstanding qset / tx-set fetches.
+            fetchIt = fetching.emplace(envelope, mApp.getClock().now()).first;
+            startFetch(envelope);
+            updateMetrics();
+        }
+
+        if (mHerder.getHerderSCPDriver().isEnvelopeReady(envelope))
+        {
+            // This envelope is sufficiently downloaded for SCP to process
+            // it
+            processed.emplace(envelope);
             envelopeReady(envelope);
+
+            if (isFullyFetched(envelope))
+            {
+                // Record that we've fully fetched this envelope and drop
+                // from `fetching`
+                retireFromFetching(fetchIt);
+            }
+
             updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         }
         else
         {
-            // else just keep waiting for it to come in
-            // and refresh fetchers as needed
+            // Keep waiting for necessary data to arrive and refresh
+            // fetchers as needed
             startFetch(envelope);
         }
 
@@ -499,10 +553,12 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
         }
         else
         {
-            auto txSetPtr = getTxSet(v.txSetHash);
-            if (txSetPtr)
+            auto txSetResult = getTxSet(v.txSetHash);
+            if (auto* txSetPtr =
+                    std::get_if<TxSetXDRFrameConstPtr>(&txSetResult);
+                txSetPtr && *txSetPtr)
             {
-                txSetSize = txSetPtr->encodedSize();
+                txSetSize = (*txSetPtr)->encodedSize();
                 mValueSizeCache.put(v.txSetHash, txSetSize);
             }
         }
@@ -550,7 +606,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
                hexAbbrev(xdrSha256(envelope)), slot,
                envelope.statement.pledges.type());
 
-    // envelope has been fetched completely, but SCP has not done
+    // envelope has been fetched sufficiently, but SCP has not done
     // any validation on values yet. Regardless, record cost of this
     // envelope.
     recordReceivedCost(envelope);
@@ -565,22 +621,29 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 }
 
 bool
-PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
+PendingEnvelopes::isQsetFetched(SCPEnvelope const& envelope)
 {
-    if (!getKnownQSet(
-            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
-            false))
-    {
-        return false;
-    }
-
-    auto txSetHashes = getValidatedTxSetHashes(envelope);
-    return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
-                       [&](Hash const& txSetHash) {
-                           return getKnownTxSet(txSetHash, 0, false);
-                       });
+    return getKnownQSet(
+               Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
+               false) != nullptr;
 }
 
+bool
+PendingEnvelopes::areTxSetsFetched(SCPEnvelope const& env) const
+{
+    auto const txSetHashes = getValidatedTxSetHashes(env);
+    return std::all_of(
+        txSetHashes.begin(), txSetHashes.end(),
+        [&](Hash const& txSetHash) { return hasTxSet(txSetHash); });
+}
+
+bool
+PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
+{
+    return isQsetFetched(envelope) && areTxSetsFetched(envelope);
+}
+
+// Requests all missing tx sets in `envelope`
 void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
@@ -596,7 +659,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 
     for (auto const& h2 : getValidatedTxSetHashes(envelope))
     {
-        if (!getKnownTxSet(h2, 0, false))
+        if (!hasTxSet(h2))
         {
             mTxSetFetcher.fetch(h2, envelope);
             needSomething = true;
@@ -674,34 +737,61 @@ PendingEnvelopes::readySlots()
 }
 
 void
-PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
+PendingEnvelopes::eraseOutsideRange(std::optional<uint64> minSlot,
+                                    std::optional<uint64> maxSlot,
+                                    uint64 slotToKeep)
 {
-    stopAllBelow(slotIndex, slotToKeep);
+    stopAllOutsideRange(minSlot, maxSlot, slotToKeep);
 
-    // report only for the highest slot that we're purging
-    reportCostOutliersForSlot(slotIndex - 1, true);
-
-    for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
-    {
-        if (iter->first < slotIndex)
+    // Erases the envelope pointed to by `iter` if it is not for
+    // `slotToKeep`. Always advances the iterator.
+    auto const maybeEraseEnvelope = [&](auto& iter) {
+        if (iter->first == slotToKeep)
         {
-            if (iter->first == slotToKeep)
-            {
-                ++iter;
-            }
-            else
-            {
-                iter = mEnvelopes.erase(iter);
-            }
+            ++iter;
         }
         else
-            break;
+        {
+            iter = mEnvelopes.erase(iter);
+        }
+    };
+
+    if (minSlot)
+    {
+        if (*minSlot > 0)
+        {
+            // report only for the highest non-future slot that we're
+            // purging
+            reportCostOutliersForSlot(*minSlot - 1, true);
+        }
+
+        for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
+        {
+            if (iter->first < *minSlot)
+            {
+                maybeEraseEnvelope(iter);
+            }
+            else
+                break;
+        }
+    }
+
+    if (maxSlot)
+    {
+        auto iter = mEnvelopes.upper_bound(*maxSlot);
+        while (iter != mEnvelopes.end())
+        {
+            maybeEraseEnvelope(iter);
+        }
     }
 
     // 0 is special mark for data that we do not know the slot index
     // it is used for state loaded from database
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex && i.first != slotToKeep;
+        if (i.first == 0 || i.first == slotToKeep)
+            return false;
+        return (minSlot && i.first < *minSlot) ||
+               (maxSlot && i.first > *maxSlot);
     });
 
     cleanKnownData();
@@ -709,26 +799,45 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
 }
 
 void
-PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
+PendingEnvelopes::stopAllOutsideRange(std::optional<uint64> minSlot,
+                                      std::optional<uint64> maxSlot,
+                                      uint64 slotToKeep)
 {
     // Before we purge a slot, check if any envelopes are still in
     // "fetching" mode and attempt to record cost
-    for (auto it = mEnvelopes.begin();
-         it != mEnvelopes.end() && it->first < slotIndex; it++)
-    {
+    auto const maybeRecordCost = [&](auto const& it) {
         if (it->first == slotToKeep)
         {
-            continue;
+            return;
         }
 
-        auto& envs = it->second;
+        auto const& envs = it->second;
         for (auto const& env : envs.mFetchingEnvelopes)
         {
             recordReceivedCost(env.first);
         }
+    };
+
+    if (minSlot)
+    {
+        for (auto it = mEnvelopes.begin();
+             it != mEnvelopes.end() && it->first < *minSlot; it++)
+        {
+            maybeRecordCost(it);
+        }
     }
-    mTxSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
-    mQuorumSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
+
+    if (maxSlot)
+    {
+        for (auto it = mEnvelopes.upper_bound(*maxSlot); it != mEnvelopes.end();
+             it++)
+        {
+            maybeRecordCost(it);
+        }
+    }
+
+    mTxSetFetcher.stopFetchingOutsideRange(minSlot, maxSlot, slotToKeep);
+    mQuorumSetFetcher.stopFetchingOutsideRange(minSlot, maxSlot, slotToKeep);
 }
 
 void
@@ -738,7 +847,7 @@ PendingEnvelopes::forceRebuildQuorum()
     mRebuildQuorum = true;
 }
 
-TxSetXDRFrameConstPtr
+TxSetResult
 PendingEnvelopes::getTxSet(Hash const& hash)
 {
     return getKnownTxSet(hash, 0, false);
@@ -768,6 +877,12 @@ PendingEnvelopes::getQSet(Hash const& hash)
         qset = putQSet(hash, *qset);
     }
     return qset;
+}
+
+std::optional<std::chrono::milliseconds>
+PendingEnvelopes::getTxSetWaitingTime(Hash const& hash) const
+{
+    return mTxSetFetcher.getWaitingTime(hash);
 }
 
 Json::Value
@@ -886,7 +1001,8 @@ shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
 
     if (possibleOutlierCost / expectedCost > ratioLimit)
     {
-        // If we're off by too much from the selected cluster, report the value
+        // If we're off by too much from the selected cluster, report the
+        // value
         return true;
     }
     return false;

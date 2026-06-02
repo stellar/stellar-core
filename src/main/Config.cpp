@@ -16,10 +16,8 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/SecretManager.h"
 #include "util/UnorderedSet.h"
-#ifdef BUILD_TESTS
-#include "simulation/ApplyLoad.h"
-#endif
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -127,12 +125,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
-    MODE_STORES_HISTORY_MISC = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
-        std::vector<std::chrono::microseconds>();
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_FOR_TESTING = {};
@@ -152,9 +146,14 @@ Config::Config() : NODE_SEED(SecretKey::random())
         std::chrono::microseconds::zero();
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
+        std::vector<std::chrono::microseconds>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
+    TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
+    TESTING_NOMINATE_RANDOM_VALUES = false;
 #endif
 
     FORCE_SCP = false;
@@ -162,7 +161,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 38;
-    OVERLAY_PROTOCOL_VERSION = 39;
+    OVERLAY_PROTOCOL_VERSION = 41;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -173,7 +172,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
+    EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
+    DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -250,6 +251,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
+    TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(5000);
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
@@ -341,8 +343,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BACKFILL_STELLAR_ASSET_EVENTS = false;
     BACKFILL_RESTORE_META = false;
 
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
+    FILTERED_G_ADDRESSES = {};
+
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
@@ -352,6 +354,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 300; // 5 minutes
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
@@ -400,6 +404,50 @@ readString(ConfigItem const& item)
     }
     return item.second->as<std::string>()->get();
 }
+
+#ifdef BUILD_TESTS
+ApplyLoadMode
+parseApplyLoadMode(ConfigItem const& item)
+{
+    auto mode = readString(item);
+    if (mode == "ledger-limits")
+    {
+        return ApplyLoadMode::LIMIT_BASED;
+    }
+    if (mode == "max-sac-tps")
+    {
+        return ApplyLoadMode::MAX_SAC_TPS;
+    }
+    if (mode == "benchmark")
+    {
+        return ApplyLoadMode::BENCHMARK_MODEL_TX;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODE', expected one of: ledger-limits, "
+        "max-sac-tps, benchmark");
+}
+
+ApplyLoadModelTx
+parseApplyLoadModelTx(ConfigItem const& item)
+{
+    auto modelTx = readString(item);
+    if (modelTx == "sac")
+    {
+        return ApplyLoadModelTx::SAC;
+    }
+    if (modelTx == "custom_token")
+    {
+        return ApplyLoadModelTx::CUSTOM_TOKEN;
+    }
+    if (modelTx == "soroswap")
+    {
+        return ApplyLoadModelTx::SOROSWAP;
+    }
+    throw std::invalid_argument(
+        "invalid 'APPLY_LOAD_MODEL_TX', expected one of: sac, custom_token, "
+        "soroswap");
+}
+#endif
 
 template <typename T>
 std::vector<T>
@@ -863,7 +911,21 @@ Config::load(std::istream& in)
     cpptoml::parser p(in);
     t = p.parse();
     processConfig(t);
+
+#ifdef BUILD_TESTS
+    std::ostringstream configToml;
+    configToml << *t;
+    mLoadedConfigToml = configToml.str();
+#endif
 }
+
+#ifdef BUILD_TESTS
+std::string const&
+Config::getLoadedConfigToml() const
+{
+    return mLoadedConfigToml;
+}
+#endif
 
 void
 Config::addSelfToValidators(
@@ -963,6 +1025,7 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
     }
 }
 
+#ifdef BUILD_TESTS
 void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
@@ -999,6 +1062,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
                  100 * OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] / sum);
     }
 }
+#endif
 
 void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
@@ -1027,6 +1091,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
         std::vector<ValidatorEntry> validators;
         UnorderedMap<std::string, ValidatorQuality> domainQualityMap;
+        bool usedExternalSecrets = false;
 
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
@@ -1081,6 +1146,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER =
                          readInt<uint32_t>(item, 1);
                  }},
+                {"TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS",
+                 [&]() {
+                     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = readBool(item);
+                     if (TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS)
+                     {
+                         LOG_WARNING(DEFAULT_LOG,
+                                     "Ignoring ledger target close time "
+                                     "upgrade bounds for testing");
+                     }
+                 }},
+                {"TESTING_NOMINATE_RANDOM_VALUES",
+                 [&]() { TESTING_NOMINATE_RANDOM_VALUES = readBool(item); }},
 #endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
@@ -1113,10 +1190,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"PARALLEL_LEDGER_APPLY",
                  [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
+                {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
+                 [&]() {
+                     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
+                 }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
                  }},
+                {"DISABLE_TX_META_FOR_TESTING",
+                 [&]() { DISABLE_TX_META_FOR_TESTING = readBool(item); }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
                      CLOG_WARNING(Overlay,
@@ -1271,7 +1354,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"NODE_SEED",
                  [&]() {
                      PublicKey nodeID;
-                     parseNodeID(readString(item), nodeID, NODE_SEED, true);
+                     auto raw = readString(item);
+                     usedExternalSecrets = usedExternalSecrets ||
+                                           secretmanager::isExternalSecret(raw);
+                     parseNodeID(secretmanager::resolve(raw), nodeID, NODE_SEED,
+                                 true);
                  }},
                 {"NODE_IS_VALIDATOR",
                  [&]() { NODE_IS_VALIDATOR = readBool(item); }},
@@ -1305,6 +1392,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
                          item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"TX_SET_DOWNLOAD_TIMEOUT",
+                 [&]() {
+                     TX_SET_DOWNLOAD_TIMEOUT =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
                  }},
                 {"MAX_BATCH_WRITE_COUNT",
                  [&]() { MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1); }},
@@ -1467,7 +1559,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      }
                  }},
                 {"DATABASE",
-                 [&]() { DATABASE = SecretValue{readString(item)}; }},
+                 [&]() {
+                     auto raw = readString(item);
+                     usedExternalSecrets = usedExternalSecrets ||
+                                           secretmanager::isExternalSecret(raw);
+                     DATABASE = SecretValue{secretmanager::resolve(raw)};
+                 }},
                 {"NETWORK_PASSPHRASE",
                  [&]() { NETWORK_PASSPHRASE = readString(item); }},
                 {"INVARIANT_CHECKS",
@@ -1505,24 +1602,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
                          readXdrEnumArray<OperationType>(item);
                  }},
-                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
+                {"FILTERED_G_ADDRESSES",
                  [&]() {
-                     // Since it doesn't make sense to sleep for a negative
-                     // amount of time, we use an unsigned integer type.
-                     auto input = readIntArray<uint32>(item);
-                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
-                         input.size());
-                     // Convert uint32 to std::chrono::microseconds
-                     std::transform(
-                         input.begin(), input.end(),
-                         std::back_inserter(
-                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                         [](uint32 x) { return std::chrono::microseconds(x); });
-                 }},
-                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
-                 [&]() {
-                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
-                         readIntArray<uint32>(item);
+                     FILTERED_G_ADDRESSES = readArray<std::string>(item);
+                     for (auto const& addr : FILTERED_G_ADDRESSES)
+                     {
+                         KeyUtils::fromStrKey<PublicKey>(addr);
+                     }
+                     CLOG_WARNING(
+                         Overlay,
+                         "FILTERED_G_ADDRESSES is deprecated. It will be "
+                         "removed in a future release. Please use "
+                         "`banaccounts` HTTP endpoint instead to ban accounts "
+                         "from submitting transactions to this node.");
                  }},
                 {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
@@ -1585,16 +1677,29 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readIntArray<uint32_t>(item);
                  }},
 #ifdef BUILD_TESTS
-                {"APPLY_LOAD_DATA_ENTRY_SIZE",
+                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
                  [&]() {
-                     APPLY_LOAD_DATA_ENTRY_SIZE = readInt<uint32_t>(item);
-                     // align to 4 bytes
-                     if (APPLY_LOAD_DATA_ENTRY_SIZE % 4 != 0)
-                     {
-                         APPLY_LOAD_DATA_ENTRY_SIZE +=
-                             4 - (APPLY_LOAD_DATA_ENTRY_SIZE % 4);
-                     }
+                     // Since it doesn't make sense to sleep for a negative
+                     // amount of time, we use an unsigned integer type.
+                     auto input = readIntArray<uint32>(item);
+                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
+                         input.size());
+                     // Convert uint32 to std::chrono::microseconds
+                     std::transform(
+                         input.begin(), input.end(),
+                         std::back_inserter(
+                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                         [](uint32 x) { return std::chrono::microseconds(x); });
                  }},
+                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+                 [&]() {
+                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"APPLY_LOAD_MODE",
+                 [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
+                {"APPLY_LOAD_MODEL_TX",
+                 [&]() { APPLY_LOAD_MODEL_TX = parseApplyLoadModelTx(item); }},
                 {"APPLY_LOAD_BL_SIMULATED_LEDGERS",
                  [&]() {
                      APPLY_LOAD_BL_SIMULATED_LEDGERS = readInt<uint32_t>(item);
@@ -1612,43 +1717,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 {"APPLY_LOAD_BL_LAST_BATCH_SIZE",
                  [&]() {
                      APPLY_LOAD_BL_LAST_BATCH_SIZE = readInt<uint32_t>(item);
-                 }},
-                {"APPLY_LOAD_INSTRUCTIONS",
-                 [&]() {
-                     APPLY_LOAD_INSTRUCTIONS = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_TX_SIZE_BYTES",
-                 [&]() {
-                     APPLY_LOAD_TX_SIZE_BYTES = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES",
-                 [&]() {
-                     APPLY_LOAD_NUM_DISK_READ_ENTRIES =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES",
-                 [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES = readIntArray<uint32>(item);
-                 }},
-                {"APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION",
-                 [&]() {
-                     APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION =
-                         readIntArray<uint32>(item);
                  }},
                 {"APPLY_LOAD_EVENT_COUNT",
                  [&]() {
@@ -1903,12 +1971,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
         }
 
-        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
-            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
-        {
-            processOpApplySleepTimeForTestingConfigs();
-        }
-
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE > PEER_FLOOD_READING_CAPACITY)
         {
             std::string msg =
@@ -1926,6 +1988,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
 #ifdef BUILD_TESTS
+        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
+            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+        {
+            processOpApplySleepTimeForTestingConfigs();
+        }
+
         if (!IGNORE_MESSAGE_LIMITS_FOR_TESTING &&
             getSorobanByteAllowance() + getClassicByteAllowance() >
                 MAX_TX_SET_ALLOWANCE)
@@ -2006,6 +2074,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
+
+        if (gIsProductionNetwork && usedExternalSecrets)
+        {
+            throw std::invalid_argument(
+                "External secret references ($FILE:) are not supported on "
+                "the public network");
+        }
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
@@ -2644,6 +2719,12 @@ Config::toString(SCPQuorumSet const& qset)
         qset, [&](PublicKey const& k) { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
+}
+
+bool
+Config::invariantsEnabled() const
+{
+    return !INVARIANT_CHECKS.empty();
 }
 
 size_t

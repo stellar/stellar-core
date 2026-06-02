@@ -69,9 +69,24 @@ struct ValidatorWeightConfig
     UnorderedMap<ValidatorQuality, uint64> mQualityWeights;
 };
 
+#ifdef BUILD_TESTS
+enum class ApplyLoadMode
+{
+    LIMIT_BASED,
+    MAX_SAC_TPS,
+    BENCHMARK_MODEL_TX
+};
+
+enum class ApplyLoadModelTx
+{
+    SAC,
+    CUSTOM_TOKEN,
+    SOROSWAP
+};
+#endif
+
 class Config : public std::enable_shared_from_this<Config>
 {
-
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   uint32 level);
@@ -279,19 +294,6 @@ class Config : public std::enable_shared_from_this<Config>
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
 
-    // Config parameters that force transaction application during ledger
-    // close to sleep for a certain amount of time.
-    // The probability that it sleeps for
-    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
-    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
-    // options are only for consensus and overlay simulation testing. These two
-    // must be used together.
-    std::vector<std::chrono::microseconds>
-        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
-    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
-
     // Config parameters that LoadGen uses to decide the number of bytes to
     // include in each payment transaction for testing only. The probability
     // that transactions will contain COUNT[i] bytes is
@@ -328,11 +330,23 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
+#ifdef BUILD_TESTS
+    // Config parameters that force transaction application during ledger
+    // close to sleep for a certain amount of time.
+    // The probability that it sleeps for
+    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
+    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
+    // options are only for consensus and overlay simulation testing. These two
+    // must be used together.
+    std::vector<std::chrono::microseconds>
+        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
+    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
+
     // apply-load-specific configuration parameters:
-    // Size of the synthetic contract data entries used in apply-load.
-    // Currently we generate entries of the equal size for more precise
-    // control over the modelled instructions.
-    uint32_t APPLY_LOAD_DATA_ENTRY_SIZE = 0;
+    ApplyLoadMode APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
+    ApplyLoadModelTx APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
 
     // The parameters below control the synthetic bucket list generation in
     // apply-load.
@@ -380,33 +394,14 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS = 1;
 
     // Number of ledgers to apply in apply-load.
-    // Depending on the mode this represents either the total number of ledgers
-    // to close for benchmarking, or the number of ledgers to apply per
-    // iteration of binary search for modes that perform search.
     uint32_t APPLY_LOAD_NUM_LEDGERS = 100;
 
-    // Target ledger close time in milliseconds for modes that perform binary
-    // search of TPS or limits.
+    // Target ledger close time in milliseconds for max-sac-tps mode.
     uint32_t APPLY_LOAD_TARGET_CLOSE_TIME_MS = 1000;
 
     // Number of classic transactions to include in each ledger in ledger limit
     // based apply-load mode.
     uint32_t APPLY_LOAD_CLASSIC_TXS_PER_LEDGER = 0;
-
-    // Number of instructions to generate in the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS;
-    std::vector<uint32_t> APPLY_LOAD_INSTRUCTIONS_DISTRIBUTION;
-
-    // Transaction size in bytes for the apply-load transactions.
-    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES;
-    std::vector<uint32_t> APPLY_LOAD_TX_SIZE_BYTES_DISTRIBUTION;
-
-    // Number of disk read-only and read-write entries in the apply-load
-    // transactions. Every entry will have `APPLY_LOAD_DATA_ENTRY_SIZE` size.
-    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES;
-    std::vector<uint32_t> APPLY_LOAD_NUM_DISK_READ_ENTRIES_DISTRIBUTION;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES;
-    std::vector<uint32_t> APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION;
 
     // Number of events to generate in the apply-load transactions.
     std::vector<uint32_t> APPLY_LOAD_EVENT_COUNT;
@@ -426,6 +421,7 @@ class Config : public std::enable_shared_from_this<Config>
     // If set to true, database writes will count towards TPS calculation.
     // Otherwise, BucketList writes will not be counted.
     bool APPLY_LOAD_TIME_WRITES = true;
+#endif // BUILD_TESTS
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
@@ -526,8 +522,16 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool PARALLEL_LEDGER_APPLY;
 
+    // Allow downloading of transaction sets in parallel with SCP (experimental)
+    bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
+
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
+
+    // Disable transaction metadata collection in test builds.
+    // This is useful for benchmarking, which is typically done in BUILD_TESTS
+    // builds.
+    bool DISABLE_TX_META_FOR_TESTING;
 
     // Batch transactions for flooding purposes (experimental).
     // Has no effect on non-test builds.
@@ -545,10 +549,6 @@ class Config : public std::enable_shared_from_this<Config>
     // NODE_IS_VALIDATOR=true, this value is ignored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
-
-    // A config parameter that stores historical data, such as transactions,
-    // fees, and scp history in the database
-    bool MODE_STORES_HISTORY_MISC;
 
     // A config parameter that controls whether core automatically catches up
     // when it has buffered enough input; if false an out-of-sync node will
@@ -696,6 +696,11 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
+
+    // Time in milliseconds before a node gives up waiting on a transaction set
+    // and votes to drop the tx set. Does nothing without
+    // `EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD` enabled.
+    std::chrono::milliseconds TX_SET_DOWNLOAD_TIMEOUT;
     int MAX_BATCH_WRITE_COUNT;
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
@@ -899,6 +904,15 @@ class Config : public std::enable_shared_from_this<Config>
     // When set to true, ignores all message and tx set size limits for testing
     bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
 
+    // When set, disables validation of the ledger target close time
+    // bounds on config upgrades (for testing only).
+    bool TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS;
+
+    // When set, this node will nominate random values when it is the round
+    // leader. This is useful for testing CAP-0083 behavior. This is a testing
+    // only flag.
+    bool TESTING_NOMINATE_RANDOM_VALUES;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -919,10 +933,22 @@ class Config : public std::enable_shared_from_this<Config>
     // contains an operation in this list.
     std::vector<OperationType> EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
 
+    // Any transaction that reaches the TransactionQueue will be rejected if
+    // its source account, any operation source account, or (for Soroban txs)
+    // any ACCOUNT-type write footprint entry matches an address in this list.
+    std::vector<std::string> FILTERED_G_ADDRESSES;
+
     Config();
 
     void load(std::string const& filename);
     void load(std::istream& in);
+#ifdef BUILD_TESTS
+    // Returns the content of the loaded config file as a string.
+    // This exposes the node seed in the config, so make sure to only use in
+    // test workloads (such as apply-load).
+    std::string const& getLoadedConfigToml() const;
+    void processOpApplySleepTimeForTestingConfigs();
+#endif
 
     // fixes values of connection-relates settings
     void adjust();
@@ -948,12 +974,17 @@ class Config : public std::enable_shared_from_this<Config>
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);
 
+    bool invariantsEnabled() const;
+
     // A special name to be used for stdin in stead of a file name in command
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;
 
-    void processOpApplySleepTimeForTestingConfigs();
-
     std::chrono::seconds HISTOGRAM_WINDOW_SIZE;
+
+  private:
+#ifdef BUILD_TESTS
+    std::string mLoadedConfigToml;
+#endif
 };
 }

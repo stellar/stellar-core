@@ -7,6 +7,9 @@
 #
 # The goal is to detect the (unfortunately easy) condition of C++ and Rust code
 # communicating with each other using different XDR definitions.
+#
+# Hashes are computed after stripping #ifdef/#endif blocks and removing all
+# whitespace, so they are stable regardless of feature ifdefs or formatting.
 
 set -o errexit
 set -o pipefail
@@ -28,7 +31,30 @@ EOF
 # Hashes to ignore
 IGNORE="Stellar-internal\|Stellar-overlay\|Stellar-contract-spec\|Stellar-contract-meta\|Stellar-contract-env-meta"
 
-sha256sum -b $1/xdr/*.x | grep -v "${IGNORE}" | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+# Strip #ifdef/#endif blocks (inclusive) and remove all whitespace before
+# hashing. This produces a canonical hash of the base XDR content.
+# Content between #ifdef and #else (the feature-on branch) is stripped,
+# while content between #else and #endif (the feature-off branch) is kept,
+# since it represents the base types when no features are enabled.
+# Note: this does not hash the feature-gated XDR content. The feature flag
+# validation in checkXDRFileIdentity() separately verifies that C++ and Rust
+# have the same XDR features enabled.
+xdr_hash() {
+    awk 'BEGIN{skip=0} /#ifdef/{skip=1; next} /#else/{skip=0; next} /#endif/{skip=0; next} skip==0{print}' "$1" \
+        | tr -d '[:space:]' \
+        | sha256sum -b \
+        | cut -d' ' -f1
+}
+
+for f in $1/xdr/*.x; do
+    fname=$(basename "$f")
+    # Skip ignored files
+    if echo "$fname" | grep -q "${IGNORE}"; then
+        continue
+    fi
+    hash=$(xdr_hash "$f")
+    echo "{\"$f\", \"$hash\"},"
+done
 
 # Add empty entries for the 5 skipped files
 echo '{"", ""}, {"", ""}, {"", ""}, {"", ""}, {"", ""}};'

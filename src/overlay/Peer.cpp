@@ -56,6 +56,10 @@ using namespace soci;
 
 namespace
 {
+// Maximum number of GET_SCP_STATE requests per window per peer to respond to. A
+// window defaults to roughly 1 minute.
+constexpr uint32_t GET_SCP_STATE_MAX_RATE = 10;
+
 // Check the signature(s) in `tx`, adding the result to the signature cache in
 // the process. This function requires that background signature verification
 // is enabled and the current thread is the overlay thread.
@@ -66,21 +70,21 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
     releaseAssert(app.getConfig().BACKGROUND_TX_SIG_VERIFICATION &&
                   app.threadIsType(Application::ThreadType::OVERLAY));
 
-    auto& snapshot = app.getOverlayThreadSnapshot();
-    app.maybeCopySearchableBucketListSnapshot(snapshot);
-    LedgerSnapshot ledgerSnapshot(snapshot);
+    auto& overlayView = app.getOverlayThreadSnapshot();
+    app.maybeUpdateImmutableLedgerView(overlayView);
+    CheckValidLedgerViewWrapper ledgerView(overlayView);
 
-    // Use ledgerSnapshot to check all transactions in `tx`. We use a lambda to
+    // Use ledgerView to check all transactions in `tx`. We use a lambda to
     // simplify checking of both outer and inner transactions in the case of fee
     // bumps.
-    auto const checkTxSignatures = [&ledgerSnapshot](
+    auto const checkTxSignatures = [&ledgerView](
                                        TransactionFrameBaseConstPtr tx) {
         auto const& hash = tx->getContentsHash();
         auto const& signatures = txbridge::getSignatures(tx->getEnvelope());
 
         SignatureChecker signatureChecker(
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion, hash,
-            signatures);
+            ledgerView.getLedgerHeader().current().ledgerVersion, hash,
+            signatures, true);
 
         // Do not report signature cache metrics during background validation.
         // This allows us to more accurately measure the impact of background
@@ -90,8 +94,7 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
 
         // NOTE: Use getFeeSourceID so that this works for both TransactionFrame
         // and FeeBumpTransactionFrame
-        auto const sourceAccount =
-            ledgerSnapshot.getAccount(tx->getFeeSourceID());
+        auto const sourceAccount = ledgerView.getAccount(tx->getFeeSourceID());
 
         if (!sourceAccount)
         {
@@ -112,10 +115,10 @@ populateSignatureCache(AppConnector& app, TransactionFrameBaseConstPtr tx)
         // Check all transaction signatures
         tx->checkAllTransactionSignatures(
             signatureChecker, sourceAccount,
-            ledgerSnapshot.getLedgerHeader().current().ledgerVersion);
+            ledgerView.getLedgerHeader().current().ledgerVersion);
 
         // Check all operation signatures.
-        tx->checkOperationSignatures(signatureChecker, ledgerSnapshot, nullptr);
+        tx->checkOperationSignatures(signatureChecker, ledgerView, nullptr);
     };
 
     checkTxSignatures(tx);
@@ -166,7 +169,7 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     {
         throw std::runtime_error("Invalid peer");
     }
-    self->beginMessageProcessing(mMsg);
+    mCapacityLocked = self->beginMessageProcessing(mMsg);
     if (mMsg.type() == SCP_MESSAGE || mMsg.type() == TRANSACTION)
     {
         mMaybeHash = xdrBlake2(msg);
@@ -222,6 +225,10 @@ CapacityTrackedMessage::maybeGetHash() const
 
 CapacityTrackedMessage::~CapacityTrackedMessage()
 {
+    if (!mCapacityLocked)
+    {
+        return;
+    }
     auto self = mWeakPeer.lock();
     try
     {
@@ -269,7 +276,7 @@ Peer::sendHello()
     sendMessage(msgPtr);
 }
 
-void
+bool
 Peer::beginMessageProcessing(StellarMessage const& msg)
 {
     releaseAssert(mFlowControl);
@@ -279,6 +286,7 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
         drop("unexpected flood message, peer at capacity",
              Peer::DropDirection::WE_DROPPED_REMOTE);
     }
+    return success;
 }
 
 void
@@ -1003,7 +1011,8 @@ Peer::getLifeTime() const
 bool
 Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
-    return mState == CLOSING || mAppConnector.overlayShuttingDown();
+    return mState == CLOSING || mAppConnector.overlayShuttingDown() ||
+           mDropStarted;
 }
 
 bool
@@ -1410,15 +1419,15 @@ Peer::recvDontHave(StellarMessage const& msg)
 }
 
 bool
-Peer::process(QueryInfo& queryInfo)
+Peer::process(QueryInfo& queryInfo, std::optional<uint32_t> maxQueriesPerWindow)
 {
     auto const& cfg = mAppConnector.getConfig();
     std::chrono::seconds const QUERY_WINDOW =
         std::chrono::duration_cast<std::chrono::seconds>(
             mAppConnector.getLedgerManager().getExpectedLedgerCloseTime() *
             cfg.MAX_SLOTS_TO_REMEMBER);
-    uint32_t const QUERIES_PER_WINDOW =
-        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;
+    uint32_t const QUERIES_PER_WINDOW = maxQueriesPerWindow.value_or(
+        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER);
     if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)
     {
         queryInfo.mLastTimeStamp = mAppConnector.now();
@@ -1457,9 +1466,12 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     }
 
     auto self = shared_from_this();
-    if (auto txSet = mAppConnector.getHerder().getTxSet(msg.txSetHash()))
+    auto result = mAppConnector.getHerder().getTxSet(msg.txSetHash());
+    if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result);
+        txSetPtr && *txSetPtr)
     {
         auto newMsg = std::make_shared<StellarMessage>();
+        TxSetXDRFrameConstPtr const txSet = *txSetPtr;
         if (txSet->isGeneralizedTxSet())
         {
             newMsg->type(GENERALIZED_TX_SET);
@@ -1673,6 +1685,13 @@ Peer::recvGetSCPState(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    if (!process(mSCPStateQueryInfo, GET_SCP_STATE_MAX_RATE))
+    {
+        CLOG_DEBUG(Overlay, "Dropping GET_SCP_STATE request from {}",
+                   KeyUtils::toShortString(mPeerID));
+        return;
+    }
+    mSCPStateQueryInfo.mNumQueries++;
     uint32 seq = msg.getSCPLedgerSeq();
     mAppConnector.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
@@ -1930,18 +1949,18 @@ Peer::recvAuth(StellarMessage const& msg)
         sendPeers();
     }
 
+    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
+    {
+        sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
+        return;
+    }
+
     updatePeerRecordAfterAuthentication();
 
     auto self = shared_from_this();
     if (!mAppConnector.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         sendErrorAndDrop(ERR_LOAD, "peer rejected");
-        return;
-    }
-
-    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
-    {
-        sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
         return;
     }
 

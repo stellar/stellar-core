@@ -768,20 +768,15 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     {sponsoringAcc});
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, dest, signer.key, 2,
                                      &sponsoringAcc.getPublicKey());
                     checkSponsorship(ltx, sponsoringAcc, leExt, sponsoringID,
                                      numSubEntries, aeExt, numSponsoring,
                                      numSponsored);
-                    ltx.commit();
                 }
             };
 
@@ -833,17 +828,12 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     {key});
 
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, key.getPublicKey(), 1,
                                      &sponsoringAcc.getPublicKey(), 0, 2, 0, 2);
-                    ltx.commit();
                 }
 
                 auto merge = [&](bool addSigner, AccountID const& dest) {
@@ -907,15 +897,10 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                          b1.op(endSponsoringFutureReserves())},
                         {b1});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
-                    REQUIRE(tx->getResult()
-                                .result.results()[1]
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txFAILED);
+                    REQUIRE(r.results[0]
+                                .result.result.results()[1]
                                 .tr()
                                 .accountMergeResult()
                                 .code() == ACCOUNT_MERGE_IS_SPONSOR);
@@ -932,17 +917,12 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                         {sponsoringAcc});
 
                     {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaBuilder txm(
-                            true, *tx, ltx.loadHeader().current().ledgerVersion,
-                            app->getAppConnector());
-                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                         ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                        auto r = closeLedger(*app, {tx});
+                        checkTx(0, r, txSUCCESS);
 
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
                         checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
                                          1, 0);
-                        ltx.commit();
                     }
 
                     REQUIRE_THROWS_AS(sponsoringAcc.merge(b1),
@@ -974,7 +954,7 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
     auto txfee = app->getLedgerManager().getLastTxFee();
 
     int64_t const minBalance =
-        app->getLedgerManager().getLastMinBalance(0) + txfee * 2;
+        app->getLedgerManager().getLastMinBalance(0) + txfee * 10;
 
     auto a1 = root->create("A", minBalance);
     auto b1 = root->create("B", minBalance);
@@ -982,12 +962,7 @@ TEST_CASE_VERSIONS("merge event reconciler", "[tx][merge]")
     for_versions_to(4, *app, [&] {
         auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaBuilder txm(true, *txFrame,
-                                   ltx.loadHeader().current().ledgerVersion,
-                                   app->getAppConnector());
-        REQUIRE(txFrame->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
-                                              0));
-        REQUIRE(txFrame->apply(app->getAppConnector(), ltx, txm));
+        auto r = closeLedger(*app, {txFrame});
+        checkTx(0, r, txSUCCESS);
     });
 }

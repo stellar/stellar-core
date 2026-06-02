@@ -76,7 +76,7 @@
               SPDLOG_LOGGER_CRITICAL(lg, fmt, ##__VA_ARGS__))
 
 #define GET_LOG(name) spdlog::get(name)
-#define DEFAULT_LOG spdlog::default_logger()
+#define DEFAULT_LOG stellar::Logging::getDefaultLogPtr()
 namespace stellar
 {
 typedef std::shared_ptr<spdlog::logger> LogPtr;
@@ -168,6 +168,7 @@ class Logging
     static std::string mLastPattern;
     static std::string mLastFilenamePattern;
     static bool mLogToConsole;
+    static LogPtr defaultLogPtr;
 #define LOG_PARTITION(name) static LogPtr name##LogPtr;
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION
@@ -195,6 +196,7 @@ class Logging
     static std::array<std::string const, 15> const kPartitionNames;
 
 #if defined(USE_SPDLOG)
+    static LogPtr getDefaultLogPtr();
 #define LOG_PARTITION(name) static LogPtr get##name##LogPtr();
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION

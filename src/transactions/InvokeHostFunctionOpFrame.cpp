@@ -271,7 +271,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
-    SearchableHotArchiveSnapshotConstPtr mHotArchive;
+    // Used for hot archive access only
+    ApplyLedgerView mApplyLedgerView;
     rust::Box<rust_bridge::SorobanModuleCache> const& mModuleCache;
     DiagnosticEventManager& mDiagnosticEvents;
 
@@ -284,8 +285,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
-        SorobanNetworkConfig const& sorobanConfig,
-        SearchableHotArchiveSnapshotConstPtr hotArchive,
+        SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : mApp(app)
         , mRes(res)
@@ -298,7 +298,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mAppConfig(app.getConfig())
         , mMetrics(app.getSorobanMetrics(),
                    app.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
-        , mHotArchive(hotArchive)
+        , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
     {
@@ -425,8 +425,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         continue;
                     }
 
-                    releaseAssertOrThrow(mHotArchive);
-                    auto archiveEntry = mHotArchive->load(lk);
+                    auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
                     if (archiveEntry)
                     {
                         releaseAssertOrThrow(
@@ -610,9 +609,15 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     recordStorageChanges(InvokeHostFunctionOutput const& out)
     {
         ZoneScoped;
-        // Create or update every entry returned.
+        // Every modified entry is either a newly created entry or an updated
+        // entry. Gather the modified entry keys in order to identify deleted
+        // entries (that don't exist in the modified entry list but do exist in
+        // the read-write footprint).
         UnorderedSet<LedgerKey> createdAndModifiedKeys;
-        UnorderedSet<LedgerKey> createdKeys;
+        uint32_t numCreatedSorobanEntries = 0;
+        uint32_t numCreatedTTLEntries = 0;
+        bool const allowClassicCreations = protocolVersionStartsFrom(
+            getLedgerVersion(), ProtocolVersion::V_26);
         for (auto const& buf : out.modified_ledger_entries)
         {
             LedgerEntry le;
@@ -629,13 +634,13 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             createdAndModifiedKeys.insert(lk);
 
-            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
             uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
 
             // ttlEntry write fees come out of refundableFee, already
             // accounted for by the host
             if (lk.type() != TTL)
             {
+                uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
                 mMetrics.noteWriteEntry(isContractCodeEntry(lk), keySize,
                                         entrySize);
                 if (mResources.writeBytes < mMetrics.mLedgerWriteByte)
@@ -654,33 +659,29 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
             if (upsertLedgerEntry(lk, le))
             {
-                createdKeys.insert(lk);
+                if (isSorobanEntry(lk))
+                {
+                    ++numCreatedSorobanEntries;
+                }
+                else if (lk.type() == TTL)
+                {
+                    ++numCreatedTTLEntries;
+                }
+                else if (allowClassicCreations)
+                {
+                    releaseAssertOrThrow(lk.type() == ACCOUNT ||
+                                         lk.type() == TRUSTLINE);
+                }
+                else
+                {
+                    releaseAssertOrThrow(false);
+                }
             }
         }
 
-        // Check that each newly created ContractCode or ContractData entry also
-        // creates a ttlEntry. Starting from protocol 26 (CAP-73), the Stellar
-        // Asset Contract can also create classic entries (ACCOUNT, TRUSTLINE).
-        for (auto const& key : createdKeys)
-        {
-            if (isSorobanEntry(key))
-            {
-                auto ttlKey = getTTLKey(key);
-                releaseAssertOrThrow(createdKeys.find(ttlKey) !=
-                                     createdKeys.end());
-            }
-            else if (protocolVersionStartsFrom(getLedgerVersion(),
-                                               ProtocolVersion::V_26))
-            {
-                releaseAssertOrThrow(key.type() == TTL ||
-                                     key.type() == ACCOUNT ||
-                                     key.type() == TRUSTLINE);
-            }
-            else
-            {
-                releaseAssertOrThrow(key.type() == TTL);
-            }
-        }
+        // Verify that each newly created Soroban entry has a corresponding
+        // newly created TTL entry (1:1 pairing guaranteed by the host).
+        releaseAssertOrThrow(numCreatedSorobanEntries == numCreatedTTLEntries);
 
         // Erase every entry not returned.
         // NB: The entries that haven't been touched are passed through
@@ -989,11 +990,9 @@ class InvokeHostFunctionPreV23ApplyHelper
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig,
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
-        : InvokeHostFunctionApplyHelper(app, sorobanBasePrngSeed, res,
-                                        refundableFeeTracker, opMeta, opFrame,
-                                        sorobanConfig,
-                                        nullptr, // No hot archive before p23
-                                        moduleCache)
+        : InvokeHostFunctionApplyHelper(
+              app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
+              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1178,7 +1177,7 @@ class InvokeHostFunctionParallelApplyHelper
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, threadState.getSorobanConfig(),
-              threadState.getHotArchiveSnapshot(), threadState.getModuleCache())
+              threadState.getSnapshot(), threadState.getModuleCache())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;

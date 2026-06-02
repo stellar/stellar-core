@@ -24,7 +24,8 @@ class BatchWork : public Work
     void addMoreWorkIfNeeded();
 
   public:
-    BatchWork(Application& app, std::string name);
+    BatchWork(Application& app, std::string name,
+              size_t retries = BasicWork::RETRY_NEVER);
     ~BatchWork() = default;
 
     size_t

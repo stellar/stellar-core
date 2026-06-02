@@ -45,10 +45,10 @@ class HistoryManagerImpl : public HistoryManager
 
     void logAndUpdatePublishStatus() override;
 
-    bool maybeQueueHistoryCheckpoint(uint32_t lcl,
-                                     uint32_t ledgerVers) override;
+    bool
+    maybeQueueHistoryCheckpoint(ImmutableLedgerDataPtr ledgerState) override;
 
-    void queueCurrentHistory(uint32_t lcl, uint32_t ledgerVers) override;
+    void queueCurrentHistory(ImmutableLedgerDataPtr ledgerState) override;
 
     void takeSnapshotAndPublish(HistoryArchiveState const& has);
 

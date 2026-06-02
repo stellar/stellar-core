@@ -112,8 +112,7 @@ class PendingEnvelopes
 
     // tries to find a txset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
-    TxSetXDRFrameConstPtr getKnownTxSet(Hash const& hash, uint64 slot,
-                                        bool touch);
+    TxSetResult getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
 
     void cleanKnownData();
 
@@ -121,9 +120,12 @@ class PendingEnvelopes
 
     UnorderedMap<NodeID, size_t> getCostPerValidator(uint64 slotIndex) const;
 
-    // stops all pending downloads for slots strictly below `slotIndex`
-    // counts partially downloaded data towards the cost for that slot
-    void stopAllBelow(uint64 slotIndex, uint64 slotToKeep);
+    // stops all pending downloads for slots outside the range
+    // [minSlot, maxSlot]. Either bound may be nullopt to skip
+    // that direction. Counts partially downloaded data towards
+    // the cost for those slots.
+    void stopAllOutsideRange(std::optional<uint64> minSlot,
+                             std::optional<uint64> maxSlot, uint64 slotToKeep);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
@@ -183,14 +185,26 @@ class PendingEnvelopes
      */
     bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset);
 
+    // Returns true if the tx set is available locally (either in cache or
+    // is an empty-tx-set hash which doesn't need fetching).
+    bool hasTxSet(Hash const& hash) const;
+
+    // Returns true if the qset referenced by `envelope` is available locally
+    bool isQsetFetched(SCPEnvelope const& envelope);
+
+    // Returns true if every tx set referenced by `env` is available locally
+    bool areTxSetsFetched(SCPEnvelope const& env) const;
+
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 
-    // erases data for all slots strictly below `slotIndex` except
-    // slotToKeep.
-    void eraseBelow(uint64 slotIndex, uint64 slotToKeep);
+    // erases data for all slots outside the range [minSlot, maxSlot].
+    // Either bound may be nullopt to skip that direction.
+    // The slotToKeep slot is never erased.
+    void eraseOutsideRange(std::optional<uint64> minSlot,
+                           std::optional<uint64> maxSlot, uint64 slotToKeep);
 
     void forceRebuildQuorum();
 
@@ -198,8 +212,16 @@ class PendingEnvelopes
 
     Json::Value getJsonInfo(size_t limit);
 
-    TxSetXDRFrameConstPtr getTxSet(Hash const& hash);
+    TxSetResult getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);
+
+    /**
+     * Return how long the transaction set fetcher has been waiting for the
+     * transaction set identified by @p hash. Returns nullopt if the transaction
+     * set is not being fetched.
+     */
+    std::optional<std::chrono::milliseconds>
+    getTxSetWaitingTime(Hash const& hash) const;
 
     // returns true if we think that the node is in the transitive quorum for
     // sure

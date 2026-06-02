@@ -9,7 +9,6 @@
 #include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
-#include <iterator>
 #include <numeric>
 #include <stdexcept>
 #include <xdrpp/printer.h>
@@ -18,6 +17,7 @@
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -44,8 +44,6 @@
 #include <autocheck/autocheck.hpp>
 #include <fmt/format.h>
 #include <limits>
-#include <type_traits>
-#include <variant>
 
 #include "ledger/LedgerManagerImpl.h"
 
@@ -2212,10 +2210,10 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
                      txEnvelope.v1());
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             test.getApp().getNetworkID(), txEnvelope);
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto diagnostics = DiagnosticEventManager::createDisabled();
         auto innerCheckValidResult = tx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
 
         int64_t feeBumpFullFee = resourceFee + inclusionFee;
         auto feeBumpTx = feeBump(test.getApp(), feeBumper, tx, feeBumpFullFee,
@@ -2224,7 +2222,7 @@ TEST_CASE("resource fee exceeds uint32", "[tx][soroban][feebump]")
         REQUIRE(feeBumpTx->getInclusionFee() == inclusionFee);
 
         auto checkValidResult = feeBumpTx->checkValid(
-            test.getApp().getAppConnector(), ls, 0, 0, 0, diagnostics);
+            test.getApp().getAppConnector(), ledgerView, 0, 0, 0, diagnostics);
         if (!checkValidResult->isSuccess())
         {
             return checkValidResult->getResultCode();
@@ -2877,11 +2875,9 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
         // Archive entry
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         REQUIRE(!test.isEntryLive({lk}, test.getLCLSeq()));
 
@@ -2909,11 +2905,9 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         failedExtendOp(lk);
 
         // Archive entry
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         REQUIRE(!test.isEntryLive({lk}, test.getLCLSeq()));
 
@@ -3122,11 +3116,9 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             uint32_t originalExpectedLiveUntilLedger =
                 test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
 
-            for (uint32_t i =
-                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
-                 i <= originalExpectedLiveUntilLedger + 1; ++i)
+            while (test.getLCLSeq() < originalExpectedLiveUntilLedger + 1)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             // Contract instance and code should be expired
@@ -3270,11 +3262,9 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                     expectedTempLiveUntilLedger);
 
             // Close ledgers until temp entry expires
-            uint32 nextLedgerSeq =
-                test.getApp().getLedgerManager().getLastClosedLedgerNum();
-            for (; nextLedgerSeq < expectedTempLiveUntilLedger; ++nextLedgerSeq)
+            while (test.getLCLSeq() < expectedTempLiveUntilLedger - 1)
             {
-                closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger - 1);
@@ -3311,7 +3301,7 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
             SECTION("TTL enforcement")
             {
                 // Close one more ledger so temp entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedger(test.getApp());
                 REQUIRE(test.getLCLSeq() == expectedTempLiveUntilLedger);
 
                 // Check that temp entry has expired in the current ledger, i.e.
@@ -3348,12 +3338,10 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                         1);
                 REQUIRE(isSuccess(
                     client.get("temp", ContractDataDurability::TEMPORARY, 42)));
-                nextLedgerSeq = test.getLCLSeq() + 1;
                 // Close ledgers until PERSISTENT entry liveUntilLedger
-                for (; nextLedgerSeq < expectedPersistentLiveUntilLedger;
-                     ++nextLedgerSeq)
+                while (test.getLCLSeq() < expectedPersistentLiveUntilLedger - 1)
                 {
-                    closeLedgerOn(test.getApp(), nextLedgerSeq, 2, 1, 2016);
+                    closeLedger(test.getApp());
                 }
 
                 SECTION(
@@ -3378,9 +3366,11 @@ TEST_CASE_VERSIONS("state archival", "[tx][soroban][archival]")
                 }
 
                 // Close one more ledger so entry is expired
-                closeLedgerOn(test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+                closeLedger(test.getApp());
+                // The sections above can bump the lcl, which is why this check
+                // is >=
                 REQUIRE(
-                    test.getApp().getLedgerManager().getLastClosedLedgerNum() ==
+                    test.getApp().getLedgerManager().getLastClosedLedgerNum() >=
                     expectedPersistentLiveUntilLedger);
 
                 // Check that persistent entry has expired in the current ledger
@@ -3794,10 +3784,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
 
             // Advance ledgers to just before eviction
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger - 2;
-                 ++i)
+            while (test.getLCLSeq() < tempEntryEvictionLedger - 3)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(test.getTTL(temporaryLk) == expectedLiveUntilLedger);
@@ -3816,7 +3805,7 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             REQUIRE(!test.isEntryLive(temporaryLk, test.getLCLSeq()));
 
             // Close one more ledger to trigger the eviction
-            closeLedgerOn(test.getApp(), tempEntryEvictionLedger, 2, 1, 2016);
+            closeLedger(test.getApp());
 
             // Verify the entry is deleted from eviction
             {
@@ -3834,10 +3823,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
         {
             // Verify that we're on the ledger where the entry would get
             // evicted it wasn't recreated.
-            for (uint32_t i = test.getLCLSeq(); i < tempEntryEvictionLedger;
-                 ++i)
+            while (test.getLCLSeq() < tempEntryEvictionLedger - 1)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
 
             REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
@@ -4215,9 +4203,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             auto expirationLedger =
                 test.getLCLSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-            for (uint32_t i = test.getLCLSeq(); i <= expirationLedger; ++i)
+            while (test.getLCLSeq() < expirationLedger)
             {
-                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                closeLedger(test.getApp());
             }
             REQUIRE(!test.isEntryLive(persistentKey, test.getLCLSeq()));
 
@@ -4521,9 +4509,9 @@ TEST_CASE_VERSIONS("archival meta", "[tx][soroban][archival]")
             {
                 // Close ledgers until entry is evicted
                 auto evictionLedger = 33;
-                for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+                while (test.getLCLSeq() < evictionLedger)
                 {
-                    closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+                    closeLedger(test.getApp());
                 }
 
                 if (protocolVersionStartsFrom(
@@ -4597,11 +4585,9 @@ TEST_CASE_VERSIONS("state archival operation errors", "[tx][soroban][archival]")
 
     SECTION("restore operation")
     {
-        for (uint32_t i =
-                 test.getApp().getLedgerManager().getLastClosedLedgerNum();
-             i <= k2LiveUntilLedger; ++i)
+        while (test.getLCLSeq() < k2LiveUntilLedger)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
         SorobanResources restoreResources;
         restoreResources.footprint.readWrite = dataKeys;
@@ -4756,24 +4742,21 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Close ledgers until entry is evicted
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq <= evictionLedger; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         auto lk = client.getContract().getDataKey(
             makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
 
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
+        auto ledgerView =
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
 
         if (evict)
         {
-            REQUIRE(hotArchive->load(lk));
-            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            REQUIRE(ledgerView.loadArchiveEntry(lk));
+            REQUIRE(!ledgerView.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(lk));
@@ -4782,8 +4765,8 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
         }
         else
         {
-            REQUIRE(!hotArchive->load(lk));
-            REQUIRE(!hotArchive->load(getTTLKey(lk)));
+            REQUIRE(!ledgerView.loadArchiveEntry(lk));
+            REQUIRE(!ledgerView.loadArchiveEntry(getTTLKey(lk)));
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(ltx.load(lk));
@@ -4846,14 +4829,11 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
 
                 client.get("key", ContractDataDurability::PERSISTENT, 123);
 
-                test.getApp()
-                    .getBucketManager()
-                    .getBucketSnapshotManager()
-                    .maybeCopySearchableHotArchiveBucketListSnapshot(
-                        hotArchive);
+                auto restoredSnap =
+                    test.getApp().getLedgerManager().copyImmutableLedgerView();
 
                 // Restored entries are deleted from Hot Archive
-                REQUIRE(!hotArchive->load(lk));
+                REQUIRE(!restoredSnap.loadArchiveEntry(lk));
             };
 
             SECTION("restore op")
@@ -5296,10 +5276,9 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
 
     // Close ledgers until ContractData entry, contract code, and instance are
     // all expired
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto lk = client.getContract().getDataKey(
@@ -5521,10 +5500,9 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
 
     // Close ledgers until ContractData entry, contract code, and instance
     // are all expired
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
@@ -5995,13 +5973,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
             ledgerUpgrade.newConfig() = upgradeSetKey;
 
-            auto const& lcl = lm.getLastClosedLedgerHeader();
-            auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-            auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-            app->getHerder().externalizeValue(
-                txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-                {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+            executeUpgrade(*app, ledgerUpgrade);
 
             checkSettings(updatedEntries);
         }
@@ -6038,13 +6010,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey2;
 
-        auto const& lcl = lm.getLastClosedLedgerHeader();
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         checkSettings(initialEntries);
     }
@@ -6071,12 +6037,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         // No upgrade due to expired entry
         checkSettings(initialEntries);
@@ -6094,12 +6055,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey;
 
-        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
-        auto lastCloseTime = lcl.header.scpValue.closeTime;
-
-        app->getHerder().externalizeValue(
-            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+        executeUpgrade(*app, ledgerUpgrade);
 
         // No upgrade due to tampered entry
         checkSettings(initialEntries);
@@ -6290,7 +6246,8 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
         }
         auto signer = test.createClassicAccountSigner(account, signers);
         auto baseCredentials =
-            signer.sign(singleInvocationTree.toAuthorizedInvocation());
+            signer.sign(singleInvocationTree.toAuthorizedInvocation(),
+                        /* forceAddressCredentialsV2 */ false);
         auto& signatureVec =
             baseCredentials.address().signature.vec().activate();
         auto& fieldsMap = signatureVec[0].map().activate();
@@ -6299,6 +6256,16 @@ TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
         }
+#ifdef CAP_0071
+        SECTION("success with credentials v2")
+        {
+            auto credentialsV2 =
+                signer.sign(singleInvocationTree.toAuthorizedInvocation(),
+                            /* forceAddressCredentialsV2 */ true);
+            REQUIRE(singleInvocation(signer, credentialsV2) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+#endif
         if (signers.size() > 1)
         {
             SECTION("wrong signature order")
@@ -6535,7 +6502,6 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
     auto defaultSpec =
         SorobanInvocationSpec()
             .setInstructions(test.getNetworkCfg().txMaxInstructions())
-            .setReadBytes(test.getNetworkCfg().txMaxDiskReadBytes())
             .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
     TestContract& accountContract = test.deployWasmContract(
         rust_bridge::get_custom_account_wasm(), defaultSpec.getResources());
@@ -6590,7 +6556,8 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
             return signWithKey(accountSecretKey, payload);
         });
     auto baseCredentials =
-        signer.sign(singleInvocationTree.toAuthorizedInvocation());
+        signer.sign(singleInvocationTree.toAuthorizedInvocation(),
+                    /* forceAddressCredentialsV2 */ false);
     SECTION("successful authentication")
     {
         REQUIRE(singleInvocation(signer, baseCredentials) ==
@@ -6655,6 +6622,281 @@ TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
                 InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
     }
 }
+
+#ifdef CAP_0071
+TEST_CASE("Soroban delegated signer authentication", "[tx][soroban]")
+{
+    size_t const AUTH_CONTRACT_COUNT = 2;
+    auto cfg = getTestConfig();
+    cfg.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION = true;
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg, /* useTestLimits */ true,
+                     [](SorobanNetworkConfig& cfg) {
+                         cfg.mTxMemoryLimit = 200'000'000;
+                         cfg.mTxMaxFootprintEntries = 400;
+                         cfg.mTxMaxWriteLedgerEntries = 400;
+                         cfg.mLedgerMaxWriteLedgerEntries = 1000;
+                         cfg.mStateArchivalSettings.minPersistentTTL = 100'000;
+                     });
+    auto defaultSpec =
+        SorobanInvocationSpec()
+            .setInstructions(test.getNetworkCfg().txMaxInstructions())
+            .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+
+    std::vector<TestContract*> accountContracts;
+    for (size_t i = 0; i < AUTH_CONTRACT_COUNT; ++i)
+    {
+        accountContracts.push_back(
+            &test.deployWasmContract(rust_bridge::get_delegated_auth_wasm(),
+                                     std::nullopt, std::nullopt, 100'000'000));
+    }
+    TestContract& authContract = test.deployWasmContract(
+        rust_bridge::get_auth_wasm(), std::nullopt, std::nullopt, 100'000'000);
+
+    AuthTestTreeNode singleInvocationTree(authContract.getAddress());
+    auto rootInvocationSCVal = singleInvocationTree.toSCVal(1);
+
+    SorobanCredentials baseCredentials(
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_WITH_DELEGATES);
+    auto& credentials =
+        baseCredentials.addressWithDelegates().addressCredentials;
+    credentials.address = accountContracts[0]->getAddress();
+    credentials.nonce =
+        stellar::uniform_int_distribution<int64_t>()(Catch::rng());
+    credentials.signatureExpirationLedger = test.getLCLSeq() + 10'000;
+
+    HashIDPreimage signaturePreimage(
+        EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION_WITH_ADDRESS);
+    auto& preimage = signaturePreimage.sorobanAuthorizationWithAddress();
+    preimage.invocation = singleInvocationTree.toAuthorizedInvocation();
+    preimage.networkID = test.getApp().getNetworkID();
+    preimage.nonce = credentials.nonce;
+    preimage.signatureExpirationLedger = credentials.signatureExpirationLedger;
+    preimage.address = credentials.address;
+    auto payload = xdrSha256(signaturePreimage);
+
+    auto payloadSignature =
+        makeVecSCVal({makeSymbolSCVal("Payload"),
+                      makeBytesSCVal(xdr::xdr_to_opaque(payload))});
+
+    credentials.signature = makeVecSCVal({payloadSignature});
+
+    auto builtinDelegatedSignature = [](SCAddress const& address) {
+        return makeVecSCVal(
+            {makeSymbolSCVal("BuiltinDelegated"), makeAddressSCVal(address)});
+    };
+
+    auto addDelegatedSignerToContract = [&](TestContract const& contract,
+                                            TestContract const& delegate) {
+        auto invocation =
+            contract
+                .prepareInvocation(
+                    "update_signers",
+                    {makeVecSCVal({makeAddressSCVal(delegate.getAddress())})},
+                    defaultSpec.extendReadWriteFootprint(contract.getKeys())
+                        .extendReadOnlyFootprint({delegate.getKeys()}))
+                .withDeduplicatedFootprint();
+        REQUIRE(invocation.invoke());
+    };
+
+    auto addDelegatedSigner =
+        [&](TestContract const& signer,
+            xdr::xvector<SorobanDelegateSignature>& delegates,
+            SorobanInvocationSpec& spec, SCVal* parentSignature = nullptr) {
+            SorobanDelegateSignature delegate;
+            delegate.address = signer.getAddress();
+            delegate.signature = makeVecSCVal({payloadSignature});
+            delegates.push_back(delegate);
+
+            spec = spec.extendReadOnlyFootprint({signer.getKeys()[1]});
+
+            if (parentSignature != nullptr)
+            {
+                parentSignature->vec().activate().push_back(
+                    builtinDelegatedSignature(signer.getAddress()));
+            }
+        };
+
+    auto runInvocation = [&](SorobanCredentials const& credentials,
+                             SorobanInvocationSpec const& spec) {
+        auto invocation =
+            authContract
+                .prepareInvocation(
+                    "tree_fn",
+                    {makeVecSCVal(
+                         {makeAddressSCVal(accountContracts[0]->getAddress())}),
+                     rootInvocationSCVal},
+                    spec.setNonRefundableResourceFee(100'000'000))
+                .withAuthorization(
+                    singleInvocationTree.toAuthorizedInvocation(), credentials)
+                .withDeduplicatedFootprint();
+        invocation.invoke();
+        return *invocation.getResultCode();
+    };
+    auto spec =
+        defaultSpec.extendReadOnlyFootprint(accountContracts[0]->getKeys());
+    addDelegatedSignerToContract(*accountContracts[0], *accountContracts[1]);
+    addDelegatedSigner(
+        *accountContracts[1], baseCredentials.addressWithDelegates().delegates,
+        spec,
+        &baseCredentials.addressWithDelegates().addressCredentials.signature);
+    SECTION("single delegate")
+    {
+        SECTION("successful authentication")
+        {
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+
+        SECTION("bad payload")
+        {
+            baseCredentials.addressWithDelegates()
+                .addressCredentials.signature.vec()
+                .activate()[0]
+                .vec()
+                .activate()[1]
+                .bytes()[0] ^= 1;
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("bad delegate payload")
+        {
+            baseCredentials.addressWithDelegates()
+                .delegates[0]
+                .signature.vec()
+                .activate()[0]
+                .vec()
+                .activate()[1]
+                .bytes()[0] ^= 1;
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("void top-level signature")
+        {
+            baseCredentials.addressWithDelegates()
+                .addressCredentials.signature = SCVal(SCV_VOID);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("wrong top-level signature type")
+        {
+            baseCredentials.addressWithDelegates()
+                .addressCredentials.signature =
+                makeBytesSCVal(std::string("delegate"));
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("uninitialized top-level vector signature")
+        {
+            baseCredentials.addressWithDelegates()
+                .addressCredentials.signature = SCVal(SCV_VEC);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("empty top-level enum signature")
+        {
+            SCVal innerSignature(SCV_VEC);
+            innerSignature.vec().activate();
+            SCVal signature(SCV_VEC);
+            signature.vec().activate().emplace_back(innerSignature);
+            baseCredentials.addressWithDelegates()
+                .addressCredentials.signature = signature;
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("void delegate signature")
+        {
+            baseCredentials.addressWithDelegates().delegates[0].signature =
+                SCVal(SCV_VOID);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("wrong delegate signature type")
+        {
+            baseCredentials.addressWithDelegates().delegates[0].signature =
+                makeBytesSCVal(std::string("delegate"));
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("uninitialized delegate vector signature")
+        {
+            baseCredentials.addressWithDelegates().delegates[0].signature =
+                SCVal(SCV_VEC);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("empty delegate enum signature")
+        {
+            SCVal innerSignature(SCV_VEC);
+            innerSignature.vec().activate();
+            SCVal signature(SCV_VEC);
+            signature.vec().activate().emplace_back(innerSignature);
+            baseCredentials.addressWithDelegates().delegates[0].signature =
+                signature;
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+    }
+    // This test causes stack overflow on Windows, but works fine on Linux.
+#ifndef WIN32
+    SECTION("deep delegate tree")
+    {
+        auto buildDelegateChain = [&](int depth) {
+            // We already have one delegate, so we build the rest of the chain
+            depth -= 2;
+            for (int i = 0; i < depth; ++i)
+            {
+                accountContracts.push_back(&test.deployWasmContract(
+                    rust_bridge::get_delegated_auth_wasm(), std::nullopt,
+                    std::nullopt, 100'000'000));
+            }
+            auto* currCredentials =
+                &baseCredentials.addressWithDelegates().delegates[0];
+            for (size_t i = 0; i < depth; ++i)
+            {
+                addDelegatedSignerToContract(*accountContracts[i + 1],
+                                             *accountContracts[i + 2]);
+                addDelegatedSigner(*accountContracts[i + 2],
+                                   currCredentials->nestedDelegates, spec,
+                                   &currCredentials->signature);
+                currCredentials = &currCredentials->nestedDelegates[0];
+            }
+            return spec;
+        };
+        SECTION("within depth limit")
+        {
+            // Subtle: additional 3 levels of depth are spent for decoding the
+            // signature ScVal (Vec<Vec<ScVal>>), so with 97 levels of the auth
+            // structure we reach the depth limit of 100 exactly.
+            buildDelegateChain(97);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+        SECTION("above depth limit")
+        {
+            buildDelegateChain(98);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("significantly above depth limit")
+        {
+            buildDelegateChain(240);
+            REQUIRE(runInvocation(baseCredentials, spec) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+    }
+#endif
+}
+#endif
 
 TEST_CASE("Soroban authorization", "[tx][soroban]")
 {
@@ -7014,10 +7256,10 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
     upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
     executeUpgrade(*app, upgrade20);
 
-    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm to
-    // create the module cache. Also validate with invocations to the same
-    // contract that the required instructions drops after the module cache is
-    // created.
+    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm
+    // to create the module cache. Also validate with invocations to the
+    // same contract that the required instructions drops after the module
+    // cache is created.
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     SorobanTest test(app);
 
@@ -7293,8 +7535,8 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
         REQUIRE(wasmsAreCached(stest.getApp(), contractHashes));
     }
 
-    // Restart the application and check module cache gets populated in the new
-    // app.
+    // Restart the application and check module cache gets populated in the
+    // new app.
     auto app = createTestApplication(clock, cfg, false, true);
     REQUIRE(wasmsAreCached(*app, contractHashes));
 
@@ -7306,6 +7548,96 @@ TEST_CASE("reusable module cache", "[soroban][modulecache]")
     }
     // Check the modules got evicted.
     REQUIRE(!wasmsAreCached(*app, contractHashes));
+}
+
+TEST_CASE("module cache rebuild on incremental wasm uploads",
+          "[soroban][modulecache]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+
+    // This test uses/tests/requires the reusable module cache.
+    if (!protocolVersionStartsFrom(
+            cfg.LEDGER_PROTOCOL_VERSION,
+            REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION))
+        return;
+
+    std::vector<RustBuf> initialWasms = {rust_bridge::get_test_wasm_add_i32(),
+                                         rust_bridge::get_test_wasm_sum_i32()};
+    std::vector<RustBuf> additionalWasms = {
+        rust_bridge::get_test_wasm_err(),
+        rust_bridge::get_test_wasm_contract_data(),
+        rust_bridge::get_test_wasm_complex(),
+        rust_bridge::get_test_wasm_loadgen()};
+
+    std::vector<Hash> initialHashes;
+    for (auto const& wasm : initialWasms)
+    {
+        initialHashes.push_back(sha256(wasm));
+    }
+
+    // Populate persistent DB with an initial set of wasm entries.
+    {
+        SorobanTest stest(cfg);
+        for (auto const& wasm : initialWasms)
+        {
+            stest.deployWasmContract(wasm);
+        }
+        REQUIRE(wasmsAreCached(stest.getApp(), initialHashes));
+    }
+
+    // Restart and verify startup compilation rebuilt cache from the DB state.
+    auto app = createTestApplication(clock, cfg, false, true);
+    REQUIRE(wasmsAreCached(*app, initialHashes));
+
+    auto& metrics = app->getLedgerManager().getSorobanMetrics();
+    auto rebuildBytesAtStartup = metrics.mModuleCacheRebuildBytes.count();
+    REQUIRE(rebuildBytesAtStartup > 0);
+
+    auto uploader = app->getRoot();
+    auto uploadWasm = [&](RustBuf const& wasm) {
+        auto uploadResources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(*app));
+        auto uploadTx = makeSorobanWasmUploadTx(*app, *uploader, wasm,
+                                                uploadResources, 1000);
+        auto txResults = closeLedger(*app, {uploadTx});
+        REQUIRE(txResults.results.size() == 1);
+        REQUIRE(isSuccessResult(txResults.results[0].result));
+    };
+
+    uint64_t uploadedRawBeforeTrigger = 0;
+    uint64_t uploadedRawAtTrigger = 0;
+    uint64_t uploadedRawBytes = 0;
+    bool rebuilt = false;
+
+    for (auto const& wasm : additionalWasms)
+    {
+        uploadedRawBeforeTrigger = uploadedRawBytes;
+        uploadWasm(wasm);
+        uploadedRawBytes += wasm.data.size();
+
+        // If a rebuild was started by this upload, it completes on next
+        // ledger close at apply start.
+        closeLedger(*app);
+
+        if (metrics.mModuleCacheRebuildBytes.count() != rebuildBytesAtStartup)
+        {
+            rebuilt = true;
+            uploadedRawAtTrigger = uploadedRawBytes;
+            break;
+        }
+    }
+
+    REQUIRE(rebuilt);
+
+    // maybeRebuildModuleCache rebuilds when current cache bytes exceed
+    // 2 * bytes from the previous full rebuild. Since this test starts from a
+    // freshly rebuilt cache, that means a rebuild should start after crossing
+    // roughly one rebuild's worth of additional wasm bytes.
+    REQUIRE(uploadedRawBeforeTrigger <=
+            static_cast<uint64_t>(rebuildBytesAtStartup));
+    REQUIRE(uploadedRawAtTrigger >
+            static_cast<uint64_t>(rebuildBytesAtStartup));
 }
 
 TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
@@ -7335,12 +7667,26 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     REQUIRE(!invoke(INVOKE_ADD_UNCACHED_COST_FAIL));
     REQUIRE(invoke(INVOKE_ADD_UNCACHED_COST_PASS));
 
-    // The upload should have triggered a single compilation for the p23+ module
-    // caches, which _exist_ in this version of stellar-core, and need to be
-    // populated on each upload, but are just not yet active.
+    // The upload should have triggered a single compilation for the p23+
+    // module caches, which _exist_ in this version of stellar-core, and
+    // need to be populated on each upload, but are just not yet active.
     int moduleCacheProtocolCount =
         Config::CURRENT_LEDGER_PROTOCOL_VERSION -
         static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) + 1;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Note: depending on the state of vnext over in soroban_module_cache.rs, we
+    // sometimes direct the next protocol version to another copy of the current
+    // protocol (i.e. v27 just points to the v26 host). If this happens, this
+    // test will break, and you'll need to uncomment the following line of code
+    // to subtract an additional 1 to account for the fact that the next
+    // protocol version doesn't actually add to the module cache count.
+    //
+    // On the other hand, sometimes vnext is configured to point to an actual
+    // work-in-progress next host, in which case there _is_ a separate module
+    // cache and the following line of code should be commented-out.
+    //
+    // moduleCacheProtocolCount -= 1;
+#endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
                 .mModuleCacheNumEntries.count() ==
@@ -7389,7 +7735,8 @@ TEST_CASE("Module cache miss on immediate execution",
                     .getSorobanMetrics()
                     .mModuleCacheNumEntries.count() == baseContractCount + 1);
 
-        // Try to execute with low instructions since we can use cached module.
+        // Try to execute with low instructions since we can use cached
+        // module.
         auto txFail =
             makeAddTx(contract, INVOKE_ADD_CACHED_COST_FAIL, test.getRoot());
         REQUIRE(!isSuccessResult(test.invokeTx(txFail)));
@@ -7402,17 +7749,19 @@ TEST_CASE("Module cache miss on immediate execution",
     SECTION("same ledger upload and execution")
     {
 
-        // Here we're going to create 4 txs in the same ledger (so they have to
-        // come from 4 separate accounts). The 1st uploads a contract wasm, the
-        // 2nd creates a contract, and the 3rd and 4th run it.
+        // Here we're going to create 4 txs in the same ledger (so they have
+        // to come from 4 separate accounts). The 1st uploads a contract
+        // wasm, the 2nd creates a contract, and the 3rd and 4th run it.
         //
-        // Because all 4 happen in the same ledger, there is no opportunity for
-        // the module cache to be populated between the upload and the
-        // execution. This should result in a cache miss and higher cost: the
-        // 3rd (invoking) tx fails and the 4th passes, but at the higher cost.
+        // Because all 4 happen in the same ledger, there is no opportunity
+        // for the module cache to be populated between the upload and the
+        // execution. This should result in a cache miss and higher cost:
+        // the 3rd (invoking) tx fails and the 4th passes, but at the higher
+        // cost.
         //
         // Finally to confirm that the cache is populated, we run the same
-        // invocations in the next ledger and it should succeed at a lower cost.
+        // invocations in the next ledger and it should succeed at a lower
+        // cost.
 
         auto minbal = test.getApp().getLedgerManager().getLastMinBalance(1);
         TestAccount A(test.getRoot().create("A", minbal * 1000));
@@ -7443,14 +7792,16 @@ TEST_CASE("Module cache miss on immediate execution",
             makeSorobanCreateContractTx(test.getApp(), B, contractPreimage,
                                         executable, createResources, 1000);
 
-        // Transaction 3: invocation (with inadequate instructions to succeed)
+        // Transaction 3: invocation (with inadequate instructions to
+        // succeed)
         TestContract contract(test, contractId,
                               {contractCodeKey(contractHash),
                                makeContractInstanceKey(contractId)});
         auto invokeFailTx =
             makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_FAIL, C);
 
-        // Transaction 4: invocation (with inadequate instructions to succeed)
+        // Transaction 4: invocation (with inadequate instructions to
+        // succeed)
         auto invokePassTx =
             makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, C);
 
@@ -7487,9 +7838,10 @@ TEST_CASE("Module cache miss on immediate execution",
 TEST_CASE("multiple version of same key in a single eviction scan",
           "[archival][soroban]")
 {
-    // This tests an edge case where an entry is expired, and multiple versions
-    // of that same entry will be scanned in the eviction scan. We want to make
-    // sure we don't "double evict" the key that gets scanned twice.
+    // This tests an edge case where an entry is expired, and multiple
+    // versions of that same entry will be scanned in the eviction scan. We
+    // want to make sure we don't "double evict" the key that gets scanned
+    // twice.
     auto cfg = getTestConfig(0);
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
     cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
@@ -7512,32 +7864,27 @@ TEST_CASE("multiple version of same key in a single eviction scan",
         auto evictionLedger =
             test.getLCLSeq() +
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq <= evictionLedger; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-        REQUIRE(hotArchive->load(lk));
+        auto evictSnap =
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
+        REQUIRE(evictSnap.loadArchiveEntry(lk));
     };
 
     evictEntry();
 
-    // Restore entry. Two versions of the entry will exist in the BucketList,
-    // the restored version and the original, evicted version. Their data is the
-    // same, but they have different lastModifiedLedgerSeq and live in different
-    // levels of the BucketList.
+    // Restore entry. Two versions of the entry will exist in the
+    // BucketList, the restored version and the original, evicted version.
+    // Their data is the same, but they have different lastModifiedLedgerSeq
+    // and live in different levels of the BucketList.
     test.invokeRestoreOp({lk}, 20166);
 
-    auto bl = test.getApp()
-                  .getBucketManager()
-                  .getBucketSnapshotManager()
-                  .copySearchableLiveBucketListSnapshot();
-    auto loadRes = bl->load(lk);
+    auto restoreView =
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
+    auto loadRes = restoreView.loadLiveEntry(lk);
     REQUIRE(loadRes);
 
     // Evict the entry again. If we "double evict" we'll throw during ledger
@@ -7547,9 +7894,9 @@ TEST_CASE("multiple version of same key in a single eviction scan",
 
 TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
 {
-    // This tests persistent eviction. There is a bug in protocol 23 where if an
-    // outdated version of an entry is scanned, the outdated version will be
-    // added to the archive.
+    // This tests persistent eviction. There is a bug in protocol 23 where
+    // if an outdated version of an entry is scanned, the outdated version
+    // will be added to the archive.
     auto cfg = getTestConfig(0);
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
     cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
@@ -7564,8 +7911,7 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         SorobanTest test(app, cfg, false);
 
         ContractStorageTestClient client(test);
-        auto& snapshotManager =
-            test.getApp().getBucketManager().getBucketSnapshotManager();
+        auto& snapshotManager = test.getApp().getLedgerManager();
 
         // WASM and instance should not expire
         test.invokeExtendOp(client.getContract().getKeys(), 10'000);
@@ -7584,10 +7930,9 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
             MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
         // Close ledgers until one ledger before eviction
-        for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-             ledgerSeq < evictionLedger - 1; ++ledgerSeq)
+        while (test.getLCLSeq() < evictionLedger - 2)
         {
-            closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         // Update entry to currVal
@@ -7597,17 +7942,14 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         // Close one more ledger to trigger eviction. The newest version of
         // the entry is in level 0 of the BucketList, so only the outdated
         // version on level 1 will be scanned.
-        closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+        closeLedger(test.getApp());
 
         // Check the eviction results.
         // Entry should be archived and not in the live BucketList
-        auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        REQUIRE(!liveBL->load(lk));
+        auto evictionView = snapshotManager.copyImmutableLedgerView();
+        REQUIRE(!evictionView.loadLiveEntry(lk));
 
-        auto hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-
-        auto hotLoad = hotArchive->load(lk);
+        auto hotLoad = evictionView.loadArchiveEntry(lk);
         REQUIRE(hotLoad);
         REQUIRE(hotLoad->type() == HOT_ARCHIVE_ARCHIVED);
 
@@ -7628,14 +7970,12 @@ TEST_CASE_VERSIONS("do not evict outdated keys", "[archival][soroban]")
         // Restore entry and make sure the correct value is restored
         test.invokeRestoreOp({lk}, 20166);
 
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-        auto hotLoadAfterRestore = hotArchive->load(lk);
+        auto restoreView = snapshotManager.copyImmutableLedgerView();
+        auto hotLoadAfterRestore = restoreView.loadArchiveEntry(lk);
         REQUIRE(!hotLoadAfterRestore);
 
         // Check that restored value matches what was archived
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        auto liveLoadAfterRestore = liveBL->load(lk);
+        auto liveLoadAfterRestore = restoreView.loadLiveEntry(lk);
         REQUIRE(liveLoadAfterRestore);
 
         if (protocolVersionIsBefore(test.getLedgerVersion(),
@@ -7665,8 +8005,7 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
 
     SorobanTest test(cfg, false);
     ContractStorageTestClient client(test);
-    auto& snapshotManager =
-        test.getApp().getBucketManager().getBucketSnapshotManager();
+    auto& snapshotManager = test.getApp().getLedgerManager();
 
     // WASM and instance should not expire
     test.invokeExtendOp(client.getContract().getKeys(), 10'000);
@@ -7684,13 +8023,13 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
         makeSymbolSCVal("temporary_key"), ContractDataDurability::TEMPORARY);
     client.put("temporary_key", ContractDataDurability::TEMPORARY, 456);
 
-    // modifySorobanNetworkConfig will close 4 ledgers before the upgrade will
-    // take affect, so close enough ledgers here such that the persistent entry
-    // would be evicted on the ledger immediately following the upgrade.
-    for (auto ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq < firstEvictionLedger - 4; ++ledgerSeq)
+    // modifySorobanNetworkConfig will close 4 ledgers before the upgrade
+    // will take affect, so close enough ledgers here such that the
+    // persistent entry would be evicted on the ledger immediately following
+    // the upgrade.
+    while (test.getLCLSeq() < firstEvictionLedger - 5)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     // Disable eviction scan by setting evictionScanSize to 0
@@ -7703,39 +8042,31 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
 
     // Close ledgers well beyond when the entries would have been evicted.
     auto closeLedgersUntil = test.getLCLSeq() + 20;
-    for (auto ledgerSeq = test.getLCLSeq() + 1; ledgerSeq <= closeLedgersUntil;
-         ++ledgerSeq)
+    while (test.getLCLSeq() < closeLedgersUntil)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
 
         // Verify iterator has not changed
         REQUIRE(initialIterator == test.getNetworkCfg().evictionIterator());
     }
 
-    auto liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-    auto hotArchive =
-        snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-
+    auto ledgerView = snapshotManager.copyImmutableLedgerView();
     auto assertTemp = [&](bool isLive) {
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
-        auto tempLiveLoad = liveBL->load(temporaryKey);
+        ledgerView = snapshotManager.copyImmutableLedgerView();
+        auto tempLiveLoad = ledgerView.loadLiveEntry(temporaryKey);
         REQUIRE(static_cast<bool>(tempLiveLoad) == isLive);
 
         // Temp entries are never archived
-        REQUIRE(!hotArchive->load(temporaryKey));
+        REQUIRE(!ledgerView.loadArchiveEntry(temporaryKey));
     };
 
     auto assertPersistent = [&](bool isLive) {
-        liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-        hotArchive =
-            snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+        ledgerView = snapshotManager.copyImmutableLedgerView();
 
-        auto persistentLiveLoad = liveBL->load(persistentKey);
+        auto persistentLiveLoad = ledgerView.loadLiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(persistentLiveLoad) == isLive);
 
-        auto hotArchiveLoad = hotArchive->load(persistentKey);
+        auto hotArchiveLoad = ledgerView.loadArchiveEntry(persistentKey);
         REQUIRE(static_cast<bool>(hotArchiveLoad) != isLive);
     };
 
@@ -7744,8 +8075,8 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     assertTemp(true);
 
     // Now, re-enable eviction. maxEntriesToArchive = 1 limits archiving to
-    // one entry per ledger. Note that the first eviction will actually occur on
-    // the upgrade ledger itself.
+    // one entry per ledger. Note that the first eviction will actually
+    // occur on the upgrade ledger itself.
     modifySorobanNetworkConfig(test.getApp(), [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.evictionScanSize = 10000;
         cfg.mStateArchivalSettings.maxEntriesToArchive = 1;
@@ -7753,16 +8084,15 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
 
     auto iteratorAfterUpgrade = test.getNetworkCfg().evictionIterator();
 
-    // Iterator should have advanced from initial position during the upgrade
-    // ledger.
+    // Iterator should have advanced from initial position during the
+    // upgrade ledger.
     REQUIRE(!(initialIterator == iteratorAfterUpgrade));
     initialIterator = iteratorAfterUpgrade;
 
     // Check that exactly one entry has been evicted
-    liveBL = snapshotManager.copySearchableLiveBucketListSnapshot();
-    hotArchive = snapshotManager.copySearchableHotArchiveBucketListSnapshot();
+    ledgerView = snapshotManager.copyImmutableLedgerView();
 
-    auto persistentLiveLoad = liveBL->load(persistentKey);
+    auto persistentLiveLoad = ledgerView.loadLiveEntry(persistentKey);
     if (persistentLiveLoad)
     {
         // If perstent entry is live, assert that the temp entry is evicted.
@@ -7777,7 +8107,7 @@ TEST_CASE("disable eviction scan", "[archival][soroban]")
     }
 
     // Close one more ledger to evict the last remaining entry.
-    closeLedgerOn(test.getApp(), test.getLCLSeq() + 1, 2, 1, 2016);
+    closeLedger(test.getApp());
 
     // check that the iterator has advanced
     REQUIRE(!(initialIterator == test.getNetworkCfg().evictionIterator()));
@@ -7825,8 +8155,8 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         test.invokeRestoreOp(contractKeys, 40'493);
 
         // Invoke in ledger N+2
-        // Because we have a gap between restore and invoke, the module cache
-        // will be populated and we need fewer instructions
+        // Because we have a gap between restore and invoke, the module
+        // cache will be populated and we need fewer instructions
         auto tx1 = makeAddTx(contract, INVOKE_ADD_CACHED_COST_FAIL, A);
         auto tx2 = makeAddTx(contract, INVOKE_ADD_CACHED_COST_PASS, B);
         auto txResults = closeLedger(*app, {tx1, tx2}, /*strictOrder=*/true);
@@ -7848,8 +8178,8 @@ TEST_CASE("Module cache cost with restore gaps", "[tx][soroban][modulecache]")
         auto tx1 = test.createRestoreTx(resources, 1'000, resourceFee);
 
         // Then try to invoke immediately
-        // Because there is no gap between restore and invoke, the module cache
-        // won't be populated and we need more instructions.
+        // Because there is no gap between restore and invoke, the module
+        // cache won't be populated and we need more instructions.
         auto tx2 = makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_FAIL, A);
         auto tx3 = makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, B);
         auto txResults =
@@ -8396,9 +8726,9 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
             sorobanTxs.emplace_back(tx);
         }
 
-        // Save a map of tx hashes to extensions so we can do a lookup against
-        // the ordering of tx results to determine where the readWrite
-        // transaction was applied.
+        // Save a map of tx hashes to extensions so we can do a lookup
+        // against the ordering of tx results to determine where the
+        // readWrite transaction was applied.
         UnorderedMap<Hash, uint32_t> txHashToExtendTO;
         for (size_t i = 0; i < sorobanTxs.size(); ++i)
         {
@@ -8414,8 +8744,9 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 
         REQUIRE(r.results.size() == sorobanTxs.size());
 
-        // We're testing to make sure the write tx observed any ttl extensions
-        // before it, so save the largest extension seen before the write tx.
+        // We're testing to make sure the write tx observed any ttl
+        // extensions before it, so save the largest extension seen before
+        // the write tx.
         uint32_t maxLiveUntilSeenBeforeWrite = observedTtl;
         for (auto const& res : r.results)
         {
@@ -8655,8 +8986,8 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
 
     SECTION("invoke")
     {
-        // tx1 will fast fail due to hitting the readBytes limit when loading
-        // the classic account entry
+        // tx1 will fast fail due to hitting the readBytes limit when
+        // loading the classic account entry
         auto i1Spec =
             client.writeKeySpec("key1", ContractDataDurability::TEMPORARY)
                 .extendReadOnlyFootprint({accountKey(a1.getPublicKey())})
@@ -8687,10 +9018,9 @@ TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
     }
     SECTION("restore")
     {
-        for (uint32_t i = test.getLCLSeq() + 1; i <= contractExpirationLedger;
-             ++i)
+        while (test.getLCLSeq() < contractExpirationLedger)
         {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            closeLedger(test.getApp());
         }
 
         auto const& contractKeys = client.getContract().getKeys();
@@ -8794,8 +9124,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8812,8 +9142,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             // Classic transaction: merge account a1 into b1
             auto classicTx = a1.tx({accountMerge(b1.getPublicKey())});
 
-            // Soroban transaction: SAC payment from the merged account (a1) to
-            // c1 with root as source - this should fail
+            // Soroban transaction: SAC payment from the merged account (a1)
+            // to c1 with root as source - this should fail
             auto c1Addr = makeAccountAddress(c1.getPublicKey());
             auto sacTx = assetClient.getTransferTx(a1, c1Addr, 50,
                                                    true /*sourceIsRoot*/);
@@ -8826,8 +9156,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txFAILED);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus merge fee)
             auto expectedBalance =
@@ -8835,7 +9165,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
                 (startingBalance - r.results.at(0).result.feeCharged);
             REQUIRE(b1.getBalance() == expectedBalance);
 
-            // Verify that c1's balance remains unchanged (no payment occurred)
+            // Verify that c1's balance remains unchanged (no payment
+            // occurred)
             REQUIRE(c1.getBalance() == startingBalance);
         }
 
@@ -8850,8 +9181,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             auto classicMergeTx = c1.tx({mergeOp});
             classicMergeTx->addSignature(a1.getSecretKey());
 
-            // Soroban transaction: SAC payment from the merged account (a1) to
-            // c1 with a1 as source - this should fail with txNO_ACCOUNT
+            // Soroban transaction: SAC payment from the merged account (a1)
+            // to c1 with a1 as source - this should fail with txNO_ACCOUNT
             auto c1Addr = makeAccountAddress(c1.getPublicKey());
             auto sacTx = assetClient.getTransferTx(a1, c1Addr, 50);
 
@@ -8863,8 +9194,8 @@ TEST_CASE_VERSIONS("merge account then SAC payment scenarios",
             checkTx(1, r, txNO_ACCOUNT);
 
             // Verify that a1 no longer exists after the merge
-            LedgerSnapshot ls(test.getApp());
-            REQUIRE(!ls.getAccount(a1.getPublicKey()));
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            REQUIRE(!ledgerView.getAccount(a1.getPublicKey()));
 
             // Verify that b1 received a1's balance (minus the soroban
             // transactions fee which a1 paid before it was merged).
@@ -9126,7 +9457,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
     {
         std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
         auto resources = lm.maxLedgerResources(true);
-        LedgerSnapshot ls(app);
+        CheckValidLedgerViewWrapper ledgerView(app);
         for (int txId = 0; txId < MAX_TRANSACTIONS_PER_LEDGER; ++txId)
         {
             auto account = txtest::getGenesisAccount(app, accountId++);
@@ -9167,7 +9498,7 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
             auto tx = invocation.withExactNonRefundableResourceFee().createTx(
                 &account);
 
-            REQUIRE(tx->checkValid(app.getAppConnector(), ls, 0, 0, 0)
+            REQUIRE(tx->checkValid(app.getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             if (!anyGreater(tx->getResources(false, test.getLedgerVersion()),
                             resources))
@@ -9191,8 +9522,9 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
             REQUIRE(txRes.result.result.code() != txINTERNAL_ERROR);
         }
         REQUIRE(r.results.size() <= sorobanTxs.size());
-        // It's not always possible to perfectly pack all the transactions into
-        // two clusters, so a transaction may be left out from time to time.
+        // It's not always possible to perfectly pack all the transactions
+        // into two clusters, so a transaction may be left out from time to
+        // time.
         REQUIRE(sorobanTxs.size() - r.results.size() <= 2);
     }
 }
@@ -9218,9 +9550,9 @@ TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
     auto expirationLedger =
         test.getLCLSeq() +
         test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-    for (uint32_t i = test.getLCLSeq() + 1; i <= expirationLedger; ++i)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto const& contractKeys = client.getContract().getKeys();
@@ -9339,9 +9671,9 @@ TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
     auto expirationLedger =
         test.getLCLSeq() +
         test.getNetworkCfg().stateArchivalSettings().minPersistentTTL;
-    for (uint32_t i = test.getLCLSeq() + 1; i <= expirationLedger; ++i)
+    while (test.getLCLSeq() < expirationLedger)
     {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto persistentKey = client.getContract().getDataKey(
@@ -9429,8 +9761,8 @@ TEST_CASE_VERSIONS(
         auto a1PreRefundFeeCharged =
             tx->getFee(lclHeader, lclHeader.baseFee, true);
 
-        // Pre v23, refunds are done after each tx. From v23, refunds are done
-        // after all txs are applied.
+        // Pre v23, refunds are done after each tx. From v23, refunds are
+        // done after all txs are applied.
         SECTION("success")
         {
             auto a1MaxSend = a1.getAvailableBalance() - a1PreRefundFeeCharged;
@@ -9456,8 +9788,8 @@ TEST_CASE_VERSIONS(
             if (protocolVersionIsBefore(test.getLedgerVersion(),
                                         ProtocolVersion::V_23))
             {
-                // Pre v23 the refund is done after each tx, so just set this
-                // to a value that will cause the transfer to fail.
+                // Pre v23 the refund is done after each tx, so just set
+                // this to a value that will cause the transfer to fail.
                 a1OverMax = a1.getAvailableBalance() + 1;
             }
 
@@ -9487,7 +9819,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
             // entries evicted faster.
             // The state size is only reduced on evictions.
             cfg.mStateArchivalSettings.startingEvictionScanLevel = 1;
-            // Modify the config to let the transactions run only in parallel.
+            // Modify the config to let the transactions run only in
+            // parallel.
             cfg.mLedgerMaxDependentTxClusters = 5;
             cfg.mLedgerMaxInstructions =
                 keyCount *
@@ -9521,8 +9854,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
             cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
             cfg.mLedgerMaxTxCount = 100;
         });
-    // Initial network config has a higher persistent TTL, so we don't expect
-    // this state to expire.
+    // Initial network config has a higher persistent TTL, so we don't
+    // expect this state to expire.
     auto const stateSizeAfterUpgrade =
         test.getApp()
             .getLedgerManager()
@@ -9557,12 +9890,12 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
         {
             auto ledgerKey = client.getContract().getDataKey(
                 makeSymbolSCVal(key), durability);
-            LedgerSnapshot ls(test.getApp());
-            auto le = ls.load(ledgerKey);
+            CheckValidLedgerViewWrapper ledgerView(test.getApp());
+            auto le = ledgerView.load(ledgerKey);
             if (le)
             {
-                // We only deal with the data entries here, so no need to use
-                // ledgerEntrySizeForRent.
+                // We only deal with the data entries here, so no need to
+                // use ledgerEntrySizeForRent.
                 expectedSize += xdr::xdr_size(le.current());
             }
         }
@@ -9697,7 +10030,8 @@ TEST_CASE("in-memory state size tracking", "[soroban]")
     }
     {
         INFO("evict all entries");
-        // Close a few more ledgers to let the entries created above to expire.
+        // Close a few more ledgers to let the entries created above to
+        // expire.
         for (int i = 0; i < 5; ++i)
         {
             closeLedger(test.getApp());
@@ -9769,9 +10103,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9818,9 +10152,9 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
@@ -9872,14 +10206,15 @@ TEST_CASE("readonly ttl bumps across threads and stages",
         auto startingTTL = test.getTTL(lk);
 
         // Capture the TTL entry's lastModifiedLedgerSeq before tx execution
-        LedgerSnapshot ls(test.getApp());
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
         auto ttlKey = getTTLKey(lk);
-        auto ttlEntry = ls.load(ttlKey);
+        auto ttlEntry = ledgerView.load(ttlKey);
         REQUIRE(ttlEntry);
         uint32_t ttlLastModifiedBeforeTx =
             ttlEntry.current().lastModifiedLedgerSeq;
 
-        // Execute with mixed staging: some in same stage, some across stages
+        // Execute with mixed staging: some in same stage, some across
+        // stages
         auto r = closeLedger(test.getApp(),
                              {extendTx1, extendTx2, extendTx3, extendTx4},
                              {{{0, 1}}, {{2}}, {{3}}});
@@ -10096,8 +10431,8 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
         auto getUpdatedReturnValue = getTx4Meta.getReturnValue();
         REQUIRE(getUpdatedReturnValue.u64() == 300);
 
-        // Additional verification: Check that the storage actually contains the
-        // expected values
+        // Additional verification: Check that the storage actually contains
+        // the expected values
         REQUIRE(client.get("key1", ContractDataDurability::PERSISTENT, 300) ==
                 INVOKE_HOST_FUNCTION_SUCCESS);
         REQUIRE(client.get("key2", ContractDataDurability::PERSISTENT, 200) ==
@@ -10105,8 +10440,8 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
     });
 }
 
-// Test that autorestore works when keys aren't explicitly written and belong to
-// another uncalled contractID.
+// Test that autorestore works when keys aren't explicitly written and
+// belong to another uncalled contractID.
 TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
@@ -10139,10 +10474,9 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
     // Close ledgers until all entries are expired and evicted
-    for (uint32_t ledgerSeq = test.getLCLSeq() + 1;
-         ledgerSeq <= expirationLedger + 1; ++ledgerSeq)
+    while (test.getLCLSeq() < expirationLedger + 1)
     {
-        closeLedgerOn(test.getApp(), ledgerSeq, 2, 1, 2016);
+        closeLedger(test.getApp());
     }
 
     auto lk1 = client1.getContract().getDataKey(
@@ -10156,17 +10490,11 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
     REQUIRE(client2.get("key2", ContractDataDurability::PERSISTENT,
                         std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-    auto hotArchiveSnapshot = test.getApp()
-                                  .getBucketManager()
-                                  .getBucketSnapshotManager()
-                                  .copySearchableHotArchiveBucketListSnapshot();
-    auto liveSnapshot = test.getApp()
-                            .getBucketManager()
-                            .getBucketSnapshotManager()
-                            .copySearchableLiveBucketListSnapshot();
+    auto archivedSnap =
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
 
-    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 2);
-    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 0);
+    REQUIRE(archivedSnap.loadArchiveKeys({lk1, lk2}).size() == 2);
+    REQUIRE(archivedSnap.loadLiveKeys({lk1, lk2}, "load").size() == 0);
 
     // Now, invoke contract2, but also autorestore state from contract1.
     auto keysToRestore = client2.getContract().getKeys();
@@ -10191,17 +10519,11 @@ TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
         /*addContractKeys=*/false);
     REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
 
-    liveSnapshot = test.getApp()
-                       .getBucketManager()
-                       .getBucketSnapshotManager()
-                       .copySearchableLiveBucketListSnapshot();
-    hotArchiveSnapshot = test.getApp()
-                             .getBucketManager()
-                             .getBucketSnapshotManager()
-                             .copySearchableHotArchiveBucketListSnapshot();
+    auto restoredSnap =
+        test.getApp().getLedgerManager().copyImmutableLedgerView();
 
-    REQUIRE(liveSnapshot->loadKeys({lk1, lk2}, "load").size() == 2);
-    REQUIRE(hotArchiveSnapshot->loadKeys({lk1, lk2}).size() == 0);
+    REQUIRE(restoredSnap.loadLiveKeys({lk1, lk2}, "load").size() == 2);
+    REQUIRE(restoredSnap.loadArchiveKeys({lk1, lk2}).size() == 0);
 
     // Verify that the correct values were restored
     REQUIRE(client1.get("key1", ContractDataDurability::PERSISTENT, 111) ==
@@ -10219,8 +10541,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    // From 21 so we don't have to handle the feeCharged issues from v20 in this
-    // test.
+    // From 21 so we don't have to handle the feeCharged issues from v20 in
+    // this test.
     for_versions_from(21, *app, [&] {
         SorobanTest test(app);
 
@@ -10238,7 +10560,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         auto resources = defaultUploadWasmResourcesWithoutFootprint(
             wasm, test.getLedgerVersion());
 
-        // Create classic transaction that merges innerAccount into destination
+        // Create classic transaction that merges innerAccount into
+        // destination
         auto mergeOp = accountMerge(destination);
         mergeOp.sourceAccount.activate() = toMuxedAccount(innerAccount);
         auto classicMergeTx = destination.tx({mergeOp});
@@ -10254,8 +10577,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         auto sorobanTx = makeSorobanWasmUploadTx(test.getApp(), innerAccount,
                                                  wasm, resources, 100);
 
-        // Create fee bump transaction wrapping the soroban tx with the merged
-        // account as inner
+        // Create fee bump transaction wrapping the soroban tx with the
+        // merged account as inner
         int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
         auto feeBumpSorobanTx =
             feeBump(test.getApp(), secondFeeBumper, sorobanTx, feeBumpFullFee,
@@ -10274,8 +10597,8 @@ TEST_CASE_VERSIONS("fee bump inner account merged then used as inner account "
         REQUIRE(innerRes.result.code() == txNO_ACCOUNT);
 
         // Verify that innerAccount no longer exists after the merge
-        LedgerSnapshot ls(test.getApp());
-        REQUIRE(!ls.getAccount(innerAccount.getPublicKey()));
+        CheckValidLedgerViewWrapper ledgerView(test.getApp());
+        REQUIRE(!ledgerView.getAccount(innerAccount.getPublicKey()));
 
         auto expectedDestinationBalance = startingBalance + startingBalance;
         REQUIRE(destination.getBalance() == expectedDestinationBalance);
@@ -10334,8 +10657,8 @@ TEST_CASE_VERSIONS("classic payment to soroban fee bump account",
         auto sorobanTx = makeSorobanWasmUploadTx(test.getApp(), sorobanAccount,
                                                  wasm, resources, 1000);
 
-        // Step 3: Use the fee bump account (that will receive the payment) as
-        // the fee bump source
+        // Step 3: Use the fee bump account (that will receive the payment)
+        // as the fee bump source
         int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
         auto feeBumpTx =
             feeBump(test.getApp(), feeBumpAccount, sorobanTx, feeBumpFullFee,
@@ -10418,8 +10741,8 @@ TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
         auto sorobanTx = makeSorobanWasmUploadTx(
             test.getApp(), sorobanInnerAccount, wasm, resources, 1000);
 
-        // Step 3: Fee bump the Soroban transaction with the same shared account
-        // (that also did the payment)
+        // Step 3: Fee bump the Soroban transaction with the same shared
+        // account (that also did the payment)
         int64_t feeBumpFullFee = sorobanTx->getEnvelope().v1().tx.fee * 5;
         auto feeBumpTx =
             feeBump(test.getApp(), sharedAccount, sorobanTx, feeBumpFullFee,
@@ -10448,13 +10771,13 @@ TEST_CASE_VERSIONS("classic payment source same as soroban fee bump source",
         REQUIRE(paymentRecipient.getBalance() ==
                 paymentRecipientStartingBalance + 750000);
 
-        // Soroban inner account balance should be unchanged (fee bump pays the
-        // fee)
+        // Soroban inner account balance should be unchanged (fee bump pays
+        // the fee)
         REQUIRE(sorobanInnerAccount.getBalance() ==
                 sorobanInnerAccountStartingBalance);
 
-        // Shared account should have paid for payment amount, classic payment
-        // fee, and soroban fee
+        // Shared account should have paid for payment amount, classic
+        // payment fee, and soroban fee
         auto expectedSharedBalance =
             sharedAccountStartingBalance - 750000 - // Payment amount
             result.results[0].result.feeCharged -   // Classic payment fee
@@ -10503,8 +10826,8 @@ TEST_CASE_VERSIONS(
         auto classicSetOptionsTx = signerAdmin.tx({setOptionsOp});
         classicSetOptionsTx->addSignature(sorobanSourceAccount.getSecretKey());
 
-        // Step 2: Create Soroban transaction with the account that just got a
-        // new signer
+        // Step 2: Create Soroban transaction with the account that just got
+        // a new signer
         auto wasm = rust_bridge::get_test_wasm_add_i32();
         auto resources =
             defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);
@@ -10596,8 +10919,8 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
             sorobanSourceAccount.loadSequenceNumber();
         auto bumpAdminStartingSeq = bumpAdmin.loadSequenceNumber();
 
-        // Step 1: Classic transaction to bump sequence of the soroban source
-        // account
+        // Step 1: Classic transaction to bump sequence of the soroban
+        // source account
         auto targetSequence = sorobanSourceStartingSeq + 10;
         auto bumpSequenceOp = txtest::bumpSequence(targetSequence);
         bumpSequenceOp.sourceAccount.activate() =
@@ -10605,8 +10928,8 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
         auto classicBumpTx = bumpAdmin.tx({bumpSequenceOp});
         classicBumpTx->addSignature(sorobanSourceAccount.getSecretKey());
 
-        // Step 2: Create Soroban transaction with the account that just had its
-        // sequence bumped
+        // Step 2: Create Soroban transaction with the account that just had
+        // its sequence bumped
         auto wasm = rust_bridge::get_test_wasm_add_i32();
         auto resources =
             defaultUploadWasmResourcesWithoutFootprint(wasm, ledgerVersion);

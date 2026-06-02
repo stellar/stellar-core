@@ -199,43 +199,19 @@ pub const fn get_max_proto() -> u32 {
     super::get_version_protocol(&VERSION)
 }
 
-pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+pub fn get_soroban_version_info() -> SorobanVersionInfo {
     let env_max_proto = get_max_proto();
-    let xdr_base_git_rev = match VERSION.xdr.xdr {
-        "curr" => VERSION.xdr.xdr_curr.to_string(),
-        "next" | "curr,next" => {
-            if !cfg!(feature = "next") {
-                warn!(
-                    "soroban version {} XDR module built with 'next' feature,
-                       but core built without 'vnext' feature",
-                    VERSION.pkg
-                );
-            }
-            if core_max_proto != env_max_proto {
-                warn!(
-                    "soroban version {} XDR module for env version {} built with 'next' feature, \
-                       even though this is not the newest core protocol ({})",
-                    VERSION.pkg, env_max_proto, core_max_proto
-                );
-                warn!(
-                    "this can happen if multiple soroban crates depend on the \
-                       same XDR crate which then gets feature-unified"
-                )
-            }
-            VERSION.xdr.xdr_next.to_string()
-        }
-        other => format!("unknown XDR module configuration: '{other}'"),
-    };
 
     SorobanVersionInfo {
         env_max_proto,
         env_pkg_ver: VERSION.pkg.to_string(),
         env_git_rev: VERSION.rev.to_string(),
         env_pre_release_ver: super::get_version_pre_release(&VERSION),
-        xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
-        xdr_git_rev: VERSION.xdr.rev.to_string(),
-        xdr_base_git_rev,
+        xdr_pkg_ver: super::get_xdr_pkg_ver(),
+        xdr_git_rev: super::get_xdr_git_rev(),
+        xdr_base_git_rev: super::get_xdr_base_git_rev(),
         xdr_file_hashes: get_xdr_hashes(),
+        xdr_features: super::get_xdr_features(),
     }
 }
 
@@ -705,8 +681,9 @@ pub(crate) struct ProtocolSpecificModuleCache {
     // `CompilationContext` is _not_  threadsafe (specifically its `Budget` is
     // not) and so rather than reuse a single `CompilationContext` across
     // threads, we make a throwaway `CompilationContext` on each `compile` call,
-    // and _copy out_ the memory usage (which we want to publish back to core).
-    pub(crate) mem_bytes_consumed: std::sync::atomic::AtomicU64,
+    // and track only a single _input_ value (which we want to publish back to
+    // core).
+    pub(crate) wasm_bytes_input: std::sync::atomic::AtomicU64,
 }
 
 #[allow(dead_code)]
@@ -716,33 +693,34 @@ impl ProtocolSpecificModuleCache {
         let module_cache = ModuleCache::new(&compilation_context)?;
         Ok(ProtocolSpecificModuleCache {
             module_cache,
-            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+            wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
-    pub(crate) fn compile(&mut self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn compile(&self, wasm: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let compilation_context = CoreCompilationContext::new()?;
         let res = self.module_cache.parse_and_cache_module_simple(
             &compilation_context,
             get_max_proto(),
             wasm,
         );
-        self.mem_bytes_consumed.fetch_add(
-            compilation_context
-                .unlimited_budget
-                .get_mem_bytes_consumed()?,
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        self.wasm_bytes_input
+            .fetch_add(wasm.len() as u64, std::sync::atomic::Ordering::SeqCst);
         Ok(res?)
     }
 
-    pub(crate) fn evict(&mut self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn evict(&self, key: &[u8; 32]) -> Result<(), Box<dyn std::error::Error>> {
         let _ = self.module_cache.remove_module(&key.clone().into())?;
         Ok(())
     }
 
-    pub(crate) fn clear(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.module_cache.clear()?)
+    pub(crate) fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let res = self.module_cache.clear();
+        if res.is_ok() {
+            self.wasm_bytes_input
+                .store(0, std::sync::atomic::Ordering::SeqCst);
+        }
+        Ok(res?)
     }
 
     pub(crate) fn contains_module(
@@ -752,9 +730,9 @@ impl ProtocolSpecificModuleCache {
         Ok(self.module_cache.contains_module(&key.clone().into())?)
     }
 
-    pub(crate) fn get_mem_bytes_consumed(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub(crate) fn get_wasm_bytes_input(&self) -> Result<u64, Box<dyn std::error::Error>> {
         Ok(self
-            .mem_bytes_consumed
+            .wasm_bytes_input
             .load(std::sync::atomic::Ordering::SeqCst))
     }
 
@@ -771,7 +749,7 @@ impl ProtocolSpecificModuleCache {
         let module_cache = self.module_cache.clone();
         Ok(ProtocolSpecificModuleCache {
             module_cache,
-            mem_bytes_consumed: std::sync::atomic::AtomicU64::new(0),
+            wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
         })
     }
 }

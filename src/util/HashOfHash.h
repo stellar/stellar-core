@@ -13,3 +13,15 @@ template <> struct hash<stellar::uint256>
     size_t operator()(stellar::uint256 const& x) const noexcept;
 };
 }
+
+namespace stellar
+{
+// FullHash256 feeds all 32 bytes of a uint256 to SipHash, providing
+// collision resistance against adversarial inputs. Use this hasher for
+// containers keyed on externally-supplied Hash values (e.g. transaction
+// hashes received from peers).
+struct FullHash256
+{
+    size_t operator()(stellar::uint256 const& x) const noexcept;
+};
+}

@@ -83,7 +83,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             txEnv.v1().tx.operations.emplace_back();
             // The fee is actually not relevant for XDR validation, we just use
             // it to have different tx envelopes.
-            txEnv.v1().tx.fee = 100 + txId;
+            txEnv.v1().tx.fee = 10000 + txId;
             ++txId;
             txEnv.v1().tx.operations.back().body.type(
                 isSoroban ? OperationType::INVOKE_HOST_FUNCTION
@@ -1153,8 +1153,8 @@ TEST_CASE("applicable txset validation - transactions belong to correct phase",
                         1)},
                     2000);
             }
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1314,8 +1314,8 @@ TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
             auto tx = sorobanTransactionFrameFromOps(
                 app->getNetworkID(), source, {op}, {}, resources, 2000,
                 100'000'000);
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
             return tx;
         };
@@ -1681,8 +1681,8 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // tx1 is valid on its own
         {
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
         }
 
@@ -1714,10 +1714,10 @@ TEST_CASE("generalized tx set with multiple txs per source account",
 
         // Both txs individually are valid
         {
-            LedgerSnapshot ls(*app);
-            REQUIRE(tx1->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            REQUIRE(tx1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
-            REQUIRE(tx2->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+            REQUIRE(tx2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
                         ->isSuccess());
         }
 
@@ -1787,6 +1787,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         auto source =
             root->create("unique " + std::to_string(accountId++),
                          app->getLedgerManager().getLastMinBalance(2));
+        TransactionTestFramePtr tx;
         if (isSoroban)
         {
             SorobanResources resources;
@@ -1796,16 +1797,9 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             resources.footprint.readWrite.emplace_back();
             auto resourceFee = sorobanResourceFee(*app, resources, 5000, 40);
             resources.footprint.readWrite.pop_back();
-            auto tx = createUploadWasmTx(*app, source, inclusionFee,
-                                         resourceFee, resources);
+            tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
+                                    resources);
             REQUIRE(tx->getInclusionFee() == inclusionFee);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            if (validateTx)
-            {
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-            }
-            return tx;
         }
         else
         {
@@ -1815,10 +1809,17 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                 ops.emplace_back(createAccount(
                     getAccount(std::to_string(accountId++)).getPublicKey(), 1));
             }
-            return transactionFromOperations(*app, source.getSecretKey(),
-                                             source.nextSequenceNumber(), ops,
-                                             inclusionFee);
+            tx = transactionFromOperations(*app, source.getSecretKey(),
+                                           source.nextSequenceNumber(), ops,
+                                           inclusionFee);
         }
+        if (validateTx)
+        {
+            REQUIRE(tx->checkValid(app->getAppConnector(),
+                                   CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                        ->isSuccess());
+        }
+        return tx;
     };
 
     SECTION("valid txset")
@@ -1905,6 +1906,24 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             }
         }
     }
+    SECTION("valid tx set with Soroban fee bump")
+    {
+        auto tx = createTx(1, 100, /* isSoroban */ true);
+        auto feeBumpTx = feeBump(*app, *root, tx, 200);
+        auto ledgerHash =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
+        auto txSet =
+            testtxset::makeNonValidatedGeneralizedTxSet(
+                {
+                    {},
+                    {std::make_pair(
+                        100, std::vector<TransactionFrameBasePtr>{feeBumpTx})},
+                },
+                *app, ledgerHash)
+                .second;
+        REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                TxSetValidationResult::VALID);
+    }
     SECTION("tx with too low discounted fee")
     {
         SECTION("classic")
@@ -1950,7 +1969,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         // level, resulting in TX_VALIDATION_FAILED
         SECTION("classic")
         {
-            auto tx = createTx(2, 199);
+            auto tx = createTx(2, 199, false, false);
             auto ledgerHash =
                 app->getLedgerManager().getLastClosedLedgerHeader().hash;
             auto txSet =
@@ -1981,6 +2000,82 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             // Fee 99 < base fee 100 required
             REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
                     TxSetValidationResult::TX_VALIDATION_FAILED);
+        }
+    }
+    SECTION("negative base fee")
+    {
+        SECTION("classic")
+        {
+            auto tx = createTx(2, 1000);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto [xdrTxSet, applicableTxSet] =
+                testtxset::makeNonValidatedGeneralizedTxSet(
+                    {{std::make_pair(-100,
+                                     std::vector<TransactionFrameBasePtr>{tx})},
+                     {}},
+                    *app, ledgerHash);
+            REQUIRE(applicableTxSet == nullptr);
+        }
+        SECTION("Soroban")
+        {
+            auto tx = createTx(1, 100, /* isSoroban */ true);
+            auto feeBumpTx = feeBump(*app, *root, tx, 300);
+            REQUIRE(feeBumpTx
+                        ->checkValid(app->getAppConnector(),
+                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                        ->isSuccess());
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto [xdrTxSet, applicableTxSet] =
+                testtxset::makeNonValidatedGeneralizedTxSet(
+                    {
+                        {},
+                        {std::make_pair(
+                            std::numeric_limits<int64_t>::min(),
+                            std::vector<TransactionFrameBasePtr>{feeBumpTx})},
+                    },
+                    *app, ledgerHash);
+            REQUIRE(applicableTxSet == nullptr);
+        }
+    }
+    SECTION("high base fee")
+    {
+        SECTION("classic")
+        {
+            auto tx = createTx(2, 1000);
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto [xdrTxSet, applicableTxSet] =
+                testtxset::makeNonValidatedGeneralizedTxSet(
+                    {{std::make_pair(std::numeric_limits<int64_t>::max(),
+                                     std::vector<TransactionFrameBasePtr>{tx})},
+                     {}},
+                    *app, ledgerHash);
+            REQUIRE(applicableTxSet != nullptr);
+            REQUIRE(applicableTxSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_FEE_BID_TOO_LOW);
+        }
+        SECTION("Soroban")
+        {
+            auto tx = createTx(1, 100, /* isSoroban */ true);
+            auto feeBumpTx = feeBump(*app, *root, tx, 200);
+            REQUIRE(feeBumpTx
+                        ->checkValid(app->getAppConnector(),
+                                     CheckValidLedgerViewWrapper(*app), 0, 0, 0)
+                        ->isSuccess());
+            auto ledgerHash =
+                app->getLedgerManager().getLastClosedLedgerHeader().hash;
+            auto [xdrTxSet, applicableTxSet] =
+                testtxset::makeNonValidatedGeneralizedTxSet(
+                    {{},
+                     {std::make_pair(
+                         std::numeric_limits<int64_t>::max(),
+                         std::vector<TransactionFrameBasePtr>{feeBumpTx})}},
+                    *app, ledgerHash);
+            REQUIRE(applicableTxSet != nullptr);
+            REQUIRE(applicableTxSet->checkValidWithResult(*app, 0, 0) ==
+                    TxSetValidationResult::TX_FEE_BID_TOO_LOW);
         }
     }
 }
@@ -2462,9 +2557,9 @@ runParallelTxSetBuildingTest(bool variableStageCount)
         // its resources.
         auto tx = createUploadWasmTx(*app, source, inclusionFee, resourceFee,
                                      resources);
-        LedgerSnapshot ls(*app);
-        REQUIRE(
-            tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)->isSuccess());
+        CheckValidLedgerViewWrapper ledgerView(*app);
+        REQUIRE(tx->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0)
+                    ->isSuccess());
 
         return tx;
     };

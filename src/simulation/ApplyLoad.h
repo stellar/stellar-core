@@ -6,30 +6,16 @@
 
 #include "main/Application.h"
 #include "simulation/TxGenerator.h"
-#include "test/TestAccount.h"
-
-#include "medida/meter.h"
 
 namespace stellar
 {
 
-enum class ApplyLoadMode
-{
-    // Generate load within the configured ledger limits.
-    LIMIT_BASED,
-    // Generate load that finds max ledger limits for the 'model' transaction.
-    FIND_LIMITS_FOR_MODEL_TX,
-    // Generate load that only finds max TPS for the cheap operations (SAC
-    // transfers), ignoring ledger limits.
-    MAX_SAC_TPS
-};
-
 class ApplyLoad
 {
   public:
-    ApplyLoad(Application& app, ApplyLoadMode mode);
+    explicit ApplyLoad(Application& app);
 
-    // Execute the benchmark according to the mode specified in the constructor.
+    // Execute the benchmark according to the mode specified in config.
     void execute();
 
     // Returns the % of transactions that succeeded during apply time. The range
@@ -58,17 +44,19 @@ class ApplyLoad
 
     // Returns LedgerKey for pre-populated archived state at the given index.
     static LedgerKey getKeyForArchivedEntry(uint64_t index);
-    static uint32_t calculateRequiredHotArchiveEntries(ApplyLoadMode mode,
-                                                       Config const& cfg);
+
+    uint32_t getTotalHotArchiveEntries() const;
 
   private:
-    void setup();
+    uint32_t calculateRequiredHotArchiveEntries(Config const& cfg);
 
-    void setupAccounts();
+    void setup();
     void setupUpgradeContract();
     void setupLoadContract();
     void setupXLMContract();
     void setupBatchTransferContracts();
+    void setupTokenContract();
+    void setupSoroswapContracts();
     void setupBucketList();
 
     // Runs for `execute() in `ApplyLoadMode::LIMIT_BASED` mode.
@@ -76,18 +64,6 @@ class ApplyLoad
     // outputs the measured ledger close time metrics, as well as some other
     // support metrics.
     void benchmarkLimits();
-
-    // Runs for `execute() in `ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX` mode.
-    // Generates transactions according to the 'model' transaction parameters
-    // (specified via the transaction generation config), and does a binary
-    // search for the maximum number of such transactions that can fit into
-    // ledger while not exceeding APPLY_LOAD_TARGET_CLOSE_TIME_MS ledger close
-    // time.
-    // After finding the maximum number of model transactions, outputs the
-    // respective ledger limits.
-    // This also performs some rounding on the ledger limits to make the binary
-    // search faster, and also to produce more readable limits.
-    void findMaxLimitsForModelTransaction();
 
     // Runs for `execute() in `ApplyLoadMode::MAX_SAC_TPS` mode.
     // Generates SAC transactions and times just the application phase (fee and
@@ -98,27 +74,53 @@ class ApplyLoad
     // APPLY_LOAD_TARGET_CLOSE_TIME_MS.
     void findMaxSacTps();
 
+    // Runs for `execute() in `ApplyLoadMode::BENCHMARK_MODEL_TX` mode.
+    // Benchmarks APPLY_LOAD_NUM_LEDGERS ledgers containing
+    // APPLY_LOAD_MAX_SOROBAN_TX_COUNT model transactions each and outputs
+    // close-time summary statistics.
+    void benchmarkModelTx();
+
     // Run a single ledger benchmark at the given TPS. Returns the close time
     // in milliseconds for that ledger.
-    double benchmarkSacTpsSingleLedger(uint32_t txsPerLedger);
+    double benchmarkModelTxTpsSingleLedger(ApplyLoadModelTx modelTx,
+                                           uint32_t txsPerLedger);
 
     // Run a single ledger benchmark for the model transaction mode. Returns
     // the close time in milliseconds for that ledger.
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
-    // specified in the ApplyLoad constructor, create a TransactionSet out of
+    // specified in config, create a TransactionSet out of
     // those transactions, and then close a ledger with that TransactionSet. The
     // generated transactions are generated using the LOADGEN_* config
     // parameters.
     double benchmarkLimitsIteration();
+
+    // Generates APPLY_LOAD_CLASSIC_TXS_PER_LEDGER classic payment TXs
+    // using accounts starting at startAccountIdx.
+    void generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
+                                 uint32_t startAccountIdx);
 
     // Generates the given number of native asset SAC payment TXs with no
     // conflicts.
     void generateSacPayments(std::vector<TransactionFrameBasePtr>& txs,
                              uint32_t count);
 
+    // Generates the given number of custom token transfer TXs between genesis
+    // accounts with no conflicts.
+    void generateTokenTransfers(std::vector<TransactionFrameBasePtr>& txs,
+                                uint32_t count);
+
+    // Generates the given number of Soroswap swap TXs across pairs with no
+    // conflicts.
+    void generateSoroswapSwaps(std::vector<TransactionFrameBasePtr>& txs,
+                               uint32_t count);
+
     // Calculate instructions per transaction based on batch size
     uint64_t calculateInstructionsPerTx() const;
+
+    // Convert benchmark model SAC transfer count into number of tx envelopes
+    // to execute, taking APPLY_LOAD_BATCH_SAC_COUNT into account.
+    uint32_t calculateBenchmarkModelTxCount() const;
 
     // Iterate over all available accounts to make sure they are loaded into the
     // BucketListDB cache. Note that this should be run every time an account
@@ -134,21 +136,14 @@ class ApplyLoad
     // Helper method to apply a config upgrade
     void applyConfigUpgrade(SorobanUpgradeConfig const& upgradeConfig);
 
-    // Updates the configuration settings such a way to accommodate around
-    // `txsPerLedger` 'model' transactions per ledger for the
-    // `FIND_LIMITS_FOR_MODEL_TX` mode.
-    // Returns the network configuration to use for upgrade and the actual
-    // number of transactions that can fit withing the limits (it may be
-    // slightly lower than `txsPerLedger` due to rounding).
-    std::pair<SorobanUpgradeConfig, uint64_t>
-    updateSettingsForTxCount(uint64_t txsPerLedger);
-
     Application& mApp;
     ApplyLoadMode mMode;
-    TxGenerator::TestAccountPtr mRoot;
+    ApplyLoadModelTx mModelTx;
+    ApplyLoadTxProfile mLimitsBasedTxProfile;
+
+    uint32_t mTotalHotArchiveEntries;
 
     uint32_t mNumAccounts;
-    uint32_t mTotalHotArchiveEntries;
 
     medida::Histogram& mTxCountUtilization;
     medida::Histogram& mInstructionUtilization;
@@ -171,7 +166,15 @@ class ApplyLoad
     // Used for batch transfers, one instance for each cluster
     std::vector<TxGenerator::ContractInstance> mBatchTransferInstances;
     size_t mDataEntryCount = 0;
-    size_t mDataEntrySize = 0;
+
+    // Used to generate custom token transfer transactions
+    TxGenerator::ContractInstance mTokenInstance;
+
+    // Soroswap AMM benchmark state (type defined in TxGenerator.h)
+    TxGenerator::SoroswapState mSoroswapState;
+
+    // Counter for alternating swap direction per pair
+    std::vector<uint32_t> mSoroswapSwapCounters;
 
     // Counter for generating unique destination addresses for SAC payments
     uint32_t mDestCounter = 0;

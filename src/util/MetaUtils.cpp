@@ -88,6 +88,62 @@ normalizeOps(xdr::xvector<OperationMetaV2>& oms)
 }
 }
 
+namespace
+{
+
+bool
+isCoreMetricsTimingEvent(DiagnosticEvent const& de)
+{
+    if (de.event.type != ContractEventType::DIAGNOSTIC)
+    {
+        return false;
+    }
+    auto const& topics = de.event.body.v0().topics;
+    if (topics.size() != 2)
+    {
+        return false;
+    }
+    if (topics[0].type() != SCV_SYMBOL || topics[1].type() != SCV_SYMBOL)
+    {
+        return false;
+    }
+    return topics[0].sym() == "core_metrics" &&
+           topics[1].sym() == "invoke_time_nsecs";
+}
+
+void
+zeroDiagnosticTimingEvents(xdr::xvector<DiagnosticEvent>& events)
+{
+    for (auto& de : events)
+    {
+        if (isCoreMetricsTimingEvent(de))
+        {
+            de.event.body.v0().data.u64() = 0;
+        }
+    }
+}
+
+void
+zeroNonDeterministicTransactionMeta(TransactionMeta& m)
+{
+    switch (m.v())
+    {
+    case 3:
+        if (m.v3().sorobanMeta)
+        {
+            zeroDiagnosticTimingEvents(m.v3().sorobanMeta->diagnosticEvents);
+        }
+        break;
+    case 4:
+        zeroDiagnosticTimingEvents(m.v4().diagnosticEvents);
+        break;
+    default:
+        break;
+    }
+}
+
+} // namespace
+
 namespace stellar
 {
 
@@ -170,6 +226,32 @@ normalizeMeta(LedgerCloseMeta& lcm)
         }
         break;
     }
+    default:
+        abort();
+    }
+}
+
+void
+zeroNonDeterministicDiagnostics(LedgerCloseMeta& lcm)
+{
+    auto zeroTxProcessing = [](auto& txProcessing) {
+        for (auto& tx : txProcessing)
+        {
+            zeroNonDeterministicTransactionMeta(tx.txApplyProcessing);
+        }
+    };
+
+    switch (lcm.v())
+    {
+    case 0:
+        zeroTxProcessing(lcm.v0().txProcessing);
+        break;
+    case 1:
+        zeroTxProcessing(lcm.v1().txProcessing);
+        break;
+    case 2:
+        zeroTxProcessing(lcm.v2().txProcessing);
+        break;
     default:
         abort();
     }

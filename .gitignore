@@ -8,6 +8,7 @@
 *.lib
 *.user
 *.xdr
+!test-lcm/**/*.xdr
 *.cache
 *.tlog
 *.lastbuildstate
@@ -42,12 +43,15 @@ compile_commands.json
 .deps
 .dirstamp
 
+/AUTHORS
 /INSTALL
+/ChangeLog
 
 /src/archtmp-*
 /src/main/StellarCoreVersion.cpp
 /src/main/XDRFilesSha256.cpp
 /src/rust/soroban/tmp
+/src/rust/.soroban-revs
 /src/rust/src/dep-trees/*-actual.txt
 
 /src/testdata/*
@@ -62,6 +66,7 @@ compile_commands.json
 /autom4te.cache
 /build
 /src/stellar-core
+/src/fuzz_*
 /buckets
 /compile
 /config.h
@@ -90,6 +95,10 @@ compile_commands.json
 /lib/lib.mk
 /scripts/*.graphml
 /scripts/*.json
+
+# tracy binaries
+/tracy-capture
+/tracy-gui
 
 # test output
 stellar-core-test-*

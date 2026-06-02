@@ -6,10 +6,6 @@
 // concerning the sizes of levels in it, shadowing, the propagation and
 // archival of entries as they move between levels, and so forth.
 
-// ASIO is somewhat particular about when it gets included -- it wants to be the
-// first to include <windows.h> -- so we try to include it before everything
-// else.
-#include "util/asio.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
@@ -19,12 +15,12 @@
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Math.h"
@@ -1116,15 +1112,16 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
             LedgerKey stateArchivalKey(CONFIG_SETTING);
             stateArchivalKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
-            LedgerSnapshot ls(*app);
-            auto stateArchivalEntry = ls.load(stateArchivalKey).current();
+            CheckValidLedgerViewWrapper ledgerView(*app);
+            auto stateArchivalEntry =
+                ledgerView.load(stateArchivalKey).current();
             modifyStateArchivalFn(stateArchivalEntry.data.configSetting()
                                       .stateArchivalSettings());
 
             LedgerKey evictionIterKey(CONFIG_SETTING);
             evictionIterKey.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-            auto evictionIterEntry = ls.load(evictionIterKey).current();
+            auto evictionIterEntry = ledgerView.load(evictionIterKey).current();
             modifyEvictionIteratorFn(
                 evictionIterEntry.data.configSetting().evictionIterator());
 
@@ -1213,15 +1210,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
         auto checkArchivedBucketList = [&] {
             if (!tempOnly)
             {
-                auto archiveSnapshot =
-                    bm.getBucketSnapshotManager()
-                        .copySearchableHotArchiveBucketListSnapshot();
+                auto archiveView =
+                    app->getLedgerManager().copyImmutableLedgerView();
 
                 // Check that persisted entries have been inserted into
                 // HotArchive
                 for (auto const& k : persistentEntries)
                 {
-                    auto archivedEntry = archiveSnapshot->load(k);
+                    auto archivedEntry = archiveView.loadArchiveEntry(k);
                     REQUIRE(archivedEntry);
 
                     auto seen = false;
@@ -1237,14 +1233,14 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
 
                     // Make sure TTL keys are not archived
                     auto ttl = getTTLKey(k);
-                    auto archivedTTL = archiveSnapshot->load(ttl);
+                    auto archivedTTL = archiveView.loadArchiveEntry(ttl);
                     REQUIRE(!archivedTTL);
                 }
 
                 // Temp entries should not be archived
                 for (auto const& k : tempEntries)
                 {
-                    auto archivedEntry = archiveSnapshot->load(k);
+                    auto archivedEntry = archiveView.loadArchiveEntry(k);
                     REQUIRE(!archivedEntry);
                 }
             }
@@ -1727,11 +1723,10 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         }
 
         closeLedger(*app);
-        auto searchableBL = bm.getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto blLedgerView = app->getLedgerManager().copyImmutableLedgerView();
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));
+        auto loadedEntry = blLedgerView.loadLiveEntry(LedgerEntryKey(entry));
         REQUIRE((loadedEntry && *loadedEntry == entry));
     }
 }

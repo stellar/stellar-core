@@ -18,6 +18,7 @@ namespace stellar
 {
 class Application;
 class AbstractLedgerTxn;
+class ApplyLedgerView;
 class Config;
 struct EvictedStateVectors;
 
@@ -87,7 +88,8 @@ class Protocol23CorruptionDataVerifier
     // non-corrupted evictions are ignored.
     // This is thread-safe.
     void verifyArchivalOfCorruptedEntry(EvictedStateVectors const& evictedState,
-                                        Application& app, uint32_t ledgerSeq,
+                                        ApplyLedgerView const& applyView,
+                                        uint32_t ledgerSeq,
                                         uint32_t protocolVersion);
     // Verifies that the batch of Hot Archive fixes on protocol 24 upgrade
     // corresponds to the expected data (i.e. only entries that were never
@@ -171,8 +173,8 @@ class Protocol23CorruptionEventReconciler
 };
 
 void addHotArchiveBatchWithP23HotArchiveFix(
-    AbstractLedgerTxn& ltx, Application& app, LedgerHeader header,
-    std::vector<LedgerEntry> const& archivedEntries,
+    AbstractLedgerTxn& ltx, Application& app, ApplyLedgerView const& applyView,
+    LedgerHeader header, std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries);
 
 } // namespace p23_hot_archive_bug

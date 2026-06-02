@@ -278,8 +278,15 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     MutexLocker guard(mFlowControlMutex);
 
-    return mFlowControlCapacity.lockLocalCapacity(msg) &&
-           mFlowControlBytesCapacity.lockLocalCapacity(msg);
+    if (!mFlowControlBytesCapacity.canLockLocalCapacity(msg) ||
+        !mFlowControlCapacity.canLockLocalCapacity(msg))
+    {
+        return false;
+    }
+
+    mFlowControlCapacity.lockLocalCapacity(msg);
+    mFlowControlBytesCapacity.lockLocalCapacity(msg);
+    return true;
 }
 
 SendMoreCapacity

@@ -225,14 +225,24 @@ NominationProtocol::updateRoundLeaders()
     auto localID = mSlot.getLocalNode()->getNodeID();
     normalizeQSet(myQSet, &localID); // excludes self
 
-    size_t maxLeaderCount = 1; // includes self
-    // note that node IDs here are unique ("sane"), so we can count by
-    // enumeration
-    LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
+    // Count potential leaders: only include nodes with non-zero weight,
+    // as nodes with weight 0 can never be elected as round leaders.
+    size_t maxLeaderCount = 0;
+    if (mSlot.getSCPDriver().getNodeWeight(localID, myQSet, true) > 0)
+    {
         ++maxLeaderCount;
+    }
+    LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
+        if (mSlot.getSCPDriver().getNodeWeight(cur, myQSet, false) > 0)
+        {
+            ++maxLeaderCount;
+        }
         return true;
     });
 
+    // Cap the number of iterations to prevent infinite loops if something has
+    // gone wrong
+    int iterationsRemaining = 1000;
     while (mRoundLeaders.size() < maxLeaderCount)
     {
         // initialize priority with value derived from self
@@ -286,6 +296,13 @@ NominationProtocol::updateRoundLeaders()
             CLOG_DEBUG(SCP,
                        "updateRoundLeaders: fast timeout (would no op) -> {}",
                        mRoundNumber);
+        }
+
+        --iterationsRemaining;
+        if (iterationsRemaining <= 0)
+        {
+            throw std::runtime_error(
+                "updateRoundLeaders appears to be stuck in an infinite loop");
         }
     }
     CLOG_DEBUG(SCP, "updateRoundLeaders: nothing to do");
@@ -344,7 +361,7 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
     auto pickValue = [&](Value const& value) {
         ValueWrapperPtr valueToNominate;
         auto vl = validateValue(value);
-        if (vl == SCPDriver::kFullyValidatedValue)
+        if (vl >= SCPDriver::kStructurallyValidValue)
         {
             valueToNominate = mSlot.getSCPDriver().wrapValue(value);
         }
@@ -402,6 +419,7 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
 
     recordEnvelope(envelope);
 
+    // Ensure node doesn't vote on future slots
     if (mNominationStarted)
     {
         // tracks if we should emit a new nomination message
@@ -428,7 +446,7 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
                     mLatestNominations))
             {
                 auto vl = validateValue(v);
-                if (vl == SCPDriver::kFullyValidatedValue)
+                if (vl >= SCPDriver::kStructurallyValidValue)
                 {
                     mAccepted.emplace(vw);
                     mVotes.emplace(vw);

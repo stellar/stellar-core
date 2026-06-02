@@ -35,6 +35,7 @@ class PersistentState;
 class CommandHandler;
 class WorkScheduler;
 class BanManager;
+class BannedAccountsPersistor;
 class StatusManager;
 class AbstractLedgerTxnParent;
 class BasicWork;
@@ -232,6 +233,7 @@ class Application
     virtual CommandHandler& getCommandHandler() = 0;
     virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
+    virtual BannedAccountsPersistor& getBannedAccountsPersistor() = 0;
     virtual StatusManager& getStatusManager() = 0;
 
     // Protocol 23 data corruption bug data verifier. This typically is null,
@@ -306,6 +308,12 @@ class Application
     // Access the runtime overlay-only mode flag for testing
     virtual bool getRunInOverlayOnlyMode() const = 0;
     virtual void setRunInOverlayOnlyMode(bool mode) = 0;
+
+    // Register the calling thread's type so threadIsType() works for
+    // ad-hoc test threads created after app initialization.  Uses a
+    // thread-local rather than mThreadTypes, since the production map
+    // must not be written after construction.
+    static void setTestThreadType(ThreadType type);
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS

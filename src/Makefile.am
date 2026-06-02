@@ -53,24 +53,32 @@ else
 CARGO_FEATURE_TRACY =
 endif
 
+# Generated sources that are built separately (not in SRC_CXX_FILES)
+# These are reused by both stellar-core and fuzz targets.
+GENERATED_VERSION_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp
+GENERATED_XDRQUERY_SOURCES = util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.cpp
+GENERATED_RUST_SOURCES = rust/RustBridge.cpp
+
+# main/main.cpp is excluded from SRC_CXX_FILES (via make-mks) so fuzz targets
+# don't get the stellar-core main(). We add it back here for stellar-core only.
+MAIN_FILES = $(GENERATED_VERSION_SOURCES) main/main.cpp
+
 if BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
 CARGO_FEATURE_TESTUTILS = --features testutils
 else # !BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
+stellar_core_SOURCES = $(MAIN_FILES) $(SRC_CXX_FILES)
 CARGO_FEATURE_TESTUTILS =
 endif # !BUILD_TESTS
 
-
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 CARGO_FEATURE_NEXT = --features next
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-next >$@
 else
 CARGO_FEATURE_NEXT =
+endif
+
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh $(top_srcdir)/src/protocol-curr >$@
-endif
 
 # tcmalloc must be linked early to properly override malloc/free
 stellar_core_LDADD = $(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS)		\
@@ -85,13 +93,21 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
              $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json \
              $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.v2.json
 
-BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
+BUILT_SOURCES = $(SRC_X_FILES:.x=.h) $(GENERATED_VERSION_SOURCES) $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
+XDR_FEATURE_FLAGS =
+if CAP_0071
+XDR_FEATURE_FLAGS += -DCAP_0071
+endif
+if CAP_0083
+XDR_FEATURE_FLAGS += -DCAP_0083
+endif
+
 SUFFIXES = .x .h .rs
 .x.h:
 	mkdir -p $(@D)
-	$(XDRC) -hh -pedantic -o $@ $<
+	$(XDRC) -hh -pedantic $(XDR_FEATURE_FLAGS) -o $@ $<
 
 BISON=bison
 FLEX=flex
@@ -105,8 +121,8 @@ util/xdrquery/XDRQueryParser.cpp: util/xdrquery/XDRQueryParser.yy
 util/xdrquery/XDRQueryParser.h: util/xdrquery/XDRQueryParser.cpp
 	touch $@
 
-BUILT_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
-stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
+BUILT_SOURCES += $(GENERATED_XDRQUERY_SOURCES) util/xdrquery/XDRQueryParser.h
+stellar_core_SOURCES += $(GENERATED_XDRQUERY_SOURCES) util/xdrquery/XDRQueryParser.h
 
 # Old automakes have buggy dependency tracking for conditional generated
 # sources. We work around this here by making rust/RustBridge.{cpp,h} generated
@@ -115,8 +131,8 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 # names of depfiles from the Makefile itself, we can't use any variables in the
 # SOURCES addition we're doing here, have to list unadorned paths.
 
-BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
-stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
+BUILT_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
+stellar_core_SOURCES += rust/RustBridge.h $(GENERATED_RUST_SOURCES)
 
 if UNIFIED_RUST
 RUST_TOOLCHAIN_CHANNEL=nightly
@@ -125,6 +141,7 @@ RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
 RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
 endif
 CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
+RUSTC_WRAPPER=@RUSTC_WRAPPER@
 
 # we pass some configuration by environment variable
 # to tests since they can't take command-line arguments.
@@ -188,7 +205,9 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
 ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26
-WIP_SOROBAN_PROTOCOL=
+WIP_SOROBAN_PROTOCOL=p27
+
+CARGO_XDR_FEATURE_FLAGS =
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)
@@ -207,6 +226,10 @@ define soroban_lib_dir
 $(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE_DIR)' $(1))
 endef
 
+define soroban_git_state_stamp
+$(shell printf '%s/%s/target/git-state.txt' $(SOROBAN_BUILD_DIR) $(1))
+endef
+
 define soroban_rlib
 $(shell printf -- '%s/libsoroban_env_host.rlib' $(call soroban_lib_dir,$(1)))
 endef
@@ -220,12 +243,14 @@ $(shell printf -- '-L dependency=%s/deps' $(call soroban_lib_dir,$(1)))
 endef
 
 ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(proto)))
+ALL_SOROBAN_GIT_STATE_STAMPS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_git_state_stamp,$(proto)))
 ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
 ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
+SOROBAN_LIBS_STATE=$(shell cat $(SOROBAN_LIBS_STAMP) 2>/dev/null || echo no-soroban-libs)
 
 $(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
-	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/bridge.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
@@ -253,6 +278,17 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 		fi; \
 	done
 	touch $@
+
+# soroban-env-common embeds GIT_REVISION from submodule git state, so a pure
+# submodule commit move must invalidate the host build even when Cargo.lock and
+# tracked Rust sources are otherwise unchanged.
+$(SOROBAN_BUILD_DIR)/%/target/git-state.txt: $(top_srcdir)/.git/modules/src/rust/soroban/%/HEAD $(top_srcdir)/.git/modules/src/rust/soroban/%/index Makefile $(RUST_TOOLCHAIN_FILE)
+	mkdir -p $(@D)
+	@state=$$(cd $(abspath $(top_srcdir))/src/rust/soroban/$* \
+		&& git describe --always --exclude='*' --long --abbrev=1000 --dirty 2>/dev/null \
+		|| git rev-parse HEAD); \
+	printf '%s\n' "$$state" > $@.tmp; \
+	if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 # The "unified" rust build is a special non-production mode that builds all of
 # the rust dependencies of librust_stellar_core.a through a single cargo
@@ -283,6 +319,7 @@ RUSTFLAGS_CFGS := $(if $(findstring sanitizer,$(RUSTFLAGS_SANI)),--cfg curve2551
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
 	RUSTFLAGS="$(RUSTFLAGS_SANI) $(RUSTFLAGS_CFGS)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
@@ -340,7 +377,7 @@ else # !UNIFIED_RUST
 # We also have to pass CXXSTDLIB to those build.rs files, because they are
 # sensitive to CXXFLAGS but also don't inspect them to see if they're setting
 # -stdlib=libc++ or -stdlib=libstdc++
-$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
+$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) $(ALL_SOROBAN_GIT_STATE_STAMPS) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
@@ -350,7 +387,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(SOROBAN_FEATURE_NEXT) $(CARGO_XDR_FEATURE_FLAGS)" \
 			;; \
 			*) \
 				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
@@ -359,6 +396,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		mkdir -p $(SOROBAN_BUILD_DIR)/$$proto/target && \
 		cd $(abspath $(top_srcdir))/src/rust/soroban/$$proto && \
 		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+		RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
 		RUSTFLAGS="-Cmetadata=$$proto" \
 		CARGO_TARGET_DIR=$(SOROBAN_BUILD_DIR)/$$proto/target \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true \
@@ -369,7 +407,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			$$FEATURE_FLAGS \
 		|| exit 1; \
 	done
-	touch $@
+	@sha256sum $(ALL_SOROBAN_LIBS) | cut -d' ' -f1 | sha256sum | cut -d' ' -f1 > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 # This one is also a bit challenging, though it's _less_ weird. What we're doing
 # here is supplying multiple separate .rlibs -- one for each soroban linked into
@@ -387,9 +426,15 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE_DIR)/librust_stellar_core.a
 
-$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
+# The .rlib files are side-effects of the SOROBAN_LIBS_STAMP recipe; this rule
+# tells make how to produce them so it doesn't fail on a clean tree.
+$(ALL_SOROBAN_LIBS): $(SOROBAN_LIBS_STAMP) ;
+
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_LIBS) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
 	cd $(abspath $(top_srcdir))/src/rust && \
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTC_WRAPPER="$(RUSTC_WRAPPER)" \
+	RUSTFLAGS="$(RUSTFLAGS) -Cmetadata=$(SOROBAN_LIBS_STATE)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \
 	$(CARGO) rustc \
 		--package stellar-core \
@@ -435,7 +480,7 @@ else # !USE_POSTGRES
 TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
 TESTS += test/check-nondet
-TESTS += test/check-sorobans
+TESTS += test/check-nocstyle
 
 format: always
 if USE_CLANG_FORMAT
@@ -443,32 +488,156 @@ if USE_CLANG_FORMAT
 endif # USE_CLANG_FORMAT
 	cd $(srcdir) && $(CARGO) fmt --all
 
-if USE_AFL_FUZZ
-FUZZER_MODE ?= overlay
+# Unified fuzzing infrastructure (libfuzzer-compatible)
+# These targets build separate binaries for each fuzz target that can be
+# run with libfuzzer, honggfuzz, or AFL++.
+#
+# They are en abled by configuring with --enable-fuzz but the user has to
+# pass their own LIB_FUZZING_ENGINE and CXXFLAGS / CC / CXX as needed
+# to instrument. That part is handled at configure time, see configure.ac.
+#
+# Naming follows oss-fuzz conventions:
+#   - Binary: fuzz_<target>
+#   - Corpus: fuzz_<target>_seed_corpus.zip
+#   - Dictionary: fuzz_<target>.dict
+if ENABLE_FUZZ
 
-fuzz-testcases: stellar-core
-	mkdir -p fuzz-testcases
-	for i in `seq 1 10000`; do \
-	    ./stellar-core gen-fuzz --mode=${FUZZER_MODE} fuzz-testcases/fuzz$$i.xdr ; \
+# ============================================================================
+# Fuzz Build Configuration
+# ============================================================================
+
+# FuzzMain.cpp is the only file that needs FUZZ_TARGET_NAME, so we compile it
+# separately for each target. All other sources go into a shared library.
+# SRC_TEST_CXX_FILES already excludes FuzzMain.cpp (see make-mks)
+FUZZ_MAIN = test/fuzz/FuzzMain.cpp
+
+# Common sources for the fuzz library (everything except FuzzMain.cpp)
+FUZZ_COMMON_SOURCES = \
+	$(SRC_CXX_FILES) \
+	$(SRC_TEST_CXX_FILES) \
+	$(GENERATED_VERSION_SOURCES) \
+	$(GENERATED_XDRQUERY_SOURCES) \
+	$(GENERATED_RUST_SOURCES)
+
+# Unfortunately, honggfuzz is special: it already jams LIB_FUZZING_ENGINE into its
+# linking list, and also _rejects_ the return-negative-1-means-skip behaviour
+# that LLVMFuzzerTestOneInput says you can do.
+USING_HFUZZ = $(if $(or $(findstring hfuzz,$(CXX)),$(findstring hfuzz,$(LIB_FUZZING_ENGINE))),yes,)
+
+# Common compiler flags for fuzz targets
+FUZZ_CXXFLAGS = $(AM_CPPFLAGS) $(AM_CXXFLAGS) -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -DBUILD_TESTS=1 $(if $(USING_HFUZZ),,-DFUZZ_REJECTED_WORKS)
+
+# Convenience library containing all common fuzz code (compiled ONCE)
+# This avoids recompiling hundreds of .o files for each fuzz target.
+noinst_LIBRARIES = libfuzz_common.a
+libfuzz_common_a_SOURCES = $(FUZZ_COMMON_SOURCES)
+libfuzz_common_a_CXXFLAGS = $(FUZZ_CXXFLAGS)
+
+# Common libraries for linking
+FUZZ_LIBS = libfuzz_common.a \
+	$(libtcmalloc_LIBS) $(soci_LIBS) $(libmedida_LIBS) \
+	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS) \
+	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS) $(libunwind_LIBS) \
+	$(LIBRUST_STELLAR_CORE) -ldl
+
+# Link flags for fuzz targets.
+# We use --whole-archive to force inclusion of all registration objects from
+# libfuzz_common.a (otherwise static constructors for target registration are
+# discarded by the linker as "unreferenced")
+FUZZ_LINKER_FLAGS = -Wl,--whole-archive,libfuzz_common.a,--no-whole-archive $(if $(USING_HFUZZ),,$(LIB_FUZZING_ENGINE))
+
+# ============================================================================
+# Fuzz Target Infrastructure
+# ============================================================================
+#
+# To add a new fuzz target:
+# 1. Create src/test/fuzz/targets/<Name>FuzzTarget.cpp implementing FuzzTarget
+# 2. Add <name> to FUZZ_TARGETS
+# 3. Add fuzz_<name> to noinst_PROGRAMS
+# 4. Add fuzz_<name>_{SOURCES,CXXFLAGS,LDADD,LDFLAGS} target definition
+# 5. Run ./make-mks && ./autogen.sh && ./configure --enable-fuzz
+#
+# The automake rules will automatically:
+# - Build fuzz_<name> binary
+# - Create seed corpus generation target
+# - Create regression test target
+
+# List of fuzz targets (lowercase names)
+FUZZ_TARGETS = tx overlay soroban_expr soroban_wasmi
+
+# Fuzz binaries are noinst because they're development tools
+noinst_PROGRAMS = fuzz_tx fuzz_overlay fuzz_soroban_expr fuzz_soroban_wasmi
+
+# Each fuzz target only compiles FuzzMain.cpp (with its specific -DFUZZ_TARGET_NAME)
+# and links against the shared libfuzz_common.a library.
+fuzz_tx_SOURCES = $(FUZZ_MAIN)
+fuzz_tx_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"tx\"
+fuzz_tx_LDADD = $(FUZZ_LIBS)
+fuzz_tx_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+fuzz_overlay_SOURCES = $(FUZZ_MAIN)
+fuzz_overlay_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"overlay\"
+fuzz_overlay_LDADD = $(FUZZ_LIBS)
+fuzz_overlay_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+# Soroban fuzz targets (require --features fuzz in Rust build)
+fuzz_soroban_expr_SOURCES = $(FUZZ_MAIN)
+fuzz_soroban_expr_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"soroban_expr\"
+fuzz_soroban_expr_LDADD = $(FUZZ_LIBS)
+fuzz_soroban_expr_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+fuzz_soroban_wasmi_SOURCES = $(FUZZ_MAIN)
+fuzz_soroban_wasmi_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"soroban_wasmi\"
+fuzz_soroban_wasmi_LDADD = $(FUZZ_LIBS)
+fuzz_soroban_wasmi_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+# ============================================================================
+# Phony Targets for Fuzzing Workflow
+# ============================================================================
+
+# Build all fuzz targets
+fuzz-targets: $(noinst_PROGRAMS)
+	@echo "Built fuzz targets: $(FUZZ_TARGETS)"
+
+# Generate seed corpus for all targets
+fuzz-corpus: stellar-core
+	@for target in $(FUZZ_TARGETS); do \
+		mkdir -p corpus/$$target; \
+		echo "Generating $$target seed corpus..."; \
+		./stellar-core gen-fuzz --target=$$target --output-dir=corpus/$$target 2>/dev/null; \
+		echo "Generated seed files in corpus/$$target/"; \
 	done
-	mkdir -p min-testcases
-	afl-cmin -i fuzz-testcases -o min-testcases -m 500 -t 250 ./stellar-core fuzz --ll ERROR --mode=${FUZZER_MODE} @@
-	rm -Rf fuzz-testcases
 
-# when running in parallel,
-# run the same command than below replacing `-M main` with `-S worker_N`
-# and `--process-id 0` with `--process-id N`
+# Run regression tests on all targets
+fuzz-check: stellar-core
+	./stellar-core test [fuzz]
 
-fuzz: fuzz-testcases stellar-core
-	mkdir -p fuzz-findings
-	afl-fuzz -m 500 -M main -t 250 -i min-testcases -o fuzz-findings \
-	    ./stellar-core fuzz --ll ERROR --process-id 0 --mode=${FUZZER_MODE} @@
+# Package seed corpus as zip files (oss-fuzz convention)
+fuzz-corpus-zip: fuzz-corpus
+	@for target in $(FUZZ_TARGETS); do \
+		if [ -d corpus/$$target ]; then \
+			cd corpus && zip -q -r ../fuzz_$${target}_seed_corpus.zip $$target && cd ..; \
+			echo "Created fuzz_$${target}_seed_corpus.zip"; \
+		fi; \
+	done
 
-fuzz-clean: always
-	rm -Rf fuzz-testcases fuzz-findings
+# Install fuzz targets to $OUT (for oss-fuzz build.sh)
+fuzz-install:
+	@if [ -z "$(OUT)" ]; then \
+		echo "Error: OUT not set. This target is for oss-fuzz builds."; \
+		exit 1; \
+	fi
+	@for target in $(FUZZ_TARGETS); do \
+		cp fuzz_$$target $(OUT)/fuzz_$$target; \
+		echo "Installed fuzz_$$target to $(OUT)"; \
+		if [ -f fuzz_$${target}_seed_corpus.zip ]; then \
+			cp fuzz_$${target}_seed_corpus.zip $(OUT)/; \
+		fi; \
+	done
 
-distclean-local: fuzz-clean
-endif # USE_AFL_FUZZ
+.PHONY: fuzz-targets fuzz-corpus fuzz-check fuzz-corpus-zip fuzz-install
+
+endif # ENABLE_FUZZ
 
 clean-local:
 	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target $(RUST_DEP_TREE_STAMP) $(SOROBAN_LIBS_STAMP)

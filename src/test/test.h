@@ -35,6 +35,15 @@ int runTest(CommandLineArgs const& args);
 extern int gBaseInstance;
 extern bool force_sqlite;
 
+// Returns true if --capture-lcm was passed to the test command.
+// When enabled, LedgerCloseMeta from closeLedger/closeLedgerOn is
+// automatically written to binary XDR files in test-lcm/<TestFile>/
+// at leaf section boundaries (or test case end for tests without
+// sections). File names are SHA-256 hashes of the human-readable test
+// name; each directory also contains an index.json mapping hashes to
+// test names.
+bool isLcmCaptureEnabled();
+
 void test_versions_wrapper(std::function<void(void)> f);
 
 #define TEST_BODY_NAME_INT2(line) testInternalBody##line

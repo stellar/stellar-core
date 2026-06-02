@@ -43,7 +43,9 @@ enum class TestBucketState
     CONTENTS_AND_HASH_OK,
     CORRUPTED_ZIPPED_FILE,
     FILE_NOT_UPLOADED,
-    HASH_MISMATCH
+    HASH_MISMATCH,
+    TRUNCATED_FILE,
+    INVALID_ENUM
 };
 
 class HistoryConfigurator;
@@ -153,6 +155,12 @@ class TestLedgerChainGenerator
     CheckpointEnds
     makeLedgerChainFiles(HistoryManager::LedgerVerificationStatus state =
                              HistoryManager::VERIFY_STATUS_OK);
+    enum class XDRErrors
+    {
+        INVALID_ENUM,
+        TRUNCATED
+    };
+    CheckpointEnds makeLedgerChainFiles(XDRErrors error);
 };
 
 struct CatchupPerformedWork

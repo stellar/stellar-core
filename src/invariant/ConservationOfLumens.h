@@ -34,8 +34,7 @@ class ConservationOfLumens : public Invariant
         std::vector<ContractEvent> const& events, AppConnector& app) override;
 
     virtual std::string
-    checkSnapshot(SearchableSnapshotConstPtr liveSnapshot,
-                  SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    checkSnapshot(ApplyLedgerView const& applyView,
                   InMemorySorobanState const& inMemorySnapshot,
                   std::function<bool()> isStopping) override;
 

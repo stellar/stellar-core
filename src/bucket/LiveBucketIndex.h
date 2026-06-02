@@ -12,13 +12,13 @@
 #include "ledger/LedgerHashUtils.h" // IWYU pragma: keep
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
+#include "util/ThreadAnnotations.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include <filesystem>
 #include <optional>
 
 #include <cereal/archives/binary.hpp>
-#include <shared_mutex>
 
 namespace asio
 {
@@ -65,8 +65,8 @@ class LiveBucketIndex : public NonMovableOrCopyable
     // The indexes themselves are thread safe, as they are immutable after
     // construction. The cache is not, all accesses must first acquire this
     // mutex.
-    mutable std::unique_ptr<CacheT> mCache{};
-    mutable std::shared_mutex mCacheMutex;
+    mutable std::unique_ptr<CacheT> mCache GUARDED_BY(mCacheMutex){};
+    mutable ANNOTATED_SHARED_MUTEX(mCacheMutex);
 
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;

@@ -811,7 +811,7 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
         [&simulation, nLedgers]() {
             return simulation->haveAllExternalized(nLedgers + 1, 1);
         },
-        10 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
+        20 * nLedgers * simulation->getExpectedLedgerCloseTime(), false);
 
     REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 1));
 

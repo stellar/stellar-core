@@ -94,25 +94,47 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
     return result;
 }
 
-void
-ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
+std::optional<std::chrono::milliseconds>
+ItemFetcher::getWaitingTime(Hash const& itemHash) const
 {
-    // only perform this cleanup from the top of the stack as it causes
-    // all sorts of evil side effects
-    mApp.postOnMainThread(
-        [this, slotIndex, slotToKeep]() {
-            stopFetchingBelowInternal(slotIndex, slotToKeep);
-        },
-        "ItemFetcher: stopFetchingBelow");
+    auto iter = mTrackers.find(itemHash);
+    if (iter == mTrackers.end())
+    {
+        return std::nullopt;
+    }
+
+    return iter->second->getDuration();
 }
 
 void
-ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
+ItemFetcher::stopFetchingOutsideRange(std::optional<uint64> minSlot,
+                                      std::optional<uint64> maxSlot,
+                                      uint64 slotToKeep)
+{
+    if (mTrackers.empty())
+    {
+        // Nothing to do. No need to post a cleanup task to the main thread.
+        return;
+    }
+    // only perform this cleanup from the top of the stack as it causes
+    // all sorts of evil side effects
+    mApp.postOnMainThread(
+        [this, minSlot, maxSlot, slotToKeep]() {
+            stopFetchingOutsideRangeInternal(minSlot, maxSlot, slotToKeep);
+        },
+        "ItemFetcher: stopFetchingOutsideRange");
+}
+
+void
+ItemFetcher::stopFetchingOutsideRangeInternal(std::optional<uint64> minSlot,
+                                              std::optional<uint64> maxSlot,
+                                              uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
-        if (!iter->second->clearEnvelopesBelow(slotIndex, slotToKeep))
+        if (!iter->second->clearEnvelopesOutsideRange(minSlot, maxSlot,
+                                                      slotToKeep))
         {
             iter = mTrackers.erase(iter);
         }

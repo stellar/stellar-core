@@ -292,13 +292,8 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
                                                root->op(changeTrust(idr, 0))},
                                               {});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txSUCCESS);
         });
     }
 }

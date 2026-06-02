@@ -80,7 +80,7 @@ TxAdverts::queueOutgoingAdvert(Hash const& txHash)
     // 1. The number of hashes reaches the threshold (see condition below).
     // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS
     // (managed via mAdvertTimer).
-    if (mOutgoingTxHashes.size() == getMaxAdvertSize())
+    if (mOutgoingTxHashes.size() >= getMaxAdvertSize())
     {
         flushAdvert();
     }

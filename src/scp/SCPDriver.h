@@ -9,12 +9,16 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 #include "xdr/Stellar-SCP.h"
 
 namespace stellar
 {
+class TxSetXDRFrame;
+using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
+
 class ValueWrapper : public NonMovableOrCopyable
 {
     Value const mValue;
@@ -27,6 +31,13 @@ class ValueWrapper : public NonMovableOrCopyable
     getValue() const
     {
         return mValue;
+    }
+
+    // Should be called when a tx set becomes available after this wrapper was
+    // created without it.
+    virtual void
+    setTxSet(TxSetXDRFrameConstPtr txSet)
+    {
     }
 };
 
@@ -58,6 +69,13 @@ class SCPEnvelopeWrapper : public NonMovableOrCopyable
     getStatement() const
     {
         return mEnvelope.statement;
+    }
+
+    // Should be called when a tx set becomes available after this wrapper was
+    // created without it.
+    virtual void
+    addTxSet(TxSetXDRFrameConstPtr txSet)
+    {
     }
 };
 
@@ -91,6 +109,21 @@ class SCPDriver
     // considered invalid.
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
+    // `getTxSetDownloadWaitTime` returns how long the fetcher has been waiting
+    // for the transaction set identified by @p hash. Returns nullopt if the
+    // transaction set is not being fetched. May throw if `hash` cannot be
+    // converted to a `StellarValue`.
+    virtual std::optional<std::chrono::milliseconds>
+    getTxSetDownloadWaitTime(Value const& hash) const = 0;
+
+    // Returns how long the ballot protocol should wait before replacing a
+    // value whose transaction set has not finished downloading.
+    virtual std::chrono::milliseconds getTxSetDownloadTimeout() const = 0;
+
+    // Returns whether or not the envelope `env` is ready to be processed by
+    // SCP.
+    virtual bool isEnvelopeReady(SCPEnvelope const& env) const = 0;
+
     // Users of the SCP library should inherit from SCPDriver and implement the
     // virtual methods which are called by the SCP implementation to
     // abstract the transport layer used from the implementation of the SCP
@@ -105,24 +138,38 @@ class SCPDriver
     // `validateValue` is called on each message received before any processing
     // is done. It should be used to filter out values that are not compatible
     // with the current state of that node. Invalid values can never
-    // externalize.
-    // If the value cannot be validated (node is missing some context) but
-    // passes
-    // the validity checks, kMaybeValidValue can be returned. This will cause
-    // the current slot to be marked as a non validating slot: the local node
-    // will abstain from emitting its position.
+    // externalize. Neither can values that are only structurally valid (they
+    // reference a missing or invalid transaction set.)
+    // If the value cannot be validated (node is missing some context due to the
+    // value belonging to a ledger other than LCL+1) but passes the validity
+    // checks, kMaybeValidNotCurrentValue can be returned. This will cause the
+    // current slot to be marked as a non validating slot: the local node will
+    // abstain from emitting its position.
+    // kMaybeValidNotCurrentValue should only be returned if the value is for a
+    // ledger other than current ledger (that is, not LCL+1). If a value cannot
+    // be validated due to parallel downloading (e.g. it's for LCL+1 but the
+    // node is still downloading the tx set), then kStructurallyValidValue
+    // should be used.
     // validation can be *more* restrictive during nomination as needed
     // NB: validation levels are ordered
     enum ValidationLevel
     {
-        kInvalidValue = 0,       // value is invalid for sure
-        kMaybeValidValue = 1,    // value may be valid
-        kFullyValidatedValue = 2 // value is valid for sure
+        // Value is known to be invalid
+        kInvalidValue = 0,
+        // Value may be valid, but it is for some ledger other than LCL+1 and so
+        // cannot be fully validated.
+        kMaybeValidNotCurrentValue = 1,
+        // Value is for LCL+1 and is structurally valid (close time is valid,
+        // etc), but the transaction set it references is either missing or
+        // invalid.
+        kStructurallyValidValue = 2,
+        // Value is for LCL+1 and is known to be fully valid
+        kFullyValidatedValue = 3
     };
     virtual ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value, bool nomination)
+    validateValue(uint64 slotIndex, Value const& value, bool nomination) const
     {
-        return kMaybeValidValue;
+        return kMaybeValidNotCurrentValue;
     }
 
     // `extractValidValue` transforms the value, if possible to a different
@@ -135,6 +182,21 @@ class SCPDriver
     {
         return nullptr;
     }
+
+#ifdef CAP_0083
+    // Helper function to craft an empty-tx-set value from a Value.
+    virtual Value makeEmptyTxSetValueFromValue(Value const& v) const = 0;
+#endif
+
+    // `isEmptyTxSetValue` checks if a value is an empty-tx-set value.
+    virtual bool isEmptyTxSetValue(Value const& v) const = 0;
+
+    // Whether or not to allow downloading of transaction sets in parallel with
+    // SCP
+    virtual bool isParallelTxSetDownloadEnabled() const = 0;
+
+    // The protocol version allows the use of STELLAR_VALUE_EMPTY_TX_SET
+    virtual bool protocolAllowsEmptyTxSetValues() const = 0;
 
     // `getValueString` is used for debugging
     // default implementation is the hash of the value
@@ -206,6 +268,11 @@ class SCPDriver
     {
     }
 
+    virtual void
+    noteEmptyTxSetValueReplaced(uint64)
+    {
+    }
+
     // ``nominatingValue`` is called every time the local instance nominates
     // a new value.
     virtual void
@@ -254,6 +321,19 @@ class SCPDriver
     // the local node.
     virtual void
     ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
+    {
+    }
+
+    // Called when balloting becomes blocked waiting for a txset download
+    virtual void
+    recordBallotBlockedOnTxSet(uint64 slotIndex, Value const& value)
+    {
+    }
+
+    // Called when balloting is unblocked (setting mCommit) to measure and
+    // record how long we were blocked waiting for the txset
+    virtual void
+    measureAndRecordBallotBlockedOnTxSet(uint64 slotIndex, Value const& value)
     {
     }
 

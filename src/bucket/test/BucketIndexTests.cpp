@@ -6,13 +6,13 @@
 // concerning key-value lookup based on the BucketList.
 
 #include "bucket/BucketIndexUtils.h"
-#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucket.h"
 #include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "ledger/ImmutableLedgerView.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
@@ -215,12 +215,10 @@ class BucketIndexTest
         } while (ledger < mApp->getConfig().QUERY_SNAPSHOT_LEDGERS + 2);
         ++ledger;
 
-        auto searchableBL = getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
         auto lk = LedgerEntryKey(canonicalEntry);
 
-        auto currentLoadedEntry = searchableBL->load(lk);
+        auto currentLoadedEntry = ledgerView.loadLiveEntry(lk);
         REQUIRE(currentLoadedEntry);
 
         // Note: The definition of "historical snapshot" ledger is that the
@@ -231,7 +229,7 @@ class BucketIndexTest
 
         for (uint32_t currLedger = ledger; currLedger > 0; --currLedger)
         {
-            auto loadRes = searchableBL->loadKeysFromLedger({lk}, currLedger);
+            auto loadRes = ledgerView.loadLiveKeysFromLedger({lk}, currLedger);
 
             // If we query an older snapshot, should return <null, notFound>
             if (currLedger < ledger - mApp->getConfig().QUERY_SNAPSHOT_LEDGERS)
@@ -413,9 +411,7 @@ class BucketIndexTest
     virtual void
     run(std::optional<double> expectedHitRate = std::nullopt)
     {
-        auto searchableBL = getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
 
         auto& hitMeter = getBM().getCacheHitMeter();
         auto& missMeter = getBM().getCacheMissMeter();
@@ -483,7 +479,7 @@ class BucketIndexTest
         };
 
         // Test bulk load lookup
-        auto loadResult = searchableBL->loadKeys(mKeysToSearch, "test");
+        auto loadResult = ledgerView.loadLiveKeys(mKeysToSearch, "test");
         validateResults(mTestEntries, loadResult);
 
         if (expectedHitRate)
@@ -517,7 +513,7 @@ class BucketIndexTest
         for (auto iter = mKeysToSearch.rbegin(); iter != mKeysToSearch.rend();
              ++iter)
         {
-            auto entryPtr = searchableBL->load(*iter);
+            auto entryPtr = ledgerView.loadLiveEntry(*iter);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -532,7 +528,7 @@ class BucketIndexTest
                          mKeysToSearch.size());
 
             // Run bulk lookup again
-            auto loadResult2 = searchableBL->loadKeys(mKeysToSearch, "test");
+            auto loadResult2 = ledgerView.loadLiveKeys(mKeysToSearch, "test");
             validateResults(mTestEntries, loadResult2);
 
             checkHitRate(expectedHitRate, startingHitCount, startingMissCount,
@@ -544,9 +540,7 @@ class BucketIndexTest
     virtual void
     runPerf(size_t n)
     {
-        auto searchableBL = getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -577,7 +571,7 @@ class BucketIndexTest
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
 
-            auto blLoad = searchableBL->loadKeys(searchSubset, "test");
+            auto blLoad = ledgerView.loadLiveKeys(searchSubset, "test");
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -585,9 +579,7 @@ class BucketIndexTest
     void
     testInvalidKeys()
     {
-        auto searchableBL = getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
@@ -597,12 +589,12 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(searchableBL->loadKeys(invalidKeys, "test").size() == 0);
+        REQUIRE(ledgerView.loadLiveKeys(invalidKeys, "test").size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = searchableBL->load(key);
+            auto entryPtr = ledgerView.loadLiveEntry(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -756,12 +748,9 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run(std::optional<double> expectedHitRate = std::nullopt) override
     {
-        auto searchableBL = getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
-        auto loadResult =
-            searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
-                mAccountToSearch.accountID, mAssetToSearch);
+        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
+        auto loadResult = ledgerView.loadPoolShareTrustLinesByAccountAndAsset(
+            mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
 };
@@ -1117,9 +1106,8 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
             auto const& inMemorySorobanState =
                 lm.getInMemorySorobanStateForTesting();
 
-            auto snapshot = test.getBM()
-                                .getBucketSnapshotManager()
-                                .copySearchableLiveBucketListSnapshot();
+            auto snapshot =
+                test.getApp().getLedgerManager().copyImmutableLedgerView();
 
             // First, test that the cache is maintained correctly via `addBatch`
             REQUIRE(codeEntries.size() ==
@@ -1129,12 +1117,12 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
                 auto inMemoryEntry = inMemorySorobanState.get(k);
                 REQUIRE(inMemoryEntry);
 
-                auto liveEntry = snapshot->load(k);
+                auto liveEntry = snapshot.loadLiveEntry(k);
                 REQUIRE(liveEntry);
                 REQUIRE(*liveEntry == *inMemoryEntry);
 
                 auto ttlKey = getTTLKey(k);
-                auto ttlEntry = snapshot->load(ttlKey);
+                auto ttlEntry = snapshot.loadLiveEntry(ttlKey);
                 REQUIRE(ttlEntry);
 
                 auto inMemoryTTL = inMemorySorobanState.get(ttlKey);
@@ -1149,12 +1137,12 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
                 auto inMemoryEntry = inMemorySorobanState.get(k);
                 REQUIRE(inMemoryEntry);
 
-                auto liveEntry = snapshot->load(k);
+                auto liveEntry = snapshot.loadLiveEntry(k);
                 REQUIRE(liveEntry);
                 REQUIRE(*liveEntry == *inMemoryEntry);
 
                 auto ttlKey = getTTLKey(k);
-                auto ttlEntry = snapshot->load(ttlKey);
+                auto ttlEntry = snapshot.loadLiveEntry(ttlKey);
                 REQUIRE(ttlEntry);
 
                 auto inMemoryTTL = inMemorySorobanState.get(ttlKey);
@@ -1327,9 +1315,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         auto ledger = 1;
 
         // Use snapshot across ledger to test update behavior
-        auto searchableBL = app->getBucketManager()
-                                .getBucketSnapshotManager()
-                                .copySearchableHotArchiveBucketListSnapshot();
+        auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
 
         auto checkLoad =
             [&](LedgerKey const& k,
@@ -1356,12 +1342,12 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             LedgerKeySet bulkLoadKeys;
             for (auto const& k : keysToSearch)
             {
-                auto entryPtr = searchableBL->load(k);
+                auto entryPtr = ledgerView.loadArchiveEntry(k);
                 checkLoad(k, entryPtr);
                 bulkLoadKeys.emplace(k);
             }
 
-            auto bulkLoadResult = searchableBL->loadKeys(bulkLoadKeys);
+            auto bulkLoadResult = ledgerView.loadArchiveKeys(bulkLoadKeys);
             for (auto entry : bulkLoadResult)
             {
                 REQUIRE(entry.type() == HOT_ARCHIVE_ARCHIVED);
@@ -1402,9 +1388,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             HotArchiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries);
-        app->getBucketManager()
-            .getBucketSnapshotManager()
-            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
+        ledgerView = app->getLedgerManager().copyImmutableLedgerView();
         checkResult();
 
         // Add a few batches so that entries are no longer in the top bucket
@@ -1412,9 +1396,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         {
             header.ledgerSeq += 1;
             addHotArchiveBatchAndUpdateSnapshot(*app, header, {}, {});
-            app->getBucketManager()
-                .getBucketSnapshotManager()
-                .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
+            ledgerView = app->getLedgerManager().copyImmutableLedgerView();
         }
 
         // Shadow entries via liveEntry
@@ -1424,20 +1406,18 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {},
                                             {liveShadow1, liveShadow2});
-        app->getBucketManager()
-            .getBucketSnapshotManager()
-            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
+        ledgerView = app->getLedgerManager().copyImmutableLedgerView();
 
         // Point load
         for (auto const& k : {liveShadow1, liveShadow2})
         {
-            auto entryPtr = searchableBL->load(k);
+            auto entryPtr = ledgerView.loadArchiveEntry(k);
             REQUIRE(!entryPtr);
         }
 
         // Bulk load
         auto bulkLoadResult =
-            searchableBL->loadKeys({liveShadow1, liveShadow2});
+            ledgerView.loadArchiveKeys({liveShadow1, liveShadow2});
         REQUIRE(bulkLoadResult.size() == 0);
 
         // Shadow via archivedEntries
@@ -1446,12 +1426,11 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         header.ledgerSeq += 1;
         addHotArchiveBatchAndUpdateSnapshot(*app, header, {archivedShadow}, {});
-        app->getBucketManager()
-            .getBucketSnapshotManager()
-            .maybeCopySearchableHotArchiveBucketListSnapshot(searchableBL);
+        ledgerView = app->getLedgerManager().copyImmutableLedgerView();
 
         // Point load
-        auto entryPtr = searchableBL->load(LedgerEntryKey(archivedShadow));
+        auto entryPtr =
+            ledgerView.loadArchiveEntry(LedgerEntryKey(archivedShadow));
         REQUIRE(entryPtr);
         REQUIRE(entryPtr->type() ==
                 HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
@@ -1459,7 +1438,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         // Bulk load
         auto bulkLoadResult2 =
-            searchableBL->loadKeys({LedgerEntryKey(archivedShadow)});
+            ledgerView.loadArchiveKeys({LedgerEntryKey(archivedShadow)});
         REQUIRE(bulkLoadResult2.size() == 1);
         REQUIRE(bulkLoadResult2[0].type() == HOT_ARCHIVE_ARCHIVED);
         REQUIRE(bulkLoadResult2[0].archivedEntry() == archivedShadow);
@@ -1626,9 +1605,7 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                               .getCurr();
             verifyIndexBounds(bucket);
 
-            auto searchableBL = app->getBucketManager()
-                                    .getBucketSnapshotManager()
-                                    .copySearchableLiveBucketListSnapshot();
+            auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();
 
             auto verifyScanForType =
                 [&](LedgerEntryType type,
@@ -1641,7 +1618,7 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                         expectedEntries.emplace(LedgerEntryKey(entry), entry);
                     }
 
-                    searchableBL->scanForEntriesOfType(
+                    ledgerView.scanLiveEntriesOfType(
                         type, [&](BucketEntry const& be) {
                             auto lk = getBucketLedgerKey(be);
                             REQUIRE(lk.type() == type);
@@ -1662,11 +1639,11 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
             verifyScanForType(TRUSTLINE, trustlineEntries);
 
             // Verify that we don't call the callback for non-existent types
-            searchableBL->scanForEntriesOfType(CONTRACT_CODE,
-                                               [&](BucketEntry const& be) {
-                                                   REQUIRE(false);
-                                                   return Loop::INCOMPLETE;
-                                               });
+            ledgerView.scanLiveEntriesOfType(CONTRACT_CODE,
+                                             [&](BucketEntry const& be) {
+                                                 REQUIRE(false);
+                                                 return Loop::INCOMPLETE;
+                                             });
         }
     };
 

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "process/ProcessManager.h"
+#include "util/ThreadAnnotations.h"
 #include "util/TmpDir.h"
 #include <atomic>
 #include <deque>
@@ -18,14 +19,15 @@ class ProcessManagerImpl : public ProcessManager
 {
     // Subprocesses will be removed asynchronously, hence the lock on
     // just the mProcesses member.
-    std::recursive_mutex mProcessesMutex;
+    ANNOTATED_RECURSIVE_MUTEX(mProcessesMutex);
 
     // Stores a map from pid to running-or-shutting-down processes.
     // Any ProcessExitEvent should be stored either in mProcesses
     // or in mPending (before it's launched).
-    std::map<int, std::shared_ptr<ProcessExitEvent>> mProcesses;
+    std::map<int, std::shared_ptr<ProcessExitEvent>>
+        mProcesses GUARDED_BY(mProcessesMutex);
 
-    bool mIsShutdown{false};
+    std::atomic<bool> mIsShutdown{false};
     size_t const mMaxProcesses;
     asio::io_context& mIOContext;
     // These are only used on POSIX, but they're harmless here.
@@ -33,7 +35,8 @@ class ProcessManagerImpl : public ProcessManager
     std::unique_ptr<TmpDir> mTmpDir;
     uint64_t mTempFileCount{0};
 
-    std::deque<std::shared_ptr<ProcessExitEvent>> mPending;
+    std::deque<std::shared_ptr<ProcessExitEvent>>
+        mPending GUARDED_BY(mProcessesMutex);
     void maybeRunPendingProcesses();
     void checkInvariants();
 

@@ -80,9 +80,11 @@ PathPaymentStrictSendOpFrame::doApply(
                     mPathPayment.path.end());
     fullPath.emplace_back(getDestAsset());
 
-    // Walk the path
+    // Walk the path. `maxOffersToCross` is the running work budget for the
+    // whole operation; `convert` decrements it on each hop.
     Asset sendAsset = getSourceAsset();
     int64_t maxAmountSend = mPathPayment.sendAmount;
+    int64_t maxOffersToCross = static_cast<int64_t>(getMaxOffersToCross());
     for (auto const& recvAsset : fullPath)
     {
         if (recvAsset == sendAsset)
@@ -94,13 +96,6 @@ PathPaymentStrictSendOpFrame::doApply(
         {
             return false;
         }
-
-        size_t offersCrossed = innerResult(res).success().offers.size();
-        // offersCrossed will never be bigger than INT64_MAX because
-        // - the machine would have run out of memory
-        // - the limit, which cannot exceed INT64_MAX, should be enforced
-        // so this subtraction is safe because getMaxOffersToCross() >= 0
-        int64_t maxOffersToCross = getMaxOffersToCross() - offersCrossed;
 
         int64_t amountSend = 0;
         int64_t amountRecv = 0;

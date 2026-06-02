@@ -81,6 +81,7 @@ history.publish.time                      | timer     | time to successfully pub
 history.get.throughput                    | meter     | bytes per second of history archive retrieval
 history.get.failure                       | meter     | history archive downloads failed
 ledger.age.closed                         | bucket    | time between ledgers
+ledger.age.closed-histogram               | histogram | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
 ledger.apply.success                      | counter   | count of successfully applied transactions
 ledger.apply.failure                      | counter   | count of failed applied transactions
@@ -187,6 +188,8 @@ scp.pending.discarded                     | counter   | number of discarded enve
 scp.pending.fetching                      | counter   | number of incomplete envelopes
 scp.pending.processed                     | counter   | number of already processed envelopes
 scp.pending.ready                         | counter   | number of envelopes ready to process
+scp.empty-tx-set.externalized             | counter   | number of times the local node externalized an empty-tx-set value
+scp.empty-tx-set.value-replaced           | counter   | number of times the ballot protocol swapped a value for an empty-tx-set value
 scp.sync.lost                             | meter     | validator lost sync
 scp.timeout.nominate                      | meter     | timeouts in nomination
 scp.timeout.prepare                       | meter     | timeouts in ballot protocol
@@ -194,6 +197,7 @@ scp.timing.nominated                      | timer     | time spent in nomination
 scp.timing.externalized                   | timer     | time spent in ballot protocol
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes
+scp.timing.ballot-blocked-on-txset        | timer     | time balloting was blocked waiting for a txset download (milliseconds)
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round

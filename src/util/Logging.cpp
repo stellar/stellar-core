@@ -418,6 +418,17 @@ Logging::normalizePartition(std::string const& partition)
 std::recursive_mutex Logging::mLogMutex;
 
 #if defined(USE_SPDLOG)
+LogPtr Logging::defaultLogPtr = nullptr;
+LogPtr
+Logging::getDefaultLogPtr()
+{
+    std::lock_guard<std::recursive_mutex> guard(mLogMutex);
+    if (!defaultLogPtr)
+    {
+        defaultLogPtr = spdlog::default_logger();
+    }
+    return defaultLogPtr;
+}
 #define LOG_PARTITION(name) \
     LogPtr Logging::name##LogPtr = nullptr; \
     LogPtr Logging::get##name##LogPtr() \

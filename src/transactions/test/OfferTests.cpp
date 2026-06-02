@@ -3004,14 +3004,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                  source.op(endSponsoringFutureReserves())},
                 {sponsor});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-            ltx.commit();
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txSUCCESS);
         };
 
         TestMarket market(*app);
@@ -3032,27 +3026,28 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                  acc.op(endSponsoringFutureReserves())},
                 {*sponsor});
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto expOfferID = ltx.loadHeader().current().idPool + 1;
+            int64_t expOfferID;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                expOfferID = ltx.loadHeader().current().idPool + 1;
+            }
 
-            TransactionMetaBuilder txm(true, *tx,
-                                       ltx.loadHeader().current().ledgerVersion,
-                                       app->getAppConnector());
-            REQUIRE(
-                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
-            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+            auto r = closeLedger(*app, {tx});
+            checkTx(0, r, txSUCCESS);
 
-            auto const& results = tx->getResult().result.results();
+            auto const& results = r.results[0].result.result.results();
             auto const& msoResult = results[1].tr().manageSellOfferResult();
 
             int64_t offerID = 0;
             if (resState == OfferState::DELETED)
             {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!loadOffer(ltx, acc.getPublicKey(), expOfferID));
             }
             else
             {
                 offerID = expOfferID;
+                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto offer = loadOffer(ltx, acc.getPublicKey(), expOfferID);
                 REQUIRE(offer);
                 auto& offerEntry = offer.current().data.offer();
@@ -3062,7 +3057,6 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 REQUIRE(offerEntry.buying == resState.buying);
             }
 
-            ltx.commit();
             return TestMarketOffer{{acc, offerID}, resState};
         };
 
@@ -3745,18 +3739,19 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                          a1.op(endSponsoringFutureReserves())},
                         {a1, a2});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    auto expOfferID = ltx.loadHeader().current().idPool + 1;
+                    int64_t expOfferID;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        expOfferID = ltx.loadHeader().current().idPool + 1;
+                    }
 
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
-                    REQUIRE(!loadOffer(ltx, a2.getPublicKey(), expOfferID));
-                    ltx.commit();
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        REQUIRE(!loadOffer(ltx, a2.getPublicKey(), expOfferID));
+                    }
 
                     return TestMarketOffer{
                         {a2, static_cast<int64_t>(expOfferID)},
@@ -3792,14 +3787,8 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                      a1.op(endSponsoringFutureReserves())},
                     {a1});
 
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaBuilder txm(
-                    true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getAppConnector());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                ltx.commit();
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txSUCCESS);
             }
 
             // the offer should still not be sponsored
@@ -3856,14 +3845,15 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 offerIdUsdXlm = ltx.loadHeader().current().idPool + 1;
                 offerIdXlmUsd = ltx.loadHeader().current().idPool + 2;
                 offerIdIdrXlm = ltx.loadHeader().current().idPool + 3;
+            }
 
-                TransactionMetaBuilder txm(
-                    true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getAppConnector());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+            {
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txSUCCESS);
+            }
 
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdUsdXlm));
                 REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdXlmUsd));
                 REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdIdrXlm));
@@ -3871,7 +3861,6 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                 checkSponsorship(ltx, acc1, 0, &sponsor.getPublicKey(), 5, 2, 0,
                                  3);
                 checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 3, 0);
-                ltx.commit();
             }
 
             // The two usd offers should get pulled

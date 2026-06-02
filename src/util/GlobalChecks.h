@@ -46,13 +46,8 @@ void dbgAbort();
 
 #endif
 
-#ifndef USE_TRACY
 using RecursiveLockGuard = RecursiveMutexLocker;
 using LockGuard = MutexLocker;
-#else
-using RecursiveLockGuard = std::lock_guard<LockableBase(std::recursive_mutex)>;
-using LockGuard = std::lock_guard<LockableBase(std::mutex)>;
-#endif
 #define RECURSIVE_LOCK_GUARD(mutex_, guardName) \
     RecursiveLockGuard guardName(mutex_)
 #define LOCK_GUARD(mutex_, guardName) LockGuard guardName(mutex_)

@@ -107,7 +107,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
         SECTION("properly removes some old envelopes")
         {
-            REQUIRE(t.clearEnvelopesBelow(4, 4));
+            REQUIRE(t.clearEnvelopesOutsideRange(4, std::nullopt, 4));
             REQUIRE(t.size() == 2);
             REQUIRE(env4 == t.pop());
             REQUIRE(env5 == t.pop());
@@ -115,16 +115,57 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
         SECTION("properly removes all old envelopes")
         {
-            REQUIRE(!t.clearEnvelopesBelow(6, 6));
+            REQUIRE(!t.clearEnvelopesOutsideRange(6, std::nullopt, 6));
             REQUIRE(t.empty());
         }
 
         SECTION("keeps checkpoint envelope")
         {
-            REQUIRE(t.clearEnvelopesBelow(5, 1));
+            REQUIRE(t.clearEnvelopesOutsideRange(5, std::nullopt, 1));
             REQUIRE(t.size() == 2);
             REQUIRE(env1 == t.pop());
             REQUIRE(env5 == t.pop());
+        }
+
+        SECTION("properly removes some future envelopes")
+        {
+            REQUIRE(t.clearEnvelopesOutsideRange(std::nullopt, 3, 3));
+            REQUIRE(t.size() == 3);
+            REQUIRE(env2 == t.pop());
+            REQUIRE(env1 == t.pop());
+            REQUIRE(env3 == t.pop());
+        }
+
+        SECTION("properly removes all future envelopes")
+        {
+            REQUIRE(!t.clearEnvelopesOutsideRange(std::nullopt, 0, 0));
+            REQUIRE(t.empty());
+        }
+
+        SECTION("keeps checkpoint envelope when removing future")
+        {
+            REQUIRE(t.clearEnvelopesOutsideRange(std::nullopt, 2, 5));
+            REQUIRE(t.size() == 3);
+            REQUIRE(env2 == t.pop());
+            REQUIRE(env1 == t.pop());
+            REQUIRE(env5 == t.pop());
+        }
+
+        SECTION("removes envelopes outside range on both sides")
+        {
+            REQUIRE(t.clearEnvelopesOutsideRange(2, 4, 0));
+            REQUIRE(t.size() == 3);
+            REQUIRE(env4 == t.pop());
+            REQUIRE(env2 == t.pop());
+            REQUIRE(env3 == t.pop());
+        }
+
+        SECTION("removes envelopes outside range, keeping checkpoint")
+        {
+            REQUIRE(t.clearEnvelopesOutsideRange(3, 3, 1));
+            REQUIRE(t.size() == 2);
+            REQUIRE(env1 == t.pop());
+            REQUIRE(env3 == t.pop());
         }
     }
 }

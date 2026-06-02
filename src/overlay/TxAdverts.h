@@ -33,7 +33,7 @@ class TxAdverts
 
     // Cache seen hashes for a bit to avoid re-broadcasting the same data
     // transaction hash -> ledger number
-    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
+    RandomEvictionCache<Hash, uint32_t, FullHash256> mAdvertHistory;
     TxAdvertVector mOutgoingTxHashes;
     VirtualTimer mAdvertTimer;
     std::function<void(std::shared_ptr<StellarMessage const>)> mSendCb;

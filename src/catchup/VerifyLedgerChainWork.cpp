@@ -200,6 +200,13 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         {
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
+        catch (std::runtime_error const& e)
+        {
+            CLOG_ERROR(History,
+                       "Failed when verifying ledger chain with error {}",
+                       e.what());
+            return HistoryManager::VERIFY_STATUS_ERR_CORRUPT_HEADER;
+        }
 
         if (curr.header.ledgerVersion >
             mApp.getConfig().LEDGER_PROTOCOL_VERSION)
@@ -543,6 +550,12 @@ VerifyLedgerChainWork::onRun()
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "missing entries, propagating failure");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
+        mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
+        return BasicWork::State::WORK_FAILURE;
+    case HistoryManager::VERIFY_STATUS_ERR_CORRUPT_HEADER:
+        CLOG_ERROR(History, "Catchup material failed verification - "
+                            "corrupted header, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         mApp.getLedgerApplyManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;

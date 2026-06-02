@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
@@ -70,9 +71,9 @@ class ParallelLedgerInfo
 class ThreadParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
-    // Copies of snapshots from the global state.
-    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
-    SearchableSnapshotConstPtr mLiveSnapshot;
+    // Copy of the LCL state applyView from the global state, with fresh
+    // file caches for thread safety.
+    ApplyLedgerView mLCLApplyView;
 
     // Reference to the live in-memory Soroban state. For Soroban entries
     // (CONTRACT_DATA, CONTRACT_CODE, TTL), query this in-memory state instead
@@ -160,20 +161,19 @@ class ThreadParallelApplyLedgerState
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
     bool entryWasRestored(LedgerKey const& key) const;
 
-    void setEffectsDeltaFromSuccessfulTx(ParallelTxSuccessVal const& res,
-                                         ParallelLedgerInfo const& ledgerInfo,
-                                         TxEffects& effects) const;
+    void setDeltaForInvariantsFromSuccessfulTx(ParallelTxSuccessVal const& res,
+                                               TxEffects& effects) const;
 
     void commitChangesFromSuccessfulTx(ParallelTxSuccessVal const& res,
                                        TxBundle const& txBundle);
 
-    // The snapshot ledger sequence number is one less than the
+    // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
 
     SorobanNetworkConfig const& getSorobanConfig() const;
 
-    SearchableHotArchiveSnapshotConstPtr const& getHotArchiveSnapshot() const;
+    ApplyLedgerView const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
 };
@@ -181,22 +181,13 @@ class ThreadParallelApplyLedgerState
 class GlobalParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::GlobalParApply>
 {
-    // Contains the hot archive state from the start of the ledger close. If a
-    // key is in here, it is "evicted". An invariant is that if a key is in here
-    // it is _not_ in the live snapshot.
-    SearchableHotArchiveSnapshotConstPtr mHotArchiveSnapshot;
+    // Contains the full LCL state applyView from the start of the ledger
+    // close, providing access to both the live bucket list and the hot archive
+    // bucket list. Note that this does not reflect changes from the classic
+    // apply phase, but is a applyView of the start of the ledger.
+    ApplyLedgerView mLCLApplyView;
 
-    // Contains the live soroban state from the start of the ledger close. If a
-    // key is in here, it is either "archived" or "live", depending on its TTL.
-    // Classic entries are always live, soroban entries always have an
-    // associated TTL entry and if the TTL is in the past the entry is
-    // "archived", otherwise "live". An invariant is that if a key is in here it
-    // is _not_ in the hot archive snapshot.
-    // Note that only classic entries should be queried from mLiveSnapshot. For
-    // Soroban entries query mInMemorySorobanState instead.
-    SearchableSnapshotConstPtr mLiveSnapshot;
-
-    // Contains an exact one-to-one in-memory mapping of the live snapshot for
+    // Contains an exact one-to-one in-memory mapping of the live applyView for
     // CONTRACT_DATA, CONTRACT_CODE, and TTL entries. For these entry types,
     // only mInMemorySorobanState should be queried. If the in-memory state
     // returns null for a key, it does NOT indicate a "cache miss," rather the
@@ -250,7 +241,8 @@ class GlobalParallelApplyLedgerState
                             std::unordered_set<LedgerKey> const& readWriteSet);
 
   public:
-    GlobalParallelApplyLedgerState(AppConnector& app, AbstractLedgerTxn& ltx,
+    GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
+                                   AbstractLedgerTxn& ltx,
                                    std::vector<ApplyStage> const& stages,
                                    InMemorySorobanState const& inMemoryState,
                                    SorobanNetworkConfig const& sorobanConfig);
@@ -266,7 +258,7 @@ class GlobalParallelApplyLedgerState
 
     void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx) const;
 
-    // The snapshot ledger sequence number is one less than the
+    // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
 
@@ -301,11 +293,11 @@ class TxParallelApplyLedgerState
     // _deleted_ in this tx.
     //
     // Deletions will only be added if there was a previously-existing entry to
-    // delete in the parent (thread or live snapshot) maps. A stray delete here
+    // delete in the parent (thread or live applyView) maps. A stray delete here
     // (eg. a std::nullptr entry) not-related to a previous live LE is a bug.
     //
     // Any entry in this map is implicitly dirty. Merely loading data from the
-    // thread map or the live snapshot does not add an entry to this map.
+    // thread map or the live applyView does not add an entry to this map.
     TxModifiedEntryMap mTxEntryMap;
 
   public:

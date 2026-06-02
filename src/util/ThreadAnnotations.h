@@ -11,12 +11,13 @@
 // Documentation for the annotations is available at:
 // https://clang.llvm.org/docs/ThreadSafetyAnalysis.html
 
-#ifndef THREAD_ANNOTATIONS_H_
-#define THREAD_ANNOTATIONS_H_
-
 #include "util/NonCopyable.h"
 #include <mutex>
 #include <shared_mutex>
+
+#ifdef USE_TRACY
+#include <Tracy.hpp>
+#endif
 
 #if defined(__clang__) && (!defined(SWIG))
 #define THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))
@@ -130,8 +131,22 @@
 // class).
 #define SCOPED_LOCKABLE THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
 
-// Defines an annotated interface for mutexes.
-// These methods can be implemented to use any internal mutex implementation.
+// Helper macros for declaring mutexes with optional thread safety annotations.
+// These macros handle the conditional compilation based on THREAD_SAFETY and
+// USE_TRACY flags, eliminating scattered #ifdef blocks in user code.
+
+// When THREAD_SAFETY is enabled, applies the given annotations to the mutex
+// declaration. Otherwise, the annotations are stripped (becoming a no-op).
+#ifdef THREAD_SAFETY
+#define ANNOTATE_FOR_THREAD_SAFETY(...) __VA_ARGS__
+#else
+#define ANNOTATE_FOR_THREAD_SAFETY(...)
+#endif
+
+// Mutex wrapper that conditionally uses Tracy instrumentation.
+// When USE_TRACY is enabled, this wraps std::mutex with Tracy tracking.
+// When THREAD_SAFETY is enabled, it enables static thread safety checks.
+#ifndef USE_TRACY
 class LOCKABLE Mutex : public stellar::NonMovableOrCopyable
 {
   private:
@@ -155,9 +170,11 @@ class LOCKABLE Mutex : public stellar::NonMovableOrCopyable
         mMutex.unlock();
     }
 };
+#endif
 
 // MutexLocker is an RAII class that acquires a mutex in its constructor, and
 // releases it in its destructor.
+#ifndef USE_TRACY
 template <typename MutexType>
 class SCOPED_LOCKABLE MutexLockerT : public stellar::NonMovableOrCopyable
 {
@@ -174,6 +191,25 @@ class SCOPED_LOCKABLE MutexLockerT : public stellar::NonMovableOrCopyable
         mut.Unlock();
     }
 };
+#else
+// Tracy's Lockable<T> uses standard lock()/unlock() interface
+template <typename MutexType>
+class MutexLockerT : public stellar::NonMovableOrCopyable
+{
+  private:
+    MutexType& mut;
+
+  public:
+    MutexLockerT(MutexType& mu) : mut(mu)
+    {
+        mu.lock();
+    }
+    ~MutexLockerT()
+    {
+        mut.unlock();
+    }
+};
+#endif
 
 // Defines an annotated interface for shared mutexes (read-write locks).
 // These methods can be implemented to use any internal shared_mutex
@@ -217,6 +253,7 @@ class LOCKABLE SharedMutex : public stellar::NonMovableOrCopyable
 
 // SharedLockShared is an RAII class that acquires a shared mutex in shared
 // mode in its constructor, and releases it in its destructor.
+#ifndef USE_TRACY
 class SCOPED_LOCKABLE SharedLockShared : public stellar::NonMovableOrCopyable
 {
   private:
@@ -232,6 +269,24 @@ class SCOPED_LOCKABLE SharedLockShared : public stellar::NonMovableOrCopyable
         mut.UnlockShared();
     }
 };
+#else
+// Tracy's SharedLockable<T> uses standard lock_shared()/unlock_shared()
+class SharedLockShared : public stellar::NonMovableOrCopyable
+{
+  private:
+    tracy::SharedLockable<std::shared_mutex>& mut;
+
+  public:
+    SharedLockShared(tracy::SharedLockable<std::shared_mutex>& mu) : mut(mu)
+    {
+        mu.lock_shared();
+    }
+    ~SharedLockShared()
+    {
+        mut.unlock_shared();
+    }
+};
+#endif
 
 // Defines an annotated interface for recursive mutexes.
 // These methods can be implemented to use any internal recursive_mutex
@@ -260,8 +315,54 @@ class LOCKABLE RecursiveMutex : public stellar::NonMovableOrCopyable
     }
 };
 
+#ifndef USE_TRACY
 using MutexLocker = MutexLockerT<Mutex>;
 using RecursiveMutexLocker = MutexLockerT<RecursiveMutex>;
 using SharedLockExclusive = MutexLockerT<SharedMutex>;
+#else
+using MutexLocker = MutexLockerT<tracy::Lockable<std::mutex>>;
+using RecursiveMutexLocker =
+    MutexLockerT<tracy::Lockable<std::recursive_mutex>>;
+using SharedLockExclusive =
+    MutexLockerT<tracy::SharedLockable<std::shared_mutex>>;
+#endif
 
-#endif // THREAD_ANNOTATIONS_H_
+// Mutex declaration macros that handle conditional compilation.
+// These macros eliminate the need for scattered #ifdef blocks throughout the
+// code.
+//
+// Usage examples:
+//   ANNOTATED_MUTEX(mMyMutex)
+//   ANNOTATED_RECURSIVE_MUTEX(mMyMutex, ACQUIRED_BEFORE(other))
+//
+// The macros automatically:
+// - Choose between TracyLockable and standard Mutex based on USE_TRACY
+// - Apply thread safety annotations only when THREAD_SAFETY is enabled
+
+// Standard mutex declaration with optional thread safety annotations.
+// The annotations parameter can be empty or contain one or more annotations.
+#ifndef USE_TRACY
+#define ANNOTATED_MUTEX(VarName, ...) \
+    Mutex VarName ANNOTATE_FOR_THREAD_SAFETY(__VA_ARGS__)
+#else
+#define ANNOTATED_MUTEX(VarName, ...) TracyLockable(std::mutex, VarName)
+#endif
+
+// Recursive mutex declaration with optional thread safety annotations.
+#ifndef USE_TRACY
+#define ANNOTATED_RECURSIVE_MUTEX(VarName, ...) \
+    RecursiveMutex VarName ANNOTATE_FOR_THREAD_SAFETY(__VA_ARGS__)
+#else
+#define ANNOTATED_RECURSIVE_MUTEX(VarName, ...) \
+    TracyLockable(std::recursive_mutex, VarName)
+#endif
+
+// Shared (read-write) mutex declaration with optional thread safety
+// annotations.
+#ifndef USE_TRACY
+#define ANNOTATED_SHARED_MUTEX(VarName, ...) \
+    SharedMutex VarName ANNOTATE_FOR_THREAD_SAFETY(__VA_ARGS__)
+#else
+#define ANNOTATED_SHARED_MUTEX(VarName, ...) \
+    TracySharedLockable(std::shared_mutex, VarName)
+#endif

@@ -50,14 +50,18 @@ Tracker::pop()
 
 // returns false if no one cares about this guy anymore
 bool
-Tracker::clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep)
+Tracker::clearEnvelopesOutsideRange(std::optional<uint64> minSlot,
+                                    std::optional<uint64> maxSlot,
+                                    uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
-        if (auto index = iter->second.statement.slotIndex;
-            index < slotIndex && index != slotToKeep)
+        auto const index = iter->second.statement.slotIndex;
+        bool const outsideRange =
+            (minSlot && index < *minSlot) || (maxSlot && index > *maxSlot);
+        if (outsideRange && index != slotToKeep)
         {
             iter = mWaitingEnvelopes.erase(iter);
         }

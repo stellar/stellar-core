@@ -5,6 +5,7 @@
 #pragma once
 
 #include "overlay/Peer.h"
+#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 
 namespace medida
@@ -60,7 +61,7 @@ class TxDemandsManager : private NonMovableOrCopyable
 
     Application& mApp;
     VirtualTimer mDemandTimer;
-    UnorderedMap<Hash, DemandHistory> mDemandHistoryMap;
+    UnorderedMap<Hash, DemandHistory, FullHash256> mDemandHistoryMap;
     std::queue<Hash> mPendingDemands;
 
     // Begin demanding on schedule

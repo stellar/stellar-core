@@ -1,0 +1,23 @@
+[package]
+name = "token"
+edition.workspace = true
+license.workspace = true
+publish = false
+version.workspace = true
+
+[package.metadata.stellar]
+cargo_inherit = true
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+stellar-tokens = { workspace = true }
+stellar-access = { workspace = true }
+stellar-contract-utils = { workspace = true }
+stellar-macros = { workspace = true }
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

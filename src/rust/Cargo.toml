@@ -84,10 +84,10 @@ tracy-client = { version = "=0.17.0", features = [
 #
 
 # Note: due to some subtle mis-features in Cargo's unification of transitive
-# dependency versions, we do _not_ usually use to all the separate soroban crate
+# dependency versions, we do _not_ usually use all the separate soroban crate
 # versions listed directly here. See $(top_srcdir)/src/Makefile.am for the logic
 # that builds each crate separately and then provides them to the stellar-core
-# crate here.
+# crate here as separate ".rlib" files.
 #
 # However that type of "non-unified" build breaks sanitizer builds, and also
 # makes it difficult to use an IDE to work on this crate since the IDE will not
@@ -109,11 +109,18 @@ tracy-client = { version = "=0.17.0", features = [
 # Cargo.lock! The unified build will re-resolve transitive dependencies and
 # unify them, perturbing the contents of the lockfile.
 
-[dependencies.soroban-env-host-p26]
-version = "=25.0.1"
+[dependencies.soroban-env-host-p27]
+version = "=26.1.2"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "e527f43cde68e0d17cd6d7d8e162d1944ba5a251"
+rev = "c0e58f94ff2983a09440cef6a54253349fd3c4db"
+optional = true
+
+[dependencies.soroban-env-host-p26]
+version = "=26.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 optional = true
 
 [dependencies.soroban-env-host-p25]
@@ -155,19 +162,30 @@ optional = true
 # supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
-version = "=23.0.2"
+version = "=26.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "30249f0549141dbe7fdce84b6401a4235dbad64f"
+rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 
 [dependencies.soroban-synth-wasm]
-version = "=23.0.0"
+version = "=26.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "688bc34e6cd15c71742139e625268c7f30f55a92"
+rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+
+# The soroban-fuzz-targets crate will actually pull in _its own copy_ of the
+# soroban host (or at least unify with one of the versions above if you're doing
+# a unified build) which means that it should also be updated any time the max
+# soroban is updated -- it should track the highest protocol available (or
+# at least whichever one you want to fuzz).
+[dependencies.soroban-fuzz-targets]
+version = "=26.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+optional = true
 
 [dependencies.stellar-quorum-analyzer]
 version = "0.1.0"
 git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "174d2a89c7e676000ef4ee2998959681a55befec"
+rev = "8b04a2b7a92b96ad90c09a9151ef97aa9a04a9f8"
 
 [features]
 
@@ -178,7 +196,8 @@ unified = ["dep:soroban-env-host-p21",
            "dep:soroban-env-host-p23",
            "dep:soroban-env-host-p24",
            "dep:soroban-env-host-p25",
-           "dep:soroban-env-host-p26"]
+           "dep:soroban-env-host-p26",
+           "dep:soroban-env-host-p27"]
 
 tracy = ["dep:tracy-client"]
 
@@ -188,8 +207,9 @@ tracy = ["dep:tracy-client"]
 # staging work across intra-protocol releases.
 next = []
 
-# the testutils feature turns on stuff that should only be available in a core
-# BUILD_TESTS build, such as the code to support transaction re-execution on
-# a secondary host. If necessary it can also turn on "testutils" features in
-# any of the hosts.
-testutils = []
+# The testutils feature turns on stuff that should only be available in a core
+# BUILD_TESTS build, such as the code to support transaction re-execution on a
+# secondary host, AND enables the soroban-fuzz-targets dependency. This allows
+# fuzz smoke tests to run in normal test builds without requiring the full fuzz
+# _instrumentation_ infrastructure.
+testutils = ["dep:soroban-fuzz-targets"]

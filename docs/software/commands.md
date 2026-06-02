@@ -29,13 +29,13 @@ Command options can only by placed after command.
     synthetic ledger close metadata emitted during the benchmark, and then use
     it for benchmarking the meta consumers.
   * This can only be used when `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true`
-  * The command supports several modes:
-    - **--mode limit-based**: the default mode that measures the
+  * The mode is selected in the config file using `APPLY_LOAD_MODE`:
+    - `APPLY_LOAD_MODE="ledger-limits"`: the default mode that measures the
       ledger close time for applying transactions.
-    - **--mode max-sac-tps**: determines maximum TPS for the load consisting
-      only of fast SAC transfer
-    - **--mode limits-for-model-tx**: determines maximum ledger limits for the
-      load consisting only of a customizable 'model' transaction.
+    - `APPLY_LOAD_MODE="max-sac-tps"`: determines maximum TPS for the load
+      consisting only of fast SAC transfer.
+    - `APPLY_LOAD_MODE="benchmark"`: benchmarks a fixed-size ledger of model
+      transactions. Use `APPLY_LOAD_MODEL_TX` to select the model transaction.
   * Load generation is configured in the Core config file. The relevant settings
     all begin with `APPLY_LOAD_`. See full example configurations with
     per-setting documentation in the `docs` directory
@@ -110,8 +110,8 @@ Command options can only by placed after command.
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
 * **dump-archival-stats**:  Logs state archival statistics about the BucketList.
 * **encode-asset**: Prints a base-64 encoded asset built from  `--code <CODE>` and `--issuer <ISSUER>`. Prints the native asset if neither `--code` nor `--issuer` is given.
-* **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
-* **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
+* **fuzz-one <FILE-NAME>**: Run a single fuzz input and exit. Requires `--target <target-name>`.
+* **gen-fuzz**: Generate fuzz input files for a seed corpus. Requires `--target <target-name>`, `--output-dir <directory>`, and optionally `--count <n>` (default: 100).
 * **gen-seed**: Generate and print a random public/private key and then exit.
 * **get-settings-upgrade-txs <PUBLIC-KEY> <SEQ-NUM> <NETWORK-PASSPHRASE>**: Generates the three transactions needed to propose
   a Soroban Settings upgrade from scratch, as will as the XDR `ConfigUpgradeSetKey` to submit to the `upgrades` endpoint. The results will be dumped to standard output. <PUBLIC-KEY> is the key that will be used as the source account on the transactions.
@@ -201,11 +201,25 @@ Command options can only by placed after command.
       multiple times (default latest)
       * `--base-instance <N>` : run tests with instance numbers offset by N,
       used to run tests in parallel
+      * `--capture-lcm` : capture `LedgerCloseMeta` XDR from every
+      `closeLedger`/`closeLedgerOn` call during tests. Files are written
+      automatically at leaf-section boundaries (or test-case boundaries for
+      tests without sections) to `test-lcm/<TestFileBaseName>/`. Each file
+      is named with a truncated SHA-256 hash of the test/section path
+      (e.g. `a1b2c3d4e5f67890.xdr`), and an `index.json` in each
+      directory maps hashes back to human-readable names. Each file contains
+      stream-framed `LedgerCloseMeta` entries that can be decoded with
+      `stellar-xdr decode --type LedgerCloseMeta --input stream-framed`.
+      Meta is normalized (sorted) before writing so that output is
+      deterministic given a fixed `--rng-seed`.
+  * The network passphrase is set to `(V) (;,,;) (V)` for all captured meta.
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md)
     on possible options for test.
   * For example this will run just the tests tagged with `[tx]` using protocol
     versions 9 and 10 and stop after the first failure:
     `stellar-core test -a --version 9 --version 10 "[tx]"`
+  * The checked-in files under `test-lcm/` were generated with:
+    `stellar-core test --rng-seed 12345 '[tx]' --capture-lcm`
 * **upgrade-db**: Upgrades local database to current schema version. This is
   usually done automatically during stellar-core run or other command.
 * **verify-checkpoints**: Listens to the network until it observes a consensus
@@ -251,6 +265,28 @@ Most commands return their results in JSON format.
 
 * **bans**
   List current active bans
+
+* **banaccounts**
+  Manages the persistent list of banned accounts. Banned accounts are stored in
+  the database and survive restarts. Any transaction whose source account,
+  operation source account, fee-bump fee source, or (for Soroban transactions)
+  write footprint account entry matches a banned address will be rejected from
+  the transaction queue.
+  * `banaccounts`<br>
+    Lists the currently banned account addresses as a JSON array.<br>
+  * `banaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
+    Adds the specified addresses to the persistent ban list. Existing bans are
+    preserved (additive).<br>
+
+  Note: The `FILTERED_G_ADDRESSES` configuration option is deprecated. Any
+  addresses configured there will be automatically migrated to the persistent
+  ban list on startup.
+
+* **unbanaccounts**
+  * `unbanaccounts`<br>
+    Clears all banned accounts.<br>
+  * `unbanaccounts?accountids=G_ADDRESS1,G_ADDRESS2,...`<br>
+    Removes the specified addresses from the persistent ban list.<br>
 
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
@@ -337,6 +373,12 @@ Most commands return their results in JSON format.
         The network is under high load and the fee is too low.
     * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
 
+  Optional parameters:
+    * `force=true` - bypasses banned account filtering (see `banaccounts`),
+      allowing the transaction into the mempool even if its source account or
+      fee source is on the ban list. Other filtering (operation type, Soroban
+      key filtering) still applies. Example: `tx?blob=Base64&force=true`
+
 * **upgrades**
   * `upgrades?mode=get`<br>
     Retrieves the currently configured upgrade settings.<br>
@@ -414,20 +456,6 @@ Most commands return their results in JSON format.
   to verify Soroban Settings upgrades before voting on them. Use this along with the 
   `sorobaninfo?format=detailed` command to compare against the existing settings to see exactly
   what is changing.
-
-* **surveytopology**
-  `surveytopology?duration=DURATION&node=NODE_ID`<br>
-  **This command is deprecated and will be removed in a future release. Use the
-  new time sliced survey interface instead (`startsurveycollecting`,
-  `stopsurveycollecting`, `surveytopologytimesliced`, and `getsurveyresults`).**
-  Starts a survey that will request peer connectivity information from nodes
-  in the backlog. `DURATION` is the number of seconds this survey will run
-  for, and `NODE_ID` is the public key you will add to the backlog to survey.
-  Running this command while the survey is running will add the node to the
-  backlog and reset the timer to run for `DURATION` seconds.  See [Changing
-  default survey behavior](#changing-default-survey-behavior) for details about
-  the default survey behavior, as well as how to change that behavior or opt-out
-  entirely.
 
 * **stopsurvey**
   `stopsurvey`<br>

@@ -22,6 +22,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/CreateAccountOpFrame.h"
+#include "transactions/EventManager.h"
 #include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
@@ -1484,10 +1485,12 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(a1, *app).size() == 4);
                             alternative.sign(tx);
 
-                            applyTx(tx, *app);
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            auto txr = closeLedger(*app, {tx});
+                            checkTx(0, txr, txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(
-                                        getFirstResult(tx)) == PAYMENT_SUCCESS);
+                                        txr.results[0]
+                                            .result.result.results()[0]) ==
+                                    PAYMENT_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.autoRemove ? 3 : 4));
 
@@ -1876,14 +1879,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         TransactionTestFramePtr txFrame;
         auto setup = [&]() {
             txFrame = root->tx({createAccount(a1, paymentAmount)});
-            auto txSet = makeTxSetFromTransactions({txFrame}, *app, 0, 0).first;
 
-            // Close this ledger
-            auto lastCloseTime = app->getLedgerManager()
-                                     .getLastClosedLedgerHeader()
-                                     .header.scpValue.closeTime;
-            app->getHerder().externalizeValue(txSet, 3, lastCloseTime,
-                                              emptyUpgradeSteps);
+            closeLedger(*app, {txFrame});
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 3);
         };
@@ -2475,6 +2472,103 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         for_versions({12}, *app, [&] { doChecks(txNOT_SUPPORTED); });
         for_versions_from(13, *app, [&] { doChecks(txSUCCESS); });
     }
+}
+
+TEST_CASE_VERSIONS("overlay validation handles ed25519 signed payload signers",
+                   "[tx][envelope][overlay]")
+{
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto root = app->getRoot();
+
+    int64_t const paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+
+    // This test validates that checkValidForOverlay verifies
+    // SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD signers normally
+    for_versions_from(19, *app, [&] {
+        auto a1 = root->create("a1", paymentAmount);
+
+        // Create an ed25519 signed payload signer on a1's account using
+        // root's key
+        SignerKey signerKey;
+        signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        signerKey.ed25519SignedPayload().ed25519 =
+            root->getPublicKey().ed25519();
+        signerKey.ed25519SignedPayload().payload = {'t', 'e', 's', 't'};
+
+        // Add as only signer with enough weight, and remove master key
+        a1.setOptions(setSigner(Signer{signerKey, 1}) | setMasterWeight(0) |
+                      setLowThreshold(1) | setMedThreshold(1) |
+                      setHighThreshold(1));
+
+        // Create a payment tx from a1, signed only with the payload signer
+        auto tx = a1.tx({payment(*root, 100)});
+        getSignatures(tx).clear();
+
+        DecoratedSignature sig;
+        sig.signature =
+            root->getSecretKey().sign(signerKey.ed25519SignedPayload().payload);
+        sig.hint = SignatureUtils::getSignedPayloadHint(
+            signerKey.ed25519SignedPayload());
+        tx->addSignature(sig);
+
+        SECTION("checkValid accepts ed25519 signed payload signer")
+        {
+            // Normal checkValid should succeed — the payload signer is valid
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            auto result = tx->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+                                         diagnostics);
+            REQUIRE(result->isSuccess());
+        }
+
+        SECTION("apply accepts ed25519 signed payload signer")
+        {
+            // Transaction should apply successfully
+            REQUIRE(applyCheck(tx, *app));
+            REQUIRE(tx->getResultCode() == txSUCCESS);
+        }
+
+        SECTION("checkValidForOverlay accepts ed25519 signed payload signer")
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ls = CheckValidLedgerViewWrapper(ltx);
+            auto diagnostics = DiagnosticEventManager::createDisabled();
+            auto result = tx->checkValidForOverlay(app->getAppConnector(), ls,
+                                                   0, 0, 0, diagnostics);
+            REQUIRE(result->isSuccess());
+        }
+
+        SECTION("fee bump with ed25519 signed payload signer on inner tx")
+        {
+            auto feeSource = root->create("feeSource", paymentAmount);
+
+            auto feeBumpTx = feeBump(*app, feeSource, tx, 10000);
+
+            SECTION("checkValid accepts fee bump")
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto diagnostics = DiagnosticEventManager::createDisabled();
+                auto result = feeBumpTx->checkValid(app->getAppConnector(), ls,
+                                                    0, 0, 0, diagnostics);
+                REQUIRE(result->isSuccess());
+            }
+
+            SECTION("checkValidForOverlay accepts fee bump")
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto ls = CheckValidLedgerViewWrapper(ltx);
+                auto diagnostics = DiagnosticEventManager::createDisabled();
+                auto result = feeBumpTx->checkValidForOverlay(
+                    app->getAppConnector(), ls, 0, 0, 0, diagnostics);
+                REQUIRE(result->isSuccess());
+            }
+        }
+    });
 }
 
 TEST_CASE("soroban txs not allowed before protocol upgrade",

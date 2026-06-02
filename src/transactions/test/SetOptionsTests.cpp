@@ -355,40 +355,37 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                          acc1.op(setOptions(setSigner(makeSigner(s2, 1))))},
                         {acc1.getSecretKey()});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
-                    checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
-                                     0, 1);
-                    auto ltxe = stellar::loadAccount(ltx, acc1.getPublicKey());
-                    auto const& ae = ltxe.current().data.account();
-                    extV2 = ae.ext.v1().ext.v2();
-
-                    REQUIRE(ae.signers.size() == 2);
-                    REQUIRE(extV2.signerSponsoringIDs.size() == 2);
-                    if (makeSigner(s1, 1).key < makeSigner(s2, 1).key)
                     {
-                        REQUIRE(ae.signers[0] == makeSigner(s1, 1));
-                        REQUIRE(ae.signers[1] == makeSigner(s2, 1));
-                        REQUIRE(*extV2.signerSponsoringIDs[0] ==
-                                root->getPublicKey());
-                        REQUIRE(!extV2.signerSponsoringIDs[1]);
-                    }
-                    else
-                    {
-                        REQUIRE(ae.signers[0] == makeSigner(s2, 1));
-                        REQUIRE(ae.signers[1] == makeSigner(s1, 1));
-                        REQUIRE(!extV2.signerSponsoringIDs[0]);
-                        REQUIRE(*extV2.signerSponsoringIDs[1] ==
-                                root->getPublicKey());
-                    }
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr,
+                                         2, 2, 0, 1);
+                        auto ltxe =
+                            stellar::loadAccount(ltx, acc1.getPublicKey());
+                        auto const& ae = ltxe.current().data.account();
+                        extV2 = ae.ext.v1().ext.v2();
 
-                    ltx.commit();
+                        REQUIRE(ae.signers.size() == 2);
+                        REQUIRE(extV2.signerSponsoringIDs.size() == 2);
+                        if (makeSigner(s1, 1).key < makeSigner(s2, 1).key)
+                        {
+                            REQUIRE(ae.signers[0] == makeSigner(s1, 1));
+                            REQUIRE(ae.signers[1] == makeSigner(s2, 1));
+                            REQUIRE(*extV2.signerSponsoringIDs[0] ==
+                                    root->getPublicKey());
+                            REQUIRE(!extV2.signerSponsoringIDs[1]);
+                        }
+                        else
+                        {
+                            REQUIRE(ae.signers[0] == makeSigner(s2, 1));
+                            REQUIRE(ae.signers[1] == makeSigner(s1, 1));
+                            REQUIRE(!extV2.signerSponsoringIDs[0]);
+                            REQUIRE(*extV2.signerSponsoringIDs[1] ==
+                                    root->getPublicKey());
+                        }
+                    }
                 }
 
                 {
@@ -397,20 +394,19 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                         {acc1.op(setOptions(setSigner(makeSigner(s3, 0))))},
                         {acc1.getSecretKey()});
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMetaBuilder txm(
-                        true, *tx, ltx.loadHeader().current().ledgerVersion,
-                        app->getAppConnector());
-                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
-                                                     ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+                    auto r = closeLedger(*app, {tx});
+                    checkTx(0, r, txSUCCESS);
 
-                    checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
-                                     0, 1);
-                    auto ltxe = stellar::loadAccount(ltx, acc1.getPublicKey());
-                    REQUIRE(extV2 ==
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr,
+                                         2, 2, 0, 1);
+                        auto ltxe =
+                            stellar::loadAccount(ltx, acc1.getPublicKey());
+                        REQUIRE(
+                            extV2 ==
                             ltxe.current().data.account().ext.v1().ext.v2());
-                    ltx.commit();
+                    }
                 }
             });
         }
@@ -498,14 +494,8 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                 auto tx = transactionFrameFromOps(app->getNetworkID(), *root,
                                                   ops, keys);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaBuilder txm(
-                    true, *tx, ltx.loadHeader().current().ledgerVersion,
-                    app->getAppConnector());
-                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
-                                                 0, 0));
-                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
-                ltx.commit();
+                auto r = closeLedger(*app, {tx});
+                checkTx(0, r, txSUCCESS);
 
                 checkSigners();
             };

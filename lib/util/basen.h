@@ -1,5 +1,3 @@
-#pragma once
-
 /**
  * base-n, 1.0
  * Copyright (C) 2012 Andrzej Zawadzki (azawadzki@gmail.com)

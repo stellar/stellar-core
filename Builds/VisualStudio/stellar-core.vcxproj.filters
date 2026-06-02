@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="overlay">
@@ -94,6 +94,12 @@
     <Filter Include="test">
       <UniqueIdentifier>{632e2a38-59c9-4c6f-8ae3-7e302688207e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="test\fuzz">
+      <UniqueIdentifier>{a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test\fuzz\targets">
+      <UniqueIdentifier>{b2c3d4e5-f6a7-5b6c-0d9e-8f7a6b5c4d3e}</UniqueIdentifier>
+    </Filter>
     <Filter Include="historyWork">
       <UniqueIdentifier>{eab77361-734d-4f9c-89bd-0a429d67a4d6}</UniqueIdentifier>
     </Filter>
@@ -153,9 +159,6 @@
     </Filter>
     <Filter Include="rust">
       <UniqueIdentifier>{e85a896a-28e3-423b-b896-d7df4e8b8907}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="xdr\next">
-      <UniqueIdentifier>{9a05704b-1f74-41a9-9fdb-7e76d91e0f7b}</UniqueIdentifier>
     </Filter>
     <Filter Include="xdr\curr">
       <UniqueIdentifier>{452dffd8-d0b1-4918-a8a5-f06e09b5b90f}</UniqueIdentifier>
@@ -459,8 +462,26 @@
     <ClCompile Include="..\..\src\work\test\WorkTests.cpp">
       <Filter>work\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\fuzz.cpp">
-      <Filter>test</Filter>
+    <ClCompile Include="..\..\src\test\fuzz\FuzzMain.cpp">
+      <Filter>test\fuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\FuzzRegressionTests.cpp">
+      <Filter>test\fuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\FuzzTargetRegistry.cpp">
+      <Filter>test\fuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\FuzzUtils.cpp">
+      <Filter>test\fuzz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\targets\OverlayFuzzTarget.cpp">
+      <Filter>test\fuzz\targets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\targets\SorobanFuzzTargets.cpp">
+      <Filter>test\fuzz\targets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz\targets\TxFuzzTarget.cpp">
+      <Filter>test\fuzz\targets</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestAccount.cpp">
       <Filter>test</Filter>
@@ -482,9 +503,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\BitSetTests.cpp">
       <Filter>util\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\test\FuzzerImpl.cpp">
-      <Filter>test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\FileSystemException.cpp">
       <Filter>util</Filter>
@@ -1275,9 +1293,6 @@
     <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
@@ -1316,9 +1331,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\QueryServer.cpp">
       <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
-      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\AppConnector.cpp">
       <Filter>main</Filter>
@@ -1435,6 +1447,18 @@
       <Filter>lib\tracy</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\FrozenLedgerKeysTests.cpp" />
+    <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\SecretManager.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\ImmutableLedgerView.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\CovMark.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -1680,8 +1704,23 @@
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\fuzz.h">
-      <Filter>test</Filter>
+    <ClInclude Include="..\..\src\test\fuzz\FuzzTargetRegistry.h">
+      <Filter>test\fuzz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz\FuzzUtils.h">
+      <Filter>test\fuzz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz\TxFuzzTarget.h">
+      <Filter>test\fuzz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz\targets\OverlayFuzzTarget.h">
+      <Filter>test\fuzz\targets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz\targets\SorobanFuzzTargets.h">
+      <Filter>test\fuzz\targets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz\targets\TxFuzzTarget.h">
+      <Filter>test\fuzz\targets</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestAccount.h">
       <Filter>test</Filter>
@@ -1706,9 +1745,6 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\util\cbitset_portability.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\test\FuzzerImpl.h">
-      <Filter>test</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\util\siphash.h">
       <Filter>lib\util</Filter>
@@ -2385,9 +2421,6 @@
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxAdverts.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2426,9 +2459,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\QueryServer.h">
       <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\AppConnector.h">
       <Filter>main</Filter>
@@ -2548,10 +2578,20 @@
     <ClInclude Include="..\..\src\ledger\LedgerEntryScope.h" />
     <ClInclude Include="..\..\src\util\MetricsRegistry.h" />
     <ClInclude Include="..\..\src\util\SimpleTimer.h" />
+    <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SecretManager.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\ImmutableLedgerView.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\CovMark.h">
+      <Filter>test</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\AUTHORS" />
-    <None Include="..\..\ChangeLog" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\lib\xdrpp\tests\xdrtest.x">
@@ -2745,33 +2785,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract-config-setting.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-overlay.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger-entries.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-SCP.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-internal.x">
-      <Filter>xdr\next</Filter>
-    </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
     </CustomBuild>

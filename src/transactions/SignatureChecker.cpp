@@ -10,6 +10,7 @@
 #include "crypto/SignerKey.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algorithm.h"
+#include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
@@ -22,12 +23,27 @@ uint64_t SignatureChecker::gCheckValidOrApplyTxSigCacheLookups = 0;
 
 SignatureChecker::SignatureChecker(
     uint32_t protocolVersion, Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures)
+    xdr::xvector<DecoratedSignature, 20> const& signatures,
+    bool isOverlayValidation)
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}
+    , mIsOverlayValidation{isOverlayValidation}
 {
     mUsedSignatures.resize(mSignatures.size());
+}
+
+bool
+SignatureChecker::isOverlayValidation() const
+{
+    return mIsOverlayValidation;
+}
+
+bool
+SignatureChecker::isOverVerificationBudget() const
+{
+    return mIsOverlayValidation &&
+           mTxEd25519Verifications >= OVERLAY_TX_ED25519_VERIFY_BUDGET;
 }
 
 bool
@@ -117,6 +133,10 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     verified =
         verifyAll(signers[SIGNER_KEY_TYPE_ED25519],
                   [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      if (isOverVerificationBudget())
+                      {
+                          return false;
+                      }
                       auto [valid, cacheLookupRes] = SignatureUtils::verify(
                           sig, signerKey.key, mContentsHash);
                       updateTxSigCacheMetrics(cacheLookupRes);
@@ -126,10 +146,18 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
     {
         return true;
     }
+    if (isOverVerificationBudget())
+    {
+        return false;
+    }
 
     verified = verifyAll(
         signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
         [&](DecoratedSignature const& sig, Signer const& signerKey) {
+            if (isOverVerificationBudget())
+            {
+                return false;
+            }
             auto [valid, cacheLookupRes] =
                 SignatureUtils::verifyEd25519SignedPayload(sig, signerKey.key);
             updateTxSigCacheMetrics(cacheLookupRes);
@@ -186,6 +214,11 @@ void
 SignatureChecker::updateTxSigCacheMetrics(
     PubKeyUtils::VerifySigCacheLookupResult cacheLookupRes)
 {
+    if (cacheLookupRes != PubKeyUtils::VerifySigCacheLookupResult::NO_LOOKUP)
+    {
+        ++mTxEd25519Verifications;
+    }
+
     if (!mTrackCacheMetrics)
     {
         return;

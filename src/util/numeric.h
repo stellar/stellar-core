@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
+#include <type_traits>
 
 namespace stellar
 {
@@ -83,16 +84,31 @@ saturatingMultiply(int64_t a, int64_t b)
     return a * b;
 }
 
-// Saturating addition for unsigned ints: returns a + b, capped at type max.
+// Saturating addition for ints: returns a + b, capped at type min/max.
 template <typename T>
 inline T
 saturatingAdd(T a, T b)
 {
-    static_assert(std::is_unsigned<T>());
-    if (a > std::numeric_limits<T>::max() - b)
+    static_assert(std::is_integral<T>());
+    if constexpr (std::is_unsigned<T>())
     {
-        return std::numeric_limits<T>::max();
+        if (a > std::numeric_limits<T>::max() - b)
+        {
+            return std::numeric_limits<T>::max();
+        }
+        return a + b;
     }
-    return a + b;
+    else
+    {
+        if (b > 0 && a > std::numeric_limits<T>::max() - b)
+        {
+            return std::numeric_limits<T>::max();
+        }
+        if (b < 0 && a < std::numeric_limits<T>::min() - b)
+        {
+            return std::numeric_limits<T>::min();
+        }
+        return a + b;
+    }
 }
 }

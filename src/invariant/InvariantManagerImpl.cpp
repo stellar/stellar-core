@@ -4,7 +4,6 @@
 
 #include "invariant/InvariantManagerImpl.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
@@ -13,6 +12,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/InMemorySorobanState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -26,9 +26,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
-#include <condition_variable>
 #include <fmt/format.h>
-#include <mutex>
 
 #include <memory>
 #include <numeric>
@@ -174,8 +172,7 @@ InvariantManagerImpl::checkOnOperationApply(
 
 void
 InvariantManagerImpl::checkOnLedgerCommit(
-    SearchableSnapshotConstPtr lclLiveState,
-    SearchableHotArchiveSnapshotConstPtr lclHotArchiveState,
+    ApplyLedgerView const& lclApplyView,
     std::vector<LedgerEntry> const& persitentEvictedFromLive,
     std::vector<LedgerKey> const& tempAndTTLEvictedFromLive,
     UnorderedMap<LedgerKey, LedgerEntry> const& restoredFromArchive,
@@ -184,9 +181,8 @@ InvariantManagerImpl::checkOnLedgerCommit(
     for (auto invariant : mEnabled)
     {
         auto result = invariant->checkOnLedgerCommit(
-            lclLiveState, lclHotArchiveState, persitentEvictedFromLive,
-            tempAndTTLEvictedFromLive, restoredFromArchive,
-            restoredFromLiveState);
+            lclApplyView, persitentEvictedFromLive, tempAndTTLEvictedFromLive,
+            restoredFromArchive, restoredFromLiveState);
         if (result.empty())
         {
             continue;
@@ -195,8 +191,7 @@ InvariantManagerImpl::checkOnLedgerCommit(
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on ledger commit: {})"),
             invariant->getName(), result);
-        onInvariantFailure(invariant, message,
-                           lclLiveState->getLedgerSeq() + 1);
+        onInvariantFailure(invariant, message, lclApplyView.getLedgerSeq() + 1);
     }
 }
 
@@ -285,7 +280,7 @@ InvariantManagerImpl::start(LedgerManager const& ledgerManager)
 {
     releaseAssert(threadIsMain());
 
-    // If state snapshot invariants are enabled, run a snapshot on the
+    // If state applyView invariants are enabled, run a applyView on the
     // initial startup state, then schedule the next run.
     if (mConfig.INVARIANT_EXTRA_CHECKS)
     {
@@ -325,7 +320,7 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
     }
 }
 
-// The snapshot invariant is triggered periodically based on wall clock time,
+// The applyView invariant is triggered periodically based on wall clock time,
 // managed by the InvariantManagerImpl timing loop. After the given period has
 // elapsed from out last scan, snapshotTimerFired will set
 // mShouldRunStateSnapshotInvariant() to true. On the next ledger close,
@@ -333,8 +328,7 @@ InvariantManagerImpl::handleInvariantFailure(bool isStrict,
 // required state, then call this function in a background thread.
 void
 InvariantManagerImpl::runStateSnapshotInvariant(
-    SearchableSnapshotConstPtr liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr hotArchiveSnapshot,
+    ApplyLedgerView const& applyView,
     InMemorySorobanState const& inMemorySnapshot,
     std::function<bool()> isStopping)
 {
@@ -346,12 +340,11 @@ InvariantManagerImpl::runStateSnapshotInvariant(
     {
         for (auto const& invariant : mEnabled)
         {
-            auto result = invariant->checkSnapshot(
-                liveSnapshot, hotArchiveSnapshot, inMemorySnapshot, isStopping);
+            auto result = invariant->checkSnapshot(applyView, inMemorySnapshot,
+                                                   isStopping);
             if (!result.empty())
             {
-                auto ledgerSeq = liveSnapshot->getLedgerSeq();
-                onInvariantFailure(invariant, result, ledgerSeq);
+                onInvariantFailure(invariant, result, applyView.getLedgerSeq());
             }
         }
     }
@@ -360,7 +353,8 @@ InvariantManagerImpl::runStateSnapshotInvariant(
         // Snapshot-based invariants run in a background thread. Abort on
         // failure to match the behavior of strict invariants on the main
         // thread.
-        printErrorAndAbort("Exception in state snapshot invariant: ", e.what());
+        printErrorAndAbort("Exception in state applyView invariant: ",
+                           e.what());
     }
 }
 
@@ -394,7 +388,7 @@ InvariantManagerImpl::snapshotTimerFired()
     {
         CLOG_WARNING(
             Invariant,
-            "Skipping state snapshot invariant trigger "
+            "Skipping state applyView invariant trigger "
             "because a previous scan is still running. "
             "STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY may be too short");
         mStateSnapshotInvariantSkipped.inc();
@@ -424,7 +418,7 @@ InvariantManagerImpl::markStartOfInvariantSnapshot()
     // Safe to call from any thread since both flags are atomic. Since we check
     // mStateSnapshotInvariantRunning before setting
     // mShouldRunStateSnapshotInvariant, make sure we reset
-    // mStateSnapshotInvariantRunning first to prevent multiple snapshot
+    // mStateSnapshotInvariantRunning first to prevent multiple applyView
     // triggers.
     mStateSnapshotInvariantRunning = true;
     mShouldRunStateSnapshotInvariant = false;

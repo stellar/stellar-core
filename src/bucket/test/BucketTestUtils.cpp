@@ -9,6 +9,7 @@
 #include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "test/test.h"
@@ -44,8 +45,7 @@ addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
     liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
                     liveEntries, deadEntries);
 
-    app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-        liveBl, app.getBucketManager().getHotArchiveBucketList(), header);
+    app.getLedgerManager().updateCanonicalStateForTesting(header);
 }
 
 void
@@ -57,8 +57,7 @@ addHotArchiveBatchAndUpdateSnapshot(
     auto& hotArchiveBl = app.getBucketManager().getHotArchiveBucketList();
     hotArchiveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion,
                           archiveEntries, restoredEntries);
-    app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-        app.getBucketManager().getLiveBucketList(), hotArchiveBl, header);
+    app.getLedgerManager().updateCanonicalStateForTesting(header);
 }
 
 void
@@ -173,11 +172,9 @@ countEntries(std::shared_ptr<BucketT> bucket)
 template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
-void
+std::optional<SorobanNetworkConfig>
 LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
-    SearchableSnapshotConstPtr lclSnapshot,
-    SearchableHotArchiveSnapshotConstPtr lclHotArchiveSnapshot,
-    AbstractLedgerTxn& ltx,
+    ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
     LedgerHeader lh, uint32_t initialLedgerVers)
 {
@@ -223,7 +220,7 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
 
                 auto evictedState =
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        lclSnapshot, ltx, keys);
+                        lclApplyView, ltx, keys);
                 if (protocolVersionStartsFrom(
                         initialLedgerVers,
                         LiveBucket::
@@ -262,14 +259,9 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
                 ltx, mApp);
         }
 
-        // Load the final Soroban config just before sealing the ltx.
-        std::optional<SorobanNetworkConfig> finalSorobanConfig;
-        if (protocolVersionStartsFrom(lh.ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            finalSorobanConfig =
-                std::make_optional(SorobanNetworkConfig::loadFromLedger(ltx));
-        }
+        // Seal the ltx and collect its entries, but don't load Soroban
+        // config yet -- test entries (including network config like eviction
+        // iterator) are added directly to the BucketList below, not via ltx.
         ltx.getAllEntries(init, live, dead);
 
         // Add dead entries from ltx to entries that will be added to BucketList
@@ -310,6 +302,28 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         mApp.getBucketManager().addLiveBatch(
             mApp, lh, mTestInitEntries, mTestLiveEntries, mTestDeadEntries);
 
+        // Load the final Soroban config AFTER addLiveBatch so that test
+        // entries (e.g. stateArchivalSettings with eviction iterator) are
+        // visible. We load from a BucketList snapshot rather than ltx
+        // because test entries bypass ltx entirely.
+        std::optional<SorobanNetworkConfig> finalSorobanConfig;
+        if (protocolVersionStartsFrom(lh.ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            // Tests may inject config upgrades directly into the BucketList, so
+            // we need to construct a temp dummy snapshot to load the injected
+            // config.
+            LedgerHeaderHistoryEntry tempLcl;
+            tempLcl.header = lh;
+            HistoryArchiveState tempHas;
+            tempHas.currentLedger = lh.ledgerSeq;
+            auto& bm = mApp.getBucketManager();
+            auto tempState = ImmutableLedgerData::createAndMaybeLoadConfig(
+                bm.getLiveBucketList(), bm.getHotArchiveBucketList(), tempLcl,
+                tempHas, mApp.getMetrics(), nullptr, 0);
+            finalSorobanConfig = tempState->getSorobanConfig();
+        }
+
         mApplyState.updateInMemorySorobanState(
             mTestInitEntries, mTestLiveEntries, mTestDeadEntries, lh,
             finalSorobanConfig);
@@ -322,12 +336,12 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
         mTestArchiveEntries.clear();
         mTestRestoredEntries.clear();
         mTestDeletedEntries.clear();
+        return finalSorobanConfig;
     }
     else
     {
-        LedgerManagerImpl::finalizeLedgerTxnChanges(
-            lclSnapshot, lclHotArchiveSnapshot, ltx, ledgerCloseMeta, lh,
-            initialLedgerVers);
+        return LedgerManagerImpl::finalizeLedgerTxnChanges(
+            lclApplyView, ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
 

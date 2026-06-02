@@ -21,6 +21,7 @@
 #include "history/test/HistoryTestsUtils.h"
 
 #include "catchup/LedgerApplyManagerImpl.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
@@ -43,6 +44,7 @@
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-ledger.h"
@@ -310,7 +312,7 @@ testTxSet(uint32 protocolVersion)
     SECTION("invalid tx")
     {
         auto diagnostics = DiagnosticEventManager::createDisabled();
-        LedgerSnapshot ls(*app);
+        CheckValidLedgerViewWrapper ledgerView(*app);
 
         SECTION("no user")
         {
@@ -320,8 +322,8 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: account doesn't exist
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txNO_ACCOUNT);
 
             SECTION("build block")
@@ -350,8 +352,8 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: bad sequence number
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txBAD_SEQ);
 
             SECTION("build block")
@@ -381,7 +383,7 @@ testTxSet(uint32 protocolVersion)
 
             // Individual tx check: insufficient balance
             // Need fresh snapshot after account creation
-            LedgerSnapshot lsNew(*app);
+            CheckValidLedgerViewWrapper lsNew(*app);
             REQUIRE(badTx
                         ->checkValid(app->getAppConnector(), lsNew, 0, 0, 0,
                                      diagnostics)
@@ -415,8 +417,8 @@ testTxSet(uint32 protocolVersion)
             // Individual tx check: bad auth (signature invalidated by maxTime
             // change)
             REQUIRE(badTx
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->getResultCode() == txBAD_AUTH);
 
             SECTION("build block")
@@ -434,6 +436,103 @@ testTxSet(uint32 protocolVersion)
             {
                 validateReceivedBlock(
                     txs, TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("zero ops transaction")
+        {
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+
+            auto tx =
+                transactionFromOperations(*app, root->getSecretKey(),
+                                          root->nextSequenceNumber(), {}, 1000);
+
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash =
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash;
+                txSet.txs.push_back(tx->getEnvelope());
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet != nullptr);
+                REQUIRE(applicableTxSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::GENERALIZED_TXSET_MISMATCH);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{tx})},
+                         {}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet);
+                REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
+                        TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("negative inclusion fee tx")
+        {
+            auto sorobanTx =
+                createUploadWasmTx(*app, *root, 100, 1000, SorobanResources{});
+            auto negFeeSorobanTxEnvelope = sorobanTx->getEnvelope();
+            negFeeSorobanTxEnvelope.v1().tx.fee = 1;
+            auto negFeeBump = feeBump(*app, *root, sorobanTx, 1,
+                                      /* useInclusionAsFullFee */ true);
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash = lclHeader.hash;
+                txSet.txs.push_back(negFeeSorobanTxEnvelope);
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet == nullptr);
+
+                txSet.txs[0] = negFeeBump->getEnvelope();
+                auto applicableTxSet2 =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet2 == nullptr);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{
+                                 TransactionFrameBase::makeTransactionFromWire(
+                                     app->getNetworkID(),
+                                     negFeeSorobanTxEnvelope)})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet == nullptr);
+
+                auto txSet2 =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(std::nullopt,
+                                         std::vector<TransactionFrameBasePtr>{
+                                             negFeeBump})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet2 == nullptr);
             }
         }
     }
@@ -490,7 +589,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         };
 
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    LedgerSnapshot ls(*app);
+    CheckValidLedgerViewWrapper ledgerView(*app);
 
     SECTION("invalid transaction")
     {
@@ -500,7 +599,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
 
             // Individual tx check: fee bump exceeds fee source balance
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -526,10 +625,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, 200);
 
             // Individual tx checks: first exceeds balance, second is valid
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -554,10 +653,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx2 = transaction(*app, account3, 1, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
 
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -583,10 +682,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, 200);
 
             // Individual tx checks
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
 
@@ -615,14 +714,14 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
 
             // Individual tx checks
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->getResultCode() == txFEE_BUMP_INNER_FAILED);
             // Individually, fb2 is valid, but with fb1 it would exceed balance
-            REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -643,10 +742,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         SECTION("two fee bumps, same fee source, valid individually, combined "
                 "exceed balance")
         {
-            LedgerSnapshot ls(*app);
+            CheckValidLedgerViewWrapper ledgerView(*app);
             auto balanceOfFbAccount = getAvailableBalance(
-                ls.getLedgerHeader().current(),
-                ls.getAccount(account2.getPublicKey()).current());
+                ledgerView.getLedgerHeader().current(),
+                ledgerView.getAccount(account2.getPublicKey()).current());
 
             // Enforce balance invariance
             int64_t fee1 = 200;
@@ -662,10 +761,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, fee2);
             // Individual txs are valid
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -715,10 +814,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 createUploadWasmTx(*app, sorobanAccount2, 100,
                                    DEFAULT_TEST_RESOURCE_FEE, resources);
 
-            LedgerSnapshot ls(*app);
+            CheckValidLedgerViewWrapper ledgerView(*app);
             auto balanceOfFbAccount = getAvailableBalance(
-                ls.getLedgerHeader().current(),
-                ls.getAccount(feeSourceAccount.getPublicKey()).current());
+                ledgerView.getLedgerHeader().current(),
+                ledgerView.getAccount(feeSourceAccount.getPublicKey())
+                    .current());
 
             // Set fees so that each is valid individually but combined they
             // exceed the fee source's balance
@@ -736,10 +836,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             // Individual txs are valid
             auto diagnostics = DiagnosticEventManager::createDisabled();
-            REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
-            REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0,
+            REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
                                     diagnostics)
                         ->isSuccess());
 
@@ -808,12 +908,12 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             auto diagnostics = DiagnosticEventManager::createDisabled();
             REQUIRE(classicFb
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->isSuccess());
             REQUIRE(sorobanFb
-                        ->checkValid(app->getAppConnector(), ls, 0, 0, 0,
-                                     diagnostics)
+                        ->checkValid(app->getAppConnector(), ledgerView, 0, 0,
+                                     0, diagnostics)
                         ->isSuccess());
 
             PerPhaseTransactionList invalidPerPhase;
@@ -865,10 +965,10 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
     auto account3 = root->create("a3", minBalance2);
     auto account4 = root->create("a4", minBalance2);
 
-    LedgerSnapshot ls(*app);
-    auto balanceOfFeeSource =
-        getAvailableBalance(ls.getLedgerHeader().current(),
-                            ls.getAccount(account2.getPublicKey()).current());
+    CheckValidLedgerViewWrapper ledgerView(*app);
+    auto balanceOfFeeSource = getAvailableBalance(
+        ledgerView.getLedgerHeader().current(),
+        ledgerView.getAccount(account2.getPublicKey()).current());
 
     // Create three fee bumps from account2 (fee source):
     // - fb1: fails checkValid (bad sequence number)
@@ -900,12 +1000,15 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
 
     // Verify fb1 fails checkValid - inner tx has bad sequence number
     auto diagnostics = DiagnosticEventManager::createDisabled();
-    REQUIRE(fb1->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb1->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->getResultCode() == txFEE_BUMP_INNER_FAILED);
     // Verify fb2 and fb3 pass checkValid individually
-    REQUIRE(fb2->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb2->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->isSuccess());
-    REQUIRE(fb3->checkValid(app->getAppConnector(), ls, 0, 0, 0, diagnostics)
+    REQUIRE(fb3->checkValid(app->getAppConnector(), ledgerView, 0, 0, 0,
+                            diagnostics)
                 ->isSuccess());
 
     // Verify combined fees of fb2 + fb3 exceed balance
@@ -2832,6 +2935,68 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 testInvalidValue(/* isNomination */ false);
             }
         }
+
+        SECTION("empty-tx-set hash/type mismatch")
+        {
+            auto checkInvalidMismatch = [&](StellarValue const& sv) {
+                auto v = xdr::xdr_to_opaque(sv);
+
+                REQUIRE(scp.validateValue(seq, v, true) ==
+                        SCPDriver::kInvalidValue);
+                REQUIRE(scp.validateValue(seq, v, false) ==
+                        SCPDriver::kInvalidValue);
+
+                ValueWrapperPtr extracted;
+                REQUIRE_NOTHROW(extracted = scp.extractValidValue(seq, v));
+                REQUIRE(extracted == nullptr);
+            };
+
+            SECTION("signed value with empty-tx-set hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                StellarValue sv;
+                xdr::xdr_from_opaque(p.first, sv);
+                sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
+                checkInvalidMismatch(sv);
+            }
+
+#ifdef CAP_0083
+            SECTION("empty-tx-set value without empty-tx-set hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                auto emptyTxSetValue =
+                    scp.makeEmptyTxSetValueFromValue(p.first);
+                StellarValue sv;
+                xdr::xdr_from_opaque(emptyTxSetValue, sv);
+                sv.txSetHash = txSet0->getContentsHash();
+                checkInvalidMismatch(sv);
+            }
+#endif // CAP_0083
+        }
+
+#ifdef CAP_0083
+        SECTION("valid empty-tx-set value")
+        {
+            auto p = makeTxPair(herder, txSet0, ct);
+            auto emptyTxSetValue = scp.makeEmptyTxSetValueFromValue(p.first);
+
+            bool const allowed = protocolVersionStartsFrom(
+                protocolVersion, EMPTY_TX_SET_PROTOCOL_VERSION);
+
+            // Ballot path: a well-formed empty-tx-set value is accepted only
+            // once the protocol allows them. This is the assertion that
+            // catches an inverted check in deserializeAndValidateStellarValue.
+            REQUIRE(scp.validateValue(seq, emptyTxSetValue,
+                                      /*nomination=*/false) ==
+                    (allowed ? SCPDriver::kFullyValidatedValue
+                             : SCPDriver::kInvalidValue));
+
+            // Nomination path: empty-tx-set values are rejected by design.
+            REQUIRE(scp.validateValue(seq, emptyTxSetValue,
+                                      /*nomination=*/true) ==
+                    SCPDriver::kInvalidValue);
+        }
+#endif // CAP_0083
     }
 
     SECTION("validateValue closeTimes")
@@ -2872,9 +3037,25 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
 
             // Validate the StellarValue.
+            SCPDriver::ValidationLevel expectedValidationLevel =
+                SCPDriver::kFullyValidatedValue;
+            if (!expectValid)
+            {
+                if (scp.protocolAllowsEmptyTxSetValues())
+                {
+                    // If CAP-0083 is active, then this StellarValue is
+                    // considered structurally valid because only the tx set is
+                    // invalid.
+                    expectedValidationLevel =
+                        SCPDriver::kStructurallyValidValue;
+                }
+                else
+                {
+                    expectedValidationLevel = SCPDriver::kInvalidValue;
+                }
+            }
             REQUIRE(scp.validateValue(seq, val.first, true) ==
-                    (expectValid ? SCPDriver::kFullyValidatedValue
-                                 : SCPDriver::kInvalidValue));
+                    expectedValidationLevel);
 
             // Confirm that getTxTrimList() as used by
             // makeTxSetFromTransactions() trims the transaction if
@@ -2918,8 +3099,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         // Triggering next ledger will construct and cache the block
         herder.triggerNextLedger(seq, true);
-        // All hits during the whole SCP round
-        REQUIRE(cache.getCounters().mHits == 8);
+#ifdef CAP_0083
+        // All hits during the whole SCP round. If CAP-0083 support is compiled
+        // in, we expect 1 more cache hit for the validity check that determines
+        // whether or not to replace the transaction set with an empty one.
+        uint64_t const expectedHits = 11;
+#else
+        uint64_t const expectedHits = 10;
+#endif
+        REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
     }
@@ -3133,10 +3321,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(
                 herder.recvTxSet(malformedTxSetPair.second->getContentsHash(),
                                  malformedTxSetPair.second));
-            REQUIRE(herder.getHerderSCPDriver().validateValue(
-                        herder.trackingConsensusLedgerIndex() + 1,
-                        malformedTxSetPair.first,
-                        false) == SCPDriver::kInvalidValue);
+            HerderSCPDriver& scp = herder.getHerderSCPDriver();
+            REQUIRE(scp.validateValue(herder.trackingConsensusLedgerIndex() + 1,
+                                      malformedTxSetPair.first, false) ==
+                    (scp.protocolAllowsEmptyTxSetValues()
+                         ? SCPDriver::kStructurallyValidValue
+                         : SCPDriver::kInvalidValue));
         }
     }
 }
@@ -3219,7 +3409,8 @@ TEST_CASE("SCP State", "[herder]")
                 {
                     for (auto const& h : getValidatedTxSetHashes(msg))
                     {
-                        REQUIRE(herder.getPendingEnvelopes().getTxSet(h));
+                        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                            herder.getPendingEnvelopes().getTxSet(h)));
                         REQUIRE(app->getPersistentState().hasTxSet(h));
                         hashes.insert(h);
                     }
@@ -3791,8 +3982,9 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                                                 ->getLedgerManager()
                                                 .getLastClosedLedgerHeader()
                                                 .header;
-                    auto txSet = nodes[0]->getHerder().getTxSet(
-                        lclHeader.scpValue.txSetHash);
+                    auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                        nodes[0]->getHerder().getTxSet(
+                            lclHeader.scpValue.txSetHash));
                     GeneralizedTransactionSet xdrTxSet;
                     txSet->toXDR(xdrTxSet);
                     auto const& phase = xdrTxSet.v1TxSet().phases.at(
@@ -4254,13 +4446,13 @@ TEST_CASE("soroban txs accepted by the network",
             bool upgradeApplied = false;
             simulation->crankUntil(
                 [&]() {
-                    auto txSetSize =
+                    auto txSetResult = nodes[0]->getHerder().getTxSet(
                         nodes[0]
-                            ->getHerder()
-                            .getTxSet(nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header.scpValue.txSetHash)
+                            ->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.scpValue.txSetHash);
+                    auto txSetSize =
+                        std::get<TxSetXDRFrameConstPtr>(txSetResult)
                             ->sizeOpTotalForLogging();
                     upgradeApplied =
                         upgradeApplied || txSetSize > ledgerWideLimit;
@@ -4379,7 +4571,8 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
                 auto& pe = herder.getPendingEnvelopes();
                 toStellarValue(env.statement.pledges.externalize().commit.value,
                                sv);
-                auto txset = pe.getTxSet(sv.txSetHash);
+                auto txset =
+                    std::get<TxSetXDRFrameConstPtr>(pe.getTxSet(sv.txSetHash));
                 REQUIRE(txset);
                 validatorSCPMessages[seq] =
                     std::make_pair(env, txset->toStellarMessage());
@@ -5134,8 +5327,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl);
                 REQUIRE(lm.getLastClosedLedgerHAS().currentLedger ==
                         lastHeader.ledgerSeq);
-                REQUIRE(lm.getLastClosedSnapshot()->getLedgerHeader() ==
-                        lastHeader);
+                REQUIRE(
+                    lm.copyImmutableLedgerView().getLedgerHeader().current() ==
+                    lastHeader);
 
                 // Apply state got committed, but has not yet been propagated to
                 // read-only state
@@ -5187,8 +5381,9 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
                 auto readOnly = lm.getLastClosedLedgerHeader();
                 REQUIRE(readOnly.header.ledgerSeq == lcl + 1);
                 REQUIRE(lm.getLastClosedLedgerNum() == lcl + 1);
-                REQUIRE(lm.getLastClosedSnapshot()->getLedgerHeader() ==
-                        readOnly.header);
+                REQUIRE(
+                    lm.copyImmutableLedgerView().getLedgerHeader().current() ==
+                    readOnly.header);
                 auto has = lm.getLastClosedLedgerHAS();
                 REQUIRE(has.currentLedger == readOnly.header.ledgerSeq);
 
@@ -5208,6 +5403,180 @@ TEST_CASE("ledger state update flow with parallel apply", "[herder][parallel]")
     {
         setupAndRunTests(false);
     }
+}
+
+TEST_CASE("processing of next slot happens after apply", "[herder]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto const APPLY_DELAY = std::chrono::milliseconds(500);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.PARALLEL_LEDGER_APPLY = true;
+            cfg.RUN_STANDALONE = false;
+            // Only slow down C (the third node added, i == 2). A and B
+            // still close at normal speed so they can supply externalize
+            // messages for C.
+            if (i == 3)
+            {
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = APPLY_DELAY;
+            }
+            return cfg;
+        });
+
+    auto keyA = SecretKey::fromSeed(sha256("validator-A"));
+    auto keyB = SecretKey::fromSeed(sha256("validator-B"));
+    auto keyC = SecretKey::fromSeed(sha256("validator-C"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators.push_back(keyA.getPublicKey());
+    qset.validators.push_back(keyB.getPublicKey());
+    qset.validators.push_back(keyC.getPublicKey());
+    Hash qsetHash = sha256(xdr::xdr_to_opaque(qset));
+
+    auto A = simulation->addNode(keyA, qset);
+    auto B = simulation->addNode(keyB, qset);
+    auto C = simulation->addNode(keyC, qset);
+    simulation->addPendingConnection(keyA.getPublicKey(), keyC.getPublicKey());
+    simulation->addPendingConnection(keyA.getPublicKey(), keyB.getPublicKey());
+    simulation->startAllNodes();
+    simulation->stopOverlayTick();
+
+    // Close a handful of ledgers to establish normal state.
+    simulation->crankUntil(
+        [&] { return simulation->haveAllExternalized(4, 2); },
+        std::chrono::seconds(30), false);
+
+    // Partition C so it stops receiving envelopes from the network. We
+    // drive its externalize explicitly via A/B's captured messages.
+    simulation->dropConnection(keyA.getPublicKey(), keyC.getPublicKey());
+    // Flush any in-flight events so C's LCL settles before we pin `target`.
+    simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto& herderC = static_cast<HerderImpl&>(C->getHerder());
+    auto& lmC = static_cast<LedgerManagerImpl&>(C->getLedgerManager());
+
+    uint32_t target = C->getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    // Let A and B advance a couple of ledgers past `target` so their SCP
+    // state contains EXTERNALIZE messages for `target` we can replay. C
+    // has no peers at this point and stays put.
+    simulation->crankUntil(
+        [&] {
+            return A->getLedgerManager().getLastClosedLedgerNum() >= target + 2;
+        },
+        std::chrono::seconds(20), false);
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
+
+    // Capture EXTERNALIZE envelopes for slot `target` from A and B.
+    auto captureExternalize =
+        [&](Application& app,
+            uint32_t seq) -> std::pair<SCPEnvelope, StellarMessage> {
+        auto& herder = static_cast<HerderImpl&>(app.getHerder());
+        for (auto const& env : herder.getSCP().getLatestMessagesSend(seq))
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                toStellarValue(env.statement.pledges.externalize().commit.value,
+                               sv);
+                auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash));
+                REQUIRE(txSet);
+                return std::make_pair(env, txSet->toStellarMessage());
+            }
+        }
+        throw std::runtime_error("no EXTERNALIZE envelope for requested slot");
+    };
+    auto envA = captureExternalize(*A, target);
+    auto envB = captureExternalize(*B, target);
+
+    uint32_t invalidSlot = target + 1;
+
+    // Build a "invalid" tx set for slot target+1 whose previousLedgerHash
+    // is random garbage. The XDR is well-formed so C will happily cache it
+    // when we hand-deliver below, but validateValue — once slot target+1 is
+    // validated against the freshly-closed LCL — will reject it because
+    // the tx set doesn't match the real previous ledger hash.
+    LedgerHeaderHistoryEntry bogusLcl;
+    bogusLcl.header = C->getLedgerManager().getLastClosedLedgerHeader().header;
+    bogusLcl.hash = sha256("invalid-previous-ledger-hash");
+    auto invalidTxSet = TxSetXDRFrame::makeEmpty(bogusLcl);
+    auto invalidTxSetHash = invalidTxSet->getContentsHash();
+
+    uint64_t cLastCloseTime = C->getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header.scpValue.closeTime;
+    // Pick a close time slightly above both C's LCL close time and C's
+    // current virtual clock, so the envelope passes the Herder close-time
+    // filter (must be > lastCloseTime and within MAX_TIME_SLIP_SECONDS of
+    // now).
+    uint64_t invalidCloseTime = std::max(cLastCloseTime, C->timeNow()) + 1;
+    StellarValue invalidValue = herderC.makeStellarValue(
+        invalidTxSetHash, invalidCloseTime, emptyUpgradeSteps, keyA);
+
+    SCPEnvelope invalidEnv{};
+    invalidEnv.statement.slotIndex = invalidSlot;
+    invalidEnv.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& invalidConfirm = invalidEnv.statement.pledges.confirm();
+    invalidConfirm.ballot.counter = 1;
+    invalidConfirm.ballot.value = xdr::xdr_to_opaque(invalidValue);
+    invalidConfirm.nPrepared = 1;
+    invalidConfirm.nCommit = 1;
+    invalidConfirm.nH = 1;
+    invalidConfirm.quorumSetHash = qsetHash;
+    invalidEnv.statement.nodeID = keyA.getPublicKey();
+    herderC.signEnvelope(keyA, invalidEnv);
+
+    auto scpHasEnvelopeFromAForinvalidSlot = [&] {
+        bool found = false;
+        herderC.getSCP().processCurrentState(
+            invalidSlot,
+            [&](SCPEnvelope const& e) {
+                if (e.statement.nodeID == keyA.getPublicKey())
+                {
+                    found = true;
+                }
+                return true;
+            },
+            /*forceSelf=*/true);
+        return found;
+    };
+
+    // Feed A's EXTERNALIZE. Not enough to externalize `target`.
+    REQUIRE(herderC.recvSCPEnvelope(envA.first, qset, envA.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(herderC.trackingConsensusLedgerIndex() == target - 1);
+
+    // Inject future invalid CONFIRM for slot target+1. Herder should accept.
+    REQUIRE(herderC.recvSCPEnvelope(invalidEnv) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+
+    // Feed B's EXTERNALIZE. C can now externalize `target`.
+    REQUIRE(herderC.recvSCPEnvelope(envB.first, qset, envB.second) ==
+            Herder::ENVELOPE_STATUS_READY);
+    REQUIRE(lmC.isApplying());
+    REQUIRE(herderC.trackingConsensusLedgerIndex() == target);
+
+    // While C is applying, make invalid envelope ready
+    REQUIRE(herderC.recvTxSet(invalidTxSetHash, invalidTxSet));
+    REQUIRE_FALSE(scpHasEnvelopeFromAForinvalidSlot());
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target - 1);
+
+    // Wait for apply to finish. When it does, ledgerCloseComplete runs on
+    // the main thread, LCL advances to `target`, and
+    // Herder::lastClosedLedgerIncreased -> purgeOldSlotsAndProcessSCPQueue
+    // finally drains the SCP queue for slot target+1. At that point the
+    // LCL is fresh, so validateValue fully validates the tx-set against
+    // the real previousLedgerHash and returns kInvalidValue (the bogus
+    // tx-set doesn't match), which makes SCP drop the envelope without
+    // recording it.
+    simulation->crankUntil([&] { return !lmC.isApplying(); },
+                           std::chrono::seconds(10), false);
+
+    REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() == target);
+    REQUIRE_FALSE(scpHasEnvelopeFromAForinvalidSlot());
 }
 
 TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
@@ -6357,6 +6726,167 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
 
         REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+}
+
+TEST_CASE("filter transactions by G address", "[herder]")
+{
+    SECTION("no filter - transaction accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.FILTERED_G_ADDRESSES = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("default filter does not reject unrelated source")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto acc = getAccount("acc");
+        auto tx = root->tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("filtered source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // Use a custom key for a funded account, then add it to the filter
+        auto srcKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {KeyUtils::toStrKey(srcKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto src = root->create(srcKey, 1000000000);
+        auto acc = getAccount("acc");
+        auto tx = src.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("filtered operation source account is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        // Build a tx from root but with an op sourced from filtered account
+        auto op = payment(root->getPublicKey(), 1);
+        op.sourceAccount.activate() =
+            toMuxedAccount(filteredKey.getPublicKey());
+        auto tx = root->tx({op});
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("soroban tx with filtered account in write footprint is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+
+        // Build a Soroban tx whose write footprint contains the filtered
+        // account key
+        SorobanResources resources;
+        resources.footprint.readWrite = {
+            accountKey(filteredKey.getPublicKey())};
+        resources.instructions = 1'000'000;
+        resources.diskReadBytes = 1000;
+        resources.writeBytes = 1000;
+
+        auto op = createUploadWasmOperation(1000);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), *root, {op}, {}, resources,
+            /* inclusionFee */ 1000, /* resourceFee */ 10000);
+
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered fee source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto fa = root->create(filteredKey, 1000000000);
+        auto feeSource = TestAccount{*app, filteredKey};
+
+        auto innerTx = root->tx({payment(root->getPublicKey(), 1)});
+        auto fb = feeBump(*app, feeSource, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with filtered inner source is rejected")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        auto filteredKey = SecretKey::pseudoRandomForTesting();
+        cfg.FILTERED_G_ADDRESSES = {
+            KeyUtils::toStrKey(filteredKey.getPublicKey())};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto filteredAcct = root->create(filteredKey, 1000000000);
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        // Inner tx source is filtered; fee source (other) is not
+        auto innerTx = filteredAcct.tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("fee-bump with non-filtered accounts is accepted")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        // keep defaults - none of the test accounts match
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = app->getRoot();
+        auto otherKey = getAccount("other");
+        auto other = root->create(otherKey, 1000000000);
+
+        auto innerTx = root->tx({payment(other.getPublicKey(), 1)});
+        auto fb = feeBump(*app, other, innerTx, 200);
+
+        REQUIRE(app->getHerder().recvTransaction(fb, false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 }
@@ -7806,3 +8336,211 @@ TEST_CASE("late joining node reaches consensus", "[herder]")
     REQUIRE(B->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
     REQUIRE(C->getLedgerManager().getLastClosedLedgerNum() >= targetLedger);
 }
+
+TEST_CASE("far-future slots cleanup", "[herder]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    Simulation simulation(mode, networkID, [](int i) {
+        auto cfg = getTestConfig(i);
+        // Ensure we can test catch-up without history
+        cfg.MAX_SLOTS_TO_REMEMBER = 100;
+        return cfg;
+    });
+
+    // 3 validators with threshold 2 (majority)
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+    qSet.validators.push_back(v3NodeID);
+
+    // Add all 4 nodes. v0 is a non-validator watcher.
+    // Use config index 4 to avoid collisions with the simulation's internal
+    // config counter (which allocates indices 0-2 for v1, v2, v3).
+    simulation.addNode(v0SecretKey, qSet);
+    simulation.addNode(v1SecretKey, qSet);
+    simulation.addNode(v2SecretKey, qSet);
+    simulation.addNode(v3SecretKey, qSet);
+
+    // Connect all nodes and start
+    simulation.addPendingConnection(v0NodeID, v1NodeID);
+    simulation.addPendingConnection(v1NodeID, v2NodeID);
+    simulation.addPendingConnection(v2NodeID, v3NodeID);
+    simulation.startAllNodes();
+
+    // Close a few ledgers so all nodes are in sync and tracking
+    auto const INITIAL_LEDGERS = 3u;
+    simulation.crankUntil(
+        [&]() {
+            return simulation.haveAllExternalized(
+                LedgerManager::GENESIS_LEDGER_SEQ + INITIAL_LEDGERS, 1);
+        },
+        10 * INITIAL_LEDGERS * simulation.getExpectedLedgerCloseTime(), false);
+
+    auto app0 = simulation.getNode(v0NodeID);
+    auto& herder0 = static_cast<HerderImpl&>(app0->getHerder());
+    REQUIRE(herder0.isTracking());
+
+    // Disconnect v0 from the network
+    simulation.dropConnection(v0NodeID, v1NodeID);
+
+    // Run the simulation until v0 is no longer tracking.
+    simulation.crankUntil([&]() { return !herder0.isTracking(); },
+                          50 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Inject far-future envelopes into the non-tracking v0.
+    auto localQSet = herder0.getSCP().getLocalQuorumSet();
+    auto qsetHash = sha256(xdr::xdr_to_opaque(localQSet));
+    auto const ct = app0->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.scpValue.closeTime +
+                    1;
+    auto injectEnvelope = [&](SecretKey const& sk, uint64_t slotIndex) {
+        SCPEnvelope envelope;
+        envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        auto txSet = TxSetXDRFrame::makeEmpty(
+            app0->getLedgerManager().getLastClosedLedgerHeader());
+        StellarValue sv = herder0.makeStellarValue(
+            txSet->getContentsHash(), ct, xdr::xvector<UpgradeType, 6>{},
+            v1SecretKey);
+        ext.commit.counter = 1;
+        ext.commit.value = xdr::xdr_to_opaque(sv);
+        ext.commitQuorumSetHash = qsetHash;
+        ext.nH = 1;
+        envelope.statement.nodeID = sk.getPublicKey();
+        herder0.signEnvelope(sk, envelope);
+        return herder0.recvSCPEnvelope(envelope, localQSet, txSet);
+    };
+
+    auto const NUM_FUTURE = 50;
+    auto const FAR_FUTURE_BASE = 1'000'000;
+    auto slotsBefore = herder0.getSCP().getKnownSlotsCount();
+
+    for (uint32_t i = 0; i < NUM_FUTURE; ++i)
+    {
+        auto res = injectEnvelope(v1SecretKey, FAR_FUTURE_BASE + i);
+        REQUIRE(res == Herder::ENVELOPE_STATUS_READY);
+    }
+
+    // V0 should have NUM_FUTURE more slots now.
+    auto slotsAfterInject = herder0.getSCP().getKnownSlotsCount();
+    REQUIRE(slotsAfterInject >= slotsBefore + NUM_FUTURE);
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() >= FAR_FUTURE_BASE);
+
+    // Reconnect v0 to the validators so it can catch up
+    simulation.addConnection(v0NodeID, v1NodeID);
+
+    // Crank until v0 starts tracking the network again
+    simulation.crankUntil([&]() { return herder0.isTracking(); },
+                          60 * simulation.getExpectedLedgerCloseTime(), false);
+
+    // Check that far-future slots have been removed
+    REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
+}
+
+// This test checks that the parallel tx set downloading mechanism does not
+// interfere with Herder's envelope validation
+TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
+                   "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+
+    VirtualClock clock;
+
+    auto peerKey = SecretKey::pseudoRandomForTesting();
+    auto const& peerPk = peerKey.getPublicKey();
+    cfg.QUORUM_SET.validators.emplace_back(peerPk);
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    for_versions_from(
+        static_cast<uint32_t>(EMPTY_TX_SET_PROTOCOL_VERSION), *app, [&] {
+            auto const lcl =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+            auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+            // Custom qset (single peer, threshold 1), pre-cached so the
+            // envelope wouldn't be stuck waiting for the qset to arrive.
+            SCPQuorumSet qSet;
+            qSet.threshold = 1;
+            qSet.validators.push_back(peerPk);
+            auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+            pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+            // Tx set hash deliberately fake and *not* cached.
+            Hash fakeTxSetHash;
+            fakeTxSetHash.fill(0xAB);
+
+            auto makePrepareFromPeer = [&](uint64_t closeTime) {
+                auto sv = herder.makeStellarValue(fakeTxSetHash, closeTime,
+                                                  emptyUpgradeSteps, peerKey);
+                auto opaqueValue = xdr::xdr_to_opaque(sv);
+
+                SCPEnvelope env;
+                env.statement.slotIndex = lcl.header.ledgerSeq + 1;
+                env.statement.pledges.type(SCP_ST_PREPARE);
+                auto& prep = env.statement.pledges.prepare();
+                prep.ballot.counter = 1;
+                prep.ballot.value = opaqueValue;
+                prep.quorumSetHash = qSetHash;
+                env.statement.nodeID = peerPk;
+                herder.signEnvelope(peerKey, env);
+                return env;
+            };
+
+            uint64_t const badCloseTime =
+                app->timeNow() + Herder::MAX_TIME_SLIP_SECONDS.count() + 60;
+            auto env = makePrepareFromPeer(badCloseTime);
+
+            // Envelope should be rejected as it has a bad close time
+            REQUIRE(herder.recvSCPEnvelope(env) ==
+                    Herder::ENVELOPE_STATUS_DISCARDED);
+        });
+}
+
+#ifdef CAP_0083
+// This tests that the network externalizes an empty-tx-set value when a
+// voted-for value is not available on the network.
+TEST_CASE("network externalizes empty-tx-set on missing value", "[herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+            cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds{0};
+            cfg.TESTING_NOMINATE_RANDOM_VALUES = true;
+            return cfg;
+        });
+
+    Application::pointer app = simulation->getNodes()[0];
+    simulation->startAllNodes();
+    auto& counter =
+        app->getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"});
+    auto const initial = counter.count();
+
+    // Run for a few ledgers to ensure that we successfully close some, and
+    // therefore generate LedgerCloseData meta
+    auto const stopPoint = initial + 3;
+
+    simulation->crankUntil([&]() { return counter.count() > stopPoint; },
+                           10 * simulation->getExpectedLedgerCloseTime(),
+                           /*finalCrank=*/false);
+
+    REQUIRE(counter.count() > stopPoint);
+
+    // Capture meta for use with --capture-lcm
+    txtest::captureLastClosedLedgerLcm(*app);
+}
+#endif // CAP_0083

@@ -77,6 +77,12 @@ pub(crate) fn get_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     })
 }
 
+pub(crate) fn get_delegated_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../soroban/p27/soroban-test-wasms/wasm-workspace/opt/27/test_builtin_auth_delegation.wasm").to_vec(),
+    })
+}
+
 pub(crate) fn get_no_arg_constructor_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::NO_ARGUMENT_CONSTRUCTOR_TEST_CONTRACT_P22
@@ -110,6 +116,31 @@ pub(crate) fn get_custom_account_wasm() -> Result<RustBuf, Box<dyn std::error::E
             .iter()
             .cloned()
             .collect(),
+    })
+}
+
+pub(crate) fn get_apply_load_token_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/token.wasm").to_vec(),
+    })
+}
+
+pub(crate) fn get_apply_load_soroswap_factory_wasm() -> Result<RustBuf, Box<dyn std::error::Error>>
+{
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_factory.wasm").to_vec(),
+    })
+}
+
+pub(crate) fn get_apply_load_soroswap_pool_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_pool.wasm").to_vec(),
+    })
+}
+
+pub(crate) fn get_apply_load_soroswap_router_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: include_bytes!("../apply-load-wasm/soroswap_router.wasm").to_vec(),
     })
 }
 

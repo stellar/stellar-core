@@ -6,6 +6,7 @@
 
 #include "catchup/LedgerApplyManager.h"
 #include "history/HistoryManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/NetworkConfig.h"
 #include "main/ApplicationImpl.h"
@@ -229,8 +230,22 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Get bucketlist snapshot of LCL
-    virtual SearchableSnapshotConstPtr getLastClosedSnapshot() const = 0;
+    // Create a thread-safe copy of the current canonical ledger state
+    // snapshot. Can be called from any thread (except for apply, which must use
+    // copyApplyLedgerView instead).
+    virtual ImmutableLedgerView copyImmutableLedgerView() const = 0;
+
+    // Create a thread-safe copy of the current canonical ledger state
+    // snapshot, typed as an apply-time snapshot. Used by legacy (pre-V23)
+    // code paths that need an ApplyLedgerView but don't have
+    // access to ApplyState.
+    // TODO: Refactor such that this doesn't have to be a public function
+    virtual ApplyLedgerView copyApplyLedgerView() const = 0;
+
+    // Refresh `ledgerView` if its ledger seq differs from the current canonical
+    // state. No-op otherwise. Can be called from any thread.
+    virtual void
+    maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView) const = 0;
 
     // return the HAS that corresponds to the last closed ledger as persisted in
     // the database
@@ -272,14 +287,13 @@ class LedgerManager
     virtual std::chrono::milliseconds getExpectedLedgerCloseTime() const = 0;
 
 #ifdef BUILD_TESTS
+    virtual void updateCanonicalStateForTesting(LedgerHeader const& header) = 0;
     virtual std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() = 0;
     virtual std::optional<LedgerCloseMetaFrame> const&
     getLastClosedLedgerCloseMeta() = 0;
     virtual void storeCurrentLedgerForTest(LedgerHeader const& header) = 0;
     virtual InMemorySorobanState const& getInMemorySorobanStateForTesting() = 0;
-    virtual CompleteConstLedgerStatePtr
-    getLastClosedLedgerStateForTesting() = 0;
     virtual void
     rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) = 0;
     virtual ::rust::Box<rust_bridge::SorobanModuleCache>
@@ -332,10 +346,8 @@ class LedgerManager
     virtual void
     advanceLedgerStateAndPublish(uint32_t ledgerSeq, bool calledViaExternalize,
                                  LedgerCloseData const& ledgerData,
-                                 CompleteConstLedgerStatePtr newLedgerState,
-                                 bool upgradeApplied,
-                                 std::shared_ptr<InMemorySorobanState const>
-                                     inMemorySnapshotForInvariant) = 0;
+                                 ImmutableLedgerDataPtr newLedgerState,
+                                 bool upgradeApplied) = 0;
 
     virtual void assertSetupPhase() const = 0;
 #ifdef BUILD_TESTS

@@ -47,13 +47,14 @@
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"
-#include "test/Fuzzer.h"
 #include "test/TestUtils.h"
-#include "test/fuzz.h"
+#include "test/fuzz/FuzzTargetRegistry.h"
 #include "test/test.h"
 #endif
 
+#include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
 #include <iostream>
 #include <lib/clara.hpp>
 #include <optional>
@@ -194,13 +195,6 @@ ParserWithValidation
 fileNameParser(std::string& string)
 {
     return requiredArgParser(string, "FILE-NAME");
-}
-
-clara::Opt
-processIDParser(int& num)
-{
-    return clara::Opt{num, "PROCESS-ID"}["--process-id"](
-        "for spawning multiple instances in fuzzing parallelization");
 }
 
 clara::Opt
@@ -1371,7 +1365,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
     std::optional<Config> cfg = std::nullopt;
     std::string jsonPath;
     std::string resultJson;
-    bool analyzeCriticalGroups;
+    bool analyzeCriticalGroups = false;
     uint64_t timeLimitMs = 5000;                 // Default: 5 seconds
     size_t memoryLimitBytes = 100 * 1024 * 1024; // Default: 100 MiB
     bool v2 = true;
@@ -1584,13 +1578,6 @@ run(CommandLineArgs const& args)
                 // First, craft and validate the configuration
                 cfg = configOption.getConfig();
                 cfg.DISABLE_BUCKET_GC = disableBucketGC;
-
-                if (!cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
-                    !cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
-                {
-                    cfg.MODE_STORES_HISTORY_MISC = false;
-                }
-
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
@@ -1673,45 +1660,50 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
+    writeVersionInfo(std::cout);
+    return 0;
+}
+
+void
+writeVersionInfo(std::ostream& os)
+{
     rust::Vec<SorobanVersionInfo> rustVersions =
         rust_bridge::get_soroban_version_info(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-    std::cout << STELLAR_CORE_VERSION << std::endl;
-    std::cout << "ledger protocol version: "
-              << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
-    std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
-              << std::endl;
+    os << STELLAR_CORE_VERSION << std::endl;
+    os << "ledger protocol version: " << Config::CURRENT_LEDGER_PROTOCOL_VERSION
+       << std::endl;
+    os << "rust version: " << rust_bridge::get_rustc_version().c_str()
+       << std::endl;
 
-    std::cout << "soroban-env-host versions: " << std::endl;
+    os << "soroban-env-host versions: " << std::endl;
 
     size_t i = 0;
     for (auto& host : rustVersions)
     {
-        std::cout << "    host[" << i << "]:" << std::endl;
-        std::cout << "        package version: " << host.env_pkg_ver.c_str()
-                  << std::endl;
+        os << "    host[" << i << "]:" << std::endl;
+        os << "        package version: " << host.env_pkg_ver.c_str()
+           << std::endl;
 
-        std::cout << "        git version: " << host.env_git_rev.c_str()
-                  << std::endl;
+        os << "        git version: " << host.env_git_rev.c_str() << std::endl;
 
-        std::cout << "        ledger protocol version: " << host.env_max_proto
-                  << std::endl;
+        os << "        ledger protocol version: " << host.env_max_proto
+           << std::endl;
 
-        std::cout << "        pre-release version: " << host.env_pre_release_ver
-                  << std::endl;
+        os << "        pre-release version: " << host.env_pre_release_ver
+           << std::endl;
 
-        std::cout << "        rs-stellar-xdr:" << std::endl;
+        os << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout << "            package version: " << host.xdr_pkg_ver.c_str()
-                  << std::endl;
-        std::cout << "            git version: " << host.xdr_git_rev.c_str()
-                  << std::endl;
-        std::cout << "            base XDR git version: "
-                  << host.xdr_base_git_rev.c_str() << std::endl;
+        os << "            package version: " << host.xdr_pkg_ver.c_str()
+           << std::endl;
+        os << "            git version: " << host.xdr_git_rev.c_str()
+           << std::endl;
+        os << "            base XDR git version: "
+           << host.xdr_base_git_rev.c_str() << std::endl;
         ++i;
     }
-    return 0;
 }
 
 #ifdef BUILD_TESTS
@@ -1742,240 +1734,238 @@ runRebuildLedgerFromBuckets(CommandLineArgs const& args)
 }
 
 ParserWithValidation
-fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+fuzzTargetParser(std::string& targetName)
 {
-    auto validateFuzzerMode = [&] {
-        if (iequals(fuzzerModeArg, "overlay"))
+    auto validateTarget = [&] {
+        if (targetName.empty())
         {
-            fuzzerMode = FuzzerMode::OVERLAY;
+            return "--target is required. Use 'stellar-core fuzz-list' to "
+                   "see available targets.";
+        }
+        // Validate against the registry
+        if (FuzzTargetRegistry::instance().findTarget(targetName))
+        {
             return "";
         }
-
-        if (iequals(fuzzerModeArg, "tx"))
-        {
-            fuzzerMode = FuzzerMode::TRANSACTION;
-            return "";
-        }
-
-        return "Unrecognized fuzz mode. Please select a valid mode.";
+        return "Unrecognized fuzz target. Use 'stellar-core fuzz-list' to see "
+               "available targets.";
     };
 
-    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
-                "set the fuzzer mode. Expected modes: overlay, "
-                "tx. Defaults to overlay."),
-            validateFuzzerMode};
+    return {clara::Opt{targetName, "FUZZ-TARGET"}["--target"](
+                "set the fuzz target (required). Use 'stellar-core "
+                "fuzz-list' to see available targets."),
+            validateTarget};
 }
 
 int
 runFuzz(CommandLineArgs const& args)
 {
     LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::vector<std::string> metrics;
     std::string fileName;
     std::string outputFile;
-    int processID = 0;
-    bool consoleLog = false;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
-
-    return runWithHelp(args,
-                       {logLevelParser(logLevel), metricsParser(metrics),
-                        consoleParser(consoleLog), fileNameParser(fileName),
-                        outputFileParser(outputFile),
-                        processIDParser(processID),
-                        fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
-                       [&] {
-                           Logging::setLogLevel(logLevel, nullptr);
-                           if (!outputFile.empty())
-                           {
-                               Logging::setLoggingToFile(outputFile);
-                           }
-
-                           fuzz(fileName, metrics, processID, fuzzerMode);
-                           return 0;
-                       });
-}
-
-int
-runGenFuzz(CommandLineArgs const& args)
-{
-    LogLevel logLevel{LogLevel::LVL_FATAL};
-    std::string fileName;
-    std::string outputFile;
-    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
-    std::string fuzzerModeArg = "overlay";
-    int processID = 0;
+    std::string targetName;
 
     return runWithHelp(
         args,
         {logLevelParser(logLevel), fileNameParser(fileName),
-         outputFileParser(outputFile),
-         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+         outputFileParser(outputFile), fuzzTargetParser(targetName)},
         [&] {
+            if (fileName.empty())
+            {
+                std::cerr << "Error: input file is required\n";
+                return 1;
+            }
+
             Logging::setLogLevel(logLevel, nullptr);
             if (!outputFile.empty())
             {
                 Logging::setLoggingToFile(outputFile);
             }
 
-            FuzzUtils::createFuzzer(processID, fuzzerMode)->genFuzz(fileName);
+            auto target =
+                FuzzTargetRegistry::instance().createTarget(targetName);
+            target->initialize();
+
+            std::ifstream in(fileName, std::ios::binary);
+            std::vector<uint8_t> data(target->maxInputSize());
+            in.read(reinterpret_cast<char*>(data.data()), data.size());
+            auto actual = in.gcount();
+            if (actual > 0)
+            {
+                data.resize(actual);
+                target->run(data.data(), data.size());
+            }
+
+            target->shutdown();
             return 0;
         });
 }
 
-ParserWithValidation
-applyLoadModeParser(std::string& modeArg, ApplyLoadMode& mode)
+int
+runFuzzList(CommandLineArgs const& args)
 {
-    auto validateMode = [&] {
-        if (iequals(modeArg, "ledger-limits"))
-        {
-            mode = ApplyLoadMode::LIMIT_BASED;
-            return "";
-        }
-        if (iequals(modeArg, "max-sac-tps"))
-        {
-            mode = ApplyLoadMode::MAX_SAC_TPS;
-            return "";
-        }
-        if (iequals(modeArg, "limits-for-model-tx"))
-        {
-            mode = ApplyLoadMode::FIND_LIMITS_FOR_MODEL_TX;
-            return "";
-        }
-        return "Unrecognized apply-load mode. Please select 'ledger-limits' "
-               "or 'max-sac-tps'.";
+    // List all available fuzz targets from the registry
+    std::cout << "Available fuzz targets:\n";
+    for (auto const& target : FuzzTargetRegistry::instance().targets())
+    {
+        std::cout << "  " << target.name << " - " << target.description << "\n";
+    }
+    std::cout << "\nUsage:\n";
+    std::cout << "  stellar-core fuzz-one --target=<target> <input-file>\n";
+    std::cout << "  stellar-core gen-fuzz --target=<target> "
+                 "--output-dir=<dir> [--count=<n>]\n";
+    return 0;
+}
+
+int
+runGenFuzz(CommandLineArgs const& args)
+{
+    constexpr int DEFAULT_CORPUS_SIZE = 100;
+    LogLevel logLevel{LogLevel::LVL_FATAL};
+    std::string outputDir;
+    std::string targetName;
+    int count = DEFAULT_CORPUS_SIZE;
+
+    auto outputDirParser = [](std::string& dir) {
+        return clara::Opt{dir, "DIR"}["--output-dir"]["-o"](
+            "output directory for corpus files (required)");
     };
 
-    return {clara::Opt{modeArg, "MODE"}["--mode"](
-                "set the apply-load mode. Expected modes: ledger-limits, "
-                "max-sac-tps. Defaults to ledger-limits."),
-            validateMode};
+    auto countParser = [](int& c) {
+        return clara::Opt{c, "COUNT"}["--count"]["-n"](
+            "number of corpus files to generate (default: 100)");
+    };
+
+    return runWithHelp(
+        args,
+        {logLevelParser(logLevel), outputDirParser(outputDir),
+         countParser(count), fuzzTargetParser(targetName)},
+        [&] {
+            if (outputDir.empty())
+            {
+                std::cerr << "Error: --output-dir is required\n";
+                return 1;
+            }
+
+            Logging::setLogLevel(logLevel, nullptr);
+
+            // Create output directory if it doesn't exist
+            std::filesystem::create_directories(outputDir);
+
+            auto target =
+                FuzzTargetRegistry::instance().createTarget(targetName);
+            target->generateSeedCorpus(outputDir, count);
+
+            std::cout << "Generated " << count << " corpus files in "
+                      << outputDir << "\n";
+            return 0;
+        });
 }
 
 int
 runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    ApplyLoadMode mode{ApplyLoadMode::LIMIT_BASED};
-    std::string modeArg = "ledger-limits";
 
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), applyLoadModeParser(modeArg, mode)},
-        [&] {
-            auto config = configOption.getConfig();
-            config.RUN_STANDALONE = true;
-            config.MANUAL_CLOSE = true;
-            config.USE_CONFIG_FOR_GENESIS = true;
-            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            config.LEDGER_PROTOCOL_VERSION =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            if (config.APPLY_LOAD_NUM_LEDGERS < 30)
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        auto mode = config.APPLY_LOAD_MODE;
+        // Common boilerplate configuration for apply load benchmarking.
+        // The goal of this config is to set up all the common parameters
+        // that don't affect benchmarking at once.
+        // Parameters that affect benchmarking should be set explicitly
+        // in the benchmarking config for the sake of reproducibility and
+        // clarity.
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.NODE_IS_VALIDATOR = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        config.NETWORK_PASSPHRASE = "Apply Load";
+        config.PARALLEL_LEDGER_APPLY = true;
+
+        // All modes besides limit-based don't need to worry about message
+        // limits.
+        if (mode != ApplyLoadMode::LIMIT_BASED)
+        {
+            config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+        }
+
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto appPtr = Application::create(clock, config);
+
+        auto& app = *appPtr;
+        {
+            app.start();
+
+            // Constructs and sets up the apply load benchmarking harness.
+            // The setup may take some time as it involves injecting the
+            // test entries into bucket list across multiple ledgers (
+            // depending on the configuration).
+            ApplyLoad al(app);
+
+            // In the limit-based mode, we may want publish the history
+            // checkpoint just before performing the benchmark. This way
+            // the 'checkpointed' bucket list could be used downstream in
+            // order to setup the test environment for meta ingestion
+            // benchmarking. Note, that the apply load test setup avoids
+            // using transactions in order to make it faster, so the
+            // injected test entries are only observable in the bucket
+            // list and not in the meta or transaction history.
+            if (mode == ApplyLoadMode::LIMIT_BASED &&
+                app.getHistoryArchiveManager().publishEnabled())
             {
-                throw std::runtime_error(
-                    "APPLY_LOAD_NUM_LEDGERS must be at least 30");
-            }
-            if (mode == ApplyLoadMode::MAX_SAC_TPS)
-            {
-                if (config.APPLY_LOAD_MAX_SAC_TPS_MIN_TPS >
-                    config.APPLY_LOAD_MAX_SAC_TPS_MAX_TPS)
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
+                                "history archive publication");
+                while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
+                    app.getLedgerManager().getLastClosedLedgerNum(),
+                    app.getConfig()))
                 {
-                    throw std::runtime_error(
-                        "APPLY_LOAD_MAX_SAC_TPS_MIN_TPS must not be greater "
-                        "than APPLY_LOAD_MAX_SAC_TPS_MAX_TPS for max_sac_tps "
-                        "mode");
+                    al.closeLedger({});
                 }
-
-                // For now, metrics are expensive at high, parallel load. We
-                // disable them so they don't bottleneck the test, but this
-                // should be addressed in the future.
-                config.DISABLE_SOROBAN_METRICS_FOR_TESTING = true;
-                config.METADATA_OUTPUT_STREAM = "";
-                config.METADATA_DEBUG_LEDGERS = 0;
-
-                // Apply Load may exceed TX_SET byte size limits, so ignore them
-                config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
-
-                // Always use background ledger close for max-sac-tps
-                config.PARALLEL_LEDGER_APPLY = true;
+                app.getHistoryManager().waitForCheckpointPublish();
+                CLOG_INFO(Perf,
+                          "Published final checkpoint before benchmark: "
+                          "ledger {} ({})",
+                          app.getLedgerManager().getLastClosedLedgerNum(),
+                          fmt::format(
+                              FMT_STRING("{:08x}"),
+                              app.getLedgerManager().getLastClosedLedgerNum()));
             }
 
-            VirtualClock clock(VirtualClock::REAL_TIME);
-            auto appPtr = Application::create(clock, config);
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
 
-            auto& app = *appPtr;
-            {
-                app.start();
+            auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+            cpuInsRatio.Clear();
 
-                // Constructs and sets up the apply load benchmarking harness.
-                // The setup may take some time as it involves injecting the
-                // test entries into bucket list across multiple ledgers (
-                // depending on the configuration).
-                ApplyLoad al(app, mode);
+            auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op",
+                 "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+            cpuInsRatioExclVm.Clear();
 
-                // In the limit-based mode, we may want publish the history
-                // checkpoint just before performing the benchmark. This way
-                // the 'checkpointed' bucket list could be used downstream in
-                // order to setup the test environment for meta ingestion
-                // benchmarking. Note, that the apply load test setup avoids
-                // using transactions in order to make it faster, so the
-                // injected test entries are only observable in the bucket
-                // list and not in the meta or transaction history.
-                if (mode == ApplyLoadMode::LIMIT_BASED &&
-                    app.getHistoryArchiveManager().publishEnabled())
-                {
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(Perf, "Closing ledgers until next checkpoint for "
-                                    "history archive publication");
-                    while (!HistoryManagerImpl::publishCheckpointOnLedgerClose(
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        app.getConfig()))
-                    {
-                        al.closeLedger({});
-                    }
-                    app.getHistoryManager().waitForCheckpointPublish();
-                    CLOG_INFO(
-                        Perf,
-                        "Published final checkpoint before benchmark: "
-                        "ledger {} ({})",
-                        app.getLedgerManager().getLastClosedLedgerNum(),
-                        fmt::format(
-                            FMT_STRING("{:08x}"),
-                            app.getLedgerManager().getLastClosedLedgerNum()));
-                }
+            auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+            ledgerCpuInsRatio.Clear();
 
-                auto& ledgerClose =
-                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-                ledgerClose.Clear();
+            auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"});
+            ledgerCpuInsRatioExclVm.Clear();
 
-                auto& cpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio"});
-                cpuInsRatio.Clear();
+            auto& totalTxApplyTime = app.getMetrics().NewTimer(
+                {"ledger", "transaction", "total-apply"});
+            totalTxApplyTime.Clear();
 
-                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
-                cpuInsRatioExclVm.Clear();
+            al.execute();
+        }
 
-                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
-                ledgerCpuInsRatio.Clear();
-
-                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
-                    {"soroban", "host-fn-op",
-                     "ledger-cpu-insns-ratio-excl-vm"});
-                ledgerCpuInsRatioExclVm.Clear();
-
-                auto& totalTxApplyTime = app.getMetrics().NewTimer(
-                    {"ledger", "transaction", "total-apply"});
-                totalTxApplyTime.Clear();
-
-                al.execute();
-            }
-
-            return 0;
-        });
+        return 0;
+    });
 }
 
 int
@@ -2107,8 +2097,10 @@ handleCommandLine(int argc, char* const* argv)
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",
           runRebuildLedgerFromBuckets},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
+         {"fuzz-one", "run a single fuzz input and exit", runFuzz},
+         {"gen-fuzz", "generate fuzz input files for a seed corpus",
+          runGenFuzz},
+         {"fuzz-list", "list available fuzz targets", runFuzzList},
          {"test", "execute test suite", runTest},
          {"apply-load", "run apply time load test", runApplyLoad},
          {"pregenerate-loadgen-txs",
@@ -2126,7 +2118,7 @@ handleCommandLine(int argc, char* const* argv)
         fmt::format(FMT_STRING("{0} {1}"), exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 adjustedCommandLine.second};
-    if (command->name() == "run" || command->name() == "fuzz" ||
+    if (command->name() == "run" || command->name() == "fuzz-one" ||
         command->name() == "test")
     {
         // run outside of catch block so that we properly capture crashes

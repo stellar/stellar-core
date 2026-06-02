@@ -336,6 +336,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // constructor
     mProcessManager = ProcessManager::create(*this);
 
+    // Initialize banned accounts persistence and migrate any deprecated
+    // FILTERED_G_ADDRESSES config entries into the persistent table.
+    mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
+
     // After everything is initialized, start accepting HTTP commands
     mCommandHandler = std::make_unique<CommandHandler>(*this);
 
@@ -733,16 +737,6 @@ ApplicationImpl::validateAndLogConfig()
         {
             throw std::invalid_argument(
                 "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
-        }
-    }
-
-    if (getHistoryArchiveManager().publishEnabled())
-    {
-        if (!mConfig.MODE_STORES_HISTORY_MISC)
-        {
-            throw std::invalid_argument(
-                "Core is not configured to store history, but "
-                "some history archives are writable");
         }
     }
 
@@ -1196,6 +1190,7 @@ ApplicationImpl::setRunInOverlayOnlyMode(bool mode)
 {
     mRunInOverlayOnlyMode = mode;
 }
+
 #endif
 
 void
@@ -1204,6 +1199,20 @@ ApplicationImpl::applyCfgCommands()
     for (auto cmd : mConfig.COMMANDS)
     {
         mCommandHandler->manualCmd(cmd);
+    }
+
+    // Warn if COMMANDS contains banaccounts entries (after persisting
+    // those accounts)
+    for (auto const& cmd : mConfig.COMMANDS)
+    {
+        if (cmd.find("banaccounts") != std::string::npos)
+        {
+            CLOG_WARNING(Herder,
+                         "COMMANDS entry '{}' is no longer needed: banned "
+                         "accounts are now persisted across restarts. "
+                         "Consider removing this entry.",
+                         cmd);
+        }
     }
 }
 
@@ -1279,9 +1288,30 @@ ApplicationImpl::getMetrics()
     return *mMetrics;
 }
 
+#ifdef BUILD_TESTS
+// Some tests spin up ad-hoc threads after app initialization and need those
+// threads to pass threadIsType() checks.  The production mThreadTypes map
+// must not be written after construction (concurrent unsynchronized reads),
+// so test threads register themselves via this thread-local instead.
+// threadIsType() checks it before the instance map.
+static thread_local std::optional<Application::ThreadType> gTestThreadType;
+
+void
+Application::setTestThreadType(ThreadType type)
+{
+    gTestThreadType = type;
+}
+#endif
+
 bool
 ApplicationImpl::threadIsType(ThreadType type) const
 {
+#ifdef BUILD_TESTS
+    if (gTestThreadType.has_value())
+    {
+        return *gTestThreadType == type;
+    }
+#endif
     auto it = mThreadTypes.find(std::this_thread::get_id());
     releaseAssert(it != mThreadTypes.end());
     return it->second == type;
@@ -1449,6 +1479,12 @@ BanManager&
 ApplicationImpl::getBanManager()
 {
     return *mBanManager;
+}
+
+BannedAccountsPersistor&
+ApplicationImpl::getBannedAccountsPersistor()
+{
+    return *mBannedAccountsPersistor;
 }
 
 StatusManager&

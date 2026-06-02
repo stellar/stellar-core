@@ -9,7 +9,6 @@
 #include "xdr/Stellar-transaction.h"
 #include "xdr/Stellar-types.h"
 
-#include <map>
 #include <set>
 #include <stdint.h>
 #include <vector>
@@ -22,7 +21,8 @@ class SignatureChecker
     // Construct a checker for validating `signatures` over `contentsHash`.
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        xdr::xvector<DecoratedSignature, 20> const& signatures,
+        bool isOverlayValidation = false);
 #ifdef BUILD_TESTS
     virtual bool checkSignature(std::vector<Signer> const& signersV,
                                 int32_t neededWeight);
@@ -43,6 +43,9 @@ class SignatureChecker
     void disableCacheMetricsTracking();
 #endif // BUILD_TESTS
 
+    bool isOverlayValidation() const;
+    static constexpr uint32_t OVERLAY_TX_ED25519_VERIFY_BUDGET = 1000;
+
     // Reset and return the counts of signature checks performed as part of
     // transaction `checkValid` or apply flow. The first element of the pair is
     // the number of cache hits, and the second element is the total number of
@@ -54,8 +57,12 @@ class SignatureChecker
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
     bool mTrackCacheMetrics{true};
+    bool mIsOverlayValidation{false};
 
     std::vector<bool> mUsedSignatures;
+    uint32_t mTxEd25519Verifications{0};
+
+    bool isOverVerificationBudget() const;
 
     // Static fields for tracking signature verification cache performance
     // during the `checkValid` or apply flow
@@ -76,8 +83,10 @@ class AlwaysValidSignatureChecker : public SignatureChecker
   public:
     AlwaysValidSignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures)
-        : SignatureChecker(protocolVersion, contentsHash, signatures)
+        xdr::xvector<DecoratedSignature, 20> const& signatures,
+        bool isOverlayValidation = false)
+        : SignatureChecker(protocolVersion, contentsHash, signatures,
+                           isOverlayValidation)
     {
     }
 

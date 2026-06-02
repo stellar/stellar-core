@@ -190,17 +190,20 @@ class Peer : public std::enable_shared_from_this<Peer>,
     OverlayMetrics& mOverlayMetrics;
     // No need for GUARDED_BY, PeerMetrics is thread-safe
     PeerMetrics mPeerMetrics;
+
+    // Drop can be initiated from any thread only once, keep track of that with
+    // an atomic
+    std::atomic<bool> mDropStarted{false};
+
 #ifdef BUILD_TESTS
     std::string mDropReason GUARDED_BY(mStateMutex);
 #endif
 
     // Mutex to protect PeerState, which can be accessed and modified from
-    // multiple threads
-#ifndef USE_TRACY
-    RecursiveMutex mutable mStateMutex;
-#else
-    mutable TracyLockable(std::recursive_mutex, mStateMutex);
-#endif
+    // multiple threads.
+    // LOCK ORDERING: mStateMutex must be acquired before Hmac::mMutex.
+    mutable ANNOTATED_RECURSIVE_MUTEX(mStateMutex,
+                                      ACQUIRED_BEFORE(Hmac::mMutex));
 
     Hmac mHmac;
     // Does local node have capacity to read from this peer
@@ -271,6 +274,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::shared_ptr<TxAdverts> mTxAdverts;
     QueryInfo mQSetQueryInfo;
     QueryInfo mTxSetQueryInfo;
+    QueryInfo mSCPStateQueryInfo;
     bool mPeersReceived{false};
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
@@ -314,7 +318,17 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
-    bool process(QueryInfo& queryInfo);
+
+    // Returns `true` if a query is within the configured limits and should be
+    // processed, `false` if it exceeds limits and should be dropped. This
+    // function may reset the per-window state in `queryInfo` when a new
+    // window begins, but it does not increment any query counters; callers
+    // are responsible for updating `queryInfo` (for example, incrementing the
+    // number of processed queries) after a query is accepted. Callers may
+    // optionally set `maxQueriesPerWindow` to override the default per-window
+    // query limit.
+    bool process(QueryInfo& queryInfo,
+                 std::optional<uint32_t> maxQueriesPerWindow = std::nullopt);
 
     void recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 
@@ -343,7 +357,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuthenticatedMessage(
         std::shared_ptr<StellarMessage const> msg,
         std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
-    void beginMessageProcessing(StellarMessage const& msg);
+    bool beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
 
   public:
@@ -487,6 +501,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static void
     populateSignatureCacheForTesting(AppConnector& app,
                                      TransactionFrameBaseConstPtr tx);
+
+    uint32_t
+    getSCPStateQueryCountForTesting() const
+    {
+        releaseAssert(threadIsMain());
+        return mSCPStateQueryInfo.mNumQueries;
+    }
 #endif
 
     // Public thread-safe methods that access Peer's state
@@ -530,6 +551,7 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
 {
     std::weak_ptr<Peer> const mWeakPeer;
     StellarMessage const mMsg;
+    bool mCapacityLocked{false};
     std::optional<Hash> mMaybeHash;
     // xdrBlake2 -> txFrame (with pre-populated hashes)
     std::unordered_map<Hash, TransactionFrameBasePtr> mTxsMap;

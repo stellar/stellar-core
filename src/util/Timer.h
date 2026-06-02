@@ -10,13 +10,12 @@
 #include "util/asio.h"
 #include "util/NonCopyable.h"
 #include "util/Scheduler.h"
+#include "util/ThreadAnnotations.h"
 
 #include <chrono>
 #include <ctime>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <queue>
 
 namespace stellar
@@ -166,7 +165,7 @@ class VirtualClock
     Mode const mMode;
 
     size_t nRealTimerCancelEvents{0};
-    time_point mVirtualNow;
+    time_point mVirtualNow GUARDED_BY(mVirtualNowMutex);
 
     std::atomic<int> mBackgroundWorkCount{0};
 
@@ -188,10 +187,10 @@ class VirtualClock
     std::chrono::steady_clock::time_point mLastDispatchStart;
     std::unique_ptr<Scheduler> mActionScheduler;
 
-    mutable std::mutex mPendingActionQueueMutex;
+    mutable ANNOTATED_MUTEX(mPendingActionQueueMutex);
     std::queue<
         std::tuple<std::function<void()>, std::string, Scheduler::ActionType>>
-        mPendingActionQueue;
+        mPendingActionQueue GUARDED_BY(mPendingActionQueueMutex);
 
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
@@ -208,7 +207,7 @@ class VirtualClock
 
     // timer should be last to ensure it gets destroyed first
     RealSteadyTimer mRealTimer;
-    std::mutex mutable mVirtualNowMutex;
+    mutable ANNOTATED_MUTEX(mVirtualNowMutex);
 
   public:
     // A VirtualClock is instantiated in either real or virtual mode. In real

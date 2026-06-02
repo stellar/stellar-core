@@ -1646,3 +1646,260 @@ TEST_CASE_VERSIONS("revoke from pool",
         });
     }
 }
+
+TEST_CASE("pool share revocation order test", "[tx][settrustlineflags]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+    auto root = app->getRoot();
+    auto& lm = app->getLedgerManager();
+    auto txFee = lm.getLastTxFee();
+    auto minBal = [&](int32_t n) { return lm.getLastMinBalance(n); };
+
+    // Assets issued by root with AUTH_REVOCABLE
+    auto assetA = makeAsset(*root, "AAAA");
+    auto assetC = makeAsset(*root, "CCCC");
+    auto assetD = makeAsset(*root, "DDDD");
+    root->setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+
+    // Pool-share assets and pool IDs
+    auto shareAC =
+        makeChangeTrustAssetPoolShare(assetA, assetC, LIQUIDITY_POOL_FEE_V18);
+    auto poolAC = xdrSha256(shareAC.liquidityPool());
+    auto shareAD =
+        makeChangeTrustAssetPoolShare(assetA, assetD, LIQUIDITY_POOL_FEE_V18);
+    auto poolAD = xdrSha256(shareAD.liquidityPool());
+
+    // sponsor1 (Y) - backs PS1; also the sandwich sponsor for B during revoke
+    // sponsor2 (B) - backs PS2; will be in a sandwich with Y
+    auto trustor = root->create("trustor", minBal(20));
+    auto sponsor1 = root->create("sponsor1", minBal(10));
+    auto sponsor2 = root->create("sponsor2", minBal(10));
+
+    // Upgrade to current protocol (>= 18, required for pool-share revocation)
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().ledgerVersion =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        ltx.commit();
+    }
+
+    // Set up trustor's asset trustlines
+    trustor.changeTrust(assetA, INT64_MAX);
+    trustor.changeTrust(assetC, INT64_MAX);
+    trustor.changeTrust(assetD, INT64_MAX);
+    root->pay(trustor, assetA, 2000);
+    root->pay(trustor, assetD, 2000);
+
+    // sponsor1 (Y) sponsors trustor's pool-share TL for pool(A,C) (PS1)
+    {
+        auto tx = transactionFrameFromOps(
+            app->getNetworkID(), sponsor1,
+            {sponsor1.op(beginSponsoringFutureReserves(trustor)),
+             trustor.op(changeTrust(shareAC, INT64_MAX)),
+             trustor.op(endSponsoringFutureReserves())},
+            {trustor});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaBuilder txm(true, *tx,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
+        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+        ltx.commit();
+    }
+
+    // sponsor2 (B) sponsors trustor's pool-share TL for pool(A,D) (PS2)
+    {
+        auto tx = transactionFrameFromOps(
+            app->getNetworkID(), sponsor2,
+            {sponsor2.op(beginSponsoringFutureReserves(trustor)),
+             trustor.op(changeTrust(shareAD, INT64_MAX)),
+             trustor.op(endSponsoringFutureReserves())},
+            {trustor});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaBuilder txm(true, *tx,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
+        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+        ltx.commit();
+    }
+
+    // KEY: only deposit into pool(A,D), NOT pool(A,C).
+    // PS1 (pool(A,C)) has balance=0 -> no CBs created on revocation.
+    // PS2 (pool(A,D)) has balance>0 -> 2 CBs created on revocation.
+    //
+    // When PS1 is processed first:
+    //   PS1 TL deleted: Y.numSponsoring -= 2 (frees 2*baseReserve)
+    //   No CBs (balance=0): Y.numSponsoring unchanged
+    //   Net: Y.availableBalance += 2*baseReserve
+    //   Then PS2's 2 CBs need 2*baseReserve from Y (sandwich) -> SUCCESS
+    //
+    // When PS2 is processed first:
+    //   PS2's 2 CBs need 2*baseReserve from Y (sandwich)
+    //   Y.availableBalance = 0 -> LOW_RESERVE -> FAIL
+    trustor.liquidityPoolDeposit(poolAD, 100, 100, Price{1, 1}, Price{1, 1});
+
+    // Verify sponsor1 (Y) numSponsoring = 2 (pool-share TL mult = 2)
+    REQUIRE(getNumSponsoring(*app, sponsor1) == 2);
+
+    // Drain sponsor1's available balance to exactly 0.
+    sponsor1.pay(*root, sponsor1.getAvailableBalance() - txFee);
+    REQUIRE(sponsor1.getAvailableBalance() == 0);
+
+    // Revocation transaction with a single sandwich: Y sponsors B
+    //   Op 0: Y begins sponsoring B
+    //   Op 1: root revokes trustor's auth for assetA
+    //   Op 2: B ends being sponsored by Y
+    auto revokeOp = setTrustLineFlags(
+        trustor, assetA, clearTrustLineFlags(TRUSTLINE_AUTH_FLAGS));
+
+    auto tx = transactionFrameFromOps(
+        app->getNetworkID(), *root,
+        {sponsor1.op(beginSponsoringFutureReserves(sponsor2)),
+         root->op(revokeOp), sponsor2.op(endSponsoringFutureReserves())},
+        {sponsor1, sponsor2});
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    TransactionMetaBuilder txm(true, *tx,
+                               ltx.loadHeader().current().ledgerVersion,
+                               app->getAppConnector());
+    REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+    bool success = tx->apply(app->getAppConnector(), ltx, txm);
+
+    // PS2 (balance>0, backer=B, sandwich sponsor=Y) first:
+    // 2 CBs -> Y needs 2*baseReserve -> has 0 -> LOW_RESERVE
+    REQUIRE(!success);
+    REQUIRE(tx->getResultCode() == txFAILED);
+    REQUIRE(tx->getResult()
+                .result.results()[1]
+                .tr()
+                .setTrustLineFlagsResult()
+                .code() == SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+}
+
+// We need at least 3 pool-share trustlines (not just 2) to trigger
+// reordering. With only 2 entries, libstdc++'s std::unordered_map uses
+// bucket_count=2. The bucket for a key is (hash ^ gMixer) % bucket_count,
+// and for bucket_count=2 that reduces to a single-bit test. XOR with
+// gMixer flips the same bit in both hashes, so the relative bucket
+// assignment is invariant — the iteration order never changes regardless
+// of gMixer. With 3+ entries the bucket_count grows (e.g. 5 or 7 in
+// libstdc++), and (hash ^ gMixer) % n with n > 2 is no longer XOR-
+// invariant, allowing different gMixer values to reorder the entries.
+//
+// This test uses 6 pool-share trustlines to ensure a comfortable margin.
+// Only pool(A,F) has a deposit; the other 5 are empty. sponsor1 backs the
+// 5 empty pools; sponsor2 backs the funded pool. The sandwich makes sponsor1
+// the future-reserve backer for sponsor2.
+
+TEST_CASE("revocation result test across validators", "[tx][settrustlineflags]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+    auto root = app->getRoot();
+    auto& lm = app->getLedgerManager();
+    auto txFee = lm.getLastTxFee();
+    auto minBal = [&](int32_t n) { return lm.getLastMinBalance(n); };
+
+    // assetA is the revocable asset; B through G pair with A.
+    auto assetA = makeAsset(*root, "AAAA");
+    auto assetB = makeAsset(*root, "BBBB");
+    auto assetC = makeAsset(*root, "CCCC");
+    auto assetD = makeAsset(*root, "DDDD");
+    auto assetE = makeAsset(*root, "EEEE");
+    auto assetF = makeAsset(*root, "FFFF");
+    auto assetG = makeAsset(*root, "GGGG");
+    root->setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+
+    auto shareAB =
+        makeChangeTrustAssetPoolShare(assetA, assetB, LIQUIDITY_POOL_FEE_V18);
+    auto shareAC =
+        makeChangeTrustAssetPoolShare(assetA, assetC, LIQUIDITY_POOL_FEE_V18);
+    auto shareAD =
+        makeChangeTrustAssetPoolShare(assetA, assetD, LIQUIDITY_POOL_FEE_V18);
+    auto shareAE =
+        makeChangeTrustAssetPoolShare(assetA, assetE, LIQUIDITY_POOL_FEE_V18);
+    auto shareAF =
+        makeChangeTrustAssetPoolShare(assetA, assetF, LIQUIDITY_POOL_FEE_V18);
+    auto shareAG =
+        makeChangeTrustAssetPoolShare(assetA, assetG, LIQUIDITY_POOL_FEE_V18);
+    auto poolAF = xdrSha256(shareAF.liquidityPool());
+
+    // sponsor1 backs 5 empty pools (numSponsoring = 10).
+    // sponsor2 backs 1 funded pool (numSponsoring = 2).
+    // Sandwich: sponsor1 begins sponsoring sponsor2.
+    auto trustor = root->create("trustor", minBal(30));
+    auto sponsor1 = root->create("sponsor1", minBal(20));
+    auto sponsor2 = root->create("sponsor2", minBal(10));
+
+    trustor.changeTrust(assetA, INT64_MAX);
+    trustor.changeTrust(assetB, INT64_MAX);
+    trustor.changeTrust(assetC, INT64_MAX);
+    trustor.changeTrust(assetD, INT64_MAX);
+    trustor.changeTrust(assetE, INT64_MAX);
+    trustor.changeTrust(assetF, INT64_MAX);
+    trustor.changeTrust(assetG, INT64_MAX);
+    root->pay(trustor, assetA, 10000);
+    root->pay(trustor, assetF, 10000);
+
+    auto sponsorPoolShare = [&](TestAccount& sponsor,
+                                ChangeTrustAsset const& share) {
+        auto tx = transactionFrameFromOps(
+            app->getNetworkID(), sponsor,
+            {sponsor.op(beginSponsoringFutureReserves(trustor)),
+             trustor.op(changeTrust(share, INT64_MAX)),
+             trustor.op(endSponsoringFutureReserves())},
+            {trustor});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaBuilder txm(true, *tx,
+                                   ltx.loadHeader().current().ledgerVersion,
+                                   app->getAppConnector());
+        tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0);
+        tx->apply(app->getAppConnector(), ltx, txm);
+        ltx.commit();
+    };
+    // sponsor1 backs 5 empty pools.
+    sponsorPoolShare(sponsor1, shareAB);
+    sponsorPoolShare(sponsor1, shareAC);
+    sponsorPoolShare(sponsor1, shareAD);
+    sponsorPoolShare(sponsor1, shareAE);
+    sponsorPoolShare(sponsor1, shareAG);
+    // sponsor2 backs the funded pool (A,F).
+    sponsorPoolShare(sponsor2, shareAF);
+
+    // Only deposit into pool(A,F). All others have balance=0.
+    trustor.liquidityPoolDeposit(poolAF, 100, 100, Price{1, 1}, Price{1, 1});
+
+    // sponsor1 backs 5 pool TLs (numSponsoring = 10).
+    // Drain to exactly 0 available balance.
+    //
+    // If an empty pool-share TL (backed by sponsor1) is deleted before
+    // pool(A,F), the freed reserves let sponsor1 back the CBs -> SUCCESS.
+    // If pool(A,F) is processed first, sponsor1 has 0 -> LOW_RESERVE.
+    sponsor1.pay(*root, sponsor1.getAvailableBalance() - txFee);
+    REQUIRE(sponsor1.getAvailableBalance() == 0);
+
+    auto revokeOp = setTrustLineFlags(
+        trustor, assetA, clearTrustLineFlags(TRUSTLINE_AUTH_FLAGS));
+    auto tx = transactionFrameFromOps(
+        app->getNetworkID(), *root,
+        {sponsor1.op(beginSponsoringFutureReserves(sponsor2)),
+         root->op(revokeOp), sponsor2.op(endSponsoringFutureReserves())},
+        {sponsor1, sponsor2});
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    TransactionMetaBuilder txm(true, *tx,
+                               ltx.loadHeader().current().ledgerVersion,
+                               app->getAppConnector());
+    REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+    bool success = tx->apply(app->getAppConnector(), ltx, txm);
+
+    // A deterministic implementation must always produce the same result.
+    REQUIRE(success);
+    REQUIRE(tx->getResultCode() == txSUCCESS);
+}

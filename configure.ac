@@ -149,7 +149,7 @@ AC_ARG_ENABLE([threadsafety],
 AS_IF([test "x$enable_threadsafety" = "xyes"], [
   AC_MSG_NOTICE([enabling thread safety static analysis, see https://clang.llvm.org/docs/ThreadSafetyAnalysis.html])
   AS_CASE(["$CXX"],
-          [clang*], [CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety -DTHREAD_SAFETY"],
+          [clang*], [CXXFLAGS="$CXXFLAGS -Wthread-safety -Werror=thread-safety -Wthread-safety-beta -Werror=thread-safety-beta -DTHREAD_SAFETY"],
           [AC_MSG_WARN([Thread safety analysis is only supported with Clang compiler, skipping])])
 ])
 
@@ -233,36 +233,148 @@ AS_IF([test "x$enable_ccache" = "xyes"], [
   esac
 ])
 
-# Permit user to enable AFL instrumentation
-AC_ARG_ENABLE([afl],
-              AS_HELP_STRING([--enable-afl],
-                             [build with AFL (fuzzer) instrumentation]))
-AS_IF([test "x$enable_afl" = "xyes"], [
-  AS_IF([test "x$sanitizeopts" != "x"], [
-    AC_MSG_ERROR([AFL is presently incompatible with sanitizers])
+AC_ARG_ENABLE([sccache],
+              AS_HELP_STRING([--enable-sccache], [build with sccache]))
+
+AC_ARG_ENABLE([nsc-sccache],
+              AS_HELP_STRING([--enable-nsc-sccache], [configure sccache using nsc cache setup]))
+
+AS_IF([test "x$enable_nsc_sccache" = "xyes"], [
+  AC_CHECK_PROGS([NSC], [nsc])
+  AS_IF([test -z "$NSC"], [
+    AC_MSG_ERROR([--enable-nsc-sccache requested but nsc was not found])
   ])
-  AS_IF([test "x$enable_ccache" = "xyes"], [
-    AC_MSG_ERROR([AFL is presently incompatible with ccache])
+
+  AC_MSG_NOTICE([configuring sccache environment with: nsc cache sccache setup --cache_name stellar])
+  NSC_SCCACHE_SETUP=`$NSC cache sccache setup --cache_name stellar`
+  nsc_rc=$?
+  AS_IF([test $nsc_rc -ne 0 -o "x$NSC_SCCACHE_SETUP" = "x"], [
+    AC_MSG_ERROR([nsc cache sccache setup failed or returned empty result])
   ])
-  AC_CHECK_PROGS([AFL_FUZZ], [afl-fuzz])
-  AS_CASE(["$CC"],
-          [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang-fast])
-                     AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang-fast++])
-                     CC="afl-clang-fast"
-                     # below we hard code -std=c++20 since updates to AX_CXX_COMPILE_STDCXX append it to
-                     # CXX, not to CXXFLAGS and thus when setting CXX we override this. For a more detailed explanation
-                     # see: https://github.com/stellar/docker-stellar-core/pull/66#issuecomment-521886881
-                     CXX="afl-clang-fast++ -std=c++20 -DAFL_LLVM_MODE=1"],
-          [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
-                     AC_CHECK_PROGS([AFL_GPP], [afl-g++])
-                     CC="afl-gcc"
-                     # below we hard code -std=c++20 since updates to AX_CXX_COMPILE_STDCXX append it to
-                     # CXX, not to CXXFLAGS and thus when setting CXX we override this. For a more detailed explanation
-                     # see: https://github.com/stellar/docker-stellar-core/pull/66#issuecomment-521886881
-                     CXX="afl-g++ -std=c++20"],
-          [AC_MSG_ERROR([Don't know how to instrument CC=$CC with AFL])])
+
+  # Eval the nsc output into configure's environment so the sccache
+  # daemon we start below inherits the remote-cache credentials.
+  AC_MSG_NOTICE([applying nsc sccache environment variables])
+  eval "$NSC_SCCACHE_SETUP" || AC_MSG_ERROR([failed to eval nsc sccache setup output])
+
+  export SCCACHE_WEBDAV_ENDPOINT
+  export SCCACHE_WEBDAV_KEY_PREFIX
+  export SCCACHE_WEBDAV_TOKEN
+
+  enable_sccache=yes
+  enable_nsc_sccache_done=yes
 ])
-AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
+
+AS_IF([test "x$enable_ccache" = "xyes" -a "x$enable_sccache" = "xyes"], [
+  AC_MSG_ERROR([Cannot enable both ccache and sccache])
+])
+
+AS_IF([test "x$enable_sccache" = "xyes"], [
+  AC_CHECK_PROGS([SCCACHE], [sccache])
+  AS_IF([test -z "$SCCACHE"], [
+    AC_MSG_ERROR([sccache enabled but not found])
+  ])
+
+  # Set SCCACHE_BASEDIRS so sccache can normalize absolute paths in
+  # both the source and build trees, improving cache hit rates when
+  # the same code is built from different directories.
+  SCCACHE_BASEDIRS="$(cd "$srcdir" && pwd):$(pwd)"
+  export SCCACHE_BASEDIRS
+  AC_MSG_NOTICE([sccache base dirs: $SCCACHE_BASEDIRS])
+
+  # Stop any existing sccache daemon -- it may be running with stale
+  # config (different credentials, local-only caching, etc.). The
+  # daemon we start below will have the correct nsc environment.
+  AC_MSG_NOTICE([stopping any existing sccache daemon])
+  "$SCCACHE" --stop-server >/dev/null 2>&1 || true
+
+  # Set idle timeout to 0 so the daemon stays alive for the entire
+  # build rather than dying after 10 minutes of inactivity (e.g.
+  # during long link steps).
+  SCCACHE_IDLE_TIMEOUT=0
+  export SCCACHE_IDLE_TIMEOUT
+
+  # Start a fresh daemon with the exported environment.
+  AC_MSG_NOTICE([starting sccache daemon with exported environment])
+  "$SCCACHE" --start-server || AC_MSG_ERROR([failed to start sccache daemon])
+
+  AS_IF([test "x$enable_nsc_sccache_done" = "xyes"], [
+    # Verify the daemon is using a remote cache (webdav/nsc) and not
+    # just local disk storage. This catches misconfiguration early.
+    # The stats line looks like: "Cache location    webdav, name: ..."
+    AC_MSG_NOTICE([verifying sccache is using remote (webdav) storage])
+    SCCACHE_STATS=`"$SCCACHE" -s 2>&1`
+    AC_MSG_NOTICE([sccache stats:
+$SCCACHE_STATS])
+    AS_CASE(["$SCCACHE_STATS"],
+      [*webdav*], [AC_MSG_NOTICE([confirmed: sccache is using webdav remote cache])],
+      [AC_MSG_ERROR([sccache daemon does not appear to be using webdav storage -- nsc configuration may have failed. Run 'sccache -s' to diagnose.])])
+  ])
+
+  case "$CC" in
+  *sccache\ *)
+      ;;
+  *)
+      CC="$SCCACHE ${CC}"
+      ;;
+  esac
+  case "$CXX" in
+    *sccache\ *)
+      ;;
+    *)
+      CXX="$SCCACHE ${CXX}"
+      ;;
+  esac
+  AS_IF([test -z "${RUSTC_WRAPPER+set}"], [
+    RUSTC_WRAPPER="$SCCACHE"
+  ])
+])
+
+# Permit user to enable libfuzzer-compatible fuzzing (works with libfuzzer,
+# honggfuzz, AFL++, etc.)
+AC_ARG_ENABLE([fuzz],
+              AS_HELP_STRING([--enable-fuzz],
+                             [build with libfuzzer-compatible fuzzing support]))
+AS_IF([test "x$enable_fuzz" = "xyes"], [
+  # Add fuzzing-specific compile-time define. This is the standard define used
+  # by oss-fuzz and enables fuzzing-specific code paths.
+  CXXFLAGS="$CXXFLAGS -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION"
+  CFLAGS="$CFLAGS -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION"
+
+  # LIB_FUZZING_ENGINE must be set to link against a fuzzing engine runtime.
+  # OSS-Fuzz always sets this. For local builds with libfuzzer, you also need
+  # to add instrumentation flags to CXXFLAGS:
+  #
+  #   libfuzzer:
+  #     CXXFLAGS="-O2 -g -fsanitize=fuzzer-no-link" LIB_FUZZING_ENGINE="-fsanitize=fuzzer" \
+  #       ./configure --enable-fuzz
+  #
+  #   honggfuzz:
+  #     CC=hfuzz-clang CXX=hfuzz-clang++ \
+  #       LIB_FUZZING_ENGINE="/path/to/honggfuzz/libhfuzz/libhfuzz.a" \
+  #       ./configure --enable-fuzz
+  #
+  #   AFL++:
+  #     CC=afl-clang-fast CXX=afl-clang-fast++ \
+  #       LIB_FUZZING_ENGINE="/path/to/AFLplusplus/libAFLDriver.a" \
+  #       ./configure --enable-fuzz
+  #
+  # OSS-Fuzz sets CXXFLAGS and LIB_FUZZING_ENGINE automatically.
+  AS_IF([test -z "$LIB_FUZZING_ENGINE"], [
+    AC_MSG_NOTICE([LIB_FUZZING_ENGINE must be set to link against a fuzzing engine runtime.])
+    AC_MSG_NOTICE([For builds with libfuzzer:])
+    AC_MSG_NOTICE([  CXXFLAGS="-O2 -g -fsanitize=fuzzer-no-link" LIB_FUZZING_ENGINE="-fsanitize=fuzzer" ./configure --enable-fuzz])
+    AC_MSG_NOTICE([For honggfuzz:])
+    AC_MSG_NOTICE([  CC=hfuzz-clang CXX=hfuzz-clang++ LIB_FUZZING_ENGINE="/path/to/honggfuzz/libhfuzz/libhfuzz.a" ./configure --enable-fuzz])
+    AC_MSG_NOTICE([For AFL++:])
+    AC_MSG_NOTICE([  CC=afl-clang-fast CXX=afl-clang-fast++ LIB_FUZZING_ENGINE="/path/to/AFLplusplus/libAFLDriver.a" ./configure --enable-fuzz])
+    AC_MSG_NOTICE([OSS-Fuzz sets CXXFLAGS and LIB_FUZZING_ENGINE automatically.])
+    AC_MSG_ERROR([--enable-fuzz requires LIB_FUZZING_ENGINE to be set])
+  ])
+  AC_MSG_NOTICE([Using LIB_FUZZING_ENGINE=$LIB_FUZZING_ENGINE])
+  AC_SUBST([LIB_FUZZING_ENGINE])
+])
+AM_CONDITIONAL([ENABLE_FUZZ], [test "x$enable_fuzz" = "xyes"])
 
 # prefer 20 as it's the one we use
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-20 clang-format])
@@ -449,6 +561,12 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AM_CONDITIONAL(CAP_0071,
+    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
+
+AM_CONDITIONAL(CAP_0083,
+    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])
@@ -470,8 +588,9 @@ AX_COMPARE_VERSION([${RUSTC_VERSION}],[ge],[1.57],[],[
   AC_MSG_ERROR([rustc version too old (need >= 1.57)])
 ])
 AC_ARG_VAR(RUSTC)
+AC_ARG_VAR([RUSTC_WRAPPER], [rustc wrapper executable (for example, sccache)])
 
-# Need this to pass through ccache for xdrpp, libsodium
+# Need this to pass through ccache/sccache for xdrpp, libsodium
 esc() {
     out=
     for arg in "$@"; do
@@ -481,7 +600,7 @@ esc() {
 }
 
 # explicitly propagate CFLAGS, CXXFLAGS and LDFLAGS in case they got modified by global options
-ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX" "CFLAGS=$CFLAGS" "CXXFLAGS=$CXXFLAGS" "LDFLAGS=$LDFLAGS")"
+ac_configure_args="$ac_configure_args $(esc "CC=$CC" "CXX=$CXX" "CFLAGS=$CFLAGS" "CXXFLAGS=$CXXFLAGS" "LDFLAGS=$LDFLAGS" "RUSTC_WRAPPER=$RUSTC_WRAPPER" "LIB_FUZZING_ENGINE=$LIB_FUZZING_ENGINE")"
 
 AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_FILES(lib/Makefile src/Makefile Makefile)

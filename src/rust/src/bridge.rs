@@ -67,6 +67,14 @@ pub(crate) mod rust_bridge {
         LVL_TRACE = 5,
     }
 
+    #[namespace = "stellar"]
+    enum FuzzResultCode {
+        FUZZ_SUCCESS = 0,
+        FUZZ_TARGET_UNKNOWN = -1,
+        FUZZ_REJECTED = -2,
+        FUZZ_DISABLED = -3,
+    }
+
     struct CxxLedgerInfo {
         pub protocol_version: u32,
         pub sequence_number: u32,
@@ -96,6 +104,7 @@ pub(crate) mod rust_bridge {
         pub xdr_git_rev: String,
         pub xdr_base_git_rev: String,
         pub xdr_file_hashes: Vec<XDRFileHash>,
+        pub xdr_features: Vec<String>,
     }
 
     struct CxxTransactionResources {
@@ -219,10 +228,15 @@ pub(crate) mod rust_bridge {
         fn get_test_contract_sac_transfer(protocol_version: u32) -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
         fn get_invoke_contract_wasm() -> Result<RustBuf>;
+        fn get_apply_load_token_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_factory_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_pool_wasm() -> Result<RustBuf>;
+        fn get_apply_load_soroswap_router_wasm() -> Result<RustBuf>;
 
         fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 
         fn get_auth_wasm() -> Result<RustBuf>;
+        fn get_delegated_auth_wasm() -> Result<RustBuf>;
 
         fn get_no_arg_constructor_wasm() -> Result<RustBuf>;
         fn get_constructor_with_args_p21_wasm() -> Result<RustBuf>;
@@ -317,16 +331,12 @@ pub(crate) mod rust_bridge {
         type SorobanModuleCache;
 
         fn new_module_cache() -> Result<Box<SorobanModuleCache>>;
-        fn compile(
-            self: &mut SorobanModuleCache,
-            ledger_protocol: u32,
-            source: &[u8],
-        ) -> Result<()>;
+        fn compile(self: &SorobanModuleCache, ledger_protocol: u32, source: &[u8]) -> Result<()>;
         fn shallow_clone(self: &SorobanModuleCache) -> Result<Box<SorobanModuleCache>>;
-        fn evict_contract_code(self: &mut SorobanModuleCache, key: &[u8]) -> Result<()>;
-        fn clear(self: &mut SorobanModuleCache) -> Result<()>;
+        fn evict_contract_code(self: &SorobanModuleCache, key: &[u8]) -> Result<()>;
+        fn clear(self: &SorobanModuleCache) -> Result<()>;
         fn contains_module(self: &SorobanModuleCache, protocol: u32, key: &[u8]) -> Result<bool>;
-        fn get_mem_bytes_consumed(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
+        fn get_wasm_bytes_input(self: &SorobanModuleCache, protocol: u32) -> Result<u64>;
 
         // Given a quorum set configuration, checks if quorum intersection is
         // enjoyed among all possible quorums. Returns `Ok(status)` where
@@ -364,6 +374,17 @@ pub(crate) mod rust_bridge {
             resource_limit: &QuorumCheckerResource,
             resource_usage: &mut QuorumCheckerResource,
         ) -> Result<QuorumCheckerStatus>;
+
+        // The QI checker actually manages the memory limit using a global
+        // allocator, which winds up controlling _all_ memory allocation by
+        // rust code in the process. So we want to ensure that limit is unlimited
+        // when the process starts up -- the QI check call will limit it later,
+        // if and only if it's running as a QI-checking subprocess.
+        fn set_rust_global_memory_limit_to_unlimited();
+
+        // Soroban fuzzing support - always declared but only functional with --features fuzz.
+        // Panics on internal errors (which libfuzzer will catch as crashes).
+        fn run_soroban_fuzz_target(name: &str, data: &[u8]) -> FuzzResultCode;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -396,6 +417,7 @@ use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
 use crate::quorum_checker::*;
+use crate::soroban_fuzz::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;
 use crate::soroban_proto_all::*;

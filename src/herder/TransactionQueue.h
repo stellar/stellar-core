@@ -138,9 +138,10 @@ class TransactionQueue
 
 #ifdef BUILD_TESTS
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
-                     bool isLoadgenTx = false);
+                     bool force = false, bool isLoadgenTx = false);
 #else
-    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
+    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf,
+                     bool force = false);
 #endif
     void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
@@ -161,6 +162,8 @@ class TransactionQueue
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
     TxFrameList getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
+
+    void setFilteredAccounts(std::set<AccountID> const& accounts);
 
     virtual size_t getMaxQueueSizeOps() const = 0;
 
@@ -192,6 +195,7 @@ class TransactionQueue
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
     UnorderedSet<LedgerKey> mKeysToFilter;
+    std::set<AccountID> mFilteredAccounts;
 
     // counters
     struct QueueMetrics
@@ -203,7 +207,8 @@ class TransactionQueue
                      medida::Counter& txsEvictedByHigherFeeTxCounter,
                      medida::Counter& txsEvictedDueToAgeCounter,
                      medida::Counter& txsNotAcceptedDueToLowFeeCounter,
-                     medida::Counter& txsFilteredDueToFpKeys)
+                     medida::Counter& txsFilteredDueToFpKeys,
+                     medida::Counter& txsFilteredDueToAccountKeys)
             : mSizeByAge(std::move(sizeByAge))
             , mBannedTransactionsCounter(bannedTransactionsCounter)
             , mTransactionsDelay(transactionsDelay)
@@ -213,6 +218,7 @@ class TransactionQueue
             , mTxsNotAcceptedDueToLowFeeCounter(
                   txsNotAcceptedDueToLowFeeCounter)
             , mTxsFilteredDueToFootprintKeys(txsFilteredDueToFpKeys)
+            , mTxsFilteredDueToAccountKeys(txsFilteredDueToAccountKeys)
         {
         }
         std::vector<medida::Counter*> mSizeByAge;
@@ -238,6 +244,7 @@ class TransactionQueue
         medida::Counter& mTxsNotAcceptedDueToLowFeeCounter;
 
         medida::Counter& mTxsFilteredDueToFootprintKeys;
+        medida::Counter& mTxsFilteredDueToAccountKeys;
     };
 
     std::unique_ptr<QueueMetrics> mQueueMetrics;
@@ -268,11 +275,12 @@ class TransactionQueue
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
            std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
-           bool isLoadgenTx = false);
+           bool force = false, bool isLoadgenTx = false);
 #else
     TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
-           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
+           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+           bool force = false);
 #endif
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);

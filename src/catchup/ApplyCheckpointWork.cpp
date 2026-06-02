@@ -360,10 +360,19 @@ ApplyCheckpointWork::onRun()
         openInputFiles();
     }
 
-    auto lcd = getNextLedgerCloseData();
-    if (!lcd)
+    std::shared_ptr<LedgerCloseData> lcd;
+    try
     {
-        return State::WORK_RUNNING;
+        lcd = getNextLedgerCloseData();
+        if (!lcd)
+        {
+            return State::WORK_RUNNING;
+        }
+    }
+    catch (std::runtime_error const& e)
+    {
+        CLOG_ERROR(History, "ApplyCheckpointWork failed: {}", e.what());
+        return State::WORK_FAILURE;
     }
 
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);

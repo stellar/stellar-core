@@ -169,50 +169,25 @@ AppConnector::threadIsType(Application::ThreadType type) const
     return mApp.threadIsType(type);
 }
 
-SearchableHotArchiveSnapshotConstPtr
-AppConnector::copySearchableHotArchiveBucketListSnapshot()
+ImmutableLedgerView
+AppConnector::copyImmutableLedgerView()
 {
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copySearchableHotArchiveBucketListSnapshot();
+    return mApp.getLedgerManager().copyImmutableLedgerView();
 }
 
-SearchableSnapshotConstPtr
-AppConnector::copySearchableLiveBucketListSnapshot()
+ApplyLedgerView
+AppConnector::copyApplyLedgerView()
 {
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copySearchableLiveBucketListSnapshot();
+    return mApp.getLedgerManager().copyApplyLedgerView();
 }
 
 void
-AppConnector::maybeCopySearchableBucketListSnapshot(
-    SearchableSnapshotConstPtr& snapshot)
+AppConnector::maybeUpdateImmutableLedgerView(ImmutableLedgerView& ledgerView)
 {
-    mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .maybeCopySearchableBucketListSnapshot(snapshot);
+    mApp.getLedgerManager().maybeUpdateImmutableLedgerView(ledgerView);
 }
 
-void
-AppConnector::maybeCopyLiveAndHotArchiveSnapshots(
-    SearchableSnapshotConstPtr& liveSnapshot,
-    SearchableHotArchiveSnapshotConstPtr& hotArchiveSnapshot)
-{
-    mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .maybeCopyLiveAndHotArchiveSnapshots(liveSnapshot, hotArchiveSnapshot);
-}
-
-std::pair<SearchableSnapshotConstPtr, SearchableHotArchiveSnapshotConstPtr>
-AppConnector::copySearchableBucketListSnapshots()
-{
-    return mApp.getBucketManager()
-        .getBucketSnapshotManager()
-        .copySearchableBucketListSnapshots();
-}
-
-SearchableSnapshotConstPtr&
+ImmutableLedgerView&
 AppConnector::getOverlayThreadSnapshot()
 {
     return mApp.getOverlayManager().getOverlayThreadSnapshot();

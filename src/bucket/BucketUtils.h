@@ -35,11 +35,6 @@ class SearchableHotArchiveBucketListSnapshot;
                       std::is_same_v<BucketT, HotArchiveBucket>, \
                   "BucketT must be a Bucket type")
 
-using SearchableSnapshotConstPtr =
-    std::shared_ptr<SearchableLiveBucketListSnapshot const>;
-using SearchableHotArchiveSnapshotConstPtr =
-    std::shared_ptr<SearchableHotArchiveBucketListSnapshot const>;
-
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not
 // want or need to publish this level of granularity outside of testing, and

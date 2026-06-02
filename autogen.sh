@@ -31,6 +31,7 @@ esac
 
 case "${skip_submodules}" in
     0|no|false|"")
+        git submodule sync
         git submodule update --init
         git submodule foreach '
             autogen=$(find . -name autogen.sh)
@@ -43,4 +44,5 @@ case "${skip_submodules}" in
 esac
 
 ./make-mks
+touch AUTHORS ChangeLog
 autoreconf -i

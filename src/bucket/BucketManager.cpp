@@ -6,7 +6,6 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/HotArchiveBucketList.h"
@@ -17,7 +16,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
@@ -33,8 +32,9 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
-#include "util/UnorderedMap.h"
 #include "util/types.h"
+#include "work/WorkScheduler.h"
+#include "work/WorkSequence.h"
 #include "xdr/Stellar-ledger.h"
 #include <filesystem>
 #include <fmt/chrono.h>
@@ -49,7 +49,6 @@
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
-#include "work/WorkScheduler.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
 
@@ -103,9 +102,6 @@ BucketManager::initialize()
 
     mLiveBucketList = std::make_unique<LiveBucketList>();
     mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
-    mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-        mAppConnector, *mLiveBucketList, *mHotArchiveBucketList, LedgerHeader(),
-        mConfig.QUERY_SNAPSHOT_LEDGERS);
 
     // Create persistent publish directories
     // Note: HISTORY_FILE_TYPE_BUCKET is already tracked by BucketList in
@@ -136,7 +132,6 @@ BucketManager::BucketManager(AppConnector& appConnector)
     : mAppConnector(appConnector)
     , mLiveBucketList(nullptr)
     , mHotArchiveBucketList(nullptr)
-    , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
@@ -316,13 +311,6 @@ HotArchiveBucketList&
 BucketManager::getHotArchiveBucketList()
 {
     return *mHotArchiveBucketList;
-}
-
-BucketSnapshotManager&
-BucketManager::getBucketSnapshotManager() const
-{
-    releaseAssert(mSnapshotManager);
-    return *mSnapshotManager;
 }
 
 medida::Timer&
@@ -1160,28 +1148,26 @@ BucketManager::maybeSetIndex(
 }
 
 void
-BucketManager::startBackgroundEvictionScan(
-    SearchableSnapshotConstPtr lclSnapshot, SorobanNetworkConfig const& cfg)
+BucketManager::startBackgroundEvictionScan(ApplyLedgerView lclApplyView,
+                                           SorobanNetworkConfig const& cfg)
 {
-    releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
     // Start the eviction scan for then _next_ ledger
-    auto ledgerSeq = lclSnapshot->getLedgerSeq() + 1;
-    auto ledgerVers = lclSnapshot->getLedgerHeader().ledgerVersion;
+    auto ledgerSeq = lclApplyView.getLedgerSeq() + 1;
+    auto ledgerVers = lclApplyView.getLedgerHeader().current().ledgerVersion;
 
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t =
         std::packaged_task<std::unique_ptr<EvictionResultCandidates>()>;
-    // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
-    // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
-        [lclSnapshot, iter = cfg.evictionIterator(), ledgerSeq, ledgerVers, sas,
-         &metrics = mBucketListEvictionMetrics, stats = mEvictionStatistics] {
+        [lclApplyView = std::move(lclApplyView), iter = cfg.evictionIterator(),
+         ledgerSeq, ledgerVers, sas, &metrics = mBucketListEvictionMetrics,
+         stats = mEvictionStatistics]() mutable {
             auto timer = metrics.backgroundTime.TimeScope();
-            return lclSnapshot->scanForEviction(ledgerSeq, metrics, iter, stats,
+            return lclApplyView.scanForEviction(ledgerSeq, metrics, iter, stats,
                                                 sas, ledgerVers);
         });
 
@@ -1193,17 +1179,17 @@ BucketManager::startBackgroundEvictionScan(
 
 EvictedStateVectors
 BucketManager::resolveBackgroundEvictionScan(
-    SearchableSnapshotConstPtr lclSnapshot, AbstractLedgerTxn& ltx,
+    ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
     LedgerKeySet const& modifiedKeys)
 {
     ZoneScoped;
     releaseAssert(mEvictionStatistics);
     auto timer = mBucketListEvictionMetrics.blockingTime.TimeScope();
-    auto ls = LedgerSnapshot(ltx);
-    auto ledgerSeq = ls.getLedgerHeader().current().ledgerSeq;
-    auto ledgerVers = ls.getLedgerHeader().current().ledgerVersion;
-    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ls);
-    releaseAssert(ledgerSeq == lclSnapshot->getLedgerSeq() + 1);
+    LedgerTxnReadOnly ltxSnap(ltx);
+    auto ledgerSeq = ltxSnap.getLedgerHeader().current().ledgerSeq;
+    auto ledgerVers = ltxSnap.getLedgerHeader().current().ledgerVersion;
+    auto networkConfig = SorobanNetworkConfig::loadFromLedger(ltxSnap);
+    releaseAssert(ledgerSeq == lclApplyView.getLedgerSeq() + 1);
 
     if (!mEvictionFuture.valid())
     {
@@ -1212,7 +1198,7 @@ BucketManager::resolveBackgroundEvictionScan(
         // candidates; this function later validates them by re-checking the
         // Soroban config and reloading the latest TTLs. Any entry restored in
         // the same ledger will be rejected by eviction validation logic.
-        startBackgroundEvictionScan(lclSnapshot, networkConfig);
+        startBackgroundEvictionScan(lclApplyView, networkConfig);
     }
 
     auto evictionCandidates = mEvictionFuture.get();
@@ -1222,7 +1208,7 @@ BucketManager::resolveBackgroundEvictionScan(
     if (!evictionCandidates->isValid(ledgerSeq, ledgerVers,
                                      networkConfig.stateArchivalSettings()))
     {
-        startBackgroundEvictionScan(lclSnapshot, networkConfig);
+        startBackgroundEvictionScan(lclApplyView, networkConfig);
         evictionCandidates = mEvictionFuture.get();
     }
 

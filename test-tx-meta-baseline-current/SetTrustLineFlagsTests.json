@@ -33,6 +33,38 @@
 		25,
 		26
 	],
+	"pool share revocation order test" : 
+	[
+		"ITpXqgpFF30=",
+		"P/rIn0NE8KY=",
+		"Tojg9R7gBpM=",
+		"YgrarXvtOc0=",
+		"Oj9LBplreFw=",
+		"jdV8bqSB+kA=",
+		"1lANyk2+auQ=",
+		"G+odnbpOIBo=",
+		"/+f4FqaRf+w=",
+		"QX/0q46LfOs=",
+		"PkFEyR91lwo="
+	],
+	"revocation result test across validators" : 
+	[
+		"ITpXqgpFF30=",
+		"VFR450IniRs=",
+		"okqR49cN7bM=",
+		"F30nsE+N5Nw=",
+		"nv+Wtmu81bY=",
+		"xXsiKwwgZSo=",
+		"mtSookiDIPU=",
+		"SEbZg3F2KoY=",
+		"3JuuCrkQesY=",
+		"yZrAMi3U7SI=",
+		"a6XJOk4UdxE=",
+		"rfqX5FTFGEs=",
+		"qf1MdsvxjP8=",
+		"hPrRx7g/dzY=",
+		"e3wU9pYJIso="
+	],
 	"revoke from pool|protocol version 0" : [ "1kTXt7VFL1o=", "vMG2aGxrtAk=", "i/xr57yuK4A=" ],
 	"revoke from pool|protocol version 1" : [ "1kTXt7VFL1o=", "vMG2aGxrtAk=", "i/xr57yuK4A=" ],
 	"revoke from pool|protocol version 10" : [ "VIjr80VgxMU=", "TkPHpyyM/Gg=", "/qAfD4Xqicw=" ],
