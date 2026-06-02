@@ -249,9 +249,6 @@ checkXDRFileIdentity()
 
     // Verify that C++ and Rust have the same XDR feature flags enabled.
     std::vector<std::string> cppFeatures;
-#ifdef CAP_0071
-    cppFeatures.emplace_back("cap_0071");
-#endif
 
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If we're not building for the next protocol, no XDR feature flags
