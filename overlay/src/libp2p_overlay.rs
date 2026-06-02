@@ -2060,7 +2060,7 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
 
         // 2. Handle GETDATA timeouts
         let (to_retry, gave_up) = {
-            let pending = state.pending_getdata.write().await;
+            let mut pending = state.pending_getdata.write().await;
             pending.process_timeouts()
         };
 
