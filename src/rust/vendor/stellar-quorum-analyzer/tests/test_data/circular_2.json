@@ -1,0 +1,31 @@
+[
+    {
+        "publicKey": "PK1",
+        "quorumSet": {
+            "threshold": 1,
+            "validators": [
+                "PK2"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK2",
+        "quorumSet": {
+            "threshold": 1,
+            "validators": [
+                "PK3"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK3",
+        "quorumSet": {
+            "threshold": 0,
+            "validators": [
+            ],
+            "innerQuorumSets": []
+        }
+    }
+]

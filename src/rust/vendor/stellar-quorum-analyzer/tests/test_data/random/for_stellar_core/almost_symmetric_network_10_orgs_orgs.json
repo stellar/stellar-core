@@ -1,0 +1,82 @@
+[
+    {
+        "name": "org0",
+        "validators": [
+            "org0v0",
+            "org0v1",
+            "org0v2"
+        ]
+    },
+    {
+        "name": "org1",
+        "validators": [
+            "org1v0",
+            "org1v1",
+            "org1v2"
+        ]
+    },
+    {
+        "name": "org2",
+        "validators": [
+            "org2v1",
+            "org2v2",
+            "org2v0"
+        ]
+    },
+    {
+        "name": "org3",
+        "validators": [
+            "org3v2",
+            "org3v1",
+            "org3v0"
+        ]
+    },
+    {
+        "name": "org4",
+        "validators": [
+            "org4v0",
+            "org4v2",
+            "org4v1"
+        ]
+    },
+    {
+        "name": "org5",
+        "validators": [
+            "org5v2",
+            "org5v0",
+            "org5v1"
+        ]
+    },
+    {
+        "name": "org6",
+        "validators": [
+            "org6v0",
+            "org6v2",
+            "org6v1"
+        ]
+    },
+    {
+        "name": "org7",
+        "validators": [
+            "org7v0",
+            "org7v2",
+            "org7v1"
+        ]
+    },
+    {
+        "name": "org8",
+        "validators": [
+            "org8v0",
+            "org8v1",
+            "org8v2"
+        ]
+    },
+    {
+        "name": "org9",
+        "validators": [
+            "org9v2",
+            "org9v0",
+            "org9v1"
+        ]
+    }
+]

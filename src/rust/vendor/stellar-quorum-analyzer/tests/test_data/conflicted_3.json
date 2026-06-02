@@ -1,0 +1,47 @@
+[
+    {
+        "publicKey": "PK11",
+        "quorumSet": {
+            "threshold": 1,
+            "validators": [
+                "PK11"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK21",
+        "quorumSet": {
+            "threshold": 1,
+            "validators": [
+                "PK21"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PKX",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+            ],
+            "innerQuorumSets": [
+                {
+                    "threshold": 1,
+                    "validators": [
+                        "PK11"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 1,
+                    "validators": [
+                        "PK21"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    }
+]
+

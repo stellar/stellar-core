@@ -1,0 +1,2693 @@
+[
+  {
+    "publicKey": "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN",
+    "ip": "148.251.179.166",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-27T23:18:48.665Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 52.51470184326172,
+      "longitude": 13.438599586486816,
+      "countryCode": "DE",
+      "countryName": "Germany"
+    },
+    "name": "Whalestack (Germany)",
+    "host": "germany.stellar.whalestack.com:11625",
+    "historyUrl": "https://germany.stellar.whalestack.com/history/",
+    "alias": "whalestack-de",
+    "homeDomain": "whalestack.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "v21.3.1",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.98,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "9860311160b56412668f572a6d9454d0",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 0
+  },
+  {
+    "publicKey": "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+    "ip": "35.233.35.143",
+    "port": 11625,
+    "isp": "Google LLC",
+    "dateDiscovered": "2019-06-13T08:29:48.275Z",
+    "dateUpdated": "2024-08-22T21:41:09.943Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 50.84674072265625,
+      "longitude": 4.352489948272705,
+      "countryCode": "BE",
+      "countryName": "Belgium"
+    },
+    "name": "Blockdaemon Validator 1",
+    "host": "stellar-full-validator1.bdnodes.net:11625",
+    "historyUrl": "https://stellar-full-history1.bdnodes.net/",
+    "alias": null,
+    "homeDomain": "stellar.blockdaemon.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.99,
+      "validating30DaysPercentage": 99.98,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "c1a16879b171bc6f0087f884acbea046",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 202
+  },
+  {
+    "publicKey": "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+    "ip": "54.210.6.104",
+    "port": 11625,
+    "isp": "amazon.com Inc.",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-21T21:03:42.652Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 39.043701171875,
+      "longitude": -77.47419738769531,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "SDF 1",
+    "host": "core-live-a.stellar.org:11625",
+    "historyUrl": "http://history.stellar.org/prd/core-live/core_live_001/",
+    "alias": "sdf1",
+    "homeDomain": "www.stellar.org",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "266107f8966d45eedce41fee2581326d",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 43
+  },
+  {
+    "publicKey": "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+    "ip": "34.70.192.72",
+    "port": 11625,
+    "isp": "Google LLC",
+    "dateDiscovered": "2019-06-13T08:37:36.230Z",
+    "dateUpdated": "2024-08-22T21:20:09.908Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 41.23295974731445,
+      "longitude": -95.87735748291016,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "Blockdaemon Validator 2",
+    "host": "stellar-full-validator2.bdnodes.net:11625",
+    "historyUrl": "https://stellar-full-history2.bdnodes.net/",
+    "alias": null,
+    "homeDomain": "stellar.blockdaemon.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.99,
+      "validating30DaysPercentage": 99.99,
+      "overLoaded30DaysPercentage": 0.36
+    },
+    "organizationId": "c1a16879b171bc6f0087f884acbea046",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 232
+  },
+  {
+    "publicKey": "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+    "ip": "34.229.119.143",
+    "port": 11625,
+    "isp": "amazon.com Inc.",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-21T23:03:42.660Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 39.043701171875,
+      "longitude": -77.47419738769531,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "SDF 3",
+    "host": "core-live-c.stellar.org:11625",
+    "historyUrl": "http://history.stellar.org/prd/core-live/core_live_003/",
+    "alias": "sdf3",
+    "homeDomain": "www.stellar.org",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "266107f8966d45eedce41fee2581326d",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 39
+  },
+  {
+    "publicKey": "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK",
+    "ip": "54.161.143.145",
+    "port": 11625,
+    "isp": "amazon.com Inc.",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-21T22:03:42.667Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 39.043701171875,
+      "longitude": -77.47419738769531,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "SDF 2",
+    "host": "core-live-b.stellar.org:11625",
+    "historyUrl": "http://history.stellar.org/prd/core-live/core_live_002/",
+    "alias": "sdf2",
+    "homeDomain": "www.stellar.org",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "266107f8966d45eedce41fee2581326d",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 25
+  },
+  {
+    "publicKey": "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+    "ip": "148.251.188.14",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-12T04:20:43.745Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 52.51470184326172,
+      "longitude": 13.438599586486816,
+      "countryCode": "DE",
+      "countryName": "Germany"
+    },
+    "name": "LOBSTR 1 (Europe)",
+    "host": "v1.stellar.lobstr.co:11625",
+    "historyUrl": "https://archive.v1.stellar.lobstr.co/",
+    "alias": "lobstr1",
+    "homeDomain": "lobstr.co",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "ad733706cebb901f8b8cbb1b6a9bb785",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 1
+  },
+  {
+    "publicKey": "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+    "ip": "65.109.154.62",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-28T18:45:48.884Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 60.165000915527344,
+      "longitude": 24.934999465942383,
+      "countryCode": "FI",
+      "countryName": "Finland"
+    },
+    "name": "Whalestack (Finland)",
+    "host": "finland.stellar.whalestack.com:11625",
+    "historyUrl": "https://finland.stellar.whalestack.com/history/",
+    "alias": "whalestack-fi",
+    "homeDomain": "whalestack.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "v21.3.1",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.98,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "9860311160b56412668f572a6d9454d0",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 46
+  },
+  {
+    "publicKey": "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE",
+    "ip": "85.190.254.217",
+    "port": 11625,
+    "isp": "Contabo Gmbh",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-06T14:04:43.322Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 51.227699279785156,
+      "longitude": 6.773499965667725,
+      "countryCode": "DE",
+      "countryName": "Germany"
+    },
+    "name": "SatoshiPay Frankfurt",
+    "host": "stellar-de-fra.satoshipay.io:11625",
+    "historyUrl": "https://stellar-history-de-fra.satoshipay.io/",
+    "alias": "spfrankfurt",
+    "homeDomain": "satoshipay.io",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 4.99,
+      "active30DaysPercentage": 99.99,
+      "validating30DaysPercentage": 99.97,
+      "overLoaded30DaysPercentage": 2.13
+    },
+    "organizationId": "753e017d811e12c41ef03b5b4c51a1a5",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 487
+  },
+  {
+    "publicKey": "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+    "ip": "194.233.85.232",
+    "port": 11625,
+    "isp": "Contabo Asia Private Limited",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-06T14:04:43.322Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 1.287950038909912,
+      "longitude": 103.8517837524414,
+      "countryCode": "SG",
+      "countryName": "Singapore"
+    },
+    "name": "SatoshiPay Singapore",
+    "host": "stellar-sg-sin.satoshipay.io:11625",
+    "historyUrl": "https://stellar-history-sg-sin.satoshipay.io/",
+    "alias": "spsingapore",
+    "homeDomain": "satoshipay.io",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.95,
+      "validating30DaysPercentage": 99.74,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "753e017d811e12c41ef03b5b4c51a1a5",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 248
+  },
+  {
+    "publicKey": "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+    "ip": "154.12.251.105",
+    "port": 11625,
+    "isp": "Contabo Inc.",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-06T14:04:43.322Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 26.027219772338867,
+      "longitude": -80.24434661865234,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "SatoshiPay Iowa",
+    "host": "stellar-us-iowa.satoshipay.io:11625",
+    "historyUrl": "https://stellar-history-us-iowa.satoshipay.io/",
+    "alias": "spiowa",
+    "homeDomain": "satoshipay.io",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 4.49
+    },
+    "organizationId": "753e017d811e12c41ef03b5b4c51a1a5",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 213
+  },
+  {
+    "publicKey": "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+    "ip": "143.110.243.134",
+    "port": 11625,
+    "isp": "Digitalocean LLC",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-09-16T10:02:35.624Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 46.80121994018555,
+      "longitude": -92.09477996826172,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "LOBSTR 5 (India)",
+    "host": "v5.stellar.lobstr.co:11625",
+    "historyUrl": "https://archive.v5.stellar.lobstr.co/",
+    "alias": "lobstr5",
+    "homeDomain": "lobstr.co",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 20.17,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 99.99,
+      "overLoaded30DaysPercentage": 18.48
+    },
+    "organizationId": "ad733706cebb901f8b8cbb1b6a9bb785",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 128
+  },
+  {
+    "publicKey": "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63",
+    "ip": "45.55.99.75",
+    "port": 11625,
+    "isp": "Digitalocean LLC",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-09-19T15:14:41.654Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 40.7589111328125,
+      "longitude": -73.97901916503906,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "LOBSTR 3 (North America)",
+    "host": "v3.stellar.lobstr.co:11625",
+    "historyUrl": "https://archive.v3.stellar.lobstr.co/",
+    "alias": "lobstr3",
+    "homeDomain": "lobstr.co",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.83,
+      "validating30DaysPercentage": 99.68,
+      "overLoaded30DaysPercentage": 3.33
+    },
+    "organizationId": "ad733706cebb901f8b8cbb1b6a9bb785",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 14836
+  },
+  {
+    "publicKey": "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+    "ip": "135.181.138.112",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-08-28T18:45:48.884Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 60.165000915527344,
+      "longitude": 24.934999465942383,
+      "countryCode": "FI",
+      "countryName": "Finland"
+    },
+    "name": "Whalestack (Hong Kong)",
+    "host": "hongkong.stellar.whalestack.com:11625",
+    "historyUrl": "https://hongkong.stellar.whalestack.com/history/",
+    "alias": "whalestack-hk",
+    "homeDomain": "whalestack.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "v21.3.1",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.98,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "9860311160b56412668f572a6d9454d0",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 0
+  },
+  {
+    "publicKey": "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+    "ip": "139.59.221.81",
+    "port": 11625,
+    "isp": "Digitalocean LLC",
+    "dateDiscovered": "2019-05-31T10:35:09.274Z",
+    "dateUpdated": "2024-09-03T22:01:38.304Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 1.287950038909912,
+      "longitude": 103.8517837524414,
+      "countryCode": "SG",
+      "countryName": "Singapore"
+    },
+    "name": "LOBSTR 4 (Asia)",
+    "host": "v4.stellar.lobstr.co:11625",
+    "historyUrl": "https://archive.v4.stellar.lobstr.co/",
+    "alias": "lobstr4",
+    "homeDomain": "lobstr.co",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 1,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 12.06,
+      "active30DaysPercentage": 99.97,
+      "validating30DaysPercentage": 99.96,
+      "overLoaded30DaysPercentage": 23.54
+    },
+    "organizationId": "ad733706cebb901f8b8cbb1b6a9bb785",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 0
+  },
+  {
+    "publicKey": "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4",
+    "ip": "34.80.16.150",
+    "port": 11625,
+    "isp": "Google LLC",
+    "dateDiscovered": "2019-08-09T10:42:00.942Z",
+    "dateUpdated": "2024-08-22T21:23:09.915Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 25.042139053344727,
+      "longitude": 121.51986694335938,
+      "countryCode": "TW",
+      "countryName": "Taiwan"
+    },
+    "name": "Blockdaemon Validator 3",
+    "host": "stellar-full-validator3.bdnodes.net:11625",
+    "historyUrl": "https://stellar-full-history3.bdnodes.net/",
+    "alias": null,
+    "homeDomain": "stellar.blockdaemon.com",
+    "overlayVersion": 35,
+    "overlayMinVersion": 33,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.3.1 (4ede19620438bcd136276cdc8d4ed1f2c3b64624)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.98,
+      "validating30DaysPercentage": 99.97,
+      "overLoaded30DaysPercentage": 0.28
+    },
+    "organizationId": "c1a16879b171bc6f0087f884acbea046",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 206
+  },
+  {
+    "publicKey": "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+    "ip": "116.202.164.246",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2019-11-28T03:22:17.637Z",
+    "dateUpdated": "2024-08-01T06:58:33.251Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 49.11594009399414,
+      "longitude": 10.753399848937988,
+      "countryCode": "DE",
+      "countryName": "Germany"
+    },
+    "name": "Hercules by OG Technologies",
+    "host": "hercules.publicnode.org:11625",
+    "historyUrl": "https://hercules-history.publicnode.org/",
+    "alias": "hercules",
+    "homeDomain": "publicnode.org",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 14.82
+    },
+    "organizationId": "2dd1cd0e5ba445846799c0d1114dda47",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 28
+  },
+  {
+    "publicKey": "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2",
+    "ip": "51.222.248.185",
+    "port": 11625,
+    "isp": "Ovh Sas",
+    "dateDiscovered": "2020-01-02T06:52:20.648Z",
+    "dateUpdated": "2024-08-01T06:01:33.283Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 45.502079010009766,
+      "longitude": -73.56201171875,
+      "countryCode": "CA",
+      "countryName": "Canada"
+    },
+    "name": "Boötes",
+    "host": "bootes.publicnode.org:11625",
+    "historyUrl": "https://bootes-history.publicnode.org/",
+    "alias": null,
+    "homeDomain": "publicnode.org",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0.83,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 24.2
+    },
+    "organizationId": "2dd1cd0e5ba445846799c0d1114dda47",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 61
+  },
+  {
+    "publicKey": "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+    "ip": "103.253.146.111",
+    "port": 11625,
+    "isp": "Digitalocean LLC",
+    "dateDiscovered": "2020-02-04T01:22:49.703Z",
+    "dateUpdated": "2024-08-01T06:55:33.249Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 1.287950038909912,
+      "longitude": 103.8517837524414,
+      "countryCode": "SG",
+      "countryName": "Singapore"
+    },
+    "name": "Lyra by BP Ventures",
+    "host": "lyra.publicnode.org:11625",
+    "historyUrl": "https://lyra-history.publicnode.org/",
+    "alias": "lyra",
+    "homeDomain": "publicnode.org",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.99,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0.62,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 5.65
+    },
+    "organizationId": "2dd1cd0e5ba445846799c0d1114dda47",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 629
+  },
+  {
+    "publicKey": "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+    "ip": "52.172.5.174",
+    "port": 11625,
+    "isp": "Microsoft Corporation",
+    "dateDiscovered": "2021-07-02T09:29:50.976Z",
+    "dateUpdated": "2024-07-03T14:59:13.634Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 13.052399635314941,
+      "longitude": 80.25080108642578,
+      "countryCode": "IN",
+      "countryName": "India"
+    },
+    "name": "FT SCV 3",
+    "host": "stellar3.franklintempleton.com:11625",
+    "historyUrl": "https://stellar-history-ins.franklintempleton.com/azinsshf401/",
+    "alias": "ft-scv-3",
+    "homeDomain": "www.franklintempleton.com",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.1.0 (b3aeb14cc798f6d11deb2be913041be916f3b0cc)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.97,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 1.04,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 16.27
+    },
+    "organizationId": "bc8b7a147ab684c37551a69369b70953",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 196
+  },
+  {
+    "publicKey": "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+    "ip": "13.88.152.102",
+    "port": 11625,
+    "isp": "Microsoft Corporation",
+    "dateDiscovered": "2021-07-02T09:29:49.461Z",
+    "dateUpdated": "2024-07-03T14:35:13.648Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 37.330528259277344,
+      "longitude": -121.83822631835938,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "FT SCV 1",
+    "host": "stellar1.franklintempleton.com:11625",
+    "historyUrl": "https://stellar-history-usw.franklintempleton.com/azuswshf401/",
+    "alias": "ft-scv-1",
+    "homeDomain": "www.franklintempleton.com",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.1.0 (b3aeb14cc798f6d11deb2be913041be916f3b0cc)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.97,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 38.04
+    },
+    "organizationId": "bc8b7a147ab684c37551a69369b70953",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 198
+  },
+  {
+    "publicKey": "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB",
+    "ip": "52.154.51.35",
+    "port": 11625,
+    "isp": "Microsoft Corporation",
+    "dateDiscovered": "2021-07-02T09:29:46.991Z",
+    "dateUpdated": "2024-07-03T14:23:13.643Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 41.5890007019043,
+      "longitude": -93.61509704589844,
+      "countryCode": "US",
+      "countryName": "United States"
+    },
+    "name": "FT SCV 2",
+    "host": "stellar2.franklintempleton.com:11625",
+    "historyUrl": "https://stellar-history-usc.franklintempleton.com/azuscshf401/",
+    "alias": "ft-scv-2",
+    "homeDomain": "www.franklintempleton.com",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.1.0 (b3aeb14cc798f6d11deb2be913041be916f3b0cc)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.97,
+    "activeInScp": true,
+    "historyArchiveHasError": true,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 99.97,
+      "validating30DaysPercentage": 99.97,
+      "overLoaded30DaysPercentage": 30.8
+    },
+    "organizationId": "bc8b7a147ab684c37551a69369b70953",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 199
+  },
+  {
+    "publicKey": "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+    "ip": "178.63.10.60",
+    "port": 11625,
+    "isp": "Hetzner Online Gmbh",
+    "dateDiscovered": "2023-07-03T08:29:01.504Z",
+    "dateUpdated": "2024-08-12T04:14:43.745Z",
+    "quorumSet": {
+      "threshold": 5,
+      "validators": [],
+      "innerQuorumSets": [
+        {
+          "threshold": 2,
+          "validators": [
+            "GAAV2GCVFLNN522ORUYFV33E76VPC22E72S75AQ6MBR5V45Z5DWVPWEU",
+            "GAVXB7SBJRYHSG6KSQHY74N7JAFRL4PFVZCNWW2ARI6ZEKNBJSMSKW7C",
+            "GAYXZ4PZ7P6QOX7EBHPIZXNWY4KCOBYWJCA4WKWRKC7XIUS3UJPT6EZ4"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GABMKJM6I25XI4K7U6XWMULOUQIQ27BCTMLS6BYYSOWKTBUXVRJSXHYQ",
+            "GCGB2S2KGYARPVIA37HYZXVRM2YZUEXA6S33ZU5BUDC6THSB62LZSTYH",
+            "GCM6QMP3DLRPTAZW2UZPCPX2LF3SXWXKPMP3GKFZBDSF3QZGV2G5QSTK"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GADLA6BJK6VK33EM2IDQM37L5KGVCY5MSHSHVJA4SCNGNUIEOTCR6J5T",
+            "GAZ437J46SCFPZEDLVGDMKZPLFO77XJ4QVAURSJVRZK2T5S7XUFHXI2Z",
+            "GD6SZQV3WEJUH352NTVLKEV2JM2RH266VPEM7EH5QLLI7ZZAALMLNUVN"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GAK6Z5UVGUVSEK6PEOCAYJISTT5EJBB34PN3NOLEQG2SUKXRVV2F6HZY",
+            "GBJQUIXUO4XSNPAUT6ODLZUJRV2NPXYASKUBY4G5MYP3M47PCVI55MNT",
+            "GC5SXLNAM3C4NMGK2PXK4R34B5GNZ47FYQ24ZIBFDFOCU6D4KBN4POAE"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GARYGQ5F2IJEBCZJCBNPWNWVDOFK7IBOHLJKKSG2TMHDQKEEC6P4PE4V",
+            "GA7DV63PBUUWNUFAF4GAZVXU2OZMYRATDLKTC7VTCG7AU4XUPN5VRX4A",
+            "GCMSM2VFZGRPTZKPH5OABHGH4F3AVS6XTNJXDGCZ3MKCOSUBH3FL6DOB"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 3,
+          "validators": [
+            "GA5STBMV6QDXFDGD62MEHLLHZTPDI77U3PFOD2SELU5RJDHQWBR5NNK7",
+            "GA7TEPCBDQKI7JQLQ34ZURRMK44DVYCIGVXQQWNSWAEQR6KB4FMCBT7J",
+            "GCB2VSADESRV2DDTIVTFLBDI562K6KE3KMKILBHUHUWFXCUBHGQDI7VL",
+            "GCFONE23AB7Y6C5YZOMKUKGETPIAJA4QOYLS5VNS4JHBGKRZCPYHDLW7",
+            "GD5QWEVV4GZZTQP46BRXV5CUMMMLP4JTGFD7FWYJJWRL54CELY6JGQ63"
+          ],
+          "innerQuorumSets": []
+        },
+        {
+          "threshold": 2,
+          "validators": [
+            "GBLJNN3AVZZPG2FYAYTYQKECNWTQYYUUY2KVFN2OUKZKBULXIXBZ4FCT",
+            "GCIXVKNFPKWVMKJKVK2V4NK7D4TC6W3BUMXSIJ365QUAXWBRPPJXIR2Z",
+            "GCVJ4Z6TI6Z2SOGENSPXDQ2U4RKH3CNQKYUHNSSPYFPNWTLGS6EBH7I2"
+          ],
+          "innerQuorumSets": []
+        }
+      ]
+    },
+    "quorumSetHashKey": "XEZOq14PzuKCrqcUbiQabU+LrdvDk8vSz392bsrO0Xo=",
+    "geoData": {
+      "latitude": 49.11594009399414,
+      "longitude": 10.753399848937988,
+      "countryCode": "DE",
+      "countryName": "Germany"
+    },
+    "name": "LOBSTR 2 (Europe)",
+    "host": "v2.stellar.lobstr.co:11625",
+    "historyUrl": "https://archive.v2.stellar.lobstr.co/",
+    "alias": "lobstr2",
+    "homeDomain": "lobstr.co",
+    "overlayVersion": 34,
+    "overlayMinVersion": 32,
+    "ledgerVersion": 21,
+    "versionStr": "stellar-core 21.2.0 (d78f48eacabb51753e34443de7618b956e61c59f)",
+    "active": true,
+    "isValidating": true,
+    "isFullValidator": true,
+    "overLoaded": false,
+    "index": 0.98,
+    "activeInScp": true,
+    "historyArchiveHasError": false,
+    "isValidator": true,
+    "statistics": {
+      "has24HourStats": true,
+      "has30DayStats": true,
+      "active24HoursPercentage": 100,
+      "validating24HoursPercentage": 100,
+      "overLoaded24HoursPercentage": 0,
+      "active30DaysPercentage": 100,
+      "validating30DaysPercentage": 100,
+      "overLoaded30DaysPercentage": 0
+    },
+    "organizationId": "ad733706cebb901f8b8cbb1b6a9bb785",
+    "connectivityError": false,
+    "stellarCoreVersionBehind": false,
+    "lag": 14
+  }
+]

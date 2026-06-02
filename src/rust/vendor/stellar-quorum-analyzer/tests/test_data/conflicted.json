@@ -1,0 +1,102 @@
+[
+    {
+        "publicKey": "PK11",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK11",
+                "PK12",
+                "PK13"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK12",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK11",
+                "PK12",
+                "PK13"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK13",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK11",
+                "PK12",
+                "PK13"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK21",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK21",
+                "PK22",
+                "PK23"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK22",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK21",
+                "PK22",
+                "PK23"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PK23",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+                "PK21",
+                "PK22",
+                "PK23"
+            ],
+            "innerQuorumSets": []
+        }
+    },
+    {
+        "publicKey": "PKX",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [
+            ],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "PK11",
+                        "PK12",
+                        "PK13"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "PK21",
+                        "PK22",
+                        "PK23"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    }
+]

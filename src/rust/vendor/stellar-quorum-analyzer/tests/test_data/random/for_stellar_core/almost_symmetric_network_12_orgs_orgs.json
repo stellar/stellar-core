@@ -1,0 +1,98 @@
+[
+    {
+        "name": "org0",
+        "validators": [
+            "org0v0",
+            "org0v1",
+            "org0v2"
+        ]
+    },
+    {
+        "name": "org1",
+        "validators": [
+            "org1v1",
+            "org1v2",
+            "org1v0"
+        ]
+    },
+    {
+        "name": "org2",
+        "validators": [
+            "org2v0",
+            "org2v1",
+            "org2v2"
+        ]
+    },
+    {
+        "name": "org3",
+        "validators": [
+            "org3v1",
+            "org3v2",
+            "org3v0"
+        ]
+    },
+    {
+        "name": "org4",
+        "validators": [
+            "org4v1",
+            "org4v2",
+            "org4v0"
+        ]
+    },
+    {
+        "name": "org5",
+        "validators": [
+            "org5v0",
+            "org5v1",
+            "org5v2"
+        ]
+    },
+    {
+        "name": "org6",
+        "validators": [
+            "org6v2",
+            "org6v1",
+            "org6v0"
+        ]
+    },
+    {
+        "name": "org7",
+        "validators": [
+            "org7v0",
+            "org7v1",
+            "org7v2"
+        ]
+    },
+    {
+        "name": "org8",
+        "validators": [
+            "org8v1",
+            "org8v0",
+            "org8v2"
+        ]
+    },
+    {
+        "name": "org9",
+        "validators": [
+            "org9v1",
+            "org9v0",
+            "org9v2"
+        ]
+    },
+    {
+        "name": "org10",
+        "validators": [
+            "org10v0",
+            "org10v1",
+            "org10v2"
+        ]
+    },
+    {
+        "name": "org11",
+        "validators": [
+            "org11v0",
+            "org11v1",
+            "org11v2"
+        ]
+    }
+]

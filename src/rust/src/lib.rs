@@ -5,6 +5,11 @@
 #![crate_type = "staticlib"]
 #![allow(non_snake_case)]
 
+use tcmalloc::TCMalloc;
+
+#[global_allocator]
+pub(crate) static GLOBAL_ALLOCATOR: TCMalloc = TCMalloc;
+
 #[cfg(feature = "tracy")]
 macro_rules! tracy_span {
     () => {

@@ -1,0 +1,164 @@
+[
+    {
+        "publicKey": "org0v0",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    },
+    {
+        "publicKey": "org0v1",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    },
+    {
+        "publicKey": "org0v2",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    },
+    {
+        "publicKey": "org1v0",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    },
+    {
+        "publicKey": "org1v1",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    },
+    {
+        "publicKey": "org1v2",
+        "quorumSet": {
+            "threshold": 2,
+            "validators": [],
+            "innerQuorumSets": [
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org1v1",
+                        "org1v2",
+                        "org1v0"
+                    ],
+                    "innerQuorumSets": []
+                },
+                {
+                    "threshold": 2,
+                    "validators": [
+                        "org0v0",
+                        "org0v1",
+                        "org0v2"
+                    ],
+                    "innerQuorumSets": []
+                }
+            ]
+        }
+    }
+]

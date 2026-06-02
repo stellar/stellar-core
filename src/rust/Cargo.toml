@@ -13,6 +13,7 @@ crate-type = ["staticlib"]
 log = "=0.4.19"
 cxx = "=1.0.97"
 base64 = "=0.13.1"
+tcmalloc = { path = "vendor/tcmalloc", version = "=0.3.0" }
 rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
@@ -183,9 +184,7 @@ rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 optional = true
 
 [dependencies.stellar-quorum-analyzer]
-version = "0.1.0"
-git = "https://github.com/stellar/stellar-quorum-analyzer"
-rev = "8b04a2b7a92b96ad90c09a9151ef97aa9a04a9f8"
+path = "vendor/stellar-quorum-analyzer"
 
 [features]
 
