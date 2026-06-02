@@ -428,7 +428,15 @@ main(int argc, char* const* argv)
     try
     {
 
-        checkStellarCoreMajorVersionProtocolIdentity();
+        // Temporarily disabled: this check treats the packaged version string
+        // `stellar-core X.Y.Z (<hash>)` as a release build and enforces its
+        // major version against CURRENT_LEDGER_PROTOCOL_VERSION. But our
+        // package builder and packages do not differentiate release from
+        // non-release version strings, so non-release packages (e.g. those
+        // built during a protocol bump, where the packaged major lags the
+        // protocol) trip the check and abort at startup. Re-enable once the
+        // pipeline emits distinguishable release vs non-release versions.
+        // checkStellarCoreMajorVersionProtocolIdentity();
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
