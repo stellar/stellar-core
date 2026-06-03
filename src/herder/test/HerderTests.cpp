@@ -8513,7 +8513,7 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
 #ifdef CAP_0083
 // This tests that the network externalizes an empty-tx-set value when a
 // voted-for value is not available on the network.
-TEST_CASE("network externalizes empty-tx-set on missing value", "[herder]")
+TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = Topologies::core(
