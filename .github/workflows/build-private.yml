@@ -45,6 +45,19 @@ jobs:
     - uses: actions/checkout@v4
     - uses: stellar/actions/rust-check-git-rev-deps@main
 
+  protocol-version-check:
+    # Check that a bump of CURRENT_LEDGER_PROTOCOL_VERSION is accompanied by
+    # a bump of OVERLAY_PROTOCOL_VERSION.
+    if: github.event.repository.visibility == 'private'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check protocol bump is accompanied by an overlay version bump
+      run: |
+        BASE_SHA='${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+        git fetch --depth=1 origin "$BASE_SHA"
+        ./scripts/check-protocol-overlay-versions.sh "$BASE_SHA"
+
   build:
     if: github.event.repository.visibility == 'private'
     runs-on: ubuntu-latest-16-cores
