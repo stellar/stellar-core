@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -22,6 +23,15 @@ DEFAULT_PERF_BIN = "perf"
 DEFAULT_TRACY_CAPTURE_BIN = SCRIPT_DIR.parent / "tracy-capture"
 DEFAULT_TRACY_SECONDS = 10
 APPLY_LOAD_NUM_LEDGERS = 200
+
+# Override for tcmalloc's total thread-cache budget (bytes), applied to the
+# stellar-core child process via the TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES env
+# var. tcmalloc_minimal divides this fixed budget across all threads (capped at
+# 4 MB/thread), so the default (32 MB) starves per-thread caches as the apply
+# thread count grows (e.g. 2 MB/thread at 16 threads), increasing central-free-
+# list/pageheap lock contention. Giving every thread its full 4 MB cache removes
+# that contention. Set to 0 to leave the env var unset (tcmalloc default).
+DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
 
 FLOAT_RE = r"([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
 RESULT_PATTERNS = {
@@ -75,8 +85,18 @@ SCENARIOS: tuple[Scenario, ...] = (
     # Scenario(
     #     model_tx="sac",
     #     tx_count=6000,
-    #     thread_count=4,
+    #     thread_count=1,
     # ),
+    # Scenario(
+    #     model_tx="sac",
+    #     tx_count=6000,
+    #     thread_count=2,
+    # ),
+    Scenario(
+        model_tx="sac",
+        tx_count=6000,
+        thread_count=4,
+    ),
     Scenario(
         model_tx="sac",
         tx_count=6000,
@@ -117,11 +137,11 @@ SCENARIOS: tuple[Scenario, ...] = (
     #     tx_count=2000,
     #     thread_count=4,
     # ),
-    Scenario(
-        model_tx="soroswap",
-        tx_count=2000,
-        thread_count=8,
-    ),
+    # Scenario(
+    #     model_tx="soroswap",
+    #     tx_count=2000,
+    #     thread_count=8,
+    # ),
 )
 
 # SCENARIOS: tuple[Scenario, ...] = (
@@ -253,6 +273,16 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_TRACY_SECONDS,
         help="Number of seconds tracy-capture should record before disconnecting.",
     )
+    parser.add_argument(
+        "--tcmalloc-max-total-thread-cache-bytes",
+        type=int,
+        default=DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES,
+        help=(
+            "Value for TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES applied to the "
+            "stellar-core child process. Set to 0 to leave it unset (tcmalloc "
+            "default) for baseline comparisons."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -271,14 +301,29 @@ def sanitize_tag(tag: str) -> str:
     return cleaned.lower()
 
 
-def run_command(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def run_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         cwd=cwd,
         text=True,
         capture_output=True,
         check=False,
+        env=env,
     )
+
+
+def build_child_env(tcmalloc_max_total_thread_cache_bytes: int) -> dict[str, str]:
+    child_env = os.environ.copy()
+    if tcmalloc_max_total_thread_cache_bytes > 0:
+        child_env["TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES"] = str(
+            tcmalloc_max_total_thread_cache_bytes
+        )
+    return child_env
 
 
 def resolve_executable_path(executable: Path, *, description: str) -> Path:
@@ -498,8 +543,10 @@ def run_scenario(
     tracy: bool,
     tracy_capture_bin: Path,
     tracy_seconds: int,
+    tcmalloc_max_total_thread_cache_bytes: int,
 ) -> dict[str, float]:
     slug = scenario.slug()
+    child_env = build_child_env(tcmalloc_max_total_thread_cache_bytes)
     log_name = f"{run_id}-{scenario_index:02d}-{slug}.log"
     perf_name = f"{run_id}-{scenario_index:02d}-{slug}.perf.data"
     tracy_name = f"{run_id}-{scenario_index:02d}-{slug}.tracy"
@@ -517,6 +564,11 @@ def run_scenario(
             command = build_perf_record_command(apply_load_command, perf_data_path)
 
         print(f"Running {scenario.summary()}")
+        if "TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES" in child_env:
+            print(
+                "  TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES="
+                f"{child_env['TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES']}"
+            )
         if profile:
             print(f"  Profile data: {perf_data_path}")
         if tracy:
@@ -528,6 +580,7 @@ def run_scenario(
             with open(stdout_path, "w") as stdout_f, open(stderr_path, "w") as stderr_f:
                 proc = subprocess.Popen(
                     command, cwd=work_dir, stdout=stdout_f, stderr=stderr_f,
+                    env=child_env,
                 )
                 try:
                     tracy_command = build_tracy_capture_command(
@@ -554,7 +607,7 @@ def run_scenario(
             stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
             returncode = proc.returncode
         else:
-            result = run_command(command, cwd=work_dir)
+            result = run_command(command, cwd=work_dir, env=child_env)
             stdout_text = result.stdout
             stderr_text = result.stderr
             returncode = result.returncode
@@ -639,6 +692,7 @@ def main() -> int:
                 tracy=args.tracy,
                 tracy_capture_bin=tracy_capture_bin,
                 tracy_seconds=args.tracy_seconds,
+                tcmalloc_max_total_thread_cache_bytes=args.tcmalloc_max_total_thread_cache_bytes,
             )
             append_csv_row(
                 results_csv,
