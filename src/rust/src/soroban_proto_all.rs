@@ -297,6 +297,19 @@ pub(crate) mod p26 {
         trace_hook: Option<TraceHook>,
         module_cache: &SorobanModuleCache,
     ) -> Result<InvokeHostFunctionResult, HostError> {
+        // Hand the host a reusable, thread-local `ModuleCache` handle by *move*
+        // rather than cloning the shared handle on every call (which bumped
+        // cross-thread-shared `Arc` refcounts and serialized parallel apply).
+        // The clone happens at most once per thread (lazy init below); from
+        // then on `invoke_host_function` moves the handle in and back out.
+        let mut reusable = module_cache
+            .p26_cache
+            .reusable_host_module_cache
+            .lock()
+            .expect("reusable module cache mutex poisoned");
+        if reusable.is_none() {
+            *reusable = Some(module_cache.p26_cache.module_cache.clone());
+        }
         e2e_invoke::invoke_host_function(
             budget,
             enable_diagnostics,
@@ -311,7 +324,7 @@ pub(crate) mod p26 {
             base_prng_seed,
             diagnostic_events,
             trace_hook,
-            Some(module_cache.p26_cache.module_cache.clone()),
+            &mut reusable,
         )
     }
 

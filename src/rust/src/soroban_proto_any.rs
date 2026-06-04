@@ -684,6 +684,22 @@ pub(crate) struct ProtocolSpecificModuleCache {
     // and track only a single _input_ value (which we want to publish back to
     // core).
     pub(crate) wasm_bytes_input: std::sync::atomic::AtomicU64,
+    // A reusable, owned `ModuleCache` handle that is moved into the `Host` on
+    // each invocation and moved back out afterwards. The host requires an
+    // *owned* `ModuleCache`, but cloning the shared handle on every call bumps
+    // the (cross-thread-shared) engine/linker/module-map `Arc` refcounts, and
+    // that per-call atomic traffic on shared cache lines serialized parallel
+    // apply across threads. Instead we clone *once* per thread into this slot
+    // (lazily, on first use) and thereafter only move it in/out of the host (a
+    // move touches no refcounts). `Mutex` (rather than `RefCell`) keeps the
+    // enclosing `SorobanModuleCache` `Sync`; since each apply thread holds its
+    // own `shallow_clone`, this lock is only ever taken by its owning thread
+    // and so never actually contends.
+    //
+    // Only the latest-protocol (p26) invoke path consumes this; older protocol
+    // adaptors keep cloning per call (they are replay-only and not perf
+    // sensitive, and their pinned envs can't take a `&mut` cache).
+    pub(crate) reusable_host_module_cache: std::sync::Mutex<Option<ModuleCache>>,
 }
 
 #[allow(dead_code)]
@@ -694,6 +710,7 @@ impl ProtocolSpecificModuleCache {
         Ok(ProtocolSpecificModuleCache {
             module_cache,
             wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
+            reusable_host_module_cache: std::sync::Mutex::new(None),
         })
     }
 
@@ -750,6 +767,7 @@ impl ProtocolSpecificModuleCache {
         Ok(ProtocolSpecificModuleCache {
             module_cache,
             wasm_bytes_input: std::sync::atomic::AtomicU64::new(0),
+            reusable_host_module_cache: std::sync::Mutex::new(None),
         })
     }
 }
