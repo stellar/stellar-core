@@ -5,14 +5,15 @@
 //!
 //! Uses libp2p-stream for persistent bidirectional streams:
 //! - SCP stream: consensus messages (priority, ~500B)
-//! - TX stream: transaction flooding (~1KB) - uses INV/GETDATA protocol
+//! - TX stream: transaction flooding (~1KB) - uses eager or INV/GETDATA protocol
 //! - TxSet stream: TX set request/response (~10MB)
 //!
 //! Each stream is opened once per peer and kept alive.
 //! QUIC provides independent loss recovery per stream.
 
 use crate::flood::{
-    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
+    GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxMessage,
+    TxStreamMessage,
 };
 use crate::metrics::OverlayMetrics;
 use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
@@ -26,6 +27,7 @@ use libp2p::{
     Multiaddr, PeerId, Stream, StreamProtocol, Swarm, SwarmBuilder,
 };
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
+use rand::seq::SliceRandom;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,6 +40,16 @@ use tracing::{debug, error, info, trace, warn};
 pub const SCP_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/scp/1.0.0");
 pub const TX_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/tx/1.0.0");
 pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/1.0.0");
+
+/// Compile-time switch selecting direct eager TX flooding instead of INV/GETDATA.
+pub const TX_FLOOD_EAGER_MODE: bool = true;
+/// Number of peers each non-initial eager relay forwards to.
+pub const TX_FLOOD_EAGER_FANOUT: usize = 4;
+/// Multiplier used only for initial eager broadcasts from Core.
+pub const TX_FLOOD_EAGER_REDUNDANCY: usize = 1;
+
+const _: () = assert!(TX_FLOOD_EAGER_FANOUT > 1);
+const _: () = assert!(TX_FLOOD_EAGER_REDUNDANCY > 0);
 
 /// Message frame: 4-byte length prefix + payload
 /// Max message size: 16MB (for large TX sets)
@@ -316,6 +328,8 @@ struct SharedState {
     pending_getdata: RwLock<PendingRequests>,
     /// TX buffer for responding to GETDATA requests
     tx_buffer: RwLock<TxBuffer>,
+    /// Current eager flooding TTL depth derived from the connected peer count.
+    tx_eager_depth: AtomicU64,
     /// Overlay metrics (shared with App for IPC reporting)
     metrics: Arc<OverlayMetrics>,
 }
@@ -351,6 +365,7 @@ impl SharedState {
             inv_tracker: RwLock::new(InvTracker::new()),
             pending_getdata: RwLock::new(PendingRequests::new()),
             tx_buffer: RwLock::new(TxBuffer::new()),
+            tx_eager_depth: AtomicU64::new(0),
             metrics,
         }
     }
@@ -494,8 +509,9 @@ impl StellarOverlay {
         tokio::spawn(handle_inbound_tx_streams(tx_incoming, state.clone()));
         tokio::spawn(handle_inbound_txset_streams(txset_incoming, state.clone()));
 
-        // Spawn INV/GETDATA housekeeping task
-        tokio::spawn(inv_getdata_housekeeping_task(state.clone()));
+        if !TX_FLOOD_EAGER_MODE {
+            tokio::spawn(inv_getdata_housekeeping_task(state.clone()));
+        }
 
         loop {
             tokio::select! {
@@ -626,6 +642,7 @@ impl StellarOverlay {
                     {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.insert(peer_id, Arc::new(PeerOutboundStreams::new()));
+                        update_eager_depth(&self.state, streams.len());
                     }
 
                     // Notify application so it can record the PeerId ↔ address mapping.
@@ -675,6 +692,7 @@ impl StellarOverlay {
                     {
                         let mut streams = self.state.peer_streams.write().await;
                         streams.remove(&peer_id);
+                        update_eager_depth(&self.state, streams.len());
                     }
                     // Clean up pending txset requests for this peer
                     {
@@ -830,8 +848,7 @@ impl StellarOverlay {
         }
     }
 
-    /// Broadcast TX to all connected peers
-    /// Broadcast TX using INV/GETDATA protocol (bandwidth efficient)
+    /// Broadcast TX to connected peers using the selected TX flooding mode.
     async fn broadcast_tx(&mut self, tx: &[u8]) {
         let parsed = match crate::xdr::parse_supported_transaction(tx) {
             Ok(parsed) => parsed,
@@ -869,7 +886,29 @@ impl StellarOverlay {
         drop(streams);
 
         if peers.is_empty() {
-            debug!("TX_INV: No peers to announce TX {:02x?}...", &hash[..4]);
+            debug!("TX_FLOOD: No peers to announce TX {:02x?}...", &hash[..4]);
+            return;
+        }
+
+        if TX_FLOOD_EAGER_MODE {
+            let initial_fanout = TX_FLOOD_EAGER_FANOUT.saturating_mul(TX_FLOOD_EAGER_REDUNDANCY);
+            let peers_to_send = select_eager_tx_peers(peers, None, initial_fanout);
+            let ttl = self.state.tx_eager_depth.load(Ordering::Relaxed) as u32;
+            debug!(
+                "TX_EAGER: Sending TX {:02x?}... ({} bytes, ttl={}) to {} peers",
+                &hash[..4],
+                tx.len(),
+                ttl,
+                peers_to_send.len()
+            );
+            self.state
+                .metrics
+                .send_transaction
+                .fetch_add(peers_to_send.len() as u64, Ordering::Relaxed);
+
+            for peer in peers_to_send {
+                send_tx_message(&self.state, peer, tx.clone(), ttl, hash).await;
+            }
             return;
         }
 
@@ -1607,7 +1646,7 @@ async fn handle_inbound_tx_streams(mut incoming: IncomingStreams, state: Arc<Sha
     }
 }
 
-/// Handle TX stream message in INV/GETDATA mode
+/// Handle TX stream message in the selected TX flooding mode.
 async fn handle_tx_stream_message(
     state: &Arc<SharedState>,
     peer_id: &PeerId,
@@ -1616,13 +1655,27 @@ async fn handle_tx_stream_message(
 ) {
     match TxStreamMessage::decode(data) {
         Ok(TxStreamMessage::InvBatch(batch)) => {
+            if TX_FLOOD_EAGER_MODE {
+                warn!(
+                    "TX_INV_IGNORED: Ignoring INV from {} in eager mode",
+                    peer_id
+                );
+                return;
+            }
             handle_inv_batch(state, peer_id, batch).await;
         }
         Ok(TxStreamMessage::GetData(getdata)) => {
+            if TX_FLOOD_EAGER_MODE {
+                warn!(
+                    "TX_GETDATA_IGNORED: Ignoring GETDATA from {} in eager mode",
+                    peer_id
+                );
+                return;
+            }
             handle_getdata(state, peer_id, getdata, stream).await;
         }
-        Ok(TxStreamMessage::Tx(tx_data)) => {
-            handle_tx_response(state, peer_id, tx_data).await;
+        Ok(TxStreamMessage::Tx(tx_message)) => {
+            handle_tx_response(state, peer_id, tx_message).await;
         }
         Err(e) => {
             warn!(
@@ -1737,7 +1790,10 @@ async fn handle_getdata(
                 .flood_fulfilled
                 .fetch_add(1, Ordering::Relaxed);
             // Send TX response
-            let msg = TxStreamMessage::Tx(tx_data);
+            let msg = TxStreamMessage::Tx(TxMessage {
+                tx: tx_data,
+                ttl: 0,
+            });
             let encoded = match msg.encode() {
                 Ok(encoded) => encoded,
                 Err(e) => {
@@ -1784,9 +1840,9 @@ async fn handle_getdata(
     }
 }
 
-/// Handle TX response (from GETDATA request)
-async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<u8>) {
-    let parsed = match crate::xdr::parse_supported_transaction(&tx) {
+/// Handle TX response or eager TX flood message.
+async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx_message: TxMessage) {
+    let parsed = match crate::xdr::parse_supported_transaction(&tx_message.tx) {
         Ok(parsed) => parsed,
         Err(e) => {
             warn!("TX_RECV_DROP: Dropping invalid TX from {}: {}", peer_id, e);
@@ -1796,6 +1852,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
     let hash = parsed.full_hash;
     let tx = parsed.envelope_xdr;
     let fee_per_op = (parsed.fee / u64::from(parsed.num_ops.max(1))) as i64;
+    let ttl = tx_message.ttl;
     let recv_start = std::time::Instant::now();
     let tx_len = tx.len() as u64;
 
@@ -1866,7 +1923,45 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
         }
     }
 
-    // RELAY: Announce to other peers via INV
+    if TX_FLOOD_EAGER_MODE {
+        if ttl > 0 {
+            let peers_to_send = {
+                let streams = state.peer_streams.read().await;
+                let peers = streams.keys().cloned().collect();
+                select_eager_tx_peers(peers, Some(peer_id), TX_FLOOD_EAGER_FANOUT)
+            };
+
+            if !peers_to_send.is_empty() {
+                debug!(
+                    "TX_EAGER_RELAY: Relaying TX {:02x?}... with ttl={} to {} peers",
+                    &hash[..4],
+                    ttl - 1,
+                    peers_to_send.len()
+                );
+                for peer in peers_to_send {
+                    send_tx_message(state, peer, tx.clone(), ttl - 1, hash).await;
+                }
+            }
+        }
+    } else {
+        relay_tx_inv(state, peer_id, hash, fee_per_op).await;
+    }
+
+    // Record recv-transaction timing
+    let elapsed_us = recv_start.elapsed().as_micros() as u64;
+    state
+        .metrics
+        .recv_transaction_sum_us
+        .fetch_add(elapsed_us, Ordering::Relaxed);
+    state
+        .metrics
+        .recv_transaction_count
+        .fetch_add(1, Ordering::Relaxed);
+    state.metrics.update_recv_transaction_max(elapsed_us);
+}
+
+/// Announce a received TX to peers via INV in INV/GETDATA mode.
+async fn relay_tx_inv(state: &Arc<SharedState>, peer_id: &PeerId, hash: [u8; 32], fee_per_op: i64) {
     let peers_to_announce: Vec<PeerId> = {
         let streams = state.peer_streams.read().await;
         let tracker = state.inv_tracker.read().await;
@@ -1904,18 +1999,86 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
             }
         }
     }
+}
 
-    // Record recv-transaction timing
-    let elapsed_us = recv_start.elapsed().as_micros() as u64;
+fn update_eager_depth(state: &SharedState, peer_count: usize) {
     state
-        .metrics
-        .recv_transaction_sum_us
-        .fetch_add(elapsed_us, Ordering::Relaxed);
-    state
-        .metrics
-        .recv_transaction_count
-        .fetch_add(1, Ordering::Relaxed);
-    state.metrics.update_recv_transaction_max(elapsed_us);
+        .tx_eager_depth
+        .store(calculate_eager_depth(peer_count), Ordering::Relaxed);
+}
+
+fn calculate_eager_depth(peer_count: usize) -> u64 {
+    if peer_count <= 1 {
+        return 0;
+    }
+
+    let mut depth = 0;
+    let mut covered = 1usize;
+    while covered < peer_count {
+        depth += 1;
+        covered = covered.saturating_mul(TX_FLOOD_EAGER_FANOUT);
+        if covered == usize::MAX {
+            break;
+        }
+    }
+    depth
+}
+
+fn select_eager_tx_peers(
+    peers: Vec<PeerId>,
+    exclude: Option<&PeerId>,
+    limit: usize,
+) -> Vec<PeerId> {
+    let mut candidates = peers
+        .into_iter()
+        .filter(|peer| exclude.map_or(true, |excluded| peer != excluded))
+        .collect::<Vec<_>>();
+    candidates.shuffle(&mut rand::thread_rng());
+    candidates.truncate(limit);
+    candidates
+}
+
+async fn send_tx_message(
+    state: &Arc<SharedState>,
+    peer: PeerId,
+    tx: Vec<u8>,
+    ttl: u32,
+    hash: [u8; 32],
+) {
+    let msg = TxStreamMessage::Tx(TxMessage { tx, ttl });
+    let encoded = match msg.encode() {
+        Ok(encoded) => encoded,
+        Err(e) => {
+            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+            warn!("Failed to encode TX for {}: {}", peer, e);
+            return;
+        }
+    };
+
+    let state = Arc::clone(state);
+    tokio::spawn(async move {
+        if let Err(e) = send_to_peer_stream(&state, peer, StreamType::Tx, &encoded).await {
+            state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "Failed to send TX {:02x?}... to {}: {}",
+                &hash[..4],
+                peer,
+                e
+            );
+        } else {
+            state.metrics.message_write.fetch_add(1, Ordering::Relaxed);
+            state
+                .metrics
+                .byte_write
+                .fetch_add(encoded.len() as u64, Ordering::Relaxed);
+            debug!(
+                "TX_SEND: Sent TX {:02x?}... to {} with ttl={}",
+                &hash[..4],
+                peer,
+                ttl
+            );
+        }
+    });
 }
 
 /// Handle inbound TxSet streams from peers
@@ -2166,6 +2329,33 @@ fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_calculate_eager_depth() {
+        assert_eq!(calculate_eager_depth(0), 0);
+        assert_eq!(calculate_eager_depth(1), 0);
+        assert_eq!(calculate_eager_depth(2), 1);
+        assert_eq!(calculate_eager_depth(4), 1);
+        assert_eq!(calculate_eager_depth(5), 2);
+        assert_eq!(calculate_eager_depth(16), 2);
+        assert_eq!(calculate_eager_depth(17), 3);
+        assert_eq!(calculate_eager_depth(64), 3);
+    }
+
+    #[test]
+    fn test_select_eager_tx_peers_honors_limit_and_exclusion() {
+        let peers = (0..6).map(|_| PeerId::random()).collect::<Vec<_>>();
+        let excluded = peers[2];
+
+        let selected = select_eager_tx_peers(peers.clone(), Some(&excluded), 3);
+
+        assert_eq!(selected.len(), 3);
+        assert!(!selected.contains(&excluded));
+
+        let all_selected = select_eager_tx_peers(peers.clone(), Some(&excluded), peers.len());
+        assert_eq!(all_selected.len(), peers.len() - 1);
+        assert!(!all_selected.contains(&excluded));
+    }
 
     #[tokio::test]
     async fn test_overlay_creation() {
@@ -4028,6 +4218,10 @@ async fn test_pending_txset_cleanup_on_disconnect() {
 /// Test INV/GETDATA protocol: TX propagation via INV→GETDATA→TX flow
 #[tokio::test]
 async fn test_inv_getdata_tx_propagation() {
+    if TX_FLOOD_EAGER_MODE {
+        return;
+    }
+
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
 
@@ -4106,6 +4300,10 @@ async fn test_inv_getdata_tx_propagation() {
 /// Test INV/GETDATA protocol: TX relay through 3 nodes (A→B→C)
 #[tokio::test]
 async fn test_inv_getdata_three_node_relay() {
+    if TX_FLOOD_EAGER_MODE {
+        return;
+    }
+
     let keypair1 = Keypair::generate_ed25519();
     let keypair2 = Keypair::generate_ed25519();
     let keypair3 = Keypair::generate_ed25519();
