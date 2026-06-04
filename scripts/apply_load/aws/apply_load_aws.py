@@ -70,6 +70,15 @@ INSTANCE_TEST_TAG_VALUE = "max-sac-tps"
 # full 4 MB cache removes that contention. Set to 0 to leave the env var unset.
 DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
 
+# perf c2c support: when --c2c is passed, the apply-load docker run is wrapped in
+# `perf c2c record` on the host and the `perf c2c report` summary (cache-line
+# contention / HITM) is appended to the downloaded apply-load log. These paths
+# live under the mounted log dir so the host can read them.
+C2C_PERF_DATA_PATH = f"{APPLY_LOAD_LOG_DIR}/c2c.perf.data"
+C2C_BINARY_PATH = f"{APPLY_LOAD_LOG_DIR}/stellar-core.c2c.bin"
+# How many lines of the (potentially huge) `perf c2c report` to keep in the log.
+C2C_REPORT_MAX_LINES = 400
+
 
 @dataclass(frozen=True)
 class ParameterDefinition:
@@ -341,6 +350,17 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
             "default) for baseline comparisons."
         ),
     )
+    parser.add_argument(
+        "--c2c",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Wrap the apply-load run in `perf c2c record` on the host and "
+            "append the cache-line contention (HITM) report to the apply-load "
+            "log. Best-effort: requires perf on the instance; adds sampling "
+            "overhead so timing numbers from this run are not representative."
+        ),
+    )
 
 
 def add_aws_run_arguments(parser: argparse.ArgumentParser) -> None:
@@ -431,6 +451,8 @@ def build_apply_load_command(mode_name: str, values: Mapping[str, Any],
             "--tcmalloc-max-total-thread-cache-bytes",
             str(tcmalloc_bytes),
         ])
+    if values.get("c2c"):
+        command.append("--c2c")
     for parameter in get_mode_cli_parameters(mode_name):
         command.extend([
             f"--{parameter.replace('_', '-')}",
@@ -753,8 +775,96 @@ def aws_init(ami: str, region: str, security_group: str,
     print(instance_id)
 
 
+def prepare_perf_for_c2c() -> bool:
+    """Best-effort: ensure perf is installed and the kernel allows the events
+    perf c2c needs. Returns True if perf is usable."""
+    # Relax perf restrictions (best-effort; needs sudo, which ubuntu has).
+    run(["sudo", "sysctl", "-w", "kernel.perf_event_paranoid=-1"], check=False)
+    run(["sudo", "sysctl", "-w", "kernel.kptr_restrict=0"], check=False)
+    if run(["perf", "--version"], capture_output=True, check=False).returncode == 0:
+        return True
+    print("perf not found; attempting to install linux-tools...")
+    run(
+        ["bash", "-lc",
+         "sudo apt-get update && sudo apt-get install -y linux-tools-common "
+         "linux-tools-$(uname -r) || sudo apt-get install -y linux-perf"],
+        check=False,
+    )
+    ok = run(["perf", "--version"], capture_output=True,
+             check=False).returncode == 0
+    if not ok:
+        print("WARNING: perf still unavailable; c2c will be skipped.")
+    return ok
+
+
+def extract_core_binary_for_symbols(image: str) -> None:
+    """Best-effort: copy the stellar-core binary out of the image and add it to
+    perf's build-id cache so `perf c2c report` can resolve symbols (the
+    container is --rm'd, so its filesystem is gone by report time)."""
+    bin_path = run(
+        ["docker", "run", "--rm", "--entrypoint", "sh", image, "-c",
+         "command -v stellar-core || echo /usr/local/bin/stellar-core"],
+        capture_output=True, check=False,
+    ).stdout.strip()
+    if not bin_path:
+        return
+    cid = run(["docker", "create", image], capture_output=True,
+              check=False).stdout.strip()
+    if not cid:
+        return
+    try:
+        run(["docker", "cp", f"{cid}:{bin_path}", C2C_BINARY_PATH], check=False)
+    finally:
+        run(["docker", "rm", cid], capture_output=True, check=False)
+    run(["sudo", "perf", "buildid-cache", "--add", C2C_BINARY_PATH], check=False)
+
+
+def run_apply_load_under_c2c(docker_command: list[str], image: str,
+                             log_path: Path) -> int:
+    """Run the docker apply-load command under `perf c2c record`, then append
+    the `perf c2c report` summary to the apply-load log. Returns the apply-load
+    (docker) exit code. Falls back to a plain run if perf is unusable."""
+    if not prepare_perf_for_c2c():
+        return run(docker_command, capture_output=True, check=False).returncode
+
+    extract_core_binary_for_symbols(image)
+    # NB: record SYSTEM-WIDE (-a). The workload runs inside the container under
+    # the docker daemon's process tree, NOT as a child of the `docker run`
+    # client, so a per-command record would profile the wrong process. -a
+    # captures the container's threads (and everything else) for the docker
+    # run's duration; the report below is filtered to the stellar-core DSO.
+    record = [
+        "sudo", "perf", "c2c", "record", "-a", "--call-graph", "fp",
+        "-o", C2C_PERF_DATA_PATH, "--", *docker_command,
+    ]
+    rec = run(record, capture_output=True, check=False)
+
+    report = run(
+        ["sudo", "perf", "c2c", "report", "--stdio", "-i", C2C_PERF_DATA_PATH],
+        capture_output=True, check=False,
+    )
+    head = "\n".join((report.stdout or "").splitlines()[:C2C_REPORT_MAX_LINES])
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write("\n\n===== perf c2c report (top {} lines) =====\n".format(
+                C2C_REPORT_MAX_LINES))
+            f.write(head or "(empty)\n")
+            if not head:
+                # Surface why there's no report (perf c2c unsupported on this
+                # PMU, missing perms, etc.) so it's diagnosable from the log.
+                f.write("\n[c2c record rc={}] stderr:\n{}".format(
+                    rec.returncode, (rec.stderr or "")[-4000:]))
+                if report.returncode != 0 and report.stderr:
+                    f.write("\n[c2c report stderr]\n" + report.stderr)
+            f.write("\n===== end perf c2c report =====\n")
+    except OSError as exc:
+        print(f"WARNING: could not append c2c report to log: {exc}")
+    return rec.returncode
+
+
 def run_apply_load(config: str, image: str, iops: Optional[int],
-                   tcmalloc_max_total_thread_cache_bytes: int) -> None:
+                   tcmalloc_max_total_thread_cache_bytes: int,
+                   c2c: bool = False) -> None:
     """Run apply-load with the given configuration."""
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", delete=False
@@ -767,14 +877,17 @@ def run_apply_load(config: str, image: str, iops: Optional[int],
     log_path.unlink(missing_ok=True)
 
     try:
-        result = run(
-            build_docker_command(
-                config_path, image, iops,
-                tcmalloc_max_total_thread_cache_bytes,
-            ),
-            capture_output=True,
-            check=False,
+        docker_command = build_docker_command(
+            config_path, image, iops,
+            tcmalloc_max_total_thread_cache_bytes,
         )
+        if c2c:
+            returncode = run_apply_load_under_c2c(docker_command, image,
+                                                  log_path)
+            result = subprocess.CompletedProcess(docker_command, returncode,
+                                                 "", "")
+        else:
+            result = run(docker_command, capture_output=True, check=False)
         if read_file_text(log_path) is None:
             print(f"WARNING: apply-load core log not found at {log_path}")
         if result.returncode != 0:
@@ -901,6 +1014,7 @@ def handle_run_mode(args: argparse.Namespace) -> None:
     run_apply_load(
         config, args.image, args.iops,
         args.tcmalloc_max_total_thread_cache_bytes,
+        args.c2c,
     )
 
 
