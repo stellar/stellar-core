@@ -2563,13 +2563,22 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 #endif
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
-        auto const& cluster = stage.getCluster(i);
-        auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster, i);
+        // Construct the per-thread state (which copies this cluster's footprint
+        // out of the global map) INSIDE the worker, so this setup runs in
+        // parallel across clusters rather than serially on this thread. Safe
+        // because globalState is scope-deactivated (read-only) for the whole
+        // parallel section.
         threadFutures.emplace_back(std::async(
-            std::launch::async, &LedgerManagerImpl::applyThread, this,
-            std::ref(app), std::move(threadStatePtr), std::cref(cluster),
-            std::cref(config), ledgerInfo, sorobanBasePrngSeed));
+            std::launch::async,
+            [this, &app, &globalState, &stage, i, &config, ledgerInfo,
+             sorobanBasePrngSeed]() {
+                auto const& cluster = stage.getCluster(i);
+                auto threadStatePtr =
+                    std::make_unique<ThreadParallelApplyLedgerState>(
+                        app, globalState, cluster, i);
+                return applyThread(app, std::move(threadStatePtr), cluster,
+                                   config, ledgerInfo, sorobanBasePrngSeed);
+            }));
     }
 #ifdef BUILD_TESTS
     auto spawnEnd = std::chrono::steady_clock::now();

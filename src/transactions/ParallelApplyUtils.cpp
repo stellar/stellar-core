@@ -926,8 +926,12 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster)
 {
-    releaseAssert(threadIsMain() ||
-                  app.threadIsType(Application::ThreadType::APPLY));
+    // NB: this now runs on the parallel-apply worker threads (which are not
+    // registered as APPLY-type), so we no longer assert the calling thread
+    // type. It only reads from `global`, which is scope-deactivated (read-only)
+    // for the entire parallel section, so concurrent reads from the workers are
+    // safe.
+    (void)app;
 
     // Pre-reserve thread entry map to avoid rehashing during per-TX
     // execution. Each footprint key may have an associated TTL key.
