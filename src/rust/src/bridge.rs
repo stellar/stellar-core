@@ -188,6 +188,10 @@ pub(crate) mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+        // SHA-256 via RustCrypto's sha2 (lock-free + SHA-NI), writing the
+        // 32-byte digest to `out`. A thread-scalable replacement for OpenSSL
+        // 3.x's one-shot SHA256(), which serializes on a global fetch lock.
+        unsafe fn sha256_rust(data: *const u8, data_len: usize, out: *mut u8);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
 
         // Ed25519 signature verification using dalek library.
@@ -409,6 +413,7 @@ use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
 use crate::quorum_checker::*;
+use crate::sha256::*;
 use crate::soroban_fuzz::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;

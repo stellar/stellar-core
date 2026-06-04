@@ -3,11 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/ThreadScalingBench.h"
-#include "crypto/SHA.h"
 #include "main/Config.h"
+#include "rust/RustBridge.h"
 #include "util/Logging.h"
 #include <chrono>
 #include <cstdint>
+#include <openssl/evp.h>
 #include <thread>
 #include <vector>
 
@@ -17,14 +18,9 @@ namespace stellar
 namespace
 {
 
-// Total number of work iterations per data point, split evenly across the
-// threads (each does kTotalIterations / numThreads, rounded down). Holding the
-// total constant makes this a strong-scaling measurement: ideal scaling keeps
-// wall time falling as 1/numThreads. Tunable.
-constexpr uint64_t kTotalIterations = 10'000'000;
+constexpr uint64_t kIterationsPerThread = 5'000'000;
+constexpr size_t kBufSize = 256;
 
-
-// Cheap per-thread PRNG (no shared state).
 inline uint64_t
 nextRand(uint64_t& s)
 {
@@ -32,48 +28,62 @@ nextRand(uint64_t& s)
     return s;
 }
 
-// One unit of light, "SAC-like" work: allocate a couple of small buffers, fill
-// them, hash, free. Everything is thread-local; there is no shared state and no
-// synchronization, so this isolates the machine's raw scaling ceiling (memory
-// bandwidth, allocator, frequency, SMT) from any application-level contention.
-// Returns an accumulator to defeat dead-code elimination.
-uint64_t
-doWork(std::vector<uint8_t>& buf, uint64_t& rng)
+// Cached SHA-256 EVP_MD handle, fetched once. Avoids the per-call implicit
+// algorithm fetch (and its global lock) that the legacy one-shot SHA256() does.
+EVP_MD*
+sha256Md()
 {
-    uint64_t acc = 0;
-    
+    static EVP_MD* md = EVP_MD_fetch(nullptr, "SHA256", nullptr);
+    return md;
+}
+
+// Work unit using OpenSSL cached EVP_MD with a reusable thread-local context.
+uint64_t
+doWorkEvp(std::vector<uint8_t>& buf, uint64_t& rng)
+{
     for (size_t i = 0; i < buf.size(); ++i)
     {
         buf[i] = static_cast<uint8_t>(nextRand(rng) >> 33);
     }
-    auto h = sha256(buf);
-    acc ^= static_cast<uint64_t>(h[0]) |
-            (static_cast<uint64_t>(h[31]) << 8);
-    return acc;
+    thread_local EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    unsigned char h[EVP_MAX_MD_SIZE];
+    unsigned int n = 0;
+    EVP_DigestInit_ex2(ctx, sha256Md(), nullptr);
+    EVP_DigestUpdate(ctx, buf.data(), buf.size());
+    EVP_DigestFinal_ex(ctx, h, &n);
+    return static_cast<uint64_t>(h[0]) | (static_cast<uint64_t>(h[31]) << 8);
 }
 
-// Spawns `numThreads` independent workers that together perform kTotalIterations
-// of doWork() (each thread gets an equal fraction, rounded down) in a tight loop
-// with NO clock calls, and measures the wall-clock time from just before thread
-// creation to after all joins. Returns the actual total iterations performed.
+// Work unit using the Rust sha2 bridge (lock-free + SHA-NI), through cxx FFI.
 uint64_t
-runPoint(unsigned numThreads, double& wallSecOut)
+doWorkRust(std::vector<uint8_t>& buf, uint64_t& rng)
 {
-    uint64_t const perThread = kTotalIterations / numThreads;
+    for (size_t i = 0; i < buf.size(); ++i)
+    {
+        buf[i] = static_cast<uint8_t>(nextRand(rng) >> 33);
+    }
+    unsigned char h[32];
+    rust_bridge::sha256_rust(buf.data(), buf.size(), h);
+    return static_cast<uint64_t>(h[0]) | (static_cast<uint64_t>(h[31]) << 8);
+}
+
+template <uint64_t (*WORK)(std::vector<uint8_t>&, uint64_t&)>
+double
+runThreads(unsigned numThreads)
+{
     std::vector<uint64_t> sink(numThreads, 0);
     std::vector<std::thread> threads;
     threads.reserve(numThreads);
-
     auto t0 = std::chrono::steady_clock::now();
     for (unsigned t = 0; t < numThreads; ++t)
     {
-        threads.emplace_back([&sink, t, perThread]() {
+        threads.emplace_back([&sink, t]() {
             uint64_t rng = 0x9e3779b97f4a7c15ULL + t * 0x100000001b3ULL;
             uint64_t acc = 0;
-            std::vector<uint8_t> buf(256);
-            for (uint64_t j = 0; j < perThread; ++j)
+            std::vector<uint8_t> buf(kBufSize);
+            for (uint64_t j = 0; j < kIterationsPerThread; ++j)
             {
-                acc ^= doWork(buf, rng);
+                acc ^= WORK(buf, rng);
             }
             sink[t] = acc;
         });
@@ -82,18 +92,38 @@ runPoint(unsigned numThreads, double& wallSecOut)
     {
         th.join();
     }
-    auto t1 = std::chrono::steady_clock::now();
-    wallSecOut = std::chrono::duration<double>(t1 - t0).count();
-
-    // Keep the optimizer honest.
-    static volatile uint64_t gSink = 0;
-    uint64_t sinkAll = 0;
+    double wall =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
+            .count();
+    uint64_t s = 0;
     for (auto v : sink)
     {
-        sinkAll ^= v;
+        s ^= v;
     }
-    gSink ^= sinkAll;
-    return perThread * numThreads;
+    volatile uint64_t keep = s;
+    (void)keep;
+    return wall;
+}
+
+template <uint64_t (*WORK)(std::vector<uint8_t>&, uint64_t&)>
+void
+sweep(char const* name, std::vector<unsigned> const& counts)
+{
+    CLOG_WARNING(Perf, "== {} ==", name);
+    CLOG_WARNING(Perf, "{:>8s} {:>10s} {:>9s} {:>7s}", "threads", "wall_ms",
+                 "speedup", "eff%");
+    double base = 0.0;
+    for (unsigned n : counts)
+    {
+        double w = runThreads<WORK>(n);
+        if (n == counts.front())
+        {
+            base = w;
+        }
+        double spd = w > 0 ? base / w * n : 0.0;
+        CLOG_WARNING(Perf, "{:>8d} {:>10.1f} {:>9.2f} {:>7.1f}", n, w * 1000.0,
+                     spd, w > 0 ? base / w / n * 100.0 : 0.0);
+    }
 }
 
 } // namespace
@@ -106,7 +136,6 @@ runThreadScalingBench(Config const& cfg)
     {
         hc = 16;
     }
-
     std::vector<unsigned> counts;
     for (unsigned n = 1; n <= hc; n *= 2)
     {
@@ -117,33 +146,12 @@ runThreadScalingBench(Config const& cfg)
         counts.push_back(hc);
     }
 
-    CLOG_WARNING(Perf, "===== Thread-scaling microbench (independent, "
-                       "non-contentious work; no shared state / no locks) =====");
-    CLOG_WARNING(Perf,
-                 "hardware_concurrency={}, {} total iterations split across "
-                 "threads; measures the machine's raw thread-scaling ceiling",
-                 hc, kTotalIterations);
-    CLOG_WARNING(Perf, "{:>8s} {:>10s} {:>15s} {:>9s} {:>7s}", "threads",
-                 "wall_ms", "iters/sec", "speedup", "eff%");
-
-    double baseWall = 0.0;
-    for (unsigned n : counts)
-    {
-        double wallSec = 0.0;
-        uint64_t total = runPoint(n, wallSec);
-        if (n == counts.front())
-        {
-            baseWall = wallSec;
-        }
-        double rate = wallSec > 0 ? total / wallSec : 0.0;
-        // Total work is held constant, so ideal scaling is wall(N) = wall(1)/N:
-        // speedup = wall(1)/wall(N) (ideal = N), efficiency = speedup / N.
-        double speedup = wallSec > 0 ? baseWall / wallSec : 0.0;
-        double eff = n > 0 ? (speedup / n) * 100.0 : 0.0;
-        CLOG_WARNING(Perf, "{:>8d} {:>10.1f} {:>15.0f} {:>9.2f} {:>7.1f}", n,
-                     wallSec * 1000.0, rate, speedup, eff);
-    }
-    CLOG_WARNING(Perf, "===== end thread-scaling microbench =====");
+    CLOG_WARNING(Perf, "===== SHA256 thread-scaling: OpenSSL cached EVP_MD vs "
+                       "Rust sha2 bridge ({} iters/thread, {}B) =====",
+                 kIterationsPerThread, kBufSize);
+    sweep<doWorkEvp>("OpenSSL cached EVP_MD", counts);
+    sweep<doWorkRust>("Rust sha2 bridge (via cxx FFI)", counts);
+    CLOG_WARNING(Perf, "===== end SHA256 thread-scaling =====");
 }
 
 }

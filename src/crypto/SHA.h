@@ -47,20 +47,17 @@ struct XDRSHA256 : XDRHasher<XDRSHA256>
     }
 };
 
-// Equivalent to `sha256(xdr_to_opaque(t))` on any XDR object `t` but
-// without allocating a temporary buffer.
+// Equivalent to `sha256(xdr_to_opaque(t))` on any XDR object `t`.
 //
-// NB: This is not an overload of `sha256` to avoid ambiguity when called
-// with xdrpp-provided types like opaque_vec, which will convert to a ByteSlice
-// if demanded, but can also be passed to XDRSHA256.
+// NB: This routes through the (Rust-bridged) one-shot `sha256` rather than the
+// incremental OpenSSL `SHA256` class, because OpenSSL 3.x's hashing does not
+// scale across threads. It serializes `t` into a temporary buffer first; the
+// resulting digest is byte-identical to streaming the XDR.
 template <typename T>
 uint256
 xdrSha256(T const& t)
 {
-    XDRSHA256 xs;
-    xdr::archive(xs, t);
-    xs.flush();
-    return xs.state.finish();
+    return sha256(xdr::xdr_to_opaque(t));
 }
 
 // HMAC-SHA256 (keyed)

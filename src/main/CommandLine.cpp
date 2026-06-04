@@ -1871,6 +1871,17 @@ runApplyLoad(CommandLineArgs const& args)
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
         auto config = configOption.getConfig();
         auto mode = config.APPLY_LOAD_MODE;
+
+        // Always run the SHA256 thread-scaling microbench first in benchmark
+        // mode, so every (remote) apply-load run reports SHA256 threading
+        // behavior up front before proceeding with the normal benchmark.
+        // Test-only diagnostic; self-contained (threads only) and logging is
+        // already configured by the config parser at this point.
+        if (mode == ApplyLoadMode::BENCHMARK_MODEL_TX)
+        {
+            runThreadScalingBench(config);
+        }
+
         // Common boilerplate configuration for apply load benchmarking.
         // The goal of this config is to set up all the common parameters
         // that don't affect benchmarking at once.
@@ -1900,15 +1911,6 @@ runApplyLoad(CommandLineArgs const& args)
         auto& app = *appPtr;
         {
             app.start();
-
-            // Before the regular benchmark run, run a thread-scaling
-            // microbench: identical, fully-independent, non-contentious work
-            // per thread. This establishes the machine's raw thread-scaling
-            // ceiling to compare the parallel-apply scaling against.
-            if (mode == ApplyLoadMode::BENCHMARK_MODEL_TX)
-            {
-                runThreadScalingBench(config);
-            }
 
             // Constructs and sets up the apply load benchmarking harness.
             // The setup may take some time as it involves injecting the

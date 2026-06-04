@@ -38,6 +38,7 @@ mod ed25519_verify;
 mod i128;
 mod log;
 mod quorum_checker;
+mod sha256;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;
