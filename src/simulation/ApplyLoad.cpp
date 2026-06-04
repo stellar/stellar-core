@@ -232,6 +232,10 @@ logPhaseTimingsTable(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupGlobalMs);
     auto sorobanParallel = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanParallelApplyMs);
+    auto sorobanThreadSpawn = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadSpawnMs);
+    auto sorobanThreadJoin = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadJoinMs);
     auto sorobanCheckInvariants = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanCheckInvariantsMs);
     auto sorobanCommitThreads =
@@ -308,6 +312,8 @@ logPhaseTimingsTable(
         {"|   build_tx_bundles", computePhaseStats(buildTxBundles)},
         {"|   soroban_setup_glbl", computePhaseStats(sorobanSetupGlobal)},
         {"|   soroban_parallel", computePhaseStats(sorobanParallel)},
+        {"|     thread_spawn", computePhaseStats(sorobanThreadSpawn)},
+        {"|     thread_join", computePhaseStats(sorobanThreadJoin)},
         {"|   soroban_invariants", computePhaseStats(sorobanCheckInvariants)},
         {"|   commit_from_thrds", computePhaseStats(sorobanCommitThreads)},
         {"|   ~thread_states", computePhaseStats(sorobanDestroyThreads)},

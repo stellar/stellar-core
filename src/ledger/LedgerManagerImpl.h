@@ -547,6 +547,11 @@ class LedgerManagerImpl : public LedgerManager
         double buildTxBundlesMs = 0;
         double sorobanSetupGlobalMs = 0;
         double sorobanParallelApplyMs = 0;
+        // Sub-timings of sorobanParallelApplyMs: time the main thread spends in
+        // the serial per-cluster thread-state construction + spawn loop, and
+        // time spent joining the worker threads.
+        double sorobanThreadSpawnMs = 0;
+        double sorobanThreadJoinMs = 0;
         double sorobanCheckInvariantsMs = 0;
         double sorobanCommitFromThreadsMs = 0;
         double sorobanDestroyThreadStatesMs = 0;

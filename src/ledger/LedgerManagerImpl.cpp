@@ -2558,6 +2558,9 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
+#ifdef BUILD_TESTS
+    auto spawnStart = std::chrono::steady_clock::now();
+#endif
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         auto const& cluster = stage.getCluster(i);
@@ -2568,6 +2571,11 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             std::ref(app), std::move(threadStatePtr), std::cref(cluster),
             std::cref(config), ledgerInfo, sorobanBasePrngSeed));
     }
+#ifdef BUILD_TESTS
+    auto spawnEnd = std::chrono::steady_clock::now();
+    mLastPhaseTimings.sorobanThreadSpawnMs +=
+        std::chrono::duration<double, std::milli>(spawnEnd - spawnStart).count();
+#endif
 
     for (auto& threadFuture : threadFutures)
     {
@@ -2586,6 +2594,11 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
             printErrorAndAbort("Unknown exception on apply thread");
         }
     }
+#ifdef BUILD_TESTS
+    auto joinEnd = std::chrono::steady_clock::now();
+    mLastPhaseTimings.sorobanThreadJoinMs +=
+        std::chrono::duration<double, std::milli>(joinEnd - spawnEnd).count();
+#endif
     threadFutures.clear();
     return threadStates;
 }
@@ -2710,6 +2723,8 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         auto const& header = ltx.loadHeader().current();
 #ifdef BUILD_TESTS
         mLastPhaseTimings.sorobanParallelApplyMs = 0;
+        mLastPhaseTimings.sorobanThreadSpawnMs = 0;
+        mLastPhaseTimings.sorobanThreadJoinMs = 0;
         mLastPhaseTimings.sorobanCheckInvariantsMs = 0;
         mLastPhaseTimings.sorobanCommitFromThreadsMs = 0;
         mLastPhaseTimings.sorobanDestroyThreadStatesMs = 0;
