@@ -192,6 +192,12 @@ pub(crate) mod rust_bridge {
         // 32-byte digest to `out`. A thread-scalable replacement for OpenSSL
         // 3.x's one-shot SHA256(), which serializes on a global fetch lock.
         unsafe fn sha256_rust(data: *const u8, data_len: usize, out: *mut u8);
+        // Incremental SHA-256 (same sha2 backend), for streaming hashing
+        // without materializing a contiguous input buffer.
+        type RustSha256;
+        fn new_rust_sha256() -> Box<RustSha256>;
+        unsafe fn update(self: &mut RustSha256, data: *const u8, len: usize);
+        unsafe fn finalize(self: &mut RustSha256, out: *mut u8);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
 
         // Ed25519 signature verification using dalek library.

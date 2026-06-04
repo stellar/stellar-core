@@ -36,28 +36,44 @@ class SHA256
     uint256 finish();
 };
 
+// Incremental SHA256 backed by the Rust sha2 bridge (lock-free + SHA-NI, so it
+// scales across threads, unlike OpenSSL 3.x's one-shot SHA256()). Used to stream
+// XDR bytes into a hash without first materializing a contiguous buffer. Pimpl'd
+// so this widely-included header need not pull in the generated RustBridge.h.
+class StreamingSha256
+{
+    struct Impl;
+    std::unique_ptr<Impl> mImpl;
+
+  public:
+    StreamingSha256();
+    ~StreamingSha256();
+    void update(unsigned char const* data, size_t size);
+    uint256 finish();
+};
+
 // Helper for xdrSha256 below.
 struct XDRSHA256 : XDRHasher<XDRSHA256>
 {
-    SHA256 state;
+    StreamingSha256 state;
     void
     hashBytes(unsigned char const* bytes, size_t size)
     {
-        state.add(ByteSlice(bytes, size));
+        state.update(bytes, size);
     }
 };
 
-// Equivalent to `sha256(xdr_to_opaque(t))` on any XDR object `t`.
-//
-// NB: This routes through the (Rust-bridged) one-shot `sha256` rather than the
-// incremental OpenSSL `SHA256` class, because OpenSSL 3.x's hashing does not
-// scale across threads. It serializes `t` into a temporary buffer first; the
-// resulting digest is byte-identical to streaming the XDR.
+// Equivalent to `sha256(xdr_to_opaque(t))` on any XDR object `t`, but streams
+// the XDR bytes into the (Rust-bridged) incremental hasher instead of allocating
+// a contiguous opaque buffer first.
 template <typename T>
 uint256
 xdrSha256(T const& t)
 {
-    return sha256(xdr::xdr_to_opaque(t));
+    XDRSHA256 xs;
+    xdr::archive(xs, t);
+    xs.flush();
+    return xs.state.finish();
 }
 
 // HMAC-SHA256 (keyed)

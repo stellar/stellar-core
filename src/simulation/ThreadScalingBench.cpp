@@ -122,7 +122,7 @@ sweep(char const* name, std::vector<unsigned> const& counts)
         }
         double spd = w > 0 ? base / w * n : 0.0;
         CLOG_WARNING(Perf, "{:>8d} {:>10.1f} {:>9.2f} {:>7.1f}", n, w * 1000.0,
-                     spd, w > 0 ? base / w / n * 100.0 : 0.0);
+                     spd, w > 0 ? base / w * 100.0 : 0.0);
     }
 }
 

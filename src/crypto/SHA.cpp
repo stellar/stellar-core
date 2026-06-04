@@ -42,6 +42,34 @@ sha256(ByteSlice const& bin)
     return out;
 }
 
+// Incremental SHA256 backed by the Rust sha2 bridge. The rust::Box handle is
+// kept behind a pimpl so RustBridge.h stays out of the widely-included SHA.h.
+struct StreamingSha256::Impl
+{
+    rust::Box<rust_bridge::RustSha256> box;
+};
+
+StreamingSha256::StreamingSha256()
+    : mImpl(new Impl{rust_bridge::new_rust_sha256()})
+{
+}
+
+StreamingSha256::~StreamingSha256() = default;
+
+void
+StreamingSha256::update(unsigned char const* data, size_t size)
+{
+    mImpl->box->update(data, size);
+}
+
+uint256
+StreamingSha256::finish()
+{
+    uint256 out;
+    mImpl->box->finalize(out.data());
+    return out;
+}
+
 Hash
 subSha256(ByteSlice const& seed, uint64_t counter)
 {
