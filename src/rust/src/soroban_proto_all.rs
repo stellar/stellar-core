@@ -79,6 +79,12 @@ pub(crate) mod p27 {
 
     pub(crate) mod soroban_proto_any;
 
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
@@ -246,6 +252,18 @@ pub(crate) mod p26 {
     pub(crate) use soroban_env_host_p26 as soroban_env_host;
 
     pub(crate) mod soroban_proto_any;
+
+    // Output-buffer pool shims used by the protocol dispatch (HostModule) and by
+    // soroban_proto_any. p26 is the latest protocol, so it actually pools the
+    // buffers returned across the bridge (delegating to the env's pool); older,
+    // replay-only protocols use no-op shims so the shared soroban_proto_any code
+    // compiles and they keep allocating/freeing normally.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        soroban_env_host::e2e_invoke::take_output_buffer()
+    }
+    pub(crate) fn recycle_output_buffer(buf: Vec<u8>) {
+        soroban_env_host::e2e_invoke::recycle_output_buffer(buf);
+    }
 
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
@@ -432,6 +450,12 @@ pub(crate) mod p25 {
 
     pub(crate) mod soroban_proto_any;
 
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
     // these imports).
@@ -604,6 +628,12 @@ pub(crate) mod p24 {
     pub(crate) use soroban_env_host_p24 as soroban_env_host;
 
     pub(crate) mod soroban_proto_any;
+
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
 
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
@@ -778,6 +808,12 @@ pub(crate) mod p23 {
 
     pub(crate) mod soroban_proto_any;
 
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
     // these imports).
@@ -948,6 +984,13 @@ pub(crate) mod p22 {
     }
 
     pub(crate) mod soroban_proto_any;
+
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
     use crate::{
         bridge::rust_bridge::CxxLedgerEntryRentChange,
         rust_bridge::{
@@ -1155,6 +1198,13 @@ pub(crate) mod p21 {
     }
 
     pub(crate) mod soroban_proto_any;
+
+    // Output-buffer pool shims (see p26). This protocol does not pool.
+    pub(crate) fn take_output_buffer() -> Vec<u8> {
+        Vec::new()
+    }
+    pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
     use crate::{
         bridge::rust_bridge::CxxLedgerEntryRentChange,
         rust_bridge::{
@@ -1410,6 +1460,9 @@ pub(crate) struct HostModule {
     // dispatch. The struct returned from `get_version_info` contains a bunch of
     // dynamic strings, which is necessary due to cxx limitations.
     pub(crate) max_proto: u32,
+    // Returns a buffer to this protocol's output-buffer pool. A no-op for every
+    // protocol except the latest, which recycles buffers handed back from C++.
+    pub(crate) recycle_output_buffer: fn(Vec<u8>),
     pub(crate) get_soroban_version_info: fn() -> SorobanVersionInfo,
     pub(crate) invoke_host_function:
         fn(
@@ -1453,6 +1506,7 @@ macro_rules! proto_versioned_functions_for_module {
     ($module:ident) => {
         HostModule {
             max_proto: $module::soroban_proto_any::get_max_proto(),
+            recycle_output_buffer: $module::recycle_output_buffer,
             get_soroban_version_info: $module::soroban_proto_any::get_soroban_version_info,
             invoke_host_function: $module::soroban_proto_any::invoke_host_function,
             compute_transaction_resource_fee:

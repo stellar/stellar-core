@@ -1091,6 +1091,22 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         }
 
         InvokeHostFunctionOutput out;
+        // Return the output's pooled byte buffers to the Rust pool on every exit
+        // path from here on, once we're done consuming `out`. The protocol
+        // values are captured now so the destructor needs no virtual call.
+        struct OutputRecycler
+        {
+            uint32_t mConfigMaxProto;
+            uint32_t mLedgerProto;
+            InvokeHostFunctionOutput& mOut;
+            ~OutputRecycler()
+            {
+                rust_bridge::recycle_invoke_host_function_output(
+                    mConfigMaxProto, mLedgerProto, std::move(mOut));
+            }
+        } outputRecycler{mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+                         getLedgerVersion(), out};
+
         if (!invokeHostFunction(out))
         {
             return false;

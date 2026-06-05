@@ -165,6 +165,23 @@ fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError>
     })
 }
 
+// Like non_metered_xdr_to_rust_buf, but draws the backing buffer from this
+// protocol's output-buffer pool (see super::take_output_buffer). Used for the
+// outputs that are returned across the bridge and recycled by C++. Only the
+// latest protocol actually pools; older protocols' shims just allocate.
+fn pooled_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+    let mut data = super::take_output_buffer();
+    t.write_xdr(&mut xdr::Limited::new(
+        Cursor::new(&mut data),
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: 5 * 1024 * 1024, /* 5MB */
+        },
+    ))
+    .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
+    Ok(RustBuf { data })
+}
+
 // This is just a helper for modifying some data that is encoded in a CxxBuf. It
 // decodes the data, modifies it, and then re-encodes it back into the CxxBuf.
 // It's intended for use when modifying the cost parameters of the CxxLedgerInfo
@@ -225,7 +242,7 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
     events
         .iter()
         .filter_map(|e| {
-            if let Ok(encoded) = non_metered_xdr_to_rust_buf(e) {
+            if let Ok(encoded) = pooled_xdr_to_rust_buf(e) {
                 Some(encoded)
             } else {
                 None
@@ -267,7 +284,7 @@ fn extract_ledger_effects(
                     ext: LedgerEntryExt::V0,
                 };
 
-                let encoded = non_metered_xdr_to_rust_buf(&le)
+                let encoded = pooled_xdr_to_rust_buf(&le)
                     .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
                 modified_entries.push(encoded);
             }

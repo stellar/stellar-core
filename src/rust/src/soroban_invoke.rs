@@ -60,6 +60,40 @@ pub(crate) fn invoke_host_function(
     res
 }
 
+// Returns the byte buffers that backed an `InvokeHostFunctionOutput` to the
+// producing protocol's output-buffer pool, so a later invocation can reuse
+// them. Routed through the same per-protocol dispatch as `invoke_host_function`
+// so each protocol recycles to its own pool (a no-op for all but the latest);
+// this keeps replay of older protocols from growing the latest protocol's pool.
+// Called by the embedder once it has finished consuming the output.
+pub(crate) fn recycle_invoke_host_function_output(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    output: InvokeHostFunctionOutput,
+) {
+    let recycle = match get_host_module_for_protocol(config_max_protocol, protocol_version) {
+        Ok(hm) => hm.recycle_output_buffer,
+        Err(_) => return,
+    };
+    let InvokeHostFunctionOutput {
+        result_value,
+        contract_events,
+        modified_ledger_entries,
+        diagnostic_events,
+        ..
+    } = output;
+    recycle(result_value.data);
+    for buf in modified_ledger_entries {
+        recycle(buf.data);
+    }
+    for buf in contract_events {
+        recycle(buf.data);
+    }
+    for buf in diagnostic_events {
+        recycle(buf.data);
+    }
+}
+
 pub(crate) fn compute_transaction_resource_fee(
     config_max_protocol: u32,
     protocol_version: u32,

@@ -226,6 +226,15 @@ pub(crate) mod rust_bridge {
             module_cache: &SorobanModuleCache,
         ) -> Result<InvokeHostFunctionOutput>;
 
+        // Returns the buffers backing `output` to the Rust output-buffer pool
+        // for reuse by a later invocation. Must be called once C++ is done
+        // consuming the output.
+        fn recycle_invoke_host_function_output(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            output: InvokeHostFunctionOutput,
+        );
+
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
