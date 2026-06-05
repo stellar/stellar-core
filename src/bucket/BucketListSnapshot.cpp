@@ -706,7 +706,9 @@ SearchableLiveBucketListSnapshot::scanForEntriesOfType(
 namespace
 {
 // Iterator for `BucketEntry`s of a given type in a bucket. Expects the stream
-// to be positioned at the start of the type range.
+// to be positioned at the start of the type range. This is basically the same
+// as SearchableLiveBucketListSnapshot::scanForEntriesOfType's scanBucket except
+// with more control over when iteration happens.
 class BucketEntryIterator
 {
     BucketEntry mEntry;
@@ -762,6 +764,7 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
     LedgerEntryType type,
     std::function<void(LedgerEntry const&, LedgerKey const&)> callback) const
 {
+    ZoneScoped;
     // We implement this as a k-way merge over all buckets. We use a loser tree
     // for this. The benefit over a heap is ~2x fewer comparisons. A loser tree
     // is like a single-elimination tournament. The leaves of the tree are the
@@ -864,6 +867,7 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
     {
         int index = tree[0];
         auto& iter = iterators[index];
+        // Deduplicate entries with the same key across buckets
         if (auto& key = iter.getKey(); first || key != last)
         {
             last = key;
@@ -881,6 +885,7 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
         }
         int winner = tree[index + numIterators];
 
+        // Update tournament up the tree to the root
         int i = (index + numIterators) / 2;
         while (i > 0)
         {
