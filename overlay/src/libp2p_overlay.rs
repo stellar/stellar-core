@@ -29,9 +29,10 @@ use libp2p::{
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams};
 use rand::seq::SliceRandom;
 use std::collections::{HashMap, HashSet};
+use std::env;
 use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, trace, warn};
@@ -43,13 +44,76 @@ pub const TXSET_PROTOCOL: StreamProtocol = StreamProtocol::new("/stellar/txset/1
 
 /// Compile-time switch selecting direct eager TX flooding instead of INV/GETDATA.
 pub const TX_FLOOD_EAGER_MODE: bool = true;
-/// Number of peers each non-initial eager relay forwards to.
-pub const TX_FLOOD_EAGER_FANOUT: usize = 4;
-/// Multiplier used only for initial eager broadcasts from Core.
-pub const TX_FLOOD_EAGER_REDUNDANCY: usize = 1;
+/// Environment variable overriding the non-initial eager relay fanout.
+pub const TX_FLOOD_EAGER_FANOUT_ENV: &str = "TX_FLOOD_EAGER_FANOUT";
+/// Environment variable overriding the initial eager broadcast redundancy multiplier.
+pub const TX_FLOOD_EAGER_REDUNDANCY_ENV: &str = "TX_FLOOD_EAGER_REDUNDANCY";
+/// Default number of peers each non-initial eager relay forwards to.
+pub const TX_FLOOD_EAGER_FANOUT_DEFAULT: usize = 4;
+/// Default multiplier used only for initial eager broadcasts from Core.
+pub const TX_FLOOD_EAGER_REDUNDANCY_DEFAULT: usize = 1;
 
-const _: () = assert!(TX_FLOOD_EAGER_FANOUT > 1);
-const _: () = assert!(TX_FLOOD_EAGER_REDUNDANCY > 0);
+const _: () = assert!(TX_FLOOD_EAGER_FANOUT_DEFAULT > 1);
+const _: () = assert!(TX_FLOOD_EAGER_REDUNDANCY_DEFAULT > 0);
+
+pub fn tx_flood_eager_fanout() -> usize {
+    static FANOUT: OnceLock<usize> = OnceLock::new();
+    *FANOUT.get_or_init(|| {
+        tx_flood_eager_env_usize(
+            TX_FLOOD_EAGER_FANOUT_ENV,
+            TX_FLOOD_EAGER_FANOUT_DEFAULT,
+            |value| value > 1,
+            "greater than 1",
+        )
+    })
+}
+
+pub fn tx_flood_eager_redundancy() -> usize {
+    static REDUNDANCY: OnceLock<usize> = OnceLock::new();
+    *REDUNDANCY.get_or_init(|| {
+        tx_flood_eager_env_usize(
+            TX_FLOOD_EAGER_REDUNDANCY_ENV,
+            TX_FLOOD_EAGER_REDUNDANCY_DEFAULT,
+            |value| value > 0,
+            "greater than 0",
+        )
+    })
+}
+
+fn tx_flood_eager_env_usize(
+    env_var_name: &str,
+    default_value: usize,
+    is_valid: impl Fn(usize) -> bool,
+    expected_value: &str,
+) -> usize {
+    match env::var(env_var_name) {
+        Ok(raw_value) => match raw_value.parse::<usize>() {
+            Ok(value) if is_valid(value) => value,
+            Ok(value) => {
+                warn!(
+                    "Ignoring {}={} because it must be {}; using default {}",
+                    env_var_name, value, expected_value, default_value
+                );
+                default_value
+            }
+            Err(error) => {
+                warn!(
+                    "Ignoring {}={:?} because it is not a usize ({}); using default {}",
+                    env_var_name, raw_value, error, default_value
+                );
+                default_value
+            }
+        },
+        Err(env::VarError::NotPresent) => default_value,
+        Err(env::VarError::NotUnicode(raw_value)) => {
+            warn!(
+                "Ignoring {}={:?} because it is not valid Unicode; using default {}",
+                env_var_name, raw_value, default_value
+            );
+            default_value
+        }
+    }
+}
 
 /// Message frame: 4-byte length prefix + payload
 /// Max message size: 16MB (for large TX sets)
@@ -891,7 +955,8 @@ impl StellarOverlay {
         }
 
         if TX_FLOOD_EAGER_MODE {
-            let initial_fanout = TX_FLOOD_EAGER_FANOUT.saturating_mul(TX_FLOOD_EAGER_REDUNDANCY);
+            let initial_fanout = tx_flood_eager_fanout()
+                .saturating_mul(tx_flood_eager_redundancy());
             let peers_to_send = select_eager_tx_peers(peers, None, initial_fanout);
             let ttl = self.state.tx_eager_depth.load(Ordering::Relaxed) as u32;
             debug!(
@@ -1928,7 +1993,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx_messa
             let peers_to_send = {
                 let streams = state.peer_streams.read().await;
                 let peers = streams.keys().cloned().collect();
-                select_eager_tx_peers(peers, Some(peer_id), TX_FLOOD_EAGER_FANOUT)
+                select_eager_tx_peers(peers, Some(peer_id), tx_flood_eager_fanout())
             };
 
             if !peers_to_send.is_empty() {
@@ -2008,6 +2073,10 @@ fn update_eager_depth(state: &SharedState, peer_count: usize) {
 }
 
 fn calculate_eager_depth(peer_count: usize) -> u64 {
+    calculate_eager_depth_for_fanout(peer_count, tx_flood_eager_fanout())
+}
+
+fn calculate_eager_depth_for_fanout(peer_count: usize, fanout: usize) -> u64 {
     if peer_count <= 1 {
         return 0;
     }
@@ -2016,7 +2085,7 @@ fn calculate_eager_depth(peer_count: usize) -> u64 {
     let mut covered = 1usize;
     while covered < peer_count {
         depth += 1;
-        covered = covered.saturating_mul(TX_FLOOD_EAGER_FANOUT);
+        covered = covered.saturating_mul(fanout);
         if covered == usize::MAX {
             break;
         }
@@ -2332,14 +2401,14 @@ mod tests {
 
     #[test]
     fn test_calculate_eager_depth() {
-        assert_eq!(calculate_eager_depth(0), 0);
-        assert_eq!(calculate_eager_depth(1), 0);
-        assert_eq!(calculate_eager_depth(2), 1);
-        assert_eq!(calculate_eager_depth(4), 1);
-        assert_eq!(calculate_eager_depth(5), 2);
-        assert_eq!(calculate_eager_depth(16), 2);
-        assert_eq!(calculate_eager_depth(17), 3);
-        assert_eq!(calculate_eager_depth(64), 3);
+        assert_eq!(calculate_eager_depth_for_fanout(0, 4), 0);
+        assert_eq!(calculate_eager_depth_for_fanout(1, 4), 0);
+        assert_eq!(calculate_eager_depth_for_fanout(2, 4), 1);
+        assert_eq!(calculate_eager_depth_for_fanout(4, 4), 1);
+        assert_eq!(calculate_eager_depth_for_fanout(5, 4), 2);
+        assert_eq!(calculate_eager_depth_for_fanout(16, 4), 2);
+        assert_eq!(calculate_eager_depth_for_fanout(17, 4), 3);
+        assert_eq!(calculate_eager_depth_for_fanout(64, 4), 3);
     }
 
     #[test]
