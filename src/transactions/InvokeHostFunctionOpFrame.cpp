@@ -40,6 +40,83 @@ namespace stellar
 {
 namespace
 {
+// Thread-local pool of XDR scratch buffers used to pass inputs to the Rust
+// host during Soroban transaction application.
+//
+// Each invocation XDR-encodes its footprint entries (and a handful of other
+// inputs) into byte buffers handed to the host by const reference, so C++
+// retains ownership of them. Rather than allocating and freeing these buffers
+// on every transaction -- a meaningful source of malloc/free traffic during
+// parallel apply -- they are recycled: a buffer is drawn from a per-thread
+// pool (reusing its capacity) and returned once the invocation completes. Once
+// warm, the per-entry serialization performs no heap allocation.
+//
+// The pool is unbounded by design: it only ever grows to the largest number of
+// buffers a single transaction holds at once (roughly its footprint size),
+// because every buffer taken for a transaction is returned before the next one
+// runs. It starts empty and grows on demand, so a few vector reallocations may
+// occur early in a thread's life, which is negligible.
+thread_local std::vector<std::unique_ptr<std::vector<uint8_t>>> tlCxxBufPool;
+
+std::unique_ptr<std::vector<uint8_t>>
+takePooledBuf()
+{
+    if (tlCxxBufPool.empty())
+    {
+        // Pool exhausted: grow it. The new buffer is owned by the pool like any
+        // other and is returned for reuse once the caller is done with it.
+        tlCxxBufPool.push_back(std::make_unique<std::vector<uint8_t>>());
+    }
+    auto buf = std::move(tlCxxBufPool.back());
+    tlCxxBufPool.pop_back();
+    buf->clear();
+    return buf;
+}
+
+void
+returnToPool(std::unique_ptr<std::vector<uint8_t>>&& buf)
+{
+    if (buf)
+    {
+        tlCxxBufPool.push_back(std::move(buf));
+    }
+}
+
+// Returns a buffer to the thread-local pool, leaving `buf.data` null.
+void
+returnToPool(CxxBuf& buf)
+{
+    returnToPool(std::move(buf.data));
+}
+
+// Returns every buffer in `bufs` to the thread-local pool.
+void
+returnToPool(rust::Vec<CxxBuf>& bufs)
+{
+    for (auto& b : bufs)
+    {
+        returnToPool(std::move(b.data));
+    }
+}
+
+// Pooled equivalent of toCxxBuf(): encodes `t` into a buffer drawn from the
+// thread-local pool. Mirrors xdr::xdr_to_opaque(), but reuses the buffer's
+// existing capacity rather than allocating a fresh one.
+template <typename T>
+CxxBuf
+toCxxBufPooled(T const& t)
+{
+    auto buf = takePooledBuf();
+    size_t const sz = xdr::xdr_size(t);
+    buf->resize(sz);
+    if (sz != 0)
+    {
+        xdr::xdr_put p(buf->data(), buf->data() + sz);
+        xdr::xdr_argpack_archive(p, t);
+    }
+    return CxxBuf{std::move(buf)};
+}
+
 CxxLedgerInfo
 buildLedgerInfo(SorobanNetworkConfig const& sorobanConfig,
                 uint32_t ledgerVersion, uint32_t ledgerSeq,
@@ -293,6 +370,14 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
 
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
+    // Additional pooled scratch buffers handed to the Rust host. Held as
+    // members (rather than locals in invokeHostFunction) so the destructor can
+    // return every buffer to the thread-local pool regardless of which code
+    // path exits the helper.
+    CxxBuf mHostFnBuf;
+    CxxBuf mSourceAccountBuf;
+    CxxBuf mBasePrngSeedBuf;
+    rust::Vec<CxxBuf> mAuthEntryCxxBufs;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     BitSet mRwKeyExisted;
     HostFunctionMetrics mMetrics;
@@ -337,6 +422,19 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         // Get the entries for the footprint
         mLedgerEntryCxxBufs.reserve(footprintLength);
         mTtlEntryCxxBufs.reserve(footprintLength);
+    }
+
+    ~InvokeHostFunctionApplyHelper()
+    {
+        // Return all pooled scratch buffers to the thread-local pool no matter
+        // how the helper exits (success, early return, or exception), so the
+        // pool stays warm for the next transaction on this thread.
+        returnToPool(mHostFnBuf);
+        returnToPool(mSourceAccountBuf);
+        returnToPool(mBasePrngSeedBuf);
+        returnToPool(mAuthEntryCxxBufs);
+        returnToPool(mLedgerEntryCxxBufs);
+        returnToPool(mTtlEntryCxxBufs);
     }
 
     virtual CxxLedgerInfo const& getLedgerInfo() = 0;
@@ -481,17 +579,15 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                         mRwKeyExisted.set(i);
                     }
 
-                    auto leBuf = toCxxBuf(*entryOpt);
+                    auto leBuf = toCxxBufPooled(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
 
                     // For entry types that don't have an ttlEntry (i.e.
                     // Accounts), the rust host expects an "empty" CxxBuf such
                     // that the buffer has a non-null pointer that points to an
                     // empty byte vector
-                    auto ttlBuf =
-                        ttlEntry
-                            ? toCxxBuf(*ttlEntry)
-                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+                    auto ttlBuf = ttlEntry ? toCxxBufPooled(*ttlEntry)
+                                           : CxxBuf{takePooledBuf()};
 
                     mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
                     mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
@@ -557,31 +653,35 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     invokeHostFunction(InvokeHostFunctionOutput& out)
     {
         ZoneScoped;
-        rust::Vec<CxxBuf> authEntryCxxBufs;
-        authEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
+        mAuthEntryCxxBufs.reserve(mOpFrame.mInvokeHostFunction.auth.size());
         for (auto const& authEntry : mOpFrame.mInvokeHostFunction.auth)
         {
-            authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
+            mAuthEntryCxxBufs.emplace_back(toCxxBufPooled(authEntry));
         }
 
         out.success = false;
         try
         {
-            CxxBuf basePrngSeedBuf{};
-            basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
-            basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
-                                         mSorobanBasePrngSeed.end());
+            mBasePrngSeedBuf = CxxBuf{takePooledBuf()};
+            mBasePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
+                                          mSorobanBasePrngSeed.end());
+            mHostFnBuf =
+                toCxxBufPooled(mOpFrame.mInvokeHostFunction.hostFunction);
+            mSourceAccountBuf = toCxxBufPooled(mOpFrame.getSourceID());
 
             out = rust_bridge::invoke_host_function(
                 mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
                 mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
-                mResources.instructions,
-                toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
+                mResources.instructions, mHostFnBuf,
+                // Unlike the other inputs, `resources` is passed to the bridge
+                // by value (and may be mutated by the testutils protocol
+                // comparison path), so it is not drawn from the pool.
                 toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
-                toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
-                getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
-                basePrngSeedBuf,
+                mSourceAccountBuf, mAuthEntryCxxBufs, getLedgerInfo(),
+                mLedgerEntryCxxBufs, mTtlEntryCxxBufs, mBasePrngSeedBuf,
                 mSorobanConfig.rustBridgeRentFeeConfiguration(), *mModuleCache);
+            // The pooled scratch buffers are returned to the pool by the
+            // destructor, covering all exit paths uniformly.
             mMetrics.mCpuInsn = out.cpu_insns;
             mMetrics.mMemByte = out.mem_bytes;
             mMetrics.mInvokeTimeNsecs = out.time_nsecs;
@@ -1123,7 +1223,7 @@ class InvokeHostFunctionParallelApplyHelper
             // In the auto restore case, we need to restore the entry and meter
             // disk reads. The host will take care of rent fees, and write fees
             // will be metered after the host returns.
-            auto leBuf = toCxxBuf(le);
+            auto leBuf = toCxxBufPooled(le);
             auto entrySize = static_cast<uint32>(leBuf.data->size());
             auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
 
@@ -1183,7 +1283,7 @@ class InvokeHostFunctionParallelApplyHelper
 
             // Finally, add the entries to the Cxx buffer as if they were live.
             mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
-            auto ttlBuf = toCxxBuf(ttlEntry.data.ttl());
+            auto ttlBuf = toCxxBufPooled(ttlEntry.data.ttl());
             mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
             mAutoRestoredRwEntryIndices.push_back(index);
 
