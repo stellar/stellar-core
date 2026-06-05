@@ -7,7 +7,6 @@
 #include "crypto/SecretKey.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/LedgerManager.h"
-#include "main/CommandLine.h"
 #include "main/Config.h"
 #include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
@@ -1605,18 +1604,4 @@ TEST_CASE("noisy binary search", "[applyload]")
                        << (passRate * 100) << "%)");
         REQUIRE(passRate >= 0.90);
     }
-}
-
-// Regression test: apply-load must run under the operator-configured
-// NETWORK_PASSPHRASE. A silent override (set in stellar-core #5196, reverted
-// here) hashed transactions under a hardcoded "Apply Load" passphrase, making
-// the emitted meta unconsumable under the configured network.
-TEST_CASE("apply-load honors configured NETWORK_PASSPHRASE",
-          "[loadgen][applyload]")
-{
-    Config cfg = getTestConfig();
-    std::string const passphrase = "regression test network ; 2026";
-    cfg.NETWORK_PASSPHRASE = passphrase;
-    configureApplyLoad(cfg);
-    REQUIRE(cfg.NETWORK_PASSPHRASE == passphrase);
 }

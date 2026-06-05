@@ -13,8 +13,6 @@
 namespace stellar
 {
 
-class Config;
-
 struct CommandLineArgs
 {
     std::string mExeName;
@@ -28,11 +26,4 @@ int runVersion(CommandLineArgs const&);
 void writeVersionInfo(std::ostream& os);
 
 void writeWithTextFlow(std::ostream& os, std::string const& text);
-
-#ifdef BUILD_TESTS
-// Applies the fixed configuration the `apply-load` command needs (standalone
-// mode, manual close, genesis-from-config, ...). It deliberately does NOT set
-// NETWORK_PASSPHRASE: that is taken from the operator's config.
-void configureApplyLoad(Config& cfg);
-#endif
 }

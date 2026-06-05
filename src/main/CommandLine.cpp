@@ -69,33 +69,6 @@ writeWithTextFlow(std::ostream& os, std::string const& text)
     os << clara::TextFlow::Column(text).width(consoleWidth) << "\n\n";
 }
 
-#ifdef BUILD_TESTS
-void
-configureApplyLoad(Config& config)
-{
-    // Common boilerplate configuration for apply load benchmarking.
-    // The goal of this config is to set up all the common parameters
-    // that don't affect benchmarking at once.
-    // Parameters that affect benchmarking should be set explicitly
-    // in the benchmarking config for the sake of reproducibility and
-    // clarity.
-    config.RUN_STANDALONE = true;
-    config.MANUAL_CLOSE = true;
-    config.NODE_IS_VALIDATOR = true;
-    config.USE_CONFIG_FOR_GENESIS = true;
-    config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-    config.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-    config.PARALLEL_LEDGER_APPLY = true;
-
-    // All modes besides limit-based don't need to worry about message
-    // limits.
-    if (config.APPLY_LOAD_MODE != ApplyLoadMode::LIMIT_BASED)
-    {
-        config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
-    }
-}
-#endif // BUILD_TESTS
-
 namespace
 {
 
@@ -1897,7 +1870,27 @@ runApplyLoad(CommandLineArgs const& args)
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
         auto config = configOption.getConfig();
         auto mode = config.APPLY_LOAD_MODE;
-        configureApplyLoad(config);
+        // Common boilerplate configuration for apply load benchmarking.
+        // The goal of this config is to set up all the common parameters
+        // that don't affect benchmarking at once.
+        // Parameters that affect benchmarking should be set explicitly
+        // in the benchmarking config for the sake of reproducibility and
+        // clarity.
+        config.RUN_STANDALONE = true;
+        config.MANUAL_CLOSE = true;
+        config.NODE_IS_VALIDATOR = true;
+        config.USE_CONFIG_FOR_GENESIS = true;
+        config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        config.LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        config.PARALLEL_LEDGER_APPLY = true;
+
+        // All modes besides limit-based don't need to worry about message
+        // limits.
+        if (mode != ApplyLoadMode::LIMIT_BASED)
+        {
+            config.IGNORE_MESSAGE_LIMITS_FOR_TESTING = true;
+        }
 
         VirtualClock clock(VirtualClock::REAL_TIME);
         auto appPtr = Application::create(clock, config);
