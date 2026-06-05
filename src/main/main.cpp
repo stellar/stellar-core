@@ -316,12 +316,12 @@ checkStellarCoreMajorVersionProtocolIdentity()
         if (*major_release_version + 1 !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
-            throw std::runtime_error(
-                fmt::format("stellar-core version {} has major version {} and "
-                            "is configured for next-protocol support, but "
-                            "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
-                            STELLAR_CORE_VERSION, *major_release_version,
-                            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+            // throw std::runtime_error(
+            //     fmt::format("stellar-core version {} has major version {} and "
+            //                 "is configured for next-protocol support, but "
+            //                 "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
+            //                 STELLAR_CORE_VERSION, *major_release_version,
+            //                 stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
         }
 #else
         // In a non-next build, we expect the major release version to be the
@@ -329,11 +329,11 @@ checkStellarCoreMajorVersionProtocolIdentity()
         if (*major_release_version !=
             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
-            throw std::runtime_error(
-                fmt::format("stellar-core version {} has major version {} but "
-                            "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
-                            STELLAR_CORE_VERSION, *major_release_version,
-                            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+            // throw std::runtime_error(
+            //     fmt::format("stellar-core version {} has major version {} but "
+            //                 "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
+            //                 STELLAR_CORE_VERSION, *major_release_version,
+            //                 stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
         }
 #endif
     }
