@@ -89,6 +89,7 @@ class TxFuzzTarget : public FuzzTarget
 {
   public:
     TxFuzzTarget() = default;
+    ~TxFuzzTarget() override;
 
     std::string name() const override;
     std::string description() const override;
@@ -99,6 +100,7 @@ class TxFuzzTarget : public FuzzTarget
     std::vector<uint8_t> generateSeedInput() override;
 
   private:
+    void applySetupLedgerState(AbstractLedgerTxn& ltxOuter);
     void storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx);
     void storeSetupPoolIDs(AbstractLedgerTxn& ltx,
                            std::vector<LedgerEntry> const& entries);
@@ -113,6 +115,7 @@ class TxFuzzTarget : public FuzzTarget
 
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
+    std::unique_ptr<LedgerTxn> mSetupLedgerTxn;
     PublicKey mSourceAccountID;
     FuzzUtils::StoredLedgerKeys mStoredLedgerKeys;
     FuzzUtils::StoredPoolIDs mStoredPoolIDs;

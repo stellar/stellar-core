@@ -797,14 +797,28 @@ TestContract::Invocation::withAuthorization(
     SorobanCredentials credentials)
 {
     mOp.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+
+    auto addNonce = [this](auto const& credentials) {
+        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key().nonce = credentials.nonce;
+        mSpec = mSpec.extendReadWriteFootprint({contractDataKey(
+            credentials.address, nonceKey, ContractDataDurability::TEMPORARY)});
+    };
+
     if (credentials.type() ==
         SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS)
     {
-        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
-        nonceKey.nonce_key().nonce = credentials.address().nonce;
-        mSpec = mSpec.extendReadWriteFootprint(
-            {contractDataKey(credentials.address().address, nonceKey,
-                             ContractDataDurability::TEMPORARY)});
+        addNonce(credentials.address());
+    }
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2)
+    {
+        addNonce(credentials.addressV2());
+    }
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_WITH_DELEGATES)
+    {
+        addNonce(credentials.addressWithDelegates().addressCredentials);
     }
     return *this;
 }
@@ -1379,12 +1393,19 @@ SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 TransactionResult
 SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx)
 {
+    auto diagnostics =
+        DiagnosticEventManager::createForValidation(mApp->getConfig());
     {
-        auto diagnostics = DiagnosticEventManager::createDisabled();
         CheckValidLedgerViewWrapper ledgerView(getApp());
-        REQUIRE(tx->checkValid(getApp().getAppConnector(), ledgerView, 0, 0, 0,
-                               diagnostics)
-                    ->isSuccess());
+        auto result = tx->checkValid(getApp().getAppConnector(), ledgerView, 0,
+                                     0, 0, diagnostics);
+        if (!result->isSuccess())
+        {
+            CLOG_ERROR(Tx, "invokeTx: invalid transaction {}",
+                       result->getXDR().result.code());
+            diagnostics.debugLogEvents();
+        }
+        REQUIRE(result->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});
@@ -1836,12 +1857,21 @@ AssetContractTestClient::transfer(TestAccount& fromAcc,
                 invocation.getTxMeta().getDiagnosticEvents();
             REQUIRE(diagnosticEvents.size() > 1);
 
-            auto const& contract_ev = diagnosticEvents.at(1);
-            REQUIRE(!contract_ev.inSuccessfulContractCall);
-            REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
-            auto const& topics = contract_ev.event.body.v0().topics.at(1);
-            REQUIRE(topics.type() == SCV_ERROR);
-            REQUIRE(topics.error().type() == SCE_CONTRACT);
+            bool errorFound = false;
+            for (auto const& contract_ev : diagnosticEvents)
+            {
+                REQUIRE(!contract_ev.inSuccessfulContractCall);
+                REQUIRE(contract_ev.event.type ==
+                        ContractEventType::DIAGNOSTIC);
+
+                auto const& topics = contract_ev.event.body.v0().topics.at(1);
+                if (topics.type() == SCV_ERROR)
+                {
+                    errorFound = true;
+                    break;
+                }
+            }
+            REQUIRE(errorFound);
         }
         int64_t expectedFromBalance = preTransferFromBalance;
         if (mAsset.type() == ASSET_TYPE_NATIVE)
@@ -2234,22 +2264,59 @@ SorobanSigner::SorobanSigner(SorobanTest& test, SCAddress const& address,
 }
 
 SorobanCredentials
-SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
+SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation,
+                    std::optional<bool> forceAddressCredentialsV2) const
 {
-    SorobanCredentials fullCredentials(
-        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS);
-    auto& credentials = fullCredentials.address();
+    auto credentialsType = SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+    if (protocolVersionStartsFrom(mTest.getLedgerVersion(),
+                                  ProtocolVersion::V_27))
+    {
+        if (uniform_int_distribution<>()(Catch::rng()) % 2 == 0)
+        {
+            credentialsType =
+                SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2;
+        }
+    }
+    if (forceAddressCredentialsV2)
+    {
+        credentialsType =
+            *forceAddressCredentialsV2
+                ? SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS_V2
+                : SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS;
+    }
+    SorobanCredentials fullCredentials(credentialsType);
+    auto& credentials =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? fullCredentials.address()
+            : fullCredentials.addressV2();
     credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
     credentials.signatureExpirationLedger = mTest.getLCLSeq() + 10'000;
     credentials.address = mAddress;
 
-    HashIDPreimage signaturePreimage(
-        EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION);
-    auto& preimage = signaturePreimage.sorobanAuthorization();
-    preimage.invocation = invocation;
-    preimage.networkID = mTest.getApp().getNetworkID();
-    preimage.nonce = credentials.nonce;
-    preimage.signatureExpirationLedger = credentials.signatureExpirationLedger;
+    auto preimageType =
+        credentialsType == SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS
+            ? EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION
+            : EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION_WITH_ADDRESS;
+    HashIDPreimage signaturePreimage(preimageType);
+    if (preimageType == EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION)
+    {
+        auto& preimage = signaturePreimage.sorobanAuthorization();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+    }
+    else
+    {
+        auto& preimage = signaturePreimage.sorobanAuthorizationWithAddress();
+        preimage.invocation = invocation;
+        preimage.networkID = mTest.getApp().getNetworkID();
+        preimage.nonce = credentials.nonce;
+        preimage.signatureExpirationLedger =
+            credentials.signatureExpirationLedger;
+        preimage.address = mAddress;
+    }
 
     credentials.signature = mSignFn(xdrSha256(signaturePreimage));
     return fullCredentials;

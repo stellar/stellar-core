@@ -326,13 +326,8 @@ TransactionQueue::canAdd(
     ZoneScoped;
     if (isBanned(tx->getFullHash()))
     {
-#ifdef BUILD_TESTS
-        if (!mApp.getRunInOverlayOnlyMode())
-#endif
-        {
-            return AddResult(
-                TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
-        }
+        return AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
     if (isFiltered(tx))
     {

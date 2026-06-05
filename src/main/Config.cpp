@@ -31,7 +31,7 @@
 
 namespace stellar
 {
-uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 26
+uint32 const Config::CURRENT_LEDGER_PROTOCOL_VERSION = 27
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -125,12 +125,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
-    MODE_STORES_HISTORY_MISC = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
-        std::vector<std::chrono::microseconds>();
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_WASM_BYTES_FOR_TESTING = {};
@@ -150,10 +146,14 @@ Config::Config() : NODE_SEED(SecretKey::random())
         std::chrono::microseconds::zero();
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
+        std::vector<std::chrono::microseconds>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     TESTING_MAX_SOROBAN_BYTE_ALLOWANCE = 0;
     TESTING_MAX_CLASSIC_BYTE_ALLOWANCE = 0;
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
+    TESTING_NOMINATE_RANDOM_VALUES = false;
 #endif
 
     FORCE_SCP = false;
@@ -172,7 +172,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
     PARALLEL_LEDGER_APPLY = true;
+    EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = false;
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
+    DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -249,6 +251,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
+    TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds(5000);
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
@@ -342,8 +345,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FILTERED_G_ADDRESSES = {};
 
-    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_FOR_TESTING = {};
     LOADGEN_BYTE_COUNT_DISTRIBUTION_FOR_TESTING = {};
     COMMANDS = {};
@@ -353,6 +354,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     STATE_SNAPSHOT_INVARIANT_LEDGER_FREQUENCY = 300; // 5 minutes
 
 #ifdef BUILD_TESTS
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING = {};
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = {};
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
     MODE_USES_IN_MEMORY_LEDGER = false;
@@ -1022,6 +1025,7 @@ Config::verifyLoadGenDistribution(std::vector<T> const& values,
     }
 }
 
+#ifdef BUILD_TESTS
 void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
@@ -1058,6 +1062,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
                  100 * OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] / sum);
     }
 }
+#endif
 
 void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
@@ -1151,6 +1156,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                                      "upgrade bounds for testing");
                      }
                  }},
+                {"TESTING_NOMINATE_RANDOM_VALUES",
+                 [&]() { TESTING_NOMINATE_RANDOM_VALUES = readBool(item); }},
 #endif
                 {"PEER_PORT",
                  [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
@@ -1183,10 +1190,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"PARALLEL_LEDGER_APPLY",
                  [&]() { PARALLEL_LEDGER_APPLY = readBool(item); }},
+                {"EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD",
+                 [&]() {
+                     EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = readBool(item);
+                 }},
                 {"DISABLE_SOROBAN_METRICS_FOR_TESTING",
                  [&]() {
                      DISABLE_SOROBAN_METRICS_FOR_TESTING = readBool(item);
                  }},
+                {"DISABLE_TX_META_FOR_TESTING",
+                 [&]() { DISABLE_TX_META_FOR_TESTING = readBool(item); }},
                 {"EXPERIMENTAL_BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() {
                      CLOG_WARNING(Overlay,
@@ -1379,6 +1392,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
                          item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"TX_SET_DOWNLOAD_TIMEOUT",
+                 [&]() {
+                     TX_SET_DOWNLOAD_TIMEOUT =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
                  }},
                 {"MAX_BATCH_WRITE_COUNT",
                  [&]() { MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1); }},
@@ -1598,25 +1616,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "`banaccounts` HTTP endpoint instead to ban accounts "
                          "from submitting transactions to this node.");
                  }},
-                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
-                 [&]() {
-                     // Since it doesn't make sense to sleep for a negative
-                     // amount of time, we use an unsigned integer type.
-                     auto input = readIntArray<uint32>(item);
-                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
-                         input.size());
-                     // Convert uint32 to std::chrono::microseconds
-                     std::transform(
-                         input.begin(), input.end(),
-                         std::back_inserter(
-                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                         [](uint32 x) { return std::chrono::microseconds(x); });
-                 }},
-                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
-                 [&]() {
-                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
-                         readIntArray<uint32>(item);
-                 }},
                 {"LOADGEN_BYTE_COUNT_FOR_TESTING",
                  [&]() {
                      LOADGEN_BYTE_COUNT_FOR_TESTING =
@@ -1678,6 +1677,25 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          readIntArray<uint32_t>(item);
                  }},
 #ifdef BUILD_TESTS
+                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
+                 [&]() {
+                     // Since it doesn't make sense to sleep for a negative
+                     // amount of time, we use an unsigned integer type.
+                     auto input = readIntArray<uint32>(item);
+                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
+                         input.size());
+                     // Convert uint32 to std::chrono::microseconds
+                     std::transform(
+                         input.begin(), input.end(),
+                         std::back_inserter(
+                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                         [](uint32 x) { return std::chrono::microseconds(x); });
+                 }},
+                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+                 [&]() {
+                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
                 {"APPLY_LOAD_MODE",
                  [&]() { APPLY_LOAD_MODE = parseApplyLoadMode(item); }},
                 {"APPLY_LOAD_MODEL_TX",
@@ -1953,12 +1971,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
         }
 
-        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
-            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
-        {
-            processOpApplySleepTimeForTestingConfigs();
-        }
-
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE > PEER_FLOOD_READING_CAPACITY)
         {
             std::string msg =
@@ -1976,6 +1988,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
 #ifdef BUILD_TESTS
+        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
+            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+        {
+            processOpApplySleepTimeForTestingConfigs();
+        }
+
         if (!IGNORE_MESSAGE_LIMITS_FOR_TESTING &&
             getSorobanByteAllowance() + getClassicByteAllowance() >
                 MAX_TX_SET_ALLOWANCE)
@@ -2701,6 +2719,12 @@ Config::toString(SCPQuorumSet const& qset)
         qset, [&](PublicKey const& k) { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
+}
+
+bool
+Config::invariantsEnabled() const
+{
+    return !INVARIANT_CHECKS.empty();
 }
 
 size_t

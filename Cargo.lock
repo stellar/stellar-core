@@ -706,9 +706,9 @@ checksum = "2bfcf67fea2815c2fc3b90873fae90957be12ff417335dfadc7f52927feb03b2"
 
 [[package]]
 name = "ethnum"
-version = "1.5.0"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b90ca2580b73ab6a1f724b76ca11ab632df820fd6040c336200d2c1df7b3c82c"
+checksum = "40404c3f5f511ec4da6fe866ddf6a717c309fdbb69fbbad7b0f3edab8f2e835f"
 
 [[package]]
 name = "ff"
@@ -1536,7 +1536,7 @@ dependencies = [
  "soroban-env-macros 26.0.0",
  "soroban-wasmi",
  "static_assertions",
- "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stellar-xdr 26.0.0",
  "wasmparser",
 ]
 
@@ -1552,7 +1552,7 @@ dependencies = [
  "soroban-env-macros 26.1.2",
  "soroban-wasmi",
  "static_assertions",
- "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stellar-xdr 26.0.0",
  "wasmparser",
 ]
 
@@ -1880,7 +1880,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stellar-xdr 26.0.0",
  "syn 2.0.39",
 ]
 
@@ -1894,7 +1894,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stellar-xdr 26.0.0",
  "syn 2.0.39",
 ]
 
@@ -1918,7 +1918,7 @@ dependencies = [
  "arbitrary",
  "soroban-env-common 26.0.0",
  "soroban-env-macros 26.0.0",
- "stellar-xdr 26.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stellar-xdr 26.0.0",
  "wasm-encoder",
  "wasmparser",
 ]
@@ -1991,14 +1991,14 @@ dependencies = [
 [[package]]
 name = "stellar-quorum-analyzer"
 version = "0.1.0"
-source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=8b04a2b7a92b96ad90c09a9151ef97aa9a04a9f8#8b04a2b7a92b96ad90c09a9151ef97aa9a04a9f8"
+source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=f67e9e2f080c2cc1a332d894c42277c64845e257#f67e9e2f080c2cc1a332d894c42277c64845e257"
 dependencies = [
  "batsat",
  "itertools 0.10.5",
  "log",
  "petgraph",
  "stellar-strkey 0.0.13",
- "stellar-xdr 26.0.0 (git+https://github.com/stellar/rs-stellar-xdr?rev=f0ed902950d517ec3cc31d5af7c268e2f025d093)",
+ "stellar-xdr 27.0.0",
 ]
 
 [[package]]
@@ -2125,8 +2125,9 @@ dependencies = [
 
 [[package]]
 name = "stellar-xdr"
-version = "26.0.0"
-source = "git+https://github.com/stellar/rs-stellar-xdr?rev=f0ed902950d517ec3cc31d5af7c268e2f025d093#f0ed902950d517ec3cc31d5af7c268e2f025d093"
+version = "27.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05ff843326969bdf1ef673dcdba94c08f4a3c8f1e58d6e6ef39b1bd4f749179a"
 dependencies = [
  "crate-git-revision",
  "escape-bytes",

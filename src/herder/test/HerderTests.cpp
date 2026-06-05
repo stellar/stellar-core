@@ -21,6 +21,7 @@
 #include "history/test/HistoryTestsUtils.h"
 
 #include "catchup/LedgerApplyManagerImpl.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
@@ -476,6 +477,62 @@ testTxSet(uint32 protocolVersion)
                 REQUIRE(txSet);
                 REQUIRE(txSet->checkValidWithResult(*app, 0, 0) ==
                         TxSetValidationResult::TX_VALIDATION_FAILED);
+            }
+        }
+        SECTION("negative inclusion fee tx")
+        {
+            auto sorobanTx =
+                createUploadWasmTx(*app, *root, 100, 1000, SorobanResources{});
+            auto negFeeSorobanTxEnvelope = sorobanTx->getEnvelope();
+            negFeeSorobanTxEnvelope.v1().tx.fee = 1;
+            auto negFeeBump = feeBump(*app, *root, sorobanTx, 1,
+                                      /* useInclusionAsFullFee */ true);
+            auto lclHeader =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            SECTION("legacy tx set")
+            {
+                // This is a regression test - legacy tx sets are not allowed in
+                // new protocols, but Core still accepts them and it does some
+                // tx-related validation before reaching the
+                // `GENERALIZED_TXSET_MISMATCH` check.
+                TransactionSet txSet;
+                txSet.previousLedgerHash = lclHeader.hash;
+                txSet.txs.push_back(negFeeSorobanTxEnvelope);
+                auto applicableTxSet =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet == nullptr);
+
+                txSet.txs[0] = negFeeBump->getEnvelope();
+                auto applicableTxSet2 =
+                    TxSetXDRFrame::makeFromWire(txSet)->prepareForApply(
+                        *app, lclHeader.header);
+                REQUIRE(applicableTxSet2 == nullptr);
+            }
+            SECTION("generalized tx set")
+            {
+                auto txSet =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(
+                             std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{
+                                 TransactionFrameBase::makeTransactionFromWire(
+                                     app->getNetworkID(),
+                                     negFeeSorobanTxEnvelope)})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet == nullptr);
+
+                auto txSet2 =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {{},
+                         {std::make_pair(std::nullopt,
+                                         std::vector<TransactionFrameBasePtr>{
+                                             negFeeBump})}},
+                        *app, lclHeader.hash)
+                        .second;
+                REQUIRE(txSet2 == nullptr);
             }
         }
     }
@@ -2878,6 +2935,68 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 testInvalidValue(/* isNomination */ false);
             }
         }
+
+        SECTION("empty-tx-set hash/type mismatch")
+        {
+            auto checkInvalidMismatch = [&](StellarValue const& sv) {
+                auto v = xdr::xdr_to_opaque(sv);
+
+                REQUIRE(scp.validateValue(seq, v, true) ==
+                        SCPDriver::kInvalidValue);
+                REQUIRE(scp.validateValue(seq, v, false) ==
+                        SCPDriver::kInvalidValue);
+
+                ValueWrapperPtr extracted;
+                REQUIRE_NOTHROW(extracted = scp.extractValidValue(seq, v));
+                REQUIRE(extracted == nullptr);
+            };
+
+            SECTION("signed value with empty-tx-set hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                StellarValue sv;
+                xdr::xdr_from_opaque(p.first, sv);
+                sv.txSetHash = Herder::EMPTY_TX_SET_HASH;
+                checkInvalidMismatch(sv);
+            }
+
+#ifdef CAP_0083
+            SECTION("empty-tx-set value without empty-tx-set hash")
+            {
+                auto p = makeTxPair(herder, txSet0, ct);
+                auto emptyTxSetValue =
+                    scp.makeEmptyTxSetValueFromValue(p.first);
+                StellarValue sv;
+                xdr::xdr_from_opaque(emptyTxSetValue, sv);
+                sv.txSetHash = txSet0->getContentsHash();
+                checkInvalidMismatch(sv);
+            }
+#endif // CAP_0083
+        }
+
+#ifdef CAP_0083
+        SECTION("valid empty-tx-set value")
+        {
+            auto p = makeTxPair(herder, txSet0, ct);
+            auto emptyTxSetValue = scp.makeEmptyTxSetValueFromValue(p.first);
+
+            bool const allowed = protocolVersionStartsFrom(
+                protocolVersion, EMPTY_TX_SET_PROTOCOL_VERSION);
+
+            // Ballot path: a well-formed empty-tx-set value is accepted only
+            // once the protocol allows them. This is the assertion that
+            // catches an inverted check in deserializeAndValidateStellarValue.
+            REQUIRE(scp.validateValue(seq, emptyTxSetValue,
+                                      /*nomination=*/false) ==
+                    (allowed ? SCPDriver::kFullyValidatedValue
+                             : SCPDriver::kInvalidValue));
+
+            // Nomination path: empty-tx-set values are rejected by design.
+            REQUIRE(scp.validateValue(seq, emptyTxSetValue,
+                                      /*nomination=*/true) ==
+                    SCPDriver::kInvalidValue);
+        }
+#endif // CAP_0083
     }
 
     SECTION("validateValue closeTimes")
@@ -2918,9 +3037,25 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(herder.recvTxSet(txSet->getContentsHash(), txSet));
 
             // Validate the StellarValue.
+            SCPDriver::ValidationLevel expectedValidationLevel =
+                SCPDriver::kFullyValidatedValue;
+            if (!expectValid)
+            {
+                if (scp.protocolAllowsEmptyTxSetValues())
+                {
+                    // If CAP-0083 is active, then this StellarValue is
+                    // considered structurally valid because only the tx set is
+                    // invalid.
+                    expectedValidationLevel =
+                        SCPDriver::kStructurallyValidValue;
+                }
+                else
+                {
+                    expectedValidationLevel = SCPDriver::kInvalidValue;
+                }
+            }
             REQUIRE(scp.validateValue(seq, val.first, true) ==
-                    (expectValid ? SCPDriver::kFullyValidatedValue
-                                 : SCPDriver::kInvalidValue));
+                    expectedValidationLevel);
 
             // Confirm that getTxTrimList() as used by
             // makeTxSetFromTransactions() trims the transaction if
@@ -2964,8 +3099,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
         // Triggering next ledger will construct and cache the block
         herder.triggerNextLedger(seq, true);
-        // All hits during the whole SCP round
-        REQUIRE(cache.getCounters().mHits == 8);
+#ifdef CAP_0083
+        // All hits during the whole SCP round. If CAP-0083 support is compiled
+        // in, we expect 1 more cache hit for the validity check that determines
+        // whether or not to replace the transaction set with an empty one.
+        uint64_t const expectedHits = 11;
+#else
+        uint64_t const expectedHits = 10;
+#endif
+        REQUIRE(cache.getCounters().mHits == expectedHits);
         // One miss from the initial makeTxSetFromTransactions
         REQUIRE(cache.getCounters().mMisses == 1);
     }
@@ -3179,10 +3321,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(
                 herder.recvTxSet(malformedTxSetPair.second->getContentsHash(),
                                  malformedTxSetPair.second));
-            REQUIRE(herder.getHerderSCPDriver().validateValue(
-                        herder.trackingConsensusLedgerIndex() + 1,
-                        malformedTxSetPair.first,
-                        false) == SCPDriver::kInvalidValue);
+            HerderSCPDriver& scp = herder.getHerderSCPDriver();
+            REQUIRE(scp.validateValue(herder.trackingConsensusLedgerIndex() + 1,
+                                      malformedTxSetPair.first, false) ==
+                    (scp.protocolAllowsEmptyTxSetValues()
+                         ? SCPDriver::kStructurallyValidValue
+                         : SCPDriver::kInvalidValue));
         }
     }
 }
@@ -3265,7 +3409,8 @@ TEST_CASE("SCP State", "[herder]")
                 {
                     for (auto const& h : getValidatedTxSetHashes(msg))
                     {
-                        REQUIRE(herder.getPendingEnvelopes().getTxSet(h));
+                        REQUIRE(std::get<TxSetXDRFrameConstPtr>(
+                            herder.getPendingEnvelopes().getTxSet(h)));
                         REQUIRE(app->getPersistentState().hasTxSet(h));
                         hashes.insert(h);
                     }
@@ -3837,8 +3982,9 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                                                 ->getLedgerManager()
                                                 .getLastClosedLedgerHeader()
                                                 .header;
-                    auto txSet = nodes[0]->getHerder().getTxSet(
-                        lclHeader.scpValue.txSetHash);
+                    auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                        nodes[0]->getHerder().getTxSet(
+                            lclHeader.scpValue.txSetHash));
                     GeneralizedTransactionSet xdrTxSet;
                     txSet->toXDR(xdrTxSet);
                     auto const& phase = xdrTxSet.v1TxSet().phases.at(
@@ -4300,13 +4446,13 @@ TEST_CASE("soroban txs accepted by the network",
             bool upgradeApplied = false;
             simulation->crankUntil(
                 [&]() {
-                    auto txSetSize =
+                    auto txSetResult = nodes[0]->getHerder().getTxSet(
                         nodes[0]
-                            ->getHerder()
-                            .getTxSet(nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header.scpValue.txSetHash)
+                            ->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.scpValue.txSetHash);
+                    auto txSetSize =
+                        std::get<TxSetXDRFrameConstPtr>(txSetResult)
                             ->sizeOpTotalForLogging();
                     upgradeApplied =
                         upgradeApplied || txSetSize > ledgerWideLimit;
@@ -4425,7 +4571,8 @@ getValidatorExternalizeMessages(Application& app, uint32_t start, uint32_t end)
                 auto& pe = herder.getPendingEnvelopes();
                 toStellarValue(env.statement.pledges.externalize().commit.value,
                                sv);
-                auto txset = pe.getTxSet(sv.txSetHash);
+                auto txset =
+                    std::get<TxSetXDRFrameConstPtr>(pe.getTxSet(sv.txSetHash));
                 REQUIRE(txset);
                 validatorSCPMessages[seq] =
                     std::make_pair(env, txset->toStellarMessage());
@@ -5334,8 +5481,8 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
                 StellarValue sv;
                 toStellarValue(env.statement.pledges.externalize().commit.value,
                                sv);
-                auto txSet =
-                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash);
+                auto txSet = std::get<TxSetXDRFrameConstPtr>(
+                    herder.getPendingEnvelopes().getTxSet(sv.txSetHash));
                 REQUIRE(txSet);
                 return std::make_pair(env, txSet->toStellarMessage());
             }
@@ -5371,11 +5518,14 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
 
     SCPEnvelope invalidEnv{};
     invalidEnv.statement.slotIndex = invalidSlot;
-    invalidEnv.statement.pledges.type(SCP_ST_PREPARE);
-    invalidEnv.statement.pledges.prepare().ballot.counter = 1;
-    invalidEnv.statement.pledges.prepare().ballot.value =
-        xdr::xdr_to_opaque(invalidValue);
-    invalidEnv.statement.pledges.prepare().quorumSetHash = qsetHash;
+    invalidEnv.statement.pledges.type(SCP_ST_CONFIRM);
+    auto& invalidConfirm = invalidEnv.statement.pledges.confirm();
+    invalidConfirm.ballot.counter = 1;
+    invalidConfirm.ballot.value = xdr::xdr_to_opaque(invalidValue);
+    invalidConfirm.nPrepared = 1;
+    invalidConfirm.nCommit = 1;
+    invalidConfirm.nH = 1;
+    invalidConfirm.quorumSetHash = qsetHash;
     invalidEnv.statement.nodeID = keyA.getPublicKey();
     herderC.signEnvelope(keyA, invalidEnv);
 
@@ -5399,7 +5549,7 @@ TEST_CASE("processing of next slot happens after apply", "[herder]")
             Herder::ENVELOPE_STATUS_READY);
     REQUIRE(herderC.trackingConsensusLedgerIndex() == target - 1);
 
-    // Inject future invalid PREPARE for slot target+1. Herder should accept.
+    // Inject future invalid CONFIRM for slot target+1. Herder should accept.
     REQUIRE(herderC.recvSCPEnvelope(invalidEnv) ==
             Herder::ENVELOPE_STATUS_FETCHING);
 
@@ -8297,3 +8447,101 @@ TEST_CASE("far-future slots cleanup", "[herder]")
     // Check that far-future slots have been removed
     REQUIRE(herder0.getSCP().getHighestKnownSlotIndex() < FAR_FUTURE_BASE);
 }
+
+// This test checks that the parallel tx set downloading mechanism does not
+// interfere with Herder's envelope validation
+TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
+                   "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+
+    VirtualClock clock;
+
+    auto peerKey = SecretKey::pseudoRandomForTesting();
+    auto const& peerPk = peerKey.getPublicKey();
+    cfg.QUORUM_SET.validators.emplace_back(peerPk);
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    for_versions_from(
+        static_cast<uint32_t>(EMPTY_TX_SET_PROTOCOL_VERSION), *app, [&] {
+            auto const lcl =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+            auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+            // Custom qset (single peer, threshold 1), pre-cached so the
+            // envelope wouldn't be stuck waiting for the qset to arrive.
+            SCPQuorumSet qSet;
+            qSet.threshold = 1;
+            qSet.validators.push_back(peerPk);
+            auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+            pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+            // Tx set hash deliberately fake and *not* cached.
+            Hash fakeTxSetHash;
+            fakeTxSetHash.fill(0xAB);
+
+            auto makePrepareFromPeer = [&](uint64_t closeTime) {
+                auto sv = herder.makeStellarValue(fakeTxSetHash, closeTime,
+                                                  emptyUpgradeSteps, peerKey);
+                auto opaqueValue = xdr::xdr_to_opaque(sv);
+
+                SCPEnvelope env;
+                env.statement.slotIndex = lcl.header.ledgerSeq + 1;
+                env.statement.pledges.type(SCP_ST_PREPARE);
+                auto& prep = env.statement.pledges.prepare();
+                prep.ballot.counter = 1;
+                prep.ballot.value = opaqueValue;
+                prep.quorumSetHash = qSetHash;
+                env.statement.nodeID = peerPk;
+                herder.signEnvelope(peerKey, env);
+                return env;
+            };
+
+            uint64_t const badCloseTime =
+                app->timeNow() + Herder::MAX_TIME_SLIP_SECONDS.count() + 60;
+            auto env = makePrepareFromPeer(badCloseTime);
+
+            // Envelope should be rejected as it has a bad close time
+            REQUIRE(herder.recvSCPEnvelope(env) ==
+                    Herder::ENVELOPE_STATUS_DISCARDED);
+        });
+}
+
+#ifdef CAP_0083
+// This tests that the network externalizes an empty-tx-set value when a
+// voted-for value is not available on the network.
+TEST_CASE("network externalizes empty-tx-set on missing value", "[herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+            cfg.TX_SET_DOWNLOAD_TIMEOUT = std::chrono::milliseconds{0};
+            cfg.TESTING_NOMINATE_RANDOM_VALUES = true;
+            return cfg;
+        });
+
+    Application::pointer app = simulation->getNodes()[0];
+    simulation->startAllNodes();
+    auto& counter =
+        app->getMetrics().NewCounter({"scp", "empty-tx-set", "externalized"});
+    auto const initial = counter.count();
+
+    // Run for a few ledgers to ensure that we successfully close some, and
+    // therefore generate LedgerCloseData meta
+    auto const stopPoint = initial + 3;
+
+    simulation->crankUntil([&]() { return counter.count() > stopPoint; },
+                           10 * simulation->getExpectedLedgerCloseTime(),
+                           /*finalCrank=*/false);
+
+    REQUIRE(counter.count() > stopPoint);
+
+    // Capture meta for use with --capture-lcm
+    txtest::captureLastClosedLedgerLcm(*app);
+}
+#endif // CAP_0083

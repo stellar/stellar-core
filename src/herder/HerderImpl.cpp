@@ -328,11 +328,24 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                      slotIndex, hexAbbrev(value.txSetHash));
     }
 
-    TxSetXDRFrameConstPtr externalizedSet =
-        mPendingEnvelopes.getTxSet(value.txSetHash);
+    auto result = mPendingEnvelopes.getTxSet(value.txSetHash);
+    TxSetXDRFrameConstPtr externalizedSet;
+    if (std::holds_alternative<EmptyTxSet>(result))
+    {
+#ifdef CAP_0083
+        auto const& ov = value.ext.proposedValue();
+        externalizedSet = TxSetXDRFrame::makeEmpty(ov.previousLedgerHash,
+                                                   ov.previousLedgerVersion);
+#else
+        releaseAssert(false);
+#endif // CAP_0083
+    }
+    else
+    {
+        externalizedSet = std::get<TxSetXDRFrameConstPtr>(result);
+    }
+    releaseAssert(externalizedSet != nullptr);
 
-    // save the SCP messages in the database
-    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         ZoneNamedN(updateSCPHistoryZone, "update SCP history", true);
         if (slotIndex != 0)
@@ -939,7 +952,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset,
+                            SCPQuorumSet const& qset,
                             TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
@@ -1390,7 +1403,7 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetXDRFrameConstPtr
+TxSetResult
 HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
@@ -1640,6 +1653,18 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
         return;
     }
+
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().TESTING_NOMINATE_RANDOM_VALUES &&
+        getHerderSCPDriver().protocolAllowsEmptyTxSetValues())
+    {
+        txSetHash = HashUtils::pseudoRandomForTesting();
+        CLOG_INFO(Herder,
+                  "TESTING_NOMINATE_RANDOM_VALUES: nominating slot {} "
+                  "with random tx-set hash {}",
+                  slotIndex, hexAbbrev(txSetHash));
+    }
+#endif
 
     StellarValue newProposedValue = makeStellarValue(
         txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
@@ -2167,11 +2192,15 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getValidatedTxSetHashes(e))
         {
-            auto txSet = mPendingEnvelopes.getTxSet(h);
-            if (txSet && !mApp.getPersistentState().hasTxSet(h))
+            auto result = mPendingEnvelopes.getTxSet(h);
+            if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result))
             {
-                txSets.insert(std::make_pair(h, txSet));
+                if (*txSetPtr && !mApp.getPersistentState().hasTxSet(h))
+                {
+                    txSets.insert(std::make_pair(h, *txSetPtr));
+                }
             }
+            // EmptyTxSet: nothing to persist
         }
         Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
         SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
@@ -2710,11 +2739,34 @@ bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
     ZoneScoped;
-    auto [b, _] = PubKeyUtils::verifySig(
-        sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
-        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
-                           sv.txSetHash, sv.closeTime));
-    return b;
+    switch (sv.ext.v())
+    {
+    case STELLAR_VALUE_BASIC:
+        // This function should never be called with an unsigned value
+        releaseAssert(false);
+    case STELLAR_VALUE_SIGNED:
+        return PubKeyUtils::verifySig(sv.ext.lcValueSignature().nodeID,
+                                      sv.ext.lcValueSignature().signature,
+                                      xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                                         ENVELOPE_TYPE_SCPVALUE,
+                                                         sv.txSetHash,
+                                                         sv.closeTime))
+            .valid;
+#ifdef CAP_0083
+    case STELLAR_VALUE_EMPTY_TX_SET:
+    {
+        auto const& ov = sv.ext.proposedValue();
+        return PubKeyUtils::verifySig(
+                   ov.lcValueSignature.nodeID, ov.lcValueSignature.signature,
+                   xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                      ENVELOPE_TYPE_SCPVALUE, ov.txSetHash,
+                                      sv.closeTime))
+            .valid;
+    }
+#endif // CAP_0083
+    default:
+        releaseAssert(false);
+    }
 }
 
 StellarValue

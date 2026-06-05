@@ -94,6 +94,18 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
     return result;
 }
 
+std::optional<std::chrono::milliseconds>
+ItemFetcher::getWaitingTime(Hash const& itemHash) const
+{
+    auto iter = mTrackers.find(itemHash);
+    if (iter == mTrackers.end())
+    {
+        return std::nullopt;
+    }
+
+    return iter->second->getDuration();
+}
+
 void
 ItemFetcher::stopFetchingOutsideRange(std::optional<uint64> minSlot,
                                       std::optional<uint64> maxSlot,

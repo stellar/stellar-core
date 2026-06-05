@@ -9,7 +9,6 @@
 #include "xdr/Stellar-transaction.h"
 #include "xdr/Stellar-types.h"
 
-#include <map>
 #include <set>
 #include <stdint.h>
 #include <vector>
@@ -26,8 +25,7 @@ class SignatureChecker
         bool isOverlayValidation = false);
 #ifdef BUILD_TESTS
     virtual bool checkSignature(std::vector<Signer> const& signersV,
-                                int32_t neededWeight,
-                                bool checkEd25519SignedPayload = true);
+                                int32_t neededWeight);
     virtual bool checkAllSignaturesUsed() const;
     virtual ~SignatureChecker() = default;
 
@@ -37,8 +35,7 @@ class SignatureChecker
     virtual void disableCacheMetricsTracking();
 #else
     bool checkSignature(std::vector<Signer> const& signersV,
-                        int32_t neededWeight,
-                        bool checkEd25519SignedPayload = true);
+                        int32_t neededWeight);
     bool checkAllSignaturesUsed() const;
 
     // Do not record signature cache metrics for this instance. This should be
@@ -47,6 +44,7 @@ class SignatureChecker
 #endif // BUILD_TESTS
 
     bool isOverlayValidation() const;
+    static constexpr uint32_t OVERLAY_TX_ED25519_VERIFY_BUDGET = 1000;
 
     // Reset and return the counts of signature checks performed as part of
     // transaction `checkValid` or apply flow. The first element of the pair is
@@ -62,6 +60,9 @@ class SignatureChecker
     bool mIsOverlayValidation{false};
 
     std::vector<bool> mUsedSignatures;
+    uint32_t mTxEd25519Verifications{0};
+
+    bool isOverVerificationBudget() const;
 
     // Static fields for tracking signature verification cache performance
     // during the `checkValid` or apply flow
@@ -90,7 +91,7 @@ class AlwaysValidSignatureChecker : public SignatureChecker
     }
 
     bool
-    checkSignature(std::vector<Signer> const&, int32_t, bool) override
+    checkSignature(std::vector<Signer> const&, int32_t) override
     {
         return true;
     }

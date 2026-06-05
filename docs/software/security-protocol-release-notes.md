@@ -59,6 +59,14 @@ It then follows that:
 
 # List of releases
 
+## v26.1.0 (2026-05-07)
+* `Ledger` - security - Replace block on transactions using `ed25519SignedPayload` signatures with an overall cap on signature verifications stellar-core will perform per transaction.
+    * exploited: no
+    * mitigation: code fix
+* `Herder` - security - Fix a crash during validation of malformed legacy transaction sets.
+    * exploited: no
+    * mitigation: code fix
+
 ## v26.0.1 (2026-04-03)
 * `Ledger` - security - Block transactions using `ed25519SignedPayload` signatures.
     * exploited: no

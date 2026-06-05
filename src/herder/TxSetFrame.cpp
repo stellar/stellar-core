@@ -419,7 +419,7 @@ addWireTxsToList(Hash const& networkID,
     for (auto const& env : xdrTxs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        if (!tx->XDRProvidesValidFee())
+        if (!tx->XDRProvidesValidFee() || tx->getInclusionFee() <= 0)
         {
             return false;
         }
@@ -961,27 +961,33 @@ makeTxSetFromTransactions(
 }
 
 TxSetXDRFrameConstPtr
-TxSetXDRFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
+TxSetXDRFrame::makeEmpty(Hash const& previousLedgerHash,
+                         uint32 previousLedgerVersion)
 {
-    if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
+    if (protocolVersionStartsFrom(previousLedgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
         bool isParallelSoroban = false;
-        isParallelSoroban =
-            protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+        isParallelSoroban = protocolVersionStartsFrom(
+            previousLedgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
         std::vector<TxSetPhaseFrame> emptyPhases = {
             TxSetPhaseFrame::makeEmpty(TxSetPhase::CLASSIC, false),
             TxSetPhaseFrame::makeEmpty(TxSetPhase::SOROBAN, isParallelSoroban)};
 
         GeneralizedTransactionSet txSet;
-        transactionsToGeneralizedTransactionSetXDR(emptyPhases, lclHeader.hash,
-                                                   txSet);
+        transactionsToGeneralizedTransactionSetXDR(emptyPhases,
+                                                   previousLedgerHash, txSet);
         return TxSetXDRFrame::makeFromWire(txSet);
     }
     TransactionSet txSet;
-    transactionsToTransactionSetXDR({}, lclHeader.hash, txSet);
+    transactionsToTransactionSetXDR({}, previousLedgerHash, txSet);
     return TxSetXDRFrame::makeFromWire(txSet);
+}
+
+TxSetXDRFrameConstPtr
+TxSetXDRFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
+{
+    return makeEmpty(lclHeader.hash, lclHeader.header.ledgerVersion);
 }
 
 TxSetXDRFrameConstPtr
@@ -1504,7 +1510,8 @@ TxSetPhaseFrame::makeFromWire(TxSetPhase phase, Hash const& networkID,
                 {
                     auto tx = TransactionFrameBase::makeTransactionFromWire(
                         networkID, env);
-                    if (!tx->XDRProvidesValidFee())
+                    if (!tx->XDRProvidesValidFee() ||
+                        tx->getInclusionFee() <= 0)
                     {
                         CLOG_DEBUG(Herder, "Got bad generalized txSet: "
                                            "transaction has invalid XDR");
@@ -1566,7 +1573,7 @@ TxSetPhaseFrame::makeFromWireLegacy(
         CLOG_DEBUG(
             Herder,
             "Got bad legacy txSet: transactions are not ordered correctly "
-            "or contain invalid phase transactions");
+            "or contain invalid transactions");
         return std::nullopt;
     }
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();

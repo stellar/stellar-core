@@ -84,9 +84,17 @@ PathPaymentStrictReceiveOpFrame::doApply(
                     mPathPayment.path.rend());
     fullPath.emplace_back(getSourceAsset());
 
-    // Walk the path
+    // Walk the path. `maxOffersToCross` is the running work budget for the
+    // whole operation; `convert` decrements it on each hop.
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     Asset recvAsset = getDestAsset();
     int64_t maxAmountRecv = mPathPayment.destAmount;
+    int64_t maxOffersToCross = INT64_MAX;
+    if (protocolVersionStartsFrom(ledgerVersion,
+                                  FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS))
+    {
+        maxOffersToCross = static_cast<int64_t>(getMaxOffersToCross());
+    }
     for (auto const& sendAsset : fullPath)
     {
         if (recvAsset == sendAsset)
@@ -97,19 +105,6 @@ PathPaymentStrictReceiveOpFrame::doApply(
         if (!checkIssuer(ltx, sendAsset, res))
         {
             return false;
-        }
-
-        int64_t maxOffersToCross = INT64_MAX;
-        if (protocolVersionStartsFrom(
-                ltx.loadHeader().current().ledgerVersion,
-                FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS))
-        {
-            size_t offersCrossed = innerResult(res).success().offers.size();
-            // offersCrossed will never be bigger than INT64_MAX because
-            // - the machine would have run out of memory
-            // - the limit, which cannot exceed INT64_MAX, should be enforced
-            // so this subtraction is safe because getMaxOffersToCross() >= 0
-            maxOffersToCross = getMaxOffersToCross() - offersCrossed;
         }
 
         int64_t amountSend = 0;

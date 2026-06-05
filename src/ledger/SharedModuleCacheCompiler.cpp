@@ -218,7 +218,7 @@ size_t
 SharedModuleCacheCompiler::getBytesCompiled()
 {
     std::unique_lock lock(mMutex);
-    return mBytesCompiled;
+    return mBytesCompiled * mLedgerVersions.size();
 }
 
 std::chrono::nanoseconds
@@ -232,7 +232,7 @@ size_t
 SharedModuleCacheCompiler::getContractsCompiled()
 {
     std::unique_lock lock(mMutex);
-    return mContractsCompiled;
+    return mContractsCompiled * mLedgerVersions.size();
 }
 
 }

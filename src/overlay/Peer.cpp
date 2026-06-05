@@ -1466,9 +1466,12 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     }
 
     auto self = shared_from_this();
-    if (auto txSet = mAppConnector.getHerder().getTxSet(msg.txSetHash()))
+    auto result = mAppConnector.getHerder().getTxSet(msg.txSetHash());
+    if (auto* txSetPtr = std::get_if<TxSetXDRFrameConstPtr>(&result);
+        txSetPtr && *txSetPtr)
     {
         auto newMsg = std::make_shared<StellarMessage>();
+        TxSetXDRFrameConstPtr const txSet = *txSetPtr;
         if (txSet->isGeneralizedTxSet())
         {
             newMsg->type(GENERALIZED_TX_SET);

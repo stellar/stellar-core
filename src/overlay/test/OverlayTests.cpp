@@ -3371,7 +3371,7 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(finalMisses == 0);
     }
 
-    SECTION("Ed25519 signed payload signer skipped in overlay validation")
+    SECTION("Ed25519 signed payload signer cached during overlay validation")
     {
         // Add an ed25519 signed payload signer to testAccount and remove the
         // master key, so the account can only be authorized via the payload
@@ -3404,18 +3404,19 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
 
         resetCache();
 
-        // populateSignatureCache runs with isOverlayValidation=true, which
-        // skips ed25519 signed payload signers. So no cache entries should
-        // be produced.
         invokePopulateSignatureCache(payTx);
 
         uint64_t hits, misses;
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
-        REQUIRE(hits == 0);
-        REQUIRE(misses == 0);
+        REQUIRE(misses == 1);
+        // `populateSignatureCache` verifies the payload signature at the
+        // transaction level (cache miss, added to cache) and again at the
+        // operation level (cache hit from the first check within the same
+        // call).
+        REQUIRE(hits == 1);
 
-        // Now call checkValid (normal path), which DOES check payload
-        // signers. Since the cache was not populated, we should see a miss.
+        // checkValid now sees the cache already populated: both tx-level
+        // and op-level signed-payload lookups are pure cache hits.
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ls = CheckValidLedgerViewWrapper(ltx);
         auto diagnostics = DiagnosticEventManager::createDisabled();
@@ -3424,16 +3425,8 @@ TEST_CASE("populateSignatureCache tests", "[overlay]")
         REQUIRE(result->isSuccess());
 
         PubKeyUtils::flushVerifySigCacheCounts(hits, misses);
-        // The payload signer was not cached by populateSignatureCache, so
-        // checkValid must produce a cache miss for the payload signature.
-        // This contrasts with the "Normal transaction" test where
-        // populateSignatureCache caches the ed25519 signature and
-        // checkValid sees only cache hits (misses == 0).
-        REQUIRE(misses == 1);
-        // checkValid verifies the payload signature at the transaction
-        // level (cache miss, added to cache) and again at the operation
-        // level (cache hit from the first check within the same call).
-        REQUIRE(hits == 1);
+        REQUIRE(misses == 0);
+        REQUIRE(hits == 2);
     }
 
     SECTION("Signature cache invalidation after signer removal")

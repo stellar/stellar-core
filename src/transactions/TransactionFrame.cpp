@@ -511,8 +511,7 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     }
     signers.insert(signers.end(), acc.signers.begin(), acc.signers.end());
 
-    return signatureChecker.checkSignature(
-        signers, neededWeight, !signatureChecker.isOverlayValidation());
+    return signatureChecker.checkSignature(signers, neededWeight);
 }
 
 bool
@@ -547,7 +546,7 @@ TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker) const
         // we assign a weight of 1 to each key, and set the neededWeight to the
         // number of extraSigners
         return signatureChecker.checkSignature(
-            signers, static_cast<int32_t>(signers.size()), true);
+            signers, static_cast<int32_t>(signers.size()));
     }
     return true;
 }
@@ -2278,8 +2277,11 @@ TransactionFrame::parallelApply(
 
         if (res)
         {
-            threadState.setEffectsDeltaFromSuccessfulTx(*res, ledgerInfo,
-                                                        effects);
+            if (config.invariantsEnabled())
+            {
+                threadState.setDeltaForInvariantsFromSuccessfulTx(*res,
+                                                                  effects);
+            }
             opMeta.setLedgerChangesFromSuccessfulOp(threadState, *res,
                                                     ledgerInfo.getLedgerSeq());
         }

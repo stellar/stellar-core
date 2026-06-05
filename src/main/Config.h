@@ -294,19 +294,6 @@ class Config : public std::enable_shared_from_this<Config>
     // Timeout before publishing externalized values to archive
     std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
 
-    // Config parameters that force transaction application during ledger
-    // close to sleep for a certain amount of time.
-    // The probability that it sleeps for
-    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
-    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
-    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
-    // options are only for consensus and overlay simulation testing. These two
-    // must be used together.
-    std::vector<std::chrono::microseconds>
-        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
-    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
-
     // Config parameters that LoadGen uses to decide the number of bytes to
     // include in each payment transaction for testing only. The probability
     // that transactions will contain COUNT[i] bytes is
@@ -344,6 +331,19 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
 #ifdef BUILD_TESTS
+    // Config parameters that force transaction application during ledger
+    // close to sleep for a certain amount of time.
+    // The probability that it sleeps for
+    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
+    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
+    // options are only for consensus and overlay simulation testing. These two
+    // must be used together.
+    std::vector<std::chrono::microseconds>
+        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
+    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
+
     // apply-load-specific configuration parameters:
     ApplyLoadMode APPLY_LOAD_MODE = ApplyLoadMode::LIMIT_BASED;
     ApplyLoadModelTx APPLY_LOAD_MODEL_TX = ApplyLoadModelTx::SAC;
@@ -522,8 +522,16 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool PARALLEL_LEDGER_APPLY;
 
+    // Allow downloading of transaction sets in parallel with SCP (experimental)
+    bool EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD;
+
     // Disable expensive Soroban metrics for performance testing
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
+
+    // Disable transaction metadata collection in test builds.
+    // This is useful for benchmarking, which is typically done in BUILD_TESTS
+    // builds.
+    bool DISABLE_TX_META_FOR_TESTING;
 
     // Batch transactions for flooding purposes (experimental).
     // Has no effect on non-test builds.
@@ -541,10 +549,6 @@ class Config : public std::enable_shared_from_this<Config>
     // NODE_IS_VALIDATOR=true, this value is ignored and indexes are never
     // persisted.
     bool BUCKETLIST_DB_PERSIST_INDEX;
-
-    // A config parameter that stores historical data, such as transactions,
-    // fees, and scp history in the database
-    bool MODE_STORES_HISTORY_MISC;
 
     // A config parameter that controls whether core automatically catches up
     // when it has buffered enough input; if false an out-of-sync node will
@@ -692,6 +696,11 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
+
+    // Time in milliseconds before a node gives up waiting on a transaction set
+    // and votes to drop the tx set. Does nothing without
+    // `EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD` enabled.
+    std::chrono::milliseconds TX_SET_DOWNLOAD_TIMEOUT;
     int MAX_BATCH_WRITE_COUNT;
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
@@ -899,6 +908,11 @@ class Config : public std::enable_shared_from_this<Config>
     // bounds on config upgrades (for testing only).
     bool TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS;
 
+    // When set, this node will nominate random values when it is the round
+    // leader. This is useful for testing CAP-0083 behavior. This is a testing
+    // only flag.
+    bool TESTING_NOMINATE_RANDOM_VALUES;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -933,6 +947,7 @@ class Config : public std::enable_shared_from_this<Config>
     // This exposes the node seed in the config, so make sure to only use in
     // test workloads (such as apply-load).
     std::string const& getLoadedConfigToml() const;
+    void processOpApplySleepTimeForTestingConfigs();
 #endif
 
     // fixes values of connection-relates settings
@@ -959,11 +974,11 @@ class Config : public std::enable_shared_from_this<Config>
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);
 
+    bool invariantsEnabled() const;
+
     // A special name to be used for stdin in stead of a file name in command
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;
-
-    void processOpApplySleepTimeForTestingConfigs();
 
     std::chrono::seconds HISTOGRAM_WINDOW_SIZE;
 

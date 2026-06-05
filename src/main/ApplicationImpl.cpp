@@ -740,16 +740,6 @@ ApplicationImpl::validateAndLogConfig()
         }
     }
 
-    if (getHistoryArchiveManager().publishEnabled())
-    {
-        if (!mConfig.MODE_STORES_HISTORY_MISC)
-        {
-            throw std::invalid_argument(
-                "Core is not configured to store history, but "
-                "some history archives are writable");
-        }
-    }
-
     if (mConfig.QUORUM_SET.threshold == 0)
     {
         throw std::invalid_argument("Quorum not configured");

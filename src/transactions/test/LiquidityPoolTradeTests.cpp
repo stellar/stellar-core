@@ -203,6 +203,74 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
                               ex_opEXCEEDED_WORK_LIMIT);
         }
+
+        SECTION("liquidity pool with deep order book")
+        {
+            depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+            a1.manageOffer(0, cur3, cur2, Price{1, 2}, 2000);
+
+            auto addExtraOffers = [&](size_t n) {
+                for (size_t i = 0; i < n; ++i)
+                {
+                    a1.manageOffer(0, cur2, cur1, Price{2, 1}, 1);
+                }
+            };
+
+            bool newLimitBehavior = protocolVersionStartsFrom(
+                getLclProtocolVersion(app), ProtocolVersion::V_27);
+
+            SECTION("strict send")
+            {
+                SECTION("succeeds at limit")
+                {
+                    addExtraOffers(8);
+                    REQUIRE_NOTHROW(a3.pathPaymentStrictSend(a3, cur1, 100,
+                                                             cur3, 1, {cur2}));
+                }
+
+                SECTION("over limit")
+                {
+                    addExtraOffers(9);
+                    if (newLimitBehavior)
+                    {
+                        REQUIRE_THROWS_AS(a3.pathPaymentStrictSend(
+                                              a3, cur1, 100, cur3, 1, {cur2}),
+                                          ex_opEXCEEDED_WORK_LIMIT);
+                    }
+                    else
+                    {
+                        REQUIRE_NOTHROW(a3.pathPaymentStrictSend(
+                            a3, cur1, 100, cur3, 1, {cur2}));
+                    }
+                }
+            }
+
+            SECTION("strict receive")
+            {
+                SECTION("succeeds at limit")
+                {
+                    addExtraOffers(8);
+                    REQUIRE_NOTHROW(a3.pay(a3, cur1, 100, cur3, 18, {cur2}));
+                }
+
+                SECTION("over limit")
+                {
+                    addExtraOffers(9);
+                    if (newLimitBehavior)
+                    {
+                        REQUIRE_THROWS_AS(
+                            a3.pay(a3, cur1, 100, cur3, 18, {cur2}),
+                            ex_opEXCEEDED_WORK_LIMIT);
+                    }
+                    else
+                    {
+                        REQUIRE_NOTHROW(
+                            a3.pay(a3, cur1, 100, cur3, 18, {cur2}));
+                    }
+                }
+            }
+        }
     }
 
     SECTION("liquidity pool charges the correct fee")
