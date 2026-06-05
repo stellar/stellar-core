@@ -32,7 +32,7 @@
 
 namespace stellar
 {
-template <class BucketT>
+template <IsBucketType BucketT>
 FutureBucket<BucketT>::FutureBucket(
     Application& app, std::shared_ptr<BucketT> const& curr,
     std::shared_ptr<BucketT> const& snap,
@@ -82,7 +82,7 @@ FutureBucket<BucketT>::FutureBucket(
     startMerge(app, maxProtocolVersion, countMergeEvents, level);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::setLiveOutput(std::shared_ptr<BucketT> output)
 {
@@ -93,14 +93,14 @@ FutureBucket<BucketT>::setLiveOutput(std::shared_ptr<BucketT> output)
     checkState();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 static void
 checkHashEq(std::shared_ptr<BucketT> const& b, std::string const& h)
 {
     releaseAssert(b->getHash() == hexToBin256(h));
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::checkHashesMatch() const
 {
@@ -135,7 +135,7 @@ FutureBucket<BucketT>::checkHashesMatch() const
  * the different hash-only states are mutually exclusive with each other and
  * with live values.
  */
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::checkState() const
 {
@@ -196,7 +196,7 @@ FutureBucket<BucketT>::checkState() const
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::clearInputs()
 {
@@ -209,7 +209,7 @@ FutureBucket<BucketT>::clearInputs()
     mInputCurrBucketHash.clear();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::clearOutput()
 {
@@ -220,7 +220,7 @@ FutureBucket<BucketT>::clearOutput()
     mOutputBucket.reset();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::clear()
 {
@@ -229,35 +229,35 @@ FutureBucket<BucketT>::clear()
     clearOutput();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::isLive() const
 {
     return (mState == FB_LIVE_INPUTS || mState == FB_LIVE_OUTPUT);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::isMerging() const
 {
     return mState == FB_LIVE_INPUTS;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::hasHashes() const
 {
     return (mState == FB_HASH_INPUTS || mState == FB_HASH_OUTPUT);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::isClear() const
 {
     return mState == FB_CLEAR;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::mergeComplete() const
 {
@@ -271,7 +271,7 @@ FutureBucket<BucketT>::mergeComplete() const
     return futureIsReady(mOutputBucketFuture);
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::shared_ptr<BucketT>
 FutureBucket<BucketT>::resolve()
 {
@@ -303,7 +303,7 @@ FutureBucket<BucketT>::resolve()
     return mOutputBucket;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 bool
 FutureBucket<BucketT>::hasOutputHash() const
 {
@@ -315,7 +315,7 @@ FutureBucket<BucketT>::hasOutputHash() const
     return false;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::string const&
 FutureBucket<BucketT>::getOutputHash() const
 {
@@ -324,7 +324,7 @@ FutureBucket<BucketT>::getOutputHash() const
     return mOutputBucketHash;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 static std::chrono::seconds
 getAvailableTimeForMerge(Application& app, uint32_t level)
 {
@@ -342,7 +342,7 @@ getAvailableTimeForMerge(Application& app, uint32_t level)
     return closeTime;
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                                   bool countMergeEvents, uint32_t level)
@@ -460,7 +460,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
     checkState();
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 void
 FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
                                 uint32_t level)
@@ -499,7 +499,7 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
     }
 }
 
-template <class BucketT>
+template <IsBucketType BucketT>
 std::vector<std::string>
 FutureBucket<BucketT>::getHashes() const
 {

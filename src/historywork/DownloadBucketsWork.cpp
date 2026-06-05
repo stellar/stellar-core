@@ -71,7 +71,7 @@ DownloadBucketsWork::resetIter()
     mHotBucketsState.nextIter = mHotBucketsState.hashes.begin();
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 void
 DownloadBucketsWork::onSuccessCb(Application& app, FileTransferInfo const& ft,
                                  std::string const& hash, int currId,
@@ -103,7 +103,7 @@ DownloadBucketsWork::onSuccessCb(Application& app, FileTransferInfo const& ft,
     state.buckets[hash] = b;
 }
 
-template <typename BucketT>
+template <IsBucketType BucketT>
 std::pair<std::shared_ptr<BasicWork>, std::function<bool(Application&)>>
 DownloadBucketsWork::prepareWorkForBucketType(
     std::string const& hash, FileTransferInfo const& ft,

@@ -10,14 +10,14 @@
 namespace stellar
 {
 
-template <typename T>
+template <IsSupportedBinaryFuseFilterType T>
 BinaryFuseFilter<T>::BinaryFuseFilter(std::vector<uint64_t>& keyHashes,
                                       binary_fuse_seed_t const& seed)
     : mFilter(keyHashes.size(), keyHashes, seed), mHashSeed(seed)
 {
 }
 
-template <typename T>
+template <IsSupportedBinaryFuseFilterType T>
 BinaryFuseFilter<T>::BinaryFuseFilter(
     SerializedBinaryFuseFilter const& xdrFilter)
     : mFilter(xdrFilter), mHashSeed([&] {
@@ -29,7 +29,7 @@ BinaryFuseFilter<T>::BinaryFuseFilter(
 {
 }
 
-template <typename T>
+template <IsSupportedBinaryFuseFilterType T>
 bool
 BinaryFuseFilter<T>::contains(LedgerKey const& key) const
 {
@@ -39,7 +39,7 @@ BinaryFuseFilter<T>::contains(LedgerKey const& key) const
     return mFilter.contain(hasher.digest());
 }
 
-template <typename T>
+template <IsSupportedBinaryFuseFilterType T>
 bool
 BinaryFuseFilter<T>::operator==(BinaryFuseFilter<T> const& other) const
 {

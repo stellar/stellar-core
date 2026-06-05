@@ -11,6 +11,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "main/ApplicationImpl.h"
 #include "util/ProtocolVersion.h"
+#include <concepts>
 #include <type_traits>
 
 namespace stellar
@@ -34,10 +35,8 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
-template <class BucketT> class BucketListDepthModifier
+template <IsBucketType BucketT> class BucketListDepthModifier
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
     uint32_t const mPrevDepth;
 
   public:
@@ -83,9 +82,8 @@ class TestApplication : public ApplicationImpl
     std::unique_ptr<InvariantManager> createInvariantManager() override;
 };
 
-template <typename T = TestApplication, typename... Args,
-          typename = typename std::enable_if<
-              std::is_base_of<TestApplication, T>::value>::type>
+template <typename T = TestApplication, typename... Args>
+    requires std::derived_from<T, TestApplication>
 std::shared_ptr<T>
 createTestApplication(VirtualClock& clock, Config const& cfg, Args&&... args,
                       bool newDB = true, bool startApp = true)

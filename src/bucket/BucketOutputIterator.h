@@ -20,10 +20,8 @@ class BucketManager;
 
 // Helper class that writes new elements to a file and returns a bucket
 // when finished.
-template <typename BucketT> class BucketOutputIterator
+template <IsBucketType BucketT> class BucketOutputIterator
 {
-    BUCKET_TYPE_ASSERT(BucketT);
-
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
