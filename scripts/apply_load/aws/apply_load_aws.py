@@ -68,7 +68,8 @@ INSTANCE_TEST_TAG_VALUE = "max-sac-tps"
 # default (32 MB) starves per-thread caches as the apply thread count grows,
 # increasing central-free-list/pageheap lock contention. Giving every thread its
 # full 4 MB cache removes that contention. Set to 0 to leave the env var unset.
-DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
+# DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
+DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 0
 
 # perf c2c support: when --c2c is passed, the apply-load docker run is wrapped in
 # `perf c2c record` on the host and the `perf c2c report` summary (cache-line
