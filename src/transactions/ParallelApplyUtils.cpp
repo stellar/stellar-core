@@ -171,33 +171,14 @@ txPreApplyAccountKeys(TransactionFrameBase const& tx)
     return keys;
 }
 
-// Fee-bump transactions are pre-applied sequentially. Their split
-// read-only/write pre-apply path (which delegates fee-source handling and the
-// inner tx across two phases) is not safe to run through the parallel buffered
-// path, and fee bumps are rare enough that this has negligible cost. The
-// sequential combined preParallelApply handles them correctly.
-//
-// Every other soroban tx is pre-applied in parallel. Each tx's pre-apply write
-// (its source account's seqnum bump / one-time signer removal) is deferred to
-// the sequential commit phase that runs after all parallel reads. This is safe
-// because every account is the source of at most one tx per ledger -- exactly
-// one seqnum bump per account -- so no two parallel txs write the same account
-// and none needs to observe another's bump. Classic-phase modifications to a
-// soroban account (made by a classic tx) are observed via the post-classic
-// overlay (see buildPreApplyAccountOverlay).
-bool
-requiresSequentialPreParallelApply(TransactionFrameBase const& tx)
-{
-    return tx.getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP;
-}
-
-// Builds a snapshot of the classic accounts touched by the parallel pre-apply
-// txs as they exist *after* the classic phase (post-fee, post-classic, and
-// post any sequential fee-bump pre-apply that already ran). Only accounts the
-// ltx actually modified this ledger are recorded; everything else is read from
-// the LCL bucket snapshot by the readers. A deleted account (e.g. merged) is
-// recorded as nullopt so validation correctly fails (txNO_ACCOUNT). Consults
-// only the ltx delta (no snapshot loads), so it is cheap.
+// Builds a snapshot of the classic accounts touched by the pre-apply txs
+// (source, fee-source, and operation sources -- including a fee bump's inner
+// source and ops) as they exist *after* the classic phase (post-fee,
+// post-classic). Only accounts the ltx actually modified this ledger are
+// recorded; everything else is read from the LCL bucket snapshot by the
+// readers. A deleted account (e.g. merged) is recorded as nullopt so
+// validation correctly fails (txNO_ACCOUNT). Consults only the ltx delta (no
+// snapshot loads), so it is cheap.
 PreApplyAccountOverlay
 buildPreApplyAccountOverlay(AbstractLedgerTxn& ltx,
                            std::vector<TxBundle const*> const& txBundles)
@@ -477,25 +458,24 @@ GlobalParallelApplyLedgerState::
         gSeqPreApplyCheckValidMs = 0;
         gSeqPreApplyWriteMs = 0;
 #endif
+        // Every soroban tx -- including fee bumps -- is pre-applied in
+        // parallel. Each tx's pre-apply write (its source account's seqnum bump
+        // and one-time signer removal, plus a fee bump's fee-source one-time
+        // signer removal) is buffered and committed in the later sequential
+        // commit phase, after all parallel reads complete. This is safe because
+        // every account is the source of at most one tx per ledger -- exactly
+        // one seqnum bump per account -- so no two txs write the same account's
+        // seqnum and none needs to observe another's deferred write. Classic-
+        // phase modifications to these accounts (made by classic txs) are
+        // observed via the post-classic overlay built below.
         for (auto const& stage : stages)
         {
             for (auto const& txBundle : stage)
             {
-                if (requiresSequentialPreParallelApply(*txBundle.getTx()))
-                {
-                    txBundle.getTx()->preParallelApply(
-                        app, ltx, txBundle.getEffects().getMeta(),
-                        txBundle.getResPayload(), mSorobanConfig);
-                }
-                else
-                {
-                    txBundles.emplace_back(&txBundle);
-                }
+                txBundles.emplace_back(&txBundle);
             }
         }
 
-        // Build the post-classic account overlay after the sequential loop so
-        // it also reflects any writes made by the fee-bump pre-apply above.
         auto const overlay = buildPreApplyAccountOverlay(ltx, txBundles);
 
 #ifdef BUILD_TESTS
