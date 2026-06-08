@@ -353,7 +353,7 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--c2c",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help=(
             "Wrap the apply-load run in `perf c2c record` on the host and "
             "append the cache-line contention (HITM) report to the apply-load "
