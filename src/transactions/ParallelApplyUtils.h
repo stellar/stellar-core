@@ -227,7 +227,8 @@ class GlobalParallelApplyLedgerState
 
     void
     readOnlyPreParallelApply(AppConnector& app,
-                             std::vector<TxBundle const*> const& txBundles);
+                             std::vector<TxBundle const*> const& txBundles,
+                             PreApplyAccountOverlay const& overlay);
 
     void commitBufferedPreParallelApplyWrites(
         AppConnector& app, AbstractLedgerTxn& ltx,
@@ -274,6 +275,29 @@ class GlobalParallelApplyLedgerState
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.
     uint32_t getSnapshotLedgerSeq() const;
+
+#ifdef BUILD_TESTS
+    // Sub-timings (ms) of the global setup phase, accumulated during
+    // construction and read out by LedgerManagerImpl into its phase-timing
+    // record:
+    //   - seq-dependency check + sequential pre-apply loop
+    //   - read-only pre-apply (itself parallelized across workers)
+    //   - commit of buffered pre-apply writes
+    //   - collection of modified classic entries
+    //   - pre-load of read-only Soroban entries (+ TTLs)
+    double mSetupSeqCheckMs = 0;
+    double mSetupReadOnlyMs = 0;
+    double mSetupCommitWritesMs = 0;
+    double mSetupCollectClassicMs = 0;
+    double mSetupPreloadSorobanRoMs = 0;
+    // Sub-timings of mSetupSeqCheckMs (the sequential preParallelApply loop):
+    // commonValid, signature processing, operation checkValid, and the
+    // buffered-write commit.
+    double mSetupSeqCommonValidMs = 0;
+    double mSetupSeqProcessSigsMs = 0;
+    double mSetupSeqCheckValidMs = 0;
+    double mSetupSeqWriteMs = 0;
+#endif
 
     // Constructor requires access to mInMemorySorobanState
     friend ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(

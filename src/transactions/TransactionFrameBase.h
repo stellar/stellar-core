@@ -381,6 +381,16 @@ class TransactionFrameBase
 
     virtual ~TransactionFrameBase() = default;
 };
+
+#ifdef BUILD_TESTS
+// Diagnostic per-thread accumulators (ms) breaking down the sequential soroban
+// preParallelApply work, summed across preParallelApply calls on the calling
+// thread. Reset and read by the parallel-apply setup to split setup_seq_check.
+extern thread_local double gSeqPreApplyCommonValidMs;
+extern thread_local double gSeqPreApplyProcessSigsMs;
+extern thread_local double gSeqPreApplyCheckValidMs;
+extern thread_local double gSeqPreApplyWriteMs;
+#endif
 }
 
 namespace std

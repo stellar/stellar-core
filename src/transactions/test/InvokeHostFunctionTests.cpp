@@ -7815,10 +7815,11 @@ TEST_CASE("Module cache miss on immediate execution",
         auto invokeFailTx =
             makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_FAIL, C);
 
-        // Transaction 4: invocation (with inadequate instructions to
-        // succeed)
+        // Transaction 4: invocation (with adequate instructions to succeed).
+        // Uses account D: each tx in a ledger must come from a distinct source
+        // account (one sequence-number bump per account per ledger).
         auto invokePassTx =
-            makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, C);
+            makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, D);
 
         // Run single ledger with all 4 txs. First 2 should pass, 3rd should
         // fail, 4th should pass.

@@ -188,6 +188,12 @@ CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
 {
 }
 
+CheckValidLedgerViewWrapper::CheckValidLedgerViewWrapper(
+    std::unique_ptr<AbstractLedgerView const> getter)
+    : mGetter(std::move(getter))
+{
+}
+
 LedgerHeaderWrapper
 CheckValidLedgerViewWrapper::getLedgerHeader() const
 {
@@ -401,6 +407,85 @@ ImmutableLedgerView::executeWithMaybeInnerSnapshot(
     throw std::runtime_error(
         "ImmutableLedgerView::executeWithMaybeInnerSnapshot is illegal: "
         "ImmutableLedgerView has no nested snapshots");
+}
+
+// === OverlayLedgerView ===
+
+namespace
+{
+// Resolve an account key against the post-classic overlay, falling back to the
+// snapshot if the key wasn't modified this ledger. A present-but-nullopt
+// overlay entry means the account was deleted (e.g. merged), surfaced as a
+// "not found" wrapper.
+LedgerEntryWrapper
+resolveAccountKey(PreApplyAccountOverlay const& overlay, LedgerKey const& key,
+                  std::function<LedgerEntryWrapper()> const& fallback)
+{
+    auto it = overlay.find(key);
+    if (it != overlay.end())
+    {
+        return LedgerEntryWrapper(
+            it->second
+                ? std::make_shared<LedgerEntry const>(*it->second)
+                : std::shared_ptr<LedgerEntry const>());
+    }
+    return fallback();
+}
+}
+
+OverlayLedgerView::OverlayLedgerView(ImmutableLedgerView snapshot,
+                                     PreApplyAccountOverlay const& overlay)
+    : mSnapshot(std::move(snapshot)), mOverlay(overlay)
+{
+}
+
+LedgerHeaderWrapper
+OverlayLedgerView::getLedgerHeader() const
+{
+    return mSnapshot.getLedgerHeader();
+}
+
+LedgerEntryWrapper
+OverlayLedgerView::getAccount(AccountID const& account) const
+{
+    return resolveAccountKey(mOverlay, accountKey(account),
+                             [&] { return mSnapshot.getAccount(account); });
+}
+
+LedgerEntryWrapper
+OverlayLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                             TransactionFrame const& tx) const
+{
+    // The parallel pre-apply path is protocol >= V26, so mirror the V8+
+    // behavior of ImmutableLedgerView and route through getAccount(AccountID)
+    // so the overlay is consulted.
+    return getAccount(tx.getSourceID());
+}
+
+LedgerEntryWrapper
+OverlayLedgerView::getAccount(LedgerHeaderWrapper const& header,
+                             TransactionFrame const& tx,
+                             AccountID const& account) const
+{
+    return getAccount(account);
+}
+
+LedgerEntryWrapper
+OverlayLedgerView::load(LedgerKey const& key) const
+{
+    // The overlay only holds account keys; any other key misses and falls
+    // through to the snapshot.
+    return resolveAccountKey(mOverlay, key,
+                             [&] { return mSnapshot.load(key); });
+}
+
+void
+OverlayLedgerView::executeWithMaybeInnerSnapshot(
+    std::function<void(CheckValidLedgerViewWrapper const& ledgerView)> f) const
+{
+    throw std::runtime_error(
+        "OverlayLedgerView::executeWithMaybeInnerSnapshot is illegal: "
+        "OverlayLedgerView has no nested snapshots");
 }
 
 // === Live BucketList wrapper methods ===

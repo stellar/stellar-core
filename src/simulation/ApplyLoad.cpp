@@ -230,6 +230,29 @@ logPhaseTimingsTable(
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::buildTxBundlesMs);
     auto sorobanSetupGlobal = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupGlobalMs);
+    auto sorobanSetupSeqCheck = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupSeqCheckMs);
+    auto sorobanSetupReadOnly = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupReadOnlyMs);
+    auto sorobanSetupCommitWrites = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupCommitWritesMs);
+    auto sorobanSetupCollectClassic = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::
+            sorobanSetupCollectClassicMs);
+    auto sorobanSetupPreloadRo = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::
+            sorobanSetupPreloadSorobanRoMs);
+    auto sorobanSetupSeqCommonValid =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanSetupSeqCommonValidMs);
+    auto sorobanSetupSeqProcessSigs =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanSetupSeqProcessSigsMs);
+    auto sorobanSetupSeqCheckValid =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::
+                    sorobanSetupSeqCheckValidMs);
+    auto sorobanSetupSeqWrite = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanSetupSeqWriteMs);
     auto sorobanParallel = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanParallelApplyMs);
     auto sorobanThreadSpawn = extract(
@@ -278,6 +301,15 @@ logPhaseTimingsTable(
                     sorobanCommitThreads[i] - sorobanDestroyThreads[i] -
                     sorobanCommitLtx[i] - sorobanDestroyGlobal[i];
     }
+    // Compute per-ledger gap inside soroban_setup_glbl:
+    //   soroban_setup_glbl - sum(its sub-steps)
+    std::vector<double> setupGap(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        setupGap[i] = sorobanSetupGlobal[i] - sorobanSetupSeqCheck[i] -
+                      sorobanSetupReadOnly[i] - sorobanSetupCommitWrites[i] -
+                      sorobanSetupCollectClassic[i] - sorobanSetupPreloadRo[i];
+    }
     // Compute per-ledger gap inside apply_transactions:
     //   apply_transactions - sum(all sub-phases including destructors)
     std::vector<double> txGap(n);
@@ -311,6 +343,21 @@ logPhaseTimingsTable(
         {"| parallel_total", computePhaseStats(parTotal)},
         {"|   build_tx_bundles", computePhaseStats(buildTxBundles)},
         {"|   soroban_setup_glbl", computePhaseStats(sorobanSetupGlobal)},
+        {"|     setup_seq_check", computePhaseStats(sorobanSetupSeqCheck)},
+        {"|       seq_common_valid",
+         computePhaseStats(sorobanSetupSeqCommonValid)},
+        {"|       seq_process_sigs",
+         computePhaseStats(sorobanSetupSeqProcessSigs)},
+        {"|       seq_check_valid",
+         computePhaseStats(sorobanSetupSeqCheckValid)},
+        {"|       seq_write", computePhaseStats(sorobanSetupSeqWrite)},
+        {"|     setup_read_only", computePhaseStats(sorobanSetupReadOnly)},
+        {"|     setup_commit_writes",
+         computePhaseStats(sorobanSetupCommitWrites)},
+        {"|     setup_collect_classic",
+         computePhaseStats(sorobanSetupCollectClassic)},
+        {"|     setup_preload_ro", computePhaseStats(sorobanSetupPreloadRo)},
+        {"|     *** setup gap ***", computePhaseStats(setupGap)},
         {"|   soroban_parallel", computePhaseStats(sorobanParallel)},
         {"|     thread_spawn", computePhaseStats(sorobanThreadSpawn)},
         {"|     thread_join", computePhaseStats(sorobanThreadJoin)},

@@ -10,6 +10,8 @@
 #include "ledger/NetworkConfig.h"
 #include "util/NonCopyable.h"
 #include <functional>
+#include <optional>
+#include <unordered_map>
 #include <variant>
 
 namespace stellar
@@ -185,6 +187,43 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
         std::function<Loop(HotArchiveBucketEntry const&)> callback) const;
 };
 
+// A read-only map of classic-account ledger entries as they exist *after* the
+// classic phase of this ledger (post-fee, post-classic). A nullopt value means
+// the account was deleted (e.g. merged). Accounts not present in the map were
+// not modified this ledger and should be read from the underlying snapshot.
+// Built once per ledger and shared (by const-ref) across the parallel
+// pre-apply reader threads.
+using PreApplyAccountOverlay =
+    std::unordered_map<LedgerKey, std::optional<LedgerEntry>>;
+
+// An AbstractLedgerView that overlays post-classic account state on top of an
+// LCL bucket snapshot. The parallel Soroban pre-apply readers must observe
+// classic-phase modifications to the accounts they validate (seqnum, signers,
+// weight, existence), which the LCL snapshot alone does not reflect. Account
+// reads (getAccount / load of an account key) are resolved from the overlay
+// first and fall back to the snapshot; everything else delegates to the
+// snapshot.
+class OverlayLedgerView : public AbstractLedgerView
+{
+    ImmutableLedgerView mSnapshot;
+    PreApplyAccountOverlay const& mOverlay;
+
+  public:
+    OverlayLedgerView(ImmutableLedgerView snapshot,
+                      PreApplyAccountOverlay const& overlay);
+    LedgerHeaderWrapper getLedgerHeader() const override;
+    LedgerEntryWrapper getAccount(AccountID const& account) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx) const override;
+    LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
+                                  TransactionFrame const& tx,
+                                  AccountID const& AccountID) const override;
+    LedgerEntryWrapper load(LedgerKey const& key) const override;
+    void executeWithMaybeInnerSnapshot(
+        std::function<void(CheckValidLedgerViewWrapper const&)> f)
+        const override;
+};
+
 // A strong typedef for ImmutableLedgerView that represents a snapshot used
 // during apply time. This is identical to ImmutableLedgerView in practice, but
 // is a distinct type to prevent accidental interchange between apply-time
@@ -242,6 +281,8 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
     CheckValidLedgerViewWrapper(AbstractLedgerTxn& ltx);
     CheckValidLedgerViewWrapper(Application& app);
     explicit CheckValidLedgerViewWrapper(ImmutableLedgerView const& ledgerView);
+    explicit CheckValidLedgerViewWrapper(
+        std::unique_ptr<AbstractLedgerView const> getter);
 #ifdef BUILD_TESTS
     // Set by overlay-only mode call sites so commonValid skips the seqnum
     // equality check: on-disk seqnums are frozen at genesis while

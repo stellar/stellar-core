@@ -546,6 +546,23 @@ class LedgerManagerImpl : public LedgerManager
         double loadSorobanConfigMs = 0;
         double buildTxBundlesMs = 0;
         double sorobanSetupGlobalMs = 0;
+        // Sub-timings of sorobanSetupGlobalMs (the GlobalParallelApplyLedgerState
+        // construction): the sequential dependency-check + sequential pre-apply
+        // loop, the (parallelized) read-only pre-apply, the sequential commit of
+        // buffered pre-apply writes, the modified-classic-entry collection, and
+        // the read-only Soroban entry pre-load.
+        double sorobanSetupSeqCheckMs = 0;
+        double sorobanSetupReadOnlyMs = 0;
+        double sorobanSetupCommitWritesMs = 0;
+        double sorobanSetupCollectClassicMs = 0;
+        double sorobanSetupPreloadSorobanRoMs = 0;
+        // Sub-timings of sorobanSetupSeqCheckMs (the sequential
+        // preParallelApply loop): commonValid, signature processing, operation
+        // checkValid, and the buffered-write commit.
+        double sorobanSetupSeqCommonValidMs = 0;
+        double sorobanSetupSeqProcessSigsMs = 0;
+        double sorobanSetupSeqCheckValidMs = 0;
+        double sorobanSetupSeqWriteMs = 0;
         double sorobanParallelApplyMs = 0;
         // Sub-timings of sorobanParallelApplyMs: time the main thread spends in
         // the serial per-cluster thread-state construction + spawn loop, and

@@ -17,10 +17,12 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <algorithm>
+#include <chrono>
 #include <fmt/core.h>
 #include <fmt/std.h>
 #include <future>
 #include <thread>
+#include <unordered_map>
 
 namespace
 {
@@ -134,11 +136,17 @@ getReadWriteKeysForStage(ApplyStage const& stage)
 void
 readOnlyPreParallelApplyRange(AppConnector& app,
                               ApplyLedgerView const& snapshot,
+                              PreApplyAccountOverlay const& overlay,
                               std::vector<TxBundle const*> const& txBundles,
                               size_t begin, size_t end,
                               SorobanNetworkConfig const& sorobanConfig)
 {
-    CheckValidLedgerViewWrapper ls(snapshot.asImmutableView());
+    // Validate against a post-classic view of the touched accounts: the overlay
+    // reflects this ledger's classic-phase modifications (seqnum / signers /
+    // weight / existence), falling back to the LCL snapshot for anything it
+    // didn't touch.
+    CheckValidLedgerViewWrapper ls(std::make_unique<OverlayLedgerView>(
+        snapshot.asImmutableView(), overlay));
     for (size_t i = begin; i < end; ++i)
     {
         auto const& txBundle = *txBundles.at(i);
@@ -148,63 +156,74 @@ readOnlyPreParallelApplyRange(AppConnector& app,
     }
 }
 
-bool
-isModifiedClassicKey(CheckValidLedgerViewWrapper const& current,
-                     CheckValidLedgerViewWrapper const& previous, LedgerKey const& key)
+// Collects the unique classic-account keys (source, fee-source, and operation
+// sources) touched by a soroban transaction's pre-apply.
+std::unordered_set<LedgerKey>
+txPreApplyAccountKeys(TransactionFrameBase const& tx)
 {
-    if (isSorobanEntry(key))
-    {
-        return false;
-    }
-
-    auto currentEntry = current.load(key);
-    auto previousEntry = previous.load(key);
-    if (static_cast<bool>(currentEntry) != static_cast<bool>(previousEntry))
-    {
-        return true;
-    }
-
-    return currentEntry && currentEntry.current() != previousEntry.current();
-}
-
-bool
-requiresSequentialPreParallelApply(CheckValidLedgerViewWrapper const& current,
-                                   CheckValidLedgerViewWrapper const& previous,
-                                   TransactionFrameBase const& tx)
-{
-    if (isModifiedClassicKey(current, previous, accountKey(tx.getSourceID())) ||
-        isModifiedClassicKey(current, previous,
-                             accountKey(tx.getFeeSourceID())))
-    {
-        return true;
-    }
-
+    std::unordered_set<LedgerKey> keys;
+    keys.insert(accountKey(tx.getSourceID()));
+    keys.insert(accountKey(tx.getFeeSourceID()));
     for (auto const& op : tx.getOperationFrames())
     {
-        if (isModifiedClassicKey(current, previous,
-                                 accountKey(op->getSourceID())))
-        {
-            return true;
-        }
+        keys.insert(accountKey(op->getSourceID()));
     }
+    return keys;
+}
 
-    auto const& footprint = tx.sorobanResources().footprint;
-    for (auto const& key : footprint.readOnly)
-    {
-        if (isModifiedClassicKey(current, previous, key))
-        {
-            return true;
-        }
-    }
-    for (auto const& key : footprint.readWrite)
-    {
-        if (isModifiedClassicKey(current, previous, key))
-        {
-            return true;
-        }
-    }
+// Fee-bump transactions are pre-applied sequentially. Their split
+// read-only/write pre-apply path (which delegates fee-source handling and the
+// inner tx across two phases) is not safe to run through the parallel buffered
+// path, and fee bumps are rare enough that this has negligible cost. The
+// sequential combined preParallelApply handles them correctly.
+//
+// Every other soroban tx is pre-applied in parallel. Each tx's pre-apply write
+// (its source account's seqnum bump / one-time signer removal) is deferred to
+// the sequential commit phase that runs after all parallel reads. This is safe
+// because every account is the source of at most one tx per ledger -- exactly
+// one seqnum bump per account -- so no two parallel txs write the same account
+// and none needs to observe another's bump. Classic-phase modifications to a
+// soroban account (made by a classic tx) are observed via the post-classic
+// overlay (see buildPreApplyAccountOverlay).
+bool
+requiresSequentialPreParallelApply(TransactionFrameBase const& tx)
+{
+    return tx.getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP;
+}
 
-    return false;
+// Builds a snapshot of the classic accounts touched by the parallel pre-apply
+// txs as they exist *after* the classic phase (post-fee, post-classic, and
+// post any sequential fee-bump pre-apply that already ran). Only accounts the
+// ltx actually modified this ledger are recorded; everything else is read from
+// the LCL bucket snapshot by the readers. A deleted account (e.g. merged) is
+// recorded as nullopt so validation correctly fails (txNO_ACCOUNT). Consults
+// only the ltx delta (no snapshot loads), so it is cheap.
+PreApplyAccountOverlay
+buildPreApplyAccountOverlay(AbstractLedgerTxn& ltx,
+                           std::vector<TxBundle const*> const& txBundles)
+{
+    PreApplyAccountOverlay overlay;
+    for (auto const* txBundle : txBundles)
+    {
+        for (auto const& key : txPreApplyAccountKeys(*txBundle->getTx()))
+        {
+            if (overlay.count(key) != 0)
+            {
+                continue;
+            }
+            auto entryPair = ltx.getNewestVersionBelowRoot(key);
+            if (!entryPair.first)
+            {
+                // Not modified this ledger -- readers fall back to the snapshot.
+                continue;
+            }
+            overlay.emplace(key, entryPair.second
+                                     ? std::make_optional(
+                                           entryPair.second->ledgerEntry())
+                                     : std::nullopt);
+        }
+    }
+    return overlay;
 }
 
 inline uint32_t&
@@ -441,14 +460,28 @@ GlobalParallelApplyLedgerState::
                                   ProtocolVersion::V_26))
     {
         std::vector<TxBundle const*> txBundles;
-        CheckValidLedgerViewWrapper current(ltx);
-        CheckValidLedgerViewWrapper previous(mLCLApplyView.asImmutableView());
+#ifdef BUILD_TESTS
+        auto _setupTp = std::chrono::steady_clock::now();
+        auto setupLap = [&_setupTp]() {
+            auto now = std::chrono::steady_clock::now();
+            double ms = std::chrono::duration<double, std::milli>(now - _setupTp)
+                            .count();
+            _setupTp = now;
+            return ms;
+        };
+        // Reset the per-thread sequential-preParallelApply sub-accumulators;
+        // the loop below runs preParallelApply on this (main) thread, so they
+        // capture exactly the sequential work timed as setup_seq_check.
+        gSeqPreApplyCommonValidMs = 0;
+        gSeqPreApplyProcessSigsMs = 0;
+        gSeqPreApplyCheckValidMs = 0;
+        gSeqPreApplyWriteMs = 0;
+#endif
         for (auto const& stage : stages)
         {
             for (auto const& txBundle : stage)
             {
-                if (requiresSequentialPreParallelApply(current, previous,
-                                                       *txBundle.getTx()))
+                if (requiresSequentialPreParallelApply(*txBundle.getTx()))
                 {
                     txBundle.getTx()->preParallelApply(
                         app, ltx, txBundle.getEffects().getMeta(),
@@ -461,8 +494,25 @@ GlobalParallelApplyLedgerState::
             }
         }
 
-        readOnlyPreParallelApply(app, txBundles);
+        // Build the post-classic account overlay after the sequential loop so
+        // it also reflects any writes made by the fee-bump pre-apply above.
+        auto const overlay = buildPreApplyAccountOverlay(ltx, txBundles);
+
+#ifdef BUILD_TESTS
+        mSetupSeqCheckMs += setupLap();
+        mSetupSeqCommonValidMs += gSeqPreApplyCommonValidMs;
+        mSetupSeqProcessSigsMs += gSeqPreApplyProcessSigsMs;
+        mSetupSeqCheckValidMs += gSeqPreApplyCheckValidMs;
+        mSetupSeqWriteMs += gSeqPreApplyWriteMs;
+#endif
+        readOnlyPreParallelApply(app, txBundles, overlay);
+#ifdef BUILD_TESTS
+        mSetupReadOnlyMs += setupLap();
+#endif
         commitBufferedPreParallelApplyWrites(app, ltx, txBundles);
+#ifdef BUILD_TESTS
+        mSetupCommitWritesMs += setupLap();
+#endif
         collectModifiedClassicEntries(ltx, stages);
         return;
     }
@@ -524,7 +574,8 @@ GlobalParallelApplyLedgerState::
 
 void
 GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
-    AppConnector& app, std::vector<TxBundle const*> const& txBundles)
+    AppConnector& app, std::vector<TxBundle const*> const& txBundles,
+    PreApplyAccountOverlay const& overlay)
 {
     ZoneScoped;
 
@@ -539,7 +590,7 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
 
     if (workerCount == 1)
     {
-        readOnlyPreParallelApplyRange(app, mLCLApplyView, txBundles, 0,
+        readOnlyPreParallelApplyRange(app, mLCLApplyView, overlay, txBundles, 0,
                                       txBundles.size(), mSorobanConfig);
         return;
     }
@@ -557,8 +608,8 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
         auto const end = begin + chunkSize;
         futures.emplace_back(std::async(
             std::launch::async, readOnlyPreParallelApplyRange, std::ref(app),
-            std::cref(mLCLApplyView), std::cref(txBundles), begin, end,
-            std::cref(mSorobanConfig)));
+            std::cref(mLCLApplyView), std::cref(overlay), std::cref(txBundles),
+            begin, end, std::cref(mSorobanConfig)));
         begin = end;
     }
 
@@ -602,6 +653,9 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
     AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages)
 {
     ZoneScoped;
+#ifdef BUILD_TESTS
+    auto _collectT0 = std::chrono::steady_clock::now();
+#endif
 
     std::unordered_set<LedgerKey> classicKeys;
     for (auto const& stage : stages)
@@ -642,6 +696,27 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
 
         mGlobalEntryMap.emplace(lk, GlobalParallelApplyEntry{entry, false});
     }
+
+#ifdef BUILD_TESTS
+    mSetupCollectClassicMs +=
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - _collectT0)
+            .count();
+    // The remaining work (the read-only Soroban pre-load below) is attributed
+    // when this function returns, via the guard's destructor.
+    struct RoPreloadTimer
+    {
+        double& mAcc;
+        std::chrono::steady_clock::time_point mStart{
+            std::chrono::steady_clock::now()};
+        ~RoPreloadTimer()
+        {
+            mAcc += std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - mStart)
+                        .count();
+        }
+    } _roTimer{mSetupPreloadSorobanRoMs};
+#endif
 
     // Pre-load Soroban read-only entries (and their TTLs) from
     // InMemorySorobanState into the global entry map. Without this,

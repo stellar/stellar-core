@@ -53,10 +53,17 @@
 #include "medida/meter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <xdrpp/types.h>
 
 namespace stellar
 {
+#ifdef BUILD_TESTS
+thread_local double gSeqPreApplyCommonValidMs = 0;
+thread_local double gSeqPreApplyProcessSigsMs = 0;
+thread_local double gSeqPreApplyCheckValidMs = 0;
+thread_local double gSeqPreApplyWriteMs = 0;
+#endif
 namespace
 {
 // Limit to the maximum resource fee allowed for transaction,
@@ -2198,14 +2205,31 @@ TransactionFrame::commonParallelPreApplyReadOnly(
         txResult.initializeRefundableFeeTracker(initialFeeRefund);
     }
 
+#ifdef BUILD_TESTS
+    auto _cvStart = std::chrono::steady_clock::now();
+#endif
     auto cv = commonValid(app, sorobanConfig, *signatureChecker, ls, 0, true,
                           chargeFee, 0, 0, envelopeContentsHash,
                           sorobanResourceFee, txResult,
                           meta.getDiagnosticEventManager(), std::nullopt);
+#ifdef BUILD_TESTS
+    gSeqPreApplyCommonValidMs += std::chrono::duration<double, std::milli>(
+                                     std::chrono::steady_clock::now() - _cvStart)
+                                     .count();
+#endif
     info.mUpdateSeqNum = cv >= ValidationType::kInvalidUpdateSeqNum;
 
+#ifdef BUILD_TESTS
+    auto _sigStart = std::chrono::steady_clock::now();
+#endif
     bool signaturesValid =
         processSignaturesReadOnly(cv, *signatureChecker, ls, txResult, info);
+#ifdef BUILD_TESTS
+    gSeqPreApplyProcessSigsMs +=
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - _sigStart)
+            .count();
+#endif
 
     if (signaturesValid && cv == ValidationType::kMaybeValid)
     {
@@ -2307,9 +2331,18 @@ TransactionFrame::preParallelApplyReadOnly(
             info.mUpdateSorobanMetrics = true;
 
             auto& opResult = txResult.getOpResultAt(0);
+#ifdef BUILD_TESTS
+            auto _checkValidStart = std::chrono::steady_clock::now();
+#endif
             ok = mOperations.front()->checkValid(
                 app, *signatureChecker, &sorobanConfig, ls, true, opResult,
                 meta.getDiagnosticEventManager());
+#ifdef BUILD_TESTS
+            gSeqPreApplyCheckValidMs +=
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - _checkValidStart)
+                    .count();
+#endif
             if (!ok)
             {
                 txResult.setInnermostError(txFAILED);
@@ -2337,6 +2370,9 @@ TransactionFrame::preParallelApplyWrite(AppConnector& app,
                                         ParallelPreApplyInfo const& info) const
 {
     ZoneScoped;
+#ifdef BUILD_TESTS
+    auto _writeStart = std::chrono::steady_clock::now();
+#endif
     try
     {
         LedgerTxn ltxTx(ltx);
@@ -2365,6 +2401,11 @@ TransactionFrame::preParallelApplyWrite(AppConnector& app,
     {
         printErrorAndAbort("Unknown exception during preParallelApply writes");
     }
+#ifdef BUILD_TESTS
+    gSeqPreApplyWriteMs += std::chrono::duration<double, std::milli>(
+                               std::chrono::steady_clock::now() - _writeStart)
+                               .count();
+#endif
 }
 
 void

@@ -2726,6 +2726,22 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         mLastPhaseTimings.sorobanSetupGlobalMs =
             std::chrono::duration<double, std::milli>(globalEnd - globalStart)
                 .count();
+        mLastPhaseTimings.sorobanSetupSeqCheckMs = globalParState.mSetupSeqCheckMs;
+        mLastPhaseTimings.sorobanSetupReadOnlyMs = globalParState.mSetupReadOnlyMs;
+        mLastPhaseTimings.sorobanSetupCommitWritesMs =
+            globalParState.mSetupCommitWritesMs;
+        mLastPhaseTimings.sorobanSetupCollectClassicMs =
+            globalParState.mSetupCollectClassicMs;
+        mLastPhaseTimings.sorobanSetupPreloadSorobanRoMs =
+            globalParState.mSetupPreloadSorobanRoMs;
+        mLastPhaseTimings.sorobanSetupSeqCommonValidMs =
+            globalParState.mSetupSeqCommonValidMs;
+        mLastPhaseTimings.sorobanSetupSeqProcessSigsMs =
+            globalParState.mSetupSeqProcessSigsMs;
+        mLastPhaseTimings.sorobanSetupSeqCheckValidMs =
+            globalParState.mSetupSeqCheckValidMs;
+        mLastPhaseTimings.sorobanSetupSeqWriteMs =
+            globalParState.mSetupSeqWriteMs;
 #endif
         // LedgerTxn is not passed into applySorobanStage, so there's no risk
         // of the header being updated while we apply the stages.
