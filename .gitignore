@@ -8,7 +8,8 @@
 *.lib
 *.user
 *.xdr
-!test-lcm/**/*.xdr
+!test-lcm-current/**/*.xdr
+!test-lcm-next/**/*.xdr
 *.cache
 *.tlog
 *.lastbuildstate

@@ -1,0 +1,16 @@
+{
+   "159d83dfa9d0ce2a" : "sponsor_future_reserves-protocol_version_27-sponsoring_account_is_sponsored",
+   "1cc8d1e738987c0f" : "sponsor_future_reserves-protocol_version_27-sponsored_account_is_sponsoring",
+   "27d44fa537d6e50d" : "sponsor_future_reserves-protocol_version_27-already_sponsored",
+   "290f483246862549" : "sponsor_future_reserves-protocol_version_27-sponsorships_with_precondition_that_uses_v3_extension",
+   "3b6d924921f59f9f" : "sponsor_future_reserves-protocol_version_26-add_sponsored_entry_before_adding_first_sponsored_signer",
+   "3cb8cdd0c21fcfb1" : "sponsor_future_reserves-protocol_version_26-sponsoring_account_is_sponsored",
+   "507604981827c989" : "sponsor_future_reserves-protocol_version_26-already_sponsored",
+   "5a61e6aac9038144" : "sponsor_future_reserves-protocol_version_26-success",
+   "810737d7a4e635c4" : "sponsor_future_reserves-protocol_version_27-bad_sponsorship",
+   "9bc0a679d6d62183" : "sponsor_future_reserves-protocol_version_26-bad_sponsorship",
+   "bc338724a90e6148" : "sponsor_future_reserves-protocol_version_27-add_sponsored_entry_before_adding_first_sponsored_signer",
+   "d97fe15b2aa04c9f" : "sponsor_future_reserves-protocol_version_27-success",
+   "e55c615e3d4d0fb9" : "sponsor_future_reserves-protocol_version_26-sponsored_account_is_sponsoring",
+   "e9b0303fe49e8211" : "sponsor_future_reserves-protocol_version_26-sponsorships_with_precondition_that_uses_v3_extension"
+}

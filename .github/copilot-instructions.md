@@ -50,12 +50,12 @@ $ NUM_PARTITIONS=$(nproc) STELLAR_CORE_TEST_PARAMS='--ll fatal -r simple --abort
 
 When you make a protocol change
 (including `#ifdef`-gated vnext code) and add tests for that change, you MUST regenerate the captured
-`LedgerCloseMeta` golden data and commit the resulting `test-lcm/` changes.
+`LedgerCloseMeta` golden data and commit the resulting `test-lcm-current/` or `test-lcm-next/` changes.
 For vnext tests, configure with
 `--enable-next-protocol-version-unsafe-for-production` and rebuild first.
 
 ```sh
-# regenerate captured LedgerCloseMeta golden data, then commit test-lcm/
+# regenerate captured LedgerCloseMeta golden data for the current build's tier, then commit it
 $ ./src/stellar-core test --ll fatal -r simple --abort --disable-dots --rng-seed 12345 --capture-lcm "[tx]"
 ```
 
