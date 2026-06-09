@@ -4,6 +4,7 @@
 
 #include "ShortHash.h"
 #include "fmt/format.h"
+#include <atomic>
 #include <mutex>
 #include <sodium.h>
 
@@ -11,11 +12,35 @@ namespace stellar
 {
 namespace shortHash
 {
+// gKey is written only by initialize() (at startup, before any concurrent
+// hashing) and seed() (test-only, between test runs). The hashing fast paths
+// below read it without synchronization: taking a lock per hash serializes
+// every hash-keyed container operation in the process across all threads,
+// which measurably destroys the scaling of parallel transaction apply.
 static unsigned char gKey[crypto_shorthash_KEYBYTES];
 static std::mutex gKeyMutex;
-static bool gHaveHashed{false};
 #ifdef BUILD_TESTS
+// Tracked so that seed() can reject re-seeding with a different seed after
+// hashes have already been computed. Only ever transitions false->true while
+// hashing, and the hash paths store to it only when it isn't already set, so
+// in steady state the cache line stays shared across cores instead of
+// bouncing.
+static std::atomic<bool> gHaveHashed{false};
 static unsigned int gExplicitSeed{0};
+
+static void
+noteHashed()
+{
+    if (!gHaveHashed.load(std::memory_order_relaxed))
+    {
+        gHaveHashed.store(true, std::memory_order_relaxed);
+    }
+}
+#else
+static void
+noteHashed()
+{
+}
 #endif
 
 void
@@ -39,7 +64,7 @@ void
 seed(unsigned int s)
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
-    if (gHaveHashed)
+    if (gHaveHashed.load(std::memory_order_relaxed))
     {
         if (gExplicitSeed != s)
         {
@@ -61,8 +86,7 @@ seed(unsigned int s)
 uint64_t
 computeHash(stellar::ByteSlice const& b)
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
-    gHaveHashed = true;
+    noteHashed();
     uint64_t res;
     static_assert(sizeof(res) == crypto_shorthash_BYTES, "unexpected size");
     crypto_shorthash(reinterpret_cast<unsigned char*>(&res),
@@ -73,9 +97,7 @@ computeHash(stellar::ByteSlice const& b)
 
 XDRShortHasher::XDRShortHasher() : state(gKey)
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
-    gHaveHashed = true;
-    state = SipHash24(gKey);
+    noteHashed();
 }
 
 void
