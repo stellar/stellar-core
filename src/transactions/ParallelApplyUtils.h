@@ -11,6 +11,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/ParallelApplyStage.h"
 #include "transactions/TransactionFrameBase.h"
+#include "util/Logging.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <unordered_set>
 
@@ -111,6 +112,11 @@ class ThreadParallelApplyLedgerState
     // (by taking maximums) into the global map at the end of the thread's life.
     ParallelApplyLedgerKeyMap<uint32_t> mRoTTLBumps;
 
+    // Cached "Tx" partition logger. Fetching it via Logging::getTxLogPtr()
+    // takes a global mutex, which must not happen in the per-entry hot paths
+    // that run concurrently on all the apply threads.
+    LogPtr mTxLogger;
+
     void collectClusterFootprintEntriesFromGlobal(
         AppConnector& app, GlobalParallelApplyLedgerState const& global,
         Cluster const& cluster);
@@ -178,6 +184,12 @@ class ThreadParallelApplyLedgerState
     ApplyLedgerView const& getSnapshot() const;
 
     rust::Box<rust_bridge::SorobanModuleCache> const& getModuleCache() const;
+
+    LogPtr const&
+    getTxLogger() const
+    {
+        return mTxLogger;
+    }
 };
 
 class GlobalParallelApplyLedgerState

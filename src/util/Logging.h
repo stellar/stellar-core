@@ -22,10 +22,14 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
+// NB: the logger is bound by const reference (with lifetime extension when
+// the expression yields a temporary) rather than copied: copying a LogPtr
+// bumps the logger's shared_ptr refcount, which is an atomic RMW on a control
+// block shared by every thread logging to that partition.
 #define LOG_CHECK(logger, level, action) \
     do \
     { \
-        auto lg = (logger); \
+        auto const& lg = (logger); \
         if (lg->should_log(level) || lg->should_backtrace()) \
         { \
             action; \

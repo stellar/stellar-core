@@ -1063,6 +1063,7 @@ ThreadParallelApplyLedgerState::ThreadParallelApplyLedgerState(
     , mInMemorySorobanState(global.mInMemorySorobanState)
     , mSorobanConfig(global.mSorobanConfig)
     , mModuleCache(app.getModuleCache())
+    , mTxLogger(Logging::getTxLogPtr())
 {
     releaseAssertOrThrow(global.getSnapshotLedgerSeq() ==
                          getSnapshotLedgerSeq());
@@ -1393,8 +1394,12 @@ TxParallelApplyLedgerState::upsertEntry(LedgerKey const& key,
                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
-    CLOG_TRACE(Tx, "parallel apply thread {} upserting key {}",
-               std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
+    // NB: per-entry traces here and below use the logger cached on the thread
+    // state; CLOG_TRACE fetches the logger under a global mutex on every call
+    // (even when trace is disabled), which serializes the apply threads.
+    LOG_TRACE(mThreadState.getTxLogger(),
+              "parallel apply thread {} upserting key {}",
+              std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
 
     ParallelApplyLedgerKey parallelKey(key);
     auto [mapEntry, _] =
@@ -1416,18 +1421,19 @@ TxParallelApplyLedgerState::eraseEntryIfExists(LedgerKey const& key)
         // parents (thread state or live snapshot), otherwise
         // we will produce mismatched erases that don't relate to
         // any pre-state key when calculating the ledger delta.
-        CLOG_TRACE(Tx, "parallel apply thread {} erasing {}",
-                   std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
+        LOG_TRACE(mThreadState.getTxLogger(),
+                  "parallel apply thread {} erasing {}",
+                  std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
         ParallelApplyLedgerKey parallelKey(key);
         mTxEntryMap.insert_or_assign(parallelKey,
                                      scopeAdoptEntryOpt(std::nullopt));
     }
     else
     {
-        CLOG_TRACE(Tx,
-                   "parallel apply thread {} ignoring erase of non-existing "
-                   "key {}",
-                   std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
+        LOG_TRACE(mThreadState.getTxLogger(),
+                  "parallel apply thread {} ignoring erase of non-existing "
+                  "key {}",
+                  std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
     }
     return liveEntryExistedAlready;
 }
@@ -1448,8 +1454,9 @@ TxParallelApplyLedgerState::addHotArchiveRestore(LedgerKey const& key,
                                                  LedgerKey const& ttlKey,
                                                  LedgerEntry const& ttlEntry)
 {
-    CLOG_TRACE(Tx, "parallel apply thread {} hot-restoring {}",
-               std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
+    LOG_TRACE(mThreadState.getTxLogger(),
+              "parallel apply thread {} hot-restoring {}",
+              std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
     mTxRestoredEntries.addHotArchiveRestore(key, entry, ttlKey, ttlEntry);
 }
 
@@ -1458,8 +1465,9 @@ TxParallelApplyLedgerState::addLiveBucketlistRestore(
     LedgerKey const& key, LedgerEntry const& entry, LedgerKey const& ttlKey,
     LedgerEntry const& ttlEntry)
 {
-    CLOG_TRACE(Tx, "parallel apply thread {} live-restoring {}",
-               std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
+    LOG_TRACE(mThreadState.getTxLogger(),
+              "parallel apply thread {} live-restoring {}",
+              std::this_thread::get_id(), xdr::xdr_to_string(key, "key"));
     mTxRestoredEntries.addLiveBucketlistRestore(key, entry, ttlKey, ttlEntry);
 }
 
@@ -1468,16 +1476,17 @@ TxParallelApplyLedgerState::takeResult(bool success)
 {
     if (success)
     {
-        CLOG_TRACE(Tx,
-                   "parallel apply thread {} succeeded with {} dirty entries",
-                   std::this_thread::get_id(), mTxEntryMap.size());
+        LOG_TRACE(mThreadState.getTxLogger(),
+                  "parallel apply thread {} succeeded with {} dirty entries",
+                  std::this_thread::get_id(), mTxEntryMap.size());
         return ParallelTxSuccessVal{std::move(mTxEntryMap),
                                     std::move(mTxRestoredEntries), mScopeID};
     }
     else
     {
-        CLOG_TRACE(Tx, "parallel apply thread {} failed with {} dirty entries",
-                   std::this_thread::get_id(), mTxEntryMap.size());
+        LOG_TRACE(mThreadState.getTxLogger(),
+                  "parallel apply thread {} failed with {} dirty entries",
+                  std::this_thread::get_id(), mTxEntryMap.size());
         return std::nullopt;
     }
 }
