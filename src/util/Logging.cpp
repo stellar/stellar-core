@@ -11,6 +11,7 @@
 #include <fmt/chrono.h>
 #include <fstream>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/spdlog.h>
@@ -80,6 +81,80 @@ convert_loglevel(LogLevel level)
         break;
     }
     return slev;
+}
+
+namespace
+{
+// Each partition (plus "default") has a single *permanent* logger, created
+// lazily and never destroyed or re-created for the lifetime of the process.
+// The logger's only sink is a dist_sink_mt whose child sinks (console/file)
+// are swapped in place, under that sink's own mutex, whenever logging is
+// (re)configured by init()/deinit() and friends.
+//
+// This makes the per-partition getters (and thus every CLOG_* call site)
+// lock-free: they return a reference to a shared_ptr that never changes, so
+// the hot "is this level enabled" check costs two loads and touches no
+// shared mutable state. The previous design memoized pointers to loggers
+// that were dropped and re-created on every reconfiguration, which required
+// taking a global recursive mutex (and copying a contended shared_ptr) on
+// every logging macro invocation, even for disabled levels - measurably
+// serializing concurrently-running threads.
+struct PermanentLogger
+{
+    std::shared_ptr<spdlog::sinks::dist_sink_mt> mSink;
+    LogPtr mLogger;
+};
+
+PermanentLogger
+makePermanentLogger(std::string const& name, bool isDefault)
+{
+    auto sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+    auto logger = std::make_shared<spdlog::logger>(name, sink);
+    if (isDefault)
+    {
+        // Logging through DEFAULT_LOG before Logging::init() goes to the
+        // console, matching spdlog's own auto-created default logger.
+        sink->add_sink(
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+        // This also registers the logger in the spdlog registry.
+        spdlog::set_default_logger(logger);
+    }
+    else
+    {
+        spdlog::register_logger(logger);
+    }
+    return PermanentLogger{std::move(sink), std::move(logger)};
+}
+
+PermanentLogger&
+defaultPermanentLogger()
+{
+    static PermanentLogger pl = makePermanentLogger("default", true);
+    return pl;
+}
+
+#define LOG_PARTITION(name) \
+    PermanentLogger& name##PermanentLogger() \
+    { \
+        static PermanentLogger pl = makePermanentLogger(#name, false); \
+        return pl; \
+    }
+#include "util/LogPartitions.def"
+#undef LOG_PARTITION
+
+// NB: forces creation (and spdlog-registry registration) of every permanent
+// logger, so registry-wide operations like spdlog::set_pattern and
+// spdlog::set_level cover all of them deterministically.
+std::vector<PermanentLogger*>
+allPermanentLoggers()
+{
+    std::vector<PermanentLogger*> loggers;
+    loggers.push_back(&defaultPermanentLogger());
+#define LOG_PARTITION(name) loggers.push_back(&name##PermanentLogger());
+#include "util/LogPartitions.def"
+#undef LOG_PARTITION
+    return loggers;
+}
 }
 #endif
 
@@ -166,18 +241,12 @@ Logging::init(bool truncate)
                 make_shared<basic_file_sink_mt>(filename, /*truncate=*/false));
         }
 
-        auto makeLogger =
-            [&](std::string const& name) -> shared_ptr<spdlog::logger> {
-            auto logger =
-                make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
-            spdlog::register_logger(logger);
-            return logger;
-        };
-
-        spdlog::set_default_logger(makeLogger("default"));
-        for (auto const& partition : stellar::Logging::kPartitionNames)
+        // Attach the configured sinks to the permanent loggers in place
+        // (under each dist sink's own mutex); this is safe to do while other
+        // threads are concurrently logging through them.
+        for (auto* permanentLogger : allPermanentLoggers())
         {
-            makeLogger(partition);
+            permanentLogger->mSink->set_sinks(sinks);
         }
         if (mLastPattern.empty())
         {
@@ -206,10 +275,16 @@ Logging::deinit()
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     if (mInitialized)
     {
-#define LOG_PARTITION(name) Logging::name##LogPtr = nullptr;
-#include "util/LogPartitions.def"
-#undef LOG_PARTITION
-        spdlog::drop_all();
+        // Detach the console/file sinks from the permanent loggers (which
+        // closes the log file once the last reference drops). The loggers
+        // themselves are never destroyed - call sites may hold cached
+        // pointers to them - they just stop writing anywhere until the next
+        // init().
+        for (auto* permanentLogger : allPermanentLoggers())
+        {
+            permanentLogger->mSink->flush();
+            permanentLogger->mSink->set_sinks({});
+        }
         mInitialized = false;
     }
 #endif
@@ -384,6 +459,21 @@ Logging::logTrace(std::string const& partition)
 bool
 Logging::isLogLevelAtLeast(std::string const& partition, LogLevel level)
 {
+#if defined(USE_SPDLOG)
+    // Read the (atomic) level of the permanent partition logger instead of
+    // consulting the level maps under the global mutex: this function is
+    // called from hot paths on concurrently-running threads. The logger
+    // levels are kept in sync with the maps by setLogLevel()/init().
+    auto slev = convert_loglevel(level);
+#define LOG_PARTITION(name) \
+    if (partition == #name) \
+    { \
+        return name##PermanentLogger().mLogger->should_log(slev); \
+    }
+#include "util/LogPartitions.def"
+#undef LOG_PARTITION
+    return defaultPermanentLogger().mLogger->should_log(slev);
+#else
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     auto it = mPartitionLogLevels.find(partition);
     if (it != mPartitionLogLevels.end())
@@ -391,6 +481,7 @@ Logging::isLogLevelAtLeast(std::string const& partition, LogLevel level)
         return it->second >= level;
     }
     return mGlobalLogLevel >= level;
+#endif
 }
 
 void
@@ -418,27 +509,18 @@ Logging::normalizePartition(std::string const& partition)
 std::recursive_mutex Logging::mLogMutex;
 
 #if defined(USE_SPDLOG)
-LogPtr Logging::defaultLogPtr = nullptr;
-LogPtr
+// NB: these are called by every CLOG_* macro invocation (including ones for
+// disabled levels) and must remain lock-free and write-free: they return a
+// reference to a shared_ptr that is set up once and never changes.
+LogPtr const&
 Logging::getDefaultLogPtr()
 {
-    std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    if (!defaultLogPtr)
-    {
-        defaultLogPtr = spdlog::default_logger();
-    }
-    return defaultLogPtr;
+    return defaultPermanentLogger().mLogger;
 }
 #define LOG_PARTITION(name) \
-    LogPtr Logging::name##LogPtr = nullptr; \
-    LogPtr Logging::get##name##LogPtr() \
+    LogPtr const& Logging::get##name##LogPtr() \
     { \
-        std::lock_guard<std::recursive_mutex> guard(mLogMutex); \
-        if (!name##LogPtr) \
-        { \
-            name##LogPtr = spdlog::get(#name); \
-        } \
-        return name##LogPtr; \
+        return name##PermanentLogger().mLogger; \
     }
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION
