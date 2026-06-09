@@ -13,7 +13,8 @@ operator<(SimpleTimerName const& lhs, SimpleTimerName const& rhs)
 
 SimpleTimer::SimpleTimer(MetricsRegistry& registry, SimpleTimerName const& name,
                          std::chrono::nanoseconds durationUnit)
-    : mSum{registry.NewCounter({name.mDomain, name.mType, name.mName + "sum"})}
+    : mRegistry{registry}
+    , mSum{registry.NewCounter({name.mDomain, name.mType, name.mName + "sum"})}
     , mSampleCount{registry.NewCounter(
           {name.mDomain, name.mType, name.mName + "count"})}
     , mMaxSampleValue{registry.NewCounter(
@@ -40,6 +41,14 @@ SimpleTimer::count() const
 void
 SimpleTimer::Update(std::chrono::nanoseconds d)
 {
+    // Skip the shared-state updates (counters and the max-tracking mutex)
+    // entirely when simple timers are disabled: some of these timers are
+    // updated concurrently from all the parallel apply threads, where they
+    // otherwise become a contention point.
+    if (!mRegistry.simpleTimersEnabled())
+    {
+        return;
+    }
     int64_t converted = d / mDurationUnit;
     mSum.inc(converted);
     mSampleCount.inc(1);

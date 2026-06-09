@@ -123,9 +123,19 @@ template <StaticLedgerEntryScope S> struct ParallelApplyEntry
         return ParallelApplyEntry{e, false, false};
     }
     static ParallelApplyEntry
+    clean(ScopedLedgerEntryOpt<S>&& e)
+    {
+        return ParallelApplyEntry{std::move(e), false, false};
+    }
+    static ParallelApplyEntry
     dirty(ScopedLedgerEntryOpt<S> const& e)
     {
         return ParallelApplyEntry{e, true, false};
+    }
+    static ParallelApplyEntry
+    dirty(ScopedLedgerEntryOpt<S>&& e)
+    {
+        return ParallelApplyEntry{std::move(e), true, false};
     }
     template <StaticLedgerEntryScope S2>
     ParallelApplyEntry<S2>

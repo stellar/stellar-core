@@ -35,6 +35,10 @@ bool operator<(SimpleTimerName const&, SimpleTimerName const&);
 // accountID and poolID).
 class SimpleTimer
 {
+    // Used to check whether SimpleTimer updates are enabled; benchmarking
+    // configs disable them as some of these timers sit on hot paths shared
+    // by the parallel apply threads.
+    MetricsRegistry& mRegistry;
     medida::Counter& mSum;
     medida::Counter& mSampleCount;
     // Note that we use a counter for `mMax` so it gets displayed in the

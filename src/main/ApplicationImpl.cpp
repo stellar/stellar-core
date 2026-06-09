@@ -139,6 +139,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
+    if (mConfig.DISABLE_SOROBAN_METRICS_FOR_TESTING)
+    {
+        // Simple timers include the bucket point-load timers that are updated
+        // from the parallel apply threads, where they are a contention point.
+        mMetrics->setSimpleTimersEnabled(false);
+    }
+
     TracyAppInfo(STELLAR_CORE_VERSION.c_str(), STELLAR_CORE_VERSION.size());
     TracyAppInfo(mConfig.NETWORK_PASSPHRASE.c_str(),
                  mConfig.NETWORK_PASSPHRASE.size());

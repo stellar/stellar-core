@@ -522,7 +522,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Enable parallel block application (experimental)
     bool PARALLEL_LEDGER_APPLY;
 
-    // Disable expensive Soroban metrics for performance testing
+    // Disable expensive Soroban metrics for performance testing. This also
+    // disables all SimpleTimer updates (e.g. the bucket point-load timers),
+    // since some of them sit on hot paths shared by the parallel apply
+    // threads, where they become a cross-thread contention point.
     bool DISABLE_SOROBAN_METRICS_FOR_TESTING;
 
     // Disable transaction metadata collection in test builds for benchmarking.

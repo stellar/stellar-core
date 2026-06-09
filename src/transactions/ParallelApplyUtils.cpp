@@ -1030,16 +1030,19 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
                 scopeAdoptEntryOptFrom(entryIt->second.mLedgerEntry, global));
             // Propagate mIsNew from global so subsequent upserts preserve it.
             threadEntry.mIsNew = entryIt->second.mIsNew;
-            mThreadEntryMap.emplace(std::move(parallelKey), threadEntry);
+            mThreadEntryMap.emplace(std::move(parallelKey),
+                                    std::move(threadEntry));
         }
     };
 
     for (auto const& txBundle : cluster)
     {
         auto const& footprint = txBundle.getTx()->sorobanResources().footprint;
-        for (auto const& keys : {footprint.readWrite, footprint.readOnly})
+        // NB: iterate via pointers; a braced list of the vectors themselves
+        // would deep-copy both of them.
+        for (auto const* keys : {&footprint.readWrite, &footprint.readOnly})
         {
-            for (auto const& key : keys)
+            for (auto const& key : *keys)
             {
                 fetchFromGlobal(key);
                 if (isSorobanEntry(key))
@@ -1203,11 +1206,14 @@ ThreadParallelApplyLedgerState::upsertEntry(
     // previous TX), keep its mIsNew flag. Otherwise use the caller's isNew.
     parAppEntry.mIsNew = isNew;
     ParallelApplyLedgerKey parallelKey(key);
-    auto [it, inserted] = mThreadEntryMap.try_emplace(parallelKey, parAppEntry);
+    // try_emplace does not move from its arguments when the insertion does
+    // not happen, so parAppEntry is still valid on the !inserted branch.
+    auto [it, inserted] = mThreadEntryMap.try_emplace(std::move(parallelKey),
+                                                      std::move(parAppEntry));
     if (!inserted)
     {
         parAppEntry.mIsNew = it->second.mIsNew;
-        it->second = parAppEntry;
+        it->second = std::move(parAppEntry);
     }
 }
 void
@@ -1220,11 +1226,12 @@ ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key, bool isNew)
     // preserved flag determines INIT vs LIVE in commitChangesToLedgerTxn.
     parAppEntry.mIsNew = isNew;
     ParallelApplyLedgerKey parallelKey(key);
-    auto [it, inserted] = mThreadEntryMap.try_emplace(parallelKey, parAppEntry);
+    auto [it, inserted] = mThreadEntryMap.try_emplace(std::move(parallelKey),
+                                                      std::move(parAppEntry));
     if (!inserted)
     {
         parAppEntry.mIsNew = it->second.mIsNew;
-        it->second = parAppEntry;
+        it->second = std::move(parAppEntry);
     }
 }
 

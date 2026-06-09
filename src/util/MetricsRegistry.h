@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util/SimpleTimer.h"
+#include <atomic>
 #include <chrono>
 #include <medida/metrics_registry.h>
 #include <util/ThreadAnnotations.h>
@@ -14,6 +15,13 @@ class MetricsRegistry : public medida::MetricsRegistry
     // Note that it is safe to hand out references to this map because values
     // have pointer stability.
     std::map<SimpleTimerName, SimpleTimer> mSimpleTimers GUARDED_BY(mLock);
+
+    // Some SimpleTimers sit on hot paths shared by the parallel apply threads
+    // (notably the bucket point-load timers), where their mutex and shared
+    // counters become a cross-thread contention point. This flag lets
+    // benchmarking configs turn their updates off; see
+    // DISABLE_SOROBAN_METRICS_FOR_TESTING.
+    bool mSimpleTimersEnabled{true};
 
   public:
     MetricsRegistry(std::chrono::seconds windowSize = std::chrono::seconds{30});
@@ -29,5 +37,17 @@ class MetricsRegistry : public medida::MetricsRegistry
     // should happen regularly: at the time of writing, this is done by the core
     // prometheus exporter.
     void syncSimpleTimerStats();
+
+    void
+    setSimpleTimersEnabled(bool enabled)
+    {
+        mSimpleTimersEnabled = enabled;
+    }
+
+    bool
+    simpleTimersEnabled() const
+    {
+        return mSimpleTimersEnabled;
+    }
 };
 }
