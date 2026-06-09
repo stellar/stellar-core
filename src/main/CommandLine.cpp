@@ -1883,7 +1883,6 @@ runApplyLoad(CommandLineArgs const& args)
         config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
         config.LEDGER_PROTOCOL_VERSION =
             Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-        config.NETWORK_PASSPHRASE = "Apply Load";
         config.PARALLEL_LEDGER_APPLY = true;
 
         // All modes besides limit-based don't need to worry about message
