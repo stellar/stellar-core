@@ -72,7 +72,10 @@ DiskIndex<BucketT>::scan(IterT start, LedgerKey const& k) const
 
     // If the key is not in the bloom filter or in the lower bounded index
     // entry, return nullopt
-    mBloomLookupMeter.Mark();
+    if (mMarkBloomMeters)
+    {
+        mBloomLookupMeter.Mark();
+    }
     if ((mData.filter && !mData.filter->contains(k)) ||
         keyIter == mData.keysToOffset.end() ||
         keyNotInIndexEntry(k, keyIter->first))
@@ -136,6 +139,8 @@ DiskIndex<BucketT>::DiskIndex(BucketManager& bm,
                               asio::io_context& ctx, SHA256* hasher)
     : mBloomLookupMeter(bm.getBloomLookupMeter<BucketT>())
     , mBloomMissMeter(bm.getBloomMissMeter<BucketT>())
+    , mMarkBloomMeters(
+          !bm.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
 {
     ZoneScoped;
     mData.pageSize = pageSize;
@@ -274,6 +279,8 @@ DiskIndex<BucketT>::DiskIndex(Archive& ar, BucketManager const& bm,
                               std::streamoff pageSize)
     : mBloomLookupMeter(bm.getBloomLookupMeter<BucketT>())
     , mBloomMissMeter(bm.getBloomMissMeter<BucketT>())
+    , mMarkBloomMeters(
+          !bm.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
 {
     releaseAssertOrThrow(pageSize != 0);
     mData.pageSize = pageSize;
@@ -344,7 +351,10 @@ template <class BucketT>
 void
 DiskIndex<BucketT>::markBloomMiss() const
 {
-    mBloomMissMeter.Mark();
+    if (mMarkBloomMeters)
+    {
+        mBloomMissMeter.Mark();
+    }
 }
 
 #ifdef BUILD_TESTS

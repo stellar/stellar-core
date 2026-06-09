@@ -112,6 +112,12 @@ template <class BucketT> class DiskIndex : public NonMovableOrCopyable
     medida::Meter& mBloomLookupMeter;
     medida::Meter& mBloomMissMeter;
 
+    // Marking the (process-wide shared) bloom meters takes a per-meter mutex
+    // on every point lookup, which serializes the parallel apply threads;
+    // benchmarking configs disable this via
+    // DISABLE_SOROBAN_METRICS_FOR_TESTING.
+    bool const mMarkBloomMeters;
+
     // Saves index to disk, overwriting any preexisting file for this index
     void saveToDisk(BucketManager& bm, Hash const& hash,
                     asio::io_context& ctx) const;
