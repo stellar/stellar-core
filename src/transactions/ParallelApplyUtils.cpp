@@ -14,6 +14,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include "util/ThreadPool.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <algorithm>
@@ -578,6 +579,11 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
     std::vector<std::future<void>> futures;
     futures.reserve(workerCount);
 
+    // Run on the persistent apply thread pool to keep the workers' allocator
+    // caches warm across ledgers (see ThreadPool).
+    auto& threadPool = app.getApplyThreadPool();
+    threadPool.ensureWorkerCount(workerCount);
+
     size_t begin = 0;
     auto const baseChunkSize = txBundles.size() / workerCount;
     auto const remainder = txBundles.size() % workerCount;
@@ -586,10 +592,12 @@ GlobalParallelApplyLedgerState::readOnlyPreParallelApply(
         auto const chunkSize =
             baseChunkSize + (workerIndex < remainder ? 1u : 0u);
         auto const end = begin + chunkSize;
-        futures.emplace_back(std::async(
-            std::launch::async, readOnlyPreParallelApplyRange, std::ref(app),
-            std::cref(mLCLApplyView), std::cref(overlay), std::cref(txBundles),
-            begin, end, std::cref(mSorobanConfig)));
+        futures.emplace_back(
+            threadPool.submit([&app, this, &overlay, &txBundles, begin, end]() {
+                readOnlyPreParallelApplyRange(app, mLCLApplyView, overlay,
+                                              txBundles, begin, end,
+                                              mSorobanConfig);
+            }));
         begin = end;
     }
 

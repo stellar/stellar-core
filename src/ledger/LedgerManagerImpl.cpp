@@ -49,6 +49,7 @@
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/ThreadAnnotations.h"
+#include "util/ThreadPool.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
@@ -2561,6 +2562,13 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 #ifdef BUILD_TESTS
     auto spawnStart = std::chrono::steady_clock::now();
 #endif
+    // Run the clusters on the persistent apply thread pool (rather than on
+    // freshly spawned threads) so that the workers keep their warm allocator
+    // caches across stages and ledgers. The pool grows to the cluster count
+    // on demand, as the number of clusters is driven by a network setting
+    // that may increase at runtime.
+    auto& threadPool = mApp.getApplyThreadPool();
+    threadPool.ensureWorkerCount(stage.numClusters());
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         // Construct the per-thread state (which copies this cluster's footprint
@@ -2568,8 +2576,7 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
         // parallel across clusters rather than serially on this thread. Safe
         // because globalState is scope-deactivated (read-only) for the whole
         // parallel section.
-        threadFutures.emplace_back(std::async(
-            std::launch::async,
+        threadFutures.emplace_back(threadPool.submit(
             [this, &app, &globalState, &stage, i, &config, ledgerInfo,
              sorobanBasePrngSeed]() {
                 auto const& cluster = stage.getCluster(i);

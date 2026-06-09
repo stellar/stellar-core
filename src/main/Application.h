@@ -37,6 +37,7 @@ class WorkScheduler;
 class BanManager;
 class BannedAccountsPersistor;
 class StatusManager;
+class ThreadPool;
 class AbstractLedgerTxnParent;
 class BasicWork;
 enum class LoadGenMode;
@@ -269,6 +270,12 @@ class Application
                                      std::string jobName) = 0;
     virtual void postOnLedgerCloseThread(std::function<void()>&& f,
                                          std::string jobName) = 0;
+
+    // Get the persistent thread pool used by the parallel transaction apply
+    // path. Keeping these workers alive across apply stages and ledgers
+    // preserves their (per-thread) allocator caches; see ThreadPool for
+    // details.
+    virtual ThreadPool& getApplyThreadPool() = 0;
 
     // Perform actions necessary to transition from BOOTING_STATE to other
     // states. In particular: either reload or reinitialize the database, and

@@ -60,6 +60,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include "util/Thread.h"
+#include "util/ThreadPool.h"
 #include "util/TmpDir.h"
 #include "work/BasicWork.h"
 #include "work/WorkScheduler.h"
@@ -204,6 +205,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             [this]() { mLedgerCloseIOContext->run(); });
         mThreadTypes[mLedgerCloseThread->get_id()] = ThreadType::APPLY;
     }
+
+    // Starts with no workers; the parallel apply path grows it to the
+    // cluster count it needs.
+    mApplyThreadPool = std::make_unique<ThreadPool>();
 }
 
 static void
@@ -937,6 +942,12 @@ ApplicationImpl::joinAllThreads()
 
     joined += shutdownThread(mOverlayThread, mOverlayWork, "overlay");
     joined += shutdownThread(mEvictionThread, mEvictionWork, "eviction");
+    if (mApplyThreadPool)
+    {
+        joined += static_cast<uint32_t>(mApplyThreadPool->workerCount());
+        mApplyThreadPool->shutdown();
+        mApplyThreadPool.reset();
+    }
     if (joined)
     {
         LOG_INFO(DEFAULT_LOG, "Joined all {} threads", joined);
@@ -1518,6 +1529,13 @@ ApplicationImpl::getLedgerCloseIOContext()
 {
     releaseAssert(mLedgerCloseIOContext);
     return *mLedgerCloseIOContext;
+}
+
+ThreadPool&
+ApplicationImpl::getApplyThreadPool()
+{
+    releaseAssert(mApplyThreadPool);
+    return *mApplyThreadPool;
 }
 
 void

@@ -68,6 +68,7 @@ class AppConnector
     checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
     SorobanNetworkConfig const& getLastClosedSorobanNetworkConfig() const;
     bool threadIsType(Application::ThreadType type) const;
+    ThreadPool& getApplyThreadPool();
 
     MetricsRegistry& getMetrics() const;
 

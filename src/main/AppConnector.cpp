@@ -169,6 +169,12 @@ AppConnector::threadIsType(Application::ThreadType type) const
     return mApp.threadIsType(type);
 }
 
+ThreadPool&
+AppConnector::getApplyThreadPool()
+{
+    return mApp.getApplyThreadPool();
+}
+
 ImmutableLedgerView
 AppConnector::copyImmutableLedgerView()
 {
