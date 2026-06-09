@@ -3,43 +3,62 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ShortHash.h"
-#include "fmt/format.h"
-#include <mutex>
 #include <sodium.h>
+
+#include <algorithm>
+#include <array>
+#include <iterator>
+
+#ifdef BUILD_TESTS
+#include "fmt/format.h"
+#include <atomic>
+#endif
 
 namespace stellar
 {
 namespace shortHash
 {
+// gKey is written once by initialize() at startup, before any hashing thread
+// is spawned.
+// In test builds `seed()` may change this between test runs, on the main
+// thread while no hashing is in flight. Thus we never need to synchronize
+// access to gKey.
 static unsigned char gKey[crypto_shorthash_KEYBYTES];
-static std::mutex gKeyMutex;
-static bool gHaveHashed{false};
-#ifdef BUILD_TESTS
-static unsigned int gExplicitSeed{0};
-#endif
 
 void
 initialize()
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
     crypto_shorthash_keygen(gKey);
 }
 
 std::array<unsigned char, crypto_shorthash_KEYBYTES>
 getShortHashInitKey()
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
     std::array<unsigned char, crypto_shorthash_KEYBYTES> arr;
     std::copy(std::begin(gKey), std::end(gKey), arr.begin());
     return arr;
 }
 
 #ifdef BUILD_TESTS
+// Tracks whether hashing has already occurred so that `seed()` can reject
+// re-seeding with a different seed after hashes have already been computed
+// Only ever transitions false->true while hashing.
+static std::atomic<bool> gHaveHashed{false};
+static unsigned int gExplicitSeed{0};
+
+static void
+noteHashed()
+{
+    if (!gHaveHashed.load(std::memory_order_relaxed))
+    {
+        gHaveHashed.store(true, std::memory_order_relaxed);
+    }
+}
+
 void
 seed(unsigned int s)
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
-    if (gHaveHashed)
+    if (gHaveHashed.load(std::memory_order_relaxed))
     {
         if (gExplicitSeed != s)
         {
@@ -58,11 +77,13 @@ seed(unsigned int s)
     }
 }
 #endif
+
 uint64_t
 computeHash(stellar::ByteSlice const& b)
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
-    gHaveHashed = true;
+#ifdef BUILD_TESTS
+    noteHashed();
+#endif
     uint64_t res;
     static_assert(sizeof(res) == crypto_shorthash_BYTES, "unexpected size");
     crypto_shorthash(reinterpret_cast<unsigned char*>(&res),
@@ -73,9 +94,9 @@ computeHash(stellar::ByteSlice const& b)
 
 XDRShortHasher::XDRShortHasher() : state(gKey)
 {
-    std::lock_guard<std::mutex> guard(gKeyMutex);
-    gHaveHashed = true;
-    state = SipHash24(gKey);
+#ifdef BUILD_TESTS
+    noteHashed();
+#endif
 }
 
 void
