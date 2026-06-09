@@ -62,6 +62,14 @@ REMOTE_FILE_CHUNK_SIZE_BYTES = 12 * 1024
 # Preserve the legacy tag value required by the existing EC2 IAM policy.
 INSTANCE_TEST_TAG_VALUE = "max-sac-tps"
 
+# Override for tcmalloc's total thread-cache budget (bytes), passed to the
+# stellar-core container via TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES. tcmalloc
+# divides this fixed budget across all threads (capped at 4 MB/thread), so the
+# default (32 MB) starves per-thread caches as the apply thread count grows,
+# increasing central-free-list/pageheap lock contention. Giving every thread its
+# full 4 MB cache removes that contention. Set to 0 to leave the env var unset.
+DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
+
 
 @dataclass(frozen=True)
 class ParameterDefinition:
@@ -323,6 +331,16 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         help="Optional disk IOPS limit for the NVMe device.",
     )
+    parser.add_argument(
+        "--tcmalloc-max-total-thread-cache-bytes",
+        type=int,
+        default=DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES,
+        help=(
+            "Value for TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES passed to the "
+            "stellar-core container. Set to 0 to leave it unset (tcmalloc "
+            "default) for baseline comparisons."
+        ),
+    )
 
 
 def add_aws_run_arguments(parser: argparse.ArgumentParser) -> None:
@@ -352,7 +370,8 @@ def add_aws_run_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def build_docker_command(config_path: str, image: str,
-                         iops: Optional[int]) -> list[str]:
+                         iops: Optional[int],
+                         tcmalloc_max_total_thread_cache_bytes: int) -> list[str]:
     command = [
         "docker",
         "run",
@@ -363,6 +382,12 @@ def build_docker_command(config_path: str, image: str,
         "-v",
         f"{APPLY_LOAD_LOG_DIR}:{APPLY_LOAD_LOG_DIR}",
     ]
+    if tcmalloc_max_total_thread_cache_bytes > 0:
+        command.extend([
+            "-e",
+            "TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES="
+            f"{tcmalloc_max_total_thread_cache_bytes}",
+        ])
     if iops is not None:
         command.extend([
             "--device-write-iops",
@@ -400,6 +425,12 @@ def build_apply_load_command(mode_name: str, values: Mapping[str, Any],
     ]
     if iops is not None:
         command.extend(["--iops", str(iops)])
+    tcmalloc_bytes = values.get("tcmalloc_max_total_thread_cache_bytes")
+    if tcmalloc_bytes is not None:
+        command.extend([
+            "--tcmalloc-max-total-thread-cache-bytes",
+            str(tcmalloc_bytes),
+        ])
     for parameter in get_mode_cli_parameters(mode_name):
         command.extend([
             f"--{parameter.replace('_', '-')}",
@@ -722,7 +753,8 @@ def aws_init(ami: str, region: str, security_group: str,
     print(instance_id)
 
 
-def run_apply_load(config: str, image: str, iops: Optional[int]) -> None:
+def run_apply_load(config: str, image: str, iops: Optional[int],
+                   tcmalloc_max_total_thread_cache_bytes: int) -> None:
     """Run apply-load with the given configuration."""
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", delete=False
@@ -736,7 +768,10 @@ def run_apply_load(config: str, image: str, iops: Optional[int]) -> None:
 
     try:
         result = run(
-            build_docker_command(config_path, image, iops),
+            build_docker_command(
+                config_path, image, iops,
+                tcmalloc_max_total_thread_cache_bytes,
+            ),
             capture_output=True,
             check=False,
         )
@@ -863,7 +898,10 @@ def handle_local_aws_init(_: argparse.Namespace) -> None:
 
 def handle_run_mode(args: argparse.Namespace) -> None:
     config = render_config(args.apply_load_mode, vars(args))
-    run_apply_load(config, args.image, args.iops)
+    run_apply_load(
+        config, args.image, args.iops,
+        args.tcmalloc_max_total_thread_cache_bytes,
+    )
 
 
 def handle_aws_run_mode(args: argparse.Namespace) -> None:
