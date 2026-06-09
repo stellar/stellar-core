@@ -193,58 +193,6 @@ class BucketIndexTest
         buildBucketList(f, isCacheTest);
     }
 
-    void
-    runHistoricalSnapshotTest()
-    {
-        uint32_t ledger = 0;
-
-        // Exclude soroban types so we don't have to insert TTLs
-        auto canonicalEntry =
-            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {CONFIG_SETTING, TTL, CONTRACT_CODE, CONTRACT_DATA});
-        canonicalEntry.lastModifiedLedgerSeq = 0;
-
-        do
-        {
-            ++ledger;
-            auto entryCopy = canonicalEntry;
-            entryCopy.lastModifiedLedgerSeq = ledger;
-            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                {}, {entryCopy}, {});
-            closeLedger(*mApp);
-        } while (ledger < mApp->getConfig().QUERY_SNAPSHOT_LEDGERS + 2);
-        ++ledger;
-
-        auto ledgerView = getApp().getLedgerManager().copyImmutableLedgerView();
-        auto lk = LedgerEntryKey(canonicalEntry);
-
-        auto currentLoadedEntry = ledgerView.loadLiveEntry(lk);
-        REQUIRE(currentLoadedEntry);
-
-        // Note: The definition of "historical snapshot" ledger is that the
-        // BucketList snapshot for ledger N is the BucketList as it exists at
-        // the beginning of ledger N. This means that the lastModifiedLedgerSeq
-        // is at most N - 1.
-        REQUIRE(currentLoadedEntry->lastModifiedLedgerSeq == ledger - 1);
-
-        for (uint32_t currLedger = ledger; currLedger > 0; --currLedger)
-        {
-            auto loadRes = ledgerView.loadLiveKeysFromLedger({lk}, currLedger);
-
-            // If we query an older snapshot, should return <null, notFound>
-            if (currLedger < ledger - mApp->getConfig().QUERY_SNAPSHOT_LEDGERS)
-            {
-                REQUIRE(!loadRes);
-            }
-            else
-            {
-                REQUIRE(loadRes);
-                REQUIRE(loadRes->size() == 1);
-                REQUIRE(loadRes->at(0).lastModifiedLedgerSeq == currLedger - 1);
-            }
-        }
-    }
-
     virtual void
     buildMultiVersionTest(bool sorobanOnly = false)
     {
@@ -1166,17 +1114,6 @@ TEST_CASE("soroban cache population", "[soroban][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
-{
-    auto f = [&](Config& cfg) {
-        cfg.QUERY_SNAPSHOT_LEDGERS = 5;
-        auto test = BucketIndexTest(cfg);
-        test.runHistoricalSnapshotTest();
-    };
-
-    testAllIndexTypes(f);
-}
-
 TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
@@ -1347,7 +1284,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
                 bulkLoadKeys.emplace(k);
             }
 
-            auto bulkLoadResult = ledgerView.loadArchiveKeys(bulkLoadKeys);
+            auto bulkLoadResult =
+                ledgerView.loadArchiveKeys(bulkLoadKeys, "test");
             for (auto entry : bulkLoadResult)
             {
                 REQUIRE(entry.type() == HOT_ARCHIVE_ARCHIVED);
@@ -1417,7 +1355,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
 
         // Bulk load
         auto bulkLoadResult =
-            ledgerView.loadArchiveKeys({liveShadow1, liveShadow2});
+            ledgerView.loadArchiveKeys({liveShadow1, liveShadow2}, "test");
         REQUIRE(bulkLoadResult.size() == 0);
 
         // Shadow via archivedEntries
@@ -1437,8 +1375,8 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         REQUIRE(entryPtr->archivedEntry() == archivedShadow);
 
         // Bulk load
-        auto bulkLoadResult2 =
-            ledgerView.loadArchiveKeys({LedgerEntryKey(archivedShadow)});
+        auto bulkLoadResult2 = ledgerView.loadArchiveKeys(
+            {LedgerEntryKey(archivedShadow)}, "test");
         REQUIRE(bulkLoadResult2.size() == 1);
         REQUIRE(bulkLoadResult2[0].type() == HOT_ARCHIVE_ARCHIVED);
         REQUIRE(bulkLoadResult2[0].archivedEntry() == archivedShadow);
