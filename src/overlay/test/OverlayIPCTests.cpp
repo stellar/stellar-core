@@ -1036,17 +1036,10 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
                 },
                 60 * simulation->getExpectedLedgerCloseTime(), false);
 
-            auto endTime = std::chrono::steady_clock::now();
-            auto duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(endTime -
-                                                                      startTime)
-                    .count();
-
-            // Count included TXs by checking dest account balance
-            // (each payment adds 0.1 XLM = 1000000 stroops, starting from 100
-            // XLM)
-            int64_t txIncluded = 0;
-            {
+            auto countIncludedTxs = [&]() {
+                // Count included TXs by checking dest account balance
+                // (each payment adds 0.1 XLM = 1000000 stroops, starting from
+                // 100 XLM)
                 LedgerTxn ltx(node0->getLedgerTxnRoot());
                 auto destAccount =
                     stellar::loadAccount(ltx, destKey.getPublicKey());
@@ -1056,9 +1049,21 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
                     // Initial balance is 100000000000 stroops (100 XLM)
                     int64_t balance =
                         destAccount.current().data.account().balance;
-                    txIncluded = (balance - 100000000000) / 1000000;
+                    return (balance - 100000000000) / 1000000;
                 }
-            }
+                return int64_t{0};
+            };
+
+            simulation->crankUntil(
+                [&]() { return countIncludedTxs() == txSubmitted; },
+                20 * simulation->getExpectedLedgerCloseTime(), false);
+
+            int64_t txIncluded = countIncludedTxs();
+            auto endTime = std::chrono::steady_clock::now();
+            auto duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(endTime -
+                                                                      startTime)
+                    .count();
 
             // Collect results
             Results res;
