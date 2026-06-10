@@ -451,9 +451,10 @@ GlobalParallelApplyLedgerState::
             _setupTp = now;
             return ms;
         };
-        // Reset the per-thread sequential-preParallelApply sub-accumulators;
-        // the loop below runs preParallelApply on this (main) thread, so they
-        // capture exactly the sequential work timed as setup_seq_check.
+        // Reset the cross-thread pre-apply sub-accumulators. The first three
+        // are filled by the worker threads during readOnlyPreParallelApply
+        // and the last by commitBufferedPreParallelApplyWrites on this
+        // thread; they are read below after the respective phase completes.
         gSeqPreApplyCommonValidMs = 0;
         gSeqPreApplyProcessSigsMs = 0;
         gSeqPreApplyCheckValidMs = 0;
@@ -481,18 +482,21 @@ GlobalParallelApplyLedgerState::
 
 #ifdef BUILD_TESTS
         mSetupSeqCheckMs += setupLap();
-        mSetupSeqCommonValidMs += gSeqPreApplyCommonValidMs;
-        mSetupSeqProcessSigsMs += gSeqPreApplyProcessSigsMs;
-        mSetupSeqCheckValidMs += gSeqPreApplyCheckValidMs;
-        mSetupSeqWriteMs += gSeqPreApplyWriteMs;
 #endif
         readOnlyPreParallelApply(app, txBundles, overlay);
 #ifdef BUILD_TESTS
         mSetupReadOnlyMs += setupLap();
+        // NB: the workers are joined at this point. These accumulators sum
+        // CPU time across all the workers, so they can exceed the
+        // setup_read_only wall time.
+        mSetupSeqCommonValidMs += gSeqPreApplyCommonValidMs;
+        mSetupSeqProcessSigsMs += gSeqPreApplyProcessSigsMs;
+        mSetupSeqCheckValidMs += gSeqPreApplyCheckValidMs;
 #endif
         commitBufferedPreParallelApplyWrites(app, ltx, txBundles);
 #ifdef BUILD_TESTS
         mSetupCommitWritesMs += setupLap();
+        mSetupSeqWriteMs += gSeqPreApplyWriteMs;
 #endif
         collectModifiedClassicEntries(ltx, stages);
         return;

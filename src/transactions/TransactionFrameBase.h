@@ -15,6 +15,7 @@
 #include "util/TxResource.h"
 #include "util/UnorderedSet.h"
 #include "util/types.h"
+#include <atomic>
 #include <optional>
 
 #include "ledger/SorobanMetrics.h"
@@ -396,10 +397,12 @@ class TransactionFrameBase
 // Diagnostic per-thread accumulators (ms) breaking down the sequential soroban
 // preParallelApply work, summed across preParallelApply calls on the calling
 // thread. Reset and read by the parallel-apply setup to split setup_seq_check.
-extern thread_local double gSeqPreApplyCommonValidMs;
-extern thread_local double gSeqPreApplyProcessSigsMs;
-extern thread_local double gSeqPreApplyCheckValidMs;
-extern thread_local double gSeqPreApplyWriteMs;
+// Cross-thread CPU-time accumulators for the pre-apply sub-phases; see the
+// definitions in TransactionFrame.cpp.
+extern std::atomic<double> gSeqPreApplyCommonValidMs;
+extern std::atomic<double> gSeqPreApplyProcessSigsMs;
+extern std::atomic<double> gSeqPreApplyCheckValidMs;
+extern std::atomic<double> gSeqPreApplyWriteMs;
 #endif
 }
 

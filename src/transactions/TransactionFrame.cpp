@@ -59,10 +59,15 @@
 namespace stellar
 {
 #ifdef BUILD_TESTS
-thread_local double gSeqPreApplyCommonValidMs = 0;
-thread_local double gSeqPreApplyProcessSigsMs = 0;
-thread_local double gSeqPreApplyCheckValidMs = 0;
-thread_local double gSeqPreApplyWriteMs = 0;
+// NB: these are atomics (not thread_local) because the pre-apply work that
+// updates the first three runs on the parallel apply worker threads; the
+// aggregation site in ParallelApplyUtils.cpp reads them from the main thread
+// after the workers are joined. As cross-thread accumulators, they measure
+// CPU time summed over all the workers (which can exceed phase wall time).
+std::atomic<double> gSeqPreApplyCommonValidMs{0};
+std::atomic<double> gSeqPreApplyProcessSigsMs{0};
+std::atomic<double> gSeqPreApplyCheckValidMs{0};
+std::atomic<double> gSeqPreApplyWriteMs{0};
 #endif
 namespace
 {
