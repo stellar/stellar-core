@@ -191,6 +191,14 @@ class SCPDriver
     virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber,
                                                      bool isNomination) = 0;
 
+#ifdef BUILD_TESTS
+    virtual std::chrono::milliseconds
+    getNominationEmitDelayForTesting() const
+    {
+        return std::chrono::milliseconds::zero();
+    }
+#endif
+
     // returns the weight of the node within the qset normalized between
     // 0-UINT64_MAX. If `nodeID` is the local node, then set `isLocalNode` to
     // `true`.
