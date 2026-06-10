@@ -49,7 +49,11 @@ namespace stellar
 // in parallel. Each shard has its own mutex and cache partition.
 
 constexpr size_t VERIFY_SIG_CACHE_SIZE = 250'000;
-constexpr size_t NUM_VERIFY_CACHE_SHARDS = 16;
+// NB: sized so that shard-lock collisions stay rare even with all the
+// parallel apply workers checking (cached) signatures at once: with N
+// uniformly-hashed shards and T threads, the probability that a given
+// lookup contends is roughly (T - 1) / N.
+constexpr size_t NUM_VERIFY_CACHE_SHARDS = 128;
 constexpr size_t VERIFY_SIG_CACHE_SHARD_SIZE =
     VERIFY_SIG_CACHE_SIZE / NUM_VERIFY_CACHE_SHARDS;
 
@@ -57,6 +61,12 @@ struct VerifySigCacheShard
 {
     std::mutex mMutex;
     RandomEvictionCache<Hash, bool> mCache;
+    // Hit/miss counts are kept per shard (updated under the shard mutex
+    // that the caller already holds) rather than in process-global atomics:
+    // a single global counter is a cache line that every verifying thread
+    // bounces on every lookup.
+    uint64_t mHits{0};
+    uint64_t mMisses{0};
     VerifySigCacheShard() : mCache(VERIFY_SIG_CACHE_SHARD_SIZE)
     {
     }
@@ -64,8 +74,6 @@ struct VerifySigCacheShard
 
 static std::array<VerifySigCacheShard, NUM_VERIFY_CACHE_SHARDS>
     gVerifySigCacheShards;
-static std::atomic<uint64_t> gVerifyCacheHit{0};
-static std::atomic<uint64_t> gVerifyCacheMiss{0};
 
 // Global flag to use Rust ed25519-dalek for signature verification
 static std::atomic<bool> gUseRustDalekVerify{false};
@@ -368,8 +376,16 @@ PubKeyUtils::seedVerifySigCache(unsigned int seed)
 void
 PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
-    hits = gVerifyCacheHit.exchange(0, std::memory_order_relaxed);
-    misses = gVerifyCacheMiss.exchange(0, std::memory_order_relaxed);
+    hits = 0;
+    misses = 0;
+    for (auto& shard : gVerifySigCacheShards)
+    {
+        std::lock_guard<std::mutex> guard(shard.mMutex);
+        hits += shard.mHits;
+        misses += shard.mMisses;
+        shard.mHits = 0;
+        shard.mMisses = 0;
+    }
 }
 
 std::string
@@ -487,7 +503,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         std::lock_guard<std::mutex> guard(shard.mMutex);
         if (auto* cached = shard.mCache.maybeGet(cacheKey))
         {
-            gVerifyCacheHit.fetch_add(1, std::memory_order_relaxed);
+            ++shard.mHits;
             ZoneText("hit", 3);
             return {*cached, VerifySigCacheLookupResult::HIT};
         }
@@ -513,7 +529,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
 
     {
         std::lock_guard<std::mutex> guard(shard.mMutex);
-        gVerifyCacheMiss.fetch_add(1, std::memory_order_relaxed);
+        ++shard.mMisses;
         shard.mCache.put(cacheKey, ok);
     }
     return {ok, VerifySigCacheLookupResult::MISS};
