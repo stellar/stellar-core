@@ -136,10 +136,22 @@ FeeBumpTransactionFrame::preParallelApplyWrite(
 {
     try
     {
-        LedgerTxn ltxTx(ltx);
-        removeOneTimeSignerKeyFromFeeSource(ltxTx);
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
+        if (meta.isEnabled())
+        {
+            // Meta needs the fee-source changes isolated in their own nested
+            // LedgerTxn so they can be recorded as changesBefore.
+            LedgerTxn ltxTx(ltx);
+            removeOneTimeSignerKeyFromFeeSource(ltxTx);
+            meta.pushTxChangesBefore(ltxTx);
+            ltxTx.commit();
+        }
+        else
+        {
+            // With meta disabled, skip the per-tx nested-LedgerTxn
+            // construct/commit cycle (see
+            // TransactionFrame::preParallelApplyWrite).
+            removeOneTimeSignerKeyFromFeeSource(ltx);
+        }
 
         mInnerTx->preParallelApplyWrite(app, ltx, meta, info);
     }

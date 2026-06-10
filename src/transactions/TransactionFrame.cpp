@@ -2375,17 +2375,37 @@ TransactionFrame::preParallelApplyWrite(AppConnector& app,
 #endif
     try
     {
-        LedgerTxn ltxTx(ltx);
-        if (info.mUpdateSeqNum)
+        if (meta.isEnabled())
         {
-            processSeqNum(ltxTx);
+            // Meta needs this tx's changes isolated in their own nested
+            // LedgerTxn so they can be recorded as this tx's changesBefore.
+            LedgerTxn ltxTx(ltx);
+            if (info.mUpdateSeqNum)
+            {
+                processSeqNum(ltxTx);
+            }
+            if (info.mRemoveOneTimeSigners)
+            {
+                removeOneTimeSignerFromAllSourceAccounts(ltxTx);
+            }
+            meta.pushTxChangesBefore(ltxTx);
+            ltxTx.commit();
         }
-        if (info.mRemoveOneTimeSigners)
+        else
         {
-            removeOneTimeSignerFromAllSourceAccounts(ltxTx);
+            // With meta disabled there is nothing to record per tx, so write
+            // directly into the outer ltx: this runs sequentially for every
+            // tx in the ledger, and the per-tx nested-LedgerTxn
+            // construct/commit cycle dominates the phase.
+            if (info.mUpdateSeqNum)
+            {
+                processSeqNum(ltx);
+            }
+            if (info.mRemoveOneTimeSigners)
+            {
+                removeOneTimeSignerFromAllSourceAccounts(ltx);
+            }
         }
-        meta.pushTxChangesBefore(ltxTx);
-        ltxTx.commit();
 
         if (info.mUpdateSorobanMetrics)
         {

@@ -128,6 +128,15 @@ class TransactionMetaBuilder
     // Returns the diagnostic event buffer for the transaction.
     DiagnosticEventManager& getDiagnosticEventManager();
 
+    // Returns whether this builder records any meta at all. When disabled,
+    // all the push/set methods above are no-ops, which lets callers skip
+    // work that exists only to feed them.
+    bool
+    isEnabled() const
+    {
+        return mEnabled;
+    }
+
     // Moves the finalized transaction meta XDR out of the builder thus
     // invalidating it.
     // `success` indicates whether the transaction was successful, which
