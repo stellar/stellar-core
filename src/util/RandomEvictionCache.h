@@ -68,22 +68,6 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
     stellar_default_random_engine mRandEngine;
 
-  public:
-    // `reserveHint`, when provided, overrides the number of entries to
-    // pre-reserve space for (which otherwise defaults to maxSize). This is
-    // useful when the cache is expected to stay well below maxSize, e.g.
-    // when it is one shard of a sharded cache whose capacity is enforced
-    // externally across all the shards.
-    explicit RandomEvictionCache(size_t maxSize,
-                                 std::optional<size_t> reserveHint =
-                                     std::nullopt)
-        : mMaxSize(maxSize), mRandEngine(randomEvictionCacheSeed)
-    {
-        auto reserveSize = reserveHint.value_or(maxSize) + 1;
-        mValueMap.reserve(reserveSize);
-        mValuePtrs.reserve(reserveSize);
-    }
-
     // Randomly pick two elements and evict the less-recently-used one.
     void
     evictOne()
@@ -104,6 +88,14 @@ class RandomEvictionCache : public NonMovableOrCopyable
         std::swap(victim, mValuePtrs.back());
         mValuePtrs.pop_back();
         ++mCounters.mEvicts;
+    }
+
+  public:
+    explicit RandomEvictionCache(size_t maxSize)
+        : mMaxSize(maxSize), mRandEngine(randomEvictionCacheSeed)
+    {
+        mValueMap.reserve(maxSize + 1);
+        mValuePtrs.reserve(maxSize + 1);
     }
 
     void
@@ -132,9 +124,8 @@ class RandomEvictionCache : public NonMovableOrCopyable
 
     // `put` does not offer exception safety. If it throws an exception,
     // cache may be in an inconsistent state. It is, therefore,
-    // client's responsibility to handle failures correctly. Returns true if
-    // a new entry was inserted, false if an existing entry was updated.
-    bool
+    // client's responsibility to handle failures correctly.
+    void
     put(K const& k, V const& v)
     {
         ++mGeneration;
@@ -162,7 +153,6 @@ class RandomEvictionCache : public NonMovableOrCopyable
             existing = newValue;
             ++mCounters.mUpdates;
         }
-        return pair.second;
     }
 
     // `exists` offers strong exception safety guarantee.
