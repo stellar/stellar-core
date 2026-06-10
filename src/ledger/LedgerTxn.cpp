@@ -24,6 +24,7 @@
 #include <soci.h>
 
 #include <algorithm>
+#include <future>
 #include <stdexcept>
 
 namespace stellar
@@ -1693,6 +1694,43 @@ LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
     getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
 }
 
+namespace
+{
+// Copies the pointed-to values into a new vector, fanning the (potentially
+// large XDR) copies out to parallel threads for large inputs.
+template <typename T>
+std::vector<T>
+copyFromPtrsParallel(std::vector<T const*> const& ptrs)
+{
+    std::vector<T> res(ptrs.size());
+    auto copyRange = [&ptrs, &res](size_t b, size_t e) {
+        for (size_t i = b; i < e; ++i)
+        {
+            res[i] = *ptrs[i];
+        }
+    };
+    size_t n = ptrs.size();
+    constexpr size_t PARALLEL_COPY_THRESHOLD = 4096;
+    if (n >= PARALLEL_COPY_THRESHOLD)
+    {
+        size_t q = n / 4;
+        auto f1 = std::async(std::launch::async, [&] { copyRange(0, q); });
+        auto f2 = std::async(std::launch::async, [&] { copyRange(q, 2 * q); });
+        auto f3 =
+            std::async(std::launch::async, [&] { copyRange(2 * q, 3 * q); });
+        copyRange(3 * q, n);
+        f1.get();
+        f2.get();
+        f3.get();
+    }
+    else
+    {
+        copyRange(0, n);
+    }
+    return res;
+}
+}
+
 void
 LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
@@ -1702,10 +1740,15 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     abortIfWrongThread("getAllEntries");
     std::vector<LedgerEntry> resInit, resLive;
     std::vector<LedgerKey> resDead;
-    resInit.reserve(mEntry.size());
-    resLive.reserve(mEntry.size());
-    resDead.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
+        // Phase 1: walk the map once, classifying pointers to the entries
+        // (cheap). Phase 2 below copies the actual XDR payloads, in parallel
+        // for large ledgers.
+        std::vector<LedgerEntry const*> initPtrs, livePtrs;
+        std::vector<LedgerKey const*> deadPtrs;
+        initPtrs.reserve(entries.size());
+        livePtrs.reserve(entries.size());
+        deadPtrs.reserve(entries.size());
         for (auto const& kv : entries)
         {
             auto const& key = kv.first;
@@ -1720,18 +1763,21 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
             {
                 if (entry.isInit())
                 {
-                    resInit.emplace_back(entry->ledgerEntry());
+                    initPtrs.push_back(&entry->ledgerEntry());
                 }
                 else
                 {
-                    resLive.emplace_back(entry->ledgerEntry());
+                    livePtrs.push_back(&entry->ledgerEntry());
                 }
             }
             else
             {
-                resDead.emplace_back(key.ledgerKey());
+                deadPtrs.push_back(&key.ledgerKey());
             }
         }
+        resInit = copyFromPtrsParallel(initPtrs);
+        resLive = copyFromPtrsParallel(livePtrs);
+        resDead = copyFromPtrsParallel(deadPtrs);
     });
     initEntries.swap(resInit);
     liveEntries.swap(resLive);
