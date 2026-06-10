@@ -18,45 +18,49 @@ namespace stellar
 namespace
 {
 // Helper function to process a single bucket entry for InMemoryIndex
-// construction
+// construction. Takes ownership of the entry pointer (which may alias a
+// backing vector).
 void
-processEntry(BucketEntry const& be, InMemoryBucketState& inMemoryState,
+processEntry(IndexPtrT ptr, InMemoryBucketState& inMemoryState,
              AssetPoolIDMap& assetPoolIDMap, BucketEntryCounters& counters,
              std::streamoff& lastOffset,
              std::map<LedgerEntryType, std::streamoff>& typeStartOffsets,
              std::map<LedgerEntryType, std::streamoff>& typeEndOffsets,
              std::optional<LedgerEntryType>& lastTypeSeen)
 {
+    auto const& be = *ptr;
     counters.template count<LiveBucket>(be);
 
+    LedgerEntryType lty = be.type() == DEADENTRY
+                              ? be.deadEntry().type()
+                              : be.liveEntry().data.type();
+
     // Populate assetPoolIDMap
-    LedgerKey lk = getBucketLedgerKey(be);
-    if (be.type() == INITENTRY)
+    if (be.type() == INITENTRY && lty == LIQUIDITY_POOL)
     {
-        if (lk.type() == LIQUIDITY_POOL)
-        {
-            auto const& poolParams = be.liveEntry()
-                                         .data.liquidityPool()
-                                         .body.constantProduct()
-                                         .params;
-            assetPoolIDMap[poolParams.assetA].emplace_back(
-                lk.liquidityPool().liquidityPoolID);
-            assetPoolIDMap[poolParams.assetB].emplace_back(
-                lk.liquidityPool().liquidityPoolID);
-        }
+        auto const& lp = be.liveEntry().data.liquidityPool();
+        auto const& poolParams = lp.body.constantProduct().params;
+        assetPoolIDMap[poolParams.assetA].emplace_back(lp.liquidityPoolID);
+        assetPoolIDMap[poolParams.assetB].emplace_back(lp.liquidityPoolID);
     }
 
-    inMemoryState.insert(be);
-    updateTypeBoundaries(lk.type(), lastOffset, typeStartOffsets,
-                         typeEndOffsets, lastTypeSeen);
+    inMemoryState.insert(std::move(ptr));
+    updateTypeBoundaries(lty, lastOffset, typeStartOffsets, typeEndOffsets,
+                         lastTypeSeen);
 }
 }
 
 void
-InMemoryBucketState::insert(BucketEntry const& be)
+InMemoryBucketState::reserve(size_t n)
 {
-    auto [_, inserted] = mEntries.insert(
-        InternalInMemoryBucketEntry(std::make_shared<BucketEntry const>(be)));
+    mEntries.reserve(n);
+}
+
+void
+InMemoryBucketState::insert(IndexPtrT entry)
+{
+    auto [_, inserted] =
+        mEntries.insert(InternalInMemoryBucketEntry(std::move(entry)));
     releaseAssertOrThrow(inserted);
 }
 
@@ -75,9 +79,10 @@ InMemoryBucketState::scan(IterT start, LedgerKey const& searchKey) const
     return {IndexReturnT(), mEntries.begin()};
 }
 
-InMemoryIndex::InMemoryIndex(BucketManager& bm,
-                             std::vector<BucketEntry> const& inMemoryState,
-                             BucketMetadata const& metadata)
+InMemoryIndex::InMemoryIndex(
+    BucketManager& bm,
+    std::shared_ptr<std::vector<BucketEntry> const> const& inMemoryState,
+    BucketMetadata const& metadata)
 {
     ZoneScoped;
 
@@ -102,12 +107,16 @@ InMemoryIndex::InMemoryIndex(BucketManager& bm,
     std::map<LedgerEntryType, std::streamoff> typeEndOffsets;
     std::optional<LedgerEntryType> lastTypeSeen = std::nullopt;
 
-    for (auto const& be : inMemoryState)
+    mInMemoryState.reserve(inMemoryState->size());
+    for (auto const& be : *inMemoryState)
     {
         releaseAssertOrThrow(be.type() != METAENTRY);
 
-        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters, lastOffset,
-                     typeStartOffsets, typeEndOffsets, lastTypeSeen);
+        // Alias the entry in the backing vector instead of copying it; the
+        // aliased pointer shares ownership of the whole vector.
+        processEntry(IndexPtrT(inMemoryState, &be), mInMemoryState,
+                     mAssetPoolIDMap, mCounters, lastOffset, typeStartOffsets,
+                     typeEndOffsets, lastTypeSeen);
 
         lastOffset += xdr::xdr_size(be) + xdrOverheadBetweenEntries;
     }
@@ -148,8 +157,9 @@ InMemoryIndex::InMemoryIndex(BucketManager const& bm,
             continue;
         }
 
-        processEntry(be, mInMemoryState, mAssetPoolIDMap, mCounters, lastOffset,
-                     typeStartOffsets, typeEndOffsets, lastTypeSeen);
+        processEntry(std::make_shared<BucketEntry const>(be), mInMemoryState,
+                     mAssetPoolIDMap, mCounters, lastOffset, typeStartOffsets,
+                     typeEndOffsets, lastTypeSeen);
         lastOffset = in.pos();
     }
 

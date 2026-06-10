@@ -52,10 +52,17 @@ template <typename BucketT> class BucketOutputIterator
 
     void put(typename BucketT::EntryT const& e);
 
+    // Faster variant of put() for callers that guarantee that entries are
+    // put in strictly increasing identity order with no duplicate identities
+    // (e.g. the output of a bucket merge). Skips the dedup buffering (and its
+    // per-entry deep copy) that put() performs. Requires tombstone entries to
+    // be kept. Must not be mixed with put() calls for non-METAENTRY entries.
+    void putPresorted(typename BucketT::EntryT const& e);
+
     std::shared_ptr<BucketT> getBucket(
         BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
-        std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState =
-            nullptr,
+        std::shared_ptr<std::vector<typename BucketT::EntryT> const>
+            inMemoryState = nullptr,
         std::shared_ptr<typename BucketT::IndexT const> preBuiltIndex =
             nullptr);
 };

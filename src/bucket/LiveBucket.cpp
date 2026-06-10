@@ -419,57 +419,109 @@ LiveBucket::convertToBucketEntry(bool useInit,
 
     // Sort using the same LedgerEntryIdCmp logic but through pointers.
     LedgerEntryIdCmp idCmp;
-    std::sort(refs.begin(), refs.end(),
-              [&idCmp](EntryRef const& a, EntryRef const& b) {
-                  // METAENTRY sorts below all others; not expected here but
-                  // handled for safety.
-                  if (a.type == METAENTRY || b.type == METAENTRY)
-                  {
-                      return a.type < b.type;
-                  }
-
-                  // Compare by ledger-entry identity, same as
-                  // BucketEntryIdCmp<LiveBucket>::compareLive but using
-                  // pointers into the source vectors.
-                  bool aIsLive = (a.type == LIVEENTRY || a.type == INITENTRY);
-                  bool bIsLive = (b.type == LIVEENTRY || b.type == INITENTRY);
-
-                  if (aIsLive && bIsLive)
-                  {
-                      return idCmp(a.livePtr->data, b.livePtr->data);
-                  }
-                  else if (aIsLive && !bIsLive)
-                  {
-                      return idCmp(a.livePtr->data, *b.deadPtr);
-                  }
-                  else if (!aIsLive && bIsLive)
-                  {
-                      return idCmp(*a.deadPtr, b.livePtr->data);
-                  }
-                  else
-                  {
-                      return idCmp(*a.deadPtr, *b.deadPtr);
-                  }
-              });
-
-    // Materialise sorted BucketEntry vector in one pass.
-    std::vector<BucketEntry> bucket;
-    bucket.reserve(totalSize);
-
-    for (auto const& r : refs)
-    {
-        bucket.emplace_back();
-        auto& ce = bucket.back();
-        if (r.type == DEADENTRY)
+    auto refCmp = [&idCmp](EntryRef const& a, EntryRef const& b) {
+        // METAENTRY sorts below all others; not expected here but
+        // handled for safety.
+        if (a.type == METAENTRY || b.type == METAENTRY)
         {
-            ce.type(DEADENTRY);
-            ce.deadEntry() = *r.deadPtr;
+            return a.type < b.type;
+        }
+
+        // Compare by ledger-entry identity, same as
+        // BucketEntryIdCmp<LiveBucket>::compareLive but using
+        // pointers into the source vectors.
+        bool aIsLive = (a.type == LIVEENTRY || a.type == INITENTRY);
+        bool bIsLive = (b.type == LIVEENTRY || b.type == INITENTRY);
+
+        if (aIsLive && bIsLive)
+        {
+            return idCmp(a.livePtr->data, b.livePtr->data);
+        }
+        else if (aIsLive && !bIsLive)
+        {
+            return idCmp(a.livePtr->data, *b.deadPtr);
+        }
+        else if (!aIsLive && bIsLive)
+        {
+            return idCmp(*a.deadPtr, b.livePtr->data);
         }
         else
         {
-            ce.type(r.type);
-            ce.liveEntry() = *r.livePtr;
+            return idCmp(*a.deadPtr, *b.deadPtr);
         }
+    };
+
+    // For large batches (the ledger-close hot path), sort 4 chunks on
+    // parallel threads and merge; entry identities are unique, so the
+    // (unstable) parallel sort produces the same total order as a single
+    // std::sort.
+    constexpr size_t PARALLEL_SORT_THRESHOLD = 8192;
+    if (totalSize >= PARALLEL_SORT_THRESHOLD)
+    {
+        auto b = refs.begin();
+        auto q1 = b + totalSize / 4;
+        auto q2 = b + totalSize / 2;
+        auto q3 = b + (3 * totalSize) / 4;
+        auto e = refs.end();
+        auto f1 = std::async(std::launch::async,
+                             [&] { std::sort(b, q1, refCmp); });
+        auto f2 = std::async(std::launch::async,
+                             [&] { std::sort(q1, q2, refCmp); });
+        auto f3 = std::async(std::launch::async,
+                             [&] { std::sort(q2, q3, refCmp); });
+        std::sort(q3, e, refCmp);
+        f1.get();
+        f2.get();
+        f3.get();
+        auto fm = std::async(std::launch::async,
+                             [&] { std::inplace_merge(b, q1, q2, refCmp); });
+        std::inplace_merge(q2, q3, e, refCmp);
+        fm.get();
+        std::inplace_merge(b, q2, e, refCmp);
+    }
+    else
+    {
+        std::sort(refs.begin(), refs.end(), refCmp);
+    }
+
+    // Materialise sorted BucketEntry vector, copying the (large) XDR
+    // payloads on parallel threads for large batches.
+    std::vector<BucketEntry> bucket(totalSize);
+    auto materializeRange = [&refs, &bucket](size_t begin, size_t end) {
+        for (size_t i = begin; i < end; ++i)
+        {
+            auto const& r = refs[i];
+            auto& ce = bucket[i];
+            if (r.type == DEADENTRY)
+            {
+                ce.type(DEADENTRY);
+                ce.deadEntry() = *r.deadPtr;
+            }
+            else
+            {
+                ce.type(r.type);
+                ce.liveEntry() = *r.livePtr;
+            }
+        }
+    };
+    if (totalSize >= PARALLEL_SORT_THRESHOLD)
+    {
+        size_t quarter = totalSize / 4;
+        auto m1 = std::async(std::launch::async,
+                             [&] { materializeRange(0, quarter); });
+        auto m2 = std::async(std::launch::async,
+                             [&] { materializeRange(quarter, 2 * quarter); });
+        auto m3 = std::async(std::launch::async, [&] {
+            materializeRange(2 * quarter, 3 * quarter);
+        });
+        materializeRange(3 * quarter, totalSize);
+        m1.get();
+        m2.get();
+        m3.get();
+    }
+    else
+    {
+        materializeRange(0, totalSize);
     }
 
 #ifndef NDEBUG
@@ -558,7 +610,7 @@ LiveBucket::freshInMemoryOnly(BucketManager& bucketManager,
     // expensive BucketOutputIterator construction and just directly populate
     // the in-memory state only.
     return std::make_shared<LiveBucket>(
-        std::make_unique<std::vector<BucketEntry>>(std::move(entries)));
+        std::make_shared<std::vector<BucketEntry> const>(std::move(entries)));
 }
 
 void
@@ -576,9 +628,10 @@ LiveBucket::checkProtocolLegality(BucketEntry const& entry,
     }
 }
 
-LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
-                       std::shared_ptr<LiveBucket::IndexT const>&& index,
-                       std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+LiveBucket::LiveBucket(
+    std::string const& filename, Hash const& hash,
+    std::shared_ptr<LiveBucket::IndexT const>&& index,
+    std::shared_ptr<std::vector<BucketEntry> const> inMemoryState)
     : BucketBase(filename, hash, std::move(index))
     , mEntries(std::move(inMemoryState))
 {
@@ -587,10 +640,10 @@ LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
 LiveBucket::LiveBucket() : BucketBase()
 {
     // Empty bucket is trivially stored in memory
-    mEntries = std::make_unique<std::vector<BucketEntry>>();
+    mEntries = std::make_shared<std::vector<BucketEntry> const>();
 }
 
-LiveBucket::LiveBucket(std::unique_ptr<std::vector<BucketEntry>> entries)
+LiveBucket::LiveBucket(std::shared_ptr<std::vector<BucketEntry> const> entries)
     : BucketBase(), mEntries(std::move(entries))
 {
 }
@@ -625,7 +678,11 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
     auto const& oldEntries = oldBucket->getInMemoryEntries();
     auto const& newEntries = newBucket->getInMemoryEntries();
 
-    std::vector<BucketEntry> mergedEntries;
+    // Shared so that the index can alias entries in this vector (and so the
+    // resulting bucket can share it) instead of copying. It is filled
+    // completely before the index aliases it and is immutable afterwards.
+    auto mergedEntriesPtr = std::make_shared<std::vector<BucketEntry>>();
+    auto& mergedEntries = *mergedEntriesPtr;
     mergedEntries.reserve(oldEntries.size() + newEntries.size());
 
     // Prepare metadata for the merged bucket
@@ -662,11 +719,16 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
-    // Start index construction on worker thread — reads mergedEntries (const),
+    // The merged entries are complete and immutable from this point on; both
+    // the index build and the put loop below only read them.
+    std::shared_ptr<std::vector<BucketEntry> const> mergedEntriesConst =
+        std::move(mergedEntriesPtr);
+
+    // Start index construction on worker thread — reads mergedEntriesConst,
     // completely independent of the put loop's serialize/hash/write work.
     auto indexFuture = std::async(std::launch::async, [&]() {
-        return std::make_shared<LiveBucketIndex>(bucketManager, mergedEntries,
-                                                 meta);
+        return std::make_shared<LiveBucketIndex>(bucketManager,
+                                                 mergedEntriesConst, meta);
     });
 
     // Write merge output to a bucket and save to disk
@@ -676,9 +738,9 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
 
     {
         ZoneNamedN(zonePut, "mergeInMemory put loop", true);
-        for (auto const& e : mergedEntries)
+        for (auto const& e : *mergedEntriesConst)
         {
-            out.put(e);
+            out.putPresorted(e);
         }
     }
 
@@ -691,10 +753,8 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
 
     // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
-    return out.getBucket(
-        bucketManager, nullptr,
-        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)),
-        std::move(preBuiltIndex));
+    return out.getBucket(bucketManager, nullptr, mergedEntriesConst,
+                         std::move(preBuiltIndex));
 }
 
 BucketEntryCounters const&

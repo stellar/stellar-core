@@ -108,9 +108,12 @@ class LiveBucketIndex : public NonMovableOrCopyable
     LiveBucketIndex(BucketManager const& bm, Archive& ar,
                     std::streamoff pageSize);
 
-    // Constructor for creating new index from in-memory state
+    // Constructor for creating new index from in-memory state. The index
+    // aliases the entries in the backing vector (sharing ownership of the
+    // vector), so the vector must not be mutated after this call.
     LiveBucketIndex(BucketManager& bm,
-                    std::vector<BucketEntry> const& inMemoryState,
+                    std::shared_ptr<std::vector<BucketEntry> const> const&
+                        inMemoryState,
                     BucketMetadata const& metadata);
 
     // Initializes the random eviction cache if it has not already been

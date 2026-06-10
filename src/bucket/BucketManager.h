@@ -161,7 +161,7 @@ class BucketManager : NonMovableOrCopyable
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::shared_ptr<typename BucketT::IndexT const> index,
         BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
-        std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+        std::shared_ptr<std::vector<BucketEntry> const> inMemoryState)
         REQUIRES(mBucketMutex);
 
     template <class BucketT>
@@ -261,7 +261,8 @@ class BucketManager : NonMovableOrCopyable
     std::shared_ptr<BucketT> adoptFileAsBucket(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::shared_ptr<typename BucketT::IndexT const> index,
-        std::unique_ptr<std::vector<BucketEntry>> inMemoryState = nullptr);
+        std::shared_ptr<std::vector<BucketEntry> const> inMemoryState =
+            nullptr);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

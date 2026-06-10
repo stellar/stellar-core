@@ -132,73 +132,108 @@ template <> class hash<stellar::SCAddress>
         return res;
     }
 };
+}
 
+namespace stellar
+{
+// Hashes the identity (i.e. the LedgerKey) of a ledger entry. T may be either
+// a LedgerKey or a LedgerEntry::_data_t (the same duality LedgerEntryIdCmp
+// supports), which allows hashing an entry's key in place without
+// materializing a LedgerKey copy. For any entry `le`,
+// hashLedgerIdentity(le.data) == std::hash<LedgerKey>()(LedgerEntryKey(le)),
+// because std::hash<LedgerKey> is implemented in terms of this function.
+template <typename T>
+size_t
+hashLedgerIdentity(T const& lk)
+{
+    size_t res = lk.type();
+    switch (lk.type())
+    {
+    case stellar::ACCOUNT:
+        stellar::hashMix(res, std::hash<stellar::uint256>()(
+                                  lk.account().accountID.ed25519()));
+        break;
+    case stellar::TRUSTLINE:
+    {
+        auto& tl = lk.trustLine();
+        stellar::hashMix(res,
+                         std::hash<stellar::uint256>()(tl.accountID.ed25519()));
+        stellar::hashMix(res, std::hash<stellar::TrustLineAsset>()(tl.asset));
+        break;
+    }
+    case stellar::DATA:
+        stellar::hashMix(
+            res, std::hash<stellar::uint256>()(lk.data().accountID.ed25519()));
+        stellar::hashMix(
+            res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                     lk.data().dataName.data(), lk.data().dataName.size())));
+        break;
+    case stellar::OFFER:
+        stellar::hashMix(
+            res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                     &lk.offer().offerID, sizeof(lk.offer().offerID))));
+        break;
+    case stellar::CLAIMABLE_BALANCE:
+        stellar::hashMix(res, std::hash<stellar::uint256>()(
+                                  lk.claimableBalance().balanceID.v0()));
+        break;
+    case stellar::LIQUIDITY_POOL:
+        stellar::hashMix(res, std::hash<stellar::uint256>()(
+                                  lk.liquidityPool().liquidityPoolID));
+        break;
+    case stellar::CONTRACT_DATA:
+        stellar::hashMix(
+            res, std::hash<stellar::SCAddress>()(lk.contractData().contract));
+        stellar::hashMix(
+            res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
+        stellar::hashMix(res,
+                         std::hash<int32_t>()(lk.contractData().durability));
+        break;
+    case stellar::CONTRACT_CODE:
+        stellar::hashMix(res,
+                         std::hash<stellar::uint256>()(lk.contractCode().hash));
+        break;
+    case stellar::CONFIG_SETTING:
+    {
+        auto getConfigSettingId = [](auto const& v) -> int32_t {
+            using ConfigT = decltype(v);
+            if constexpr (std::is_same_v<ConfigT, stellar::LedgerKey const&>)
+            {
+                return v.configSetting().configSettingID;
+            }
+            else if constexpr (std::is_same_v<
+                                   ConfigT,
+                                   stellar::LedgerEntry::_data_t const&>)
+            {
+                return v.configSetting().configSettingID();
+            }
+            else
+            {
+                throw std::runtime_error("Unexpected entry type");
+            }
+        };
+        stellar::hashMix(res, std::hash<int32_t>()(getConfigSettingId(lk)));
+        break;
+    }
+    case stellar::TTL:
+        stellar::hashMix(res, std::hash<stellar::uint256>()(lk.ttl().keyHash));
+        break;
+    default:
+        abort();
+    }
+    return res;
+}
+}
+
+namespace std
+{
 template <> class hash<stellar::LedgerKey>
 {
   public:
     size_t
     operator()(stellar::LedgerKey const& lk) const
     {
-        size_t res = lk.type();
-        switch (lk.type())
-        {
-        case stellar::ACCOUNT:
-            stellar::hashMix(res, std::hash<stellar::uint256>()(
-                                      lk.account().accountID.ed25519()));
-            break;
-        case stellar::TRUSTLINE:
-        {
-            auto& tl = lk.trustLine();
-            stellar::hashMix(
-                res, std::hash<stellar::uint256>()(tl.accountID.ed25519()));
-            stellar::hashMix(res, hash<stellar::TrustLineAsset>()(tl.asset));
-            break;
-        }
-        case stellar::DATA:
-            stellar::hashMix(res, std::hash<stellar::uint256>()(
-                                      lk.data().accountID.ed25519()));
-            stellar::hashMix(
-                res,
-                stellar::shortHash::computeHash(stellar::ByteSlice(
-                    lk.data().dataName.data(), lk.data().dataName.size())));
-            break;
-        case stellar::OFFER:
-            stellar::hashMix(
-                res, stellar::shortHash::computeHash(stellar::ByteSlice(
-                         &lk.offer().offerID, sizeof(lk.offer().offerID))));
-            break;
-        case stellar::CLAIMABLE_BALANCE:
-            stellar::hashMix(res, std::hash<stellar::uint256>()(
-                                      lk.claimableBalance().balanceID.v0()));
-            break;
-        case stellar::LIQUIDITY_POOL:
-            stellar::hashMix(res, std::hash<stellar::uint256>()(
-                                      lk.liquidityPool().liquidityPoolID));
-            break;
-        case stellar::CONTRACT_DATA:
-            stellar::hashMix(res, std::hash<stellar::SCAddress>()(
-                                      lk.contractData().contract));
-            stellar::hashMix(
-                res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
-            stellar::hashMix(
-                res, std::hash<int32_t>()(lk.contractData().durability));
-            break;
-        case stellar::CONTRACT_CODE:
-            stellar::hashMix(
-                res, std::hash<stellar::uint256>()(lk.contractCode().hash));
-            break;
-        case stellar::CONFIG_SETTING:
-            stellar::hashMix(
-                res, std::hash<int32_t>()(lk.configSetting().configSettingID));
-            break;
-        case stellar::TTL:
-            stellar::hashMix(res,
-                             std::hash<stellar::uint256>()(lk.ttl().keyHash));
-            break;
-        default:
-            abort();
-        }
-        return res;
+        return stellar::hashLedgerIdentity(lk);
     }
 };
 

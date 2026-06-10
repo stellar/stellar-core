@@ -165,10 +165,42 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 }
 
 template <typename BucketT>
+void
+BucketOutputIterator<BucketT>::putPresorted(typename BucketT::EntryT const& e)
+{
+    // The dedup buffering in put() exists to allow same-identity entries to
+    // replace each other; presorted streams with unique identities don't need
+    // it, so we write entries through directly and avoid the per-entry deep
+    // copy into the buffer. Tombstone elision requires identity comparison
+    // against neighbors, so this fast path only supports keeping tombstones.
+    releaseAssert(mKeepTombstoneEntries);
+
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        LiveBucket::checkProtocolLegality(e, mMeta.ledgerVersion);
+    }
+
+    // Flush the buffered METAENTRY (put by the constructor), if any.
+    if (mBuf)
+    {
+        releaseAssert(!mCmp(e, *mBuf));
+        ++mMergeCounters.mOutputIteratorActualWrites;
+        mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
+        mObjectsPut++;
+        mBuf.reset();
+    }
+
+    ++mMergeCounters.mOutputIteratorBufferUpdates;
+    ++mMergeCounters.mOutputIteratorActualWrites;
+    mOut.writeOne(e, &mHasher, &mBytesPut);
+    mObjectsPut++;
+}
+
+template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(
     BucketManager& bucketManager, MergeKey* mergeKey,
-    std::unique_ptr<std::vector<typename BucketT::EntryT>> inMemoryState,
+    std::shared_ptr<std::vector<typename BucketT::EntryT> const> inMemoryState,
     std::shared_ptr<typename BucketT::IndexT const> preBuiltIndex)
 {
     ZoneScoped;
@@ -229,7 +261,7 @@ BucketOutputIterator<BucketT>::getBucket(
             if (inMemoryState)
             {
                 index = std::make_shared<LiveBucketIndex>(
-                    bucketManager, *inMemoryState, mMeta);
+                    bucketManager, inMemoryState, mMeta);
             }
         }
 

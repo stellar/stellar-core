@@ -6,6 +6,7 @@
 
 #include "bucket/BucketIndexUtils.h"
 #include "bucket/BucketUtils.h"
+#include "bucket/LedgerCmp.h"
 #include "xdr/Stellar-ledger-entries.h"
 
 #include "ledger/LedgerHashUtils.h"
@@ -18,117 +19,83 @@ class SHA256;
 
 // LedgerKey sizes usually dominate LedgerEntry size, so we don't want to
 // store a key-value map to be memory efficient. Instead, we store a set of
-// InternalInMemoryBucketEntry objects, which is a wrapper around either a
-// LedgerKey or cached BucketEntry. This allows us to use std::unordered_set to
-// efficiently store cache entries, but allows lookup by key only.
+// InternalInMemoryBucketEntry objects, which hold either a cached BucketEntry
+// (stored elements) or a pointer to a LedgerKey (transient query objects).
+// This allows us to use std::unordered_set to efficiently store cache
+// entries, but allows lookup by key only. The key hash is computed once at
+// construction and cached; hashing and equality are computed in place against
+// the key data embedded in the BucketEntry, without materializing LedgerKey
+// copies.
 // Note that C++20 allows heterogeneous lookup in unordered_set, so we can
 // simplify this class once we upgrade.
 class InternalInMemoryBucketEntry
 {
   private:
-    struct AbstractEntry
+    // Non-null for stored elements.
+    IndexPtrT mEntry;
+    // Non-null for query objects only. Query objects must not outlive the
+    // LedgerKey they reference: they are only intended to be constructed as
+    // temporary arguments to find().
+    LedgerKey const* mQueryKey{nullptr};
+    size_t mHash;
+
+    // Invoke f with this entry's identity key, which is either a LedgerKey
+    // or a LedgerEntry::_data_t (both supported by LedgerEntryIdCmp and
+    // hashLedgerIdentity).
+    template <typename F>
+    auto
+    visitKey(F&& f) const
     {
-        virtual ~AbstractEntry() = default;
-        virtual LedgerKey copyKey() const = 0;
-        virtual size_t hash() const = 0;
-        virtual IndexPtrT const& get() const = 0;
-
-        virtual bool
-        operator==(AbstractEntry const& other) const
+        if (mQueryKey)
         {
-            return copyKey() == other.copyKey();
+            return f(*mQueryKey);
         }
-    };
-
-    // "Value" entry type used for storing BucketEntry in cache
-    struct ValueEntry : public AbstractEntry
-    {
-      private:
-        IndexPtrT entry;
-
-      public:
-        ValueEntry(IndexPtrT entry) : entry(entry)
+        if (mEntry->type() == DEADENTRY)
         {
+            return f(mEntry->deadEntry());
         }
-
-        LedgerKey
-        copyKey() const override
-        {
-            return getBucketLedgerKey(*entry);
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<LedgerKey>{}(getBucketLedgerKey(*entry));
-        }
-
-        IndexPtrT const&
-        get() const override
-        {
-            return entry;
-        }
-    };
-
-    // "Key" entry type only used for querying the cache
-    struct QueryKey : public AbstractEntry
-    {
-      private:
-        LedgerKey ledgerKey;
-
-      public:
-        QueryKey(LedgerKey const& ledgerKey) : ledgerKey(ledgerKey)
-        {
-        }
-
-        LedgerKey
-        copyKey() const override
-        {
-            return ledgerKey;
-        }
-
-        size_t
-        hash() const override
-        {
-            return std::hash<LedgerKey>{}(ledgerKey);
-        }
-
-        IndexPtrT const&
-        get() const override
-        {
-            throw std::runtime_error("Called get() on QueryKey");
-        }
-    };
-
-    std::unique_ptr<AbstractEntry> impl;
+        return f(mEntry->liveEntry().data);
+    }
 
   public:
-    InternalInMemoryBucketEntry(IndexPtrT entry)
-        : impl(std::make_unique<ValueEntry>(entry))
+    explicit InternalInMemoryBucketEntry(IndexPtrT entry)
+        : mEntry(std::move(entry))
+        , mHash(mEntry->type() == DEADENTRY
+                    ? hashLedgerIdentity(mEntry->deadEntry())
+                    : hashLedgerIdentity(mEntry->liveEntry().data))
     {
     }
 
-    InternalInMemoryBucketEntry(LedgerKey const& ledgerKey)
-        : impl(std::make_unique<QueryKey>(ledgerKey))
+    explicit InternalInMemoryBucketEntry(LedgerKey const& ledgerKey)
+        : mQueryKey(&ledgerKey), mHash(hashLedgerIdentity(ledgerKey))
     {
     }
 
     size_t
     hash() const
     {
-        return impl->hash();
+        return mHash;
     }
 
     bool
     operator==(InternalInMemoryBucketEntry const& other) const
     {
-        return impl->operator==(*other.impl);
+        return visitKey([&](auto const& a) {
+            return other.visitKey([&](auto const& b) {
+                LedgerEntryIdCmp cmp;
+                return !cmp(a, b) && !cmp(b, a);
+            });
+        });
     }
 
     IndexPtrT const&
     get() const
     {
-        return impl->get();
+        if (!mEntry)
+        {
+            throw std::runtime_error("Called get() on query key");
+        }
+        return mEntry;
     }
 };
 
@@ -154,8 +121,12 @@ class InMemoryBucketState : public NonMovableOrCopyable
   public:
     using IterT = InMemorySet::const_iterator;
 
-    // Insert a LedgerEntry (INIT/LIVE) into the cache.
-    void insert(BucketEntry const& be);
+    // Reserve space for the expected number of entries.
+    void reserve(size_t n);
+
+    // Insert a BucketEntry into the cache. The pointer may alias a backing
+    // vector (shared ownership keeps the storage alive).
+    void insert(IndexPtrT entry);
 
     // Find a LedgerEntry. IterT::begin is always returned, and start is
     // ignored. This interface just helps maintain consistency with
@@ -198,8 +169,12 @@ class InMemoryIndex
     InMemoryIndex(BucketManager const& bm,
                   std::filesystem::path const& filename, SHA256* hasher);
 
+    // Builds the index from an in-memory bucket state. The index aliases the
+    // entries in the backing vector (sharing ownership of the vector), so the
+    // vector must not be mutated after this call.
     InMemoryIndex(BucketManager& bm,
-                  std::vector<BucketEntry> const& inMemoryState,
+                  std::shared_ptr<std::vector<BucketEntry> const> const&
+                      inMemoryState,
                   BucketMetadata const& metadata);
 
     IterT

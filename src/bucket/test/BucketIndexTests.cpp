@@ -1051,11 +1051,14 @@ TEST_CASE("in-memory index construction", "[bucket][bucketindex]")
             clock.getIOContext(), nullptr);
 
         // Convert entries to BucketEntry for in-memory index construction
-        auto bucketEntries = LiveBucket::convertToBucketEntry(
-            protocolVersionStartsFrom(
-                getAppLedgerVersion(app),
-                LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-            {}, entries, {});
+        auto bucketEntries =
+            std::make_shared<std::vector<BucketEntry> const>(
+                LiveBucket::convertToBucketEntry(
+                    protocolVersionStartsFrom(
+                        getAppLedgerVersion(app),
+                        LiveBucket::
+                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+                    {}, entries, {}));
 
         LiveBucketInputIterator iter(b);
         auto indexFromMemory = std::make_unique<LiveBucketIndex>(

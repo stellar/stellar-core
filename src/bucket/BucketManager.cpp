@@ -447,7 +447,7 @@ std::shared_ptr<LiveBucket>
 BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::shared_ptr<LiveBucket::IndexT const> index,
-    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+    std::shared_ptr<std::vector<BucketEntry> const> inMemoryState)
 {
     // Delay bucket adoption 100us to 2s to expose race conditions
     JITTER_INJECT_DELAY_CUSTOM(100, 100, 500'000);
@@ -462,7 +462,7 @@ std::shared_ptr<HotArchiveBucket>
 BucketManager::adoptFileAsBucket(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::shared_ptr<HotArchiveBucket::IndexT const> index,
-    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+    std::shared_ptr<std::vector<BucketEntry> const> inMemoryState)
 {
     // Delay bucket adoption 100us to 2s to expose race conditions
     JITTER_INJECT_DELAY_CUSTOM(100, 100, 2'000'000);
@@ -478,7 +478,7 @@ BucketManager::adoptFileAsBucketInternal(
     std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
     std::shared_ptr<typename BucketT::IndexT const> index,
     BucketMapT<BucketT>& bucketMap, FutureMapT<BucketT>& futureMap,
-    std::unique_ptr<std::vector<BucketEntry>> inMemoryState)
+    std::shared_ptr<std::vector<BucketEntry> const> inMemoryState)
 {
     BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
