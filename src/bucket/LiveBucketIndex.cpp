@@ -44,6 +44,8 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
                                  SHA256* hasher)
     : mCacheHitMeter(bm.getCacheHitMeter())
     , mCacheMissMeter(bm.getCacheMissMeter())
+    , mMarkCacheMeters(
+          !bm.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
@@ -76,6 +78,8 @@ LiveBucketIndex::LiveBucketIndex(BucketManager const& bm, Archive& ar,
     : mDiskIndex(std::make_unique<DiskIndex<LiveBucket>>(ar, bm, pageSize))
     , mCacheHitMeter(bm.getCacheHitMeter())
     , mCacheMissMeter(bm.getCacheMissMeter())
+    , mMarkCacheMeters(
+          !bm.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
 {
     // Only disk indexes are serialized
     releaseAssertOrThrow(pageSize != 0);
@@ -88,6 +92,8 @@ LiveBucketIndex::LiveBucketIndex(BucketManager& bm,
           std::make_unique<InMemoryIndex>(bm, inMemoryState, metadata))
     , mCacheHitMeter(bm.getCacheHitMeter())
     , mCacheMissMeter(bm.getCacheMissMeter())
+    , mMarkCacheMeters(
+          !bm.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
 {
 }
 
@@ -102,7 +108,7 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
     }
 
     // Cache is already initialized
-    if (SharedLockShared lock(mCacheMutex); mCache)
+    if (mCacheEnabled.load(std::memory_order_acquire))
     {
         return;
     }
@@ -123,11 +129,11 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
         return;
     }
 
-    SharedLockExclusive lock(mCacheMutex);
+    size_t accountsToCache = 0;
     if (totalBucketListAccountsSizeBytes < maxBucketListBytesToCache)
     {
         // We can cache the entire bucket
-        mCache = std::make_unique<CacheT>(accountsInThisBucket);
+        accountsToCache = accountsInThisBucket;
     }
     else
     {
@@ -155,11 +161,32 @@ LiveBucketIndex::maybeInitializeCache(size_t totalBucketListAccountsSizeBytes,
             static_cast<double>(accountBytesInThisBucket) /
             accountsInThisBucket;
 
-        auto accountsToCache = static_cast<size_t>(
-            bytesAvailableForBucketCache / averageAccountSize);
-
-        mCache = std::make_unique<CacheT>(accountsToCache);
+        accountsToCache = static_cast<size_t>(bytesAvailableForBucketCache /
+                                              averageAccountSize);
     }
+
+    MutexLocker initGuard(mCacheInitMutex);
+    if (mCacheEnabled.load(std::memory_order_relaxed))
+    {
+        // Lost an initialization race.
+        return;
+    }
+
+    // The entry capacity (accountsToCache) is enforced globally by
+    // maybeAddToCache, so each shard is given the full capacity (under which
+    // it never self-evicts) but only pre-reserves space for its expected
+    // share of the entries.
+    mCacheMaxEntries = accountsToCache;
+    auto const perShardReserve =
+        (accountsToCache + kNumCacheShards - 1) / kNumCacheShards;
+    mCacheShards = std::vector<CacheShard>(kNumCacheShards);
+    for (auto& shard : mCacheShards)
+    {
+        MutexLocker shardGuard(shard.mMutex);
+        shard.mCache =
+            std::make_unique<CacheT>(accountsToCache, perShardReserve);
+    }
+    mCacheEnabled.store(true, std::memory_order_release);
 }
 
 LiveBucketIndex::IterT
@@ -197,17 +224,32 @@ LiveBucketIndex::markBloomMiss() const
     mDiskIndex->markBloomMiss();
 }
 
+LiveBucketIndex::CacheShard&
+LiveBucketIndex::getCacheShard(LedgerKey const& k) const
+{
+    return mCacheShards[std::hash<LedgerKey>()(k) % kNumCacheShards];
+}
+
 std::shared_ptr<BucketEntry const>
 LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
 {
     if (shouldUseCache() && isCachedType(k))
     {
-        SharedLockExclusive lock(mCacheMutex);
-        auto cachePtr = mCache->maybeGet(k);
-        if (cachePtr)
+        std::shared_ptr<BucketEntry const> result{};
+        auto& shard = getCacheShard(k);
         {
+            MutexLocker lock(shard.mMutex);
+            auto cachePtr = shard.mCache->maybeGet(k);
+            if (cachePtr)
+            {
+                result = *cachePtr;
+            }
+        }
+        if (result && mMarkCacheMeters)
+        {
+            // NB: marked outside the shard lock; Meter::Mark takes the
+            // (process-wide shared) meter's own mutex.
             mCacheHitMeter.Mark();
-            return *cachePtr;
         }
 
         // In the case of a bloom filter false positive, we might have a cache
@@ -215,6 +257,7 @@ LiveBucketIndex::getCachedEntry(LedgerKey const& k) const
         // don't cache non-existent entries, so we don't meter misses here.
         // Instead, we track misses when we insert a new entry, since we always
         // insert a new entry into the cache after a miss.
+        return result;
     }
 
     return nullptr;
@@ -321,13 +364,7 @@ LiveBucketIndex::getBucketEntryCounters() const
 bool
 LiveBucketIndex::shouldUseCache() const
 {
-    if (mDiskIndex)
-    {
-        SharedLockShared lock(mCacheMutex);
-        return mCache != nullptr;
-    }
-
-    return false;
+    return mDiskIndex && mCacheEnabled.load(std::memory_order_acquire);
 }
 
 bool
@@ -351,10 +388,27 @@ LiveBucketIndex::maybeAddToCache(
 
         // If we are adding an entry to the cache, we must have missed it
         // earlier.
-        mCacheMissMeter.Mark();
+        if (mMarkCacheMeters)
+        {
+            mCacheMissMeter.Mark();
+        }
 
-        SharedLockExclusive lock(mCacheMutex);
-        mCache->put(k, entry);
+        auto& shard = getCacheShard(k);
+        MutexLocker lock(shard.mMutex);
+        if (shard.mCache->put(k, entry))
+        {
+            // Capacity is enforced globally (see the header): on insertion,
+            // evict from this shard if the total entry count exceeds the
+            // budget. Concurrent inserters may transiently overshoot by at
+            // most one entry each.
+            auto count =
+                mCacheEntryCount.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (count > mCacheMaxEntries)
+            {
+                shard.mCache->evictOne();
+                mCacheEntryCount.fetch_sub(1, std::memory_order_relaxed);
+            }
+        }
     }
 }
 
@@ -392,8 +446,7 @@ LiveBucketIndex::getMaxCacheSize() const
 {
     if (shouldUseCache())
     {
-        SharedLockShared lock(mCacheMutex);
-        return mCache->maxSize();
+        return mCacheMaxEntries;
     }
 
     return 0;
@@ -405,8 +458,7 @@ LiveBucketIndex::getCurrentCacheSize() const
 {
     if (shouldUseCache())
     {
-        SharedLockShared lock(mCacheMutex);
-        return mCache->size();
+        return mCacheEntryCount.load(std::memory_order_relaxed);
     }
 
     return 0;

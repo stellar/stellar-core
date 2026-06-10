@@ -15,8 +15,10 @@
 #include "util/ThreadAnnotations.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
+#include <atomic>
 #include <filesystem>
 #include <optional>
+#include <vector>
 
 #include <cereal/archives/binary.hpp>
 
@@ -63,13 +65,49 @@ class LiveBucketIndex : public NonMovableOrCopyable
     std::unique_ptr<InMemoryIndex const> mInMemoryIndex{};
 
     // The indexes themselves are thread safe, as they are immutable after
-    // construction. The cache is not, all accesses must first acquire this
-    // mutex.
-    mutable std::unique_ptr<CacheT> mCache GUARDED_BY(mCacheMutex){};
-    mutable ANNOTATED_SHARED_MUTEX(mCacheMutex);
+    // construction. The cache is sharded by key hash, with a mutex per
+    // shard: a single cache-wide mutex serializes all the concurrently
+    // running apply threads (each entry load takes it in exclusive mode),
+    // while uniformly-distributed keys across many shards make lock
+    // collisions rare. The cached values themselves are immutable (a
+    // bucket's contents never change), so sharding does not change any
+    // observable behavior except eviction being per-shard.
+    struct CacheShard
+    {
+        mutable ANNOTATED_MUTEX(mMutex);
+        std::unique_ptr<CacheT> mCache GUARDED_BY(mMutex);
+    };
+    static constexpr size_t kNumCacheShards = 64;
+
+    // The shard vector is created by maybeInitializeCache and published via
+    // the release-store to mCacheEnabled; it is never modified afterwards
+    // (only the per-shard caches are, under their shard's mutex), so readers
+    // that observe mCacheEnabled == true may index it freely.
+    mutable std::vector<CacheShard> mCacheShards;
+    mutable std::atomic<bool> mCacheEnabled{false};
+    // Serializes cache initialization only.
+    mutable ANNOTATED_MUTEX(mCacheInitMutex);
+
+    // The entry capacity is enforced globally rather than per shard (a
+    // per-shard capacity would cause spurious evictions on hash imbalance
+    // even when the whole bucket is meant to fit in the cache): inserts
+    // count entries via mCacheEntryCount, and the inserting thread evicts
+    // from its own shard once the total exceeds mCacheMaxEntries. Since
+    // inserts are uniformly distributed across shards, so are the evictions.
+    // mCacheMaxEntries is written once before the cache is published via
+    // mCacheEnabled and read-only afterwards.
+    mutable size_t mCacheMaxEntries{0};
+    mutable std::atomic<size_t> mCacheEntryCount{0};
 
     medida::Meter& mCacheHitMeter;
     medida::Meter& mCacheMissMeter;
+    // Marking the (process-wide shared) cache meters takes a per-meter mutex
+    // on every cached-entry load, which serializes the parallel apply
+    // threads; benchmarking configs disable this via
+    // DISABLE_SOROBAN_METRICS_FOR_TESTING.
+    bool const mMarkCacheMeters;
+
+    CacheShard& getCacheShard(LedgerKey const& k) const;
 
     static inline DiskIndex<LiveBucket>::IterT
     getDiskIter(IterT const& iter)
