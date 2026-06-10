@@ -362,9 +362,16 @@ ImmutableLedgerView::getState() const
 LedgerHeaderWrapper
 ImmutableLedgerView::getLedgerHeader() const
 {
-    // Avoid copying the header by aliasing the lifetime to mState shared_ptr
+    // Return a non-owning pointer to the header: no copy, and no control
+    // block, so copying the wrapper performs no atomic refcounting. The
+    // wrapper must not outlive this view. Aliasing mState's lifetime here
+    // instead would be safer in that respect, but every refcount bump is an
+    // atomic RMW on a control block shared by all the parallel pre-apply
+    // workers (which call this several times per transaction), and the
+    // resulting cache-line contention measurably serializes them.
     return LedgerHeaderWrapper(std::shared_ptr<LedgerHeader const>(
-        mState, &mState->getLastClosedLedgerHeader().header));
+        std::shared_ptr<LedgerHeader const>(),
+        &mState->getLastClosedLedgerHeader().header));
 }
 
 uint32_t
