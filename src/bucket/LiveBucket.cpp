@@ -10,6 +10,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
+#include <future>
 #include <medida/counter.h>
 
 namespace stellar
@@ -608,6 +609,14 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
         bucketManager.incrMergeCounters<LiveBucket>(mc);
     }
 
+    // Start index construction on a worker thread, the inputs are all
+    // read-only from that point on.
+    auto indexFuture = std::async(
+        std::launch::async, [&bucketManager, &mergedEntries, &meta]() {
+            return std::make_shared<LiveBucketIndex const>(bucketManager,
+                                                           mergedEntries, meta);
+        });
+
     // Write merge output to a bucket and save to disk
     LiveBucketOutputIterator out(bucketManager.getTmpDir(),
                                  /*keepTombstoneEntries=*/true, meta, mc, ctx,
@@ -618,11 +627,14 @@ LiveBucket::mergeInMemory(BucketManager& bucketManager,
         out.put(e);
     }
 
+    auto preBuiltIndex = indexFuture.get();
+
     // Store the merged entries in memory in the new bucket in case this
     // bucket sees another incoming merge as level 0 curr.
     return out.getBucket(
         bucketManager, nullptr,
-        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)));
+        std::make_unique<std::vector<BucketEntry>>(std::move(mergedEntries)),
+        std::move(preBuiltIndex));
 }
 
 BucketEntryCounters const&
