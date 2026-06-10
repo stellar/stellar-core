@@ -255,8 +255,9 @@ mergeCasesWithDefaultAcceptance(
     // In both cases: take old entry.
     if (inputSource.oldFirst())
     {
-        // Take old entry
-        auto entry = inputSource.getOldEntry();
+        // Take old entry. NB: hold the entry by reference to avoid a deep
+        // copy; it stays valid until the iterator advances below.
+        auto const& entry = inputSource.getOldEntry();
         ++mc.mOldEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countOldEntryType(mc, entry);
@@ -272,7 +273,7 @@ mergeCasesWithDefaultAcceptance(
     // In both cases: take new entry.
     else if (inputSource.newFirst())
     {
-        auto entry = inputSource.getNewEntry();
+        auto const& entry = inputSource.getNewEntry();
         ++mc.mNewEntriesDefaultAccepted;
         BucketT::checkProtocolLegality(entry, protocolVersion);
         BucketT::countNewEntryType(mc, entry);
