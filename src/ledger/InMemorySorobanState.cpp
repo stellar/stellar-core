@@ -59,9 +59,10 @@ InMemorySorobanState::updateContractDataTTL(
     // Since entries are immutable, we must erase and re-insert
     auto ledgerEntryPtr = dataIt->get().ledgerEntry;
     auto sizeBytes = dataIt->get().sizeBytes;
+    auto ttlKeyHash = dataIt->ttlKeyHash();
     mContractDataEntries.erase(dataIt);
     mContractDataEntries.emplace(InternalContractDataMapEntry(
-        std::move(ledgerEntryPtr), newTtlData, sizeBytes));
+        std::move(ledgerEntryPtr), newTtlData, sizeBytes, ttlKeyHash));
 }
 
 void
@@ -97,7 +98,8 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
 
     // Entry must already exist since this is an update
     auto lk = LedgerEntryKey(ledgerEntry);
-    auto dataIt = mContractDataEntries.find(InternalContractDataMapEntry(lk));
+    auto query = InternalContractDataMapEntry(lk);
+    auto dataIt = mContractDataEntries.find(query);
     releaseAssertOrThrow(dataIt != mContractDataEntries.end());
     releaseAssertOrThrow(dataIt->get().ledgerEntry != nullptr);
 
@@ -108,8 +110,8 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
     // Preserve the existing TTL while updating the data
     auto preservedTTL = dataIt->get().ttlData;
     mContractDataEntries.erase(dataIt);
-    mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, preservedTTL, newSize));
+    mContractDataEntries.emplace(InternalContractDataMapEntry(
+        ledgerEntry, preservedTTL, newSize, query.ttlKeyHash()));
 }
 
 void
@@ -117,14 +119,17 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
 {
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
 
+    // Compute the TTL key (SHA256 of the entry key) once and reuse it for
+    // the lookups and insertion below.
+    auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
+
     // Verify entry doesn't already exist
-    auto dataIt = mContractDataEntries.find(
-        InternalContractDataMapEntry(LedgerEntryKey(ledgerEntry)));
+    auto dataIt =
+        mContractDataEntries.find(InternalContractDataMapEntry(ttlKey));
     releaseAssertOrThrow(dataIt == mContractDataEntries.end());
 
     // Check if we've already seen this entry's TTL (can happen during
     // initialization when TTL is written before the data)
-    auto ttlKey = getTTLKey(LedgerEntryKey(ledgerEntry));
     auto ttlData = TTLData();
 
     auto ttlIt = mPendingTTLs.find(ttlKey);
@@ -139,8 +144,8 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
 
     uint32_t sizeBytes = xdr::xdr_size(ledgerEntry);
     updateStateSizeOnEntryUpdate(0, sizeBytes, /*isContractCode=*/false);
-    mContractDataEntries.emplace(
-        InternalContractDataMapEntry(ledgerEntry, ttlData, sizeBytes));
+    mContractDataEntries.emplace(InternalContractDataMapEntry(
+        ledgerEntry, ttlData, sizeBytes, ttlKey.ttl().keyHash));
 }
 
 bool
@@ -376,8 +381,8 @@ InMemorySorobanState::InMemorySorobanState(InMemorySorobanState const& other)
     , mContractCodeStateSize(other.mContractCodeStateSize)
     , mContractDataStateSize(other.mContractDataStateSize)
 {
-    // InternalContractDataMapEntry has an explicit copy constructor that
-    // deep-copies via clone(), so we can just use emplace.
+    // InternalContractDataMapEntry copies share the (immutable) LedgerEntry
+    // payloads via shared_ptr, so we can just use emplace.
     for (auto const& entry : other.mContractDataEntries)
     {
         mContractDataEntries.emplace(entry);
