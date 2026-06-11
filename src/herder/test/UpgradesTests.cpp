@@ -1202,11 +1202,14 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
 
     // The BL grows by the updated config entry after we create the
     // snapshot. That's why the actual BL size is a bit smaller than the
-    // snapshotted value.
+    // snapshotted value. The tolerance also absorbs the per-shard METAENTRY
+    // overhead of the sharded level-0 buckets (each ledger writes several
+    // shard files, whose sizes drift slightly between the snapshot and the
+    // comparison point).
     int64_t blSizeDiff =
         std::abs(static_cast<int64_t>(blSize) -
                  static_cast<int64_t>(p22StateSizeWindow.back()));
-    REQUIRE(blSizeDiff <= 200);
+    REQUIRE(blSizeDiff <= 1000);
 
     {
         INFO("track in-memory size in p22");

@@ -159,7 +159,13 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanOpsConsistency() const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
+
+  public:
+    // Public: also invoked by the staged (parallel) pre-apply write commit
+    // in ParallelApplyUtils for txs that skip preParallelApplyWrite.
     void updateSorobanMetrics(AppConnector& app) const;
+
+  protected:
     bool accessesFrozenKey(SorobanNetworkConfig const& cfg) const;
 
 #ifdef BUILD_TESTS

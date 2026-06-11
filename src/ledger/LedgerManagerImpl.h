@@ -414,7 +414,9 @@ class LedgerManagerImpl : public LedgerManager
     // is currently closing a ledger or has ledgers queued to apply.
     bool mCurrentlyApplyingLedger{false};
 
-    static std::vector<MutableTxResultPtr> processFeesSeqNums(
+    // Non-static: stages the common-case fee charges on the apply pool
+    // (reading accounts from the LCL view via mApplyState).
+    std::vector<MutableTxResultPtr> processFeesSeqNums(
         ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);

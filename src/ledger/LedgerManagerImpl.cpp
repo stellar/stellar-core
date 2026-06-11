@@ -2481,11 +2481,123 @@ LedgerManagerImpl::processFeesSeqNums(
         }
 #endif
 
+        // Staged parallel fee charging: for plain soroban txs whose source
+        // account appears exactly once in the set (so charges can't be
+        // order-dependent), with meta disabled and protocol >= 10, the
+        // account read (from the LCL view: fee processing is the first
+        // writer of these accounts in the ledger) and the fee math run on
+        // the apply pool; the serial loop below then just inserts the
+        // charged accounts and collects the results. Everything else takes
+        // the legacy per-tx path.
+        struct StagedFee
+        {
+            LedgerEntry mAcc;
+            MutableTxResultPtr mRes;
+            int64_t mFee;
+        };
+        std::vector<TransactionFrameBasePtr> allTxs;
+        allTxs.reserve(txSet.sizeTxTotal());
+        for (auto const& phase : txSet.getPhasesInApplyOrder())
+        {
+            for (auto const& tx : phase)
+            {
+                allTxs.push_back(tx);
+            }
+        }
+        std::vector<std::optional<StagedFee>> stagedFees(allTxs.size());
+        int64_t stagedFeeTotal = 0;
+        if (!ledgerCloseMeta &&
+            protocolVersionStartsFrom(cachedLedgerVersion, ProtocolVersion::V_10))
+        {
+            UnorderedMap<AccountID, uint32_t> srcCount;
+            srcCount.reserve(allTxs.size());
+            for (auto const& tx : allTxs)
+            {
+                ++srcCount[tx->getSourceID()];
+            }
+            auto& threadPool = mApp.getApplyThreadPool();
+            threadPool.ensureWorkerCount(1);
+            size_t const numChunks =
+                std::max<size_t>(1, std::min<size_t>(16, allTxs.size()));
+            size_t const chunkSize = (allTxs.size() + numChunks - 1) / numChunks;
+            std::vector<std::future<void>> futures;
+            futures.reserve(numChunks);
+            for (size_t c = 0; c < numChunks; ++c)
+            {
+                futures.emplace_back(threadPool.submit([&, c]() {
+                    auto view = mApplyState.copyApplyLedgerView();
+                    size_t const begin = c * chunkSize;
+                    size_t const end =
+                        std::min(begin + chunkSize, allTxs.size());
+                    for (size_t i = begin; i < end; ++i)
+                    {
+                        auto const& tx = allTxs[i];
+                        if (!tx->isSoroban() ||
+                            tx->getEnvelope().type() ==
+                                ENVELOPE_TYPE_TX_FEE_BUMP ||
+                            srcCount[tx->getSourceID()] != 1)
+                        {
+                            continue;
+                        }
+                        auto accPtr = view.loadLiveEntry(
+                            accountKey(tx->getSourceID()));
+                        if (!accPtr)
+                        {
+                            continue;
+                        }
+                        LedgerEntry acc = *accPtr;
+                        int64_t fee =
+                            tx->getFee(header, txSet.getTxBaseFee(tx), true);
+                        if (fee > 0)
+                        {
+                            fee = std::min(acc.data.account().balance, fee);
+                            // As in processFeeSeqNum: allow the balance to
+                            // fall below reserve+liabilities here; it is
+                            // caught later in commonValid.
+                            stellar::addBalance(acc.data.account().balance,
+                                                -fee);
+                        }
+                        auto res = MutableTransactionResult::createSuccess(
+                            static_cast<TransactionFrame const&>(*tx), fee);
+                        stagedFees[i] =
+                            StagedFee{std::move(acc), std::move(res), fee};
+                    }
+                }));
+            }
+            for (auto& f : futures)
+            {
+                releaseAssert(f.valid());
+                f.get();
+            }
+        }
+
         bool mergeSeen = false;
         for (auto const& phase : txSet.getPhasesInApplyOrder())
         {
             for (auto const& tx : phase)
             {
+                if (stagedFees[index].has_value())
+                {
+                    auto& sf = *stagedFees[index];
+                    ltx.updateWithoutLoading(
+                        InternalLedgerEntry(std::move(sf.mAcc)));
+                    stagedFeeTotal += sf.mFee;
+                    txResults.push_back(std::move(sf.mRes));
+#ifdef BUILD_TESTS
+                    if (expectedResultsIter)
+                    {
+                        releaseAssert(*expectedResultsIter !=
+                                      expectedResults->results.end());
+                        releaseAssert((*expectedResultsIter)->transactionHash ==
+                                      tx->getContentsHash());
+                        txResults.back()->setReplayTransactionResult(
+                            (*expectedResultsIter)->result);
+                        ++(*expectedResultsIter);
+                    }
+#endif
+                    ++index;
+                    continue;
+                }
                 // Common per-tx fee processing logic, parameterized on the
                 // active LTX (either a child for meta tracking, or the
                 // parent directly when meta is disabled).
@@ -2545,6 +2657,10 @@ LedgerManagerImpl::processFeesSeqNums(
                 }
                 ++index;
             }
+        }
+        if (stagedFeeTotal > 0)
+        {
+            ltx.loadHeader().current().feePool += stagedFeeTotal;
         }
         if (isV19OrLater && mergeSeen)
         {

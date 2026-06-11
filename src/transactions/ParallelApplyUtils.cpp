@@ -6,17 +6,20 @@
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
+#include "crypto/SignerKeyUtils.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
 #include "main/AppConnector.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/ParallelApplyStage.h"
+#include "transactions/TransactionFrame.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "util/ThreadPool.h"
+#include "util/XDROperators.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <algorithm>
@@ -638,11 +641,154 @@ GlobalParallelApplyLedgerState::commitBufferedPreParallelApplyWrites(
 {
     ZoneScoped;
 
-    for (auto const* txBundle : txBundles)
+    // The common case (plain soroban tx, seqnum bump only, no meta, no
+    // one-time signers) writes exactly one account entry per tx, and soroban
+    // source accounts are unique within a ledger, so the new account states
+    // can be computed on parallel workers (reading the post-fee state below
+    // the root, a pure lookup) and inserted into the ltx in a tight serial
+    // pass. Anything else (meta enabled, fee bumps, signer removal, or an
+    // account not found below the root) falls back to the legacy per-tx
+    // serial write.
+    auto const header = ltx.loadHeader().current();
+    bool const v19 =
+        protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_19);
+
+    std::vector<std::optional<LedgerEntry>> staged(txBundles.size());
+    std::vector<TxBundle const*> legacy;
+    std::mutex legacyMutex;
+
+    auto& threadPool = app.getApplyThreadPool();
+    threadPool.ensureWorkerCount(1);
+    size_t const numChunks = std::max<size_t>(
+        1, std::min<size_t>(kGlobalEntryMapShards, txBundles.size()));
+    size_t const chunkSize = (txBundles.size() + numChunks - 1) / numChunks;
+    std::vector<std::future<void>> futures;
+    futures.reserve(numChunks);
+    for (size_t c = 0; c < numChunks; ++c)
+    {
+        futures.emplace_back(threadPool.submit([&, c]() {
+            size_t const begin = c * chunkSize;
+            size_t const end = std::min(begin + chunkSize, txBundles.size());
+            for (size_t i = begin; i < end; ++i)
+            {
+                auto const* txBundle = txBundles[i];
+                auto const& tx = *txBundle->getTx();
+                auto const& info =
+                    txBundle->getEffects().getParallelPreApplyInfo();
+                auto const& meta = txBundle->getEffects().getMeta();
+                bool const isFeeBump = tx.getEnvelope().type() ==
+                                       ENVELOPE_TYPE_TX_FEE_BUMP;
+                if (meta.isEnabled() || isFeeBump || !info.mUpdateSeqNum)
+                {
+                    std::lock_guard<std::mutex> lock(legacyMutex);
+                    legacy.push_back(txBundle);
+                    continue;
+                }
+                auto entryPair =
+                    ltx.getNewestVersionBelowRoot(accountKey(tx.getSourceID()));
+                if (!entryPair.first || !entryPair.second)
+                {
+                    std::lock_guard<std::mutex> lock(legacyMutex);
+                    legacy.push_back(txBundle);
+                    continue;
+                }
+                LedgerEntry acc = entryPair.second->ledgerEntry();
+
+                // One-time signer removal: the signer (this tx's pre-auth
+                // hash) is almost never actually present. Scan the source
+                // accounts for it; on a (rare) hit, fall back to the legacy
+                // path, which handles the removal's sponsorship bookkeeping
+                // (potentially touching other accounts).
+                if (info.mRemoveOneTimeSigners)
+                {
+                    auto const signerKey = SignerKeyUtils::preAuthTxKey(
+                        static_cast<TransactionFrame const&>(tx));
+                    auto hasSigner = [&](LedgerEntry const& e) {
+                        auto const& signers = e.data.account().signers;
+                        return std::any_of(signers.begin(), signers.end(),
+                                           [&](Signer const& s) {
+                                               return s.key == signerKey;
+                                           });
+                    };
+                    bool fallback = hasSigner(acc);
+                    if (!fallback)
+                    {
+                        for (auto const& op : tx.getRawOperations())
+                        {
+                            if (!op.sourceAccount)
+                            {
+                                continue;
+                            }
+                            auto opSrc = toAccountID(*op.sourceAccount);
+                            if (opSrc == tx.getSourceID())
+                            {
+                                continue;
+                            }
+                            auto opPair = ltx.getNewestVersionBelowRoot(
+                                accountKey(opSrc));
+                            if (!opPair.first || !opPair.second ||
+                                hasSigner(opPair.second->ledgerEntry()))
+                            {
+                                fallback = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (fallback)
+                    {
+                        std::lock_guard<std::mutex> lock(legacyMutex);
+                        legacy.push_back(txBundle);
+                        continue;
+                    }
+                }
+
+                if (acc.data.account().seqNum > tx.getSeqNum())
+                {
+                    throw std::runtime_error("unexpected sequence number");
+                }
+                acc.data.account().seqNum = tx.getSeqNum();
+                if (v19)
+                {
+                    auto& v3 =
+                        prepareAccountEntryExtensionV3(acc.data.account());
+                    v3.seqLedger = header.ledgerSeq;
+                    v3.seqTime = header.scpValue.closeTime;
+                }
+                staged[i] = std::move(acc);
+            }
+        }));
+    }
+    for (auto& f : futures)
+    {
+        releaseAssert(f.valid());
+        f.get();
+    }
+
+    for (auto& entryOpt : staged)
+    {
+        if (entryOpt)
+        {
+            ltx.updateWithoutLoading(InternalLedgerEntry(std::move(*entryOpt)));
+        }
+    }
+    for (auto const* txBundle : legacy)
     {
         txBundle->getTx()->preParallelApplyWrite(
             app, ltx, txBundle->getEffects().getMeta(),
             txBundle->getEffects().getParallelPreApplyInfo());
+    }
+    // Soroban metric updates for the staged txs (the legacy path does its
+    // own inside preParallelApplyWrite). Staged txs are plain transactions
+    // (fee bumps fall back to legacy), so the cast is safe.
+    for (size_t i = 0; i < txBundles.size(); ++i)
+    {
+        if (staged[i].has_value() &&
+            txBundles[i]->getEffects().getParallelPreApplyInfo()
+                .mUpdateSorobanMetrics)
+        {
+            static_cast<TransactionFrame const&>(*txBundles[i]->getTx())
+                .updateSorobanMetrics(app);
+        }
     }
 }
 
