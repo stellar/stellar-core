@@ -77,7 +77,10 @@
 #include <Tracy.hpp>
 
 #include "LedgerManagerImpl.h"
+#include <algorithm>
 #include <chrono>
+#include <numeric>
+
 #include <future>
 #include <memory>
 #include <optional>
@@ -2700,6 +2703,8 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     // mPendingLedgerShards in cluster order after the join barrier.
     std::vector<std::shared_future<std::shared_ptr<LiveBucket>>> shardSlots(
         stage.numClusters());
+    // Per-cluster wall times; each worker fills only its own slot.
+    std::vector<double> clusterMs(stage.numClusters(), 0.0);
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
         // Construct the per-thread state (which copies this cluster's footprint
@@ -2709,7 +2714,8 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
         // parallel section.
         threadFutures.emplace_back(threadPool.submit(
             [this, &app, &globalState, &stage, i, &config, ledgerInfo,
-             sorobanBasePrngSeed, &shardSlots]() {
+             sorobanBasePrngSeed, &shardSlots, &clusterMs]() {
+                auto clusterStart = std::chrono::steady_clock::now();
                 auto const& cluster = stage.getCluster(i);
                 auto threadStatePtr =
                     std::make_unique<ThreadParallelApplyLedgerState>(
@@ -2740,6 +2746,10 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
                                    })
                             .share();
                 }
+                clusterMs[i] = std::chrono::duration<double, std::milli>(
+                                   std::chrono::steady_clock::now() -
+                                   clusterStart)
+                                   .count();
                 return res;
             }));
     }
@@ -2770,6 +2780,17 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
     auto joinEnd = std::chrono::steady_clock::now();
     mLastPhaseTimings.sorobanThreadJoinMs +=
         std::chrono::duration<double, std::milli>(joinEnd - spawnEnd).count();
+    if (!clusterMs.empty())
+    {
+        // Safe to read now: all workers have passed the join barrier above.
+        mLastPhaseTimings.sorobanThreadMinMs +=
+            *std::min_element(clusterMs.begin(), clusterMs.end());
+        mLastPhaseTimings.sorobanThreadMaxMs +=
+            *std::max_element(clusterMs.begin(), clusterMs.end());
+        mLastPhaseTimings.sorobanThreadMeanMs +=
+            std::accumulate(clusterMs.begin(), clusterMs.end(), 0.0) /
+            static_cast<double>(clusterMs.size());
+    }
 #endif
     threadFutures.clear();
     // Collect this stage's optimistic shard writes in cluster order (safe
@@ -2833,7 +2854,8 @@ void
 LedgerManagerImpl::applySorobanStage(
     AppConnector& app, LedgerHeader const& header,
     GlobalParallelApplyLedgerState& globalParState, ApplyStage const& stage,
-    Hash const& sorobanBasePrngSeed, bool isLastStage)
+    Hash const& sorobanBasePrngSeed, bool isLastStage,
+    std::future<ParallelApplyLedgerKeySet> rwSetFuture)
 {
     ZoneScoped;
     auto const& config = app.getConfig();
@@ -2870,7 +2892,9 @@ LedgerManagerImpl::applySorobanStage(
     // restored entries and classic entries are always merged.
     bool skipSorobanDataAndCode =
         isLastStage && bypassLtxForSorobanEntries(app.getConfig());
-    globalParState.commitChangesFromThreads(app, threadStates, stage,
+    releaseAssert(rwSetFuture.valid());
+    auto readWriteSet = rwSetFuture.get();
+    globalParState.commitChangesFromThreads(app, threadStates, readWriteSet,
                                             skipSorobanDataAndCode);
 #ifdef BUILD_TESTS
     subEnd = std::chrono::steady_clock::now();
@@ -2879,7 +2903,16 @@ LedgerManagerImpl::applySorobanStage(
 
     subStart = std::chrono::steady_clock::now();
 #endif
-    threadStates.clear();
+    // Destroying the thread states (large entry maps) is pure overhead on
+    // the apply path: hand them to a worker thread to free. Safe: their
+    // entries were committed (or extracted) above and the destructors don't
+    // touch the global state they reference.
+    auto deferredStates = std::make_shared<
+        std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>>>(
+        std::move(threadStates));
+    mApp.postOnBackgroundThread(
+        [deferredStates]() mutable { deferredStates->clear(); },
+        "destroy parallel apply thread states");
 #ifdef BUILD_TESTS
     subEnd = std::chrono::steady_clock::now();
     mLastPhaseTimings.sorobanDestroyThreadStatesMs +=
@@ -2898,9 +2931,24 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
     auto globalStart = std::chrono::steady_clock::now();
 #endif
     {
-        GlobalParallelApplyLedgerState globalParState(
+        // Kick off the per-stage read-write key set computations on the
+        // apply pool right away: they depend only on the (static) tx set
+        // footprints and overlap the global setup below, so they are ready
+        // by the time each stage's commitChangesFromThreads needs them.
+        auto& rwSetPool = mApp.getApplyThreadPool();
+        rwSetPool.ensureWorkerCount(1);
+        std::vector<std::future<ParallelApplyLedgerKeySet>> rwSetFutures;
+        rwSetFutures.reserve(stages.size());
+        for (auto const& stage : stages)
+        {
+            rwSetFutures.emplace_back(rwSetPool.submit(
+                [&stage]() { return getReadWriteKeysForStage(stage); }));
+        }
+
+        auto globalParStatePtr = std::make_unique<GlobalParallelApplyLedgerState>(
             app, mApplyState.copyApplyLedgerView(), ltx, stages,
             mApplyState.getInMemorySorobanState(), sorobanConfig);
+        auto& globalParState = *globalParStatePtr;
 #ifdef BUILD_TESTS
         auto globalEnd = std::chrono::steady_clock::now();
         mLastPhaseTimings.sorobanSetupGlobalMs =
@@ -2930,14 +2978,38 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         mLastPhaseTimings.sorobanParallelApplyMs = 0;
         mLastPhaseTimings.sorobanThreadSpawnMs = 0;
         mLastPhaseTimings.sorobanThreadJoinMs = 0;
+        mLastPhaseTimings.sorobanThreadMinMs = 0;
+        mLastPhaseTimings.sorobanThreadMeanMs = 0;
+        mLastPhaseTimings.sorobanThreadMaxMs = 0;
         mLastPhaseTimings.sorobanCheckInvariantsMs = 0;
         mLastPhaseTimings.sorobanCommitFromThreadsMs = 0;
         mLastPhaseTimings.sorobanDestroyThreadStatesMs = 0;
 #endif
-        for (size_t i = 0; i < stages.size(); ++i)
         {
-            applySorobanStage(app, header, globalParState, stages[i],
-                              sorobanBasePrngSeed, i + 1 == stages.size());
+            // Hold the apply-window gate while the stages run: background
+            // bucket merges pause so the apply workers keep exclusive use of
+            // the physical cores (any co-running thread degrades the slowest
+            // cluster via SMT-sibling contention, and the stage join waits
+            // for exactly that cluster).
+            struct ApplyWindowGuard
+            {
+                BucketManager& mBm;
+                ApplyWindowGuard(BucketManager& bm) : mBm(bm)
+                {
+                    mBm.beginApplyWindow();
+                }
+                ~ApplyWindowGuard()
+                {
+                    mBm.endApplyWindow();
+                }
+            } applyWindowGuard(mApp.getBucketManager());
+
+            for (size_t i = 0; i < stages.size(); ++i)
+            {
+                applySorobanStage(app, header, globalParState, stages[i],
+                                  sorobanBasePrngSeed, i + 1 == stages.size(),
+                                  std::move(rwSetFutures[i]));
+            }
         }
 
         // All stages have committed their thread states into the global map,
@@ -2993,7 +3065,14 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                 .count();
         globalStart = std::chrono::steady_clock::now();
 #endif
-    } // globalParState destroyed here
+        // The global state is fully consumed at this point; destroying its
+        // entry maps is pure overhead on the apply path, so hand it to a
+        // worker thread to free.
+        mApp.postOnBackgroundThread(
+            [deferred = std::shared_ptr<GlobalParallelApplyLedgerState>(
+                 std::move(globalParStatePtr))]() {},
+            "destroy global parallel apply state");
+    }
 #ifdef BUILD_TESTS
     auto globalEnd2 = std::chrono::steady_clock::now();
     mLastPhaseTimings.sorobanDestroyGlobalStateMs =

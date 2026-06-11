@@ -17,9 +17,11 @@
 #include "xdr/Stellar-ledger.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 
@@ -149,6 +151,20 @@ class BucketManager : NonMovableOrCopyable
     BucketMergeMap mFinishedMerges GUARDED_BY(mBucketMutex);
 
     std::atomic<bool> mIsShutdown{false};
+
+    // "Apply window" gate: while the parallel tx-apply phase runs, all
+    // physical cores belong to the apply workers, and any other CPU-heavy
+    // background loop (bucket merges, streaming index builds) running
+    // concurrently degrades the slowest apply cluster via SMT-sibling
+    // contention -- and the apply join waits for exactly that slowest
+    // cluster. Long background loops periodically call
+    // pauseForApplyWindow(), which blocks them while the window is active;
+    // the deferred work resumes in the (much longer) non-apply part of the
+    // ledger. Nothing the apply phase waits on may call
+    // pauseForApplyWindow() (deadlock).
+    mutable std::mutex mApplyWindowMutex;
+    mutable std::condition_variable mApplyWindowCv;
+    std::atomic<bool> mApplyWindowActive{false};
 
     void cleanupStaleFiles(HistoryArchiveState const& has);
     void deleteTmpDirAndUnlockBucketDir();
@@ -425,6 +441,16 @@ class BucketManager : NonMovableOrCopyable
     void shutdown();
 
     bool isShutdown() const;
+
+    // Open/close the apply-window gate (see mApplyWindowActive). Called by
+    // the ledger manager around the parallel tx-apply phase.
+    void beginApplyWindow();
+    void endApplyWindow();
+
+    // Block the calling background thread while the apply window is active.
+    // Cheap (one relaxed atomic load) when the window is inactive. Returns
+    // immediately on shutdown.
+    void pauseForApplyWindow() const;
 
     // Load the complete state of the ledger from the provided HAS. Throws if
     // any of the buckets referenced in the HAS do not exist.

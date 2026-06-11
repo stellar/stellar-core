@@ -214,8 +214,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     }
 
     // Starts with no workers; the parallel apply path grows it to the
-    // cluster count it needs.
+    // cluster count it needs. Workers are pinned one-per-physical-core: the
+    // parallel apply joins on all the workers, so a single pair of workers
+    // left on hyperthread siblings of one core by the kernel's wake-up
+    // placement degrades every ledger's apply tail.
     mApplyThreadPool = std::make_unique<ThreadPool>();
+    mApplyThreadPool->pinWorkersToDistinctPhysicalCores();
 }
 
 static void

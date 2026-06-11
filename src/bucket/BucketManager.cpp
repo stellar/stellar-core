@@ -1683,12 +1683,50 @@ void
 BucketManager::shutdown()
 {
     mIsShutdown = true;
+    // Release any background threads blocked on the apply-window gate.
+    {
+        std::lock_guard<std::mutex> lock(mApplyWindowMutex);
+        mApplyWindowActive.store(false, std::memory_order_release);
+    }
+    mApplyWindowCv.notify_all();
 }
 
 bool
 BucketManager::isShutdown() const
 {
     return mIsShutdown;
+}
+
+void
+BucketManager::beginApplyWindow()
+{
+    std::lock_guard<std::mutex> lock(mApplyWindowMutex);
+    mApplyWindowActive.store(true, std::memory_order_release);
+}
+
+void
+BucketManager::endApplyWindow()
+{
+    {
+        std::lock_guard<std::mutex> lock(mApplyWindowMutex);
+        mApplyWindowActive.store(false, std::memory_order_release);
+    }
+    mApplyWindowCv.notify_all();
+}
+
+void
+BucketManager::pauseForApplyWindow() const
+{
+    if (!mApplyWindowActive.load(std::memory_order_acquire))
+    {
+        return;
+    }
+    ZoneScopedN("pause for apply window");
+    std::unique_lock<std::mutex> lock(mApplyWindowMutex);
+    mApplyWindowCv.wait(lock, [this]() {
+        return !mApplyWindowActive.load(std::memory_order_acquire) ||
+               isShutdown();
+    });
 }
 
 // Loads a single bucket worth of entries into `map`, deleting dead entries and

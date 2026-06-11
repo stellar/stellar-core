@@ -259,6 +259,12 @@ logPhaseTimingsTable(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadSpawnMs);
     auto sorobanThreadJoin = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadJoinMs);
+    auto sorobanThreadMin = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadMinMs);
+    auto sorobanThreadMean = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadMeanMs);
+    auto sorobanThreadMax = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanThreadMaxMs);
     auto sorobanCheckInvariants = extract(
         &LedgerManagerImpl::LedgerClosePhaseTimings::sorobanCheckInvariantsMs);
     auto sorobanCommitThreads =
@@ -393,6 +399,9 @@ logPhaseTimingsTable(
         {"|   soroban_parallel", computePhaseStats(sorobanParallel)},
         {"|     thread_spawn", computePhaseStats(sorobanThreadSpawn)},
         {"|     thread_join", computePhaseStats(sorobanThreadJoin)},
+        {"|     thread_min", computePhaseStats(sorobanThreadMin)},
+        {"|     thread_mean", computePhaseStats(sorobanThreadMean)},
+        {"|     thread_max", computePhaseStats(sorobanThreadMax)},
         {"|   soroban_invariants", computePhaseStats(sorobanCheckInvariants)},
         {"|   commit_from_thrds", computePhaseStats(sorobanCommitThreads)},
         {"|   ~thread_states", computePhaseStats(sorobanDestroyThreads)},

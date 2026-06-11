@@ -326,6 +326,11 @@ BucketBase<BucketT, IndexT>::mergeInternal(
                     "Incomplete bucket merge due to BucketManager shutdown");
             }
 
+            // Yield the physical core to the parallel tx-apply phase (see
+            // BucketManager::pauseForApplyWindow); nothing awaits merge
+            // results while the apply window is active.
+            bucketManager.pauseForApplyWindow();
+
 #ifdef BUILD_TESTS
             // To avoid blocking the main thread (since we really only want to
             // test background merge behavior here), only delay merges for

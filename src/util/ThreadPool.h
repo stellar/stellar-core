@@ -46,6 +46,16 @@ class ThreadPool : private NonMovableOrCopyable
     // necessary.
     void ensureWorkerCount(size_t count);
 
+    // Pin every worker (current and future) to a distinct physical CPU core,
+    // one logical CPU per core (wrapping if there are more workers than
+    // cores). Without this the kernel's wake-up placement can leave two
+    // workers parked on hyperthread siblings of one physical core for the
+    // whole life of the pool, running both at ~60% throughput while another
+    // core sits idle -- and a barrier over the workers (e.g. the parallel
+    // tx-apply join) is bounded by exactly those degraded workers. No-op on
+    // non-Linux platforms.
+    void pinWorkersToDistinctPhysicalCores();
+
     size_t workerCount() const;
 
     // Stops accepting new tasks, runs all the already queued tasks to
@@ -74,6 +84,9 @@ class ThreadPool : private NonMovableOrCopyable
   private:
     void enqueue(std::function<void()> task);
     void workerLoop();
+    // Pin worker `i` to its designated CPU; requires mMutex and pinning
+    // enabled.
+    void pinWorker(size_t i);
 
     // Plain std::mutex (rather than the annotated wrapper) as it has to work
     // with std::condition_variable.
@@ -81,6 +94,8 @@ class ThreadPool : private NonMovableOrCopyable
     std::condition_variable mCondition;
     std::deque<std::function<void()>> mTasks;
     std::vector<std::thread> mWorkers;
+    // One logical CPU per physical core; non-empty iff pinning is enabled.
+    std::vector<int> mPinCpus;
     bool mStopping{false};
 };
 }

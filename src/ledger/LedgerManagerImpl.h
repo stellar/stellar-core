@@ -471,10 +471,14 @@ class LedgerManagerImpl : public LedgerManager
                                     ParallelLedgerInfo const& ledgerInfo,
                                     LedgerHeader const& header);
 
+    // rwSetFuture: the stage's read-write key set (consumed by the
+    // post-stage thread-change merge), precomputed on the apply pool during
+    // the global setup phase.
     void applySorobanStage(AppConnector& app, LedgerHeader const& header,
                            GlobalParallelApplyLedgerState& globalParState,
                            ApplyStage const& stage,
-                           Hash const& sorobanBasePrngSeed, bool isLastStage);
+                           Hash const& sorobanBasePrngSeed, bool isLastStage,
+                           std::future<ParallelApplyLedgerKeySet> rwSetFuture);
 
     void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                             std::vector<ApplyStage> const& stages,
@@ -640,6 +644,13 @@ class LedgerManagerImpl : public LedgerManager
         // time spent joining the worker threads.
         double sorobanThreadSpawnMs = 0;
         double sorobanThreadJoinMs = 0;
+        // Per-cluster wall times of the parallel apply workers (accumulated
+        // across stages): fastest cluster, cluster mean, and slowest cluster.
+        // thread_max ~= thread_join; a large max-vs-mean spread means the
+        // stage is imbalance-bound rather than work-bound.
+        double sorobanThreadMinMs = 0;
+        double sorobanThreadMeanMs = 0;
+        double sorobanThreadMaxMs = 0;
         double sorobanCheckInvariantsMs = 0;
         double sorobanCommitFromThreadsMs = 0;
         double sorobanDestroyThreadStatesMs = 0;
