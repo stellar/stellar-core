@@ -546,6 +546,12 @@ class Config : public std::enable_shared_from_this<Config>
     // calculation instead of prepare start time.
     bool EXPERIMENTAL_TRIGGER_TIMER;
 
+    // Hostname of an NTP server to periodically query in order to detect drift
+    // of this node's local clock. This is detection only: core never adjusts
+    // the system clock. Defaults to a pool.ntp.org; set to the empty string to
+    // disable the check entirely.
+    std::string NTP_DRIFT_CHECK_SERVER;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
@@ -985,6 +991,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool allBucketsInMemory() const;
     void logBasicInfo() const;
     bool parallelLedgerClose() const;
+
+    // Returns true if this node should run the NTP clock-drift check: an NTP
+    // server is configured and the node is a validator (clock drift only hurts
+    // nodes that participate in consensus).
+    bool ntpDriftCheckEnabled() const;
     void setNoListen();
     void setNoPublish();
 

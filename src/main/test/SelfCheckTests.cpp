@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "rust/RustBridge.h"
 #include "test/Catch2.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -63,4 +64,23 @@ TEST_CASE("online self-check runs on a schedule", "[selfcheck]")
         }
     }
     REQUIRE(meter.count() == n);
+}
+
+// Smoke test for the NTP drift-check. Note this queries the actual default NTP
+// server so it's hidden.
+TEST_CASE("ntp probe smoke check", "[ntp][!hide]")
+{
+    std::string const server = "pool.ntp.org";
+    auto const result = rust_bridge::query_ntp_offset(server, /*timeout*/ 5);
+
+    REQUIRE(result.succeeded);
+
+    LOG_INFO(DEFAULT_LOG, "Measured NTP offset versus {}: {} ms", server,
+             result.offset_millis);
+
+    // Sanity check that we're within a very generous 5 minute bound of true
+    // time.
+    int64_t const offsetMs = result.offset_millis;
+    int64_t const absMs = offsetMs < 0 ? -offsetMs : offsetMs;
+    REQUIRE(absMs < 5LL * 60LL * 1000LL);
 }
