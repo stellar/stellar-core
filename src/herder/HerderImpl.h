@@ -264,7 +264,7 @@ class HerderImpl : public Herder
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
     void newSlotExternalized(StellarValue const& value);
-    void purgeOldSlotsAndProcessSCPQueue(bool synchronous);
+    void purgeOldSlots();
     void purgeOldPersistedTxSets();
     void writeDebugTxSet(LedgerCloseData const& lcd);
 

@@ -550,8 +550,8 @@ HerderSCPDriver::deserializeAndValidateStellarValue(Value const& value,
 
     // Empty-tx-set values must have the empty-tx-set hash, and
     // non-explicitly-empty-tx-set values must not have the empty-tx-set hash.
-    if (emptyTxSetsAllowed && (sv.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
-                                  isEmptyTxSetStellarValue(sv))
+    if ((sv.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
+        isEmptyTxSetStellarValue(sv))
     {
         return false;
     }
