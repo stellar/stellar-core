@@ -92,15 +92,27 @@ SCENARIOS: tuple[Scenario, ...] = (
     #     tx_count=6000,
     #     thread_count=2,
     # ),
+    # Scenario(
+    #     model_tx="sac",
+    #     tx_count=6000,
+    #     thread_count=4,
+    # ),
+    # Scenario(
+    #     model_tx="sac",
+    #     tx_count=6000,
+    #     thread_count=8,
+    # ),
     Scenario(
         model_tx="sac",
         tx_count=6000,
-        thread_count=4,
+        thread_count=8,
+        disable_metrics=False,
     ),
     Scenario(
         model_tx="sac",
         tx_count=6000,
         thread_count=8,
+        disable_metrics=True,
     ),
     # Scenario(
     #     model_tx="sac",
@@ -464,6 +476,7 @@ def build_config_text(template_text: str, scenario: Scenario, log_name: str) -> 
         "APPLY_LOAD_MODEL_TX": quoted(scenario.model_tx),
         "APPLY_LOAD_MAX_SOROBAN_TX_COUNT": str(scenario.tx_count),
         "APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS": str(scenario.thread_count),
+        "LEDGER_CLOSE_WORKER_THREADS": str(scenario.thread_count),
         "APPLY_LOAD_TIME_WRITES": bool_literal(scenario.time_writes),
         "DISABLE_SOROBAN_METRICS_FOR_TESTING": bool_literal(scenario.disable_metrics),
         "APPLY_LOAD_NUM_LEDGERS": str(APPLY_LOAD_NUM_LEDGERS),
