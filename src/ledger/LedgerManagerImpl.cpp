@@ -3041,12 +3041,17 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         }
 
         // Start the early in-memory Soroban state update, overlapped with
-        // the ltx commit, post-apply fee processing and the seal. Safe: all
-        // apply threads have joined, so the state has no concurrent readers;
-        // the eviction-deletion delta and ledger-seq advance happen at seal.
-        // Skipped when this ledger produced no soroban changes (e.g. empty
-        // tx sets in tests): the legacy seal-time update handles those.
-        if (!threadShardFutures.empty() || !ttlEntriesForUpdater.empty())
+        // the ltx commit, post-apply fee processing and the seal. Safe ONLY
+        // when soroban entries bypass the ltx: all apply threads have joined,
+        // and with the bypass nothing reads soroban keys through the
+        // LedgerTxnRoot (which serves them from this very state) until the
+        // seal joins the update. Without the bypass (invariants enabled),
+        // commitChangesToLedgerTxn loads deleted soroban keys through the
+        // root and would race the update; those configurations use the
+        // legacy seal-time updateState instead. Also skipped when this
+        // ledger produced no soroban changes (e.g. empty tx sets in tests).
+        if (bypassLtxForSorobanEntries(mApp.getConfig()) &&
+            (!threadShardFutures.empty() || !ttlEntriesForUpdater.empty()))
         {
             mApplyState.startEarlyInMemorySorobanStateUpdate(
                 std::move(threadShardFutures), std::move(ttlEntriesForUpdater),

@@ -1199,8 +1199,17 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
         {
             auto threadEntry = ThreadParallelApplyEntry::clean(
                 scopeAdoptEntryOptFrom(globalEntry->mLedgerEntry, global));
-            // Propagate mIsNew from global so subsequent upserts preserve it.
-            threadEntry.mIsNew = globalEntry->mIsNew;
+            // At the thread level, mIsNew means "absent from the prior shard
+            // state" (the state as of the previous stage), NOT "created this
+            // ledger" (the global map's meaning; the global merge preserves
+            // its own flag across stages for the ltx INIT/LIVE choice). The
+            // distinction matters for the per-cluster shard extraction: a key
+            // created in an earlier stage and updated here must be emitted as
+            // LIVE (it already exists in the in-memory state and in an
+            // earlier shard), while a key deleted in an earlier stage and
+            // recreated here must be emitted as INIT.
+            threadEntry.mIsNew =
+                !threadEntry.mLedgerEntry.readInScope(*this).has_value();
             mThreadEntryMap.emplace(std::move(parallelKey),
                                     std::move(threadEntry));
         }
