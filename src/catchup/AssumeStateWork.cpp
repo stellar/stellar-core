@@ -33,18 +33,33 @@ AssumeStateWork::AssumeStateWork(Application& app,
             decltype(hasBuckets)>::value_type::bucket_type;
         for (uint32_t i = 0; i < expectedLevels; ++i)
         {
-            auto curr =
-                bm.getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).curr));
-            auto snap =
-                bm.getBucketByHash<BucketT>(hexToBin256(hasBuckets.at(i).snap));
-            if (!(curr && snap))
-            {
-                throw std::runtime_error("Missing bucket files while "
-                                         "assuming saved BucketList state");
-            }
-
-            workBuckets.emplace_back(curr);
-            workBuckets.emplace_back(snap);
+            // For composite (sharded) buckets, reference the shard files;
+            // the combined hash names no file of its own.
+            auto addByHash = [&](std::string const& hash,
+                                 std::vector<std::string> const& shardHashes) {
+                std::vector<std::string> hashes;
+                if (!shardHashes.empty())
+                {
+                    hashes = shardHashes;
+                }
+                else
+                {
+                    hashes.push_back(hash);
+                }
+                for (auto const& h : hashes)
+                {
+                    auto b = bm.getBucketByHash<BucketT>(hexToBin256(h));
+                    if (!b)
+                    {
+                        throw std::runtime_error(
+                            "Missing bucket files while "
+                            "assuming saved BucketList state");
+                    }
+                    workBuckets.emplace_back(b);
+                }
+            };
+            addByHash(hasBuckets.at(i).curr, hasBuckets.at(i).currShards);
+            addByHash(hasBuckets.at(i).snap, hasBuckets.at(i).snapShards);
             auto& nextFuture = hasBuckets.at(i).next;
             if (nextFuture.hasOutputHash())
             {

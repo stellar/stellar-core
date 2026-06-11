@@ -224,10 +224,26 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
             auto const& level = bl.getLevel(i);
             for (auto const& bucket : {level.getCurr(), level.getSnap()})
             {
-                auto s = perBucketCheck(bucket, ltx);
-                if (!s.empty())
+                // Composite (sharded) level-0 buckets are checked shard by
+                // shard, newest first, sharing seenKeys so newer shards
+                // shadow older ones.
+                std::vector<std::shared_ptr<LiveBucket>> toCheck;
+                if (bucket->isSharded())
                 {
-                    return s;
+                    auto const& shards = bucket->getShards();
+                    toCheck.assign(shards.rbegin(), shards.rend());
+                }
+                else
+                {
+                    toCheck.push_back(bucket);
+                }
+                for (auto const& b : toCheck)
+                {
+                    auto s = perBucketCheck(b, ltx);
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
                 }
             }
         }

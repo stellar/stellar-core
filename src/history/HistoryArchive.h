@@ -39,22 +39,30 @@ template <class BucketT> struct HistoryStateBucket
     BUCKET_TYPE_ASSERT(BucketT);
     using bucket_type = BucketT;
     std::string curr;
+    // When curr/snap is a composite (sharded) level-0 bucket, the hashes of
+    // its shard files, oldest first. The curr/snap fields then hold the
+    // combined (shard-set) hash, which names no file; the shard files are
+    // what exist on disk and in archives.
+    std::vector<std::string> currShards;
 
     FutureBucket<BucketT> next;
     std::string snap;
+    std::vector<std::string> snapShards;
 
     template <class Archive>
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
+           CEREAL_NVP(snap), CEREAL_NVP(snapShards));
     }
 
     template <class Archive>
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
+           CEREAL_NVP(snap), CEREAL_NVP(snapShards));
     }
 };
 

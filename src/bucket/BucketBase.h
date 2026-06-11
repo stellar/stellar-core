@@ -76,6 +76,12 @@ class BucketBase : public NonMovableOrCopyable
     Hash const mHash;
     size_t mSize{0};
 
+    // True for composite (sharded) buckets, which hold an ordered list of
+    // shard buckets and have no file of their own. Only the live BucketList's
+    // level-0 curr/snap use this. The composite's hash is the SHA256 of the
+    // concatenated shard hashes.
+    bool const mIsComposite{false};
+
     std::shared_ptr<IndexT const> mIndex{};
 
     // Unconditionally resets mIndex. Must only be called via the static
@@ -103,11 +109,21 @@ class BucketBase : public NonMovableOrCopyable
     BucketBase(std::string const& filename, Hash const& hash,
                std::shared_ptr<IndexT const>&& index);
 
+    // Construct a composite (sharded) bucket with the given combined hash and
+    // no file. The derived class holds the shards themselves.
+    BucketBase(Hash const& hash, size_t size);
+
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;
     size_t getSize() const;
 
     bool isEmpty() const;
+
+    bool
+    isComposite() const
+    {
+        return mIsComposite;
+    }
 
     // The following index functions (freeIndex, isIndexed, setIndex,
     // maybeGetIndexForMerge) should only be used in the bucket creation/garbage

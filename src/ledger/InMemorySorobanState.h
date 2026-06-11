@@ -11,8 +11,10 @@
 #include <unordered_set>
 
 #include "ledger/LedgerTypeUtils.h"
+#include "util/UnorderedSet.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar
@@ -382,6 +384,27 @@ class InMemorySorobanState
                 LedgerHeader const& lh,
                 std::optional<SorobanNetworkConfig const> const& sorobanConfig,
                 SorobanMetrics& metrics);
+
+    // Early-update path for the ledger currently being closed, fed from the
+    // level-0 shard buckets written by the parallel apply phase (which
+    // retain their entries in memory). Shards must be applied in shard
+    // order, strictly after all apply threads have joined (no concurrent
+    // readers) and before finalizeUpdate. INIT/LIVE/DEAD bucket entries map
+    // to create/update/delete; DEAD TTL keys are skipped (TTL state lives
+    // with its data entry), matching updateState.
+    void applyShardEntries(std::vector<BucketEntry> const& entries,
+                           SorobanNetworkConfig const& sorobanConfig,
+                           uint32_t ledgerVersion);
+
+    // Completes an early update started with applyShardEntries: applies the
+    // seal-time eviction deletions (data/code keys; TTL keys skipped),
+    // advances the ledger seq (must be exactly mLastClosedLedgerSeq + 1),
+    // checks invariants and reports metrics.
+    void finalizeUpdate(LedgerHeader const& lh,
+                        std::optional<SorobanNetworkConfig const> const&
+                            sorobanConfig,
+                        SorobanMetrics& metrics,
+                        UnorderedSet<LedgerKey> const& evictionDeletedKeys);
 
     // Should only be called in manual ledger close paths.
     void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);

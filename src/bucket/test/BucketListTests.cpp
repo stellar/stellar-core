@@ -91,12 +91,25 @@ checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
     std::set<uint32_t> ledgers;
     uint32_t lbound = std::numeric_limits<uint32_t>::max();
     uint32_t ubound = 0;
-    for (LiveBucketInputIterator iter(bucket); iter; ++iter)
+    // Composite (sharded) level-0 buckets are iterated shard by shard.
+    std::vector<std::shared_ptr<LiveBucket>> parts;
+    if (bucket->isSharded())
     {
-        auto lastModified = (*iter).liveEntry().lastModifiedLedgerSeq;
-        ledgers.insert(lastModified);
-        lbound = std::min(lbound, lastModified);
-        ubound = std::max(ubound, lastModified);
+        parts = bucket->getShards();
+    }
+    else
+    {
+        parts.push_back(bucket);
+    }
+    for (auto const& part : parts)
+    {
+        for (LiveBucketInputIterator iter(part); iter; ++iter)
+        {
+            auto lastModified = (*iter).liveEntry().lastModifiedLedgerSeq;
+            ledgers.insert(lastModified);
+            lbound = std::min(lbound, lastModified);
+            ubound = std::max(ubound, lastModified);
+        }
     }
 
     REQUIRE(ledgers.size() == sizeOfBucket);
@@ -1440,7 +1453,13 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival][soroban]")
 
         auto constexpr xdrOverheadBytes = 4;
 
-        LiveBucketInputIterator metaIn(bl.getLevel(0).getCurr());
+        // Level-0 curr is a composite (sharded) bucket; read the metadata
+        // from its newest shard (the METAENTRY is identical in shape).
+        auto level0Curr = bl.getLevel(0).getCurr();
+        auto metaBucket = level0Curr->isSharded()
+                              ? level0Curr->getShards().back()
+                              : level0Curr;
+        LiveBucketInputIterator metaIn(metaBucket);
         BucketEntry be(METAENTRY);
         be.metaEntry() = metaIn.getMetadata();
         auto const metadataSize = xdr::xdr_size(be) + xdrOverheadBytes;

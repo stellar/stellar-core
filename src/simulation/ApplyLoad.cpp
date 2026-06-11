@@ -286,6 +286,26 @@ logPhaseTimingsTable(
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyUpgradesMs);
     auto sealBucket =
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sealAndBucketMs);
+    auto sealEviction =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sealEvictionMs);
+    auto sealGetAllEntries = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealGetAllEntriesMs);
+    auto sealAddLiveBatch = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealAddLiveBatchMs);
+    auto sealResidualShard = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealResidualShardMs);
+    auto sealShardWait =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sealShardWaitMs);
+    auto sealHotArchiveWait = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealHotArchiveWaitMs);
+    auto sealInMemStateWait = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealInMemStateWaitMs);
+    auto sealSnapshotHash = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealSnapshotHashMs);
+    auto sealStoreHeader = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealStoreHeaderMs);
+    auto sealAdvanceSnapshot = extract(
+        &LedgerManagerImpl::LedgerClosePhaseTimings::sealAdvanceSnapshotMs);
     auto sqlCommit =
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::sqlCommitMs);
     auto postCommit =
@@ -319,6 +339,18 @@ logPhaseTimingsTable(
                    applyTxMidSetup[i] - loadSorobanConfig[i] - parTotal[i] -
                    applySeqClassic[i] - postTxSetApply[i] - applyTxTail[i] -
                    destroyApplyStages[i];
+    }
+    // Compute per-ledger gap inside seal_and_bucket:
+    //   seal_and_bucket - sum(its direct sub-steps). The bl_* rows are
+    //   nested inside add_live_batch and so excluded from the sum.
+    std::vector<double> sealGap(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        sealGap[i] = sealBucket[i] - sealEviction[i] - sealGetAllEntries[i] -
+                     sealResidualShard[i] - sealShardWait[i] -
+                     sealAddLiveBatch[i] - sealHotArchiveWait[i] -
+                     sealInMemStateWait[i] - sealSnapshotHash[i] -
+                     sealStoreHeader[i] - sealAdvanceSnapshot[i];
     }
 
     struct PhaseRow
@@ -374,6 +406,17 @@ logPhaseTimingsTable(
         {"| *** tx gap ***", computePhaseStats(txGap)},
         {"apply_upgrades", computePhaseStats(upgrades)},
         {"seal_and_bucket", computePhaseStats(sealBucket)},
+        {"| eviction_resolve", computePhaseStats(sealEviction)},
+        {"| get_all_entries", computePhaseStats(sealGetAllEntries)},
+        {"| residual_shard", computePhaseStats(sealResidualShard)},
+        {"| shard_wait", computePhaseStats(sealShardWait)},
+        {"| add_live_batch", computePhaseStats(sealAddLiveBatch)},
+        {"| hot_archive_wait", computePhaseStats(sealHotArchiveWait)},
+        {"| in_mem_state_wait", computePhaseStats(sealInMemStateWait)},
+        {"| snapshot_hash", computePhaseStats(sealSnapshotHash)},
+        {"| store_header_db", computePhaseStats(sealStoreHeader)},
+        {"| advance_snapshot", computePhaseStats(sealAdvanceSnapshot)},
+        {"| *** seal gap ***", computePhaseStats(sealGap)},
         {"sql_commit", computePhaseStats(sqlCommit)},
         {"post_commit", computePhaseStats(postCommit)},
     };

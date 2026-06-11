@@ -4,8 +4,12 @@
 
 #include "bucket/LiveBucketList.h"
 #include "bucket/BucketListBase.h"
+#include "bucket/BucketManager.h"
 #include "ledger/LedgerManager.h"
+#include "main/Application.h"
+#include "util/ProtocolVersion.h"
 
+#include <algorithm>
 #include <medida/counter.h>
 
 namespace stellar
@@ -19,8 +23,60 @@ LiveBucketList::addBatch(Application& app, uint32_t currLedger,
                          std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
-    addBatchInternal(app, currLedger, currLedgerProtocol, initEntries,
-                     liveEntries, deadEntries);
+    bool useInit = protocolVersionStartsFrom(
+        currLedgerProtocol,
+        LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+    auto entries = LiveBucket::convertToBucketEntry(useInit, initEntries,
+                                                    liveEntries, deadEntries);
+    std::vector<std::shared_ptr<LiveBucket>> shards;
+    if (!entries.empty())
+    {
+        bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
+        shards.push_back(LiveBucket::freshShard(
+            app.getBucketManager(), currLedgerProtocol, std::move(entries),
+            app.getClock().getIOContext(), doFsync));
+    }
+    addBatchShards(app, currLedger, currLedgerProtocol, std::move(shards));
+}
+
+void
+LiveBucketList::addBatchShards(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    std::vector<std::shared_ptr<LiveBucket>>&& newShards)
+{
+    ZoneScoped;
+    // Match the legacy level-0 merge behavior where every ledger's (possibly
+    // empty) batch re-stamped curr with the current protocol's metadata: a
+    // ledger that produced no shards at a META-supporting protocol
+    // contributes a meta-only shard, so curr is never version-less above
+    // non-empty lower levels. Pre-METAENTRY protocols genuinely leave curr
+    // empty, as before.
+    bool anyShard =
+        std::any_of(newShards.begin(), newShards.end(),
+                    [](std::shared_ptr<LiveBucket> const& s) {
+                        return s && !s->isEmpty();
+                    });
+    if (!anyShard &&
+        protocolVersionStartsFrom(
+            currLedgerProtocol,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+    {
+        newShards.push_back(LiveBucket::freshShard(
+            app.getBucketManager(), currLedgerProtocol, {},
+            app.getClock().getIOContext(),
+            !app.getConfig().DISABLE_XDR_FSYNC));
+    }
+    spillLevels(app, currLedger, currLedgerProtocol);
+    mLevels[0].prepareFirstLevelFromShards(app, currLedger,
+                                           std::move(newShards));
+    mLevels[0].commit();
+
+    // Try to resolve completed merges to single buckets (see the comment in
+    // addBatchInternal). Nonblocking.
+    if (!app.getConfig().ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING)
+    {
+        resolveAnyReadyFutures();
+    }
 
     // Initialize caches for any new buckets we might have added
     maybeInitializeCaches(app.getConfig());

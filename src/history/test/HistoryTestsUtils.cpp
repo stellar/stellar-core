@@ -1168,7 +1168,9 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CHECK(wantBucketListHash == haveBucketListHash);
     CHECK(wantHash == haveHash);
 
-    CHECK(app->getBucketManager().getBucketByHash<LiveBucket>(wantBucket0Hash));
+    // Level-0 curr is a composite (sharded) bucket whose combined hash names
+    // no file or BucketManager entry; its reconstruction is checked via the
+    // hash equality below instead.
     CHECK(app->getBucketManager().getBucketByHash<LiveBucket>(wantBucket1Hash));
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);

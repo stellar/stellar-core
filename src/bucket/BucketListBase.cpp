@@ -191,13 +191,10 @@ BucketLevel<BucketT>::commit()
 }
 
 template <>
-template <typename... VectorT>
 void
-BucketLevel<LiveBucket>::prepareFirstLevel(Application& app,
-                                           uint32_t currLedger,
-                                           uint32_t currLedgerProtocol,
-                                           bool countMergeEvents, bool doFsync,
-                                           VectorT const&... inputVectors)
+BucketLevel<LiveBucket>::prepareFirstLevelFromShards(
+    Application& app, uint32_t currLedger,
+    std::vector<std::shared_ptr<LiveBucket>>&& newShards)
 {
     ZoneScoped;
 
@@ -210,31 +207,29 @@ BucketLevel<LiveBucket>::prepareFirstLevel(Application& app,
             ? std::make_shared<LiveBucket>()
             : mCurr;
 
-    // On startup, the current bucket may not be initialized in memory, so
-    // fallback to normal prepare
-    if (!curr->hasInMemoryEntries())
+    std::vector<std::shared_ptr<LiveBucket>> shards;
+    if (curr && !curr->isEmpty())
     {
-        auto snap = LiveBucket::fresh(
-            app.getBucketManager(), currLedgerProtocol, inputVectors...,
-            countMergeEvents, app.getClock().getIOContext(), doFsync);
-        prepare(app, currLedger, currLedgerProtocol, snap, /*shadows=*/{},
-                countMergeEvents);
-        return;
+        if (curr->isSharded())
+        {
+            shards = curr->getShards();
+        }
+        else
+        {
+            // A plain non-empty curr (e.g. reconstituted on startup) becomes
+            // the oldest shard of the new composite.
+            shards.push_back(curr);
+        }
     }
-
-    // This bucket is the "level -1" snap bucket, which is created and
-    // immediately merges with level 0 curr. This merge will produce a
-    // BucketIndex for the result, so there's no reason to index this Bucket
-    // before it merges or write it to disk since it's merged in-memory.
-    auto snap = LiveBucket::freshInMemoryOnly(
-        app.getBucketManager(), currLedgerProtocol, inputVectors...,
-        countMergeEvents);
-
-    auto& bucketManager = app.getBucketManager();
-    auto& ctx = app.getClock().getIOContext();
-    setNextInMemory(LiveBucket::mergeInMemory(bucketManager, currLedgerProtocol,
-                                              curr, snap, countMergeEvents, ctx,
-                                              doFsync));
+    for (auto& s : newShards)
+    {
+        if (s && !s->isEmpty())
+        {
+            shards.emplace_back(std::move(s));
+        }
+    }
+    setNextInMemory(shards.empty() ? std::make_shared<LiveBucket>()
+                                   : LiveBucket::makeSharded(std::move(shards)));
 }
 
 template <>
@@ -309,6 +304,27 @@ BucketLevel<BucketT>::prepare(
                                   LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
             ? std::vector<std::shared_ptr<BucketT>>()
             : shadows;
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        // Expand composite (sharded) shadows into their shards: shadow
+        // checks are key-presence checks, and the shards collectively hold
+        // exactly the composite's keys.
+        std::vector<std::shared_ptr<BucketT>> expanded;
+        expanded.reserve(shadowsBasedOnProtocol.size());
+        for (auto const& s : shadowsBasedOnProtocol)
+        {
+            if (s->isSharded())
+            {
+                auto const& sub = s->getShards();
+                expanded.insert(expanded.end(), sub.begin(), sub.end());
+            }
+            else
+            {
+                expanded.push_back(s);
+            }
+        }
+        shadowsBasedOnProtocol = std::move(expanded);
+    }
     setNext(FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
                                   currLedgerProtocol, countMergeEvents,
                                   mLevel));
@@ -679,11 +695,9 @@ BucketListBase<BucketT>::getSize() const
 }
 
 template <typename BucketT>
-template <typename... VectorT>
 void
-BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
-                                          uint32_t currLedgerProtocol,
-                                          VectorT const&... inputVectors)
+BucketListBase<BucketT>::spillLevels(Application& app, uint32_t currLedger,
+                                     uint32_t currLedgerProtocol)
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
@@ -770,6 +784,18 @@ BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
                                shadows, /*countMergeEvents=*/true);
         }
     }
+    releaseAssert(shadows.size() == 0);
+}
+
+template <typename BucketT>
+template <typename... VectorT>
+void
+BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
+                                          uint32_t currLedgerProtocol,
+                                          VectorT const&... inputVectors)
+{
+    ZoneScoped;
+    spillLevels(app, currLedger, currLedgerProtocol);
 
     // In some testing scenarios, we want to inhibit counting level 0 merges
     // because they are not repeated when restarting merges on app startup,
@@ -777,7 +803,6 @@ BucketListBase<BucketT>::addBatchInternal(Application& app, uint32_t currLedger,
     bool countMergeEvents =
         !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
     bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
-    releaseAssert(shadows.size() == 0);
     mLevels[0].prepareFirstLevel(app, currLedger, currLedgerProtocol,
                                  countMergeEvents, doFsync, inputVectors...);
     mLevels[0].commit();
@@ -887,10 +912,4 @@ template void BucketListBase<HotArchiveBucket>::addBatchInternal(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
     std::vector<LedgerEntry> const& archiveEntries,
     std::vector<LedgerKey> const& restoredEntries);
-
-template void BucketListBase<LiveBucket>::addBatchInternal(
-    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerEntry> const& liveEntries,
-    std::vector<LedgerKey> const& deadEntries);
 }

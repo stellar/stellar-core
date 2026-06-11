@@ -40,6 +40,11 @@ ResolveSnapshotWork::onRun()
     if (pastPossibleConservativePublicationDelay &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
+        if (!mSnapshot->mLocalState.containsValidBuckets(mApp))
+        {
+            CLOG_ERROR(History, "Bad snapshot HAS: {}",
+                       mSnapshot->mLocalState.toString());
+        }
         releaseAssert(mSnapshot->mLocalState.containsValidBuckets(mApp));
         return State::WORK_SUCCESS;
     }

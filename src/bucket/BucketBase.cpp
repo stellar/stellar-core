@@ -76,6 +76,13 @@ template <class BucketT, class IndexT> BucketBase<BucketT, IndexT>::BucketBase()
 }
 
 template <class BucketT, class IndexT>
+BucketBase<BucketT, IndexT>::BucketBase(Hash const& hash, size_t size)
+    : mHash(hash), mIsComposite(true)
+{
+    mSize = size;
+}
+
+template <class BucketT, class IndexT>
 Hash const&
 BucketBase<BucketT, IndexT>::getHash() const
 {
@@ -86,6 +93,8 @@ template <class BucketT, class IndexT>
 std::filesystem::path const&
 BucketBase<BucketT, IndexT>::getFilename() const
 {
+    // Composite buckets have no file; callers must expand to shards first.
+    releaseAssertOrThrow(!mIsComposite);
     return mFilename;
 }
 
@@ -100,6 +109,11 @@ template <class BucketT, class IndexT>
 bool
 BucketBase<BucketT, IndexT>::isEmpty() const
 {
+    if (mIsComposite)
+    {
+        // Composites always hold at least one non-empty shard.
+        return false;
+    }
     if (mFilename.empty() || isZero(mHash))
     {
         releaseAssertOrThrow(mFilename.empty() && isZero(mHash));
@@ -357,6 +371,19 @@ BucketBase<BucketT, IndexT>::merge(
     releaseAssert(oldBucket);
     releaseAssert(newBucket);
 
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        // A composite (sharded) level-0 snap merging into level 1 takes the
+        // k-way merge path, condensing the shards into a single bucket.
+        if (newBucket->isSharded())
+        {
+            return LiveBucket::mergeWithShardedInput(
+                bucketManager, maxProtocolVersion, oldBucket, newBucket,
+                shadows, keepTombstoneEntries, countMergeEvents, ctx, doFsync);
+        }
+        releaseAssert(!oldBucket->isSharded());
+    }
+
     MergeCounters mc;
     BucketInputIterator<BucketT> oi(oldBucket);
     BucketInputIterator<BucketT> ni(newBucket);
@@ -431,6 +458,13 @@ template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
     MemoryMergeInput<LiveBucket>, std::function<void(BucketEntry const&)>,
     std::vector<BucketInputIterator<LiveBucket>>&, bool&>(
     BucketManager&, MemoryMergeInput<LiveBucket>&,
+    std::function<void(BucketEntry const&)>, uint32_t, MergeCounters&,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&);
+
+template void BucketBase<LiveBucket, LiveBucket::IndexT>::mergeInternal<
+    ShardedLiveMergeInput, std::function<void(BucketEntry const&)>,
+    std::vector<BucketInputIterator<LiveBucket>>&, bool&>(
+    BucketManager&, ShardedLiveMergeInput&,
     std::function<void(BucketEntry const&)>, uint32_t, MergeCounters&,
     std::vector<BucketInputIterator<LiveBucket>>&, bool&);
 

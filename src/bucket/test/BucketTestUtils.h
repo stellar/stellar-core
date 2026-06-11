@@ -9,6 +9,8 @@
 
 namespace stellar
 {
+class LiveBucket;
+
 namespace BucketTestUtils
 {
 
@@ -16,6 +18,10 @@ void addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
                                    std::vector<LedgerEntry> const& initEntries,
                                    std::vector<LedgerEntry> const& liveEntries,
                                    std::vector<LedgerKey> const& deadEntries);
+
+void addLiveBatchShardsAndUpdateSnapshot(
+    Application& app, LedgerHeader header,
+    std::vector<std::shared_ptr<LiveBucket>>&& newShards);
 
 void addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,

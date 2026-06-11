@@ -609,6 +609,105 @@ InMemorySorobanState::updateState(
 }
 
 void
+InMemorySorobanState::applyShardEntries(
+    std::vector<BucketEntry> const& entries,
+    SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion)
+{
+    ZoneScoped;
+    for (auto const& be : entries)
+    {
+        switch (be.type())
+        {
+        case INITENTRY:
+        {
+            auto const& entry = be.liveEntry();
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                createContractDataEntry(entry);
+            }
+            else if (entry.data.type() == CONTRACT_CODE)
+            {
+                createContractCodeEntry(entry, sorobanConfig, ledgerVersion);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                createTTL(entry);
+            }
+            break;
+        }
+        case LIVEENTRY:
+        {
+            auto const& entry = be.liveEntry();
+            if (entry.data.type() == CONTRACT_DATA)
+            {
+                updateContractData(entry);
+            }
+            else if (entry.data.type() == CONTRACT_CODE)
+            {
+                updateContractCode(entry, sorobanConfig, ledgerVersion);
+            }
+            else if (entry.data.type() == TTL)
+            {
+                updateTTL(entry);
+            }
+            break;
+        }
+        case DEADENTRY:
+        {
+            auto const& key = be.deadEntry();
+            if (key.type() == CONTRACT_DATA)
+            {
+                deleteContractData(key);
+            }
+            else if (key.type() == CONTRACT_CODE)
+            {
+                deleteContractCode(key);
+            }
+            // No need to evict TTLs, they are stored with their associated
+            // entry
+            break;
+        }
+        default:
+            throw std::runtime_error("Unexpected entry type in level-0 shard");
+        }
+    }
+}
+
+void
+InMemorySorobanState::finalizeUpdate(
+    LedgerHeader const& lh,
+    std::optional<SorobanNetworkConfig const> const& sorobanConfig,
+    SorobanMetrics& metrics, UnorderedSet<LedgerKey> const& evictionDeletedKeys)
+{
+    ZoneScoped;
+    // After initialization, we must apply every ledger in order to the
+    // in-memory state with no gaps.
+    releaseAssertOrThrow(mLastClosedLedgerSeq + 1 == lh.ledgerSeq);
+    mLastClosedLedgerSeq = lh.ledgerSeq;
+
+    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        releaseAssertOrThrow(sorobanConfig.has_value());
+        for (auto const& key : evictionDeletedKeys)
+        {
+            if (key.type() == CONTRACT_DATA)
+            {
+                deleteContractData(key);
+            }
+            else if (key.type() == CONTRACT_CODE)
+            {
+                deleteContractCode(key);
+            }
+            // No need to evict TTLs, they are stored with their associated
+            // entry
+        }
+    }
+
+    checkUpdateInvariants();
+    reportMetrics(metrics);
+}
+
+void
 InMemorySorobanState::recomputeContractCodeSize(
     SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion)
 {

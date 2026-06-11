@@ -45,11 +45,23 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     // should have spilled due to passing through `currLedger`. The `currLedger`
     // and `currProtocolVersion` values should be taken from the ledger at which
     // this batch is being added.
+    // The single-producer convenience form: converts the entries into one
+    // sorted shard (written and indexed synchronously) and adds it via
+    // addBatchShards.
     void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+
+    // Add the batch of entries effected by closing `currLedger` as a list of
+    // pre-built shard buckets, ordered oldest to newest (entries in newer
+    // shards shadow keywise-equal entries in older shards). The shards are
+    // appended to the level-0 curr composite; spills/merges for other levels
+    // are handled as usual. Null and empty shards are skipped.
+    void addBatchShards(Application& app, uint32_t currLedger,
+                        uint32_t currLedgerProtocol,
+                        std::vector<std::shared_ptr<LiveBucket>>&& newShards);
 
     BucketEntryCounters sumBucketEntryCounters() const;
 

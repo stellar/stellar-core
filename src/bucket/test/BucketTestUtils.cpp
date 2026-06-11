@@ -49,6 +49,18 @@ addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
 }
 
 void
+addLiveBatchShardsAndUpdateSnapshot(
+    Application& app, LedgerHeader header,
+    std::vector<std::shared_ptr<LiveBucket>>&& newShards)
+{
+    auto& liveBl = app.getBucketManager().getLiveBucketList();
+    liveBl.addBatchShards(app, header.ledgerSeq, header.ledgerVersion,
+                          std::move(newShards));
+
+    app.getLedgerManager().updateCanonicalStateForTesting(header);
+}
+
+void
 addHotArchiveBatchAndUpdateSnapshot(
     Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archiveEntries,
@@ -106,30 +118,46 @@ closeLedger(Application& app)
 template <>
 EntryCounts<LiveBucket>::EntryCounts(std::shared_ptr<LiveBucket> bucket)
 {
-    LiveBucketInputIterator iter(bucket);
-    if (iter.seenMetadata())
-    {
-        ++nMeta;
-    }
-    while (iter)
-    {
-        switch ((*iter).type())
+    auto countOne = [this](std::shared_ptr<LiveBucket> const& b) {
+        LiveBucketInputIterator iter(b);
+        if (iter.seenMetadata())
         {
-        case INITENTRY:
-            ++nInitOrArchived;
-            break;
-        case LIVEENTRY:
-            ++nLive;
-            break;
-        case DEADENTRY:
-            ++nDead;
-            break;
-        case METAENTRY:
-            // This should never happen: only the first record can be METAENTRY
-            // and it is counted above.
-            abort();
+            ++nMeta;
         }
-        ++iter;
+        while (iter)
+        {
+            switch ((*iter).type())
+            {
+            case INITENTRY:
+                ++nInitOrArchived;
+                break;
+            case LIVEENTRY:
+                ++nLive;
+                break;
+            case DEADENTRY:
+                ++nDead;
+                break;
+            case METAENTRY:
+                // This should never happen: only the first record can be
+                // METAENTRY and it is counted above.
+                abort();
+            }
+            ++iter;
+        }
+    };
+    // Composite (sharded) buckets are counted shard by shard. Note that
+    // keywise-equal entries appearing in multiple shards are counted once
+    // per shard.
+    if (bucket->isSharded())
+    {
+        for (auto const& shard : bucket->getShards())
+        {
+            countOne(shard);
+        }
+    }
+    else
+    {
+        countOne(bucket);
     }
 }
 
@@ -180,6 +208,10 @@ LedgerManagerForBucketTests::finalizeLedgerTxnChanges(
 {
     if (mUseTestEntries)
     {
+        // Test entries are injected via ledgers with empty tx sets, so no
+        // optimistic level-0 shard writes can be pending here.
+        releaseAssert(mPendingLedgerShards.empty());
+
         // Seal the ltx but throw its entries away.
         std::vector<LedgerEntry> init, live;
         std::vector<LedgerKey> dead;

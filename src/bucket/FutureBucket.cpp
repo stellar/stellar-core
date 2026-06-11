@@ -51,6 +51,16 @@ FutureBucket<BucketT>::FutureBucket(
     releaseAssert(snap);
     mInputCurrBucketHash = binToHex(curr->getHash());
     mInputSnapBucketHash = binToHex(snap->getHash());
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        if (snap->isSharded())
+        {
+            for (auto const& shard : snap->getShards())
+            {
+                mInputSnapShardHashes.push_back(binToHex(shard->getHash()));
+            }
+        }
+    }
     if (protocolVersionStartsFrom(snap->getBucketVersion(),
                                   LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
     {
@@ -206,6 +216,7 @@ FutureBucket<BucketT>::clearInputs()
 
     mInputShadowBucketHashes.clear();
     mInputSnapBucketHash.clear();
+    mInputSnapShardHashes.clear();
     mInputCurrBucketHash.clear();
 }
 
@@ -481,8 +492,29 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
         releaseAssert(mState == FB_HASH_INPUTS);
         mInputCurrBucket =
             bm.getBucketByHash<BucketT>(hexToBin256(mInputCurrBucketHash));
-        mInputSnapBucket =
-            bm.getBucketByHash<BucketT>(hexToBin256(mInputSnapBucketHash));
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            if (!mInputSnapShardHashes.empty())
+            {
+                // Rebuild the composite (sharded) snap from its shard files.
+                std::vector<std::shared_ptr<LiveBucket>> shards;
+                shards.reserve(mInputSnapShardHashes.size());
+                for (auto const& h : mInputSnapShardHashes)
+                {
+                    auto shard =
+                        bm.getBucketByHash<LiveBucket>(hexToBin256(h));
+                    releaseAssert(shard && !shard->isEmpty());
+                    shards.push_back(shard);
+                }
+                mInputSnapBucket = LiveBucket::makeSharded(std::move(shards));
+                checkHashEq(mInputSnapBucket, mInputSnapBucketHash);
+            }
+        }
+        if (!mInputSnapBucket)
+        {
+            mInputSnapBucket =
+                bm.getBucketByHash<BucketT>(hexToBin256(mInputSnapBucketHash));
+        }
 
         releaseAssert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
@@ -509,7 +541,14 @@ FutureBucket<BucketT>::getHashes() const
     {
         hashes.push_back(mInputCurrBucketHash);
     }
-    if (!mInputSnapBucketHash.empty())
+    if (!mInputSnapShardHashes.empty())
+    {
+        // The snap input is a composite: its combined hash names no file;
+        // the shard files are what need referencing/retention.
+        hashes.insert(hashes.end(), mInputSnapShardHashes.begin(),
+                      mInputSnapShardHashes.end());
+    }
+    else if (!mInputSnapBucketHash.empty())
     {
         hashes.push_back(mInputSnapBucketHash);
     }

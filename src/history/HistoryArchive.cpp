@@ -269,6 +269,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
         for (auto b : otherBuckets)
         {
             inhibit.insert(b.curr);
+            inhibit.insert(b.currShards.begin(), b.currShards.end());
             if (b.next.isLive())
             {
                 b.next.resolve();
@@ -278,18 +279,32 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
                 inhibit.insert(b.next.getOutputHash());
             }
             inhibit.insert(b.snap);
+            inhibit.insert(b.snapShards.begin(), b.snapShards.end());
         }
 
         for (size_t i = buckets.size(); i != 0; --i)
         {
-            auto s = buckets[i - 1].snap;
-            auto n = s;
-            if (buckets[i - 1].next.hasOutputHash())
+            auto const& level = buckets[i - 1];
+            // For composite (sharded) buckets, the shard files are what get
+            // published/fetched; the combined hash names no file.
+            std::vector<std::string> bs;
+            auto addBucket = [&bs](std::string const& hash,
+                                   std::vector<std::string> const& shards) {
+                if (!shards.empty())
+                {
+                    bs.insert(bs.end(), shards.begin(), shards.end());
+                }
+                else
+                {
+                    bs.push_back(hash);
+                }
+            };
+            addBucket(level.snap, level.snapShards);
+            if (level.next.hasOutputHash())
             {
-                n = buckets[i - 1].next.getOutputHash();
+                bs.push_back(level.next.getOutputHash());
             }
-            auto c = buckets[i - 1].curr;
-            auto bs = {s, n, c};
+            addBucket(level.curr, level.currShards);
             for (auto const& j : bs)
             {
                 if (inhibit.find(j) == inhibit.end())
@@ -315,8 +330,27 @@ HistoryArchiveState::allBuckets() const
     auto processBuckets = [&buckets](auto const& bucketList) {
         for (auto const& level : bucketList)
         {
-            buckets.insert(level.curr);
-            buckets.insert(level.snap);
+            // For composite (sharded) buckets, the combined hash names no
+            // file; the shard files are the real on-disk/in-archive
+            // artifacts.
+            if (!level.currShards.empty())
+            {
+                buckets.insert(level.currShards.begin(),
+                               level.currShards.end());
+            }
+            else
+            {
+                buckets.insert(level.curr);
+            }
+            if (!level.snapShards.empty())
+            {
+                buckets.insert(level.snapShards.begin(),
+                               level.snapShards.end());
+            }
+            else
+            {
+                buckets.insert(level.snap);
+            }
             auto nh = level.next.getHashes();
             buckets.insert(nh.begin(), nh.end());
         }
@@ -378,20 +412,48 @@ validateBucketListHelper(Application& app,
         return false;
     }
 
+    // Resolve a bucket version from a HAS entry; composite (sharded)
+    // buckets have no file of their own, so their version is the max over
+    // their shard files (and they are non-empty by construction).
+    auto getVersionFromHashes =
+        [&](std::string const& hash,
+            std::vector<std::string> const& shards) -> int32_t {
+        if (!shards.empty())
+        {
+            int32_t version = 0;
+            for (auto const& h : shards)
+            {
+                auto shard = app.getBucketManager().getBucketByHash<BucketT>(
+                    hexToBin256(h));
+                releaseAssert(shard && !shard->isEmpty());
+                version = std::max(
+                    version, static_cast<int32_t>(shard->getBucketVersion()));
+            }
+            nonEmptySeen = true;
+            return version;
+        }
+        auto b =
+            app.getBucketManager().getBucketByHash<BucketT>(hexToBin256(hash));
+        return getVersionAndCheckEmpty(b);
+    };
+
     for (uint32_t j = expectedLevels; j != 0; --j)
     {
         auto i = j - 1;
         auto const& level = buckets[i];
-        auto curr = app.getBucketManager().getBucketByHash<BucketT>(
-            hexToBin256(level.curr));
-        auto snap = app.getBucketManager().getBucketByHash<BucketT>(
-            hexToBin256(level.snap));
 
         // Note: snap is always older than curr, and therefore must be
         // processed first
-        if (!validateBucketVersion(getVersionAndCheckEmpty(snap)) ||
-            !validateBucketVersion(getVersionAndCheckEmpty(curr)))
+        auto snapVersion = getVersionFromHashes(level.snap, level.snapShards);
+        auto currVersion = getVersionFromHashes(level.curr, level.currShards);
+        if (!validateBucketVersion(snapVersion) ||
+            !validateBucketVersion(currVersion))
         {
+            CLOG_ERROR(History,
+                       "Bucket version validation failed at level {}: "
+                       "snap={} (v{}, {} shards), curr={} (v{}, {} shards)",
+                       i, level.snap, snapVersion, level.snapShards.size(),
+                       level.curr, currVersion, level.currShards.size());
             return false;
         }
 
@@ -410,9 +472,8 @@ validateBucketListHelper(Application& app,
         // Validate "next" field
         // Use previous level snap to determine "next" validity
         auto const& prev = buckets[i - 1];
-        auto prevSnap = app.getBucketManager().getBucketByHash<BucketT>(
-            hexToBin256(prev.snap));
-        uint32_t prevSnapVersion = getVersionAndCheckEmpty(prevSnap);
+        uint32_t prevSnapVersion =
+            getVersionFromHashes(prev.snap, prev.snapShards);
 
         if (!nonEmptySeen)
         {
@@ -478,12 +539,30 @@ HistoryArchiveState::prepareForPublish(Application& app)
             auto& level = buckets[i];
             auto& prev = buckets[i - 1];
 
-            auto snap = app.getBucketManager().getBucketByHash<BucketT>(
-                hexToBin256(prev.snap));
+            // Composite (sharded) snaps have no file of their own; take the
+            // max version over their shard files.
+            uint32_t snapVersion = 0;
+            if (!prev.snapShards.empty())
+            {
+                for (auto const& h : prev.snapShards)
+                {
+                    auto shard =
+                        app.getBucketManager().getBucketByHash<BucketT>(
+                            hexToBin256(h));
+                    releaseAssert(shard);
+                    snapVersion =
+                        std::max(snapVersion, shard->getBucketVersion());
+                }
+            }
+            else
+            {
+                auto snap = app.getBucketManager().getBucketByHash<BucketT>(
+                    hexToBin256(prev.snap));
+                snapVersion = snap->getBucketVersion();
+            }
             if (!level.next.isClear() &&
                 protocolVersionStartsFrom(
-                    snap->getBucketVersion(),
-                    LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+                    snapVersion, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 level.next.clear();
             }
@@ -543,6 +622,17 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
         b.curr = binToHex(curr->getHash());
         b.next = level.getNext();
         b.snap = binToHex(snap->getHash());
+        auto fillShards = [](auto const& bucket, auto& shardHashes) {
+            if (bucket->isSharded())
+            {
+                for (auto const& shard : bucket->getShards())
+                {
+                    shardHashes.push_back(binToHex(shard->getHash()));
+                }
+            }
+        };
+        fillShards(curr, b.currShards);
+        fillShards(snap, b.snapShards);
         currentBuckets.push_back(b);
 
         auto checkBucketSize = [](auto const& bucket) {

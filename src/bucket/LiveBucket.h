@@ -7,6 +7,7 @@
 #include "bucket/BucketBase.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LiveBucketIndex.h"
+#include <unordered_set>
 
 namespace medida
 {
@@ -40,6 +41,20 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // entries in this vector instead of copying them.
     std::shared_ptr<std::vector<BucketEntry> const> mEntries{};
 
+    // For composite (sharded) buckets only: the shards, ordered oldest to
+    // newest. Each shard is a normal file-backed LiveBucket; entries in newer
+    // shards shadow keywise-equal entries in older shards. Only the live
+    // BucketList's level-0 curr/snap are composites.
+    std::vector<std::shared_ptr<LiveBucket>> mShards{};
+
+    // Bucket protocol version cached at construction time, so composites and
+    // freshly-written shards don't need file I/O to answer getBucketVersion().
+    std::optional<uint32_t> mCachedBucketVersion{};
+
+    // For composite buckets: entry counters aggregated over all shards
+    // (normal buckets get these from their index).
+    std::optional<BucketEntryCounters> mCompositeEntryCounters{};
+
   public:
     // Entry type that this bucket stores
     using EntryT = BucketEntry;
@@ -66,6 +81,11 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
         std::shared_ptr<LiveBucketIndex const>&& index,
         std::shared_ptr<std::vector<BucketEntry> const> inMemoryState =
             nullptr);
+
+    // Composite (sharded) bucket constructor; use makeSharded instead.
+    LiveBucket(std::vector<std::shared_ptr<LiveBucket>>&& shards,
+               Hash const& combinedHash, uint32_t maxShardVersion,
+               BucketEntryCounters&& counters, size_t totalSize);
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.
@@ -105,6 +125,8 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
+    void applyInternal(Application& app,
+                       std::unordered_set<LedgerKey>& seenKeys) const;
     size_t getMaxCacheSize() const;
 #endif
 
@@ -126,15 +148,62 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
-    // Create a fresh bucket that exists only in memory, without writing to
-    // disk, calculating a hash, or indexing. This should only be used for
-    // "level -1" snap buckets that are immediately merged into level 0.
+    // Create a level-0 shard bucket from already-sorted BucketEntries (no
+    // METAENTRY; as produced by convertToBucketEntry). The shard is written
+    // to disk, hashed, indexed (in-memory index built from the entries) and
+    // adopted by the BucketManager; the entries are retained in memory for
+    // subsequent merges and lookups. Entries must be non-empty.
     static std::shared_ptr<LiveBucket>
-    freshInMemoryOnly(BucketManager& bucketManager, uint32_t protocolVersion,
-                      std::vector<LedgerEntry> const& initEntries,
-                      std::vector<LedgerEntry> const& liveEntries,
-                      std::vector<LedgerKey> const& deadEntries,
-                      bool countMergeEvents);
+    freshShard(BucketManager& bucketManager, uint32_t protocolVersion,
+               std::vector<BucketEntry>&& sortedEntries, asio::io_context& ctx,
+               bool doFsync);
+
+    // Combined hash of an ordered shard set: SHA256 of the concatenated
+    // shard hashes, oldest first.
+    static Hash
+    computeShardSetHash(std::vector<std::shared_ptr<LiveBucket>> const& shards);
+
+    // Create a composite (sharded) bucket from the given shards, ordered
+    // oldest to newest. Shards must be non-empty, non-composite buckets.
+    static std::shared_ptr<LiveBucket>
+    makeSharded(std::vector<std::shared_ptr<LiveBucket>> shards);
+
+    bool
+    isSharded() const
+    {
+        return !mShards.empty();
+    }
+
+    std::vector<std::shared_ptr<LiveBucket>> const&
+    getShards() const
+    {
+        releaseAssertOrThrow(isSharded());
+        return mShards;
+    }
+
+    // Resolve two same-key entries (old first, new second) using the
+    // lifecycle rules from mergeCasesWithEqualKeys: DEAD+INIT=x -> LIVE=x,
+    // INIT=x+LIVE=y -> INIT=y, INIT+DEAD -> nothing (std::nullopt),
+    // otherwise the new entry wins. Counts the merge cases in `mc` the same
+    // way mergeCasesWithEqualKeys does. Used to fold same-key entries
+    // across shards of a composite bucket during merges.
+    static std::optional<BucketEntry>
+    mergeSameKeyEntries(MergeCounters& mc, BucketEntry const& oldEntry,
+                        BucketEntry const& newEntry);
+
+    // Equivalent of BucketBase::merge for the case where the new bucket (the
+    // level-0 snap spilling into level 1) is a composite: performs a k-way
+    // merge over the shards (folding same-key entries across shards by
+    // recency) against the old bucket, producing a normal single-file
+    // bucket. This is where shards get condensed.
+    static std::shared_ptr<LiveBucket>
+    mergeWithShardedInput(BucketManager& bucketManager,
+                          uint32_t maxProtocolVersion,
+                          std::shared_ptr<LiveBucket> const& oldBucket,
+                          std::shared_ptr<LiveBucket> const& newShardedBucket,
+                          std::vector<std::shared_ptr<LiveBucket>> const& shadows,
+                          bool keepTombstoneEntries, bool countMergeEvents,
+                          asio::io_context& ctx, bool doFsync);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
     // level bucket (i.e. DEADENTRY)
@@ -151,15 +220,6 @@ class LiveBucket : public BucketBase<LiveBucket, LiveBucketIndex>,
                          BucketEntry const& entry, MergeCounters& mc,
                          std::vector<LiveBucketInputIterator>& shadowIterators,
                          bool keepShadowedLifecycleEntries);
-
-    // Merge two buckets in memory without using FutureBucket.
-    // This is used only for level 0 merges. Note that the resulting Bucket is
-    // still written to disk.
-    static std::shared_ptr<LiveBucket>
-    mergeInMemory(BucketManager& bucketManager, uint32_t maxProtocolVersion,
-                  std::shared_ptr<LiveBucket> const& oldBucket,
-                  std::shared_ptr<LiveBucket> const& newBucket,
-                  bool countMergeEvents, asio::io_context& ctx, bool doFsync);
 
     static void countOldEntryType(MergeCounters& mc, BucketEntry const& e);
     static void countNewEntryType(MergeCounters& mc, BucketEntry const& e);

@@ -420,22 +420,36 @@ class BucketIndexTest
 
         auto sumOfInMemoryEntries = 0;
         auto& liveBL = getBM().getLiveBucketList();
+        // Lookups served from in-memory entries (including the shards of a
+        // composite level-0 bucket) don't touch the cache meters.
+        auto countInMemory = [&](std::shared_ptr<LiveBucket const> b) {
+            if (b->isEmpty())
+            {
+                return;
+            }
+            if (b->isSharded())
+            {
+                for (auto const& shard : b->getShards())
+                {
+                    if (shard->hasInMemoryEntries())
+                    {
+                        sumOfInMemoryEntries +=
+                            shard->getBucketEntryCounters().numEntries();
+                    }
+                }
+                return;
+            }
+            if (b->hasInMemoryEntries())
+            {
+                sumOfInMemoryEntries +=
+                    b->getBucketEntryCounters().numEntries();
+            }
+        };
         for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
         {
             auto level = liveBL.getLevel(i);
-            auto curr = level.getCurr();
-            auto snap = level.getSnap();
-            if (curr->hasInMemoryEntries() && !curr->isEmpty())
-            {
-                sumOfInMemoryEntries +=
-                    curr->getBucketEntryCounters().numEntries();
-            }
-
-            if (snap->hasInMemoryEntries() && !snap->isEmpty())
-            {
-                sumOfInMemoryEntries +=
-                    snap->getBucketEntryCounters().numEntries();
-            }
+            countInMemory(level.getCurr());
+            countInMemory(level.getSnap());
         }
 
         // Checks hit rate then sets startingHitCount and startingMissCount
@@ -846,7 +860,9 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
     };
 
     auto checkCompleteCacheSize = [](auto b) {
-        if (!b->isEmpty() && !b->hasInMemoryEntries())
+        // Composite (sharded) level-0 buckets are served from their shards'
+        // in-memory indexes and have no cache.
+        if (!b->isEmpty() && !b->hasInMemoryEntries() && !b->isSharded())
         {
             auto cacheSize = b->getMaxCacheSize();
             auto accountsInBucket =
@@ -865,7 +881,7 @@ TEST_CASE("bl cache", "[bucket][bucketindex]")
     auto totalAccountCount = 0;
     auto checkPartialCacheSize = [&cachedAccountEntries,
                                   &totalAccountCount](auto b) {
-        if (!b->isEmpty() && !b->hasInMemoryEntries())
+        if (!b->isEmpty() && !b->hasInMemoryEntries() && !b->isSharded())
         {
             cachedAccountEntries += b->getMaxCacheSize();
             totalAccountCount += b->getBucketEntryCounters().entryTypeCounts.at(
@@ -1456,6 +1472,18 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
         auto clock = VirtualClock();
         auto app = createTestApplication<BucketTestApplication>(clock, cfg);
 
+        // Composite (sharded) level-0 buckets have no file or type ranges of
+        // their own; resolve to the single shard holding this test's batch.
+        auto resolveSingleShard = [](std::shared_ptr<LiveBucket const> bucket)
+            -> std::shared_ptr<LiveBucket const> {
+            if (bucket->isSharded())
+            {
+                REQUIRE(bucket->getShards().size() == 1);
+                return bucket->getShards().front();
+            }
+            return bucket;
+        };
+
         auto verifyIndexBounds = [](std::shared_ptr<LiveBucket const> bucket) {
             XDRInputFileStream in;
             in.open(bucket->getFilename().string());
@@ -1529,7 +1557,8 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
             closeLedger(*app);
 
             auto& bm = app->getBucketManager();
-            auto bucket = bm.getLiveBucketList().getLevel(0).getCurr();
+            auto bucket = resolveSingleShard(
+                bm.getLiveBucketList().getLevel(0).getCurr());
             verifyIndexBounds(bucket);
 
             // Non-existent type
@@ -1560,10 +1589,10 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                 {}, liveEntries, deadKeys);
             closeLedger(*app);
 
-            auto bucket = app->getBucketManager()
-                              .getLiveBucketList()
-                              .getLevel(0)
-                              .getCurr();
+            auto bucket = resolveSingleShard(app->getBucketManager()
+                                                 .getLiveBucketList()
+                                                 .getLevel(0)
+                                                 .getCurr());
 
             verifyIndexBounds(bucket);
             auto singleRange = bucket->getRangeForType(TRUSTLINE);
@@ -1602,10 +1631,10 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                 {}, entries, {});
             closeLedger(*app);
 
-            auto bucket = app->getBucketManager()
-                              .getLiveBucketList()
-                              .getLevel(0)
-                              .getCurr();
+            auto bucket = resolveSingleShard(app->getBucketManager()
+                                                 .getLiveBucketList()
+                                                 .getLevel(0)
+                                                 .getCurr());
             verifyIndexBounds(bucket);
 
             auto ledgerView = app->getLedgerManager().copyImmutableLedgerView();

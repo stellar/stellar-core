@@ -29,6 +29,7 @@ PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
 {
     if (!mState.containsValidBuckets(mApp))
     {
+        CLOG_ERROR(History, "Malformed HAS: {}", mState.toString());
         throw std::runtime_error("Malformed HAS, unable to publish");
     }
 }

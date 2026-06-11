@@ -315,6 +315,13 @@ class BucketManager : NonMovableOrCopyable
     // be given separate init (created) and live (updated) entry vectors. The
     // `header` value should be taken from the ledger at which this batch is
     // being added.
+    // Shard-aware form of addLiveBatch: adds the batch for the ledger
+    // described by `header` as a list of pre-built shard buckets, ordered
+    // oldest to newest. See LiveBucketList::addBatchShards.
+    void
+    addLiveBatchShards(Application& app, LedgerHeader header,
+                       std::vector<std::shared_ptr<LiveBucket>>&& newShards);
+
     void addLiveBatch(Application& app, LedgerHeader header,
                       std::vector<LedgerEntry> const& initEntries,
                       std::vector<LedgerEntry> const& liveEntries,
@@ -359,6 +366,14 @@ class BucketManager : NonMovableOrCopyable
     resolveBackgroundEvictionScan(ApplyLedgerView const& lclApplyView,
                                   AbstractLedgerTxn& ltx,
                                   LedgerKeySet const& modifiedKeys);
+
+    // Bypass path: soroban entries were not written through the LedgerTxn
+    // (see bypassLtxForSorobanEntries); modified-key checks are answered
+    // from the shard-derived key set built by the early in-memory state
+    // updater.
+    EvictedStateVectors resolveBackgroundEvictionScan(
+        ApplyLedgerView const& lclApplyView, AbstractLedgerTxn& ltx,
+        UnorderedSet<LedgerKey> const& modifiedSorobanKeys);
 
     medida::Meter& getBloomMissMeter() const;
     medida::Meter& getBloomLookupMeter() const;

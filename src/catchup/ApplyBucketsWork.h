@@ -41,6 +41,10 @@ class ApplyBucketsWork : public Work
     std::unordered_set<LedgerKey> mSeenKeysBeforeApply;
     std::unordered_set<LedgerKey> mSeenKeys;
     std::vector<std::shared_ptr<LiveBucket>> mBucketsToApply;
+    // (level, isCurr) for each entry of mBucketsToApply. Composite (sharded)
+    // level-0 buckets expand into several shard buckets sharing the same
+    // (level, isCurr) slot, so this can't be derived from the index.
+    std::vector<std::pair<uint32_t, bool>> mBucketMeta;
     std::unique_ptr<BucketApplicator> mBucketApplicator;
 
     BucketApplicator::Counters mCounters;

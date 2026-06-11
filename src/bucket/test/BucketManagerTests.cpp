@@ -1253,18 +1253,33 @@ class StopAndRestartBucketMergesTest
             BucketLevel<LiveBucket> const& level = bl.getLevel(i - 1);
             for (auto bucket : {level.getSnap(), level.getCurr()})
             {
-                for (LiveBucketInputIterator bi(bucket); bi; ++bi)
+                // Composite (sharded) level-0 buckets are iterated shard by
+                // shard, oldest first (we're folding entries oldest to
+                // newest, with newer values overwriting older ones).
+                std::vector<std::shared_ptr<LiveBucket>> parts;
+                if (bucket->isSharded())
                 {
-                    BucketEntry const& e = *bi;
-                    if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+                    parts = bucket->getShards();
+                }
+                else
+                {
+                    parts.push_back(bucket);
+                }
+                for (auto const& part : parts)
+                {
+                    for (LiveBucketInputIterator bi(part); bi; ++bi)
                     {
-                        auto le = e.liveEntry();
-                        liveEntries[LedgerEntryKey(le)] = le;
-                    }
-                    else
-                    {
-                        assert(e.type() == DEADENTRY);
-                        liveEntries.erase(e.deadEntry());
+                        BucketEntry const& e = *bi;
+                        if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+                        {
+                            auto le = e.liveEntry();
+                            liveEntries[LedgerEntryKey(le)] = le;
+                        }
+                        else
+                        {
+                            assert(e.type() == DEADENTRY);
+                            liveEntries.erase(e.deadEntry());
+                        }
                     }
                 }
             }

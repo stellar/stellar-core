@@ -284,16 +284,35 @@ SearchableBucketListSnapshot<BucketT>::loopAllBuckets(
 {
     for (auto const& level : snapshot.levels)
     {
-        if (level.curr && !level.curr->isEmpty())
+        for (auto const& bucket : {level.curr, level.snap})
         {
-            if (f(level.curr) == Loop::COMPLETE)
+            if (!bucket || bucket->isEmpty())
             {
-                return;
+                continue;
             }
-        }
-        if (level.snap && !level.snap->isEmpty())
-        {
-            if (f(level.snap) == Loop::COMPLETE)
+            if constexpr (std::is_same_v<BucketT, LiveBucket>)
+            {
+                // Composite (sharded) level-0 buckets are searched shard by
+                // shard, newest shard first (newer shards shadow older ones,
+                // and this loop's contract is newest-to-oldest).
+                if (bucket->isSharded())
+                {
+                    auto const& shards = bucket->getShards();
+                    bool complete = false;
+                    for (auto it = shards.rbegin();
+                         !complete && it != shards.rend(); ++it)
+                    {
+                        complete = f(std::shared_ptr<BucketT const>(*it)) ==
+                                   Loop::COMPLETE;
+                    }
+                    if (complete)
+                    {
+                        return;
+                    }
+                    continue;
+                }
+            }
+            if (f(bucket) == Loop::COMPLETE)
             {
                 return;
             }

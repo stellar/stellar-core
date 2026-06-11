@@ -39,8 +39,11 @@ TEST_CASE("genesisledger", "[ledger]")
     REQUIRE(header.scpValue.closeTime == 0);
     REQUIRE(header.scpValue.upgrades.size() == 0);
     REQUIRE(header.txSetResultHash == Hash{});
+    // NB: the genesis bucket-list hash changed when the level-0 curr bucket
+    // became a composite (sharded) bucket whose hash is the SHA256 of its
+    // shard hashes (see docs/sharded-level0-bucket.md).
     REQUIRE(binToHex(header.bucketListHash) ==
-            "4e6a8404d33b17eee7031af0b3606b6af8e36fe5a3bff59e4e5e420bd0ad3bf4");
+            "0dc20dd8bc798e9570b0e82b6637ac7afa1a6917f754a6b21cb8e86342a1d7e9");
     REQUIRE(header.ledgerSeq == 1);
     REQUIRE(header.totalCoins == 1000000000000000000);
     REQUIRE(header.feePool == 0);
@@ -55,7 +58,7 @@ TEST_CASE("genesisledger", "[ledger]")
     REQUIRE(header.skipList[2] == Hash{});
     REQUIRE(header.skipList[3] == Hash{});
     REQUIRE(binToHex(lcl.hash) ==
-            "caf73c70dde8134f792535756cc3212f65007883e8959adf92e48062f401e543");
+            "87a6579c0b4244d9834c28d7f86d84666ff19eac159531f23c5fc715d3aa3877");
 }
 
 TEST_CASE("ledgerheader", "[ledger]")

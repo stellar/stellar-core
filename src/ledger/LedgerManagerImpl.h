@@ -22,6 +22,7 @@
 #include "xdr/Stellar-ledger.h"
 #include <atomic>
 #include <filesystem>
+#include <future>
 #include <optional>
 #include <string>
 
@@ -195,6 +196,21 @@ class LedgerManagerImpl : public LedgerManager
         // apply thread.
         Phase mPhase{Phase::SETTING_UP_STATE};
 
+        // Early (shard-fed) in-memory Soroban state update for the ledger
+        // being applied; see startEarlyInMemorySorobanStateUpdate.
+        std::future<void> mEarlyInMemStateUpdate;
+        // Byproduct scan (modified-key set + new contract code), run as a
+        // separate parallel task so eviction's keyset is ready well before
+        // the (slower) state application completes.
+        std::future<void> mEarlyUpdateByproducts;
+        uint64_t mInMemStateSizeBeforeEarlyUpdate{0};
+        // Byproducts of the early update, valid after it completes (wait/
+        // join): the set of soroban-typed keys modified this ledger (for
+        // eviction's modified-key checks when soroban entries bypass the
+        // ltx) and any new/updated contract code (for the module cache).
+        UnorderedSet<LedgerKey> mEarlyUpdateModifiedSorobanKeys;
+        std::vector<LedgerEntry> mEarlyUpdateNewContractCode;
+
         // Kicks off (on auxiliary threads) compilation of all contracts in the
         // apply state snapshot, for ledger protocols starting at
         // minLedgerVersion and running through to
@@ -248,6 +264,61 @@ class LedgerManagerImpl : public LedgerManager
         // Note: These are const getters, but should still only be called in the
         // COMMITTING phase.
         uint64_t getSorobanInMemoryStateSize() const;
+
+        // Early (shard-fed) in-memory Soroban state update. Started from the
+        // apply thread during the APPLYING phase, strictly after all parallel
+        // apply threads have joined (so there are no concurrent readers):
+        // applies each shard's retained entries to the state on a background
+        // thread, overlapped with the ltx commit, post-apply fee processing
+        // and the seal. The state size is captured before mutation so the
+        // seal-time size snapshot keeps its "size as of the previous ledger"
+        // semantics. finalizeUpdate (eviction deletions + ledger-seq advance)
+        // runs at seal via joinEarlyInMemorySorobanStateUpdate.
+        // threadShards: the per-cluster shard futures (long since written
+        // by updater start). ttlEntries: this ledger's reconciled TTL
+        // changes, fed directly (by value) so the updater need not wait for
+        // the TTL shard's file write.
+        void startEarlyInMemorySorobanStateUpdate(
+            std::vector<std::shared_future<std::shared_ptr<LiveBucket>>>
+                threadShards,
+            std::vector<BucketEntry> ttlEntries,
+            SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion);
+
+        bool
+        hasEarlyInMemorySorobanStateUpdate() const
+        {
+            return mEarlyInMemStateUpdate.valid();
+        }
+
+        // Size to report for the seal-time state-size snapshot: the size
+        // captured before the early update started, or the current size if
+        // no early update is running.
+        uint64_t getSorobanInMemoryStateSizeForSnapshot() const;
+
+        // Blocks until the early update (if any) has applied all shards;
+        // keeps the update joinable. Used by the (rare) config-upgrade path
+        // that recomputes entry sizes mid-close.
+        void waitForEarlyInMemorySorobanStateUpdate();
+
+        // Blocks until the byproduct scan (if any) is complete.
+        void waitForEarlyUpdateByproducts();
+
+        // Byproducts of the early update; only valid after
+        // waitForEarlyUpdateByproducts.
+        UnorderedSet<LedgerKey> const&
+        getEarlyUpdateModifiedSorobanKeys() const
+        {
+            return mEarlyUpdateModifiedSorobanKeys;
+        }
+        std::vector<LedgerEntry> const&
+        getEarlyUpdateNewContractCode() const
+        {
+            return mEarlyUpdateNewContractCode;
+        }
+
+        // Consumes the early update future (blocking if needed). Must be
+        // called exactly once per started update, at seal.
+        void joinEarlyInMemorySorobanStateUpdate();
 
         void manuallyAdvanceLedgerHeader(LedgerHeader const& lh);
         // Finishes a compilation started by `startCompilingAllContracts`.
@@ -403,7 +474,7 @@ class LedgerManagerImpl : public LedgerManager
     void applySorobanStage(AppConnector& app, LedgerHeader const& header,
                            GlobalParallelApplyLedgerState& globalParState,
                            ApplyStage const& stage,
-                           Hash const& sorobanBasePrngSeed);
+                           Hash const& sorobanBasePrngSeed, bool isLastStage);
 
     void applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
                             std::vector<ApplyStage> const& stages,
@@ -581,6 +652,27 @@ class LedgerManagerImpl : public LedgerManager
         double destroyApplyStagesMs = 0;
         double applyUpgradesMs = 0;
         double sealAndBucketMs = 0;
+        // Sub-timings of sealAndBucketMs: eviction-scan resolution, the
+        // sealing ltx.getAllEntries call, the live bucket batch (with the
+        // level-0 in-memory merge + disk write decomposed into
+        // convert/sort, merge, serialize+hash put loop, close/fsync/adopt,
+        // and index wait), waits on the async hot-archive batch and
+        // in-memory Soroban state updates, the bucket list hash
+        // (snapshotLedger), the header/HAS DB store, and the apply-snapshot
+        // advance.
+        double sealEvictionMs = 0;
+        double sealGetAllEntriesMs = 0;
+        double sealAddLiveBatchMs = 0;
+        // Build+write of the residual (everything-not-covered-by-optimistic-
+        // shards) level-0 shard, and the wait for the optimistic shard write
+        // futures (normally ~0: those writes started during apply).
+        double sealResidualShardMs = 0;
+        double sealShardWaitMs = 0;
+        double sealHotArchiveWaitMs = 0;
+        double sealInMemStateWaitMs = 0;
+        double sealSnapshotHashMs = 0;
+        double sealStoreHeaderMs = 0;
+        double sealAdvanceSnapshotMs = 0;
         double sqlCommitMs = 0;
         double postCommitMs = 0;
     };
@@ -602,6 +694,16 @@ class LedgerManagerImpl : public LedgerManager
 
     LedgerClosePhaseTimings mLastPhaseTimings;
 #endif
+
+    // Pending optimistic level-0 shard writes for the ledger currently being
+    // applied, in deterministic shard order (stage0.cluster0 ...
+    // stageN.clusterK, then ttl, then the residual shard from the sealing
+    // ltx). Shared futures: consumed both by the early in-memory state
+    // updater and by the shard-list assembly at seal. Only mutated from the
+    // apply thread (worker threads fill preallocated slots that are moved
+    // here after the join barrier).
+    std::vector<std::shared_future<std::shared_ptr<LiveBucket>>>
+        mPendingLedgerShards;
 
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;

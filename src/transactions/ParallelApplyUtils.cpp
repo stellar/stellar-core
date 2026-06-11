@@ -4,6 +4,8 @@
 
 #include "transactions/ParallelApplyUtils.h"
 #include "bucket/BucketUtils.h"
+#include "bucket/LedgerCmp.h"
+#include "bucket/LiveBucket.h"
 #include "ledger/LedgerEntryScope.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/NetworkConfig.h"
@@ -786,7 +788,8 @@ GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
 }
 
 void
-GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(AbstractLedgerTxn& ltx)
+GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
+    AbstractLedgerTxn& ltx, bool skipSorobanEntries)
 {
     ZoneScoped;
     LedgerTxn ltxInner(ltx);
@@ -796,6 +799,18 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(AbstractLedgerTxn& ltx)
         if (!entry.mIsDirty)
         {
             continue;
+        }
+
+        if (skipSorobanEntries)
+        {
+            // Soroban entries bypass the ltx: they persist via the level-0
+            // shards and the in-memory Soroban state (see
+            // bypassLtxForSorobanEntries).
+            auto t = key.ledgerKey().type();
+            if (t == CONTRACT_DATA || t == CONTRACT_CODE || t == TTL)
+            {
+                continue;
+            }
         }
 
         // Move the LedgerEntry out of the scoped wrapper. This is safe
@@ -924,11 +939,20 @@ void
 GlobalParallelApplyLedgerState::commitChangeFromThread(
     ThreadParallelApplyLedgerState const& thread,
     ParallelApplyLedgerKey const& key, ThreadParallelApplyEntry&& parEntry,
-    ParallelApplyLedgerKeySet const& readWriteSet)
+    ParallelApplyLedgerKeySet const& readWriteSet,
+    bool skipSorobanDataAndCode)
 {
     if (!parEntry.mIsDirty)
     {
         return;
+    }
+    if (skipSorobanDataAndCode)
+    {
+        auto t = key.ledgerKey().type();
+        if (t == CONTRACT_DATA || t == CONTRACT_CODE)
+        {
+            return;
+        }
     }
     auto rescopedParEntry = std::move(parEntry).rescope(thread, *this);
     auto it = mGlobalEntryMap.find(key);
@@ -960,22 +984,93 @@ GlobalParallelApplyLedgerState::commitChangeFromThread(
 void
 GlobalParallelApplyLedgerState::commitChangesFromThread(
     AppConnector& app, ThreadParallelApplyLedgerState& thread,
-    ParallelApplyLedgerKeySet const& readWriteSet)
+    ParallelApplyLedgerKeySet const& readWriteSet, bool skipSorobanDataAndCode)
 {
     ZoneScoped;
     thread.scopeDeactivate();
     for (auto& [key, entry] : thread.getEntryMap())
     {
-        commitChangeFromThread(thread, key, std::move(entry), readWriteSet);
+        commitChangeFromThread(thread, key, std::move(entry), readWriteSet,
+                               skipSorobanDataAndCode);
     }
     mGlobalRestoredEntries.addRestoresFrom(thread.getRestoredEntries());
+}
+
+namespace
+{
+// Shared extraction for optimistic level-0 shard writes: pull the dirty
+// entries of the requested types out of a parallel-apply entry map and
+// convert them to BucketEntries (unsorted; the shard writer task sorts off
+// the apply thread). Entries created and deleted within this ledger (mIsNew
+// with no value) are skipped entirely, matching the ltx's annihilation of
+// created-then-erased entries.
+template <typename EntryMapT, typename ScopeT>
+std::vector<BucketEntry>
+extractDirtyEntriesForShard(EntryMapT const& entryMap, ScopeT const& scope,
+                            bool ttlOnly)
+{
+    ZoneScoped;
+    std::vector<BucketEntry> entries;
+    for (auto const& [pk, pe] : entryMap)
+    {
+        if (!pe.mIsDirty)
+        {
+            continue;
+        }
+        auto const& lk = pk.ledgerKey();
+        if (ttlOnly ? lk.type() != TTL
+                    : (lk.type() != CONTRACT_DATA && lk.type() != CONTRACT_CODE))
+        {
+            continue;
+        }
+        auto const& leOpt = pe.mLedgerEntry.readInScope(scope);
+        if (!leOpt && pe.mIsNew)
+        {
+            // Created and deleted within this ledger: annihilated.
+            continue;
+        }
+        BucketEntry be;
+        if (leOpt)
+        {
+            be.type(pe.mIsNew ? INITENTRY : LIVEENTRY);
+            be.liveEntry() = *leOpt;
+        }
+        else
+        {
+            be.type(DEADENTRY);
+            be.deadEntry() = lk;
+        }
+        entries.emplace_back(std::move(be));
+    }
+    return entries;
+}
+}
+
+bool
+bypassLtxForSorobanEntries(Config const& cfg)
+{
+    return cfg.INVARIANT_CHECKS.empty();
+}
+
+std::vector<BucketEntry>
+ThreadParallelApplyLedgerState::extractDirtySorobanShardEntries() const
+{
+    return extractDirtyEntriesForShard(mThreadEntryMap, *this,
+                                       /*ttlOnly=*/false);
+}
+
+std::vector<BucketEntry>
+GlobalParallelApplyLedgerState::extractDirtyTTLShardEntries() const
+{
+    return extractDirtyEntriesForShard(mGlobalEntryMap, *this,
+                                       /*ttlOnly=*/true);
 }
 
 void
 GlobalParallelApplyLedgerState::commitChangesFromThreads(
     AppConnector& app,
     std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const& threads,
-    ApplyStage const& stage)
+    ApplyStage const& stage, bool skipSorobanDataAndCode)
 {
     ZoneScoped;
     releaseAssert(threadIsMain() ||
@@ -984,7 +1079,8 @@ GlobalParallelApplyLedgerState::commitChangesFromThreads(
     auto readWriteSet = getReadWriteKeysForStage(stage);
     for (auto const& thread : threads)
     {
-        commitChangesFromThread(app, *thread, readWriteSet);
+        commitChangesFromThread(app, *thread, readWriteSet,
+                                skipSorobanDataAndCode);
     }
 }
 

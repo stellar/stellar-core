@@ -68,6 +68,16 @@ class ParallelLedgerInfo
     Hash networkID;
 };
 
+// Whether soroban-typed (CONTRACT_DATA/CONTRACT_CODE/TTL) entry changes may
+// bypass the LedgerTxn entirely: from PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION
+// on, these entries persist via the level-0 shard buckets and the in-memory
+// Soroban state, never via SQL; per-tx meta is built from TxEffects during
+// apply; eviction gets its modified-key answers from an explicit key set; and
+// the LedgerTxnRoot entry cache is cleared on every commit. The only remaining
+// ltx consumer is the invariant subsystem, so the bypass is enabled exactly
+// when no invariants are configured.
+bool bypassLtxForSorobanEntries(Config const& cfg);
+
 class ThreadParallelApplyLedgerState
     : public LedgerEntryScope<StaticLedgerEntryScope::ThreadParApply>
 {
@@ -157,6 +167,17 @@ class ThreadParallelApplyLedgerState
     ParallelApplyEntryMap<staticScope> const& getEntryMap() const;
     ParallelApplyEntryMap<staticScope>& getEntryMap();
 
+    // Extract this thread's dirty CONTRACT_DATA/CONTRACT_CODE changes as
+    // (unsorted) BucketEntries for an optimistic level-0 shard write. TTL
+    // entries are excluded (they need cross-thread reconciliation in the
+    // global state); entries created and deleted within this ledger are
+    // skipped entirely, matching the ltx's annihilation of
+    // created-then-erased entries. Cluster RW footprints are disjoint
+    // within a stage, and nothing after the parallel phase modifies these
+    // entry types, so the extracted entries are final for this ledger
+    // (modulo later stages, which shadow them by shard order).
+    std::vector<BucketEntry> extractDirtySorobanShardEntries() const;
+
     RestoredEntries const& getRestoredEntries() const;
 
     OptionalEntryT getLiveEntryOpt(LedgerKey const& key) const;
@@ -245,11 +266,13 @@ class GlobalParallelApplyLedgerState
     void commitChangeFromThread(ThreadParallelApplyLedgerState const& thread,
                                 ParallelApplyLedgerKey const& key,
                                 ThreadParallelApplyEntry&& parEntry,
-                                ParallelApplyLedgerKeySet const& readWriteSet);
+                                ParallelApplyLedgerKeySet const& readWriteSet,
+                                bool skipSorobanDataAndCode);
 
     void commitChangesFromThread(AppConnector& app,
                                  ThreadParallelApplyLedgerState& thread,
-                                 ParallelApplyLedgerKeySet const& readWriteSet);
+                                 ParallelApplyLedgerKeySet const& readWriteSet,
+                                 bool skipSorobanDataAndCode);
 
   public:
     GlobalParallelApplyLedgerState(AppConnector& app, ApplyLedgerView applyView,
@@ -261,16 +284,33 @@ class GlobalParallelApplyLedgerState
     ParallelApplyEntryMap<staticScope> const& getGlobalEntryMap() const;
     RestoredEntries const& getRestoredEntries() const;
 
+    // skipSorobanDataAndCode: used for the last stage when soroban entries
+    // bypass the ltx -- CONTRACT_DATA/CODE entries are final at thread
+    // completion (consumed directly by the shard writers and the in-memory
+    // state updater), so they need not be merged into the global map. TTL
+    // entries are always merged (cross-thread reconciliation), as are
+    // restored-entry records and anything classic.
     void commitChangesFromThreads(
         AppConnector& app,
         std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> const&
             threads,
-        ApplyStage const& stage);
+        ApplyStage const& stage, bool skipSorobanDataAndCode);
+
+    // Extract the dirty TTL entries (reconciled across all threads and
+    // stages) as (unsorted) BucketEntries for a level-0 shard write. Must
+    // be called after the last stage's commitChangesFromThreads (so
+    // read-only TTL bumps have been max-merged) and before
+    // commitChangesToLedgerTxn (which moves entries out).
+    std::vector<BucketEntry> extractDirtyTTLShardEntries() const;
 
     // Consumes the global entry map: moves entries into the LedgerTxn
     // instead of copying. Must only be called once, as the final operation
     // on this state (entries are left in a moved-from state afterwards).
-    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx);
+    // skipSorobanEntries: when soroban entries bypass the ltx (see
+    // bypassLtxForSorobanEntries), CONTRACT_DATA/CODE/TTL entries are not
+    // written to the ltx at all; restored-entry markers are still recorded.
+    void commitChangesToLedgerTxn(AbstractLedgerTxn& ltx,
+                                  bool skipSorobanEntries);
 
     // The applyView ledger sequence number is one less than the
     // applying ledger sequence number.

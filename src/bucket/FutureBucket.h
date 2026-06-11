@@ -75,6 +75,12 @@ template <class BucketT> class FutureBucket
     // on the hash-values.
     std::string mInputCurrBucketHash;
     std::string mInputSnapBucketHash;
+    // When the snap input is a composite (sharded) level-0 bucket, the
+    // hashes of its shard files, oldest first. mInputSnapBucketHash then
+    // holds the combined (shard-set) hash, which names no file; the shards
+    // are what exist on disk and what the composite is rebuilt from in
+    // makeLive.
+    std::vector<std::string> mInputSnapShardHashes;
     std::vector<std::string> mInputShadowBucketHashes;
     std::string mOutputBucketHash;
 
@@ -144,6 +150,7 @@ template <class BucketT> class FutureBucket
         case FB_HASH_INPUTS:
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
+            ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
             ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
             break;
         case FB_HASH_OUTPUT:
@@ -171,6 +178,7 @@ template <class BucketT> class FutureBucket
             ar(cereal::make_nvp("state", FB_HASH_INPUTS));
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
+            ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
             ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
             break;
         case FB_LIVE_OUTPUT:

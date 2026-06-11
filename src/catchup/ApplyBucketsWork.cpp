@@ -97,6 +97,7 @@ ApplyBucketsWork::doReset()
     mSeenKeysBeforeApply.clear();
     mSeenKeys.clear();
     mBucketsToApply.clear();
+    mBucketMeta.clear();
     mBucketApplicator.reset();
 
     if (!isAborting())
@@ -118,12 +119,34 @@ ApplyBucketsWork::doReset()
 
         // We iterate through the live BucketList in
         // order (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying
-        // offers (and can keep track of all seen keys).
+        // offers (and can keep track of all seen keys). Composite (sharded)
+        // level-0 buckets expand into their shard files, newest shard first
+        // (newer shards shadow older ones via the seen-keys set).
+        uint32_t level = 0;
         for (auto const& hsb : mApplyState.currentBuckets)
         {
-            addBucket(getBucket(hsb.curr));
-            addBucket(getBucket(hsb.snap));
+            auto addOne = [&](std::string const& hash,
+                              std::vector<std::string> const& shards,
+                              bool isCurr) {
+                if (!shards.empty())
+                {
+                    for (auto it = shards.rbegin(); it != shards.rend(); ++it)
+                    {
+                        addBucket(getBucket(*it));
+                        mBucketMeta.emplace_back(level, isCurr);
+                    }
+                }
+                else
+                {
+                    addBucket(getBucket(hash));
+                    mBucketMeta.emplace_back(level, isCurr);
+                }
+            };
+            addOne(hsb.curr, hsb.currShards, true);
+            addOne(hsb.snap, hsb.snapShards, false);
+            ++level;
         }
+        releaseAssert(mBucketMeta.size() == mBucketsToApply.size());
 
         // estimate the number of ledger entries contained in those buckets
         // use accounts as a rough approximator as to overestimate a bit
@@ -148,6 +171,7 @@ ApplyBucketsWork::startBucket()
 {
     ZoneScoped;
     auto bucket = mBucketsToApply.at(mBucketToApplyIndex);
+    mLevel = mBucketMeta.at(mBucketToApplyIndex).first;
     mMinProtocolVersionSeen =
         std::min(mMinProtocolVersionSeen, bucket->getBucketVersion());
 
@@ -171,12 +195,7 @@ ApplyBucketsWork::prepareForNextBucket()
     mBucketApplicator.reset();
     mApp.getLedgerApplyManager().bucketsApplied();
     mBucketToApplyIndex++;
-    // If mBucketToApplyIndex is even, we are progressing to the next
-    // level
-    if (mBucketToApplyIndex % 2 == 0)
-    {
-        ++mLevel;
-    }
+    // mLevel is refreshed from mBucketMeta in startBucket.
 }
 
 // We iterate through the live BucketList either in-order (level 0 curr, level 0
@@ -217,7 +236,8 @@ ApplyBucketsWork::doWork()
     if (!mAssumeStateWork)
     {
         // Step 2: apply buckets.
-        auto isCurr = mBucketToApplyIndex % 2 == 0;
+        auto isCurr = mBucketToApplyIndex < mBucketMeta.size() &&
+                      mBucketMeta.at(mBucketToApplyIndex).second;
         if (mBucketApplicator)
         {
             TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);

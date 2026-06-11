@@ -399,6 +399,16 @@ template <class BucketT> class BucketLevel
                            uint32_t currLedgerProtocol, bool countMergeEvents,
                            bool doFsync, VectorT const&... inputVectors);
 
+    // Level-0 (LiveBucket only): append this ledger's shards to curr,
+    // producing a composite (sharded) bucket. No merging or disk writes
+    // happen here; the shards were already written, hashed and indexed by
+    // their producers. Empty and null shards are skipped. If curr is a
+    // plain non-empty bucket (e.g. right after startup), it becomes the
+    // oldest shard of the new composite.
+    void prepareFirstLevelFromShards(
+        Application& app, uint32_t currLedger,
+        std::vector<std::shared_ptr<BucketT>>&& newShards);
+
     std::shared_ptr<BucketT> snap();
 };
 
@@ -450,6 +460,12 @@ template <class BucketT> class BucketListBase
     void addBatchInternal(Application& app, uint32_t currLedger,
                           uint32_t currLedgerProtocol,
                           VectorT const&... inputVectors);
+
+    // The spill cascade shared by addBatchInternal and the sharded level-0
+    // path: walks levels oldest-to-youngest, snapping and starting merges
+    // for any level that should spill at `currLedger`.
+    void spillLevels(Application& app, uint32_t currLedger,
+                     uint32_t currLedgerProtocol);
 
   public:
     // Trivial pure virtual destructor to make this an abstract class

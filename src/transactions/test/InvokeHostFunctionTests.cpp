@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/test.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -188,6 +189,122 @@ overrideNetworkSettingsToMin(Application& app)
     executeUpgrade(app, upgrade);
 }
 } // namespace
+
+TEST_CASE("soroban state bypasses ltx with meta emission",
+          "[tx][soroban][bucketshard]")
+{
+    // When no invariants are configured (the production default), soroban
+    // entry changes bypass the LedgerTxn entirely and persist via the
+    // level-0 shard buckets and the in-memory Soroban state (see
+    // bypassLtxForSorobanEntries). Verify that per-transaction meta still
+    // carries the CONTRACT_DATA changes (meta is built from per-tx
+    // TxEffects during apply, not from the ltx) and that state round-trips.
+    auto appCfg = getTestConfig();
+    appCfg.INVARIANT_CHECKS.clear();
+    SorobanTest test(appCfg);
+    REQUIRE(bypassLtxForSorobanEntries(test.getApp().getConfig()));
+    ContractStorageTestClient client(test);
+
+    auto metaHasContractDataChange = [&]() {
+        auto const& metas =
+            test.getApp().getLedgerManager().getLastClosedLedgerTxMeta();
+        for (auto const& m : metas)
+        {
+            auto const& changes = m.getLedgerEntryChangesAtOp(0);
+            for (auto const& ch : changes)
+            {
+                if ((ch.type() == LEDGER_ENTRY_CREATED &&
+                     ch.created().data.type() == CONTRACT_DATA) ||
+                    (ch.type() == LEDGER_ENTRY_UPDATED &&
+                     ch.updated().data.type() == CONTRACT_DATA) ||
+                    (ch.type() == LEDGER_ENTRY_REMOVED &&
+                     ch.removed().type() == CONTRACT_DATA))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // Create an entry; the tx meta of the creating ledger must contain the
+    // CONTRACT_DATA change.
+    REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, 42) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(metaHasContractDataChange());
+
+    // The state round-trips across ledgers (served by the in-memory soroban
+    // state and the shard buckets, never the SQL/ltx path).
+    REQUIRE(client.get("key", ContractDataDurability::PERSISTENT, 42) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(client.put("key", ContractDataDurability::PERSISTENT, 43) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(metaHasContractDataChange());
+    REQUIRE(client.get("key", ContractDataDurability::PERSISTENT, 43) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(client.del("key", ContractDataDurability::PERSISTENT) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+    REQUIRE(metaHasContractDataChange());
+    REQUIRE(client.has("key", ContractDataDurability::PERSISTENT, false) ==
+            INVOKE_HOST_FUNCTION_SUCCESS);
+}
+
+TEST_CASE("soroban ltx bypass produces identical tx meta",
+          "[tx][soroban][bucketshard]")
+{
+    // The ltx bypass (active in production, where no invariants are
+    // configured) must be meta-transparent: the same transaction sequence
+    // must produce byte-identical TransactionMeta with and without it.
+    auto runScenario = [](bool withInvariants) {
+        // Identical randomness => identical accounts, contract IDs and txs.
+        // Re-seed with the current global seed: shortHash rejects re-seeding
+        // with a different seed once anything in the process has hashed.
+        reinitializeAllGlobalStateWithSeed(getLastGlobalStateSeed().value());
+        auto cfg = getTestConfig();
+        if (!withInvariants)
+        {
+            cfg.INVARIANT_CHECKS.clear();
+        }
+        REQUIRE(bypassLtxForSorobanEntries(cfg) == !withInvariants);
+
+        std::vector<TransactionMeta> metas;
+        SorobanTest test(cfg);
+        ContractStorageTestClient client(test);
+        auto collect = [&]() {
+            for (auto const& m :
+                 test.getApp().getLedgerManager().getLastClosedLedgerTxMeta())
+            {
+                metas.push_back(m.getXDR());
+            }
+        };
+        REQUIRE(client.put("k1", ContractDataDurability::PERSISTENT, 42) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+        collect();
+        REQUIRE(client.put("k2", ContractDataDurability::TEMPORARY, 7) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+        collect();
+        REQUIRE(client.extend("k1", ContractDataDurability::PERSISTENT, 1000,
+                              10'000) == INVOKE_HOST_FUNCTION_SUCCESS);
+        collect();
+        REQUIRE(client.put("k1", ContractDataDurability::PERSISTENT, 43) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+        collect();
+        REQUIRE(client.del("k2", ContractDataDurability::TEMPORARY) ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+        collect();
+        return metas;
+    };
+
+    auto legacyMetas = runScenario(/*withInvariants=*/true);
+    auto bypassMetas = runScenario(/*withInvariants=*/false);
+
+    REQUIRE(!legacyMetas.empty());
+    REQUIRE(legacyMetas.size() == bypassMetas.size());
+    for (size_t i = 0; i < legacyMetas.size(); ++i)
+    {
+        REQUIRE(legacyMetas.at(i) == bypassMetas.at(i));
+    }
+}
 
 TEST_CASE_VERSIONS("Trustline stellar asset contract",
                    "[tx][soroban][invariant][conservationoflumens]")
