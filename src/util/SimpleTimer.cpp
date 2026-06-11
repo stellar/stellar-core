@@ -43,9 +43,8 @@ SimpleTimer::Update(std::chrono::nanoseconds d)
     mSampleCount.inc(1);
     // Lock-free max tracking.
     int64_t prev = mMax.load(std::memory_order_relaxed);
-    while (prev < converted &&
-           !mMax.compare_exchange_weak(prev, converted,
-                                       std::memory_order_relaxed))
+    while (prev < converted && !mMax.compare_exchange_weak(
+                                   prev, converted, std::memory_order_relaxed))
     {
     }
 }

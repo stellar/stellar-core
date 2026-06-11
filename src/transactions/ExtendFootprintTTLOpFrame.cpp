@@ -30,18 +30,33 @@ struct ExtendFootprintTTLMetrics
 
     uint32 mLedgerReadByte{0};
 
+    // op execution wall time, captured via getExecTimer()
+    uint64_t mExecTimeNsecs{0};
+    bool mExecTimed{false};
+
     ExtendFootprintTTLMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~ExtendFootprintTTLMetrics()
     {
-        mMetrics.mExtFpTtlOpReadLedgerByte.Mark(mLedgerReadByte);
+        // Record into the calling thread's batch (published once per ledger)
+        // rather than updating process-wide metrics from every (possibly
+        // concurrent) operation.
+        auto& batch = mMetrics.getApplyThreadBatch();
+        std::lock_guard<std::mutex> lock(batch.mMutex);
+        batch.mExtFpTtlOpReadLedgerByte += mLedgerReadByte;
+        if (mExecTimed)
+        {
+            batch.mExtFpTtlOpExecNsecs.push_back(
+                static_cast<int64_t>(mExecTimeNsecs));
+        }
     }
-    medida::TimerContext
+    ScopedNsecsTimer
     getExecTimer()
     {
-        return mMetrics.mExtFpTtlOpExec.TimeScope();
+        mExecTimed = true;
+        return ScopedNsecsTimer(mExecTimeNsecs);
     }
 };
 
