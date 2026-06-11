@@ -775,10 +775,16 @@ TransactionTestFramePtr
 paddedTransactionFromOperationsV1(Application& app, SecretKey const& from,
                                   SequenceNumber seq,
                                   std::vector<Operation> const& ops,
-                                  uint32_t fee, uint32_t desiredSize)
+                                  uint32_t fee, uint32_t desiredSize,
+                                  std::optional<Memo> memo)
 {
     TransactionEnvelope e =
         makeEnvelopeV1(app, from, seq, ops, fee, std::nullopt);
+
+    if (memo)
+    {
+        e.v1().tx.memo = *memo;
+    }
 
     uint32_t baseSize = xdr::xdr_argpack_size(e);
 
@@ -855,7 +861,7 @@ TransactionTestFramePtr
 paddedTransactionFromOperations(Application& app, SecretKey const& from,
                                 SequenceNumber seq,
                                 std::vector<Operation> const& ops, uint32_t fee,
-                                uint32_t desiredSize)
+                                uint32_t desiredSize, std::optional<Memo> memo)
 {
     auto ledgerVersion =
         app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
@@ -865,7 +871,7 @@ paddedTransactionFromOperations(Application& app, SecretKey const& from,
             "paddedTransactionFromOperations() called from pre-V23 protocol");
     }
     return paddedTransactionFromOperationsV1(app, from, seq, ops, fee,
-                                             desiredSize);
+                                             desiredSize, memo);
 }
 
 TransactionTestFramePtr

@@ -178,6 +178,12 @@ class ApplyLoad
 
     // Counter for generating unique destination addresses for SAC payments
     uint32_t mDestCounter = 0;
+
+    // Monotonic memo id assigned to generated classic payments to keep their
+    // tx hashes unique within a run and across runs. Seeded from the wall-clock
+    // time at construction (see constructor) so that separate runs start from
+    // different values.
+    uint64_t mNextClassicPaymentMemoId = 0;
 };
 
 #ifdef BUILD_TESTS

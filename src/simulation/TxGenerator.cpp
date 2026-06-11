@@ -234,7 +234,7 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
     return ops;
 }
 
-TransactionFrameBasePtr
+TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate)
@@ -246,23 +246,23 @@ TxGenerator::createTransactionFramePtr(
     return txf;
 }
 
-TransactionFrameBasePtr
+TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate,
-    std::optional<uint32_t> byteCount)
+    std::optional<uint32_t> byteCount, std::optional<Memo> memo)
 {
     if (byteCount.has_value())
     {
         return paddedTransactionFromOperations(
             mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
-            generateFee(maxGeneratedFeeRate, ops.size()), *byteCount);
+            generateFee(maxGeneratedFeeRate, ops.size()), *byteCount, memo);
     }
     else
     {
         return transactionFromOperations(
             mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
-            generateFee(maxGeneratedFeeRate, ops.size()));
+            generateFee(maxGeneratedFeeRate, ops.size()), memo);
     }
 }
 
@@ -270,7 +270,8 @@ std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 std::optional<uint32_t> byteCount,
-                                std::optional<uint32_t> maxGeneratedFeeRate)
+                                std::optional<uint32_t> maxGeneratedFeeRate,
+                                std::optional<Memo> memo)
 {
     TxGenerator::TestAccountPtr to, from;
     uint64_t amount = 1;
@@ -281,7 +282,7 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
 
     return std::make_pair(from, createTransactionFramePtr(from, paymentOps,
                                                           maxGeneratedFeeRate,
-                                                          byteCount));
+                                                          byteCount, memo));
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
