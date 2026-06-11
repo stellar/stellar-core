@@ -30,6 +30,7 @@
 #include "util/XDRCereal.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
+#include <crypto/Random.h>
 #include <crypto/SHA.h>
 
 namespace stellar
@@ -1872,9 +1873,16 @@ ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
         auto it = accounts.find(accountIdx);
         releaseAssert(it != accounts.end());
         it->second->loadSequenceNumber();
+        // Attach a random memo so that the generated classic payment tx hashes
+        // are non-deterministic (unique within a run and across runs). The
+        // global random engine is not randomly seeded in apply-load, so use a
+        // CSPRNG-backed source to guarantee uniqueness across runs.
+        Memo memo(MEMO_HASH);
+        auto randMemo = randomBytes(memo.hash().size());
+        std::copy(randMemo.begin(), randMemo.end(), memo.hash().begin());
         auto [_, tx] = mTxGenerator.paymentTransaction(
             mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-            std::nullopt);
+            std::nullopt, memo);
         auto res =
             tx->checkValid(appConnector, ledgerView, 0, 0, 0, diagnostics);
         releaseAssert(res && res->isSuccess());

@@ -144,7 +144,8 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 // the cost to enable the sorobanData extension (~36 bytes).
 TransactionTestFramePtr paddedTransactionFromOperationsV1(
     Application& app, SecretKey const& from, SequenceNumber seq,
-    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize);
+    std::vector<Operation> const& ops, uint32_t fee, uint32_t desiredSize,
+    std::optional<Memo> memo = std::nullopt);
 
 TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
@@ -157,11 +158,10 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 // If `app` protocol version is >=23, attempts to pad to around `desiredSize`
 // (see comment on `paddedTransactionFromOperationsV1`). Otherwise, throw an
 // error.
-TransactionTestFramePtr
-paddedTransactionFromOperations(Application& app, SecretKey const& from,
-                                SequenceNumber seq,
-                                std::vector<Operation> const& ops,
-                                uint32_t fee = 0, uint32_t desiredSize = 0);
+TransactionTestFramePtr paddedTransactionFromOperations(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee = 0,
+    uint32_t desiredSize = 0, std::optional<Memo> memo = std::nullopt);
 
 TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
