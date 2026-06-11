@@ -2509,11 +2509,19 @@ LedgerManagerImpl::processFeesSeqNums(
         if (!ledgerCloseMeta &&
             protocolVersionStartsFrom(cachedLedgerVersion, ProtocolVersion::V_10))
         {
-            UnorderedMap<AccountID, uint32_t> srcCount;
-            srcCount.reserve(allTxs.size());
+            // Soroban txs are limited to one per source account per ledger,
+            // so a staged (soroban) charge can only be order-dependent if a
+            // classic tx or fee bump in the same set charges the same
+            // account; collect those accounts as the exclusion set.
+            UnorderedSet<AccountID> conflictSrcs;
             for (auto const& tx : allTxs)
             {
-                ++srcCount[tx->getSourceID()];
+                if (!tx->isSoroban() ||
+                    tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+                {
+                    conflictSrcs.insert(tx->getSourceID());
+                    conflictSrcs.insert(tx->getFeeSourceID());
+                }
             }
             auto& threadPool = mApp.getApplyThreadPool();
             threadPool.ensureWorkerCount(1);
@@ -2535,7 +2543,9 @@ LedgerManagerImpl::processFeesSeqNums(
                         if (!tx->isSoroban() ||
                             tx->getEnvelope().type() ==
                                 ENVELOPE_TYPE_TX_FEE_BUMP ||
-                            srcCount[tx->getSourceID()] != 1)
+                            (!conflictSrcs.empty() &&
+                             conflictSrcs.find(tx->getSourceID()) !=
+                                 conflictSrcs.end()))
                         {
                             continue;
                         }
@@ -3585,6 +3595,133 @@ LedgerManagerImpl::processPostTxSetApply(
     TransactionResultSet& txResultSet)
 {
     ZoneScoped;
+    // Staged parallel refunds (no-meta case): the soroban fee refund of
+    // each tx touches only its fee-source account (and accounts are
+    // fee-sources of at most one tx), so the refunded account states are
+    // computed on the apply pool, reading the post-apply state below the
+    // root (a pure lookup) and replicating refundSorobanFee's semantics on
+    // raw entries; the serial loop below then just inserts the refunded
+    // accounts and adjusts the fee pool by the staged sum. Fee bumps and
+    // merged/missing accounts fall back to the legacy per-tx path.
+    std::vector<TxBundle const*> bundles;
+    std::vector<std::optional<std::pair<LedgerEntry, int64_t>>> staged;
+    int64_t stagedRefundTotal = 0;
+    if (!ledgerCloseMeta)
+    {
+        for (auto const& phase : phases)
+        {
+            if (phase.isParallel())
+            {
+                for (auto const& stage : applyStages)
+                {
+                    for (auto const& txBundle : stage)
+                    {
+                        bundles.push_back(&txBundle);
+                    }
+                }
+            }
+        }
+        if (!bundles.empty())
+        {
+            uint32_t const ledgerVersion =
+                ltx.loadHeader().current().ledgerVersion;
+            staged.resize(bundles.size());
+            auto& threadPool = mApp.getApplyThreadPool();
+            threadPool.ensureWorkerCount(1);
+            size_t const numChunks =
+                std::max<size_t>(1, std::min<size_t>(16, bundles.size()));
+            size_t const chunkSize =
+                (bundles.size() + numChunks - 1) / numChunks;
+            std::vector<std::future<void>> futures;
+            futures.reserve(numChunks);
+            for (size_t c = 0; c < numChunks; ++c)
+            {
+                futures.emplace_back(threadPool.submit([&, c]() {
+                    size_t const begin = c * chunkSize;
+                    size_t const end =
+                        std::min(begin + chunkSize, bundles.size());
+                    for (size_t i = begin; i < end; ++i)
+                    {
+                        auto const& txBundle = *bundles[i];
+                        auto const& tx = *txBundle.getTx();
+                        if (!tx.isSoroban() ||
+                            tx.getEnvelope().type() ==
+                                ENVELOPE_TYPE_TX_FEE_BUMP)
+                        {
+                            continue;
+                        }
+                        auto& txResult = txBundle.getResPayload();
+                        auto& evtMgr = txBundle.getEffects()
+                                           .getMeta()
+                                           .getTxEventManager();
+                        auto const stage =
+                            protocolVersionStartsFrom(ledgerVersion,
+                                                      ProtocolVersion::V_23)
+                                ? TransactionEventStage::
+                                      TRANSACTION_EVENT_STAGE_AFTER_ALL_TXS
+                                : TransactionEventStage::
+                                      TRANSACTION_EVENT_STAGE_AFTER_TX;
+                        auto const& tracker =
+                            txResult.getRefundableFeeTracker();
+                        int64_t const feeRefund =
+                            tracker ? tracker->getFeeRefund() : 0;
+                        if (feeRefund == 0)
+                        {
+                            // Nothing to refund: matches refundSorobanFee
+                            // returning 0; only the fee event is emitted.
+                            evtMgr.newFeeEvent(tx.getSourceID(), 0, stage);
+                            staged[i] = std::make_pair(LedgerEntry{}, 0);
+                            continue;
+                        }
+                        auto entryPair = ltx.getNewestVersionBelowRoot(
+                            accountKey(tx.getSourceID()));
+                        if (!entryPair.first || !entryPair.second)
+                        {
+                            // Account merged or unexpectedly absent: legacy.
+                            continue;
+                        }
+                        LedgerEntry acc = entryPair.second->ledgerEntry();
+                        auto& ae = acc.data.account();
+                        // Mirrors addBalance for native on an account:
+                        // refuse if the refund would overflow
+                        // INT64_MAX - buying liabilities.
+                        int64_t const buying =
+                            ae.ext.v() == 1 ? ae.ext.v1().liabilities.buying
+                                            : 0;
+                        if (feeRefund >
+                            INT64_MAX - buying - ae.balance)
+                        {
+                            // Liabilities in the way: skip the refund, as
+                            // refundSorobanFee does.
+                            evtMgr.newFeeEvent(tx.getSourceID(), 0, stage);
+                            staged[i] = std::make_pair(LedgerEntry{}, 0);
+                            continue;
+                        }
+                        ae.balance += feeRefund;
+                        txResult.finalizeFeeRefund(ledgerVersion);
+                        evtMgr.newFeeEvent(tx.getSourceID(), -feeRefund,
+                                           stage);
+                        staged[i] =
+                            std::make_pair(std::move(acc), feeRefund);
+                    }
+                }));
+            }
+            for (auto& f : futures)
+            {
+                releaseAssert(f.valid());
+                f.get();
+            }
+            for (auto const& sf : staged)
+            {
+                if (sf.has_value())
+                {
+                    stagedRefundTotal += sf->second;
+                }
+            }
+        }
+    }
+
+    size_t flatIdx = 0;
     for (auto const& phase : phases)
     {
         if (phase.isParallel())
@@ -3596,7 +3733,16 @@ LedgerManagerImpl::processPostTxSetApply(
 #ifdef BUILD_TESTS
                     auto refundStart = std::chrono::steady_clock::now();
 #endif
-                    if (ledgerCloseMeta)
+                    size_t const i = flatIdx++;
+                    if (i < staged.size() && staged[i].has_value())
+                    {
+                        if (staged[i]->second != 0)
+                        {
+                            ltx.updateWithoutLoading(InternalLedgerEntry(
+                                std::move(staged[i]->first)));
+                        }
+                    }
+                    else if (ledgerCloseMeta)
                     {
                         // Use child LTX for meta change tracking.
                         LedgerTxn ltxInner(ltx);
@@ -3648,6 +3794,10 @@ LedgerManagerImpl::processPostTxSetApply(
         // path, so we don't need to call it here, but we will need to add
         // support for it if we add any post tx set apply processing in the
         // non-parallel phase.
+    }
+    if (stagedRefundTotal > 0)
+    {
+        ltx.loadHeader().current().feePool -= stagedRefundTotal;
     }
 }
 void

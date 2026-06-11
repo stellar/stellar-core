@@ -156,28 +156,69 @@ txPreApplyAccountKeys(TransactionFrameBase const& tx)
 // validation correctly fails (txNO_ACCOUNT). Consults only the ltx delta (no
 // snapshot loads), so it is cheap.
 PreApplyAccountOverlay
-buildPreApplyAccountOverlay(AbstractLedgerTxn& ltx,
+buildPreApplyAccountOverlay(AppConnector& app, AbstractLedgerTxn& ltx,
                            std::vector<TxBundle const*> const& txBundles)
 {
-    PreApplyAccountOverlay overlay;
-    for (auto const* txBundle : txBundles)
+    // Build per-chunk partial overlays on the apply pool (the ltx reads are
+    // pure below-root lookups; the per-key walks and entry copies dominate),
+    // then merge serially. Keys duplicated across chunks just overwrite each
+    // other with identical values.
+    auto& threadPool = app.getApplyThreadPool();
+    threadPool.ensureWorkerCount(1);
+    size_t const numChunks =
+        std::max<size_t>(1, std::min<size_t>(16, txBundles.size()));
+    size_t const chunkSize = (txBundles.size() + numChunks - 1) / numChunks;
+    std::vector<PreApplyAccountOverlay> partials(numChunks);
+    std::vector<std::future<void>> futures;
+    futures.reserve(numChunks);
+    for (size_t c = 0; c < numChunks; ++c)
     {
-        for (auto const& key : txPreApplyAccountKeys(*txBundle->getTx()))
-        {
-            if (overlay.count(key) != 0)
+        futures.emplace_back(threadPool.submit([&, c]() {
+            auto& part = partials[c];
+            size_t const begin = c * chunkSize;
+            size_t const end = std::min(begin + chunkSize, txBundles.size());
+            for (size_t i = begin; i < end; ++i)
             {
-                continue;
-            }
-            auto entryPair = ltx.getNewestVersionBelowRoot(key);
-            if (!entryPair.first)
-            {
-                // Not modified this ledger -- readers fall back to the snapshot.
-                continue;
-            }
-            overlay.emplace(key, entryPair.second
+                for (auto const& key :
+                     txPreApplyAccountKeys(*txBundles[i]->getTx()))
+                {
+                    if (part.count(key) != 0)
+                    {
+                        continue;
+                    }
+                    auto entryPair = ltx.getNewestVersionBelowRoot(key);
+                    if (!entryPair.first)
+                    {
+                        // Not modified this ledger -- readers fall back to
+                        // the snapshot.
+                        continue;
+                    }
+                    part.emplace(key,
+                                 entryPair.second
                                      ? std::make_optional(
                                            entryPair.second->ledgerEntry())
                                      : std::nullopt);
+                }
+            }
+        }));
+    }
+    for (auto& f : futures)
+    {
+        releaseAssert(f.valid());
+        f.get();
+    }
+    PreApplyAccountOverlay overlay;
+    size_t total = 0;
+    for (auto const& part : partials)
+    {
+        total += part.size();
+    }
+    overlay.reserve(total);
+    for (auto& part : partials)
+    {
+        for (auto& [key, entry] : part)
+        {
+            overlay[key] = std::move(entry);
         }
     }
     return overlay;
@@ -486,7 +527,7 @@ GlobalParallelApplyLedgerState::
             }
         }
 
-        auto const overlay = buildPreApplyAccountOverlay(ltx, txBundles);
+        auto const overlay = buildPreApplyAccountOverlay(app, ltx, txBundles);
 
 #ifdef BUILD_TESTS
         mSetupSeqCheckMs += setupLap();
@@ -1016,7 +1057,9 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
     AbstractLedgerTxn& ltx, bool skipSorobanEntries)
 {
     ZoneScoped;
-    LedgerTxn ltxInner(ltx);
+    // Write directly into the (apply-phase) ltx: a nested child here would
+    // re-merge every entry on commit for no atomicity benefit (failures
+    // abort the process).
     for (auto& shard : mGlobalEntryMapShards)
     {
         for (auto& [key, entry] : shard)
@@ -1054,11 +1097,11 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 InternalLedgerEntry ile(std::move(*movedLe));
                 if (entry.mIsNew)
                 {
-                    ltxInner.createWithoutLoading(std::move(ile));
+                    ltx.createWithoutLoading(std::move(ile));
                 }
                 else
                 {
-                    ltxInner.updateWithoutLoading(std::move(ile));
+                    ltx.updateWithoutLoading(std::move(ile));
                 }
             }
             else
@@ -1066,10 +1109,10 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 // Delete case: use load() + erase() to maintain EXACT
                 // consistency. Deletes are rare in SAC transfers, so the cost
                 // is negligible.
-                auto ltxe = ltxInner.load(key.ledgerKey());
+                auto ltxe = ltx.load(key.ledgerKey());
                 if (ltxe)
                 {
-                    ltxInner.erase(key.ledgerKey());
+                    ltx.erase(key.ledgerKey());
                 }
             }
         }
@@ -1090,7 +1133,7 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
             auto it =
                 mGlobalRestoredEntries.hotArchive.find(getTTLKey(kvp.first));
             releaseAssertOrThrow(it != mGlobalRestoredEntries.hotArchive.end());
-            ltxInner.markRestoredFromHotArchive(kvp.second, it->second);
+            ltx.markRestoredFromHotArchive(kvp.second, it->second);
         }
     }
     // Live BucketList restores are only tracked in LedgerTxn for the
@@ -1104,10 +1147,9 @@ GlobalParallelApplyLedgerState::commitChangesToLedgerTxn(
                 getTTLKey(kvp.first));
             releaseAssertOrThrow(it !=
                                  mGlobalRestoredEntries.liveBucketList.end());
-            ltxInner.markRestoredFromLiveBucketList(kvp.second, it->second);
+            ltx.markRestoredFromLiveBucketList(kvp.second, it->second);
         }
     }
-    ltxInner.commit();
 }
 
 uint32_t
