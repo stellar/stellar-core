@@ -55,6 +55,8 @@ bucketlistDB-cache.hit                    | meter     | number of cache hits on 
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
 bucketlistDB.cache.bytes                  | counter   | estimated size in bytes of entries in Live BucketList index cache
+clock.ntp.offset-ms                       | counter   | last measured offset (ms) between the local clock and the configured NTP server (signed; positive means the local clock is behind true time). Requires NTP_DRIFT_CHECK_SERVER
+clock.ntp.probe-failure                   | meter     | NTP drift-check probe failed to reach NTP server
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses

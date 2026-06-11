@@ -37,6 +37,7 @@ class InMemoryLedgerTxn;
 class InMemoryLedgerTxnRoot;
 class LoadGenerator;
 class AppConnector;
+class NtpProbe;
 
 class ApplicationImpl : public Application
 {
@@ -190,6 +191,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<InvariantManager> mInvariantManager;
     std::shared_ptr<ProcessManager> mProcessManager;
     std::shared_ptr<WorkScheduler> mWorkScheduler;
+    std::shared_ptr<NtpProbe> mNtpProbe;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<BanManager> mBanManager;
     std::unique_ptr<BannedAccountsPersistor> mBannedAccountsPersistor;

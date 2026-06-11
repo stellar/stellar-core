@@ -1232,6 +1232,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsntp"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474edb0b3a6ccf4fd97360150a27e50f2a4c6ca67870fde22e288269d8b9f38d"
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1973,6 +1979,7 @@ dependencies = [
  "itertools 0.10.5",
  "log",
  "rand",
+ "rsntp",
  "rustc-simple-version",
  "soroban-env-host 21.2.2",
  "soroban-env-host 22.0.0",

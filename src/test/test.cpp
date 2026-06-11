@@ -568,6 +568,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.TEST_CASES_ENABLED = true;
         thisConfig.EXPERIMENTAL_TRIGGER_TIMER = true;
 
+        // Never perform real NTP network I/O from the test suite.
+        thisConfig.NTP_DRIFT_CHECK_SERVER = "";
+
         thisConfig.PEER_PORT =
             static_cast<unsigned short>(DEFAULT_PEER_PORT + instanceNumber * 2);
         thisConfig.HTTP_PORT = static_cast<unsigned short>(

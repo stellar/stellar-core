@@ -42,6 +42,7 @@
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
+#include "main/NtpProbe.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -790,6 +791,14 @@ ApplicationImpl::startServices()
     {
         mHerder->setUpgrades(mConfig);
     }
+
+    // Start NTP-based clock-drift detection
+    if (mConfig.ntpDriftCheckEnabled() &&
+        mVirtualClock.getMode() == VirtualClock::REAL_TIME)
+    {
+        mNtpProbe = NtpProbe::create(*this);
+        mNtpProbe->start();
+    }
 }
 
 void
@@ -858,6 +867,10 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
         mOverlayManager->shutdown();
     }
     mSelfCheckTimer.cancel();
+    if (mNtpProbe)
+    {
+        mNtpProbe->shutdown();
+    }
     shutdownWorkScheduler();
     if (mProcessManager)
     {
