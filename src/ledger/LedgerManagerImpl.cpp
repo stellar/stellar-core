@@ -360,7 +360,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 
     auto initialState = std::make_shared<ImmutableLedgerData>(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), emptyLcl,
-        emptyHas, /*sorobanConfig*/ std::nullopt);
+        emptyHas, /*sorobanConfig*/ std::nullopt, mApp.getMetrics());
 
     mApplyState.setLedgerState(initialState);
     {
@@ -2135,7 +2135,7 @@ LedgerManagerImpl::buildLedgerState(
         // Caller already loaded config (e.g. from LTX during ledger close)
         return std::make_shared<ImmutableLedgerData>(
             bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-            std::move(sorobanConfig));
+            std::move(sorobanConfig), mApp.getMetrics());
     }
 
     // Auto-load SorobanNetworkConfig from the BucketList

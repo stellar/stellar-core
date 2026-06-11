@@ -225,12 +225,16 @@ ImmutableLedgerData::checkInvariant() const
 ImmutableLedgerData::ImmutableLedgerData(
     LiveBucketList const& liveBL, HotArchiveBucketList const& hotArchiveBL,
     LedgerHeaderHistoryEntry const& lcl, HistoryArchiveState const& has,
-    std::optional<SorobanNetworkConfig> sorobanConfig)
+    std::optional<SorobanNetworkConfig> sorobanConfig, MetricsRegistry& metrics)
     : mLiveBucketData(
           std::make_shared<BucketListSnapshotData<LiveBucket>>(liveBL))
     , mHotArchiveBucketData(
           std::make_shared<BucketListSnapshotData<HotArchiveBucket>>(
               hotArchiveBL))
+    , mLiveSnapshotMetrics(
+          std::make_shared<BucketSnapshotMetrics<LiveBucket>>(metrics))
+    , mHotArchiveSnapshotMetrics(
+          std::make_shared<BucketSnapshotMetrics<HotArchiveBucket>>(metrics))
     , mSorobanConfig(std::move(sorobanConfig))
     , mLastClosedLedgerHeader(lcl)
     , mLastClosedHistoryArchiveState(has)
@@ -275,19 +279,22 @@ ImmutableLedgerData::createAndMaybeLoadConfig(
         // Bootstrap: build a lightweight temporary state just to load config
         // from the current live bucket list.
         auto tempState = std::make_shared<ImmutableLedgerData>(
-            liveBL, hotArchiveBL, lcl, has, /*sorobanConfig*/ std::nullopt);
+            liveBL, hotArchiveBL, lcl, has, /*sorobanConfig*/ std::nullopt,
+            metrics);
         ImmutableLedgerView tempView(tempState, metrics);
         sorobanConfig = SorobanNetworkConfig::loadFromLedger(tempView);
     }
-    return std::make_shared<ImmutableLedgerData>(liveBL, hotArchiveBL, lcl, has,
-                                                 std::move(sorobanConfig));
+    return std::make_shared<ImmutableLedgerData>(
+        liveBL, hotArchiveBL, lcl, has, std::move(sorobanConfig), metrics);
 }
 
 ImmutableLedgerView::ImmutableLedgerView(ImmutableLedgerDataPtr state,
                                          MetricsRegistry& metrics)
     : mState(state)
-    , mLiveSnapshot(metrics, state->mLiveBucketData)
-    , mHotArchiveSnapshot(metrics, state->mHotArchiveBucketData)
+    , mLiveSnapshot(metrics, state->mLiveSnapshotMetrics,
+                    state->mLiveBucketData)
+    , mHotArchiveSnapshot(metrics, state->mHotArchiveSnapshotMetrics,
+                          state->mHotArchiveBucketData)
     , mMetrics(metrics)
 {
 }

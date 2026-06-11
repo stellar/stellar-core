@@ -14,6 +14,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger-entries.h"
 
+#include <atomic>
 #include <functional>
 #include <list>
 #include <memory>
@@ -65,6 +66,24 @@ template <class BucketT> struct BucketListSnapshotData
     explicit BucketListSnapshotData(BucketListBase<BucketT> const& bl);
 };
 
+// Pre-resolved metric references for snapshot queries. Resolving a metric
+// takes the global MetricsRegistry lock, so metrics are resolved once and
+// shared across snapshots rather than re-resolved in every
+// SearchableBucketListSnapshot constructor.
+template <class BucketT> struct BucketSnapshotMetrics
+{
+    BUCKET_TYPE_ASSERT(BucketT);
+
+    // Tracks load times for each LedgerEntryType. We use
+    // SimpleTimer since medida Timer overhead is too expensive for point
+    // loads.
+    UnorderedMap<LedgerEntryType, std::reference_wrapper<SimpleTimer>> const
+        mPointTimers;
+    std::reference_wrapper<medida::Meter> const mBulkLoadMeter;
+
+    explicit BucketSnapshotMetrics(MetricsRegistry& metrics);
+};
+
 // SearchableBucketListSnapshot provides BucketList lookup functionality.
 // Each snapshot maintains its own stream cache for file I/O and a pointer to
 // immutable snapshot data (ledger header, list of referenced buckets, etc).
@@ -96,7 +115,7 @@ template <class BucketT> class SearchableBucketListSnapshot
     // Used by threadInvariant() to assert that a single snapshot is not queried
     // concurrently from multiple threads. Reset on copy so each copy can be
     // claimed by a different thread.
-    mutable std::thread::id mThreadId{};
+    mutable std::atomic<std::thread::id> mThreadId{};
 #endif
 
     // Bucket loads are not thread safe and a single snapshot instance should
@@ -106,16 +125,15 @@ template <class BucketT> class SearchableBucketListSnapshot
 
     std::reference_wrapper<MetricsRegistry> mMetrics;
 
-    // Tracks load times for each LedgerEntryType. We use
-    // SimpleTimer since medida Timer overhead is too expensive for point loads.
-    UnorderedMap<LedgerEntryType, std::reference_wrapper<SimpleTimer>>
-        mPointTimers;
+    // Pre-resolved point load timers and bulk load meter, shared across
+    // snapshots (see BucketSnapshotMetrics).
+    std::shared_ptr<BucketSnapshotMetrics<BucketT> const> mSnapshotMetrics;
 
     // Bulk load timers take significantly longer, so the timer overhead is
-    // comparatively negligible.
+    // comparatively negligible. Resolved lazily per label, so kept
+    // per-instance rather than in BucketSnapshotMetrics.
     mutable UnorderedMap<std::string, std::reference_wrapper<medida::Timer>>
         mBulkTimers;
-    std::reference_wrapper<medida::Meter> mBulkLoadMeter;
 
     // Returns (lazily-constructed) file stream for bucket file. Note
     // this might be in some random position left over from a previous read --
@@ -156,6 +174,7 @@ template <class BucketT> class SearchableBucketListSnapshot
 
     SearchableBucketListSnapshot(
         MetricsRegistry& metrics,
+        std::shared_ptr<BucketSnapshotMetrics<BucketT> const> snapshotMetrics,
         std::shared_ptr<BucketListSnapshotData<BucketT> const> data);
 
   public:
@@ -190,6 +209,8 @@ class SearchableLiveBucketListSnapshot
 {
     SearchableLiveBucketListSnapshot(
         MetricsRegistry& metrics,
+        std::shared_ptr<BucketSnapshotMetrics<LiveBucket> const>
+            snapshotMetrics,
         std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data);
 
     Loop scanForEvictionInBucket(
@@ -230,6 +251,8 @@ class SearchableHotArchiveBucketListSnapshot
 {
     SearchableHotArchiveBucketListSnapshot(
         MetricsRegistry& metrics,
+        std::shared_ptr<BucketSnapshotMetrics<HotArchiveBucket> const>
+            snapshotMetrics,
         std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data);
 
   public:
@@ -246,6 +269,8 @@ class SearchableHotArchiveBucketListSnapshot
 
 extern template struct BucketListSnapshotData<LiveBucket>;
 extern template struct BucketListSnapshotData<HotArchiveBucket>;
+extern template struct BucketSnapshotMetrics<LiveBucket>;
+extern template struct BucketSnapshotMetrics<HotArchiveBucket>;
 extern template class SearchableBucketListSnapshot<LiveBucket>;
 extern template class SearchableBucketListSnapshot<HotArchiveBucket>;
 

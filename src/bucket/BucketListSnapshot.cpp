@@ -54,26 +54,43 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
 }
 
 //
+// BucketSnapshotMetrics
+//
+
+template <class BucketT>
+BucketSnapshotMetrics<BucketT>::BucketSnapshotMetrics(MetricsRegistry& metrics)
+    : mPointTimers([&metrics]() {
+        UnorderedMap<LedgerEntryType, std::reference_wrapper<SimpleTimer>>
+            timers;
+        for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+        {
+            auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
+                static_cast<LedgerEntryType>(t));
+            auto& metric = metrics.NewSimpleTimer(
+                {BucketT::METRIC_STRING, label}, std::chrono::microseconds{1});
+            timers.emplace(static_cast<LedgerEntryType>(t), metric);
+        }
+        return timers;
+    }())
+    , mBulkLoadMeter(
+          metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
+{
+}
+
+//
 // SearchableBucketListSnapshot
 //
 
 template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
+    std::shared_ptr<BucketSnapshotMetrics<BucketT> const> snapshotMetrics,
     std::shared_ptr<BucketListSnapshotData<BucketT> const> data)
     : mData(std::move(data))
     , mMetrics(metrics)
-    , mBulkLoadMeter(
-          metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
+    , mSnapshotMetrics(std::move(snapshotMetrics))
 {
-    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
-            static_cast<LedgerEntryType>(t));
-        auto& metric = metrics.NewSimpleTimer({BucketT::METRIC_STRING, label},
-                                              std::chrono::microseconds{1});
-        mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
-    }
+    releaseAssert(mSnapshotMetrics);
 }
 
 template <class BucketT>
@@ -82,9 +99,8 @@ SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     : mData(other.mData)
     // mStreams intentionally left empty — each copy gets its own stream cache
     , mMetrics(other.mMetrics)
-    , mPointTimers(other.mPointTimers)
+    , mSnapshotMetrics(other.mSnapshotMetrics)
     , mBulkTimers(other.mBulkTimers)
-    , mBulkLoadMeter(other.mBulkLoadMeter)
 {
 }
 
@@ -98,12 +114,11 @@ SearchableBucketListSnapshot<BucketT>::operator=(
         mData = other.mData;
         mStreams.clear();
         mMetrics = other.mMetrics;
-        mPointTimers = other.mPointTimers;
+        mSnapshotMetrics = other.mSnapshotMetrics;
         mBulkTimers = other.mBulkTimers;
-        mBulkLoadMeter = other.mBulkLoadMeter;
 #ifdef BUILD_TESTS
         // Reset thread ownership so the copy can be claimed by another thread.
-        mThreadId = std::thread::id{};
+        mThreadId.store(std::thread::id{});
 #endif
     }
     return *this;
@@ -119,14 +134,13 @@ void
 SearchableBucketListSnapshot<BucketT>::threadInvariant() const
 {
 #ifdef BUILD_TESTS
-    auto current = std::this_thread::get_id();
-    if (mThreadId == std::thread::id{})
+    auto const current = std::this_thread::get_id();
+    std::thread::id unclaimed{};
+    // Atomically claim ownership on first use, so any concurrent claimant sees
+    // the CAS fail with `unclaimed` set to the owner's id and asserts.
+    if (!mThreadId.compare_exchange_strong(unclaimed, current))
     {
-        mThreadId = current;
-    }
-    else
-    {
-        releaseAssert(mThreadId == current);
+        releaseAssert(unclaimed == current);
     }
 #endif
 }
@@ -336,8 +350,8 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
     releaseAssert(mData);
     threadInvariant();
 
-    auto timerIter = mPointTimers.find(k.type());
-    releaseAssert(timerIter != mPointTimers.end());
+    auto timerIter = mSnapshotMetrics->mPointTimers.find(k.type());
+    releaseAssert(timerIter != mSnapshotMetrics->mPointTimers.end());
     auto timer = timerIter->second.get().TimeScope();
 
     std::shared_ptr<typename BucketT::LoadT const> result{};
@@ -375,7 +389,7 @@ SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     threadInvariant();
     if (numEntries != 0)
     {
-        mBulkLoadMeter.get().Mark(numEntries);
+        mSnapshotMetrics->mBulkLoadMeter.get().Mark(numEntries);
     }
 
     auto iter = mBulkTimers.find(label);
@@ -402,8 +416,10 @@ SearchableBucketListSnapshot<BucketT>::getSnapshotData() const
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     MetricsRegistry& metrics,
+    std::shared_ptr<BucketSnapshotMetrics<LiveBucket> const> snapshotMetrics,
     std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data)
-    : SearchableBucketListSnapshot<LiveBucket>(metrics, std::move(data))
+    : SearchableBucketListSnapshot<LiveBucket>(
+          metrics, std::move(snapshotMetrics), std::move(data))
 {
 }
 
@@ -843,8 +859,11 @@ SearchableLiveBucketListSnapshot::scanForEvictionInBucket(
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     MetricsRegistry& metrics,
+    std::shared_ptr<BucketSnapshotMetrics<HotArchiveBucket> const>
+        snapshotMetrics,
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data)
-    : SearchableBucketListSnapshot<HotArchiveBucket>(metrics, std::move(data))
+    : SearchableBucketListSnapshot<HotArchiveBucket>(
+          metrics, std::move(snapshotMetrics), std::move(data))
 {
 }
 
@@ -879,6 +898,8 @@ SearchableHotArchiveBucketListSnapshot::scanAllEntries(
 // Explicit template instantiations
 template struct BucketListSnapshotData<LiveBucket>;
 template struct BucketListSnapshotData<HotArchiveBucket>;
+template struct BucketSnapshotMetrics<LiveBucket>;
+template struct BucketSnapshotMetrics<HotArchiveBucket>;
 template class SearchableBucketListSnapshot<LiveBucket>;
 template class SearchableBucketListSnapshot<HotArchiveBucket>;
 

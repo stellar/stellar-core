@@ -279,6 +279,15 @@ class ImmutableLedgerData : public NonMovableOrCopyable
     std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> const
         mHotArchiveBucketData;
 
+    // Pre-resolved metric references shared by all views over this state.
+    // Resolving metrics takes the global registry lock, so they are resolved
+    // once here instead of in every view construction, which is on the
+    // per-transaction hot path.
+    std::shared_ptr<BucketSnapshotMetrics<LiveBucket> const> const
+        mLiveSnapshotMetrics;
+    std::shared_ptr<BucketSnapshotMetrics<HotArchiveBucket> const> const
+        mHotArchiveSnapshotMetrics;
+
     std::optional<SorobanNetworkConfig const> const mSorobanConfig;
     LedgerHeaderHistoryEntry const mLastClosedLedgerHeader;
     HistoryArchiveState const mLastClosedHistoryArchiveState;
@@ -295,7 +304,8 @@ class ImmutableLedgerData : public NonMovableOrCopyable
                         HotArchiveBucketList const& hotArchiveBL,
                         LedgerHeaderHistoryEntry const& lcl,
                         HistoryArchiveState const& has,
-                        std::optional<SorobanNetworkConfig> sorobanConfig);
+                        std::optional<SorobanNetworkConfig> sorobanConfig,
+                        MetricsRegistry& metrics);
 
     // Factory: constructs a ImmutableLedgerData, auto-loading the
     // SorobanNetworkConfig from the bucket list when the protocol requires it.
