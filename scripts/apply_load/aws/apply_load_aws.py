@@ -68,8 +68,7 @@ INSTANCE_TEST_TAG_VALUE = "max-sac-tps"
 # default (32 MB) starves per-thread caches as the apply thread count grows,
 # increasing central-free-list/pageheap lock contention. Giving every thread its
 # full 4 MB cache removes that contention. Set to 0 to leave the env var unset.
-# DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
-DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 0
+DEFAULT_TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES = 1 << 30  # 1 GiB
 
 
 @dataclass(frozen=True)
@@ -427,7 +426,7 @@ def build_apply_load_command(mode_name: str, values: Mapping[str, Any],
     if iops is not None:
         command.extend(["--iops", str(iops)])
     tcmalloc_bytes = values.get("tcmalloc_max_total_thread_cache_bytes")
-    if tcmalloc_bytes:
+    if tcmalloc_bytes is not None:
         command.extend([
             "--tcmalloc-max-total-thread-cache-bytes",
             str(tcmalloc_bytes),
