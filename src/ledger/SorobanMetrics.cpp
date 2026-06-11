@@ -1,7 +1,11 @@
 #include "ledger/SorobanMetrics.h"
 #include "util/MetricsRegistry.h"
 
+#include <medida/histogram.h>
+#include <medida/meter.h>
 #include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -26,6 +30,8 @@ SorobanMetrics::SorobanMetrics(MetricsRegistry& metrics)
 
     /* tx-wide metrics */
     , mTxSizeByte(metrics.NewHistogram({"soroban", "tx", "size-byte"}))
+    , mTransactionApply(metrics.NewTimer({"ledger", "transaction", "apply"}))
+    , mOperationApply(metrics.NewTimer({"ledger", "operation", "apply"}))
     /* InvokeHostFunctionOp metrics */
     , mHostFnOpReadEntry(
           metrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry"))
@@ -202,9 +208,158 @@ SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
     mCounterLedgerWriteByte += writeByte;
 }
 
+SorobanMetrics::ApplyMetricsBatch&
+SorobanMetrics::getApplyThreadBatch()
+{
+    // One entry per (thread, SorobanMetrics instance): tests can run several
+    // applications in one process and threads outlive applications, so the
+    // weak_ptr is re-validated on every first-use (the registry owns the
+    // batches; a stale entry from a destroyed instance whose address got
+    // reused expires together with its registry).
+    static thread_local std::unordered_map<SorobanMetrics const*,
+                                           std::weak_ptr<ApplyMetricsBatch>>
+        tlBatches;
+    auto& weak = tlBatches[this];
+    if (auto existing = weak.lock())
+    {
+        return *existing;
+    }
+    auto batch = std::make_shared<ApplyMetricsBatch>();
+    {
+        std::lock_guard<std::mutex> lock(mApplyBatchesMutex);
+        mApplyBatches.push_back(batch);
+    }
+    weak = batch;
+    return *batch;
+}
+
+void
+SorobanMetrics::flushApplyMetricsBatches()
+{
+    std::vector<std::shared_ptr<ApplyMetricsBatch>> batches;
+    {
+        std::lock_guard<std::mutex> lock(mApplyBatchesMutex);
+        batches = mApplyBatches;
+    }
+    if (batches.empty())
+    {
+        return;
+    }
+
+    ApplyMetricsBatch total;
+    auto take = [](uint64_t& v) {
+        auto res = v;
+        v = 0;
+        return res;
+    };
+    auto drain = [](std::vector<int64_t>& dst, std::vector<int64_t>& src) {
+        dst.insert(dst.end(), src.begin(), src.end());
+        src.clear();
+    };
+    for (auto const& b : batches)
+    {
+        std::lock_guard<std::mutex> lock(b->mMutex);
+        total.mHostFnOpReadEntry += take(b->mHostFnOpReadEntry);
+        total.mHostFnOpWriteEntry += take(b->mHostFnOpWriteEntry);
+        total.mHostFnOpReadKeyByte += take(b->mHostFnOpReadKeyByte);
+        total.mHostFnOpWriteKeyByte += take(b->mHostFnOpWriteKeyByte);
+        total.mHostFnOpReadLedgerByte += take(b->mHostFnOpReadLedgerByte);
+        total.mHostFnOpReadDataByte += take(b->mHostFnOpReadDataByte);
+        total.mHostFnOpReadCodeByte += take(b->mHostFnOpReadCodeByte);
+        total.mHostFnOpWriteLedgerByte += take(b->mHostFnOpWriteLedgerByte);
+        total.mHostFnOpWriteDataByte += take(b->mHostFnOpWriteDataByte);
+        total.mHostFnOpWriteCodeByte += take(b->mHostFnOpWriteCodeByte);
+        total.mHostFnOpEmitEvent += take(b->mHostFnOpEmitEvent);
+        total.mHostFnOpEmitEventByte += take(b->mHostFnOpEmitEventByte);
+        total.mHostFnOpCpuInsn += take(b->mHostFnOpCpuInsn);
+        total.mHostFnOpMemByte += take(b->mHostFnOpMemByte);
+        total.mHostFnOpCpuInsnExclVm += take(b->mHostFnOpCpuInsnExclVm);
+        total.mHostFnOpMaxRwKeyByte += take(b->mHostFnOpMaxRwKeyByte);
+        total.mHostFnOpMaxRwDataByte += take(b->mHostFnOpMaxRwDataByte);
+        total.mHostFnOpMaxRwCodeByte += take(b->mHostFnOpMaxRwCodeByte);
+        total.mHostFnOpMaxEmitEventByte += take(b->mHostFnOpMaxEmitEventByte);
+        total.mHostFnOpSuccess += take(b->mHostFnOpSuccess);
+        total.mHostFnOpFailure += take(b->mHostFnOpFailure);
+        total.mExtFpTtlOpReadLedgerByte +=
+            take(b->mExtFpTtlOpReadLedgerByte);
+        total.mRestoreFpOpReadLedgerByte +=
+            take(b->mRestoreFpOpReadLedgerByte);
+        total.mRestoreFpOpWriteLedgerByte +=
+            take(b->mRestoreFpOpWriteLedgerByte);
+
+        drain(total.mHostFnOpInvokeTimeNsecs, b->mHostFnOpInvokeTimeNsecs);
+        drain(total.mHostFnOpInvokeTimeNsecsExclVm,
+              b->mHostFnOpInvokeTimeNsecsExclVm);
+        drain(total.mHostFnOpInvokeTimeFsecsCpuInsnRatio,
+              b->mHostFnOpInvokeTimeFsecsCpuInsnRatio);
+        drain(total.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm,
+              b->mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm);
+        drain(total.mHostFnOpDeclaredInsnsUsageRatio,
+              b->mHostFnOpDeclaredInsnsUsageRatio);
+        drain(total.mHostFnOpExecNsecs, b->mHostFnOpExecNsecs);
+        drain(total.mExtFpTtlOpExecNsecs, b->mExtFpTtlOpExecNsecs);
+        drain(total.mRestoreFpOpExecNsecs, b->mRestoreFpOpExecNsecs);
+        drain(total.mTxSizeByte, b->mTxSizeByte);
+        drain(total.mTxApplyNsecs, b->mTxApplyNsecs);
+        drain(total.mOpApplyNsecs, b->mOpApplyNsecs);
+    }
+
+    // Publish into the underlying medida metrics, one bulk call per metric.
+    // Zero meter increments are skipped (a Mark(0) does not change any
+    // observable value); empty sample batches are no-ops in UpdateMany.
+    auto markIf = [](medida::Meter& meter, uint64_t value) {
+        if (value != 0)
+        {
+            meter.Mark(value);
+        }
+    };
+    markIf(mHostFnOpReadEntry, total.mHostFnOpReadEntry);
+    markIf(mHostFnOpWriteEntry, total.mHostFnOpWriteEntry);
+    markIf(mHostFnOpReadKeyByte, total.mHostFnOpReadKeyByte);
+    markIf(mHostFnOpWriteKeyByte, total.mHostFnOpWriteKeyByte);
+    markIf(mHostFnOpReadLedgerByte, total.mHostFnOpReadLedgerByte);
+    markIf(mHostFnOpReadDataByte, total.mHostFnOpReadDataByte);
+    markIf(mHostFnOpReadCodeByte, total.mHostFnOpReadCodeByte);
+    markIf(mHostFnOpWriteLedgerByte, total.mHostFnOpWriteLedgerByte);
+    markIf(mHostFnOpWriteDataByte, total.mHostFnOpWriteDataByte);
+    markIf(mHostFnOpWriteCodeByte, total.mHostFnOpWriteCodeByte);
+    markIf(mHostFnOpEmitEvent, total.mHostFnOpEmitEvent);
+    markIf(mHostFnOpEmitEventByte, total.mHostFnOpEmitEventByte);
+    markIf(mHostFnOpCpuInsn, total.mHostFnOpCpuInsn);
+    markIf(mHostFnOpMemByte, total.mHostFnOpMemByte);
+    markIf(mHostFnOpCpuInsnExclVm, total.mHostFnOpCpuInsnExclVm);
+    markIf(mHostFnOpMaxRwKeyByte, total.mHostFnOpMaxRwKeyByte);
+    markIf(mHostFnOpMaxRwDataByte, total.mHostFnOpMaxRwDataByte);
+    markIf(mHostFnOpMaxRwCodeByte, total.mHostFnOpMaxRwCodeByte);
+    markIf(mHostFnOpMaxEmitEventByte, total.mHostFnOpMaxEmitEventByte);
+    markIf(mHostFnOpSuccess, total.mHostFnOpSuccess);
+    markIf(mHostFnOpFailure, total.mHostFnOpFailure);
+    markIf(mExtFpTtlOpReadLedgerByte, total.mExtFpTtlOpReadLedgerByte);
+    markIf(mRestoreFpOpReadLedgerByte, total.mRestoreFpOpReadLedgerByte);
+    markIf(mRestoreFpOpWriteLedgerByte, total.mRestoreFpOpWriteLedgerByte);
+
+    mHostFnOpInvokeTimeNsecs.UpdateMany(total.mHostFnOpInvokeTimeNsecs);
+    mHostFnOpInvokeTimeNsecsExclVm.UpdateMany(
+        total.mHostFnOpInvokeTimeNsecsExclVm);
+    mHostFnOpInvokeTimeFsecsCpuInsnRatio.UpdateMany(
+        total.mHostFnOpInvokeTimeFsecsCpuInsnRatio);
+    mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.UpdateMany(
+        total.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm);
+    mHostFnOpDeclaredInsnsUsageRatio.UpdateMany(
+        total.mHostFnOpDeclaredInsnsUsageRatio);
+    mHostFnOpExec.UpdateMany(total.mHostFnOpExecNsecs);
+    mExtFpTtlOpExec.UpdateMany(total.mExtFpTtlOpExecNsecs);
+    mRestoreFpOpExec.UpdateMany(total.mRestoreFpOpExecNsecs);
+    mTxSizeByte.UpdateMany(total.mTxSizeByte);
+    mTransactionApply.UpdateMany(total.mTxApplyNsecs);
+    mOperationApply.UpdateMany(total.mOpApplyNsecs);
+}
+
 void
 SorobanMetrics::publishAndResetLedgerWideMetrics()
 {
+    flushApplyMetricsBatches();
+
     mLedgerTxCount.Update(mCounterLedgerTxCount);
     mLedgerCpuInsn.Update(mCounterLedgerCpuInsn);
     mLedgerTxsSizeByte.Update(mCounterLedgerTxsSizeByte);

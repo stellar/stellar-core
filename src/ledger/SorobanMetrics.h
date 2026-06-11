@@ -8,7 +8,11 @@
 // limits. It also performs aggregation of ledger-wide resource usage across
 // different operations.
 #include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 namespace medida
 {
@@ -24,6 +28,58 @@ class MetricsRegistry;
 
 class SorobanMetrics
 {
+  public:
+    // Accumulates apply-path metric updates from a single thread. Hot apply
+    // code records into its own thread's batch (brief, uncontended lock
+    // acquisition), and the batches are drained into the underlying
+    // process-wide medida metrics once per ledger on the main thread via
+    // publishAndResetLedgerWideMetrics(). This keeps shared metric state (its
+    // locks and cache lines) off the parallel apply threads.
+    struct ApplyMetricsBatch
+    {
+        std::mutex mMutex;
+
+        // Pending Meter increments (Marks summed since the last publish).
+        uint64_t mHostFnOpReadEntry{0};
+        uint64_t mHostFnOpWriteEntry{0};
+        uint64_t mHostFnOpReadKeyByte{0};
+        uint64_t mHostFnOpWriteKeyByte{0};
+        uint64_t mHostFnOpReadLedgerByte{0};
+        uint64_t mHostFnOpReadDataByte{0};
+        uint64_t mHostFnOpReadCodeByte{0};
+        uint64_t mHostFnOpWriteLedgerByte{0};
+        uint64_t mHostFnOpWriteDataByte{0};
+        uint64_t mHostFnOpWriteCodeByte{0};
+        uint64_t mHostFnOpEmitEvent{0};
+        uint64_t mHostFnOpEmitEventByte{0};
+        uint64_t mHostFnOpCpuInsn{0};
+        uint64_t mHostFnOpMemByte{0};
+        uint64_t mHostFnOpCpuInsnExclVm{0};
+        uint64_t mHostFnOpMaxRwKeyByte{0};
+        uint64_t mHostFnOpMaxRwDataByte{0};
+        uint64_t mHostFnOpMaxRwCodeByte{0};
+        uint64_t mHostFnOpMaxEmitEventByte{0};
+        uint64_t mHostFnOpSuccess{0};
+        uint64_t mHostFnOpFailure{0};
+        uint64_t mExtFpTtlOpReadLedgerByte{0};
+        uint64_t mRestoreFpOpReadLedgerByte{0};
+        uint64_t mRestoreFpOpWriteLedgerByte{0};
+
+        // Pending sample streams for percentile-bearing histograms/timers
+        // (timer samples are in nanoseconds).
+        std::vector<int64_t> mHostFnOpInvokeTimeNsecs;
+        std::vector<int64_t> mHostFnOpInvokeTimeNsecsExclVm;
+        std::vector<int64_t> mHostFnOpInvokeTimeFsecsCpuInsnRatio;
+        std::vector<int64_t> mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm;
+        std::vector<int64_t> mHostFnOpDeclaredInsnsUsageRatio;
+        std::vector<int64_t> mHostFnOpExecNsecs;
+        std::vector<int64_t> mExtFpTtlOpExecNsecs;
+        std::vector<int64_t> mRestoreFpOpExecNsecs;
+        std::vector<int64_t> mTxSizeByte;
+        std::vector<int64_t> mTxApplyNsecs;
+        std::vector<int64_t> mOpApplyNsecs;
+    };
+
   private:
     std::atomic<uint64_t> mCounterLedgerTxCount{0};
     std::atomic<uint64_t> mCounterLedgerCpuInsn{0};
@@ -37,6 +93,13 @@ class SorobanMetrics
     std::atomic<uint64_t> mLedgerInsnsCount{0};
     std::atomic<uint64_t> mLedgerInsnsExclVmCount{0};
     std::atomic<uint64_t> mLedgerHostFnExecTimeNsecs{0};
+
+    // All per-thread batches handed out by getApplyThreadBatch(), drained on
+    // each publishAndResetLedgerWideMetrics() call.
+    std::mutex mApplyBatchesMutex;
+    std::vector<std::shared_ptr<ApplyMetricsBatch>> mApplyBatches;
+
+    void flushApplyMetricsBatches();
 
   public:
     // ledger-wide metrics
@@ -52,6 +115,14 @@ class SorobanMetrics
 
     // tx-wide metrics
     medida::Histogram& mTxSizeByte;
+
+    // Cached references to the (op-kind-agnostic) "ledger.transaction.apply"
+    // and "ledger.operation.apply" timers: the parallel apply path records
+    // per-tx/per-op samples into its ApplyMetricsBatch and they are published
+    // into these at ledger close. These are the same timer instances the
+    // sequential apply path updates directly via registry lookups.
+    medida::Timer& mTransactionApply;
+    medida::Timer& mOperationApply;
 
     // `InvokeHostFunctionOp` metrics
     medida::Meter& mHostFnOpReadEntry;
@@ -127,6 +198,10 @@ class SorobanMetrics
 
     SorobanMetrics(MetricsRegistry& metrics);
 
+    // Returns the calling thread's metrics batch for this SorobanMetrics
+    // instance, creating and registering it on first use.
+    ApplyMetricsBatch& getApplyThreadBatch();
+
     void accumulateModelledCpuInsns(uint64_t insnsCount,
                                     uint64_t insnsExclVmCount,
                                     uint64_t execTimeNsecs);
@@ -139,5 +214,64 @@ class SorobanMetrics
     void accumulateLedgerWriteByte(uint64_t writeByte);
 
     void publishAndResetLedgerWideMetrics();
+};
+
+// Adds the wall-clock duration of its lifetime (in nanoseconds) to a
+// caller-provided accumulator on destruction.
+class ScopedNsecsTimer
+{
+  public:
+    explicit ScopedNsecsTimer(uint64_t& target)
+        : mTarget(target), mStart(std::chrono::steady_clock::now())
+    {
+    }
+
+    ScopedNsecsTimer(ScopedNsecsTimer const&) = delete;
+    ScopedNsecsTimer& operator=(ScopedNsecsTimer const&) = delete;
+
+    ~ScopedNsecsTimer()
+    {
+        mTarget += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                       std::chrono::steady_clock::now() - mStart)
+                       .count();
+    }
+
+  private:
+    uint64_t& mTarget;
+    std::chrono::steady_clock::time_point mStart;
+};
+
+// Times its lifetime and records the elapsed nanoseconds as a sample in the
+// given vector of the calling thread's ApplyMetricsBatch.
+class BatchedTimerScope
+{
+  public:
+    using SampleField =
+        std::vector<int64_t> SorobanMetrics::ApplyMetricsBatch::*;
+
+    BatchedTimerScope(SorobanMetrics& metrics, SampleField field)
+        : mMetrics(metrics)
+        , mField(field)
+        , mStart(std::chrono::steady_clock::now())
+    {
+    }
+
+    BatchedTimerScope(BatchedTimerScope const&) = delete;
+    BatchedTimerScope& operator=(BatchedTimerScope const&) = delete;
+
+    ~BatchedTimerScope()
+    {
+        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           std::chrono::steady_clock::now() - mStart)
+                           .count();
+        auto& batch = mMetrics.getApplyThreadBatch();
+        std::lock_guard<std::mutex> lock(batch.mMutex);
+        (batch.*mField).push_back(elapsed);
+    }
+
+  private:
+    SorobanMetrics& mMetrics;
+    SampleField mField;
+    std::chrono::steady_clock::time_point mStart;
 };
 }

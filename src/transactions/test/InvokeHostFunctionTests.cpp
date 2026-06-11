@@ -4,6 +4,9 @@
 
 #include "test/test.h"
 #include "transactions/ParallelApplyUtils.h"
+#include <medida/histogram.h>
+#include <medida/meter.h>
+#include <medida/timer.h>
 #include "transactions/TransactionFrameBase.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
@@ -22,6 +25,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/SorobanMetrics.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
@@ -7770,6 +7774,37 @@ TEST_CASE("module cache rebuild on incremental wasm uploads",
             static_cast<uint64_t>(rebuildBytesAtStartup));
     REQUIRE(uploadedRawAtTrigger >
             static_cast<uint64_t>(rebuildBytesAtStartup));
+}
+
+TEST_CASE("soroban metrics published at ledger close", "[tx][soroban]")
+{
+    SorobanTest test;
+    auto const& contract =
+        test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+
+    auto& metrics = test.getApp().getLedgerManager().getSorobanMetrics();
+    auto preSuccess = metrics.mHostFnOpSuccess.count();
+    auto preReadEntry = metrics.mHostFnOpReadEntry.count();
+    auto preTxSize = metrics.mTxSizeByte.count();
+    auto preInvokeTime = metrics.mHostFnOpInvokeTimeNsecs.count();
+    auto preExec = metrics.mHostFnOpExec.count();
+    auto preTxApply = metrics.mTransactionApply.count();
+    auto preOpApply = metrics.mOperationApply.count();
+
+    auto tx =
+        makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, test.getRoot());
+    REQUIRE(isSuccessResult(test.invokeTx(tx)));
+
+    // Per-op/per-tx metrics recorded during apply are batched per thread and
+    // published by the ledger close that applied the tx, so they must all be
+    // visible here.
+    REQUIRE(metrics.mHostFnOpSuccess.count() == preSuccess + 1);
+    REQUIRE(metrics.mHostFnOpReadEntry.count() > preReadEntry);
+    REQUIRE(metrics.mTxSizeByte.count() == preTxSize + 1);
+    REQUIRE(metrics.mHostFnOpInvokeTimeNsecs.count() == preInvokeTime + 1);
+    REQUIRE(metrics.mHostFnOpExec.count() == preExec + 1);
+    REQUIRE(metrics.mTransactionApply.count() >= preTxApply + 1);
+    REQUIRE(metrics.mOperationApply.count() >= preOpApply + 1);
 }
 
 TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")

@@ -1107,8 +1107,13 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     SorobanMetrics& metrics = app.getSorobanMetrics();
     auto txSize = static_cast<int64_t>(this->getSize());
     auto const& r = sorobanResources();
-    // update the tx metrics
-    metrics.mTxSizeByte.Update(txSize);
+    // record the tx metrics into the per-thread batch (published once per
+    // ledger)
+    {
+        auto& batch = metrics.getApplyThreadBatch();
+        std::lock_guard<std::mutex> lock(batch.mMutex);
+        batch.mTxSizeByte.push_back(txSize);
+    }
     // accumulate the ledger-wide metrics, which will get emitted at the ledger
     // close
     metrics.accumulateLedgerTxCount(getNumOperations());
@@ -2497,12 +2502,11 @@ TransactionFrame::parallelApply(
             ledgerInfo.getLedgerVersion() >=
             config.LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
 
-        std::optional<medida::TimerContext> opTimer;
+        std::optional<BatchedTimerScope> opTimer;
         if (!config.DISABLE_SOROBAN_METRICS_FOR_TESTING)
         {
-            opTimer.emplace(app.getMetrics()
-                                .NewTimer({"ledger", "operation", "apply"})
-                                .TimeScope());
+            opTimer.emplace(sorobanMetrics,
+                            &SorobanMetrics::ApplyMetricsBatch::mOpApplyNsecs);
         }
 
         releaseAssertOrThrow(mOperations.size() == 1);

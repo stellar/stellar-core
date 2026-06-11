@@ -2760,12 +2760,13 @@ LedgerManagerImpl::applyThread(
 {
     for (auto const& txBundle : cluster)
     {
-        // Apply timer
-        std::optional<medida::TimerContext> txTime;
+        // Apply timer; samples go into the thread's metrics batch and are
+        // published at ledger close.
+        std::optional<BatchedTimerScope> txTime;
         if (!mApp.getConfig().DISABLE_SOROBAN_METRICS_FOR_TESTING)
         {
-            txTime.emplace(
-                mApplyState.getMetrics().mTransactionApply.TimeScope());
+            txTime.emplace(getSorobanMetrics(),
+                           &SorobanMetrics::ApplyMetricsBatch::mTxApplyNsecs);
         }
 
         Hash txSubSeed = subSha256(sorobanBasePrngSeed, txBundle.getTxNum());
