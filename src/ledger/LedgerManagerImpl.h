@@ -276,12 +276,13 @@ class LedgerManagerImpl : public LedgerManager
         // runs at seal via joinEarlyInMemorySorobanStateUpdate.
         // threadShards: the per-cluster shard futures (long since written
         // by updater start). ttlEntries: this ledger's reconciled TTL
-        // changes, fed directly (by value) so the updater need not wait for
-        // the TTL shard's file write.
+        // changes, fed directly (shared with the TTL shard writer, which
+        // makes its own sorted copy off the apply thread) so the updater
+        // need not wait for the TTL shard's file write.
         void startEarlyInMemorySorobanStateUpdate(
             std::vector<std::shared_future<std::shared_ptr<LiveBucket>>>
                 threadShards,
-            std::vector<BucketEntry> ttlEntries,
+            std::shared_ptr<std::vector<BucketEntry> const> ttlEntries,
             SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion);
 
         bool
@@ -659,6 +660,11 @@ class LedgerManagerImpl : public LedgerManager
         double applyParallelPhaseTotalMs = 0;
         double applySeqClassicMs = 0;
         double postTxSetApplyMs = 0;
+        // Sub-timings of postTxSetApplyMs: the per-tx post-apply fee
+        // processing (refunds, written through the ltx) and the result/meta
+        // collection (result XDR serialization + result set append).
+        double postTxRefundsMs = 0;
+        double postTxResultsMs = 0;
         double applyTxTailMs = 0;
         double destroyApplyStagesMs = 0;
         double applyUpgradesMs = 0;

@@ -284,7 +284,8 @@ class GlobalParallelApplyLedgerState
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<TxBundle const*> const& txBundles);
 
-    void collectModifiedClassicEntries(AbstractLedgerTxn& ltx,
+    void collectModifiedClassicEntries(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
                                        std::vector<ApplyStage> const& stages);
 
     bool maybeMergeRoTTLBumps(ParallelApplyLedgerKey const& key,
@@ -343,8 +344,9 @@ class GlobalParallelApplyLedgerState
     // stages) as (unsorted) BucketEntries for a level-0 shard write. Must
     // be called after the last stage's commitChangesFromThreads (so
     // read-only TTL bumps have been max-merged) and before
-    // commitChangesToLedgerTxn (which moves entries out).
-    std::vector<BucketEntry> extractDirtyTTLShardEntries() const;
+    // commitChangesToLedgerTxn (which moves entries out). Extracts the map
+    // shards on the (idle) apply pool in parallel.
+    std::vector<BucketEntry> extractDirtyTTLShardEntries(AppConnector& app) const;
 
     // Consumes the global entry map: moves entries into the LedgerTxn
     // instead of copying. Must only be called once, as the final operation

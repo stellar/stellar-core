@@ -503,7 +503,7 @@ GlobalParallelApplyLedgerState::
         mSetupCommitWritesMs += setupLap();
         mSetupSeqWriteMs += gSeqPreApplyWriteMs;
 #endif
-        collectModifiedClassicEntries(ltx, stages);
+        collectModifiedClassicEntries(app, ltx, stages);
         return;
     }
 
@@ -648,53 +648,120 @@ GlobalParallelApplyLedgerState::commitBufferedPreParallelApplyWrites(
 
 void
 GlobalParallelApplyLedgerState::collectModifiedClassicEntries(
-    AbstractLedgerTxn& ltx, std::vector<ApplyStage> const& stages)
+    AppConnector& app, AbstractLedgerTxn& ltx,
+    std::vector<ApplyStage> const& stages)
 {
     ZoneScoped;
 #ifdef BUILD_TESTS
     auto _collectT0 = std::chrono::steady_clock::now();
 #endif
 
-    std::unordered_set<LedgerKey> classicKeys;
+    // Collect the classic footprint keys and copy their modified entries out
+    // of the ltx, in two parallel phases on the (currently idle) apply pool:
+    // first the tx bundles are chunked across workers, each binning classic
+    // keys by target global-map shard (computing each key's hash once);
+    // then one worker per shard deduplicates its keys and copies the
+    // modified entries into that shard. The ltx reads are pure lookups
+    // (getNewestVersionBelowRoot walks per-level entry maps and terminates
+    // at the root without touching its caches), and distinct shard workers
+    // touch disjoint submaps, so no synchronization is needed.
+    std::vector<TxBundle const*> bundles;
     for (auto const& stage : stages)
     {
         for (auto const& txBundle : stage)
         {
-            auto const& footprint =
-                txBundle.getTx()->sorobanResources().footprint;
-            for (auto const& key : footprint.readWrite)
-            {
-                if (!isSorobanEntry(key))
-                {
-                    classicKeys.emplace(key);
-                }
-            }
-            for (auto const& key : footprint.readOnly)
-            {
-                if (!isSorobanEntry(key))
-                {
-                    classicKeys.emplace(key);
-                }
-            }
+            bundles.push_back(&txBundle);
         }
     }
 
-    for (auto const& lk : classicKeys)
+    auto& threadPool = app.getApplyThreadPool();
+    threadPool.ensureWorkerCount(1);
+    size_t const numChunks = std::max<size_t>(
+        1, std::min<size_t>(kGlobalEntryMapShards, bundles.size()));
+    std::vector<
+        std::array<std::vector<ParallelApplyLedgerKey>, kGlobalEntryMapShards>>
+        bins(numChunks);
     {
-        auto entryPair = ltx.getNewestVersionBelowRoot(lk);
-        if (!entryPair.first)
+        std::vector<std::future<void>> futures;
+        futures.reserve(numChunks);
+        size_t const chunkSize = (bundles.size() + numChunks - 1) / numChunks;
+        for (size_t c = 0; c < numChunks; ++c)
         {
-            continue;
+            futures.emplace_back(
+                threadPool.submit([c, chunkSize, &bundles, &bins]() {
+                    size_t const begin = c * chunkSize;
+                    size_t const end =
+                        std::min(begin + chunkSize, bundles.size());
+                    auto binKey = [&](LedgerKey const& key) {
+                        if (isSorobanEntry(key))
+                        {
+                            return;
+                        }
+                        ParallelApplyLedgerKey pk(key);
+                        bins[c][globalMapShardOf(pk)].push_back(std::move(pk));
+                    };
+                    for (size_t i = begin; i < end; ++i)
+                    {
+                        auto const& fp =
+                            bundles[i]->getTx()->sorobanResources().footprint;
+                        for (auto const& key : fp.readWrite)
+                        {
+                            binKey(key);
+                        }
+                        for (auto const& key : fp.readOnly)
+                        {
+                            binKey(key);
+                        }
+                    }
+                }));
         }
+        for (auto& f : futures)
+        {
+            releaseAssert(f.valid());
+            f.get();
+        }
+    }
 
-        GlobalParApplyLedgerEntryOpt entry = scopeAdoptEntryOpt(
-            entryPair.second
-                ? std::make_optional(entryPair.second->ledgerEntry())
-                : std::nullopt);
-
-        ParallelApplyLedgerKey pk(lk);
-        globalMapShardFor(pk).emplace(std::move(pk),
-                                      GlobalParallelApplyEntry{entry, false});
+    {
+        std::vector<std::future<void>> futures;
+        futures.reserve(kGlobalEntryMapShards);
+        for (size_t s = 0; s < kGlobalEntryMapShards; ++s)
+        {
+            futures.emplace_back(threadPool.submit([this, s, &bins, &ltx]() {
+                auto& shard = mGlobalEntryMapShards[s];
+                for (auto& bin : bins)
+                {
+                    for (auto& pk : bin[s])
+                    {
+                        // Skip duplicates (and keys already collected by the
+                        // pre-apply phases), matching the no-op-on-duplicate
+                        // emplace semantics of the serial version.
+                        if (shard.find(pk) != shard.end())
+                        {
+                            continue;
+                        }
+                        auto entryPair =
+                            ltx.getNewestVersionBelowRoot(pk.ledgerKey());
+                        if (!entryPair.first)
+                        {
+                            continue;
+                        }
+                        GlobalParApplyLedgerEntryOpt entry = scopeAdoptEntryOpt(
+                            entryPair.second
+                                ? std::make_optional(
+                                      entryPair.second->ledgerEntry())
+                                : std::nullopt);
+                        shard.emplace(std::move(pk), GlobalParallelApplyEntry{
+                                                         entry, false});
+                    }
+                }
+            }));
+        }
+        for (auto& f : futures)
+        {
+            releaseAssert(f.valid());
+            f.get();
+        }
     }
 
 #ifdef BUILD_TESTS
@@ -1086,13 +1153,35 @@ ThreadParallelApplyLedgerState::extractDirtySorobanShardEntries() const
 }
 
 std::vector<BucketEntry>
-GlobalParallelApplyLedgerState::extractDirtyTTLShardEntries() const
+GlobalParallelApplyLedgerState::extractDirtyTTLShardEntries(
+    AppConnector& app) const
 {
-    std::vector<BucketEntry> entries;
-    for (auto const& shard : mGlobalEntryMapShards)
+    ZoneScoped;
+    // Extract the shards on parallel workers (the apply pool is idle at this
+    // point: all stages have joined), then concatenate.
+    auto& threadPool = app.getApplyThreadPool();
+    threadPool.ensureWorkerCount(1);
+    std::array<std::vector<BucketEntry>, kGlobalEntryMapShards> perShard;
+    std::vector<std::future<void>> futures;
+    futures.reserve(kGlobalEntryMapShards);
+    for (size_t i = 0; i < kGlobalEntryMapShards; ++i)
     {
-        auto shardEntries =
-            extractDirtyEntriesForShard(shard, *this, /*ttlOnly=*/true);
+        futures.emplace_back(threadPool.submit([this, i, &perShard]() {
+            perShard[i] = extractDirtyEntriesForShard(mGlobalEntryMapShards[i],
+                                                      *this, /*ttlOnly=*/true);
+        }));
+    }
+    size_t total = 0;
+    for (size_t i = 0; i < kGlobalEntryMapShards; ++i)
+    {
+        releaseAssert(futures[i].valid());
+        futures[i].get();
+        total += perShard[i].size();
+    }
+    std::vector<BucketEntry> entries;
+    entries.reserve(total);
+    for (auto& shardEntries : perShard)
+    {
         entries.insert(entries.end(),
                        std::make_move_iterator(shardEntries.begin()),
                        std::make_move_iterator(shardEntries.end()));

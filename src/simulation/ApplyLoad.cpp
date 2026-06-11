@@ -284,6 +284,10 @@ logPhaseTimingsTable(
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applySeqClassicMs);
     auto postTxSetApply =
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::postTxSetApplyMs);
+    auto postTxRefunds =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::postTxRefundsMs);
+    auto postTxResults =
+        extract(&LedgerManagerImpl::LedgerClosePhaseTimings::postTxResultsMs);
     auto applyTxTail =
         extract(&LedgerManagerImpl::LedgerClosePhaseTimings::applyTxTailMs);
     auto destroyApplyStages = extract(
@@ -410,6 +414,8 @@ logPhaseTimingsTable(
         {"|   *** par gap ***", computePhaseStats(parGap)},
         {"| apply_seq_classic", computePhaseStats(applySeqClassic)},
         {"| post_tx_set_apply", computePhaseStats(postTxSetApply)},
+        {"|   post_tx_refunds", computePhaseStats(postTxRefunds)},
+        {"|   post_tx_results", computePhaseStats(postTxResults)},
         {"| tail", computePhaseStats(applyTxTail)},
         {"| ~apply_stages", computePhaseStats(destroyApplyStages)},
         {"| *** tx gap ***", computePhaseStats(txGap)},

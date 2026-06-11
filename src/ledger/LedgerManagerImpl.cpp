@@ -341,7 +341,7 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
 void
 LedgerManagerImpl::ApplyState::startEarlyInMemorySorobanStateUpdate(
     std::vector<std::shared_future<std::shared_ptr<LiveBucket>>> threadShards,
-    std::vector<BucketEntry> ttlEntries,
+    std::shared_ptr<std::vector<BucketEntry> const> ttlEntries,
     SorobanNetworkConfig const& sorobanConfig, uint32_t ledgerVersion)
 {
     threadInvariant();
@@ -356,8 +356,7 @@ LedgerManagerImpl::ApplyState::startEarlyInMemorySorobanStateUpdate(
 
     // The TTL entries are shared (read-only) between the byproduct scan and
     // the state application.
-    auto sharedTtl = std::make_shared<std::vector<BucketEntry> const>(
-        std::move(ttlEntries));
+    auto sharedTtl = std::move(ttlEntries);
 
     // Byproduct scan: modified-key set (for eviction) and new contract code
     // (for the module cache). Fast; runs in parallel with the state
@@ -3016,12 +3015,13 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         // so read-only TTL bumps are fully reconciled: write the TTL shard
         // optimistically (overlapping the ltx commit and post-apply work).
         // The thread-shard futures are snapshotted first: the early
-        // in-memory updater consumes the TTL changes directly (by value)
+        // in-memory updater shares the extracted TTL entries with the shard
+        // writer (which makes its own sorted copy off the apply thread)
         // rather than waiting on the TTL shard's file write.
         auto threadShardFutures = mPendingLedgerShards;
-        auto ttlEntries = globalParState.extractDirtyTTLShardEntries();
-        auto ttlEntriesForUpdater = ttlEntries;
-        if (!ttlEntries.empty())
+        auto ttlEntries = std::make_shared<std::vector<BucketEntry> const>(
+            globalParState.extractDirtyTTLShardEntries(app));
+        if (!ttlEntries->empty())
         {
             auto& bm = mApp.getBucketManager();
             auto& workerCtx = mApp.getWorkerIOContext();
@@ -3029,8 +3029,12 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
             uint32_t protocol = header.ledgerVersion;
             mPendingLedgerShards.emplace_back(
                 std::async(std::launch::async,
-                           [&bm, &workerCtx, protocol, doFsync,
-                            entries = std::move(ttlEntries)]() mutable {
+                           [&bm, &workerCtx, protocol, doFsync, ttlEntries]() {
+                               // Copy + sort off the apply thread; the shared
+                               // vector itself stays unsorted for the early
+                               // updater (TTL keys are unique, so apply order
+                               // doesn't matter there).
+                               auto entries = *ttlEntries;
                                std::sort(entries.begin(), entries.end(),
                                          BucketEntryIdCmp<LiveBucket>{});
                                return LiveBucket::freshShard(
@@ -3051,10 +3055,10 @@ LedgerManagerImpl::applySorobanStages(AppConnector& app, AbstractLedgerTxn& ltx,
         // legacy seal-time updateState instead. Also skipped when this
         // ledger produced no soroban changes (e.g. empty tx sets in tests).
         if (bypassLtxForSorobanEntries(mApp.getConfig()) &&
-            (!threadShardFutures.empty() || !ttlEntriesForUpdater.empty()))
+            (!threadShardFutures.empty() || !ttlEntries->empty()))
         {
             mApplyState.startEarlyInMemorySorobanStateUpdate(
-                std::move(threadShardFutures), std::move(ttlEntriesForUpdater),
+                std::move(threadShardFutures), std::move(ttlEntries),
                 sorobanConfig, header.ledgerVersion);
         }
 
@@ -3232,6 +3236,8 @@ LedgerManagerImpl::applyTransactions(
         std::chrono::duration<double, std::milli>(txSubEnd - txSubStart)
             .count();
     mLastPhaseTimings.applySeqClassicMs = 0;
+    mLastPhaseTimings.postTxRefundsMs = 0;
+    mLastPhaseTimings.postTxResultsMs = 0;
 #endif
     std::vector<ApplyStage> applyStages;
     for (auto const& phase : phases)
@@ -3471,6 +3477,9 @@ LedgerManagerImpl::processPostTxSetApply(
             {
                 for (auto const& txBundle : stage)
                 {
+#ifdef BUILD_TESTS
+                    auto refundStart = std::chrono::steady_clock::now();
+#endif
                     if (ledgerCloseMeta)
                     {
                         // Use child LTX for meta change tracking.
@@ -3496,6 +3505,13 @@ LedgerManagerImpl::processPostTxSetApply(
                                 .getMeta()
                                 .getTxEventManager());
                     }
+#ifdef BUILD_TESTS
+                    auto refundEnd = std::chrono::steady_clock::now();
+                    mLastPhaseTimings.postTxRefundsMs +=
+                        std::chrono::duration<double, std::milli>(refundEnd -
+                                                                  refundStart)
+                            .count();
+#endif
 
                     // setPostTxApplyFeeProcessing can update the feeCharged in
                     // the result, so this needs to be done after
@@ -3503,6 +3519,12 @@ LedgerManagerImpl::processPostTxSetApply(
                                          txBundle.getEffects().getMeta(),
                                          *txBundle.getTx(),
                                          txBundle.getResPayload(), txResultSet);
+#ifdef BUILD_TESTS
+                    mLastPhaseTimings.postTxResultsMs +=
+                        std::chrono::duration<double, std::milli>(
+                            std::chrono::steady_clock::now() - refundEnd)
+                            .count();
+#endif
                 }
             }
         }
