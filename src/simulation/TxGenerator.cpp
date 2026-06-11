@@ -234,7 +234,7 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
     return ops;
 }
 
-TransactionFrameBasePtr
+TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate)
@@ -246,7 +246,7 @@ TxGenerator::createTransactionFramePtr(
     return txf;
 }
 
-TransactionFrameBasePtr
+TransactionFrameBaseConstPtr
 TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops,
     std::optional<uint32_t> maxGeneratedFeeRate,
