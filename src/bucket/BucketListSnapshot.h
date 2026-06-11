@@ -19,6 +19,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace medida
@@ -69,9 +70,15 @@ template <class BucketT> struct BucketListSnapshotData
 // immutable snapshot data (ledger header, list of referenced buckets, etc).
 //
 // Thread-safety:
-// - A single snapshot instance must only be used by one thread at a time.
+// - A single snapshot instance must only be used by one thread at a time. In
+//   test builds this is enforced by threadInvariant(): the first thread to
+//   issue a query claims the snapshot, and subsequent queries from a different
+//   thread trigger an assertion.
 // - The underlying snapshot data (shared via shared_ptr) is immutable and
 //   can be safely shared.
+// - To query from another thread, make a copy: copies reset the cached stream
+//   cache and (in test builds) the owning-thread id, so each copy can be
+//   claimed by a different thread.
 template <class BucketT> class SearchableBucketListSnapshot
 {
     BUCKET_TYPE_ASSERT(BucketT);
@@ -83,6 +90,19 @@ template <class BucketT> class SearchableBucketListSnapshot
     // Per-snapshot mutable stream cache
     mutable UnorderedMap<BucketT const*, std::unique_ptr<XDRInputFileStream>>
         mStreams;
+
+#ifdef BUILD_TESTS
+    // Thread id of the first thread to issue a query on this snapshot instance.
+    // Used by threadInvariant() to assert that a single snapshot is not queried
+    // concurrently from multiple threads. Reset on copy so each copy can be
+    // claimed by a different thread.
+    mutable std::thread::id mThreadId{};
+#endif
+
+    // Bucket loads are not thread safe and a single snapshot instance should
+    // only be queried by one thread. We cache the initial caller's thread id
+    // and assert following queries are from the same thread (test builds only).
+    void threadInvariant() const;
 
     std::reference_wrapper<MetricsRegistry> mMetrics;
 

@@ -101,8 +101,34 @@ SearchableBucketListSnapshot<BucketT>::operator=(
         mPointTimers = other.mPointTimers;
         mBulkTimers = other.mBulkTimers;
         mBulkLoadMeter = other.mBulkLoadMeter;
+#ifdef BUILD_TESTS
+        // Reset thread ownership so the copy can be claimed by another thread.
+        mThreadId = std::thread::id{};
+#endif
     }
     return *this;
+}
+
+// Bucket loads are not thread safe and a single snapshot instance should only
+// be queried by one thread. We cache the initial caller's thread id and assert
+// following queries are from the same thread. Note: this only guards the
+// bucket-loading query entry points; access to the immutable underlying
+// snapshot data is thread safe.
+template <class BucketT>
+void
+SearchableBucketListSnapshot<BucketT>::threadInvariant() const
+{
+#ifdef BUILD_TESTS
+    auto current = std::this_thread::get_id();
+    if (mThreadId == std::thread::id{})
+    {
+        mThreadId = current;
+    }
+    else
+    {
+        releaseAssert(mThreadId == current);
+    }
+#endif
 }
 
 // File streams are fairly expensive to create, so they are lazily created and
@@ -112,6 +138,7 @@ XDRInputFileStream&
 SearchableBucketListSnapshot<BucketT>::getStream(
     std::shared_ptr<BucketT const> const& bucket) const
 {
+    threadInvariant();
     BucketT const* key = bucket.get();
     auto it = mStreams.find(key);
     if (it == mStreams.end())
@@ -307,6 +334,7 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto timerIter = mPointTimers.find(k.type());
     releaseAssert(timerIter != mPointTimers.end());
@@ -341,6 +369,10 @@ medida::Timer&
 SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     std::string const& label, size_t numEntries) const
 {
+    // mBulkTimers is per-snapshot mutable state lazily populated here, so this
+    // must be single-threaded. Enforced here as well as at the public query
+    // entry points.
+    threadInvariant();
     if (numEntries != 0)
     {
         mBulkLoadMeter.get().Mark(numEntries);
@@ -383,6 +415,7 @@ SearchableBucketListSnapshot<BucketT>::loadKeys(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
 
     auto keys = inKeys;
@@ -406,6 +439,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     LedgerKeySet trustlinesToLoad;
 
@@ -448,6 +482,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto timer = getBulkLoadTimer("inflationWinners", 0).TimeScope();
 
@@ -548,6 +583,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     ZoneScoped;
     releaseAssert(mData);
     releaseAssert(stats);
+    threadInvariant();
 
     auto getBucketFromIter =
         [&levels = mData->levels](
@@ -599,6 +635,7 @@ SearchableLiveBucketListSnapshot::scanForEntriesOfType(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto scanBucket = [&](std::shared_ptr<LiveBucket const> const& bucket) {
         if (bucket->isEmpty())
@@ -817,6 +854,7 @@ SearchableHotArchiveBucketListSnapshot::scanAllEntries(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto scanBucket =
         [&](std::shared_ptr<HotArchiveBucket const> const& bucket) {
