@@ -9,7 +9,11 @@
 #include "util/BitSet.h"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
+#include <functional>
 #include <numeric>
+#include <thread>
 #include <unordered_set>
 
 namespace stellar
@@ -564,9 +568,28 @@ buildSurgePricedParallelSorobanPhaseWithStageCount(
     return result;
 }
 
-std::vector<BuilderTx>
-prepareBuilderTxs(TxFrameList const& txFrames)
+// Runs `fn(threadId)` on `nThreads` threads (including the calling thread)
+// and waits for all of them to finish.
+void
+runParallel(size_t nThreads, std::function<void(size_t)> const& fn)
 {
+    std::vector<std::thread> threads;
+    threads.reserve(nThreads - 1);
+    for (size_t t = 1; t < nThreads; ++t)
+    {
+        threads.emplace_back([&fn, t]() { fn(t); });
+    }
+    fn(0);
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+}
+
+std::vector<BuilderTx>
+prepareBuilderTxs(TxFrameList const& txFrames, size_t maxThreads)
+{
+    ZoneScoped;
     std::vector<BuilderTx> builderTxs;
     builderTxs.reserve(txFrames.size());
     for (size_t i = 0; i < txFrames.size(); ++i)
@@ -577,124 +600,235 @@ prepareBuilderTxs(TxFrameList const& txFrames)
     // Before trying to include any transactions, find all the pairs of the
     // conflicting transactions and mark the conflicts in the builderTxs.
     //
-    // We use a sort-based approach: collect all footprint entries into a flat
-    // vector tagged with (key hash, tx id, RO/RW), sort by hash,
+    // We use a grouping approach: collect all footprint entries into a flat
+    // vector tagged with (key hash, tx id, RO/RW), group the entries by hash,
     // then scan for groups sharing the same key hash. This is significantly
-    // faster in practice than using hash map lookups.
+    // faster in practice than using hash map lookups. The hashing, grouping
+    // and conflict-marking passes are all parallelized across worker threads.
     //
     // This also has the further optimization potential: we could populate the
     // key maps and even the conflicting transactions eagerly in tx queue, thus
     // amortizing the costs across the whole ledger duration.
     struct FpEntry
     {
-        size_t keyHash;
+        uint64_t keyHash;
         uint32_t txId;
         bool isRW;
     };
 
-    // Count total footprint entries for a single allocation.
-    size_t totalFpEntries = 0;
-    for (auto const& txFrame : txFrames)
-    {
-        auto const& fp = txFrame->sorobanResources().footprint;
-        totalFpEntries += fp.readOnly.size() + fp.readWrite.size();
-    }
-
-    std::vector<FpEntry> fpEntries;
-    fpEntries.reserve(totalFpEntries);
-    std::hash<LedgerKey> keyHasher;
+    // Per-tx entry start offsets (exclusive prefix sums of the footprint
+    // sizes), so that worker threads can fill disjoint ranges of the entry
+    // array.
+    std::vector<size_t> txEntryOffset(txFrames.size() + 1, 0);
     for (size_t i = 0; i < txFrames.size(); ++i)
     {
-        auto const& footprint = txFrames[i]->sorobanResources().footprint;
-        for (auto const& key : footprint.readOnly)
-        {
-            fpEntries.push_back(
-                {keyHasher(key), static_cast<uint32_t>(i), false});
-        }
-        for (auto const& key : footprint.readWrite)
-        {
-            fpEntries.push_back(
-                {keyHasher(key), static_cast<uint32_t>(i), true});
-        }
+        auto const& fp = txFrames[i]->sorobanResources().footprint;
+        txEntryOffset[i + 1] =
+            txEntryOffset[i] + fp.readOnly.size() + fp.readWrite.size();
+    }
+    size_t const totalFpEntries = txEntryOffset.back();
+    if (totalFpEntries == 0)
+    {
+        return builderTxs;
     }
 
-    // Sort by hash for cache-friendly grouping.
-    std::sort(fpEntries.begin(), fpEntries.end(),
-              [](FpEntry const& a, FpEntry const& b) {
-                  return a.keyHash < b.keyHash;
-              });
+    // Don't create threads with less than this many entries to process.
+    size_t const MIN_ENTRIES_PER_THREAD = 1000;
+    size_t const nThreads =
+        std::max<size_t>(1, std::min<size_t>(maxThreads,
+                                             totalFpEntries /
+                                                 MIN_ENTRIES_PER_THREAD));
 
-    // Scan sorted entries for groups sharing the same hash, then mark
+    // Hash all the footprint keys, chunking the transactions across threads
+    // such that every chunk has a roughly equal number of keys.
+    std::vector<FpEntry> fpEntries(totalFpEntries);
+    std::vector<size_t> txChunkBound;
+    txChunkBound.push_back(0);
+    for (size_t t = 1; t < nThreads; ++t)
+    {
+        size_t entryTarget = totalFpEntries * t / nThreads;
+        size_t txIdx = std::lower_bound(txEntryOffset.begin(),
+                                        txEntryOffset.end(), entryTarget) -
+                       txEntryOffset.begin();
+        txChunkBound.push_back(
+            std::clamp(txIdx, txChunkBound.back(), txFrames.size()));
+    }
+    txChunkBound.push_back(txFrames.size());
+    runParallel(nThreads, [&](size_t t) {
+        std::hash<LedgerKey> keyHasher;
+        for (size_t i = txChunkBound[t]; i < txChunkBound[t + 1]; ++i)
+        {
+            auto const& footprint = txFrames[i]->sorobanResources().footprint;
+            size_t pos = txEntryOffset[i];
+            for (auto const& key : footprint.readOnly)
+            {
+                fpEntries[pos++] = {keyHasher(key), static_cast<uint32_t>(i),
+                                    false};
+            }
+            for (auto const& key : footprint.readWrite)
+            {
+                fpEntries[pos++] = {keyHasher(key), static_cast<uint32_t>(i),
+                                    true};
+            }
+        }
+    });
+
+    // Group the entries by hash: scatter them into buckets keyed by the top
+    // bits of the (uniformly distributed) hash, then sort every bucket
+    // independently. This replaces a single large sort with cheap linear
+    // passes plus many small sorts that run in parallel.
+    constexpr size_t BUCKET_BITS = 8;
+    constexpr size_t BUCKET_COUNT = 1 << BUCKET_BITS;
+    auto bucketOf = [](uint64_t hash) { return hash >> (64 - BUCKET_BITS); };
+    auto entryChunkBound = [&](size_t t) {
+        return totalFpEntries * t / nThreads;
+    };
+
+    std::vector<std::array<size_t, BUCKET_COUNT>> chunkBucketCount(
+        nThreads, std::array<size_t, BUCKET_COUNT>{});
+    runParallel(nThreads, [&](size_t t) {
+        auto& counts = chunkBucketCount[t];
+        for (size_t i = entryChunkBound(t); i < entryChunkBound(t + 1); ++i)
+        {
+            ++counts[bucketOf(fpEntries[i].keyHash)];
+        }
+    });
+
+    // Compute the bucket boundaries and per-(chunk, bucket) write positions.
+    std::vector<size_t> bucketStart(BUCKET_COUNT + 1, 0);
+    std::vector<std::array<size_t, BUCKET_COUNT>> chunkWritePos(
+        nThreads, std::array<size_t, BUCKET_COUNT>{});
+    size_t pos = 0;
+    for (size_t bucket = 0; bucket < BUCKET_COUNT; ++bucket)
+    {
+        bucketStart[bucket] = pos;
+        for (size_t t = 0; t < nThreads; ++t)
+        {
+            chunkWritePos[t][bucket] = pos;
+            pos += chunkBucketCount[t][bucket];
+        }
+    }
+    bucketStart[BUCKET_COUNT] = pos;
+
+    std::vector<FpEntry> bucketedEntries(totalFpEntries);
+    runParallel(nThreads, [&](size_t t) {
+        auto& writePos = chunkWritePos[t];
+        for (size_t i = entryChunkBound(t); i < entryChunkBound(t + 1); ++i)
+        {
+            bucketedEntries[writePos[bucketOf(fpEntries[i].keyHash)]++] =
+                fpEntries[i];
+        }
+    });
+
+    // Scan every bucket for groups sharing the same hash, then mark
     // conflicts between transactions that share RW keys (RW-RW and RO-RW).
     // Conservatively treat hash collisions as potential conflicts - collisions
     // should generally be rare and allocating collisions to the same thread
     // is guaranteed to be safe (while disambiguating the conflicts would be
     // expensive and complex). Collision probability is really low (K^2/2^64).
-    for (size_t groupStart = 0; groupStart < fpEntries.size();)
+    //
+    // The conflicts are first collected as 'half-edges' (a directed
+    // tx-conflicts-with-tx record) binned by the tx id that needs to be
+    // updated, so that the conflict masks can then be updated in parallel
+    // without any writer races: thread `t` owns the transactions with
+    // `txId % nThreads == t`.
+    struct HalfEdge
     {
-        size_t groupEnd = groupStart + 1;
-        while (groupEnd < fpEntries.size() &&
-               fpEntries[groupEnd].keyHash == fpEntries[groupStart].keyHash)
+        uint32_t mTxId;
+        uint32_t mConflictTxId;
+    };
+    std::vector<std::vector<std::vector<HalfEdge>>> halfEdgeBins(
+        nThreads, std::vector<std::vector<HalfEdge>>(nThreads));
+    std::atomic<size_t> nextBucket{0};
+    runParallel(nThreads, [&](size_t t) {
+        auto& bins = halfEdgeBins[t];
+        auto emitConflict = [&](uint32_t a, uint32_t b) {
+            bins[a % nThreads].push_back({a, b});
+            bins[b % nThreads].push_back({b, a});
+        };
+        std::vector<uint32_t> roTxs;
+        std::vector<uint32_t> rwTxs;
+        while (true)
         {
-            ++groupEnd;
-        }
-
-        // Skip singleton groups — no possible conflicts.
-        if (groupEnd - groupStart < 2)
-        {
-            groupStart = groupEnd;
-            continue;
-        }
-
-        // Collect all entries with the matching key hash.
-        std::vector<size_t> roTxs;
-        std::vector<size_t> rwTxs;
-        for (size_t i = groupStart; i < groupEnd; ++i)
-        {
-            if (fpEntries[i].isRW)
+            size_t bucket = nextBucket.fetch_add(1);
+            if (bucket >= BUCKET_COUNT)
             {
-                rwTxs.push_back(fpEntries[i].txId);
+                break;
             }
-            else
+            auto const begin = bucketedEntries.data() + bucketStart[bucket];
+            auto const end = bucketedEntries.data() + bucketStart[bucket + 1];
+            std::sort(begin, end, [](FpEntry const& a, FpEntry const& b) {
+                return a.keyHash < b.keyHash;
+            });
+            for (auto groupStart = begin; groupStart != end;)
             {
-                roTxs.push_back(fpEntries[i].txId);
-            }
-        }
-        // RW-RW conflicts
-        for (size_t i = 0; i < rwTxs.size(); ++i)
-        {
-            for (size_t j = i + 1; j < rwTxs.size(); ++j)
-            {
-                // In a rare case of hash collision within a transaction, we
-                // might have the same transaction appear several times in the
-                // same group.
-                if (rwTxs[i] == rwTxs[j])
+                auto groupEnd = groupStart + 1;
+                while (groupEnd != end &&
+                       groupEnd->keyHash == groupStart->keyHash)
                 {
+                    ++groupEnd;
+                }
+
+                // Skip singleton groups — no possible conflicts.
+                if (groupEnd - groupStart < 2)
+                {
+                    groupStart = groupEnd;
                     continue;
                 }
-                builderTxs[rwTxs[i]].mConflictTxs.set(rwTxs[j]);
-                builderTxs[rwTxs[j]].mConflictTxs.set(rwTxs[i]);
-            }
-        }
-        // RO-RW conflicts
-        for (size_t i = 0; i < roTxs.size(); ++i)
-        {
-            for (size_t j = 0; j < rwTxs.size(); ++j)
-            {
-                // In a rare case of hash collision within a transaction, we
-                // might have the same transaction appear several times in the
-                // same group.
-                if (roTxs[i] == rwTxs[j])
-                {
-                    continue;
-                }
-                builderTxs[roTxs[i]].mConflictTxs.set(rwTxs[j]);
-                builderTxs[rwTxs[j]].mConflictTxs.set(roTxs[i]);
-            }
-        }
 
-        groupStart = groupEnd;
-    }
+                // Collect all entries with the matching key hash.
+                roTxs.clear();
+                rwTxs.clear();
+                for (auto it = groupStart; it != groupEnd; ++it)
+                {
+                    (it->isRW ? rwTxs : roTxs).push_back(it->txId);
+                }
+                // RW-RW conflicts
+                for (size_t i = 0; i < rwTxs.size(); ++i)
+                {
+                    for (size_t j = i + 1; j < rwTxs.size(); ++j)
+                    {
+                        // In a rare case of hash collision within a
+                        // transaction, we might have the same transaction
+                        // appear several times in the same group.
+                        if (rwTxs[i] == rwTxs[j])
+                        {
+                            continue;
+                        }
+                        emitConflict(rwTxs[i], rwTxs[j]);
+                    }
+                }
+                // RO-RW conflicts
+                for (size_t i = 0; i < roTxs.size(); ++i)
+                {
+                    for (size_t j = 0; j < rwTxs.size(); ++j)
+                    {
+                        // In a rare case of hash collision within a
+                        // transaction, we might have the same transaction
+                        // appear several times in the same group.
+                        if (roTxs[i] == rwTxs[j])
+                        {
+                            continue;
+                        }
+                        emitConflict(roTxs[i], rwTxs[j]);
+                    }
+                }
+
+                groupStart = groupEnd;
+            }
+        }
+    });
+
+    // Apply the collected half-edges to the conflict masks.
+    runParallel(nThreads, [&](size_t t) {
+        for (size_t producer = 0; producer < nThreads; ++producer)
+        {
+            for (auto const& edge : halfEdgeBins[producer][t])
+            {
+                builderTxs[edge.mTxId].mConflictTxs.set(edge.mConflictTxId);
+            }
+        }
+    });
     return builderTxs;
 }
 
@@ -715,8 +849,16 @@ buildSurgePricedParallelSorobanPhase(
     // inclusion fee (a proxy for the transaction set utilization).
     double const MAX_INCLUSION_FEE_TOLERANCE_FOR_STAGE_COUNT = 0.999;
 
-    // Simplify the transactions to the minimum necessary amount of data.
-    auto builderTxs = prepareBuilderTxs(txFrames);
+    size_t const maxThreads =
+        std::max(1, cfg.LEDGER_CLOSE_WORKER_THREADS);
+
+    // Simplify the transactions to the minimum necessary amount of data on
+    // worker threads, overlapped with the fee-order sort and the resource
+    // precomputation below (these are independent of the conflict
+    // discovery).
+    std::vector<BuilderTx> builderTxs;
+    std::thread prepareThread(
+        [&]() { builderTxs = prepareBuilderTxs(txFrames, maxThreads); });
 
     // Sort transactions in decreasing inclusion fee order.
     TxFeeComparator txComparator(
@@ -738,6 +880,7 @@ buildSurgePricedParallelSorobanPhase(
         txResources.push_back(
             tx->getResources(/* useByteLimitInClassic */ false, ledgerVersion));
     }
+    prepareThread.join();
 
     // Get the lane limit. Soroban uses a single generic lane.
     auto const& laneLimits = laneConfig->getLaneLimits();
