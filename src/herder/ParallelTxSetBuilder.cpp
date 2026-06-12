@@ -136,6 +136,87 @@ class Stage
             return false;
         }
 
+        // Fast path for transactions that don't conflict with any existing
+        // cluster: no clusters need to be merged, so the new singleton
+        // cluster either fits into one of the bins in-place, or the stage is
+        // at capacity (modulo the one-off full repacking attempt below).
+        // This makes rejecting a transaction from a full stage an O(1)
+        // operation (a single check against the least loaded bin), which
+        // matters a lot when there are many more candidate transactions than
+        // the stage can fit.
+        if (conflictingClusters.empty())
+        {
+            if (mMinBinInstructions + tx.mInstructions <=
+                mConfig.mInstructionsPerCluster)
+            {
+                auto newCluster = std::make_unique<Cluster>(tx);
+                for (size_t binId = 0; binId < mConfig.mClustersPerStage;
+                     ++binId)
+                {
+                    if (mBinInstructions[binId] + tx.mInstructions <=
+                        mConfig.mInstructionsPerCluster)
+                    {
+                        mBinInstructions[binId] += tx.mInstructions;
+                        newCluster->mBinId = std::make_optional(binId);
+                        break;
+                    }
+                }
+                releaseAssert(newCluster->mBinId.has_value());
+                mClusters.push_back(std::move(newCluster));
+                finalizeAddedCluster(tx, *mClusters.back());
+                return true;
+            }
+
+            // The following is a not particularly scientific, but a useful
+            // optimization.
+            // The logic is as follows: in-place bin-packing is an unordered
+            // first-fit heuristic with 1.7 approximation factor. Full bin
+            // packing is first-fit-decreasing heuristic with 11/9
+            // approximation, which is better, but also more expensive due to
+            // full rebuild.
+            // The first time we can't fit a cluster that has no conflicts
+            // with first-fit heuristic, it makes sense to try re-packing all
+            // the clusters with a better algorithm (thus potentially
+            // 'compacting' the bins). However, after that we can say that the
+            // packing is both almost at capacity and is already as compact as
+            // it gets with our heuristics, so it's unlikely that if a cluster
+            // doesn't fit with in-place packing, it will fit with full
+            // packing.
+            // This optimization provides tremendous savings for the case when
+            // we have a lot of independent transactions (say, a full tx queue
+            // with 2x more transactions than we can fit into transaction
+            // set), which also happens to be the worst case performance-wise.
+            // Without it we might end up rebuilding the bin-packing for every
+            // single transaction even though the bin-packing is already at
+            // capacity.
+            // We don't do a similar optimization for the cases when there are
+            // conflicts for now, as it's much less likely that all the
+            // transactions would cause the cluster merge and then fail to be
+            // packed (you'd need very specific set of transactions for that
+            // to occur). But we can consider doing the full packing just once
+            // or a few times without any additional conditions if that's ever
+            // an issue.
+            if (mTriedCompactingBinPacking)
+            {
+                return false;
+            }
+            mTriedCompactingBinPacking = true;
+            mClusters.push_back(std::make_unique<Cluster>(tx));
+            auto* addedCluster = mClusters.back().get();
+            // Try to recompute the bin-packing from scratch with a more
+            // efficient heuristic. binPacking() sorts mClusters in-place.
+            std::vector<uint64_t> newBinInstructions;
+            if (!binPacking(mClusters, newBinInstructions))
+            {
+                std::vector<std::unique_ptr<Cluster const>> noSavedClusters;
+                rollbackClusters(addedCluster, noSavedClusters);
+                return false;
+            }
+            mBinInstructions = newBinInstructions;
+            finalizeAddedCluster(tx, *addedCluster);
+            return true;
+        }
+
         // Create the merged cluster from the new transaction and all
         // conflicting clusters.
         auto newCluster = std::make_unique<Cluster>(tx);
@@ -147,11 +228,8 @@ class Stage
         // Mutate mClusters in-place: remove conflicting clusters (saving
         // them for potential rollback) and append the new merged cluster.
         std::vector<std::unique_ptr<Cluster const>> savedClusters;
-        if (!conflictingClusters.empty())
-        {
-            savedClusters.reserve(conflictingClusters.size());
-            removeConflictingClusters(conflictingClusters, savedClusters);
-        }
+        savedClusters.reserve(conflictingClusters.size());
+        removeConflictingClusters(conflictingClusters, savedClusters);
         mClusters.push_back(std::move(newCluster));
 
         // If it's possible to pack the newly-created cluster into one of the
@@ -159,48 +237,10 @@ class Stage
         auto* addedCluster = mClusters.back().get();
         if (inPlaceBinPacking(*addedCluster, conflictingClusters))
         {
-            mInstructions += tx.mInstructions;
-            // Update the global conflict mask so future lookups can
-            // fast-path when a tx has no conflicts with any cluster.
-            mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
-            updateTxToCluster(*addedCluster);
+            finalizeAddedCluster(tx, *addedCluster);
             return true;
         }
 
-        // The following is a not particularly scientific, but a useful
-        // optimization.
-        // The logic is as follows: in-place bin-packing is an unordered
-        // first-fit heuristic with 1.7 approximation factor. Full bin
-        // packing is first-fit-decreasing heuristic with 11/9 approximation,
-        // which is better, but also more expensive due to full rebuild.
-        // The first time we can't fit a cluster that has no conflicts with
-        // first-fit heuristic, it makes sense to try re-packing all the
-        // clusters with a better algorithm (thus potentially 'compacting'
-        // the bins). However, after that we can say that the packing is both
-        // almost at capacity and is already as compact as it gets with our
-        // heuristics, so it's unlikely that if a cluster doesn't fit with
-        // in-place packing, it will fit with full packing.
-        // This optimization provides tremendous savings for the case when we
-        // have a lot of independent transactions (say, a full tx queue with
-        // 2x more transactions than we can fit into transaction set), which
-        // also happens to be the worst case performance-wise. Without it we
-        // might end up rebuilding the bin-packing for every single transaction
-        // even though the bin-packing is already at capacity.
-        // We don't do a similar optimization for the cases when there are
-        // conflicts for now, as it's much less likely that all the
-        // transactions would cause the cluster merge and then fail to be
-        // packed (you'd need very specific set of transactions for that to
-        // occur). But we can consider doing the full packing just once or a
-        // few times without any additional conditions if that's ever an issue.
-        if (conflictingClusters.empty())
-        {
-            if (mTriedCompactingBinPacking)
-            {
-                rollbackClusters(addedCluster, savedClusters);
-                return false;
-            }
-            mTriedCompactingBinPacking = true;
-        }
         // Try to recompute the bin-packing from scratch with a more efficient
         // heuristic. binPacking() sorts mClusters in-place.
         std::vector<uint64_t> newBinInstructions;
@@ -212,12 +252,8 @@ class Stage
             rollbackClusters(addedCluster, savedClusters);
             return false;
         }
-        mInstructions += tx.mInstructions;
         mBinInstructions = newBinInstructions;
-        // Update the global conflict mask so future lookups can
-        // fast-path when a tx has no conflicts with any cluster.
-        mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
-        updateTxToCluster(*addedCluster);
+        finalizeAddedCluster(tx, *addedCluster);
         return true;
     }
 
@@ -275,6 +311,19 @@ class Stage
             mTxToCluster[txId] = clusterPtr;
             ++txId;
         }
+    }
+
+    // Common bookkeeping for every successful cluster addition.
+    void
+    finalizeAddedCluster(BuilderTx const& tx, Cluster const& addedCluster)
+    {
+        mInstructions += tx.mInstructions;
+        // Update the global conflict mask so future lookups can
+        // fast-path when a tx has no conflicts with any cluster.
+        mAllConflictTxs.inplaceUnion(tx.mConflictTxs);
+        updateTxToCluster(addedCluster);
+        mMinBinInstructions = *std::min_element(mBinInstructions.begin(),
+                                                mBinInstructions.end());
     }
 
     bool
@@ -438,6 +487,9 @@ class Stage
     // minimum assumption, we can form txsets into binned clusters each small
     // enough to run in the close-time target on the guaranteed parallelism.
     std::vector<uint64_t> mBinInstructions;
+    // Instructions in the least loaded bin; lets a conflict-free transaction
+    // that can't fit into any bin be rejected in O(1).
+    uint64_t mMinBinInstructions = 0;
     uint64_t mInstructions = 0;
     ParallelPartitionConfig mConfig;
     bool mTriedCompactingBinPacking = false;
