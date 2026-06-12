@@ -201,8 +201,10 @@ class LedgerManagerImpl : public LedgerManager
         std::future<void> mEarlyInMemStateUpdate;
         // Byproduct scan (modified-key set + new contract code), run as a
         // separate parallel task so eviction's keyset is ready well before
-        // the (slower) state application completes.
-        std::future<void> mEarlyUpdateByproducts;
+        // the (slower) state application completes. A shared_future because
+        // both the apply thread and the async finalize task (which joins the
+        // early update) wait on it, each via its own local copy.
+        std::shared_future<void> mEarlyUpdateByproducts;
         uint64_t mInMemStateSizeBeforeEarlyUpdate{0};
         // Byproducts of the early update, valid after it completes (wait/
         // join): the set of soroban-typed keys modified this ledger (for

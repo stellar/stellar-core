@@ -430,9 +430,14 @@ LedgerManagerImpl::ApplyState::waitForEarlyInMemorySorobanStateUpdate()
 void
 LedgerManagerImpl::ApplyState::waitForEarlyUpdateByproducts()
 {
-    if (mEarlyUpdateByproducts.valid())
+    // Wait via a local copy: the apply thread and the async finalize task
+    // (joinEarlyInMemorySorobanStateUpdate) may both wait concurrently, and
+    // the shared state may only be awaited concurrently through distinct
+    // shared_future objects.
+    auto byproducts = mEarlyUpdateByproducts;
+    if (byproducts.valid())
     {
-        mEarlyUpdateByproducts.wait();
+        byproducts.wait();
     }
 }
 
@@ -4051,7 +4056,13 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     auto& inMemoryState = mApplyState.getInMemorySorobanStateForUpdate();
     auto& sorobanMetrics = mApplyState.getMetrics().mSorobanMetrics;
 
-    if (mApplyState.hasEarlyInMemorySorobanStateUpdate())
+    // Capture before launching the async task below: the task joins the
+    // early update, which consumes (moves) its future, so the apply thread
+    // must not query it afterwards.
+    bool const hadEarlyInMemStateUpdate =
+        mApplyState.hasEarlyInMemorySorobanStateUpdate();
+
+    if (hadEarlyInMemStateUpdate)
     {
         // The shard-fed early update has been applying this ledger's soroban
         // entry changes since the parallel phase committed; only the
@@ -4082,8 +4093,7 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
 
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
-    if (mApplyState.hasEarlyInMemorySorobanStateUpdate() &&
-        bypassLtxForSorobanEntries(mApp.getConfig()))
+    if (hadEarlyInMemStateUpdate && bypassLtxForSorobanEntries(mApp.getConfig()))
     {
         // When soroban entries bypass the ltx, new contract code arrives via
         // the shards; the early update's byproduct scan collects it.
