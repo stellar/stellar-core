@@ -172,6 +172,8 @@ pub enum OverlayCommand {
     RequestScpState { ledger_seq: u32 },
     /// Send SCP envelope to a specific peer
     SendScpToPeer { peer_id: PeerId, envelope: Vec<u8> },
+    /// Update the number of known peers used to size eager flooding trees.
+    SetKnownPeerCount(usize),
     /// Shutdown
     Shutdown,
     /// Query the number of connected peers (responds via oneshot)
@@ -333,6 +335,19 @@ impl OverlayHandle {
         Ok(())
     }
 
+    pub async fn set_known_peer_count(&self, count: usize) {
+        if let Err(e) = self
+            .cmd_tx
+            .send(OverlayCommand::SetKnownPeerCount(count))
+            .await
+        {
+            warn!(
+                "Overlay command channel closed, failed to send SetKnownPeerCount: {}",
+                e
+            );
+        }
+    }
+
     pub async fn shutdown(&self) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::Shutdown).await {
             warn!(
@@ -391,8 +406,11 @@ struct SharedState {
     pending_getdata: RwLock<PendingRequests>,
     /// TX buffer for responding to GETDATA requests
     tx_buffer: RwLock<TxBuffer>,
-    /// Current eager flooding TTL depth derived from the connected peer count.
+    /// Current eager flooding TTL depth derived from known and connected peer counts.
     overlay_eager_depth: AtomicU64,
+    /// Number of peers known by configuration/peer discovery, whether currently
+    /// connected or not. Used to size eager flooding trees.
+    overlay_known_peer_count: AtomicU64,
     /// Overlay metrics (shared with App for IPC reporting)
     metrics: Arc<OverlayMetrics>,
 }
@@ -426,6 +444,7 @@ impl SharedState {
             pending_getdata: RwLock::new(PendingRequests::new()),
             tx_buffer: RwLock::new(TxBuffer::new()),
             overlay_eager_depth: AtomicU64::new(0),
+            overlay_known_peer_count: AtomicU64::new(0),
             metrics,
         }
     }
@@ -642,6 +661,9 @@ impl StellarOverlay {
                                 warn!("Failed to send SCP to {}: {:?}", peer_id, e);
                             }
                         }
+                        OverlayCommand::SetKnownPeerCount(count) => {
+                            update_known_peer_count(&self.state, count);
+                        }
                         OverlayCommand::Shutdown => {
                             info!("Overlay shutting down");
                             break;
@@ -826,21 +848,6 @@ impl StellarOverlay {
             }
         };
 
-        // Dedup check. Received SCP messages are relayed directly by the overlay
-        // according to their TTL, so a later rebroadcast request from Core should
-        // not restart flooding from this node.
-        {
-            let mut seen = self.state.scp_seen.write().await;
-            if seen.contains(&hash) {
-                trace!(
-                    "SCP_BROADCAST_SKIP: SCP {:02x?}... already seen",
-                    &hash[..4]
-                );
-                return;
-            }
-            seen.put(hash, ());
-        }
-
         let streams = self.state.peer_streams.read().await;
         let peers: Vec<_> = streams.keys().cloned().collect();
         drop(streams);
@@ -855,6 +862,14 @@ impl StellarOverlay {
 
         let initial_fanout = overlay_eager_fanout().saturating_mul(overlay_eager_redundancy());
         let peers_to_send = select_eager_peers(peers, None, initial_fanout);
+
+        if peers_to_send.is_empty() {
+            trace!(
+                "SCP_BROADCAST_SKIP: SCP {:02x?}... has no eligible peers",
+                &hash[..4]
+            );
+            return;
+        }
 
         info!(
             "SCP_BROADCAST: Broadcasting SCP {:02x?}... ({} bytes, ttl={}) to {} peers",
@@ -2028,9 +2043,23 @@ async fn relay_tx_inv(state: &Arc<SharedState>, peer_id: &PeerId, hash: [u8; 32]
 }
 
 fn update_eager_depth(state: &SharedState, peer_count: usize) {
+    let peer_count =
+        peer_count.max(state.overlay_known_peer_count.load(Ordering::Relaxed) as usize);
     state
         .overlay_eager_depth
         .store(calculate_eager_depth(peer_count), Ordering::Relaxed);
+}
+
+fn update_known_peer_count(state: &SharedState, peer_count: usize) {
+    state
+        .overlay_known_peer_count
+        .store(peer_count as u64, Ordering::Relaxed);
+    let connected_peer_count = state
+        .peer_streams
+        .try_read()
+        .map(|streams| streams.len())
+        .unwrap_or(0);
+    update_eager_depth(state, connected_peer_count);
 }
 
 fn calculate_eager_depth(peer_count: usize) -> u64 {
