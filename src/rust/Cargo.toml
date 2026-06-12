@@ -14,7 +14,9 @@ log = "=0.4.19"
 cxx = "=1.0.97"
 base64 = "=0.13.1"
 sha2 = "=0.10.9"
-tcmalloc = { path = "vendor/tcmalloc", version = "=0.3.0" }
+# Optional: only enabled (via the "tcmalloc" feature) when the C++ build
+# links tcmalloc too; sanitizer builds must not use it.
+tcmalloc = { path = "vendor/tcmalloc", version = "=0.3.0", optional = true }
 rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
@@ -200,6 +202,11 @@ unified = ["dep:soroban-env-host-p21",
            "dep:soroban-env-host-p27"]
 
 tracy = ["dep:tracy-client"]
+
+# Use tcmalloc as the global allocator on the rust side. Must match the
+# C++ side (USE_TCMALLOC), which links the tcmalloc implementation; in
+# particular sanitizer builds disable it on both sides.
+tcmalloc = ["dep:tcmalloc"]
 
 # The "next" feature enables not-yet-released features that (a) break protocol
 # but (b) are still under development, in between protocol releases. This

@@ -39,6 +39,12 @@ if USE_TRACY
 # code initializes itself on its own, and everything works fine. There is only
 # one copy of tracy in the final linked executable and it has a single atomic
 # pointer controlling its initialization state.
+if USE_TCMALLOC
+CARGO_FEATURE_TCMALLOC = --features tcmalloc
+else
+CARGO_FEATURE_TCMALLOC =
+endif
+
 CARGO_FEATURE_TRACY = --features tracy
 CARGO_FEATURE_TRACY += --features tracy-client/enable
 CARGO_FEATURE_TRACY += --features tracy-client/ondemand
@@ -327,7 +333,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
-		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) $(CARGO_FEATURE_TCMALLOC)
 	ranlib $@
 
 else # !UNIFIED_RUST
@@ -438,7 +444,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
-		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) $(CARGO_FEATURE_TCMALLOC) \
 		-- \
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)

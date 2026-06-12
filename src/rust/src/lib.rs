@@ -5,8 +5,12 @@
 #![crate_type = "staticlib"]
 #![allow(non_snake_case)]
 
+#[cfg(feature = "tcmalloc")]
 use tcmalloc::TCMalloc;
 
+// Match the C++ side: only replace the allocator when the build links
+// tcmalloc (USE_TCMALLOC); sanitizer builds must use the system allocator.
+#[cfg(feature = "tcmalloc")]
 #[global_allocator]
 pub(crate) static GLOBAL_ALLOCATOR: TCMalloc = TCMalloc;
 
