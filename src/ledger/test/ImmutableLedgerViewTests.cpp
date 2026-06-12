@@ -27,6 +27,7 @@
 #include <fmt/format.h>
 #include <thread>
 #include <vector>
+#include <mutex>
 
 using namespace stellar;
 using namespace stellar::BucketTestUtils;
@@ -1014,6 +1015,9 @@ TEST_CASE("invariant check concurrent with state advance", "[snapshot]")
 
     // Collect all keys added at future ledgers so we can detect
     // snapshot corruption that leaks newer entries into an old scan.
+    // Inserted by the main thread while the scanner thread reads it, so
+    // guarded by a mutex.
+    std::mutex futureKeysMutex;
     UnorderedSet<LedgerKey> futureKeys;
 
     std::atomic<bool> scanError{false};
@@ -1049,14 +1053,23 @@ TEST_CASE("invariant check concurrent with state advance", "[snapshot]")
                                 }
                                 matchedKeys.insert(key);
                             }
-                            else if (futureKeys.count(key) > 0)
+                            else
                             {
-                                CLOG_ERROR(Ledger,
-                                           "Scan found future entry that "
-                                           "should not be in snapshot");
-                                unexpectedEntry = true;
-                                scanError.store(true);
-                                return Loop::COMPLETE;
+                                bool isFutureKey = false;
+                                {
+                                    std::lock_guard<std::mutex> lock(
+                                        futureKeysMutex);
+                                    isFutureKey = futureKeys.count(key) > 0;
+                                }
+                                if (isFutureKey)
+                                {
+                                    CLOG_ERROR(Ledger,
+                                               "Scan found future entry that "
+                                               "should not be in snapshot");
+                                    unexpectedEntry = true;
+                                    scanError.store(true);
+                                    return Loop::COMPLETE;
+                                }
                             }
                         }
                         return Loop::INCOMPLETE;
@@ -1080,6 +1093,7 @@ TEST_CASE("invariant check concurrent with state advance", "[snapshot]")
         for (auto& e : entries)
         {
             e.lastModifiedLedgerSeq = seq;
+            std::lock_guard<std::mutex> lock(futureKeysMutex);
             futureKeys.insert(LedgerEntryKey(e));
         }
         addLiveBatchAndUpdateSnapshot(*app, makeHeader(seq, protocolVersion),
