@@ -20,10 +20,10 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
+#include "util/types.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
-#include <cctype>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
@@ -159,7 +159,7 @@ isValidHexHash(std::string const& s)
     }
     for (unsigned char c : s)
     {
-        if (!std::isxdigit(c))
+        if (!isAsciiHexDigit(c))
         {
             return false;
         }
@@ -193,13 +193,6 @@ validateHASAfterDeserialization(HistoryArchiveState const& has)
         throw std::runtime_error(
             fmt::format(FMT_STRING("Invalid hotArchiveBuckets count: {}"),
                         has.hotArchiveBuckets.size()));
-    }
-
-    // Prevent integer overflow in downstream CheckpointRange calculations
-    if (has.currentLedger > HistoryArchiveState::MAX_CURRENT_LEDGER)
-    {
-        throw std::runtime_error(fmt::format(
-            FMT_STRING("currentLedger {} is too large"), has.currentLedger));
     }
 
     // Validate all bucket hash strings are well-formed 64-character hex
