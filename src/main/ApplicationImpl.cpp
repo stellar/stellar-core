@@ -239,20 +239,13 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
 void
 ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 {
-    // Subtle: initialize the bucket manager first before initializing the
-    // database. This is needed as some modes in core (such as in-memory) use a
-    // small database inside the bucket directory.
     mAppConnector = std::make_unique<AppConnector>(*this);
-    mBucketManager = BucketManager::create(getAppConnector());
 
     bool initNewDB =
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
-    if (initNewDB)
-    {
-        mBucketManager->maybeDropAndCreateNew();
-    }
 
     mDatabase = createDatabase();
+    mBucketManager = BucketManager::create(getAppConnector());
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -377,6 +370,7 @@ void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
+    mBucketManager->maybeDropAndCreateNew();
     upgradeToCurrentSchemaAndMaybeRebuildLedger(false, true);
     mLedgerManager->startNewLedger();
 }
