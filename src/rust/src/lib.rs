@@ -32,6 +32,7 @@ mod b64;
 mod ed25519_verify;
 mod i128;
 mod log;
+mod ntp;
 mod quorum_checker;
 mod soroban_invoke;
 mod soroban_module_cache;

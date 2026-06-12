@@ -42,6 +42,7 @@
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
+#include "main/NtpProbe.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -147,6 +148,17 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     std::string homeStr("HomeDomain: ");
     homeStr += mConfig.NODE_HOME_DOMAIN;
     TracyAppInfo(homeStr.c_str(), homeStr.size());
+
+#ifdef BUILD_TESTS
+    if (mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING !=
+        std::chrono::milliseconds::zero())
+    {
+        mVirtualClock.setSystemTimeOffset(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING));
+        mStartedOn = clock.system_now();
+    }
+#endif
 
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
@@ -785,6 +797,14 @@ ApplicationImpl::startServices()
     {
         mHerder->setUpgrades(mConfig);
     }
+
+    // Start NTP-based clock-drift detection
+    if (mConfig.ntpDriftCheckEnabled() &&
+        mVirtualClock.getMode() == VirtualClock::REAL_TIME)
+    {
+        mNtpProbe = NtpProbe::create(*this);
+        mNtpProbe->start();
+    }
 }
 
 void
@@ -853,6 +873,10 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
         mOverlayManager->shutdown();
     }
     mSelfCheckTimer.cancel();
+    if (mNtpProbe)
+    {
+        mNtpProbe->shutdown();
+    }
     shutdownWorkScheduler();
     if (mProcessManager)
     {
