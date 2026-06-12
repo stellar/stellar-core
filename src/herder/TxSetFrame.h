@@ -199,6 +199,10 @@ class TxSetXDRFrame : public NonMovableOrCopyable
     static TxSetXDRFrameConstPtr makeFromWire(TransactionSet const& xdrTxSet);
     static TxSetXDRFrameConstPtr
     makeFromWire(GeneralizedTransactionSet const& xdrTxSet);
+    // Move overloads that avoid deep-copying the XDR into the frame.
+    static TxSetXDRFrameConstPtr makeFromWire(TransactionSet&& xdrTxSet);
+    static TxSetXDRFrameConstPtr
+    makeFromWire(GeneralizedTransactionSet&& xdrTxSet);
 
     static TxSetXDRFrameConstPtr
     makeFromStoredTxSet(StoredTransactionSet const& storedSet);
@@ -270,8 +274,8 @@ class TxSetXDRFrame : public NonMovableOrCopyable
 #endif
 
   private:
-    TxSetXDRFrame(TransactionSet const& xdrTxSet);
-    TxSetXDRFrame(GeneralizedTransactionSet const& xdrTxSet);
+    TxSetXDRFrame(TransactionSet&& xdrTxSet);
+    TxSetXDRFrame(GeneralizedTransactionSet&& xdrTxSet);
 
     std::variant<TransactionSet, GeneralizedTransactionSet> mXDRTxSet;
     size_t mEncodedSize{};
