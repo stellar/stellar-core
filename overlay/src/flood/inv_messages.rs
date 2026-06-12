@@ -1,12 +1,17 @@
-//! INV/GETDATA message types for bandwidth-efficient TX flooding.
+//! TX stream message types for transaction flooding.
 //!
-//! Wire format: length-prefixed `StellarMessage` XDR.
+//! Wire format: length-prefixed payloads. INV/GETDATA messages are encoded as
+//! `StellarMessage` XDR. TX messages are encoded as a big-endian TTL followed by
+//! `StellarMessage::Transaction` XDR; legacy raw transaction messages decode
+//! with TTL 0.
 
 use std::io;
 use stellar_xdr::curr::{
     FloodAdvert, FloodDemand, Hash, Limits, ReadXdr, StellarMessage, TxAdvertVector,
     TxDemandVector, WriteXdr,
 };
+
+const TX_TTL_BYTES: usize = 4;
 
 /// A single INV entry: hash + fee for prioritization
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,11 +73,18 @@ impl Default for GetData {
     }
 }
 
+/// Full transaction data carried on the TX stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TxMessage {
+    pub tx: Vec<u8>,
+    pub ttl: u32,
+}
+
 /// Parsed TX stream message
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TxStreamMessage {
     /// Full transaction data
-    Tx(Vec<u8>),
+    Tx(TxMessage),
     /// Batch of INV announcements
     InvBatch(InvBatch),
     /// Request for transactions
@@ -83,8 +95,13 @@ impl TxStreamMessage {
     /// Encode message as StellarMessage XDR.
     pub fn encode(&self) -> io::Result<Vec<u8>> {
         match self {
-            TxStreamMessage::Tx(data) => {
-                crate::xdr::encode_transaction_message_from_xdr(data).map_err(to_invalid_data)
+            TxStreamMessage::Tx(tx_message) => {
+                let message = crate::xdr::encode_transaction_message_from_xdr(&tx_message.tx)
+                    .map_err(to_invalid_data)?;
+                let mut encoded = Vec::with_capacity(TX_TTL_BYTES + message.len());
+                encoded.extend_from_slice(&tx_message.ttl.to_be_bytes());
+                encoded.extend_from_slice(&message);
+                Ok(encoded)
             }
             TxStreamMessage::InvBatch(batch) => {
                 let hashes = batch
@@ -107,12 +124,34 @@ impl TxStreamMessage {
 
     /// Decode StellarMessage XDR from the TX stream.
     pub fn decode(data: &[u8]) -> io::Result<Self> {
+        let (ttl, data) = match StellarMessage::from_xdr(data, Limits::none()) {
+            Ok(StellarMessage::Transaction(envelope)) => {
+                let tx =
+                    crate::xdr::canonical_transaction_xdr(envelope).map_err(to_invalid_data)?;
+                return Ok(TxStreamMessage::Tx(TxMessage { tx, ttl: 0 }));
+            }
+            Ok(message) => return Self::decode_stellar_message(message),
+            Err(err) => {
+                if data.len() < TX_TTL_BYTES {
+                    return Err(to_invalid_data(err));
+                }
+                let ttl = u32::from_be_bytes(data[..TX_TTL_BYTES].try_into().unwrap());
+                (ttl, &data[TX_TTL_BYTES..])
+            }
+        };
+
         match StellarMessage::from_xdr(data, Limits::none()).map_err(to_invalid_data)? {
             StellarMessage::Transaction(envelope) => {
                 let tx =
                     crate::xdr::canonical_transaction_xdr(envelope).map_err(to_invalid_data)?;
-                Ok(TxStreamMessage::Tx(tx))
+                Ok(TxStreamMessage::Tx(TxMessage { tx, ttl }))
             }
+            other => Self::decode_stellar_message(other),
+        }
+    }
+
+    fn decode_stellar_message(message: StellarMessage) -> io::Result<Self> {
+        match message {
             StellarMessage::FloodAdvert(advert) => {
                 let entries = advert
                     .tx_hashes
@@ -148,11 +187,29 @@ mod tests {
     #[test]
     fn test_tx_stream_message_tx() {
         let tx_data = valid_transaction_xdr(1000, 1, 1);
-        let msg = TxStreamMessage::Tx(tx_data.clone());
+        let msg = TxStreamMessage::Tx(TxMessage {
+            tx: tx_data.clone(),
+            ttl: 7,
+        });
 
         let encoded = msg.encode().unwrap();
         let decoded = TxStreamMessage::decode(&encoded).unwrap();
         assert_eq!(msg, decoded);
+    }
+
+    #[test]
+    fn test_tx_stream_message_legacy_tx_decodes_with_zero_ttl() {
+        let tx_data = valid_transaction_xdr(1000, 2, 1);
+        let encoded = crate::xdr::encode_transaction_message_from_xdr(&tx_data).unwrap();
+
+        let decoded = TxStreamMessage::decode(&encoded).unwrap();
+        assert_eq!(
+            decoded,
+            TxStreamMessage::Tx(TxMessage {
+                tx: tx_data,
+                ttl: 0,
+            })
+        );
     }
 
     #[test]
