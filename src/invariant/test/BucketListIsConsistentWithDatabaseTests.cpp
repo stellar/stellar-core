@@ -181,7 +181,7 @@ struct BucketListGenerator
             auto meta = testutil::testBucketMetadata(vers);
             auto keepDead = LiveBucketList::keepTombstoneEntries(i);
 
-            auto writeBucketFile = [&](auto b) {
+            auto writeBucketFile = [&](std::shared_ptr<LiveBucket> const& b) {
                 LiveBucketOutputIterator out(bmApply.getTmpDir(), keepDead,
                                              meta, mergeCounters,
                                              mClock.getIOContext(),
@@ -193,8 +193,24 @@ struct BucketListGenerator
 
                 auto bucket = out.getBucket(bmApply);
             };
-            writeBucketFile(level.getCurr());
-            writeBucketFile(level.getSnap());
+            // Composite (sharded) level-0 buckets have no file of their own;
+            // copy each shard file instead (the HAS references the shard
+            // hashes).
+            auto writeBucket = [&](std::shared_ptr<LiveBucket> const& b) {
+                if (b->isComposite())
+                {
+                    for (auto const& shard : b->getShards())
+                    {
+                        writeBucketFile(shard);
+                    }
+                }
+                else
+                {
+                    writeBucketFile(b);
+                }
+            };
+            writeBucket(level.getCurr());
+            writeBucket(level.getSnap());
 
             auto& next = level.getNext();
             if (next.hasOutputHash())
@@ -214,6 +230,19 @@ bool
 doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
                   BucketEntry const& be)
 {
+    if (bucket->isComposite())
+    {
+        // Composite (sharded) buckets have no file to iterate; check each
+        // shard instead.
+        for (auto const& shard : bucket->getShards())
+        {
+            if (doesBucketContain(shard, be))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
     for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
         if (*iter == be)

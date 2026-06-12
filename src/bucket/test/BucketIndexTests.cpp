@@ -1025,8 +1025,22 @@ TEST_CASE("bucket entry counters", "[bucket][bucketindex]")
         for (auto i = 0; i < LiveBucketList::kNumLevels; ++i)
         {
             auto level = test.getBM().getLiveBucketList().getLevel(i);
-            checkBucket(level.getCurr());
-            checkBucket(level.getSnap());
+            for (auto const& b : {level.getCurr(), level.getSnap()})
+            {
+                // Composite (sharded) level-0 buckets have no file or index
+                // of their own; check each shard instead.
+                if (b->isComposite())
+                {
+                    for (auto const& shard : b->getShards())
+                    {
+                        checkBucket(shard);
+                    }
+                }
+                else
+                {
+                    checkBucket(b);
+                }
+            }
         }
 
         auto summedCounters =
@@ -1255,10 +1269,24 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         auto level = liveBL.getLevel(i);
         for (auto const& b : {level.getCurr(), level.getSnap()})
         {
-            // In memory bucket indexes are not saved to disk
-            if (!b->hasInMemoryEntries())
+            // Composite (sharded) level-0 buckets have no file or index of
+            // their own; consider their shards instead.
+            std::vector<std::shared_ptr<LiveBucket>> toCheck;
+            if (b->isComposite())
             {
-                liveBuckets.emplace(b->getHash());
+                toCheck = b->getShards();
+            }
+            else
+            {
+                toCheck.push_back(b);
+            }
+            for (auto const& bucket : toCheck)
+            {
+                // In memory bucket indexes are not saved to disk
+                if (!bucket->hasInMemoryEntries())
+                {
+                    liveBuckets.emplace(bucket->getHash());
+                }
             }
         }
     }

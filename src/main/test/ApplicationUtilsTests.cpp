@@ -113,11 +113,15 @@ TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
             Config::TESTDB_BUCKET_DB_PERSISTENT, "client");
         catchupSimulation.catchupOffline(app, l1);
         chkConfig = app->getConfig();
-        victimBucketPath = app->getBucketManager()
-                               .getLiveBucketList()
-                               .getLevel(0)
-                               .getCurr()
-                               ->getFilename();
+        auto victimBucket =
+            app->getBucketManager().getLiveBucketList().getLevel(0).getCurr();
+        // Composite (sharded) level-0 buckets have no file of their own;
+        // damage one of the shard files instead.
+        if (victimBucket->isComposite())
+        {
+            victimBucket = victimBucket->getShards().front();
+        }
+        victimBucketPath = victimBucket->getFilename();
     }
 
     // Step 3: run offline self-check on that application's state, see that it's
