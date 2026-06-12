@@ -1017,7 +1017,7 @@ TEST_CASE("getInvalidTxListWithErrors returns no duplicates")
     REQUIRE(fb3->getFullFee() < balanceOfFeeSource);
 
     TxFrameList txs = {fb1, fb2, fb3};
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    AccountFeeMap accountFeeMap;
     auto invalidTxs =
         TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0)
             .first;
@@ -1062,17 +1062,18 @@ TEST_CASE("getInvalidTxListWithErrors reduces fee maps")
         txs.emplace_back(feeBumpTx);
     }
 
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
-    accountFeeMap[feeSource.getPublicKey()] = 123;
-    accountFeeMap[unrelatedAccount.getPublicKey()] = 456;
+    AccountFeeMap accountFeeMap;
+    accountFeeMap[feeSource.getPublicKey()] = {123, 1};
+    accountFeeMap[unrelatedAccount.getPublicKey()] = {456, 1};
 
     auto [invalidTxs, result] =
         TxSetUtils::getInvalidTxListWithErrors(txs, *app, accountFeeMap, 0, 0);
 
     REQUIRE(result == TxSetValidationResult::VALID);
     REQUIRE(invalidTxs.empty());
-    REQUIRE(accountFeeMap[feeSource.getPublicKey()] == 123 + expectedAddedFee);
-    REQUIRE(accountFeeMap[unrelatedAccount.getPublicKey()] == 456);
+    REQUIRE(accountFeeMap[feeSource.getPublicKey()].mTotalFees ==
+            123 + expectedAddedFee);
+    REQUIRE(accountFeeMap[unrelatedAccount.getPublicKey()].mTotalFees == 456);
 }
 
 TEST_CASE("txset", "[herder][txset]")
@@ -3022,7 +3023,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // and only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxFrameList removed;
-            UnorderedMap<AccountID, int64_t> accountFeeMap;
+            AccountFeeMap accountFeeMap;
             TxSetUtils::trimInvalid(
                 applicableTxSet->getPhase(TxSetPhase::CLASSIC)
                     .getSequentialTxs(),

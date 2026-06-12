@@ -2588,7 +2588,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet,
         externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
 
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    AccountFeeMap accountFeeMap;
     auto updateQueue = [&accountFeeMap, this, queueRebuildNeeded, &lhhe](
                            auto& queue, auto const& applied, bool isSoroban) {
         queue.removeApplied(applied);

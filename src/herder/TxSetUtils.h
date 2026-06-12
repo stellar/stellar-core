@@ -50,13 +50,13 @@ class TxSetUtils
     template <typename TxContainer>
     static TxFrameListWithErrors
     getInvalidTxListWithErrors(TxContainer const& txs, Application& app,
-                               UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                               AccountFeeMap& accountFeeMap,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
 
     static TxFrameList
     trimInvalid(TxFrameList const& txs, Application& app,
-                UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                AccountFeeMap& accountFeeMap,
                 uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset, TxFrameList& invalidTxs);
 }; // class TxSetUtils

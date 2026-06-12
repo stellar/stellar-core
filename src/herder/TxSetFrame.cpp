@@ -1062,7 +1062,7 @@ makeTxSetFromTransactions(
 #endif
 
     std::vector<TxSetPhaseFrame> validatedPhases;
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    AccountFeeMap accountFeeMap;
     for (size_t i = 0; i < txPhases.size(); ++i)
     {
         auto const& phaseTxs = txPhases[i];
@@ -2195,7 +2195,7 @@ TxSetPhaseFrame::checkValid(Application& app,
                             uint64_t upperBoundCloseTimeOffset,
                             bool txsAreValidated) const
 {
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    AccountFeeMap accountFeeMap;
     return checkValidWithResult(app, lowerBoundCloseTimeOffset,
                                 upperBoundCloseTimeOffset, txsAreValidated,
                                 accountFeeMap) == TxSetValidationResult::VALID;
@@ -2205,7 +2205,7 @@ TxSetValidationResult
 TxSetPhaseFrame::checkValidWithResult(
     Application& app, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset, bool txsAreValidated,
-    UnorderedMap<AccountID, int64_t>& accountFeeMap) const
+    AccountFeeMap& accountFeeMap) const
 {
     auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Verify the fee map for the phase. This check is independent of the phase
@@ -2636,7 +2636,7 @@ ApplicableTxSetFrame::checkValidInternalWithResult(
 
     bool useCrossPhaseFeeMap = protocolVersionStartsFrom(
         lcl.header.ledgerVersion, ProtocolVersion::V_26);
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    AccountFeeMap accountFeeMap;
     for (auto const& phase : mPhases)
     {
         if (!useCrossPhaseFeeMap)

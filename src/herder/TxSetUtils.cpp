@@ -167,8 +167,7 @@ TxSetUtils::buildAccountTxQueues(TxFrameList const& txs)
 template <typename T>
 TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors(
-    T const& txs, Application& app,
-    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    T const& txs, Application& app, AccountFeeMap& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
@@ -290,14 +289,15 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
         else
         {
-            int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
-            if (INT64_MAX - accFee < tx->getFullFee())
+            auto& accFees = accountFeeMap[tx->getFeeSourceID()];
+            ++accFees.mTxCount;
+            if (INT64_MAX - accFees.mTotalFees < tx->getFullFee())
             {
-                accFee = INT64_MAX;
+                accFees.mTotalFees = INT64_MAX;
             }
             else
             {
-                accFee += tx->getFullFee();
+                accFees.mTotalFees += tx->getFullFee();
             }
         }
     }
@@ -312,6 +312,15 @@ TxSetUtils::getInvalidTxListWithErrors(
         }
 
         auto feeSourceID = tx->getFeeSourceID();
+        auto it = accountFeeMap.find(feeSourceID);
+        // checkValid has already verified that the fee source can pay the
+        // full fee of every individual transaction, so the cumulative check
+        // below can only add information when several candidate transactions
+        // share a fee source.
+        if (it->second.mTxCount <= 1)
+        {
+            continue;
+        }
         auto feeSource = ledgerView.getAccount(feeSourceID);
         // feeSource should exist since we've already run checkValid, log
         // internal bug
@@ -322,8 +331,7 @@ TxSetUtils::getInvalidTxListWithErrors(
             CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
             continue;
         }
-        auto it = accountFeeMap.find(feeSourceID);
-        auto totFee = it->second;
+        auto totFee = it->second.mTotalFees;
         if (getAvailableBalance(header, feeSource.current()) < totFee)
         {
             invalidTxs.push_back(tx);
@@ -345,18 +353,16 @@ TxSetUtils::getInvalidTxListWithErrors(
 // Explicit template instantiations for getInvalidTxListWithErrors
 template TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors<TxFrameList>(
-    TxFrameList const& txs, Application& app,
-    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    TxFrameList const& txs, Application& app, AccountFeeMap& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 template TxFrameListWithErrors
 TxSetUtils::getInvalidTxListWithErrors<TxSetPhaseFrame>(
-    TxSetPhaseFrame const& txs, Application& app,
-    UnorderedMap<AccountID, int64_t>& accountFeeMap,
+    TxSetPhaseFrame const& txs, Application& app, AccountFeeMap& accountFeeMap,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset);
 
 TxFrameList
 TxSetUtils::trimInvalid(TxFrameList const& txs, Application& app,
-                        UnorderedMap<AccountID, int64_t>& accountFeeMap,
+                        AccountFeeMap& accountFeeMap,
                         uint64_t lowerBoundCloseTimeOffset,
                         uint64_t upperBoundCloseTimeOffset,
                         TxFrameList& invalidTxs)

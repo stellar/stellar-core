@@ -304,6 +304,16 @@ using TxStageFrameList = std::vector<TxStageFrame>;
 using InclusionFeeMap =
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>;
 
+// Per-fee-source accumulator used during tx set validation: the total fee of
+// all the valid candidate transactions paid for by the account, and the
+// number of transactions it came from.
+struct AccountTxFees
+{
+    int64_t mTotalFees = 0;
+    uint32_t mTxCount = 0;
+};
+using AccountFeeMap = UnorderedMap<AccountID, AccountTxFees>;
+
 // `TxSetPhaseFrame` represents a single phase of the `ApplicableTxSetFrame`.
 //
 // Phases can only be created as a part of the `ApplicableTxSetFrame` and thus
@@ -442,7 +452,7 @@ class TxSetPhaseFrame
     checkValidWithResult(Application& app, uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
                          bool txsAreValidated,
-                         UnorderedMap<AccountID, int64_t>& accountFeeMap) const;
+                         AccountFeeMap& accountFeeMap) const;
     TxSetValidationResult
     checkValidClassic(LedgerHeader const& lclHeader) const;
     TxSetValidationResult
