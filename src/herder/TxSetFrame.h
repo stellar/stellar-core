@@ -348,7 +348,9 @@ class TxSetPhaseFrame
     TxFrameList const& getSequentialTxs() const;
 
     // Serializes this phase to the provided XDR.
-    void toXDR(TransactionPhase& xdrPhase) const;
+    // For parallel phases up to `maxThreads` threads are used to copy the
+    // transaction envelopes into the XDR.
+    void toXDR(TransactionPhase& xdrPhase, size_t maxThreads = 1) const;
 
     // Iterator over all transactions in this phase.
     // The order of iteration is defined by the parent `ApplicableTxSetFrame`.
@@ -569,7 +571,7 @@ class ApplicableTxSetFrame
 #ifndef BUILD_TESTS
   private:
 #endif
-    TxSetXDRFrameConstPtr toWireTxSetFrame() const;
+    TxSetXDRFrameConstPtr toWireTxSetFrame(size_t maxThreads = 1) const;
     bool checkValidInternal(Application& app,
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset,
@@ -615,7 +617,8 @@ class ApplicableTxSetFrame
     ApplicableTxSetFrame(ApplicableTxSetFrame&&) = default;
 
     void toXDR(TransactionSet& set) const;
-    void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
+    void toXDR(GeneralizedTransactionSet& generalizedTxSet,
+               size_t maxThreads = 1) const;
 
     bool const mIsGeneralized;
     Hash const mPreviousLedgerHash;

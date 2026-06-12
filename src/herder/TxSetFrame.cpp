@@ -317,7 +317,7 @@ sequentialPhaseToXdr(TxFrameList const& txs,
 void
 parallelPhaseToXdr(TxStageFrameList const& txs,
                    InclusionFeeMap const& inclusionFeeMap,
-                   TransactionPhase& xdrPhase)
+                   TransactionPhase& xdrPhase, size_t maxThreads)
 {
     xdrPhase.v(1);
 
@@ -337,20 +337,78 @@ parallelPhaseToXdr(TxStageFrameList const& txs,
     {
         component.baseFee.activate() = *baseFee;
     }
-    component.executionStages.reserve(txs.size());
     auto sortedTxs = TxSetUtils::sortParallelTxsInHashOrder(txs);
-    for (auto const& stage : sortedTxs)
+
+    // Pre-size the XDR structure, then deep-copy the envelopes in chunks
+    // across worker threads (the envelope copies dominate the cost of
+    // building the XDR). Every chunk covers a disjoint index range of a
+    // single cluster, so there are no writer races.
+    component.executionStages.resize(xdr::size32(sortedTxs.size()));
+    struct CopyTask
     {
-        auto& xdrStage = component.executionStages.emplace_back();
-        xdrStage.reserve(stage.size());
-        for (auto const& cluster : stage)
+        TxClusterFrame const* mCluster;
+        xdr::xvector<TransactionEnvelope>* mXdrCluster;
+        size_t mBegin;
+        size_t mEnd;
+    };
+    size_t const TXS_PER_TASK = 256;
+    std::vector<CopyTask> tasks;
+    size_t totalTxs = 0;
+    for (size_t s = 0; s < sortedTxs.size(); ++s)
+    {
+        auto const& stage = sortedTxs[s];
+        auto& xdrStage = component.executionStages[s];
+        xdrStage.resize(xdr::size32(stage.size()));
+        for (size_t c = 0; c < stage.size(); ++c)
         {
-            auto& xdrCluster = xdrStage.emplace_back();
-            xdrCluster.reserve(cluster.size());
-            for (auto const& tx : cluster)
+            auto const& cluster = stage[c];
+            xdrStage[c].resize(xdr::size32(cluster.size()));
+            for (size_t begin = 0; begin < cluster.size();
+                 begin += TXS_PER_TASK)
             {
-                xdrCluster.push_back(tx->getEnvelope());
+                tasks.push_back(
+                    {&cluster, &xdrStage[c], begin,
+                     std::min(begin + TXS_PER_TASK, cluster.size())});
             }
+            totalTxs += cluster.size();
+        }
+    }
+
+    std::atomic<size_t> nextTask{0};
+    auto copyTxs = [&tasks, &nextTask]() {
+        while (true)
+        {
+            size_t taskId = nextTask.fetch_add(1);
+            if (taskId >= tasks.size())
+            {
+                break;
+            }
+            auto const& task = tasks[taskId];
+            for (size_t i = task.mBegin; i < task.mEnd; ++i)
+            {
+                (*task.mXdrCluster)[i] = (*task.mCluster)[i]->getEnvelope();
+            }
+        }
+    };
+    size_t const MIN_TXS_PER_THREAD = 500;
+    size_t const nThreads = std::max<size_t>(
+        1, std::min<size_t>(maxThreads, totalTxs / MIN_TXS_PER_THREAD));
+    if (nThreads <= 1)
+    {
+        copyTxs();
+    }
+    else
+    {
+        std::vector<std::thread> threads;
+        threads.reserve(nThreads - 1);
+        for (size_t t = 1; t < nThreads; ++t)
+        {
+            threads.emplace_back(copyTxs);
+        }
+        copyTxs();
+        for (auto& thread : threads)
+        {
+            thread.join();
         }
     }
 }
@@ -358,7 +416,7 @@ parallelPhaseToXdr(TxStageFrameList const& txs,
 void
 transactionsToGeneralizedTransactionSetXDR(
     std::vector<TxSetPhaseFrame> const& phases, Hash const& previousLedgerHash,
-    GeneralizedTransactionSet& generalizedTxSet)
+    GeneralizedTransactionSet& generalizedTxSet, size_t maxThreads = 1)
 {
     ZoneScoped;
 
@@ -368,7 +426,7 @@ transactionsToGeneralizedTransactionSetXDR(
     for (int i = 0; i < phases.size(); ++i)
     {
         auto const& txPhase = phases[i];
-        txPhase.toXDR(generalizedTxSet.v1TxSet().phases[i]);
+        txPhase.toXDR(generalizedTxSet.v1TxSet().phases[i], maxThreads);
     }
 }
 
@@ -1186,12 +1244,17 @@ makeTxSetFromTransactions(
 
     // Do the roundtrip through XDR to ensure we never build an incorrect tx set
     // for nomination.
+    size_t const toWireThreads =
+        std::max(1, app.getConfig().LEDGER_CLOSE_WORKER_THREADS);
 #ifdef BUILD_TESTS
     auto outputTxSet = measureStage(
         txSetBuildTimings ? &txSetBuildTimings->toWireTxSetMs : nullptr,
-        [&]() { return preliminaryApplicableTxSet->toWireTxSetFrame(); });
+        [&]() {
+            return preliminaryApplicableTxSet->toWireTxSetFrame(toWireThreads);
+        });
 #else
-    auto outputTxSet = preliminaryApplicableTxSet->toWireTxSetFrame();
+    auto outputTxSet =
+        preliminaryApplicableTxSet->toWireTxSetFrame(toWireThreads);
 #endif
 #ifdef BUILD_TESTS
     if (skipValidation)
@@ -2190,12 +2253,12 @@ TxSetPhaseFrame::getSequentialTxs() const
 }
 
 void
-TxSetPhaseFrame::toXDR(TransactionPhase& xdrPhase) const
+TxSetPhaseFrame::toXDR(TransactionPhase& xdrPhase, size_t maxThreads) const
 {
 
     if (isParallel())
     {
-        parallelPhaseToXdr(mStages, *mInclusionFeeMap, xdrPhase);
+        parallelPhaseToXdr(mStages, *mInclusionFeeMap, xdrPhase, maxThreads);
     }
     else
     {
@@ -2960,24 +3023,25 @@ ApplicableTxSetFrame::toXDR(TransactionSet& txSet) const
 }
 
 void
-ApplicableTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
+ApplicableTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet,
+                            size_t maxThreads) const
 {
     ZoneScoped;
     releaseAssert(isGeneralizedTxSet());
     releaseAssert(mPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
     transactionsToGeneralizedTransactionSetXDR(mPhases, mPreviousLedgerHash,
-                                               generalizedTxSet);
+                                               generalizedTxSet, maxThreads);
 }
 
 TxSetXDRFrameConstPtr
-ApplicableTxSetFrame::toWireTxSetFrame() const
+ApplicableTxSetFrame::toWireTxSetFrame(size_t maxThreads) const
 {
     TxSetXDRFrameConstPtr outputTxSet;
     if (mIsGeneralized)
     {
         GeneralizedTransactionSet xdrTxSet;
-        toXDR(xdrTxSet);
+        toXDR(xdrTxSet, maxThreads);
         outputTxSet = TxSetXDRFrame::makeFromWire(std::move(xdrTxSet));
     }
     else
