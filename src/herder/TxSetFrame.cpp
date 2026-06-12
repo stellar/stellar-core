@@ -1702,7 +1702,7 @@ TxSetPhaseFrame::Iterator::Iterator(TxStageFrameList const& txs,
 {
 }
 
-TransactionFrameBasePtr
+TransactionFrameBasePtr const&
 TxSetPhaseFrame::Iterator::operator*() const
 {
 
@@ -2275,7 +2275,8 @@ TxSetPhaseFrame::checkValidWithResult(
         isSoroban
             ? checkValidSoroban(
                   lcl.header,
-                  app.getLedgerManager().getLastClosedSorobanNetworkConfig())
+                  app.getLedgerManager().getLastClosedSorobanNetworkConfig(),
+                  std::max(1, app.getConfig().LEDGER_CLOSE_WORKER_THREADS))
             : checkValidClassic(lcl.header);
     if (checkPhaseSpecific != TxSetValidationResult::VALID)
     {
@@ -2315,9 +2316,9 @@ TxSetPhaseFrame::checkValidClassic(LedgerHeader const& lclHeader) const
 }
 
 TxSetValidationResult
-TxSetPhaseFrame::checkValidSoroban(
-    LedgerHeader const& lclHeader,
-    SorobanNetworkConfig const& sorobanConfig) const
+TxSetPhaseFrame::checkValidSoroban(LedgerHeader const& lclHeader,
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   size_t maxThreads) const
 {
     bool needParallelSorobanPhase = protocolVersionStartsFrom(
         lclHeader.ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
@@ -2433,48 +2434,141 @@ TxSetPhaseFrame::checkValidSoroban(
 
     // Verify that there are no read-write conflicts between clusters within
     // every stage.
+    //
+    // Conflicts are detected by hashing every footprint key in the stage and
+    // grouping the entries by hash: a candidate conflict is a group of equal
+    // hashes that spans several clusters and contains at least one read-write
+    // key. Candidates are then confirmed by comparing the actual keys, so a
+    // 64-bit hash collision can't cause a spurious rejection. This avoids
+    // copying the keys into per-stage hash sets; key hashing (the dominant
+    // cost) runs in parallel across worker threads.
+    struct StageKeyEntry
+    {
+        uint64_t mKeyHash;
+        uint32_t mClusterId;
+        bool mIsRW;
+        LedgerKey const* mKey;
+    };
     for (auto const& stage : stages)
     {
-        UnorderedSet<LedgerKey> stageReadOnlyKeys;
-        UnorderedSet<LedgerKey> stageReadWriteKeys;
-        for (auto const& cluster : stage)
+        // Per-cluster entry offsets, so that worker threads can fill
+        // disjoint ranges of the entry array.
+        std::vector<size_t> clusterEntryOffset(stage.size() + 1, 0);
+        for (size_t c = 0; c < stage.size(); ++c)
         {
-            std::vector<LedgerKey> clusterReadOnlyKeys;
-            std::vector<LedgerKey> clusterReadWriteKeys;
-            for (auto const& tx : cluster)
+            size_t clusterKeys = 0;
+            for (auto const& tx : stage[c])
             {
                 auto const& footprint = tx->sorobanResources().footprint;
+                clusterKeys +=
+                    footprint.readOnly.size() + footprint.readWrite.size();
+            }
+            clusterEntryOffset[c + 1] = clusterEntryOffset[c] + clusterKeys;
+        }
+        std::vector<StageKeyEntry> entries(clusterEntryOffset.back());
 
-                for (auto const& key : footprint.readOnly)
+        size_t const MIN_ENTRIES_PER_THREAD = 1000;
+        size_t const nThreads = std::max<size_t>(
+            1, std::min<size_t>(maxThreads,
+                                entries.size() / MIN_ENTRIES_PER_THREAD));
+        std::atomic<size_t> nextCluster{0};
+        auto hashClusters = [&]() {
+            std::hash<LedgerKey> keyHasher;
+            while (true)
+            {
+                size_t c = nextCluster.fetch_add(1);
+                if (c >= stage.size())
                 {
-                    if (stageReadWriteKeys.count(key) > 0)
-                    {
-                        CLOG_DEBUG(
-                            Herder,
-                            "Got bad generalized txSet: cluster footprint "
-                            "conflicts with another cluster within stage");
-                        return TxSetValidationResult::TX_ORDERING_INVALID;
-                    }
-                    clusterReadOnlyKeys.push_back(key);
+                    break;
                 }
-                for (auto const& key : footprint.readWrite)
+                size_t pos = clusterEntryOffset[c];
+                for (auto const& tx : stage[c])
                 {
-                    if (stageReadOnlyKeys.count(key) > 0 ||
-                        stageReadWriteKeys.count(key) > 0)
+                    auto const& footprint = tx->sorobanResources().footprint;
+                    for (auto const& key : footprint.readOnly)
                     {
-                        CLOG_DEBUG(
-                            Herder,
-                            "Got bad generalized txSet: cluster footprint "
-                            "conflicts with another cluster within stage");
-                        return TxSetValidationResult::TX_ORDERING_INVALID;
+                        entries[pos++] = {keyHasher(key),
+                                          static_cast<uint32_t>(c), false,
+                                          &key};
                     }
-                    clusterReadWriteKeys.push_back(key);
+                    for (auto const& key : footprint.readWrite)
+                    {
+                        entries[pos++] = {keyHasher(key),
+                                          static_cast<uint32_t>(c), true,
+                                          &key};
+                    }
                 }
             }
-            stageReadOnlyKeys.insert(clusterReadOnlyKeys.begin(),
-                                     clusterReadOnlyKeys.end());
-            stageReadWriteKeys.insert(clusterReadWriteKeys.begin(),
-                                      clusterReadWriteKeys.end());
+        };
+        if (nThreads <= 1)
+        {
+            hashClusters();
+        }
+        else
+        {
+            std::vector<std::thread> threads;
+            threads.reserve(nThreads - 1);
+            for (size_t t = 1; t < nThreads; ++t)
+            {
+                threads.emplace_back(hashClusters);
+            }
+            hashClusters();
+            for (auto& thread : threads)
+            {
+                thread.join();
+            }
+        }
+
+        std::sort(entries.begin(), entries.end(),
+                  [](StageKeyEntry const& a, StageKeyEntry const& b) {
+                      return a.mKeyHash < b.mKeyHash;
+                  });
+
+        for (size_t groupStart = 0; groupStart < entries.size();)
+        {
+            size_t groupEnd = groupStart + 1;
+            while (groupEnd < entries.size() &&
+                   entries[groupEnd].mKeyHash == entries[groupStart].mKeyHash)
+            {
+                ++groupEnd;
+            }
+            // Fast path: a group that is confined to a single cluster, or
+            // that consists of read-only keys can't have conflicts.
+            bool crossCluster = false;
+            bool anyRW = false;
+            for (size_t i = groupStart; i < groupEnd; ++i)
+            {
+                crossCluster = crossCluster || entries[i].mClusterId !=
+                                                   entries[groupStart]
+                                                       .mClusterId;
+                anyRW = anyRW || entries[i].mIsRW;
+            }
+            if (crossCluster && anyRW)
+            {
+                // Candidate conflict: confirm with exact key comparisons
+                // (almost always confirms immediately; only an actual hash
+                // collision between distinct keys may need more comparisons).
+                for (size_t i = groupStart; i < groupEnd; ++i)
+                {
+                    if (!entries[i].mIsRW)
+                    {
+                        continue;
+                    }
+                    for (size_t j = groupStart; j < groupEnd; ++j)
+                    {
+                        if (entries[i].mClusterId != entries[j].mClusterId &&
+                            *entries[i].mKey == *entries[j].mKey)
+                        {
+                            CLOG_DEBUG(
+                                Herder,
+                                "Got bad generalized txSet: cluster footprint "
+                                "conflicts with another cluster within stage");
+                            return TxSetValidationResult::TX_ORDERING_INVALID;
+                        }
+                    }
+                }
+            }
+            groupStart = groupEnd;
         }
     }
     return TxSetValidationResult::VALID;
@@ -2487,16 +2581,13 @@ TxSetPhaseFrame::getTotalResources(uint32_t ledgerVersion) const
                                                : Resource::makeEmpty(1);
     for (auto const& tx : *this)
     {
-        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false,
-                                          ledgerVersion)))
-        {
-            total += tx->getResources(/* useByteLimitInClassic */ false,
-                                      ledgerVersion);
-        }
-        else
+        auto txResources =
+            tx->getResources(/* useByteLimitInClassic */ false, ledgerVersion);
+        if (!total.canAdd(txResources))
         {
             return std::nullopt;
         }
+        total += txResources;
     }
     return std::make_optional<Resource>(total);
 }

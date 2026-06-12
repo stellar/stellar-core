@@ -365,7 +365,7 @@ class TxSetPhaseFrame
         using reference = value_type&;
         using iterator_category = std::forward_iterator_tag;
 
-        TransactionFrameBasePtr operator*() const;
+        TransactionFrameBasePtr const& operator*() const;
 
         Iterator& operator++();
         Iterator operator++(int);
@@ -461,7 +461,8 @@ class TxSetPhaseFrame
     checkValidClassic(LedgerHeader const& lclHeader) const;
     TxSetValidationResult
     checkValidSoroban(LedgerHeader const& lclHeader,
-                      SorobanNetworkConfig const& sorobanConfig) const;
+                      SorobanNetworkConfig const& sorobanConfig,
+                      size_t maxThreads) const;
     TxSetPhase mPhase;
 
     TxStageFrameList mStages;
