@@ -27,6 +27,7 @@
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <limits>
 
 namespace stellar
 {
@@ -406,6 +407,21 @@ CatchupWork::runCatchupStep()
 
     // HAS is fetched and validated at this point
     releaseAssert(mHAS->currentLedger > LedgerManager::GENESIS_LEDGER_SEQ);
+
+    // Reject HAS whose currentLedger is so large that checkpoint arithmetic
+    // would overflow. checkpointContainingLedger saturates to UINT32_MAX on
+    // overflow; treat that as failure here so downstream code never sees a
+    // wrapped/bogus ledger.
+    if (HistoryManager::checkpointContainingLedger(mHAS->currentLedger,
+                                                   mApp.getConfig()) ==
+        std::numeric_limits<uint32_t>::max())
+    {
+        CLOG_ERROR(History,
+                   "HAS currentLedger {} is too large for checkpoint "
+                   "arithmetic",
+                   mHAS->currentLedger);
+        return State::WORK_FAILURE;
+    }
 
     auto resolvedConfiguration =
         mCatchupConfiguration.resolve(mHAS->currentLedger);

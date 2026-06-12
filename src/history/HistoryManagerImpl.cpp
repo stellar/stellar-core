@@ -319,7 +319,11 @@ HistoryManagerImpl::queueCurrentHistory(ImmutableLedgerDataPtr ledgerState)
     auto const& has = ledgerState->getLastClosedHistoryArchiveState();
     CLOG_INFO(History, "Queueing publish state for ledger {}",
               has.currentLedger);
-    mEnqueueTimes.emplace(has.currentLedger, std::chrono::steady_clock::now());
+    {
+        LOCK_GUARD(mEnqueueTimesMtx, guard);
+        mEnqueueTimes.emplace(has.currentLedger,
+                              std::chrono::steady_clock::now());
+    }
 
     // We queue history inside ledger commit, so do not finalize the file yet
     writeCheckpointFile(mApp, has, /* finalize */ false);
@@ -569,16 +573,19 @@ HistoryManagerImpl::historyPublished(
     ZoneScoped;
     if (success)
     {
-        auto iter = mEnqueueTimes.find(ledgerSeq);
-        if (iter != mEnqueueTimes.end())
         {
-            auto now = std::chrono::steady_clock::now();
-            CLOG_INFO(
-                Perf, "Published history for ledger {} in {} seconds",
-                ledgerSeq,
-                std::chrono::duration<double>(now - iter->second).count());
-            mEnqueueToPublishTimer.Update(now - iter->second);
-            mEnqueueTimes.erase(iter);
+            LOCK_GUARD(mEnqueueTimesMtx, guard);
+            auto iter = mEnqueueTimes.find(ledgerSeq);
+            if (iter != mEnqueueTimes.end())
+            {
+                auto now = std::chrono::steady_clock::now();
+                CLOG_INFO(
+                    Perf, "Published history for ledger {} in {} seconds",
+                    ledgerSeq,
+                    std::chrono::duration<double>(now - iter->second).count());
+                mEnqueueToPublishTimer.Update(now - iter->second);
+                mEnqueueTimes.erase(iter);
+            }
         }
 
         this->mPublishSuccess.Mark();
