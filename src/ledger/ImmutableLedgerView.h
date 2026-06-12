@@ -82,6 +82,16 @@ class AbstractLedgerView
   public:
     virtual ~AbstractLedgerView() = default;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
+    // Returns the Soroban network config snapshot associated with this view,
+    // or nullptr when the view doesn't carry one (SQL-backed views, or
+    // pre-Soroban protocols). Snapshot-backed views share ownership of the
+    // config with the view itself, so the returned pointer is safe to use
+    // from any thread for as long as the view is alive.
+    virtual SorobanNetworkConfig const*
+    getSorobanNetworkConfig() const
+    {
+        return nullptr;
+    }
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                           TransactionFrame const& tx) const = 0;
@@ -140,6 +150,7 @@ class ImmutableLedgerView : public virtual AbstractLedgerView
 
     ImmutableLedgerData const& getState() const;
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     uint32_t getLedgerSeq() const;
 
     // === AbstractLedgerView overrides ===
@@ -212,6 +223,7 @@ class OverlayLedgerView : public AbstractLedgerView
     OverlayLedgerView(ImmutableLedgerView snapshot,
                       PreApplyAccountOverlay const& overlay);
     LedgerHeaderWrapper getLedgerHeader() const override;
+    SorobanNetworkConfig const* getSorobanNetworkConfig() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -305,6 +317,11 @@ class CheckValidLedgerViewWrapper : public NonMovableOrCopyable
         return mGetter->getAccount(header, tx, AccountID);
     }
     LedgerEntryWrapper load(LedgerKey const& key) const;
+    SorobanNetworkConfig const*
+    getSorobanNetworkConfig() const
+    {
+        return mGetter->getSorobanNetworkConfig();
+    }
 
     // Execute a function with a nested snapshot, if supported. This is needed
     // to support the replay of old buggy protocols (<8), see

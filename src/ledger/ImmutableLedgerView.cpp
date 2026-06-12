@@ -380,6 +380,12 @@ ImmutableLedgerView::getLedgerSeq() const
     return mState->getLastClosedLedgerHeader().header.ledgerSeq;
 }
 
+SorobanNetworkConfig const*
+ImmutableLedgerView::getSorobanNetworkConfig() const
+{
+    return mState->hasSorobanConfig() ? &mState->getSorobanConfig() : nullptr;
+}
+
 LedgerEntryWrapper
 ImmutableLedgerView::getAccount(AccountID const& account) const
 {
@@ -450,6 +456,12 @@ LedgerHeaderWrapper
 OverlayLedgerView::getLedgerHeader() const
 {
     return mSnapshot.getLedgerHeader();
+}
+
+SorobanNetworkConfig const*
+OverlayLedgerView::getSorobanNetworkConfig() const
+{
+    return mSnapshot.getSorobanNetworkConfig();
 }
 
 LedgerEntryWrapper

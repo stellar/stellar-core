@@ -1949,8 +1949,16 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     // Load sorobanConfig for all transactions at protocol >= V20.
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        sorobanConfig =
-            &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        // Prefer the config carried by the ledger view snapshot: it is
+        // consistent with the state being validated and, unlike the
+        // LedgerManager accessor, is safe to use off the main thread (which
+        // the parallel tx set validation relies on).
+        sorobanConfig = ledgerView.getSorobanNetworkConfig();
+        if (sorobanConfig == nullptr)
+        {
+            sorobanConfig =
+                &app.getLedgerManager().getLastClosedSorobanNetworkConfig();
+        }
         if (isSoroban())
         {
             sorobanResourceFee = computePreApplySorobanResourceFee(
