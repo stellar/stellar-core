@@ -258,12 +258,19 @@ VirtualClock::shutdown()
 
         getIOContext().stop();
 
-        // Clear pending queue for the scheduler
+        // Clear pending queue for the scheduler. Swap it out and destroy the
+        // closures outside the lock: they can run arbitrary destructors
+        // (e.g. overlay messages whose destructors take peer locks), which
+        // must not run under mPendingActionQueueMutex (lock-order inversion
+        // with threads that post actions while holding such locks).
         {
-            LOCK_GUARD(mPendingActionQueueMutex, guard);
-            mPendingActionQueue =
-                std::queue<std::tuple<std::function<void()>, std::string,
-                                      Scheduler::ActionType>>();
+            std::queue<std::tuple<std::function<void()>, std::string,
+                                  Scheduler::ActionType>>
+                pendingToDrop;
+            {
+                LOCK_GUARD(mPendingActionQueueMutex, guard);
+                std::swap(pendingToDrop, mPendingActionQueue);
+            }
         }
 
         // Clear scheduler queues
@@ -412,16 +419,27 @@ VirtualClock::crank(bool block)
     }
 
     // Transfer any pending actions to the scheduler, counting them as
-    // "progress" also.
+    // "progress" also. Swap the queue out under the lock and enqueue outside
+    // it: Scheduler::enqueue can drop (destroy) actions whose closures run
+    // arbitrary destructors (e.g. overlay messages whose destructors take
+    // peer locks), which must not run under mPendingActionQueueMutex
+    // (lock-order inversion with threads that post actions while holding
+    // such locks).
     {
-        LOCK_GUARD(mPendingActionQueueMutex, guard);
-        while (!mPendingActionQueue.empty())
+        std::queue<std::tuple<std::function<void()>, std::string,
+                              Scheduler::ActionType>>
+            pending;
         {
-            auto& f = mPendingActionQueue.front();
+            LOCK_GUARD(mPendingActionQueueMutex, guard);
+            std::swap(pending, mPendingActionQueue);
+        }
+        while (!pending.empty())
+        {
+            auto& f = pending.front();
             mActionScheduler->enqueue(std::move(std::get<1>(f)),
                                       std::move(std::get<0>(f)),
                                       std::get<2>(f));
-            mPendingActionQueue.pop();
+            pending.pop();
             progressCount++;
         }
     }
