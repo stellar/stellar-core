@@ -524,6 +524,13 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
+        // Put the pregenerated-loadgen transactions file in the per-instance
+        // test directory: the default (a fixed name in the shared working
+        // directory) races between concurrently running test processes that
+        // each write and then delete it.
+        thisConfig.LOADGEN_PREGENERATED_TRANSACTIONS_FILE =
+            rootDir + "stellar-load-transactions.xdr";
+
         // EventsAreConsistentWithEntryDiffs require both EMIT_CLASSIC_EVENTS
         // and BACKFILL_STELLAR_ASSET_EVENTS to be enabled, so omit it and test
         // it separately.
