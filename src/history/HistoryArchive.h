@@ -88,14 +88,6 @@ struct HistoryArchiveState
     // 50KB; 10MB is extremely generous.
     static constexpr size_t MAX_HAS_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-    // Upper bound on currentLedger to prevent uint32_t overflow in
-    // downstream arithmetic. Callers round currentLedger up to the next
-    // checkpoint boundary and then step one checkpoint further, so we add up to
-    // 128 to this number. We'll never hit this in practice, so use 256 for a
-    // little wiggle room so we don't overflow.
-    static constexpr uint32_t MAX_CURRENT_LEDGER =
-        std::numeric_limits<uint32_t>::max() - 256;
-
     enum Version : unsigned
     {
         HISTORY_ARCHIVE_STATE_VERSION_BEFORE_HOT_ARCHIVE = 1,

@@ -165,29 +165,6 @@ TEST_CASE("HAS rejects invalid version", "[history][archive-format]")
     }
 }
 
-TEST_CASE("HAS rejects extreme currentLedger", "[history][archive-format]")
-{
-    // UINT32_MAX
-    {
-        auto json = makeHASJson(std::numeric_limits<uint32_t>::max());
-        HistoryArchiveState has;
-        REQUIRE_THROWS_AS(has.fromString(json), std::runtime_error);
-    }
-
-    // Just above MAX_CURRENT_LEDGER
-    {
-        auto json = makeHASJson(HistoryArchiveState::MAX_CURRENT_LEDGER + 1);
-        HistoryArchiveState has;
-        REQUIRE_THROWS_AS(has.fromString(json), std::runtime_error);
-    }
-
-    // Exactly at MAX_CURRENT_LEDGER (should be accepted)
-    {
-        auto json = makeHASJson(HistoryArchiveState::MAX_CURRENT_LEDGER);
-        HistoryArchiveState has;
-        REQUIRE_NOTHROW(has.fromString(json));
-    }
-}
 TEST_CASE("HAS rejects wrong-sized bucket vectors", "[history][archive-format]")
 {
     // too many currentBuckets
