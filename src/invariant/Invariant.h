@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace stellar
 {
@@ -47,10 +48,16 @@ class Invariant
         return mStrict;
     }
 
+    // Called once per bucket-list slot (level curr or snap) after all of the
+    // slot's buckets have been applied. `buckets` holds the slot's buckets in
+    // application order (newest first); it has a single element except for
+    // composite (sharded) level-0 slots, where it holds the shards.
+    // `shadowedKeys` are the keys applied by earlier (newer) slots.
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
-                       uint32_t oldestLedger, uint32_t newestLedger,
-                       std::unordered_set<LedgerKey> const& shadowedKeys)
+    checkOnBucketApply(
+        std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+        uint32_t oldestLedger, uint32_t newestLedger,
+        std::unordered_set<LedgerKey> const& shadowedKeys)
     {
         return std::string{};
     }

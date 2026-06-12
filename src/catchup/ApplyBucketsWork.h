@@ -45,6 +45,10 @@ class ApplyBucketsWork : public Work
     // level-0 buckets expand into several shard buckets sharing the same
     // (level, isCurr) slot, so this can't be derived from the index.
     std::vector<std::pair<uint32_t, bool>> mBucketMeta;
+    // Buckets applied so far in the current (level, isCurr) slot, in
+    // application order (newest first); handed to the bucket-apply invariant
+    // when the slot's last bucket finishes.
+    std::vector<std::shared_ptr<LiveBucket const>> mSlotBuckets;
     std::unique_ptr<BucketApplicator> mBucketApplicator;
 
     BucketApplicator::Counters mCounters;

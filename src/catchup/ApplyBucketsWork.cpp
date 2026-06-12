@@ -98,6 +98,7 @@ ApplyBucketsWork::doReset()
     mSeenKeys.clear();
     mBucketsToApply.clear();
     mBucketMeta.clear();
+    mSlotBuckets.clear();
     mBucketApplicator.reset();
 
     if (!isAborting())
@@ -175,11 +176,20 @@ ApplyBucketsWork::startBucket()
     mMinProtocolVersionSeen =
         std::min(mMinProtocolVersionSeen, bucket->getBucketVersion());
 
-    // Take a snapshot of seen keys before applying the bucket, only if
-    // invariants are enabled since this is expensive.
+    // Take a snapshot of seen keys before applying the slot's first bucket,
+    // only if invariants are enabled since this is expensive. The snapshot is
+    // per (level, isCurr) slot rather than per bucket: the invariant runs
+    // once over all of a slot's buckets (several shards for composite
+    // level-0 slots) and threads intra-slot shadowing itself.
     if (mIsApplyInvariantEnabled)
     {
-        mSeenKeysBeforeApply = mSeenKeys;
+        bool slotStart = mBucketToApplyIndex == 0 ||
+                         mBucketMeta.at(mBucketToApplyIndex) !=
+                             mBucketMeta.at(mBucketToApplyIndex - 1);
+        if (slotStart)
+        {
+            mSeenKeysBeforeApply = mSeenKeys;
+        }
     }
 
     // Create a new applicator for the bucket.
@@ -247,14 +257,24 @@ ApplyBucketsWork::doWork()
                 advance(isCurr ? "curr" : "snap", *mBucketApplicator);
                 return State::WORK_RUNNING;
             }
-            // Application complete, check invariants and prepare for next
-            // bucket. Applying a bucket updates mSeenKeys with the keys applied
-            // by that bucket, so we need to provide a copy of the keys before
-            // application to the invariant check.
-            mApp.getInvariantManager().checkOnBucketApply(
-                mBucketsToApply.at(mBucketToApplyIndex),
-                mApplyState.currentLedger, mLevel, isCurr,
-                mSeenKeysBeforeApply);
+            // Application complete; check invariants once the current
+            // (level, isCurr) slot is fully applied — i.e. after the single
+            // bucket of a normal slot, or after the last shard of a
+            // composite level-0 slot. Applying a bucket updates mSeenKeys
+            // with the keys applied by that bucket, so we provide the copy
+            // taken before the slot's first bucket; the invariant threads
+            // intra-slot shadowing across the slot's buckets itself.
+            mSlotBuckets.push_back(mBucketsToApply.at(mBucketToApplyIndex));
+            bool slotEnd = mBucketToApplyIndex + 1 == mBucketMeta.size() ||
+                           mBucketMeta.at(mBucketToApplyIndex + 1) !=
+                               mBucketMeta.at(mBucketToApplyIndex);
+            if (slotEnd)
+            {
+                mApp.getInvariantManager().checkOnBucketApply(
+                    mSlotBuckets, mApplyState.currentLedger, mLevel, isCurr,
+                    mSeenKeysBeforeApply);
+                mSlotBuckets.clear();
+            }
             prepareForNextBucket();
         }
         if (!appliedAllBuckets())

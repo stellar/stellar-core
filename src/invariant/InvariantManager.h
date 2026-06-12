@@ -42,10 +42,14 @@ class InvariantManager
     virtual std::vector<std::string> getEnabledInvariants() const = 0;
     virtual bool isBucketApplyInvariantEnabled() const = 0;
 
+    // Check invariants for one fully-applied bucket-list slot; `buckets`
+    // holds the slot's buckets in application order (newest first) — a
+    // single element except for composite (sharded) level-0 slots.
     virtual void
-    checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
-                       uint32_t ledger, uint32_t level, bool isCurr,
-                       std::unordered_set<LedgerKey> const& shadowedKeys) = 0;
+    checkOnBucketApply(
+        std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+        uint32_t ledger, uint32_t level, bool isCurr,
+        std::unordered_set<LedgerKey> const& shadowedKeys) = 0;
 
     virtual void checkAfterAssumeState(uint32_t newestLedger) = 0;
 

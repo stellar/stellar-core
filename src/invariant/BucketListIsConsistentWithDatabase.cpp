@@ -257,76 +257,90 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
-    std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
-    uint32_t newestLedger, std::unordered_set<LedgerKey> const& shadowedKeys)
+    std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+    uint32_t oldestLedger, uint32_t newestLedger,
+    std::unordered_set<LedgerKey> const& shadowedKeys)
 {
     uint64_t offerCount = 0;
+    // Keys shadowing the bucket currently being checked: the keys applied by
+    // earlier (newer) slots, plus — for composite (sharded) slots — the keys
+    // of the slot's own newer shards, which shadow older shards the same way
+    // (mirroring BucketApplicator's seen-keys behavior).
+    std::unordered_set<LedgerKey> shadowed = shadowedKeys;
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
 
-        bool hasPreviousEntry = false;
-        BucketEntry previousEntry;
-        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
+        for (auto const& bucket : buckets)
         {
-            auto const& e = *iter;
-            if (hasPreviousEntry &&
-                !BucketEntryIdCmp<LiveBucket>{}(previousEntry, e))
+            bool hasPreviousEntry = false;
+            BucketEntry previousEntry;
+            for (LiveBucketInputIterator iter(bucket); iter; ++iter)
             {
-                std::string s = "Bucket has out of order entries: ";
-                s += xdrToCerealString(previousEntry, "previous");
-                s += xdrToCerealString(e, "current");
-                return s;
-            }
-            previousEntry = e;
-            hasPreviousEntry = true;
-
-            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
-            {
-                if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
+                auto const& e = *iter;
+                if (hasPreviousEntry &&
+                    !BucketEntryIdCmp<LiveBucket>{}(previousEntry, e))
                 {
-                    auto s = fmt::format(
-                        FMT_STRING("lastModifiedLedgerSeq beneath lower"
-                                   " bound for this bucket ({:d} < {:d}): "),
-                        e.liveEntry().lastModifiedLedgerSeq, oldestLedger);
-                    s += xdrToCerealString(e.liveEntry(), "live");
+                    std::string s = "Bucket has out of order entries: ";
+                    s += xdrToCerealString(previousEntry, "previous");
+                    s += xdrToCerealString(e, "current");
                     return s;
                 }
-                if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
-                {
-                    auto s = fmt::format(
-                        FMT_STRING("lastModifiedLedgerSeq above upper"
-                                   " bound for this bucket ({:d} > {:d}): "),
-                        e.liveEntry().lastModifiedLedgerSeq, newestLedger);
-                    s += xdrToCerealString(e.liveEntry(), "live");
-                    return s;
-                }
+                previousEntry = e;
+                hasPreviousEntry = true;
 
-                // Don't check DB against keys shadowed by earlier Buckets
-                if (LiveBucketIndex::typeNotSupported(
-                        e.liveEntry().data.type()) &&
-                    shadowedKeys.find(LedgerEntryKey(e.liveEntry())) ==
-                        shadowedKeys.end())
+                if (e.type() == LIVEENTRY || e.type() == INITENTRY)
                 {
-                    ++offerCount;
-                    auto s = checkAgainstDatabase(ltx, e.liveEntry());
-                    if (!s.empty())
+                    if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
                     {
+                        auto s = fmt::format(
+                            FMT_STRING("lastModifiedLedgerSeq beneath lower"
+                                       " bound for this bucket ({:d} < {:d}): "),
+                            e.liveEntry().lastModifiedLedgerSeq, oldestLedger);
+                        s += xdrToCerealString(e.liveEntry(), "live");
                         return s;
                     }
+                    if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
+                    {
+                        auto s = fmt::format(
+                            FMT_STRING("lastModifiedLedgerSeq above upper"
+                                       " bound for this bucket ({:d} > {:d}): "),
+                            e.liveEntry().lastModifiedLedgerSeq, newestLedger);
+                        s += xdrToCerealString(e.liveEntry(), "live");
+                        return s;
+                    }
+
+                    // Don't check DB against keys shadowed by earlier Buckets
+                    auto key = LedgerEntryKey(e.liveEntry());
+                    if (LiveBucketIndex::typeNotSupported(
+                            e.liveEntry().data.type()) &&
+                        shadowed.find(key) == shadowed.end())
+                    {
+                        ++offerCount;
+                        auto s = checkAgainstDatabase(ltx, e.liveEntry());
+                        if (!s.empty())
+                        {
+                            return s;
+                        }
+                    }
+                    // Keys are unique within a bucket, so this only affects
+                    // later (older) buckets of the slot.
+                    shadowed.emplace(std::move(key));
                 }
-            }
-            else
-            {
-                // Only check for OFFER keys that are not shadowed by an earlier
-                // bucket
-                if (LiveBucketIndex::typeNotSupported(e.deadEntry().type()) &&
-                    shadowedKeys.find(e.deadEntry()) == shadowedKeys.end())
+                else
                 {
-                    auto s = checkAgainstDatabase(ltx, e.deadEntry());
-                    if (!s.empty())
+                    // Only check for OFFER keys that are not shadowed by an
+                    // earlier bucket
+                    if (LiveBucketIndex::typeNotSupported(
+                            e.deadEntry().type()) &&
+                        shadowed.find(e.deadEntry()) == shadowed.end())
                     {
-                        return s;
+                        auto s = checkAgainstDatabase(ltx, e.deadEntry());
+                        if (!s.empty())
+                        {
+                            return s;
+                        }
                     }
+                    shadowed.emplace(e.deadEntry());
                 }
             }
         }

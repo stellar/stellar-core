@@ -92,8 +92,9 @@ InvariantManagerImpl::isBucketApplyInvariantEnabled() const
 
 void
 InvariantManagerImpl::checkOnBucketApply(
-    std::shared_ptr<LiveBucket const> bucket, uint32_t ledger, uint32_t level,
-    bool isCurr, std::unordered_set<LedgerKey> const& shadowedKeys)
+    std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+    uint32_t ledger, uint32_t level, bool isCurr,
+    std::unordered_set<LedgerKey> const& shadowedKeys)
 {
     uint32_t oldestLedger =
         isCurr ? LiveBucketList::oldestLedgerInCurr(ledger, level)
@@ -104,18 +105,27 @@ InvariantManagerImpl::checkOnBucketApply(
                 : LiveBucketList::sizeOfSnap(ledger, level));
     for (auto invariant : mEnabled)
     {
-        auto result = invariant->checkOnBucketApply(bucket, oldestLedger,
+        auto result = invariant->checkOnBucketApply(buckets, oldestLedger,
                                                     newestLedger, shadowedKeys);
         if (result.empty())
         {
             continue;
         }
 
+        std::string hashes;
+        for (auto const& bucket : buckets)
+        {
+            if (!hashes.empty())
+            {
+                hashes += ", ";
+            }
+            hashes += binToHex(bucket->getHash());
+        }
         auto message = fmt::format(
             FMT_STRING(
                 R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})"),
-            invariant->getName(), isCurr ? "Curr" : "Snap", level,
-            binToHex(bucket->getHash()), result);
+            invariant->getName(), isCurr ? "Curr" : "Snap", level, hashes,
+            result);
         onInvariantFailure(invariant, message, ledger);
     }
 }

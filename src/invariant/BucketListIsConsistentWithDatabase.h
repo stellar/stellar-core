@@ -34,8 +34,8 @@ class BucketListIsConsistentWithDatabase : public Invariant
     virtual std::string getName() const override;
 
     virtual std::string checkOnBucketApply(
-        std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
-        uint32_t newestLedger,
+        std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+        uint32_t oldestLedger, uint32_t newestLedger,
         std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
     virtual std::string checkAfterAssumeState(uint32_t newestLedger) override;

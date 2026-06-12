@@ -56,8 +56,8 @@ class InvariantManagerImpl : public InvariantManager
                                        AppConnector& app) override;
 
     virtual void checkOnBucketApply(
-        std::shared_ptr<LiveBucket const> bucket, uint32_t ledger,
-        uint32_t level, bool isCurr,
+        std::vector<std::shared_ptr<LiveBucket const>> const& buckets,
+        uint32_t ledger, uint32_t level, bool isCurr,
         std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
     virtual void checkOnLedgerCommit(
