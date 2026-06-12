@@ -737,15 +737,17 @@ TEST_CASE("BucketList state consistency invariant", "[invariant]")
         InMemorySorobanState modifiedState =
             lm.getInMemorySorobanStateForTesting();
 
-        // Corrupt TTL of an entry in the cache
+        // Corrupt TTL of an entry in the cache. Copy what we need out of the
+        // entry before erasing it: erase frees the node entryData refers to.
         auto it = modifiedState.mContractDataEntries.begin();
         auto const& entryData = it->get();
         LedgerEntry entryCopy = *entryData.ledgerEntry;
+        auto sizeBytes = entryData.sizeBytes;
 
         TTLData wrongTTL(42, 1);
         modifiedState.mContractDataEntries.erase(it);
-        modifiedState.mContractDataEntries.emplace(InternalContractDataMapEntry(
-            entryCopy, wrongTTL, entryData.sizeBytes));
+        modifiedState.mContractDataEntries.emplace(
+            InternalContractDataMapEntry(entryCopy, wrongTTL, sizeBytes));
 
         auto result =
             invariant.checkSnapshot(makeSnap(), modifiedState, noopIsStopping);
