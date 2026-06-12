@@ -241,7 +241,7 @@ HerderImpl::bootstrap()
     setupTriggerNextLedger();
     newSlotExternalized(
         mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
-    purgeOldSlotsAndProcessSCPQueue(true);
+    processSCPQueue(true);
 }
 
 void
@@ -253,16 +253,18 @@ HerderImpl::newSlotExternalized(StellarValue const& value)
     // start timing next externalize from this point
     mLastExternalize = mApp.getClock().now();
 
+    // perform cleanups
+    purgeOldSlots();
+
     mPendingEnvelopes.forceRebuildQuorum();
 }
 
 void
-HerderImpl::purgeOldSlotsAndProcessSCPQueue(bool synchronous)
+HerderImpl::purgeOldSlots()
 {
     ZoneScoped;
-    CLOG_TRACE(Herder, "HerderImpl::purgeOldSlotsAndProcessSCPQueue");
+    CLOG_TRACE(Herder, "HerderImpl::purgeOldSlots");
 
-    // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
     std::optional<uint32> minSlotToRemember;
     auto minSeq = getMinLedgerSeqToRemember();
@@ -284,11 +286,6 @@ HerderImpl::purgeOldSlotsAndProcessSCPQueue(bool synchronous)
     {
         eraseOutsideRange(minSlotToRemember, maxSlotToRemember);
     }
-
-    // Process new ready messages for the next slot when tracking.
-    // When not tracking, Herder's out of sync mechanism processes all future
-    // slots automatically
-    processSCPQueue(synchronous);
 }
 
 void
@@ -504,9 +501,10 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // This call may cause LedgerManager to trigger ledger close
         processExternalized(slotIndex, value, isLatestSlot);
 
-        // Record externalize timing and rebuild quorum now. Purging old slots
-        // and processing the SCP queue for the next slot happens later, in
-        // lastClosedLedgerIncreased, once the ledger has actually closed.
+        // Record externalize timing, purge slots outside of our validity
+        // bracket, and rebuild quorum now. Processing the SCP queue for the
+        // next slot happens later, in lastClosedLedgerIncreased, once the
+        // ledger has actually closed.
         newSlotExternalized(value);
 
         // Check to see if quorums have changed and we need to reanalyze.
@@ -1258,11 +1256,12 @@ HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet,
 
         setupTriggerNextLedger();
 
-        // Now that the new ledger is closed, purge SCP slots outside of our
-        // validity bracket and process any already-buffered SCP envelopes for
-        // the next slot. Posted to the main thread so control returns to the
-        // caller first, matching the previous post-externalize behavior.
-        purgeOldSlotsAndProcessSCPQueue(false);
+        // Now that the new ledger is closed, process any already-buffered SCP
+        // envelopes for the next slot. Posted to the main thread so control
+        // returns to the caller first. Note: slot purging happens earlier, at
+        // externalize time, so that SCP state doesn't accumulate while the
+        // node is applying or catching up.
+        processSCPQueue(false);
     }
 }
 
