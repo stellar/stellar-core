@@ -28,6 +28,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& mNetworkID;
     mutable Hash mContentsHash;
     mutable Hash mFullHash;
+    // Lazily cached XDR depth check result for the (immutable) envelope
+    // (-1 means 'not yet computed'). Atomic so that concurrent validation
+    // threads can compute it independently - they always store the same
+    // value. Reset by clearCached().
+    mutable std::atomic<int8_t> mXDRDepthIsValid{-1};
+
+    bool XDRDepthIsValid() const;
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerEntryWrapper const& account,

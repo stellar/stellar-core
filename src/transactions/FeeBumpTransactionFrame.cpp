@@ -316,6 +316,22 @@ FeeBumpTransactionFrame::checkAllTransactionSignatures(
         feeSource.current().data.account().thresholds[THRESHOLD_LOW]);
 }
 
+bool
+FeeBumpTransactionFrame::XDRDepthIsValid() const
+{
+    // The envelope is immutable, so run the depth check once and cache the
+    // result (it is a full XDR traversal performed on every checkValid call
+    // otherwise).
+    int8_t isValid = mXDRDepthIsValid.load(std::memory_order_relaxed);
+    if (isValid < 0)
+    {
+        ZoneScoped;
+        isValid = xdr::check_xdr_depth(mEnvelope, 500) ? 1 : 0;
+        mXDRDepthIsValid.store(isValid, std::memory_order_relaxed);
+    }
+    return isValid == 1;
+}
+
 MutableTxResultPtr
 FeeBumpTransactionFrame::checkValidImpl(
     AppConnector& app, CheckValidLedgerViewWrapper const& ledgerView,
@@ -324,7 +340,7 @@ FeeBumpTransactionFrame::checkValidImpl(
     DiagnosticEventManager& diagnosticEvents, bool isOverlayValidation,
     std::optional<uint32_t> validationLedgerSeq) const
 {
-    if (!xdr::check_xdr_depth(mEnvelope, 500) || !XDRProvidesValidFee())
+    if (!XDRDepthIsValid() || !XDRProvidesValidFee())
     {
         return FeeBumpMutableTransactionResult::createTxError(txMALFORMED);
     }
@@ -564,6 +580,7 @@ FeeBumpTransactionFrame::clearCached() const
     Hash zero;
     mContentsHash = zero;
     mFullHash = zero;
+    mXDRDepthIsValid.store(-1, std::memory_order_relaxed);
     mInnerTx->clearCached();
 }
 #endif

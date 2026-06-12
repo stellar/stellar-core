@@ -14,6 +14,7 @@
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <set>
@@ -52,6 +53,7 @@ class TransactionFrame : public TransactionFrameBase
 {
   private:
     uint32_t getSize() const;
+    bool XDRDepthIsValid() const;
 
     bool
     maybeAdoptFailedReplayResult(MutableTransactionResultBase& txResult) const;
@@ -78,6 +80,13 @@ class TransactionFrame : public TransactionFrameBase
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
+    // Lazily cached pure functions of the (immutable) envelope: the encoded
+    // size (0 means 'not yet computed') and the XDR depth check result
+    // (-1 means 'not yet computed'). Atomic so that concurrent validation
+    // threads can compute them independently - they always store the same
+    // value. Reset by clearCached().
+    mutable std::atomic<uint32_t> mEncodedSize{0};
+    mutable std::atomic<int8_t> mXDRDepthIsValid{-1};
 
     std::vector<std::shared_ptr<OperationFrame const>> mOperations;
 

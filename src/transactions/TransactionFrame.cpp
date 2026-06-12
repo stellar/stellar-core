@@ -189,6 +189,8 @@ TransactionFrame::clearCached() const
     Hash zero;
     mContentsHash = zero;
     mFullHash = zero;
+    mEncodedSize.store(0, std::memory_order_relaxed);
+    mXDRDepthIsValid.store(-1, std::memory_order_relaxed);
 }
 #endif
 
@@ -2008,7 +2010,7 @@ TransactionFrame::checkValidImpl(
     // `checkValidWithOptionallyChargedFee` in order to not validate the
     // envelope XDR twice for the fee bump transactions (they use
     // `checkValidWithOptionallyChargedFee` for the inner tx).
-    if (!xdr::check_xdr_depth(mEnvelope, 500))
+    if (!XDRDepthIsValid())
     {
         return MutableTransactionResult::createTxError(txMALFORMED);
     }
@@ -2925,8 +2927,32 @@ TransactionFrame::toStellarMessage() const
 uint32_t
 TransactionFrame::getSize() const
 {
-    ZoneScoped;
-    return static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
+    // The envelope is immutable, so compute the size once and cache it (it
+    // is needed by every fee/resource computation).
+    uint32_t size = mEncodedSize.load(std::memory_order_relaxed);
+    if (size == 0)
+    {
+        ZoneScoped;
+        size = static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
+        mEncodedSize.store(size, std::memory_order_relaxed);
+    }
+    return size;
+}
+
+bool
+TransactionFrame::XDRDepthIsValid() const
+{
+    // The envelope is immutable, so run the depth check once and cache the
+    // result (it is a full XDR traversal performed on every checkValid call
+    // otherwise).
+    int8_t isValid = mXDRDepthIsValid.load(std::memory_order_relaxed);
+    if (isValid < 0)
+    {
+        ZoneScoped;
+        isValid = xdr::check_xdr_depth(mEnvelope, 500) ? 1 : 0;
+        mXDRDepthIsValid.store(isValid, std::memory_order_relaxed);
+    }
+    return isValid == 1;
 }
 
 bool
