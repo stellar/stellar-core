@@ -10,3 +10,9 @@ race:asio::detail::kqueue_reactor::run
 # ApplicationImpl vptr race
 # vptr race during ApplicationImpl destruction
 race:ApplicationImpl::~ApplicationImpl
+
+# ASIO signal self-pipe: asio_signal_handler (running on whatever thread the
+# signal lands on) writes the pipe fd while the main thread closes it during
+# io_context destruction at shutdown. Internal to vendored asio's signal
+# handling (linux self-pipe analogue of the kqueue entries above).
+race:asio_signal_handler

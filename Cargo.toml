@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["src/rust"]
+# The soroban submodules are their own workspaces; exclude them so that
+# path-dependencies on locally-modified hosts (used by the unified asan/tsan
+# build) resolve their workspace.package keys against the submodule workspace
+# rather than this one.
+exclude = ["src/rust/soroban/p21", "src/rust/soroban/p22", "src/rust/soroban/p23", "src/rust/soroban/p24", "src/rust/soroban/p25", "src/rust/soroban/p26", "src/rust/soroban/p27"]
 
 [profile.release]
 codegen-units = 1

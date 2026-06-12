@@ -121,10 +121,13 @@ rev = "c0e58f94ff2983a09440cef6a54253349fd3c4db"
 optional = true
 
 [dependencies.soroban-env-host-p26]
+# The p26 host carries local commits (output-buffer pooling, module-cache
+# optimizations) in the soroban/p26 submodule that are not on the upstream
+# rev, so the unified (asan/tsan) build must use the local path to match what
+# the non-unified build links.
 version = "=26.0.0"
-git = "https://github.com/stellar/rs-soroban-env"
+path = "soroban/p26/soroban-env-host"
 package = "soroban-env-host"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 optional = true
 
 [dependencies.soroban-env-host-p25]
