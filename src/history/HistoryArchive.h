@@ -49,20 +49,71 @@ template <class BucketT> struct HistoryStateBucket
     std::string snap;
     std::vector<std::string> snapShards;
 
+    // In text (JSON) archives — i.e. history-archive files and the
+    // DB-persisted HAS — the shard-hash lists are only emitted when
+    // non-empty and tolerated when absent, so non-sharded states (every
+    // level but 0, and all states predating sharded level-0 buckets) keep
+    // the legacy format byte-for-byte. Binary archives (publish-queue
+    // checkpoint files) have positional fields, so they always carry the
+    // lists. NB: these must be split load/save members (not a
+    // const/non-const serialize pair): cereal const_casts nested objects
+    // before dispatching, so a non-const serialize would be used for both
+    // directions.
     template <class Archive>
     void
-    serialize(Archive& ar) const
+    save(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
-           CEREAL_NVP(snap), CEREAL_NVP(snapShards));
+        if constexpr (cereal::traits::is_text_archive<Archive>::value)
+        {
+            ar(CEREAL_NVP(curr));
+            if (!currShards.empty())
+            {
+                ar(CEREAL_NVP(currShards));
+            }
+            ar(CEREAL_NVP(next), CEREAL_NVP(snap));
+            if (!snapShards.empty())
+            {
+                ar(CEREAL_NVP(snapShards));
+            }
+        }
+        else
+        {
+            ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
+               CEREAL_NVP(snap), CEREAL_NVP(snapShards));
+        }
     }
 
     template <class Archive>
     void
-    serialize(Archive& ar)
+    load(Archive& ar)
     {
-        ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
-           CEREAL_NVP(snap), CEREAL_NVP(snapShards));
+        if constexpr (cereal::traits::is_text_archive<Archive>::value)
+        {
+            ar(CEREAL_NVP(curr));
+            try
+            {
+                ar(CEREAL_NVP(currShards));
+            }
+            catch (cereal::Exception&)
+            {
+                // Absent in non-sharded states: not a composite bucket.
+                currShards.clear();
+            }
+            ar(CEREAL_NVP(next), CEREAL_NVP(snap));
+            try
+            {
+                ar(CEREAL_NVP(snapShards));
+            }
+            catch (cereal::Exception&)
+            {
+                snapShards.clear();
+            }
+        }
+        else
+        {
+            ar(CEREAL_NVP(curr), CEREAL_NVP(currShards), CEREAL_NVP(next),
+               CEREAL_NVP(snap), CEREAL_NVP(snapShards));
+        }
     }
 };
 

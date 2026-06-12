@@ -150,7 +150,25 @@ template <class BucketT> class FutureBucket
         case FB_HASH_INPUTS:
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
-            ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+            if constexpr (cereal::traits::is_text_archive<Archive>::value)
+            {
+                // Optional in text (JSON) archives: absent in states
+                // serialized before sharded level-0 buckets, and skipped on
+                // save when the snap input is not sharded. Binary archives
+                // have positional fields and always carry the list.
+                try
+                {
+                    ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+                }
+                catch (cereal::Exception&)
+                {
+                    mInputSnapShardHashes.clear();
+                }
+            }
+            else
+            {
+                ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+            }
             ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
             break;
         case FB_HASH_OUTPUT:
@@ -178,7 +196,19 @@ template <class BucketT> class FutureBucket
             ar(cereal::make_nvp("state", FB_HASH_INPUTS));
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
-            ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+            if constexpr (cereal::traits::is_text_archive<Archive>::value)
+            {
+                // Only emitted for sharded snap inputs, so non-sharded
+                // states keep the legacy text format.
+                if (!mInputSnapShardHashes.empty())
+                {
+                    ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+                }
+            }
+            else
+            {
+                ar(cereal::make_nvp("snapShards", mInputSnapShardHashes));
+            }
             ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
             break;
         case FB_LIVE_OUTPUT:
