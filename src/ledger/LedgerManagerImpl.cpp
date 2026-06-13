@@ -1923,10 +1923,6 @@ LedgerManagerImpl::setLastClosedLedger(
     advanceLastClosedLedgerState(output);
 
     auto ledgerVersion = lastClosed.header.ledgerVersion;
-    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_25))
-    {
-        PubKeyUtils::enableRustDalekVerify();
-    }
 
     if (rebuildInMemoryState)
     {
