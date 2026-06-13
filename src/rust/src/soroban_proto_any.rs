@@ -133,7 +133,7 @@ impl From<xdr::Error> for CoreHostError {
 
 impl std::error::Error for CoreHostError {}
 
-fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
+pub(crate) fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
     Ok(T::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
         Limits {
@@ -180,6 +180,25 @@ fn pooled_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(RustBuf { data })
+}
+
+// Decodes the cost params from the ledger info and constructs a budget with
+// the given limits. This is the uncached fallback used by the protocol
+// adaptors; the latest protocol's adaptor caches the result of the decoding
+// (see `budget_from_configs` in the adaptor modules).
+pub(crate) fn budget_from_configs_uncached(
+    instruction_limit: u32,
+    ledger_info: &CxxLedgerInfo,
+) -> Result<Budget, HostError> {
+    Budget::try_from_configs(
+        instruction_limit as u64,
+        ledger_info.memory_limit as u64,
+        // These are the only non-metered XDR conversions that we perform. They
+        // have a small constant cost that is independent of the user-provided
+        // data.
+        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
+        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
+    )
 }
 
 // This is just a helper for modifying some data that is encoded in a CxxBuf. It
@@ -402,15 +421,11 @@ fn invoke_host_function_or_maybe_panic(
 
     let protocol_version = ledger_info.protocol_version;
 
-    let budget = Budget::try_from_configs(
-        instruction_limit as u64,
-        ledger_info.memory_limit as u64,
-        // These are the only non-metered XDR conversions that we perform. They
-        // have a small constant cost that is independent of the user-provided
-        // data.
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
-        non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
-    )?;
+    // The budget construction is routed through the protocol adaptor: the
+    // latest protocol caches the decoded cost params (keyed by their XDR
+    // bytes) and stamps out fresh budgets from a prototype, while older,
+    // replay-only protocols decode the params on every call.
+    let budget = super::budget_from_configs(instruction_limit, ledger_info)?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
     let trace_hook: Option<super::soroban_env_host::TraceHook> =

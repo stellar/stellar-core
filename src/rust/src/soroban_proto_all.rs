@@ -85,6 +85,15 @@ pub(crate) mod p27 {
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
 
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
+
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
@@ -263,6 +272,57 @@ pub(crate) mod p26 {
     }
     pub(crate) fn recycle_output_buffer(buf: Vec<u8>) {
         soroban_env_host::e2e_invoke::recycle_output_buffer(buf);
+    }
+
+    // Thread-local cache of the decoded budget cost params, keyed by their
+    // XDR bytes. Invocations under an unchanged network configuration (the
+    // overwhelmingly common case) stamp out fresh budgets from a cached
+    // prototype instead of re-decoding and re-validating the cost params on
+    // every call. The cached prototype itself is never used for metering (its
+    // Rc is never shared with a host); the host gets a fresh deep clone with
+    // the per-invocation limits.
+    struct BudgetProtoCache {
+        cpu_cost_params_xdr: Vec<u8>,
+        mem_cost_params_xdr: Vec<u8>,
+        proto: Budget,
+    }
+    thread_local! {
+        static BUDGET_PROTO_CACHE: std::cell::RefCell<Option<BudgetProtoCache>> =
+            const { std::cell::RefCell::new(None) };
+    }
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<Budget, HostError> {
+        BUDGET_PROTO_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if let Some(entry) = cache.as_ref() {
+                if entry.cpu_cost_params_xdr.as_slice()
+                    == ledger_info.cpu_cost_params.data.as_slice()
+                    && entry.mem_cost_params_xdr.as_slice()
+                        == ledger_info.mem_cost_params.data.as_slice()
+                {
+                    return entry.proto.fresh_clone_with_limits(
+                        instruction_limit as u64,
+                        ledger_info.memory_limit as u64,
+                    );
+                }
+            }
+            let proto = soroban_proto_any::budget_from_configs_uncached(
+                instruction_limit,
+                ledger_info,
+            )?;
+            let fresh = proto.fresh_clone_with_limits(
+                instruction_limit as u64,
+                ledger_info.memory_limit as u64,
+            )?;
+            *cache = Some(BudgetProtoCache {
+                cpu_cost_params_xdr: ledger_info.cpu_cost_params.data.as_slice().to_vec(),
+                mem_cost_params_xdr: ledger_info.mem_cost_params.data.as_slice().to_vec(),
+                proto,
+            });
+            Ok(fresh)
+        })
     }
 
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
@@ -456,6 +516,15 @@ pub(crate) mod p25 {
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
 
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
+
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
     // these imports).
@@ -634,6 +703,15 @@ pub(crate) mod p24 {
         Vec::new()
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
 
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
@@ -814,6 +892,15 @@ pub(crate) mod p23 {
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
 
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
+
     // We do some more local re-exports here of things used in soroban_proto_any.rs that
     // don't exist in older hosts (eg. the p21 & 22 hosts, where we define stubs for
     // these imports).
@@ -990,6 +1077,15 @@ pub(crate) mod p22 {
         Vec::new()
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
 
     use crate::{
         bridge::rust_bridge::CxxLedgerEntryRentChange,
@@ -1204,6 +1300,15 @@ pub(crate) mod p21 {
         Vec::new()
     }
     pub(crate) fn recycle_output_buffer(_buf: Vec<u8>) {}
+
+    // Budget construction shim (see p26, which caches the decoded cost
+    // params). This protocol just decodes them on every call.
+    pub(crate) fn budget_from_configs(
+        instruction_limit: u32,
+        ledger_info: &crate::rust_bridge::CxxLedgerInfo,
+    ) -> Result<soroban_env_host::budget::Budget, soroban_env_host::HostError> {
+        soroban_proto_any::budget_from_configs_uncached(instruction_limit, ledger_info)
+    }
 
     use crate::{
         bridge::rust_bridge::CxxLedgerEntryRentChange,

@@ -278,11 +278,11 @@ soroban-env-host v26.0.0 (src/rust/soroban/p26/soroban-env-host)
 │   │   │   [build-dependencies]
 │   │   │   └── crate-git-revision v0.0.6 (*)
 │   │   └── syn v2.0.39 (*)
-│   ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
+│   ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/dmkozh/wasmi.git?rev=c701a026ada3f910daff3829f6eb47c49adce4db#c701a026)
 │   │   ├── smallvec v1.13.2
 │   │   ├── spin v0.9.8
-│   │   ├── wasmi_arena v0.4.0 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
-│   │   ├── wasmi_core v0.13.0 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
+│   │   ├── wasmi_arena v0.4.0 (https://github.com/dmkozh/wasmi.git?rev=c701a026ada3f910daff3829f6eb47c49adce4db#c701a026)
+│   │   ├── wasmi_core v0.13.0 (https://github.com/dmkozh/wasmi.git?rev=c701a026ada3f910daff3829f6eb47c49adce4db#c701a026)
 │   │   │   ├── downcast-rs v1.2.0
 │   │   │   ├── libm v0.2.8
 │   │   │   ├── num-traits v0.2.17 (*)
@@ -307,7 +307,7 @@ soroban-env-host v26.0.0 (src/rust/soroban/p26/soroban-env-host)
 │       └── semver v1.0.17
 │   [build-dependencies]
 │   └── crate-git-revision v0.0.6 (*)
-├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de) (*)
+├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/dmkozh/wasmi.git?rev=c701a026ada3f910daff3829f6eb47c49adce4db#c701a026) (*)
 ├── static_assertions v1.1.0
 ├── stellar-strkey v0.0.13 (*)
 └── wasmparser v0.116.1 (*)
