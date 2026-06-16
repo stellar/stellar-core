@@ -1536,8 +1536,7 @@ ApplicationImpl::getLedgerCloseIOContext()
 }
 
 void
-ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
-                                  Scheduler::ActionType type)
+ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name)
 {
     JITTER_INJECT_DELAY();
     LogSlowExecution isSlow{name, LogSlowExecution::Mode::MANUAL,
@@ -1554,8 +1553,7 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                 std::this_thread::sleep_for(sleepFor);
             }
             f();
-        },
-        std::move(name), type);
+        });
 }
 
 void

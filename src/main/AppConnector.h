@@ -48,9 +48,7 @@ class AppConnector
 
     // Thread-safe methods
     SorobanMetrics& getSorobanMetrics() const;
-    void postOnMainThread(
-        std::function<void()>&& f, std::string&& message,
-        Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION);
+    void postOnMainThread(std::function<void()>&& f, std::string&& message);
     void postOnOverlayThread(std::function<void()>&& f,
                              std::string const& message);
     void postOnBackgroundThread(std::function<void()>&& f,
