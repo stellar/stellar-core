@@ -1,6 +1,6 @@
 //! TX flooding module.
 //!
-//! Provides mempool management, TX set building, and INV/GETDATA flooding.
+//! Provides mempool management, TX set building, and TX flooding messages.
 
 mod inv_batcher;
 mod inv_messages;
@@ -11,7 +11,7 @@ mod tx_buffer;
 mod txset;
 
 pub use inv_batcher::InvBatcher;
-pub use inv_messages::{GetData, InvBatch, InvEntry, TxStreamMessage};
+pub use inv_messages::{GetData, InvBatch, InvEntry, TxMessage, TxStreamMessage};
 pub use inv_tracker::InvTracker;
 pub use mempool::{Mempool, TxEntry};
 pub use pending_requests::PendingRequests;
