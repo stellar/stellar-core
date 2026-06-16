@@ -1373,7 +1373,7 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     // "synced"
     bool appliedLatest = false;
 
-    if (latestHeardFromNetwork == lcl)
+    if (latestHeardFromNetwork == lcl && mApp.getHerder().isTracking())
     {
         mApp.getLedgerManager().moveToSynced();
         appliedLatest = true;

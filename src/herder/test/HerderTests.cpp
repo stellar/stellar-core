@@ -5281,6 +5281,161 @@ TEST_CASE("slots purged while externalized ledgers are queued to apply",
         10 * simulation->getExpectedLedgerCloseTime(), false);
 }
 
+TEST_CASE("apply buffered ledgers after repeated out-of-sync", "[herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
+            cfg.RUN_STANDALONE = false;
+            return cfg;
+        });
+
+    auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
+    auto validatorBKey = SecretKey::fromSeed(sha256("validator-B"));
+    auto validatorCKey = SecretKey::fromSeed(sha256("validator-C"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators.push_back(validatorAKey.getPublicKey());
+    qset.validators.push_back(validatorBKey.getPublicKey());
+    qset.validators.push_back(validatorCKey.getPublicKey());
+
+    auto A = simulation->addNode(validatorAKey, qset);
+    auto B = simulation->addNode(validatorBKey, qset);
+    auto C = simulation->addNode(validatorCKey, qset);
+
+    simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                     validatorCKey.getPublicKey());
+    simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                     validatorBKey.getPublicKey());
+
+    simulation->startAllNodes();
+    simulation->stopOverlayTick();
+
+    HerderImpl& herderC = static_cast<HerderImpl&>(C->getHerder());
+    auto& lmC = C->getLedgerManager();
+
+    // Close a few ledgers with everyone connected
+    simulation->crankUntil(
+        [&]() {
+            return simulation->haveAllExternalized(
+                LedgerManager::GENESIS_LEDGER_SEQ + 4, 1);
+        },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // Disconnect C; the network moves on without it
+    simulation->dropConnection(validatorAKey.getPublicKey(),
+                               validatorCKey.getPublicKey());
+    uint32_t const N = lmC.getLastClosedLedgerNum();
+
+    // Advance A and B to N+5, then freeze the network by disconnecting them, so
+    // their state can be compared against C later. C will externalize N+1..N+5;
+    // the 5-ledger drift is below MAX_EXTERNALIZE_LEDGER_APPLY_DRIFT (12), so
+    // once the gap is filled the whole run can be queued to apply at once. The
+    // tracking index stays within MAX_SLOTS_TO_REMEMBER (12) of the gap ledger,
+    // so the gap envelope is never discarded.
+    uint32_t const last = N + 5;
+    simulation->crankUntil(
+        [&]() {
+            return A->getLedgerManager().getLastClosedLedgerNum() >= last &&
+                   B->getLedgerManager().getLastClosedLedgerNum() >= last;
+        },
+        2 * last * simulation->getExpectedLedgerCloseTime(), false);
+    simulation->dropConnection(validatorAKey.getPublicKey(),
+                               validatorBKey.getPublicKey());
+
+    auto validatorSCPMessagesA =
+        getValidatorExternalizeMessages(*A, N + 1, last);
+    auto validatorSCPMessagesB =
+        getValidatorExternalizeMessages(*B, N + 1, last);
+    REQUIRE(validatorSCPMessagesA.size() == 5);
+    REQUIRE(validatorSCPMessagesB.size() == 5);
+
+    auto feedLedger = [&](uint32_t ledger) {
+        auto newMsgA = validatorSCPMessagesA.at(ledger);
+        auto newMsgB = validatorSCPMessagesB.at(ledger);
+        REQUIRE(herderC.recvSCPEnvelope(newMsgA.first, qset, newMsgA.second) ==
+                Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(herderC.recvSCPEnvelope(newMsgB.first, qset, newMsgB.second) ==
+                Herder::ENVELOPE_STATUS_READY);
+    };
+
+    // Step 1: go out of sync at N. Feed C the ledger after the missing one
+    // (N+2), leaving a gap at N+1. C is tracking N, so the future slot is only
+    // processed once the consensus-stuck timer fires and Herder goes out of
+    // sync; afterwards Herder is tracking N+2 but LM's LCL is stuck at N.
+    feedLedger(N + 2);
+    simulation->crankUntil([&]() { return !lmC.isSynced(); },
+                           2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+    checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                N + 2);
+    REQUIRE(lmC.getLastClosedLedgerNum() == N);
+
+    // Step 2: buffer up to N+5. Each future slot externalizes at receive time
+    // (LM is buffering, so nothing is applying), advancing the tracking index
+    // while the LCL stays stuck at N and the gap at N+1 remains.
+    for (uint32_t seq = N + 3; seq <= last; ++seq)
+    {
+        feedLedger(seq);
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
+        checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                    seq);
+        REQUIRE(lmC.getLastClosedLedgerNum() == N);
+    }
+
+    // N+2..N+5 are buffered, waiting for N+1; nothing is applying.
+    auto& lamC = C->getLedgerApplyManager();
+    REQUIRE(!lmC.isApplying());
+    REQUIRE(!lamC.maybeGetNextBufferedLedgerToApply());
+    REQUIRE(lamC.maybeGetLargestBufferedLedger()->getLedgerSeq() == last);
+
+    // Step 3: go out of sync again. With no LCL progress and no new latest
+    // externalize to re-arm the heartbeat, the consensus-stuck timer fires
+    // again. Since nothing is applying, this drives Herder all the way to the
+    // out-of-sync (SYNCING) state, where it stays -- there are no unprocessed
+    // slots to bring it back to tracking.
+    simulation->crankForAtLeast(Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS +
+                                    std::chrono::seconds(5),
+                                false);
+    checkHerder(*C, herderC, Herder::State::HERDER_SYNCING_STATE, last);
+    REQUIRE(!lmC.isApplying());
+    REQUIRE(lmC.getLastClosedLedgerNum() == N);
+
+    // Step 4: fill the gap with N+1. The run N+1..N+5 becomes contiguous, so
+    // LedgerApplyManager queues all of them to the apply thread at once.
+    feedLedger(N + 1);
+    REQUIRE(lmC.isApplying());
+    REQUIRE(lmC.getLastClosedLedgerNum() == N);
+
+    // The buffered ledgers all apply and C ends up synced on the same ledger
+    // and hash as A and B, which closed these ledgers via real consensus.
+    simulation->crankUntil(
+        [&]() { return lmC.getLastClosedLedgerNum() == last; },
+        4 * last * simulation->getExpectedLedgerCloseTime(), false);
+    checkHerder(*C, herderC, Herder::State::HERDER_SYNCING_STATE, last);
+    REQUIRE(lmC.getLastClosedLedgerNum() == last);
+    REQUIRE(lmC.getLastClosedLedgerHeader().hash ==
+            A->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+    // Reconnect everyone: the network (including C) proceeds to close ledgers.
+    simulation->addConnection(validatorAKey.getPublicKey(),
+                              validatorCKey.getPublicKey());
+    simulation->addConnection(validatorAKey.getPublicKey(),
+                              validatorBKey.getPublicKey());
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(last + 3, 1); },
+        10 * simulation->getExpectedLedgerCloseTime(), false);
+
+    // C is back in sync and ready to move on to the next ledger.
+    checkSynced(*C);
+    checkHerder(*C, herderC, Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                last + 3);
+
+    REQUIRE(herderC.getTriggerTimer().seq() > 0);
+    REQUIRE(herderC.mTriggerNextLedgerSeq == last + 4);
+}
+
 // The stronger variant of the test above: the node externalizes _more_ slots
 // than MAX_SLOTS_TO_REMEMBER while its LCL is stuck, so purging evicts the
 // slots of ledgers that are themselves still queued for application. Such a
