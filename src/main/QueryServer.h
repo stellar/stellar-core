@@ -79,19 +79,6 @@ class QueryServer
     {
         return getSnapshotForLedger(ledgerSeq);
     }
-
-    // Clear all snapshot state. Used between newDB() and start() in tests
-    // to avoid the duplicate-seq assertion when both paths push the same LCL.
-    void
-    resetForTesting()
-    {
-        SharedLockExclusive guard(mMutex);
-        mStates.clear();
-        for (auto& [tid, cache] : mPerThreadSnapshots)
-        {
-            cache.clear();
-        }
-    }
 #endif
 
     // Returns raw LedgerKeys for the given keys from the Live BucketList. Does

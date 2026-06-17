@@ -17,17 +17,22 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/ApplicationUtils.h"
+#include "main/CommandHandler.h"
+#include "main/QueryServer.h"
 #include "test/Catch2.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include "work/WorkScheduler.h"
+#include <json/json.h>
 
 using namespace stellar;
 using namespace txtest;
@@ -49,6 +54,38 @@ setConfigForArchival(Config& cfg)
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
     cfg.TESTING_EVICTION_SCAN_SIZE = 100'000;
     cfg.TESTING_MAX_ENTRIES_TO_ARCHIVE = 1;
+}
+
+// Exercises the QueryServer getledgerentry endpoint for the root account at the
+// app's current LCL. Requesting the LCL explicitly catches both an empty
+// QueryServer and a stale QueryServer that still has only an older snapshot.
+void
+checkQueryServerRootAccountAtLcl(Application& app, bool expectCurrentSnapshot)
+{
+    auto& qs = app.getCommandHandler().getQueryServer();
+    auto const ledgerSeq = app.getLedgerManager().getLastClosedLedgerNum();
+    auto const rootKey = accountKey(getRoot(app.getNetworkID()).getPublicKey());
+    std::string const body = "ledgerSeq=" + std::to_string(ledgerSeq) +
+                             "&key=" + toOpaqueBase64(rootKey);
+
+    std::string retStr;
+    bool const found = qs.getLedgerEntry(/*params*/ "", body, retStr);
+    REQUIRE(found == expectCurrentSnapshot);
+
+    if (!expectCurrentSnapshot)
+    {
+        // No current-LCL snapshot yet, so the endpoint 404s.
+        REQUIRE(retStr == "Ledger not found\n");
+        return;
+    }
+
+    // The root account loads at the current LCL.
+    Json::Value response;
+    Json::Reader reader;
+    REQUIRE(reader.parse(retStr, response));
+    REQUIRE(response["ledgerSeq"].asUInt() == ledgerSeq);
+    REQUIRE(response["entries"].size() == 1);
+    REQUIRE(response["entries"][0]["state"].asString() == "live");
 }
 }
 
@@ -502,6 +539,7 @@ CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
     , mCfg([&] {
         auto cfg = getTestConfig(0, dbMode);
         setConfigForArchival(cfg);
+        cfg.QUERY_SERVER_FOR_TESTING = true;
         return cfg;
     }())
     , mAppPtr(createTestApplication(*mClock,
@@ -905,12 +943,19 @@ CatchupSimulation::createCatchupApplication(
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
     }
     mCfgs.back().CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = skipKnownResults;
+    mCfgs.back().QUERY_SERVER_FOR_TESTING = true;
 
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),
         mHistoryConfigurator->configure(mCfgs.back(), publish));
     newApp->start();
+
+    // A freshly-started node has not applied any ledger through the close path,
+    // so the QueryServer does not serve the genesis placeholder.
+    checkQueryServerRootAccountAtLcl(*newApp,
+                                     /*expectCurrentSnapshot*/ false);
+
     return newApp;
 }
 
@@ -935,6 +980,12 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
+
+    // Scheduling offline catchup alone must not publish anything to the
+    // QueryServer.
+    checkQueryServerRootAccountAtLcl(*app,
+                                     /*expectCurrentSnapshot*/ false);
+
     testutil::crankUntil(app, finished,
                          std::chrono::seconds{std::max<int64>(
                              expectedCatchupWork.mTxSetsApplied + 15, 60)});
@@ -952,6 +1003,22 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 
         REQUIRE(catchupPerformedWork == expectedCatchupWork);
+
+        if (expectedCatchupWork.mTxSetsApplied == 0)
+        {
+            // Bucket-only catchup establishes LCL without closing a ledger, so
+            // it still has no current-LCL query snapshot.
+            checkQueryServerRootAccountAtLcl(*app,
+                                             /*expectCurrentSnapshot*/ false);
+        }
+        else
+        {
+            // Replayed ledgers go through the ledger-close path and publish
+            // contiguous snapshots.
+            checkQueryServerRootAccountAtLcl(*app,
+                                             /*expectCurrentSnapshot*/ true);
+        }
+
         if (app->getHistoryArchiveManager().publishEnabled())
         {
             auto& hm = app->getHistoryManager();
@@ -1041,6 +1108,8 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     {
         // If at this moment status is LM_SYNCED_STATE, it means that catchup
         // has not started.
+        checkQueryServerRootAccountAtLcl(*app,
+                                         /*expectCurrentSnapshot*/ true);
         return false;
     }
 
@@ -1049,6 +1118,20 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     };
 
     auto lastLedger = lm.getLastClosedLedgerNum();
+
+    if (lastLedger == LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        // Online catchup has been triggered/buffered, but this fresh app has
+        // not applied a ledger yet
+        checkQueryServerRootAccountAtLcl(*app, /*expectCurrentSnapshot*/ false);
+    }
+    else
+    {
+        // The app has already applied at least one ledger through the close
+        // path and should serve its current LCL, even while catching up
+        // further.
+        checkQueryServerRootAccountAtLcl(*app, /*expectCurrentSnapshot*/ true);
+    }
 
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
@@ -1062,6 +1145,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     }
 
     auto result = caughtUp();
+    if (!result && lm.getLastClosedLedgerNum() > lastLedger)
+    {
+        // Catchup may apply a contiguous prefix and still remain out of sync
+        // due to a later gap. The newly applied current LCL should be
+        // queryable.
+        checkQueryServerRootAccountAtLcl(*app,
+                                         /*expectCurrentSnapshot*/ true);
+    }
     if (result)
     {
         REQUIRE(lm.getLastClosedLedgerNum() >= triggerLedger + bufferLedgers);
@@ -1074,6 +1165,8 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         REQUIRE(catchupPerformedWork == expectedCatchupWork);
 
         CLOG_INFO(History, "Caught up");
+        checkQueryServerRootAccountAtLcl(*app,
+                                         /*expectCurrentSnapshot*/ true);
     }
 
     validateCatchup(app);
