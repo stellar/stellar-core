@@ -46,18 +46,25 @@ VirtualClock::now() const noexcept
 VirtualClock::system_time_point
 VirtualClock::system_now() const noexcept
 {
+    system_time_point t;
     if (mMode == REAL_TIME)
     {
-        return std::chrono::system_clock::now();
+        t = std::chrono::system_clock::now();
     }
     else
     {
         LOCK_GUARD(mVirtualNowMutex, lock);
         auto offset = mVirtualNow.time_since_epoch();
-        return std::chrono::system_clock::time_point(
+        t = std::chrono::system_clock::time_point(
             std::chrono::duration_cast<
                 std::chrono::system_clock::time_point::duration>(offset));
     }
+#ifdef BUILD_TESTS
+    // Simulate wall-clock drift (test-only); does not affect steady_clock
+    // scheduling.
+    t += mSystemTimeOffset.load(std::memory_order_relaxed);
+#endif
+    return t;
 }
 
 void
@@ -287,6 +294,14 @@ VirtualClock::setCurrentVirtualTime(system_time_point t)
     auto offset = t.time_since_epoch();
     setCurrentVirtualTime(time_point(offset));
 }
+
+#ifdef BUILD_TESTS
+void
+VirtualClock::setSystemTimeOffset(std::chrono::microseconds offset)
+{
+    mSystemTimeOffset.store(offset, std::memory_order_relaxed);
+}
+#endif
 
 void
 VirtualClock::sleep_for(std::chrono::microseconds us)
