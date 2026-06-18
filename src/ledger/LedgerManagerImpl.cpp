@@ -1406,6 +1406,12 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
     // ledger.
     releaseAssert(threadIsMain());
     advanceLastClosedLedgerState(newLedgerState);
+
+    // Push the new state to the QueryServer. To avoid gaps in history, the
+    // query server should only store ledgers we have actually applied, so we
+    // update the snapshot here instead of advanceLastClosedLedgerState.
+    mApp.getCommandHandler().addSnapshot(newLedgerState);
+
     // We can publish Soroban metrics at any point after advancing the LCL
     // state.
     publishSorobanMetrics();
@@ -2112,10 +2118,6 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
         }
         mLastClosedLedgerState = newLedgerState;
     }
-
-    // Push new state to QueryServer (after releasing
-    // mLastClosedLedgerStateMutex to avoid nested lock acquisition).
-    mApp.getCommandHandler().addSnapshot(newLedgerState);
 }
 
 ImmutableLedgerDataPtr
