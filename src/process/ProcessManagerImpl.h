@@ -11,6 +11,7 @@
 #include <deque>
 #include <mutex>
 #include <vector>
+#include <map>
 
 namespace stellar
 {

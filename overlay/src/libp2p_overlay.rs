@@ -533,7 +533,7 @@ impl StellarOverlay {
                         }
                         OverlayCommand::DialPeer { peer_id, addr } => {
                             let opts = DialOpts::peer_id(peer_id)
-                                .condition(PeerCondition::Disconnected)
+                                .condition(PeerCondition::DisconnectedAndNotDialing)
                                 .addresses(vec![addr.clone()])
                                 .build();
                             self.state.metrics.outbound_attempt.fetch_add(1, Ordering::Relaxed);
@@ -4628,6 +4628,7 @@ async fn test_dial_peer_skips_when_connected() {
 
     // Record outbound_attempt before the PeerId-based dial
     let attempts_before = m1.outbound_attempt.load(Ordering::Relaxed);
+    let pending_before = m1.connection_pending.load(Ordering::Relaxed);
 
     // PeerId-based dial should be a no-op (already connected)
     handle1.dial_peer(peer_id2, addr2.clone()).await;
@@ -4638,10 +4639,15 @@ async fn test_dial_peer_skips_when_connected() {
     // outbound_attempt increments (we submitted the command), but connection_pending
     // should NOT have changed (DialPeer was rejected by libp2p before handshake)
     let attempts_after = m1.outbound_attempt.load(Ordering::Relaxed);
+    let pending_after = m1.connection_pending.load(Ordering::Relaxed);
     assert_eq!(
         attempts_after,
         attempts_before + 1,
         "outbound_attempt should increment by 1"
+    );
+    assert_eq!(
+        pending_after, pending_before,
+        "connection_pending should not change for an already-connected peer"
     );
 
     handle1.shutdown().await;
