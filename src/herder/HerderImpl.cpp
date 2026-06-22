@@ -651,6 +651,12 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     CLOG_TRACE(Herder, "recv transaction {} for {}",
                hexAbbrev(tx->getFullHash()),
                KeyUtils::toShortString(tx->getSourceID()));
+#ifdef BUILD_TESTS
+    if (submittedFromSelf)
+    {
+        mLedgerManager.recordTxSubmission(tx->getContentsHash());
+    }
+#endif
 
     auto const& env = tx->getEnvelope();
     mApp.getOverlayManager().broadcastTransaction(env, tx->getFullFee(),
