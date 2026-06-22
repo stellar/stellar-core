@@ -478,6 +478,7 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
                               0));
         }
     }
+    mApp.getLedgerManager().beginTxLatencyMeasurement(cfg.nTxs);
     mStarted = true;
 }
 
@@ -1342,6 +1343,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         if (checkMinimumSorobanSuccess(cfg))
         {
             CLOG_INFO(LoadGen, "Load generation complete.");
+            mApp.getLedgerManager().finalizeTxLatencyMeasurement();
             mLoadgenComplete.Mark();
             reset();
         }
@@ -1423,6 +1425,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
                 "for high traffic due to tx queue limiter evictions.",
                 inconsistencies.size());
         }
+        mApp.getLedgerManager().finalizeTxLatencyMeasurement();
         mLoadgenComplete.Mark();
         reset();
         return;

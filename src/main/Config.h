@@ -330,6 +330,10 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
+    // Defaults to false. When set, measure the latency of self-submitted
+    // transactions from submission to meta generation.
+    bool LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING;
+
 #ifdef BUILD_TESTS
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
