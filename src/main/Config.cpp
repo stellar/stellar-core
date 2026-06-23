@@ -65,6 +65,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
@@ -141,6 +142,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING = false;
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
     ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
         std::chrono::minutes::zero();
@@ -1675,6 +1677,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
+                 }},
+                {"LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING = readBool(item);
                  }},
 #ifdef BUILD_TESTS
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
