@@ -542,6 +542,16 @@ class Config : public std::enable_shared_from_this<Config>
     // also enabled.
     bool BACKGROUND_TX_SIG_VERIFICATION;
 
+    // Experimental flag to use externalized close time for trigger timer
+    // calculation instead of prepare start time.
+    bool EXPERIMENTAL_TRIGGER_TIMER;
+
+    // Hostname of an NTP server to periodically query in order to detect drift
+    // of this node's local clock. This is detection only: core never adjusts
+    // the system clock. Defaults to a pool.ntp.org; set to the empty string to
+    // disable the check entirely.
+    std::string NTP_DRIFT_CHECK_SERVER;
+
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
@@ -742,6 +752,14 @@ class Config : public std::enable_shared_from_this<Config>
     // Number of ledger snapshots to maintain for querying
     uint32_t QUERY_SNAPSHOT_LEDGERS;
 
+#ifdef BUILD_TESTS
+    // When true, CommandHandler creates a QueryServer using the main thread
+    // for snapshot lookups (no network I/O). This allows tests to call
+    // QueryServer functions directly and ensures it has
+    // all snapshots from startup.
+    bool QUERY_SERVER_FOR_TESTING{false};
+#endif
+
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;
 
@@ -913,6 +931,14 @@ class Config : public std::enable_shared_from_this<Config>
     // only flag.
     bool TESTING_NOMINATE_RANDOM_VALUES;
 
+    // Injects a signed wall-clock offset into the node's system clock for
+    // testing. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING;
+
+    // Delay emission of updated nomination messages for testing nomination
+    // timeout behavior. Expressed in milliseconds.
+    std::chrono::milliseconds ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -965,6 +991,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool allBucketsInMemory() const;
     void logBasicInfo() const;
     bool parallelLedgerClose() const;
+
+    // Returns true if this node should run the NTP clock-drift check: an NTP
+    // server is configured and the node is a validator (clock drift only hurts
+    // nodes that participate in consensus).
+    bool ntpDriftCheckEnabled() const;
     void setNoListen();
     void setNoPublish();
 

@@ -1,6 +1,7 @@
 #include "simulation/ApplyLoad.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <numeric>
@@ -738,6 +739,18 @@ ApplyLoad::ApplyLoad(Application& app)
         throw std::runtime_error(
             "APPLY_LOAD_LEDGER_MAX_DEPENDENT_TX_CLUSTERS cannot be zero");
     }
+
+    // Seed the classic payment memo id from the current wall-clock time (in
+    // nanoseconds) so that classic payment tx hashes differ across runs. The id
+    // is then incremented per generated payment to stay unique within a run.
+    // Nanosecond resolution makes cross-run collisions practically impossible:
+    // two runs would have to start within (number of payments) ns of each other
+    // to overlap.
+    mNextClassicPaymentMemoId = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            mApp.getClock().system_now().time_since_epoch())
+            .count());
+
     setup();
 }
 
@@ -1872,9 +1885,14 @@ ApplyLoad::generateClassicPayments(std::vector<TransactionFrameBasePtr>& txs,
         auto it = accounts.find(accountIdx);
         releaseAssert(it != accounts.end());
         it->second->loadSequenceNumber();
+        // Attach a unique memo id so that the generated classic payment tx
+        // hashes are unique within a run and across runs (the id is seeded from
+        // wall-clock time in the constructor and incremented per payment).
+        Memo memo(MEMO_ID);
+        memo.id() = mNextClassicPaymentMemoId++;
         auto [_, tx] = mTxGenerator.paymentTransaction(
             mNumAccounts, 0, lm.getLastClosedLedgerNum() + 1, it->first, 1,
-            std::nullopt);
+            std::nullopt, memo);
         auto res =
             tx->checkValid(appConnector, ledgerView, 0, 0, 0, diagnostics);
         releaseAssert(res && res->isSuccess());

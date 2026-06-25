@@ -47,6 +47,7 @@ bucketlistDB-live.bulk.poolshareTrustlines  | timer     | time to load poolshare
 bucketlistDB-live.bulk.prefetch             | timer     | time to prefetch
 bucketlistDB-live.bulk.eviction           | timer     | time to load for eviction scan
 bucketlistDB-live.bulk.query              | timer     | time to load for query server
+bucketlistDB-hotArchive.bulk.hot-query    | timer     | time to load hot archive entries for query server
 bucketlistDB-<X>.<Y>.sum                  | counter   | sum of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
 bucketlistDB-<X>.<Y>.count                | counter   | number of times single entry of type <Y> on BucketList <X> (live/hotArchive) is loaded
 bucketlistDB-<X>.<Y>.max                  | counter   | max (since last metrics call) of time (microseconds) to load single entry of type <Y> on BucketList <X> (live/hotArchive)
@@ -54,6 +55,8 @@ bucketlistDB-cache.hit                    | meter     | number of cache hits on 
 bucketlistDB-cache.miss                   | meter     | number of cache misses on Live BucketList Disk random eviction cache
 bucketlistDB.cache.entries                | counter   | number of entries currently in Live BucketList index cache
 bucketlistDB.cache.bytes                  | counter   | estimated size in bytes of entries in Live BucketList index cache
+clock.ntp.offset-ms                       | counter   | last measured offset (ms) between the local clock and the configured NTP server (signed; positive means the local clock is behind true time). Requires NTP_DRIFT_CHECK_SERVER
+clock.ntp.probe-failure                   | meter     | NTP drift-check probe failed to reach NTP server
 crypto.verify.hit                         | meter     | number of signature cache hits
 crypto.verify.miss                        | meter     | number of signature cache misses
 crypto.verify.total                       | meter     | sum of both hits and misses
@@ -198,6 +201,7 @@ scp.timing.externalized                   | timer     | time spent in ballot pro
 scp.timing.first-to-self-externalize-lag  | timer     | delay between first externalize message and local node externalizing
 scp.timing.self-to-others-externalize-lag | timer     | delay between local node externalizing and later externalize messages from other nodes
 scp.timing.ballot-blocked-on-txset        | timer     | time balloting was blocked waiting for a txset download (milliseconds)
+scp.trigger.prepare-start-fallback        | meter     | experimental trigger timer fell back from the network-close-time anchor to the local prepare-start anchor
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round

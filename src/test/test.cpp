@@ -148,7 +148,19 @@ std::string
 buildLcmOutputDir(Catch::TestCaseInfo const& tc)
 {
     std::filesystem::path file(tc.lineInfo.file);
-    return "test-lcm/" + file.filename().stem().string();
+    // Partition golden data by protocol tier so that a build only ever reads,
+    // writes, and diffs files it can deserialize. A "current" (released) build
+    // must not touch meta captured by a "next" build, which can contain
+    // feature-gated XDR (e.g. cap83) whose discriminants the current build does
+    // not understand. This mirrors the test-tx-meta-baseline-{current,next}
+    // convention. The tier is fixed per binary by the compile-time define.
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    char const* tier = "next";
+#else
+    char const* tier = "current";
+#endif
+    return std::string("test-lcm-") + tier + "/" +
+           file.filename().stem().string();
 }
 
 int32_t
@@ -524,6 +536,12 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
+        // Per-instance path so concurrent test partitions don't clobber each
+        // other's pregenerated-load file (the default is a fixed relative
+        // path).
+        thisConfig.LOADGEN_PREGENERATED_TRANSACTIONS_FILE =
+            rootDir + "stellar-load-transactions.xdr";
+
         // EventsAreConsistentWithEntryDiffs require both EMIT_CLASSIC_EVENTS
         // and BACKFILL_STELLAR_ASSET_EVENTS to be enabled, so omit it and test
         // it separately.
@@ -548,6 +566,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.MANUAL_CLOSE = true;
 
         thisConfig.TEST_CASES_ENABLED = true;
+        thisConfig.EXPERIMENTAL_TRIGGER_TIMER = true;
+
+        // Never perform real NTP network I/O from the test suite.
+        thisConfig.NTP_DRIFT_CHECK_SERVER = "";
 
         thisConfig.PEER_PORT =
             static_cast<unsigned short>(DEFAULT_PEER_PORT + instanceNumber * 2);
@@ -709,8 +731,9 @@ runTest(CommandLineArgs const& args)
     parser |= Catch::clara::Opt(
         Catch::SimpleTestReporter::gDisableDots)["--disable-dots"];
     parser |= Catch::clara::Opt(gLcmCaptureEnabled)["--capture-lcm"](
-        "automatically capture LedgerCloseMeta to binary XDR files "
-        "in test-lcm/ at leaf section boundaries");
+        "automatically capture LedgerCloseMeta to binary XDR files in "
+        "test-lcm-current/ (or test-lcm-next/ for vnext builds) at leaf "
+        "section boundaries");
 
     session.cli(parser);
 

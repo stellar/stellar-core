@@ -54,44 +54,53 @@ BucketListSnapshotData<BucketT>::BucketListSnapshotData(
 }
 
 //
+// BucketSnapshotMetrics
+//
+
+template <class BucketT>
+BucketSnapshotMetrics<BucketT>::BucketSnapshotMetrics(MetricsRegistry& metrics)
+    : mPointTimers([&metrics]() {
+        UnorderedMap<LedgerEntryType, std::reference_wrapper<SimpleTimer>>
+            timers;
+        for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+        {
+            auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
+                static_cast<LedgerEntryType>(t));
+            auto& metric = metrics.NewSimpleTimer(
+                {BucketT::METRIC_STRING, label}, std::chrono::microseconds{1});
+            timers.emplace(static_cast<LedgerEntryType>(t), metric);
+        }
+        return timers;
+    }())
+    , mBulkLoadMeter(
+          metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
+{
+}
+
+//
 // SearchableBucketListSnapshot
 //
 
 template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<BucketT> const> data,
-    std::map<uint32_t, std::shared_ptr<BucketListSnapshotData<BucketT> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
+    std::shared_ptr<BucketSnapshotMetrics<BucketT> const> snapshotMetrics,
+    std::shared_ptr<BucketListSnapshotData<BucketT> const> data)
     : mData(std::move(data))
-    , mHistoricalSnapshots(std::move(historicalSnapshots))
-    , mLedgerSeq(ledgerSeq)
     , mMetrics(metrics)
-    , mBulkLoadMeter(
-          metrics.NewMeter({BucketT::METRIC_STRING, "query", "loads"}, "query"))
+    , mSnapshotMetrics(std::move(snapshotMetrics))
 {
-    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(
-            static_cast<LedgerEntryType>(t));
-        auto& metric = metrics.NewSimpleTimer({BucketT::METRIC_STRING, label},
-                                              std::chrono::microseconds{1});
-        mPointTimers.emplace(static_cast<LedgerEntryType>(t), metric);
-    }
+    releaseAssert(mSnapshotMetrics);
 }
 
 template <class BucketT>
 SearchableBucketListSnapshot<BucketT>::SearchableBucketListSnapshot(
     SearchableBucketListSnapshot const& other)
     : mData(other.mData)
-    , mHistoricalSnapshots(other.mHistoricalSnapshots)
-    , mLedgerSeq(other.mLedgerSeq)
     // mStreams intentionally left empty — each copy gets its own stream cache
     , mMetrics(other.mMetrics)
-    , mPointTimers(other.mPointTimers)
+    , mSnapshotMetrics(other.mSnapshotMetrics)
     , mBulkTimers(other.mBulkTimers)
-    , mBulkLoadMeter(other.mBulkLoadMeter)
 {
 }
 
@@ -103,15 +112,37 @@ SearchableBucketListSnapshot<BucketT>::operator=(
     if (this != &other)
     {
         mData = other.mData;
-        mHistoricalSnapshots = other.mHistoricalSnapshots;
-        mLedgerSeq = other.mLedgerSeq;
         mStreams.clear();
         mMetrics = other.mMetrics;
-        mPointTimers = other.mPointTimers;
+        mSnapshotMetrics = other.mSnapshotMetrics;
         mBulkTimers = other.mBulkTimers;
-        mBulkLoadMeter = other.mBulkLoadMeter;
+#ifdef BUILD_TESTS
+        // Reset thread ownership so the copy can be claimed by another thread.
+        mThreadId.store(std::thread::id{});
+#endif
     }
     return *this;
+}
+
+// Bucket loads are not thread safe and a single snapshot instance should only
+// be queried by one thread. We cache the initial caller's thread id and assert
+// following queries are from the same thread. Note: this only guards the
+// bucket-loading query entry points; access to the immutable underlying
+// snapshot data is thread safe.
+template <class BucketT>
+void
+SearchableBucketListSnapshot<BucketT>::threadInvariant() const
+{
+#ifdef BUILD_TESTS
+    auto const current = std::this_thread::get_id();
+    std::thread::id unclaimed{};
+    // Atomically claim ownership on first use, so any concurrent claimant sees
+    // the CAS fail with `unclaimed` set to the owner's id and asserts.
+    if (!mThreadId.compare_exchange_strong(unclaimed, current))
+    {
+        releaseAssert(unclaimed == current);
+    }
+#endif
 }
 
 // File streams are fairly expensive to create, so they are lazily created and
@@ -121,6 +152,7 @@ XDRInputFileStream&
 SearchableBucketListSnapshot<BucketT>::getStream(
     std::shared_ptr<BucketT const> const& bucket) const
 {
+    threadInvariant();
     BucketT const* key = bucket.get();
     auto it = mStreams.find(key);
     if (it == mStreams.end())
@@ -316,9 +348,10 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
-    auto timerIter = mPointTimers.find(k.type());
-    releaseAssert(timerIter != mPointTimers.end());
+    auto timerIter = mSnapshotMetrics->mPointTimers.find(k.type());
+    releaseAssert(timerIter != mSnapshotMetrics->mPointTimers.end());
     auto timer = timerIter->second.get().TimeScope();
 
     std::shared_ptr<typename BucketT::LoadT const> result{};
@@ -346,58 +379,17 @@ SearchableBucketListSnapshot<BucketT>::load(LedgerKey const& k) const
 }
 
 template <class BucketT>
-std::optional<std::vector<typename BucketT::LoadT>>
-SearchableBucketListSnapshot<BucketT>::loadKeysInternal(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    std::optional<uint32_t> ledgerSeq) const
-{
-    ZoneScoped;
-    releaseAssert(mData);
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    std::vector<typename BucketT::LoadT> entries;
-
-    auto loadKeysLoop = [&](std::shared_ptr<BucketT const> const& bucket) {
-        loadKeysFromBucket(bucket, keys, entries);
-        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
-    };
-
-    if (!ledgerSeq || *ledgerSeq == mLedgerSeq)
-    {
-        loopAllBuckets(loadKeysLoop, *mData);
-    }
-    else
-    {
-        auto iter = mHistoricalSnapshots.find(*ledgerSeq);
-        if (iter == mHistoricalSnapshots.end())
-        {
-            return std::nullopt;
-        }
-        releaseAssert(iter->second);
-        loopAllBuckets(loadKeysLoop, *iter->second);
-    }
-
-    return entries;
-}
-
-template <class BucketT>
-std::optional<std::vector<typename BucketT::LoadT>>
-SearchableBucketListSnapshot<BucketT>::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    uint32_t ledgerSeq) const
-{
-    return loadKeysInternal(inKeys, ledgerSeq);
-}
-
-template <class BucketT>
 medida::Timer&
 SearchableBucketListSnapshot<BucketT>::getBulkLoadTimer(
     std::string const& label, size_t numEntries) const
 {
+    // mBulkTimers is per-snapshot mutable state lazily populated here, so this
+    // must be single-threaded. Enforced here as well as at the public query
+    // entry points.
+    threadInvariant();
     if (numEntries != 0)
     {
-        mBulkLoadMeter.get().Mark(numEntries);
+        mSnapshotMetrics->mBulkLoadMeter.get().Mark(numEntries);
     }
 
     auto iter = mBulkTimers.find(label);
@@ -418,39 +410,38 @@ SearchableBucketListSnapshot<BucketT>::getSnapshotData() const
     return mData;
 }
 
-template <class BucketT>
-std::map<uint32_t,
-         std::shared_ptr<BucketListSnapshotData<BucketT> const>> const&
-SearchableBucketListSnapshot<BucketT>::getHistoricalSnapshots() const
-{
-    return mHistoricalSnapshots;
-}
-
 //
 // SearchableLiveBucketListSnapshot
 //
 
 SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data,
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<LiveBucket> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
+    std::shared_ptr<BucketSnapshotMetrics<LiveBucket> const> snapshotMetrics,
+    std::shared_ptr<BucketListSnapshotData<LiveBucket> const> data)
     : SearchableBucketListSnapshot<LiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
+          metrics, std::move(snapshotMetrics), std::move(data))
 {
 }
 
-std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeys(
+template <class BucketT>
+std::vector<typename BucketT::LoadT>
+SearchableBucketListSnapshot<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     std::string const& label) const
 {
+    ZoneScoped;
+    releaseAssert(mData);
+    threadInvariant();
     auto timer = getBulkLoadTimer(label, inKeys.size()).TimeScope();
-    auto op = loadKeysInternal(inKeys, std::nullopt);
-    releaseAssertOrThrow(op);
-    return std::move(*op);
+
+    auto keys = inKeys;
+    std::vector<typename BucketT::LoadT> entries;
+    auto loadKeysLoop = [&](std::shared_ptr<BucketT const> const& bucket) {
+        loadKeysFromBucket(bucket, keys, entries);
+        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
+    };
+    loopAllBuckets(loadKeysLoop, *mData);
+    return entries;
 }
 
 // This query has two steps:
@@ -464,6 +455,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     LedgerKeySet trustlinesToLoad;
 
@@ -506,6 +498,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto timer = getBulkLoadTimer("inflationWinners", 0).TimeScope();
 
@@ -606,6 +599,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     ZoneScoped;
     releaseAssert(mData);
     releaseAssert(stats);
+    threadInvariant();
 
     auto getBucketFromIter =
         [&levels = mData->levels](
@@ -657,6 +651,7 @@ SearchableLiveBucketListSnapshot::scanForEntriesOfType(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto scanBucket = [&](std::shared_ptr<LiveBucket const> const& bucket) {
         if (bucket->isEmpty())
@@ -864,23 +859,12 @@ SearchableLiveBucketListSnapshot::scanForEvictionInBucket(
 
 SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
     MetricsRegistry& metrics,
-    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data,
-    std::map<uint32_t,
-             std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const>>
-        historicalSnapshots,
-    uint32_t ledgerSeq)
+    std::shared_ptr<BucketSnapshotMetrics<HotArchiveBucket> const>
+        snapshotMetrics,
+    std::shared_ptr<BucketListSnapshotData<HotArchiveBucket> const> data)
     : SearchableBucketListSnapshot<HotArchiveBucket>(
-          metrics, std::move(data), std::move(historicalSnapshots), ledgerSeq)
+          metrics, std::move(snapshotMetrics), std::move(data))
 {
-}
-
-std::vector<HotArchiveBucketEntry>
-SearchableHotArchiveBucketListSnapshot::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
-{
-    auto op = loadKeysInternal(inKeys, std::nullopt);
-    releaseAssertOrThrow(op);
-    return std::move(*op);
 }
 
 void
@@ -889,6 +873,7 @@ SearchableHotArchiveBucketListSnapshot::scanAllEntries(
 {
     ZoneScoped;
     releaseAssert(mData);
+    threadInvariant();
 
     auto scanBucket =
         [&](std::shared_ptr<HotArchiveBucket const> const& bucket) {
@@ -913,6 +898,8 @@ SearchableHotArchiveBucketListSnapshot::scanAllEntries(
 // Explicit template instantiations
 template struct BucketListSnapshotData<LiveBucket>;
 template struct BucketListSnapshotData<HotArchiveBucket>;
+template struct BucketSnapshotMetrics<LiveBucket>;
+template struct BucketSnapshotMetrics<HotArchiveBucket>;
 template class SearchableBucketListSnapshot<LiveBucket>;
 template class SearchableBucketListSnapshot<HotArchiveBucket>;
 

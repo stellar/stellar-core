@@ -1,0 +1,8 @@
+{
+   "4a5fb7ad61be37b1" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-inside_issuers_missing",
+   "6b8dd7030be55252" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-no_issuers_missing",
+   "7c1bf589acb90fd3" : "path_payment_uses_all_offers_in_a_loop-protocol_version_27-inside_issuers_missing",
+   "992e39399fe5e7e2" : "path_payment_uses_all_offers_in_a_loop-protocol_version_27-outside_issuers_missing",
+   "9d0a379d332bf104" : "path_payment_uses_all_offers_in_a_loop-protocol_version_27-no_issuers_missing",
+   "a0d129f4a7f84481" : "path_payment_uses_all_offers_in_a_loop-protocol_version_26-outside_issuers_missing"
+}

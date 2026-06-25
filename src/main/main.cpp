@@ -249,9 +249,6 @@ checkXDRFileIdentity()
 
     // Verify that C++ and Rust have the same XDR feature flags enabled.
     std::vector<std::string> cppFeatures;
-#ifdef CAP_0071
-    cppFeatures.emplace_back("cap_0071");
-#endif
 
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If we're not building for the next protocol, no XDR feature flags
@@ -297,13 +294,11 @@ checkXDRFileIdentity()
 void
 checkStellarCoreMajorVersionProtocolIdentity()
 {
-    // This extracts a major version number from the version string embedded in
-    // the binary if, and only if, it identifies a release build. Supported
-    // formats include source builds like vX.Y.Z, vX.Y.ZrcN,
-    // vX.Y.Z-external, and
-    // packaged builds like `stellar-core X.Y.Z (<commit-hash>)`. Other version
-    // strings return nullopt, for example git-describe versions that typically
-    // look more like `v21.0.0rc1-84-g08d89bb4a`.
+    // This extracts a major version number from the git version string embedded
+    // in the binary if, and only if, that version string has the form of a
+    // release tag: specifically vX.Y.Z, or vX.Y.ZrcN, or vX.Y.ZHOTN. Other
+    // version strings return nullopt, for example non-release-tagged versions
+    // that typically look more like `v21.0.0rc1-84-g08d89bb4a`
     auto major_release_version =
         stellar::getStellarCoreMajorReleaseVersion(STELLAR_CORE_VERSION);
     if (major_release_version)
@@ -339,12 +334,11 @@ checkStellarCoreMajorVersionProtocolIdentity()
     }
     else
     {
-        // If we are running a version that does not match a recognized release
-        // version string format, then we relax the check above and just warn.
-        LOG_WARNING(DEFAULT_LOG,
-                    "Running non-release version {} of "
-                    "stellar-core",
-                    STELLAR_CORE_VERSION);
+        // If we are running a version that does not look exactly like vX.Y.Z or
+        // vX.Y.ZrcN or vX.Y.ZHOTN, then we are running a non-release version of
+        // stellar-core and we relax the check above and just warn.
+        std::cerr << "Warning: running non-release version "
+                  << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
 }
 } // namespace
@@ -435,16 +429,9 @@ main(int argc, char* const* argv)
         rust_bridge::check_sensible_soroban_config_for_protocol(
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
-        //  The p26 rs-stellar-xdr crate uses raw file
-        //  hashes, which can't match the ifdef-stripped hashes used here.
-        //  The easiest thing to do was to just skip the check for p26. Which
-        //  should be fine as the xdr on the rust side shouldn't change, and the
-        //  xdr on the core should always be backwards compatible. This is
-        //  temporary until we bump to p27.
-        if (Config::CURRENT_LEDGER_PROTOCOL_VERSION != 26)
-        {
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             checkXDRFileIdentity();
-        }
+#endif
     }
     catch (...)
     {

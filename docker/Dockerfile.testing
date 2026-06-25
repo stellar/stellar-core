@@ -30,6 +30,7 @@ ENV PATH "/root/.cargo/bin:$PATH"
 RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" ${CONFIGURE_FLAGS}
 RUN sh -c 'make -j $(nproc)'
 RUN make install
+RUN make clean
 
 # Deploy stage, only includes stuff needed to run.
 FROM ubuntu:noble

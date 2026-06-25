@@ -40,6 +40,7 @@ enum class ProtocolVersion : uint32_t
     V_25,
     V_26,
     V_27,
+    V_28,
     V_UINT32_MAX = UINT32_MAX,
 };
 
@@ -62,14 +63,10 @@ constexpr ProtocolVersion REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION =
     ProtocolVersion::V_23;
 constexpr ProtocolVersion AUTO_RESTORE_PROTOCOL_VERSION = ProtocolVersion::V_23;
 
-#ifdef CAP_0071
 constexpr ProtocolVersion FIRST_PROTOCOL_CAP71 = ProtocolVersion::V_27;
-#else
-constexpr ProtocolVersion FIRST_PROTOCOL_CAP71 = ProtocolVersion::V_UINT32_MAX;
-#endif
 
 #ifdef CAP_0083
-constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_27;
+constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_28;
 #else
 constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
     ProtocolVersion::V_UINT32_MAX;

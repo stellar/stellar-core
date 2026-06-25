@@ -21,6 +21,16 @@ pub(crate) mod rust_bridge {
         data: Vec<u8>,
     }
 
+    // Result of an NTP clock-offset probe (see ntp.rs).
+    struct NtpProbeResult {
+        // False if the query failed (DNS failure, timeout, unreachable
+        // server). When false, offset_millis is meaningless.
+        succeeded: bool,
+        // Signed offset to add to the local clock to match the NTP server, in
+        // milliseconds (positive => local clock is behind true time).
+        offset_millis: i64,
+    }
+
     // We return these from get_xdr_hashes below.
     struct XDRFileHash {
         file: String,
@@ -188,6 +198,11 @@ pub(crate) mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+
+        // Query an NTP server for the local clock offset. Blocking; intended to
+        // be called from a background thread. Never panics: any failure is
+        // reported via NtpProbeResult::succeeded == false.
+        fn query_ntp_offset(server: &CxxString, timeout_seconds: u64) -> NtpProbeResult;
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
 
         // Ed25519 signature verification using dalek library.
@@ -416,6 +431,7 @@ use crate::common::*;
 use crate::ed25519_verify::*;
 use crate::i128::*;
 use crate::log::*;
+use crate::ntp::*;
 use crate::quorum_checker::*;
 use crate::soroban_fuzz::*;
 use crate::soroban_invoke::*;

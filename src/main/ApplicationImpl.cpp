@@ -42,6 +42,7 @@
 #include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
+#include "main/NtpProbe.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -148,6 +149,17 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     homeStr += mConfig.NODE_HOME_DOMAIN;
     TracyAppInfo(homeStr.c_str(), homeStr.size());
 
+#ifdef BUILD_TESTS
+    if (mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING !=
+        std::chrono::milliseconds::zero())
+    {
+        mVirtualClock.setSystemTimeOffset(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                mConfig.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING));
+        mStartedOn = clock.system_now();
+    }
+#endif
+
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
         {
@@ -239,20 +251,13 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
 void
 ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 {
-    // Subtle: initialize the bucket manager first before initializing the
-    // database. This is needed as some modes in core (such as in-memory) use a
-    // small database inside the bucket directory.
     mAppConnector = std::make_unique<AppConnector>(*this);
-    mBucketManager = BucketManager::create(getAppConnector());
 
     bool initNewDB =
         createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
-    if (initNewDB)
-    {
-        mBucketManager->maybeDropAndCreateNew();
-    }
 
     mDatabase = createDatabase();
+    mBucketManager = BucketManager::create(getAppConnector());
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -322,6 +327,12 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 
     enableInvariantsFromConfig();
 
+    // Create CommandHandler before newDB/ledger loading so that
+    // advanceLastClosedLedgerState can push snapshots to the QueryServer.
+    // This is safe because endpoints are blocked until we call setReady() after
+    // ledger loading is complete.
+    mCommandHandler = std::make_unique<CommandHandler>(*this);
+
     if (initNewDB)
     {
         newDB();
@@ -339,9 +350,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // Initialize banned accounts persistence and migrate any deprecated
     // FILTERED_G_ADDRESSES config entries into the persistent table.
     mBannedAccountsPersistor = std::make_unique<BannedAccountsPersistor>(*this);
-
-    // After everything is initialized, start accepting HTTP commands
-    mCommandHandler = std::make_unique<CommandHandler>(*this);
 
     LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }
@@ -374,6 +382,7 @@ void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
+    mBucketManager->maybeDropAndCreateNew();
     upgradeToCurrentSchemaAndMaybeRebuildLedger(false, true);
     mLedgerManager->startNewLedger();
 }
@@ -782,6 +791,14 @@ ApplicationImpl::startServices()
     {
         mHerder->setUpgrades(mConfig);
     }
+
+    // Start NTP-based clock-drift detection
+    if (mConfig.ntpDriftCheckEnabled() &&
+        mVirtualClock.getMode() == VirtualClock::REAL_TIME)
+    {
+        mNtpProbe = NtpProbe::create(*this);
+        mNtpProbe->start();
+    }
 }
 
 void
@@ -839,6 +856,10 @@ ApplicationImpl::idempotentShutdown(bool forgetBuckets)
         mOverlayManager->shutdown();
     }
     mSelfCheckTimer.cancel();
+    if (mNtpProbe)
+    {
+        mNtpProbe->shutdown();
+    }
     shutdownWorkScheduler();
     if (mProcessManager)
     {

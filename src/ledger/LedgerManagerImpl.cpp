@@ -30,6 +30,7 @@
 #include "ledger/P23HotArchiveBug.h"
 #include "ledger/SharedModuleCacheCompiler.h"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "rust/RustBridge.h"
@@ -344,7 +345,6 @@ LedgerManagerImpl::ApplyState::manuallyAdvanceLedgerHeader(
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mApplyState(app)
-    , mNumHistoricalSnapshots(app.getConfig().QUERY_SNAPSHOT_LEDGERS)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -360,8 +360,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 
     auto initialState = std::make_shared<ImmutableLedgerData>(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), emptyLcl,
-        emptyHas, /*sorobanConfig*/ std::nullopt, /*prevState*/ nullptr,
-        mNumHistoricalSnapshots);
+        emptyHas, /*sorobanConfig*/ std::nullopt, mApp.getMetrics());
 
     mApplyState.setLedgerState(initialState);
     {
@@ -1374,7 +1373,7 @@ LedgerManagerImpl::ledgerCloseComplete(uint32_t lcl, bool calledViaExternalize,
     // "synced"
     bool appliedLatest = false;
 
-    if (latestHeardFromNetwork == lcl)
+    if (latestHeardFromNetwork == lcl && mApp.getHerder().isTracking())
     {
         mApp.getLedgerManager().moveToSynced();
         appliedLatest = true;
@@ -1407,6 +1406,12 @@ LedgerManagerImpl::advanceLedgerStateAndPublish(
     // ledger.
     releaseAssert(threadIsMain());
     advanceLastClosedLedgerState(newLedgerState);
+
+    // Push the new state to the QueryServer. To avoid gaps in history, the
+    // query server should only store ledgers we have actually applied, so we
+    // update the snapshot here instead of advanceLastClosedLedgerState.
+    mApp.getCommandHandler().addSnapshot(newLedgerState);
+
     // We can publish Soroban metrics at any point after advancing the LCL
     // state.
     publishSorobanMetrics();
@@ -2098,24 +2103,26 @@ LedgerManagerImpl::advanceLastClosedLedgerState(
     releaseAssert(threadIsMain());
     releaseAssert(newLedgerState);
 
-    JITTER_INJECT_DELAY();
-    SharedLockExclusive lock(mLastClosedLedgerStateMutex);
-    JITTER_INJECT_DELAY();
-    if (mLastClosedLedgerState)
     {
-        CLOG_DEBUG(
-            Ledger, "Advancing LCL: {} -> {}",
-            ledgerAbbrev(
-                mLastClosedLedgerState->getLastClosedLedgerHeader().header),
-            ledgerAbbrev(newLedgerState->getLastClosedLedgerHeader().header));
+        JITTER_INJECT_DELAY();
+        SharedLockExclusive lock(mLastClosedLedgerStateMutex);
+        JITTER_INJECT_DELAY();
+        if (mLastClosedLedgerState)
+        {
+            CLOG_DEBUG(
+                Ledger, "Advancing LCL: {} -> {}",
+                ledgerAbbrev(
+                    mLastClosedLedgerState->getLastClosedLedgerHeader().header),
+                ledgerAbbrev(
+                    newLedgerState->getLastClosedLedgerHeader().header));
+        }
+        mLastClosedLedgerState = newLedgerState;
     }
-    mLastClosedLedgerState = newLedgerState;
 }
 
 ImmutableLedgerDataPtr
 LedgerManagerImpl::buildLedgerState(
     LedgerHeader const& header, HistoryArchiveState const& has,
-    ImmutableLedgerDataPtr prevState,
     std::optional<SorobanNetworkConfig> sorobanConfig)
 {
     mApplyState.threadInvariant();
@@ -2130,14 +2137,13 @@ LedgerManagerImpl::buildLedgerState(
         // Caller already loaded config (e.g. from LTX during ledger close)
         return std::make_shared<ImmutableLedgerData>(
             bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-            std::move(sorobanConfig), std::move(prevState),
-            mNumHistoricalSnapshots);
+            std::move(sorobanConfig), mApp.getMetrics());
     }
 
     // Auto-load SorobanNetworkConfig from the BucketList
     return ImmutableLedgerData::createAndMaybeLoadConfig(
         bm.getLiveBucketList(), bm.getHotArchiveBucketList(), lcl, has,
-        mApp.getMetrics(), std::move(prevState), mNumHistoricalSnapshots);
+        mApp.getMetrics());
 }
 
 ImmutableLedgerDataPtr
@@ -2145,8 +2151,7 @@ LedgerManagerImpl::advanceApplySnapshotAndMakeLedgerState(
     LedgerHeader const& header, HistoryArchiveState const& has,
     std::optional<SorobanNetworkConfig> sorobanConfig)
 {
-    auto state = buildLedgerState(header, has, mApplyState.getLedgerState(),
-                                  std::move(sorobanConfig));
+    auto state = buildLedgerState(header, has, std::move(sorobanConfig));
     mApplyState.setLedgerState(state);
     return state;
 }
@@ -2220,16 +2225,20 @@ LedgerManagerImpl::updateCanonicalStateForTesting(LedgerHeader const& header)
     HistoryArchiveState has;
     has.currentLedger = header.ledgerSeq;
 
-    JITTER_INJECT_DELAY();
-    SharedLockExclusive lock(mLastClosedLedgerStateMutex);
-    JITTER_INJECT_DELAY();
+    ImmutableLedgerDataPtr state;
+    {
+        JITTER_INJECT_DELAY();
+        SharedLockExclusive lock(mLastClosedLedgerStateMutex);
+        JITTER_INJECT_DELAY();
 
-    auto state =
-        buildLedgerState(header, has, mLastClosedLedgerState, std::nullopt);
+        state = buildLedgerState(header, has, /*sorobanConfig=*/std::nullopt);
 
-    mApplyState.setLedgerStateForTesting(state);
+        mApplyState.setLedgerStateForTesting(state);
 
-    mLastClosedLedgerState = state;
+        mLastClosedLedgerState = state;
+    }
+
+    mApp.getCommandHandler().addSnapshot(state);
 }
 #endif
 }
