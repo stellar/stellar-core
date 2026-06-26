@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <compare>
 #include <type_traits>
 
 #include "bucket/BucketUtils.h"
@@ -122,6 +123,10 @@ struct LedgerEntryIdCmp
         return false;
     }
 };
+
+// Like LedgerEntryIdCmp, but only compares LedgerKeys, and does a 3-way
+// comparison instead of a less-than.
+std::partial_ordering compareLedgerKeys(LedgerKey const& a, LedgerKey const& b);
 
 /**
  * Compare two BucketEntries for identity by comparing their respective
