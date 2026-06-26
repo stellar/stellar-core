@@ -732,31 +732,30 @@ class BucketEntryIterator
     {
         return mKey;
     }
-    bool advance();
-};
 
-bool
-BucketEntryIterator::advance()
-{
-    while (mStream.readOne(mEntry))
+    bool
+    advance()
     {
-        if (isBucketMetaEntry<LiveBucket>(mEntry))
+        while (mStream.readOne(mEntry))
         {
-            continue;
-        }
-        mKey = getBucketLedgerKey(mEntry);
-        if (mKey.type() > mType)
-        {
-            break;
-        }
+            if (isBucketMetaEntry<LiveBucket>(mEntry))
+            {
+                continue;
+            }
+            mKey = getBucketLedgerKey(mEntry);
+            if (mKey.type() > mType)
+            {
+                break;
+            }
 
-        if (mKey.type() == mType)
-        {
-            return true;
+            if (mKey.type() == mType)
+            {
+                return true;
+            }
         }
+        return false;
     }
-    return false;
-}
+};
 } // namespace
 
 void
@@ -821,6 +820,10 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
         }
     }
 
+    // The leftIndex wins if it should come before the rightIndex. This happens
+    // when the left key is less than the right key, or if they are equal and
+    // the left index is less than the right index (newer buckets shadow older
+    // buckets).
     auto leftWins = [&iterators](int leftIndex, int rightIndex) -> bool {
         if (leftIndex == exhausted)
         {
@@ -867,7 +870,7 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
     {
         int index = tree[0];
         auto& iter = iterators[index];
-        // Deduplicate entries with the same key across buckets
+        // Only call the callback if this is the first time we've seen the key
         if (auto& key = iter.getKey(); first || key != last)
         {
             last = key;
@@ -883,17 +886,17 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
         {
             tree[index + numIterators] = exhausted;
         }
-        int winner = tree[index + numIterators];
 
-        // Update tournament up the tree to the root
-        int i = (index + numIterators) / 2;
-        while (i > 0)
+        // Update tournament up the tree to the root. As before, we store the
+        // loser at each node and keep track of the winner in `winner` and at
+        // tree[0].
+        int winner = tree[index + numIterators];
+        for (int i = (index + numIterators) / 2; i > 0; i /= 2)
         {
             if (leftWins(tree[i], winner))
             {
                 std::swap(tree[i], winner);
             }
-            i /= 2;
         }
 
         tree[0] = winner;

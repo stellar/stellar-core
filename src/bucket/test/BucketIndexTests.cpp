@@ -46,6 +46,20 @@ class BucketIndexTest
     UnorderedMap<LedgerKey, LedgerEntry> mContractCodeEntries;
     UnorderedMap<LedgerKey, LedgerEntry> mContractDataEntries;
 
+    // Complete mapping of every key currently live in the BucketList
+    // (including TTLs), maintained across inserts, updates, and deletes.
+    // Unlike mTestEntries, which only tracks a sampled subset of entries, this
+    // tracks every generated batch. Not maintained by
+    // insertSimilarContractDataKeys, and only insertions are tracked for
+    // BucketIndexPoolShareTest (its update/delete path bypasses this map).
+    UnorderedMap<LedgerKey, LedgerEntry> mAllEntries;
+
+    // Number of ledgers after creation at which generated TTLs expire. Must
+    // exceed the number of ledgers buildBucketList closes
+    // (~levelHalf(mLevelsToBuild - 1)), or eviction would start deleting
+    // entries behind the harness maps' backs.
+    static constexpr uint32_t TTL_DURATION = 10'000;
+
     // Set of keys to query BucketList for
     LedgerKeySet mKeysToSearch;
     stellar::uniform_int_distribution<uint8_t> mDist;
@@ -122,7 +136,7 @@ class BucketIndexTest
                     ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
 
                     // Entry should never expire
-                    ttl.data.ttl().liveUntilLedgerSeq = ledger + 10'000;
+                    ttl.data.ttl().liveUntilLedgerSeq = ledger + TTL_DURATION;
                     ttl.lastModifiedLedgerSeq = ledger;
 
                     // Add TTL key to mGeneratedKeys to maintain uniqueness
@@ -133,7 +147,14 @@ class BucketIndexTest
                 }
             }
 
+            // Track insertions after calling f so that any entries f appends
+            // (see BucketIndexPoolShareTest) are included
             f(entries);
+            for (auto const& e : entries)
+            {
+                mAllEntries[LedgerEntryKey(e)] = e;
+            }
+
             closeLedger(*mApp);
         } while (!LiveBucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
     }
@@ -144,6 +165,10 @@ class BucketIndexTest
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
     {
+        // Guard against runs long enough for generated TTLs to expire, see
+        // TTL_DURATION
+        releaseAssertOrThrow(LiveBucketList::levelHalf(mLevelsToBuild - 1) <
+                             TTL_DURATION);
     }
 
     BucketManager&
@@ -168,6 +193,12 @@ class BucketIndexTest
     getContractDataEntries() const
     {
         return mContractDataEntries;
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> const&
+    getAllEntries() const
+    {
+        return mAllEntries;
     }
 
     virtual void
@@ -207,6 +238,7 @@ class BucketIndexTest
                     e.lastModifiedLedgerSeq++;
                     auto iter = mTestEntries.find(LedgerEntryKey(e));
                     iter->second = e;
+                    mAllEntries[LedgerEntryKey(e)] = e;
 
                     if (sorobanOnly)
                     {
@@ -224,6 +256,7 @@ class BucketIndexTest
                 for (auto const& k : toDestroy)
                 {
                     mTestEntries.erase(k);
+                    mAllEntries.erase(k);
                     if (sorobanOnly)
                     {
                         if (k.type() == CONTRACT_CODE)
@@ -332,7 +365,7 @@ class BucketIndexTest
             ttl.data.type(TTL);
             ttl.data.ttl().keyHash = getTTLKey(e).ttl().keyHash;
             ttl.data.ttl().liveUntilLedgerSeq =
-                e.lastModifiedLedgerSeq + 10'000;
+                e.lastModifiedLedgerSeq + TTL_DURATION;
 
             // Add TTL key to mGeneratedKeys to maintain uniqueness
             auto ttlKey = LedgerEntryKey(ttl);
@@ -1582,6 +1615,286 @@ TEST_CASE("getRangeForType bounds verification", "[bucket][bucketindex]")
                                                  REQUIRE(false);
                                                  return Loop::INCOMPLETE;
                                              });
+        }
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("scanForLiveEntriesOfType randomized testing",
+          "[bucket][bucketindex]")
+{
+    // Scan for each of the given types and check the result against the
+    // harness's complete entry map
+    auto verifyScans = [](BucketIndexTest const& test,
+                          std::vector<LedgerEntryType> const& types) {
+        ImmutableLedgerView ledgerView =
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
+        for (LedgerEntryType type : types)
+        {
+            UnorderedMap<LedgerKey, LedgerEntry> expected;
+            for (auto const& [k, e] : test.getAllEntries())
+            {
+                if (k.type() == type)
+                {
+                    expected.emplace(k, e);
+                }
+            }
+
+            UnorderedMap<LedgerKey, LedgerEntry> found;
+            ledgerView.scanCurrentLiveEntriesOfType(
+                type, [&](LedgerEntry const& entry, LedgerKey const& key) {
+                    REQUIRE(key.type() == type);
+                    REQUIRE(key == LedgerEntryKey(entry));
+
+                    // Each key should only be emitted once
+                    REQUIRE(found.emplace(key, entry).second);
+                });
+            REQUIRE(found == expected);
+        }
+    };
+
+    SECTION("soroban only")
+    {
+        auto f = [&](Config& cfg) {
+            BucketIndexTest test{cfg};
+            test.buildMultiVersionTest(/*sorobanOnly=*/true);
+            verifyScans(test, {CONTRACT_DATA, CONTRACT_CODE, TTL});
+
+            // No OFFER entries were generated, so the scan should never invoke
+            // the callback
+            ImmutableLedgerView ledgerView =
+                test.getApp().getLedgerManager().copyImmutableLedgerView();
+            ledgerView.scanCurrentLiveEntriesOfType(
+                OFFER,
+                [](LedgerEntry const&, LedgerKey const&) { REQUIRE(false); });
+        };
+
+        testAllIndexTypes(f);
+    }
+
+    SECTION("all types")
+    {
+        auto f = [&](Config& cfg) {
+            BucketIndexTest test{cfg};
+            test.buildMultiVersionTest();
+
+            // ACCOUNT is skipped because genesis entries (the root account)
+            // are in the BucketList but not tracked by the harness;
+            // CONFIG_SETTING (also genesis) is excluded from generation
+            // entirely.
+            verifyScans(test,
+                        {TRUSTLINE, OFFER, DATA, CLAIMABLE_BALANCE,
+                         LIQUIDITY_POOL, CONTRACT_DATA, CONTRACT_CODE, TTL});
+        };
+
+        testAllIndexTypes(f);
+    }
+}
+
+TEST_CASE("scanForLiveEntriesOfType loser tree unit tests",
+          "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+        UnorderedSet<LedgerKey> generatedKeys;
+
+        // Pad each bucket with smaller- (ACCOUNT) and larger-typed
+        // (CLAIMABLE_BALANCE) entries around the target OFFER entries to
+        // exercise the seek to the range start and iterator termination.
+        auto makeBucket = [&](std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> liveEntries,
+                              std::vector<LedgerKey> const& deadEntries) {
+            for (auto const& padType : {ACCOUNT, CLAIMABLE_BALANCE})
+            {
+                auto padding =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {padType}, 2, generatedKeys);
+                liveEntries.insert(liveEntries.end(), padding.begin(),
+                                   padding.end());
+            }
+            return LiveBucket::fresh(bm, vers, initEntries, liveEntries,
+                                     deadEntries, /*countMergeEvents=*/true,
+                                     clock.getIOContext(), /*doFsync=*/true);
+        };
+
+        // Place bucket i at the i'th slot in the order the merge iterates
+        // buckets: level 0 curr, level 0 snap, level 1 curr, ...
+        auto makeViewFromBuckets =
+            [&](std::vector<std::shared_ptr<LiveBucket>> const& buckets)
+            -> ImmutableLedgerView {
+            LiveBucketList bl;
+            for (size_t i = 0; i < buckets.size(); ++i)
+            {
+                auto& level = bl.getLevel(static_cast<uint32_t>(i / 2));
+                if (i % 2 == 0)
+                {
+                    level.setCurr(buckets[i]);
+                }
+                else
+                {
+                    level.setSnap(buckets[i]);
+                }
+            }
+
+            LedgerHeaderHistoryEntry lcl;
+            lcl.header.ledgerSeq = 1;
+            lcl.header.ledgerVersion = vers;
+            HistoryArchiveState has;
+            has.currentLedger = lcl.header.ledgerSeq;
+            auto state = std::make_shared<ImmutableLedgerData>(
+                bl, bm.getHotArchiveBucketList(), lcl, has, std::nullopt,
+                app->getMetrics());
+            return ImmutableLedgerView{state, app->getMetrics()};
+        };
+
+        auto scan = [](ImmutableLedgerView const& view, LedgerEntryType type) {
+            UnorderedMap<LedgerKey, LedgerEntry> found;
+            view.scanCurrentLiveEntriesOfType(
+                type, [&](LedgerEntry const& entry, LedgerKey const& key) {
+                    REQUIRE(key.type() == type);
+                    REQUIRE(key == LedgerEntryKey(entry));
+
+                    // Each key must be emitted exactly once
+                    REQUIRE(found.emplace(key, entry).second);
+                });
+            return found;
+        };
+
+        auto requireNoCallback = [](ImmutableLedgerView const& view,
+                                    LedgerEntryType type) {
+            view.scanCurrentLiveEntriesOfType(
+                type,
+                [](LedgerEntry const&, LedgerKey const&) { REQUIRE(false); });
+        };
+
+        SECTION("k disjoint buckets")
+        {
+            for (size_t k = 0; k < LiveBucketList::kNumLevels; ++k)
+            {
+                INFO("k = " << k);
+                auto offers =
+                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                        {OFFER}, 4 * k, generatedKeys);
+
+                std::vector<std::vector<LedgerEntry>> perBucket(k);
+                for (size_t i = 0; i < offers.size(); ++i)
+                {
+                    perBucket[i % k].emplace_back(offers[i]);
+                }
+
+                std::vector<std::shared_ptr<LiveBucket>> buckets;
+                for (auto const& liveEntries : perBucket)
+                {
+                    buckets.emplace_back(makeBucket({}, liveEntries, {}));
+                }
+
+                UnorderedMap<LedgerKey, LedgerEntry> expected;
+                for (auto const& e : offers)
+                {
+                    expected.emplace(LedgerEntryKey(e), e);
+                }
+
+                auto view = makeViewFromBuckets(buckets);
+                REQUIRE(scan(view, OFFER) == expected);
+            }
+        }
+
+        SECTION("shadowing across buckets")
+        {
+            auto offers =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {OFFER}, 7, generatedKeys);
+
+            auto withSeq = [](LedgerEntry e, uint32_t seq) -> LedgerEntry {
+                e.lastModifiedLedgerSeq = seq;
+                return e;
+            };
+
+            LedgerEntry updatedNewer = withSeq(offers[0], 100);
+            LedgerEntry updatedOlder = withSeq(offers[0], 50);
+            LedgerEntry deletedLive = withSeq(offers[1], 10);
+            LedgerKey deletedKey = LedgerEntryKey(deletedLive);
+            LedgerEntry recreatedLive = withSeq(offers[2], 77);
+            LedgerKey recreatedKey = LedgerEntryKey(recreatedLive);
+            LedgerEntry initOnly = offers[3];
+            LedgerEntry middleOnly = offers[4];
+            LedgerKey tombstoneOnlyKey = LedgerEntryKey(offers[5]);
+            LedgerEntry inEveryBucket = offers[6];
+
+            std::vector<std::shared_ptr<LiveBucket>> buckets = {
+                makeBucket(
+                    {},
+                    {updatedNewer, recreatedLive, withSeq(inEveryBucket, 90)},
+                    {deletedKey}),
+                makeBucket({}, {withSeq(inEveryBucket, 80)},
+                           {tombstoneOnlyKey}),
+                makeBucket(
+                    {}, {deletedLive, middleOnly, withSeq(inEveryBucket, 70)},
+                    {recreatedKey}),
+                makeBucket({}, {updatedOlder, withSeq(inEveryBucket, 60)}, {}),
+                makeBucket({initOnly}, {withSeq(inEveryBucket, 50)}, {}),
+            };
+
+            UnorderedMap<LedgerKey, LedgerEntry> expected;
+            for (LedgerEntry const& e :
+                 {updatedNewer, recreatedLive, initOnly, middleOnly,
+                  withSeq(inEveryBucket, 90)})
+            {
+                expected.emplace(LedgerEntryKey(e), e);
+            }
+
+            auto view = makeViewFromBuckets(buckets);
+            REQUIRE(scan(view, OFFER) == expected);
+        }
+
+        SECTION("same bucket at two slots")
+        {
+            auto offers =
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                    {OFFER}, 6, generatedKeys);
+            auto bucket = makeBucket({}, offers, {});
+
+            UnorderedMap<LedgerKey, LedgerEntry> expected;
+            for (auto const& e : offers)
+            {
+                expected.emplace(LedgerEntryKey(e), e);
+            }
+
+            auto view = makeViewFromBuckets({bucket, bucket});
+            REQUIRE(scan(view, OFFER) == expected);
+        }
+
+        SECTION("all entries dead")
+        {
+            auto deadKeys =
+                LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                    {OFFER}, 9, generatedKeys);
+
+            std::vector<std::shared_ptr<LiveBucket>> buckets;
+            for (size_t i = 0; i < 3; ++i)
+            {
+                std::vector<LedgerKey> bucketKeys(
+                    deadKeys.begin() + i * 3, deadKeys.begin() + (i + 1) * 3);
+                buckets.emplace_back(makeBucket({}, {}, bucketKeys));
+            }
+
+            auto view = makeViewFromBuckets(buckets);
+            requireNoCallback(view, OFFER);
+        }
+
+        SECTION("no bucket has the type")
+        {
+            std::vector<std::shared_ptr<LiveBucket>> buckets = {
+                makeBucket({}, {}, {}), makeBucket({}, {}, {}),
+                makeBucket({}, {}, {})};
+            // The buckets are non-empty (makeBucket adds non-OFFER padding);
+            // this checks a bucket with entries but no OFFER range.
+            auto view = makeViewFromBuckets(buckets);
+            requireNoCallback(view, OFFER);
         }
     };
 
