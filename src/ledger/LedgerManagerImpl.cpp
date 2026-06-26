@@ -76,6 +76,7 @@
 
 #include "LedgerManagerImpl.h"
 #include <chrono>
+#include <future>
 #include <memory>
 #include <optional>
 #include <regex>
@@ -318,7 +319,8 @@ LedgerManagerImpl::ApplyState::updateInMemorySorobanState(
     std::vector<LedgerKey> const& deadEntries, LedgerHeader const& lh,
     std::optional<SorobanNetworkConfig const> const& sorobanConfig)
 {
-    assertWritablePhase();
+    releaseAssert(mPhase == Phase::SETTING_UP_STATE ||
+                  mPhase == Phase::COMMITTING);
     mInMemorySorobanState.updateState(initEntries, liveEntries, deadEntries, lh,
                                       sorobanConfig,
                                       getMetrics().mSorobanMetrics);
@@ -2988,25 +2990,29 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     // `ledgerApplied` protects this call with a mutex
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
+
+    EvictedStateVectors evictedState;
+    std::vector<LedgerKey> restoredHotArchiveKeys;
+    std::future<void> hotArchiveBatchFuture;
+
     // Any V20 features must be behind initialLedgerVers check, see comment
     // in LedgerManagerImpl::ledgerApplied
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        bool hotArchiveBatchedAdded = false;
+
         // In `getAllTTLKeysWithoutSealing` it is important not to seal ltx,
         // because it is still being modified by the eviction flow.
         // `getAllTTLKeysWithoutSealing` must be called at the right time
         // _after_ all operations have been applied, but _before_ evictions.
         auto sorobanConfig = SorobanNetworkConfig::loadFromLedger(ltx);
-        auto evictedState =
-            mApp.getBucketManager().resolveBackgroundEvictionScan(
-                lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
+        evictedState = mApp.getBucketManager().resolveBackgroundEvictionScan(
+            lclApplyView, ltx, ltx.getAllKeysWithoutSealing());
 
         if (protocolVersionStartsFrom(
                 initialLedgerVers,
                 LiveBucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
-            std::vector<LedgerKey> restoredHotArchiveKeys;
-
             auto const& restoredHotArchiveKeyMap =
                 ltx.getRestoredHotArchiveKeys();
             for (auto const& [key, entry] : restoredHotArchiveKeyMap)
@@ -3033,12 +3039,10 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                 p23_hot_archive_bug::addHotArchiveBatchWithP23HotArchiveFix(
                     ltx, mApp, lclApplyView, lh, evictedState.archivedEntries,
                     restoredHotArchiveKeys);
+                hotArchiveBatchedAdded = true;
             }
             else
             {
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedState.archivedEntries,
-                    restoredHotArchiveKeys);
                 // Validate evicted entries against Protocol 23 corruption
                 // data if configured
                 if (mApp.getProtocol23CorruptionDataVerifier())
@@ -3049,6 +3053,12 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
                             lh.ledgerVersion);
                 }
             }
+        }
+        else
+        {
+            // There is no hot archive support yet, so just mark the batch as
+            // already 'added' to avoid trying to add it later.
+            hotArchiveBatchedAdded = true;
         }
 
         if (ledgerCloseMeta)
@@ -3066,6 +3076,19 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
         // important to maintain as a protocol implementation detail.
         SorobanNetworkConfig::maybeSnapshotSorobanStateSize(
             lh.ledgerSeq, mApplyState.getSorobanInMemoryStateSize(), ltx, mApp);
+
+        if (!hotArchiveBatchedAdded)
+        {
+            hotArchiveBatchFuture =
+                std::async(std::launch::async,
+                           [this, lh, evictedState = std::move(evictedState),
+                            restoredHotArchiveKeys =
+                                std::move(restoredHotArchiveKeys)]() mutable {
+                               mApp.getBucketManager().addHotArchiveBatch(
+                                   mApp, lh, evictedState.archivedEntries,
+                                   restoredHotArchiveKeys);
+                           });
+        }
     }
     std::optional<SorobanNetworkConfig> finalSorobanConfig;
     // NB: We're looking for the most up-to-date config at this point, so we
@@ -3078,12 +3101,27 @@ LedgerManagerImpl::finalizeLedgerTxnChanges(
     }
     // NB: getAllEntries seals the ltx.
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+
+    // Launch async task to update in-memory Soroban state. This is independent
+    // from both addHotArchiveBatch and addLiveBatch, so all can run in
+    // parallel.
+    auto inMemoryStateUpdateFuture = std::async(
+        std::launch::async, [this, &initEntries, &liveEntries, &deadEntries, lh,
+                             &finalSorobanConfig]() {
+            mApplyState.updateInMemorySorobanState(
+                initEntries, liveEntries, deadEntries, lh, finalSorobanConfig);
+        });
+
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, initEntries);
     mApplyState.addAnyContractsToModuleCache(lh.ledgerVersion, liveEntries);
     mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
                                          deadEntries);
-    mApplyState.updateInMemorySorobanState(initEntries, liveEntries,
-                                           deadEntries, lh, finalSorobanConfig);
+    // Wait for all async operations to complete before returning.
+    if (hotArchiveBatchFuture.valid())
+    {
+        hotArchiveBatchFuture.get();
+    }
+    inMemoryStateUpdateFuture.get();
     return finalSorobanConfig;
 }
 
