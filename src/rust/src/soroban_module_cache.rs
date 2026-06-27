@@ -14,12 +14,12 @@
 // current-protocol cache as soon as we start, as well as the next-protocol
 // cache (if it exists) so that we can upgrade without stalling.
 
+#[cfg(feature = "next")]
+use crate::soroban_proto_all::p28;
 use crate::{
     rust_bridge::CxxBuf,
     soroban_proto_all::{get_host_module_for_protocol, p23, p24, p25, p26, p27, protocol_agnostic},
 };
-#[cfg(feature = "next")]
-use crate::soroban_proto_all::p28;
 
 pub(crate) struct SorobanModuleCache {
     pub(crate) p23_cache: p23::soroban_proto_any::ProtocolSpecificModuleCache,

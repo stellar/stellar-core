@@ -698,17 +698,16 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
             // The destination is the SAC-transfer contract wrapped in a muxed
             // contract address; the SAC de-muxes to the underlying contract for
             // the balance and surfaces the id via the `to_muxed_id` event.
-            REQUIRE(client.transfer(
-                a1,
-                makeMuxedContractAddress(
-                    transferContract.getAddress().contractId(),
-                    987'654'321'987'654'321ULL),
-                400'000'000));
+            REQUIRE(
+                client.transfer(a1,
+                                makeMuxedContractAddress(
+                                    transferContract.getAddress().contractId(),
+                                    987'654'321'987'654'321ULL),
+                                400'000'000));
             REQUIRE(*client.lastEvent() ==
-                    client.makeTransferEvent(a1Address,
-                                             transferContract.getAddress(),
-                                             400'000'000,
-                                             987'654'321'987'654'321ULL));
+                    client.makeTransferEvent(
+                        a1Address, transferContract.getAddress(), 400'000'000,
+                        987'654'321'987'654'321ULL));
         }
         if (!useNativeAsset)
         {
