@@ -59,6 +59,19 @@ cereal_override(cereal::JSONOutputArchive& ar, stellar::SCAddress const& addr,
                 addr.liquidityPoolId().data(), addr.liquidityPoolId().size())),
             field);
         return;
+#ifdef CAP_0084_MUXED_CONTRACT
+    case stellar::SC_ADDRESS_TYPE_MUXED_CONTRACT:
+        ar.setNextName(field);
+        ar.startNode();
+        xdr::archive(ar, addr.muxedContract().id, "id");
+        xdr::archive(ar,
+                     stellar::strKey::toStrKey(stellar::strKey::STRKEY_CONTRACT,
+                                               addr.muxedContract().contractId)
+                         .value,
+                     "contractId");
+        ar.finishNode();
+        return;
+#endif
     default:
         // Unknown address type - serialize as "Unknown(type_id)"
         xdr::archive(ar,
