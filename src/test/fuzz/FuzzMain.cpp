@@ -33,6 +33,7 @@
 #endif
 
 #include "test/fuzz/FuzzTargetRegistry.h"
+#include "test/fuzz/ScopedCatchResultCapture.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 
@@ -95,6 +96,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
 
     // Run the target once
+    stellar::ScopedCatchResultCapture catchCapture;
     switch (gFuzzTarget->run(data, size))
     {
     case stellar::FuzzResultCode::FUZZ_SUCCESS:

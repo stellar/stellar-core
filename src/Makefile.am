@@ -575,10 +575,10 @@ FUZZ_LINKER_FLAGS = -Wl,--whole-archive,libfuzz_common.a,--no-whole-archive $(if
 # - Create regression test target
 
 # List of fuzz targets (lowercase names)
-FUZZ_TARGETS = tx overlay soroban_expr soroban_wasmi
+FUZZ_TARGETS = tx overlay scp parallel_tx bucketlist soroban_expr soroban_wasmi
 
 # Fuzz binaries are noinst because they're development tools
-noinst_PROGRAMS = fuzz_tx fuzz_overlay fuzz_soroban_expr fuzz_soroban_wasmi
+noinst_PROGRAMS = fuzz_tx fuzz_overlay fuzz_scp fuzz_parallel_tx fuzz_bucketlist fuzz_soroban_expr fuzz_soroban_wasmi
 
 # Each fuzz target only compiles FuzzMain.cpp (with its specific -DFUZZ_TARGET_NAME)
 # and links against the shared libfuzz_common.a library.
@@ -591,6 +591,21 @@ fuzz_overlay_SOURCES = $(FUZZ_MAIN)
 fuzz_overlay_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"overlay\"
 fuzz_overlay_LDADD = $(FUZZ_LIBS)
 fuzz_overlay_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+fuzz_scp_SOURCES = $(FUZZ_MAIN)
+fuzz_scp_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"scp\"
+fuzz_scp_LDADD = $(FUZZ_LIBS)
+fuzz_scp_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+fuzz_parallel_tx_SOURCES = $(FUZZ_MAIN)
+fuzz_parallel_tx_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"parallel_tx\"
+fuzz_parallel_tx_LDADD = $(FUZZ_LIBS)
+fuzz_parallel_tx_LDFLAGS = $(FUZZ_LINKER_FLAGS)
+
+fuzz_bucketlist_SOURCES = $(FUZZ_MAIN)
+fuzz_bucketlist_CXXFLAGS = $(FUZZ_CXXFLAGS) -DFUZZ_TARGET_NAME=\"bucketlist\"
+fuzz_bucketlist_LDADD = $(FUZZ_LIBS)
+fuzz_bucketlist_LDFLAGS = $(FUZZ_LINKER_FLAGS)
 
 # Soroban fuzz targets (require --features fuzz in Rust build)
 fuzz_soroban_expr_SOURCES = $(FUZZ_MAIN)

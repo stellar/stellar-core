@@ -552,7 +552,8 @@ closeLedgerOn(Application& app, int day, int month, int year,
 
 TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
-            ParallelSorobanOrder const& parallelSorobanOrder)
+            ParallelSorobanOrder const& parallelSorobanOrder,
+            ApplyOrderTxCallback const& applyOrderTxCallback)
 {
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -561,12 +562,14 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, true,
-                         emptyUpgradeSteps, parallelSorobanOrder);
+                         emptyUpgradeSteps, parallelSorobanOrder,
+                         applyOrderTxCallback);
 }
 
 TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
-            bool strictOrder, xdr::xvector<UpgradeType, 6> const& upgrades)
+            bool strictOrder, xdr::xvector<UpgradeType, 6> const& upgrades,
+            ApplyOrderTxCallback const& applyOrderTxCallback)
 {
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -575,14 +578,15 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
     auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, strictOrder,
-                         upgrades);
+                         upgrades, {}, applyOrderTxCallback);
 }
 
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder,
               xdr::xvector<UpgradeType, 6> const& upgrades,
-              ParallelSorobanOrder const& parallelSorobanOrder)
+              ParallelSorobanOrder const& parallelSorobanOrder,
+              ApplyOrderTxCallback const& applyOrderTxCallback)
 {
     // Ensure that parallelSorobanOrder is only used with strictOrder
     releaseAssert((parallelSorobanOrder.empty() || strictOrder));
@@ -635,6 +639,18 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         // same order as they were constructed. It could also imply the txs
         // themselves maybe intentionally invalid for testing purpose.
         releaseAssert(txSet.second->checkValid(app, 0, 0));
+    }
+    if (applyOrderTxCallback)
+    {
+        size_t txIndex = 0;
+        for (auto const& phase : txSet.second->getPhasesInApplyOrder())
+        {
+            for (auto const& tx : phase)
+            {
+                applyOrderTxCallback(txIndex, tx);
+                ++txIndex;
+            }
+        }
     }
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      upgrades);

@@ -220,6 +220,7 @@ pub(crate) mod p27 {
     }
 }
 
+#[cfg(not(feature = "fastdev"))]
 #[path = "."]
 pub(crate) mod p26 {
     pub(crate) extern crate soroban_env_host_p26;
@@ -1477,6 +1478,7 @@ const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p24),
     #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p25),
+    #[cfg(not(feature = "fastdev"))]
     proto_versioned_functions_for_module!(p26),
     proto_versioned_functions_for_module!(p27),
 ];
@@ -1518,8 +1520,8 @@ fn protocol_dispatches_as_expected() {
 
     #[cfg(feature = "fastdev")]
     {
-        assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 26);
-        assert_eq!(get_host_module_for_protocol(26, 26).unwrap().max_proto, 26);
+        assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 27);
+        assert_eq!(get_host_module_for_protocol(27, 27).unwrap().max_proto, 27);
     }
 
     #[cfg(all(feature = "fastdev", feature = "next"))]
