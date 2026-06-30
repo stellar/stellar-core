@@ -1802,6 +1802,10 @@ Peer::updatePeerRecordAfterAuthentication()
                 /* preferredTypeKnown */ true);
         }
     }
+    else
+    {
+        overlayManager.recordProbedNonQsetAddress(getAddress());
+    }
 
     CLOG_DEBUG(Overlay, "successful handshake with {}@{}",
                mAppConnector.getConfig().toShortString(mPeerID), toString());

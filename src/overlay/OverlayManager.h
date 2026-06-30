@@ -143,6 +143,7 @@ class OverlayManager
 
     virtual bool isPreferred(Peer* peer) const = 0;
     virtual bool isDirectQsetPeer(NodeID const& nodeID) const = 0;
+    virtual void recordProbedNonQsetAddress(PeerBareAddress const& address) = 0;
     virtual bool isPossiblyPreferred(std::string const& ip) const = 0;
     virtual bool haveSpaceForConnection(std::string const& ip) const = 0;
 

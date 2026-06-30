@@ -214,6 +214,13 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
     ZoneScoped;
     releaseAssert(threadIsMain());
 
+    if (peer->isMutualQsetPeer())
+    {
+        // Mutual direct-qset peers are operator-bounded by QUORUM_SET and must
+        // not consume ordinary inbound/outbound authenticated capacity.
+        return moveToAuthenticated(peer);
+    }
+
     CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {}",
                peer->toString());
     if (mOverlayManager.isPreferred(peer.get()))
@@ -680,6 +687,70 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
 }
 
 void
+OverlayManagerImpl::connectToQsetPeers(int& availablePendingSlots)
+{
+    ZoneScoped;
+    releaseAssert(availablePendingSlots >= 0);
+    if (availablePendingSlots == 0)
+    {
+        return;
+    }
+
+    auto missing = mDirectQsetPeers;
+    missing.erase(mApp.getConfig().NODE_SEED.getPublicKey());
+    for (auto const& peer : getAuthenticatedPeers())
+    {
+        missing.erase(peer.first);
+    }
+    for (auto it = missing.begin(); it != missing.end();)
+    {
+        auto info = mQuorumPeerState.getInfo(*it);
+        if (info && info->remoteRole == RemoteQsetRole::None)
+        {
+            it = missing.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (missing.empty())
+    {
+        return;
+    }
+
+    constexpr auto QSET_PROBE_BATCH_SIZE = 4;
+    std::vector<PeerBareAddress> candidates;
+    auto appendCandidates = [&](PeerType peerType) {
+        auto peers = getPeersToConnectTo(QSET_PROBE_BATCH_SIZE, peerType);
+        candidates.insert(std::end(candidates), std::begin(peers),
+                          std::end(peers));
+    };
+    appendCandidates(PeerType::INBOUND);
+    appendCandidates(PeerType::OUTBOUND);
+
+    std::set<PeerBareAddress> tried;
+    for (auto const& address : candidates)
+    {
+        if (availablePendingSlots == 0)
+        {
+            return;
+        }
+        if (mProbedNonQset.find(address) != std::end(mProbedNonQset) ||
+            getConnectedPeer(address) || !tried.insert(address).second)
+        {
+            continue;
+        }
+
+        if (connectToImpl(address, false))
+        {
+            --availablePendingSlots;
+        }
+    }
+}
+
+void
 OverlayManagerImpl::updateTimerAndMaybeDropRandomPeer(bool shouldDrop)
 {
     // If we haven't heard from the network for a while, try randomly
@@ -867,6 +938,8 @@ OverlayManagerImpl::tick()
         availablePendingSlots -= pendingUsedByOutbound;
     }
 
+    connectToQsetPeers(availablePendingSlots);
+
     // Finally, attempt to promote some inbound connections to outbound
     if (availablePendingSlots > 0)
     {
@@ -900,10 +973,16 @@ OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
             ? OverlayManager::MIN_INBOUND_FACTOR
             : mApp.getConfig().TARGET_PEER_CONNECTIONS;
 
-    if (mOutboundPeers.mAuthenticated.size() < adjustedTarget)
+    auto mutualQsetCount = std::count_if(
+        std::begin(mOutboundPeers.mAuthenticated),
+        std::end(mOutboundPeers.mAuthenticated),
+        [](auto const& peer) { return peer.second->isMutualQsetPeer(); });
+    auto ordinaryOutboundCount =
+        mOutboundPeers.mAuthenticated.size() - mutualQsetCount;
+
+    if (ordinaryOutboundCount < adjustedTarget)
     {
-        return static_cast<int>(adjustedTarget -
-                                mOutboundPeers.mAuthenticated.size());
+        return static_cast<int>(adjustedTarget - ordinaryOutboundCount);
     }
     else
     {
@@ -1189,6 +1268,14 @@ bool
 OverlayManagerImpl::isDirectQsetPeer(NodeID const& nodeID) const
 {
     return mDirectQsetPeers.count(nodeID) != 0;
+}
+
+void
+OverlayManagerImpl::recordProbedNonQsetAddress(PeerBareAddress const& address)
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(!address.isEmpty());
+    mProbedNonQset.insert(address);
 }
 
 static xdr::opaque_array<32> const TX_BATCH_HASH = [] {

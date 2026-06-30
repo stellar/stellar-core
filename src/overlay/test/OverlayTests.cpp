@@ -179,7 +179,8 @@ TEST_CASE("mixed overlay versions do not prefer direct qset peers",
     testutil::shutdownWorkScheduler(*app1);
 }
 
-TEST_CASE("mutual direct qset peer evicts watcher", "[overlay][connections]")
+TEST_CASE("mutual direct qset peer coexists with watcher beyond cap",
+          "[overlay][connections]")
 {
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
@@ -202,12 +203,12 @@ TEST_CASE("mutual direct qset peer evicts watcher", "[overlay][connections]")
     LoopbackPeerConnection qsetPeer(*app3, *app2);
     testutil::crankSome(clock);
 
-    REQUIRE(!watcher.getInitiator()->isConnectedForTesting());
-    REQUIRE(!watcher.getAcceptor()->isConnectedForTesting());
-    REQUIRE(watcher.getAcceptor()->getDropReason() ==
-            "preferred peer selected instead");
+    REQUIRE(watcher.getInitiator()->isConnectedForTesting());
+    REQUIRE(watcher.getAcceptor()->isConnectedForTesting());
     REQUIRE(qsetPeer.getInitiator()->isAuthenticatedForTesting());
     REQUIRE(qsetPeer.getAcceptor()->isAuthenticatedForTesting());
+    REQUIRE(app2->getOverlayManager().getInboundAuthenticatedPeers().size() >
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS);
     REQUIRE(knowsAsPreferred(*app2, *app3));
 
     testutil::shutdownWorkScheduler(*app3);

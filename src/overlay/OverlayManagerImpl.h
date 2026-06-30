@@ -43,6 +43,10 @@ class OverlayManagerImpl : public OverlayManager
     Application& mApp;
     std::set<PeerBareAddress> mConfigurationPreferredPeers;
     std::set<NodeID> mDirectQsetPeers;
+    // Addresses that were proactively probed while searching for direct-qset
+    // peers and authenticated as non-qset peers. This is intentionally
+    // in-memory only; next-attempt backoff limits churn until restart.
+    std::set<PeerBareAddress> mProbedNonQset;
     QuorumPeerState mQuorumPeerState;
 
     struct PeersList
@@ -137,6 +141,7 @@ class OverlayManagerImpl : public OverlayManager
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) const override;
     bool isDirectQsetPeer(NodeID const& nodeID) const override;
+    void recordProbedNonQsetAddress(PeerBareAddress const& address) override;
     std::vector<Peer::pointer> const& getInboundPendingPeers() const override;
     std::vector<Peer::pointer> const& getOutboundPendingPeers() const override;
     std::vector<Peer::pointer> getPendingPeers() const override;
@@ -208,6 +213,7 @@ class OverlayManagerImpl : public OverlayManager
     int connectTo(int maxNum, PeerType peerType);
     int connectTo(std::vector<PeerBareAddress> const& peers,
                   bool forceoutbound);
+    void connectToQsetPeers(int& availablePendingSlots);
     std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum,
                                                      PeerType peerType);
 
