@@ -2018,7 +2018,12 @@ Peer::recvPeers(StellarMessage const& msg)
         releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
-        if (address.isPrivate())
+        bool allowPrivateAddresses = false;
+#ifdef BUILD_TESTS
+        allowPrivateAddresses =
+            mAppConnector.getConfig().ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
+#endif
+        if (address.isPrivate() && !allowPrivateAddresses)
         {
             CLOG_DEBUG(Overlay, "ignoring received private address {}",
                        address.toString());
