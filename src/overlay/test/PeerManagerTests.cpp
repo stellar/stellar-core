@@ -539,4 +539,53 @@ TEST_CASE("purge peer table", "[overlay][PeerManager]")
     peerManager.removePeersWithManyFailures(2, &localhost2);
     REQUIRE(!peerManager.load(localhost(2)).second);
 }
+
+TEST_CASE("preferred peers are not purged for repeated failures",
+          "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+    auto record = [&app](PeerType type) {
+        return PeerRecord{
+            VirtualClock::systemPointToTm(app->getClock().system_now()), 10,
+            static_cast<int>(type)};
+    };
+
+    peerManager.store(localhost(1), record(PeerType::PREFERRED), false);
+    peerManager.store(localhost(2), record(PeerType::OUTBOUND), false);
+    peerManager.store(localhost(3), record(PeerType::INBOUND), false);
+
+    peerManager.removePeersWithManyFailures(3);
+
+    REQUIRE(peerManager.load(localhost(1)).second);
+    REQUIRE(!peerManager.load(localhost(2)).second);
+    REQUIRE(!peerManager.load(localhost(3)).second);
+}
+
+TEST_CASE("preferred peer backoff cap is lower", "[overlay][PeerManager]")
+{
+    REQUIRE(PeerManager::maxBackoffExponent(PeerType::PREFERRED) <
+            PeerManager::maxBackoffExponent(PeerType::OUTBOUND));
+    REQUIRE(PeerManager::maxBackoffExponent(PeerType::PREFERRED) <
+            PeerManager::maxBackoffExponent(PeerType::INBOUND));
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+    auto now = app->getClock().system_now();
+    auto addr = localhost(1);
+    peerManager.store(addr,
+                      {VirtualClock::systemPointToTm(now), 10,
+                       static_cast<int>(PeerType::PREFERRED)},
+                      false);
+
+    peerManager.update(addr, PeerManager::BackOffUpdate::INCREASE);
+    auto updated = peerManager.load(addr).first;
+    auto delay = VirtualClock::tmToSystemPoint(updated.mNextAttempt) - now;
+    auto maxPreferredDelay = std::chrono::seconds{
+        10 * (1 << PeerManager::maxBackoffExponent(PeerType::PREFERRED))};
+
+    REQUIRE(delay <= maxPreferredDelay);
+}
 }

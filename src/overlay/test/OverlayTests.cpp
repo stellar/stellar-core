@@ -97,6 +97,164 @@ TEST_CASE("loopback peer hello", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+static void
+addDirectQsetPeer(Config& cfg, Config const& peerCfg)
+{
+    cfg.QUORUM_SET.validators.push_back(peerCfg.NODE_SEED.getPublicKey());
+}
+
+TEST_CASE("mutual direct qset peers are preferred", "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    addDirectQsetPeer(cfg1, cfg2);
+    addDirectQsetPeer(cfg2, cfg1);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+    REQUIRE(knowsAsPreferred(*app1, *app2));
+    REQUIRE(knowsAsPreferred(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("asymmetric direct qset peers are not preferred",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    addDirectQsetPeer(cfg1, cfg2);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("mixed overlay versions do not prefer direct qset peers",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    cfg2.OVERLAY_PROTOCOL_VERSION = 41;
+    addDirectQsetPeer(cfg1, cfg2);
+    addDirectQsetPeer(cfg2, cfg1);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
+
+    auto info = app1->getOverlayManager().getQuorumPeerState().getInfo(
+        cfg2.NODE_SEED.getPublicKey());
+    REQUIRE(info);
+    REQUIRE(info->remoteRole == RemoteQsetRole::Unknown);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("mutual direct qset peer coexists with watcher beyond cap",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    auto cfg3 = getTestConfig(2);
+    cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+    cfg2.TARGET_PEER_CONNECTIONS = 0;
+    addDirectQsetPeer(cfg2, cfg3);
+    addDirectQsetPeer(cfg3, cfg2);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+
+    LoopbackPeerConnection watcher(*app1, *app2);
+    testutil::crankSome(clock);
+    REQUIRE(watcher.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(watcher.getAcceptor()->isAuthenticatedForTesting());
+
+    LoopbackPeerConnection qsetPeer(*app3, *app2);
+    testutil::crankSome(clock);
+
+    REQUIRE(watcher.getInitiator()->isConnectedForTesting());
+    REQUIRE(watcher.getAcceptor()->isConnectedForTesting());
+    REQUIRE(qsetPeer.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(qsetPeer.getAcceptor()->isAuthenticatedForTesting());
+    REQUIRE(app2->getOverlayManager().getInboundAuthenticatedPeers().size() >
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS);
+    REQUIRE(knowsAsPreferred(*app2, *app3));
+
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("mutual direct qset preference persists across restart",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(100, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    auto cfg2 = getTestConfig(101);
+    addDirectQsetPeer(cfg1, cfg2);
+    addDirectQsetPeer(cfg2, cfg1);
+
+    {
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+        auto info = app1->getOverlayManager().getQuorumPeerState().getInfo(
+            cfg2.NODE_SEED.getPublicKey());
+        REQUIRE(info);
+        REQUIRE(info->remoteRole == RemoteQsetRole::Direct);
+        REQUIRE(knowsAsPreferred(*app1, *app2));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
+    }
+
+    auto restarted = createTestApplication(clock, cfg1, /*newDB*/ false,
+                                           /*startApp*/ false);
+    auto& overlayManager =
+        static_cast<OverlayManagerImpl&>(restarted->getOverlayManager());
+    overlayManager.reconcileQuorumPeerState();
+    overlayManager.seedQuorumPeerAddresses();
+    auto peerRecord = restarted->getOverlayManager().getPeerManager().load(
+        PeerBareAddress{"127.0.0.1", cfg2.PEER_PORT});
+    REQUIRE(peerRecord.second);
+    REQUIRE(peerRecord.first.mType == static_cast<int>(PeerType::PREFERRED));
+}
+
 TEST_CASE("loopback peer with 0 port", "[overlay][connections]")
 {
     VirtualClock clock;
@@ -2471,6 +2629,10 @@ TEST_CASE("disconnected topology recovery", "[overlay][simulation]")
                     return initCfg;
                 }
                 auto cfg = cfgs[i - 1];
+                // This legacy recovery test contrasts plain KNOWN_PEERS with
+                // configured PREFERRED_PEERS. Pin it below v42 so mutual qset
+                // peering does not make validator qset peers preferred.
+                cfg.OVERLAY_PROTOCOL_VERSION = 41;
                 cfg.TARGET_PEER_CONNECTIONS = 1;
                 if (usePreferred)
                 {

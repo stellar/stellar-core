@@ -77,7 +77,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
 
 // Options that should only be used for testing
 static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
-    "ALLOW_LOCALHOST_FOR_TESTING"};
+    "ALLOW_LOCALHOST_FOR_TESTING", "ALLOW_PRIVATE_ADDRESSES_FOR_TESTING"};
 
 namespace
 {
@@ -162,7 +162,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 40;
-    OVERLAY_PROTOCOL_VERSION = 41;
+    OVERLAY_PROTOCOL_VERSION = 42;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -199,6 +199,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
         std::chrono::seconds::zero();
     ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::milliseconds(0);
     ALLOW_LOCALHOST_FOR_TESTING = false;
+    ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     GENESIS_TEST_ACCOUNT_COUNT = 0;
     FAILURE_SAFETY = -1;
@@ -1315,6 +1316,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"ALLOW_LOCALHOST_FOR_TESTING",
                  [&]() { ALLOW_LOCALHOST_FOR_TESTING = readBool(item); }},
+                {"ALLOW_PRIVATE_ADDRESSES_FOR_TESTING",
+                 [&]() {
+                     ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = readBool(item);
+                 }},
                 {"PUBLISH_TO_ARCHIVE_DELAY",
                  [&]() {
                      PUBLISH_TO_ARCHIVE_DELAY =

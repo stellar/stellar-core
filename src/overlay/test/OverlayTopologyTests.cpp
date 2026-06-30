@@ -208,6 +208,10 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
         cfg.TARGET_PEER_CONNECTIONS = static_cast<unsigned short>(maxOutbound);
         cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInbound;
         cfg.KNOWN_PEERS = peers;
+        // This legacy churn test expects all known peers to remain ordinary
+        // peers. Pin below v42 so validator qset peers are not promoted by
+        // mutual qset peering.
+        cfg.OVERLAY_PROTOCOL_VERSION = 41;
         cfg.RUN_STANDALONE = false;
         cfg.MODE_DOES_CATCHUP = false;
 
