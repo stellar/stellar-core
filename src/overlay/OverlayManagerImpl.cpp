@@ -14,13 +14,16 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
+#include "main/PersistentState.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerManager.h"
+#include "overlay/QuorumPeerState.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/SurveyDataManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
+#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/JitterInjection.h"
 #include "util/Logging.h"
@@ -45,6 +48,7 @@ using namespace std;
 constexpr std::chrono::seconds PEER_IP_RESOLVE_DELAY(600);
 constexpr std::chrono::seconds PEER_IP_RESOLVE_RETRY_DELAY(10);
 constexpr std::chrono::seconds OUT_OF_SYNC_RECONNECT_DELAY(60);
+constexpr std::chrono::seconds QUORUM_PEER_STALE_ADDRESS_TTL(24 * 60 * 60);
 constexpr uint32_t INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES{300000};
 constexpr uint32_t INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES{100000};
 
@@ -331,6 +335,12 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND));
     mPeerSources[PeerType::PREFERRED] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
+
+    LocalNode::forAllNodes(mApp.getConfig().QUORUM_SET,
+                           [&](NodeID const& nodeID) {
+                               mDirectQsetPeers.insert(nodeID);
+                               return true;
+                           });
 }
 
 OverlayManagerImpl::~OverlayManagerImpl()
@@ -342,6 +352,8 @@ OverlayManagerImpl::start()
 {
     mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
+    reconcileQuorumPeerState();
+    seedQuorumPeerAddresses();
 
     if (!mApp.getConfig().RUN_STANDALONE)
     {
@@ -357,6 +369,73 @@ OverlayManagerImpl::start()
 
     // Start demand logic
     mTxDemandsManager.start();
+}
+
+void
+OverlayManagerImpl::persistQuorumPeerState()
+{
+    mApp.getPersistentState().setMiscState(PersistentState::kQuorumPeerInfo,
+                                           mQuorumPeerState.toJson());
+}
+
+void
+OverlayManagerImpl::reconcileQuorumPeerState()
+{
+    auto& session = mApp.getDatabase().getMiscSession();
+    mQuorumPeerState =
+        QuorumPeerState::fromJson(mApp.getPersistentState().getState(
+            PersistentState::kQuorumPeerInfo, session));
+    mQuorumPeerState.reconcile(mDirectQsetPeers);
+    persistQuorumPeerState();
+}
+
+void
+OverlayManagerImpl::seedQuorumPeerAddresses()
+{
+    for (auto const& entry : mQuorumPeerState.getInfo())
+    {
+        auto const& info = entry.second;
+        if (!info.address)
+        {
+            continue;
+        }
+
+        if (info.remoteRole == RemoteQsetRole::Direct)
+        {
+            getPeerManager().update(*info.address, PeerType::PREFERRED,
+                                    /* preferredTypeKnown */ true,
+                                    PeerManager::BackOffUpdate::HARD_RESET);
+        }
+        else
+        {
+            getPeerManager().ensureExists(*info.address);
+            getPeerManager().update(*info.address,
+                                    PeerManager::BackOffUpdate::HARD_RESET);
+        }
+    }
+}
+
+void
+OverlayManagerImpl::expireStaleQuorumPeerAddresses()
+{
+    auto const now = static_cast<uint64_t>(
+        VirtualClock::to_time_t(mApp.getClock().system_now()));
+    auto expired = mQuorumPeerState.expireStaleAddresses(
+        now, QUORUM_PEER_STALE_ADDRESS_TTL);
+    for (auto const& entry : expired)
+    {
+        auto const& info = entry.second;
+        if (info.address)
+        {
+            getPeerManager().update(*info.address, PeerType::OUTBOUND,
+                                    /* preferredTypeKnown */ true);
+        }
+    }
+
+    if (!expired.empty())
+    {
+        persistQuorumPeerState();
+    }
 }
 
 uint32_t
@@ -689,6 +768,7 @@ OverlayManagerImpl::tick()
 
     cleanupPeers(mInboundPeers);
     cleanupPeers(mOutboundPeers);
+    expireStaleQuorumPeerAddresses();
 
     if (futureIsReady(mResolvedPeers))
     {
@@ -1072,6 +1152,15 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 {
     std::string pstr = peer->toString();
 
+    // A remote can only become a mutual direct-qset peer if its key is already
+    // in our configured QUORUM_SET, so eviction rights are bounded by the
+    // operator's own qset size.
+    if (peer->isMutualQsetPeer())
+    {
+        CLOG_DEBUG(Overlay, "Peer {} is a mutual direct qset peer", pstr);
+        return true;
+    }
+
     if (mConfigurationPreferredPeers.find(peer->getAddress()) !=
         mConfigurationPreferredPeers.end())
     {
@@ -1094,6 +1183,12 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 
     CLOG_TRACE(Overlay, "Peer {} is not preferred", pstr);
     return false;
+}
+
+bool
+OverlayManagerImpl::isDirectQsetPeer(NodeID const& nodeID) const
+{
+    return mDirectQsetPeers.count(nodeID) != 0;
 }
 
 static xdr::opaque_array<32> const TX_BATCH_HASH = [] {
@@ -1315,6 +1410,12 @@ PeerManager&
 OverlayManagerImpl::getPeerManager()
 {
     return mPeerManager;
+}
+
+QuorumPeerState&
+OverlayManagerImpl::getQuorumPeerState()
+{
+    return mQuorumPeerState;
 }
 
 SurveyManager&

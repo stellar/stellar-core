@@ -14,6 +14,7 @@
 #include "overlay/Floodgate.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
+#include "overlay/QuorumPeerState.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/Timer.h"
@@ -41,6 +42,8 @@ class OverlayManagerImpl : public OverlayManager
   protected:
     Application& mApp;
     std::set<PeerBareAddress> mConfigurationPreferredPeers;
+    std::set<NodeID> mDirectQsetPeers;
+    QuorumPeerState mQuorumPeerState;
 
     struct PeersList
     {
@@ -126,10 +129,14 @@ class OverlayManagerImpl : public OverlayManager
     bool addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
     void storeConfigPeers();
+    void reconcileQuorumPeerState();
+    void seedQuorumPeerAddresses();
+    void expireStaleQuorumPeerAddresses();
     void purgeDeadPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) const override;
+    bool isDirectQsetPeer(NodeID const& nodeID) const override;
     std::vector<Peer::pointer> const& getInboundPendingPeers() const override;
     std::vector<Peer::pointer> const& getOutboundPendingPeers() const override;
     std::vector<Peer::pointer> getPendingPeers() const override;
@@ -157,6 +164,8 @@ class OverlayManagerImpl : public OverlayManager
     PeerAuth& getPeerAuth() override;
 
     PeerManager& getPeerManager() override;
+    QuorumPeerState& getQuorumPeerState() override;
+    void persistQuorumPeerState() override;
 
     SurveyManager& getSurveyManager() override;
 

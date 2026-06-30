@@ -174,7 +174,8 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
     {
         auto& db = mApp.getDatabase();
         auto sql = std::string{
-            "DELETE FROM peers WHERE numfailures >= :minNumFailures"};
+            "DELETE FROM peers WHERE numfailures >= :minNumFailures "
+            "AND type != :preferredType"};
         if (address)
         {
             sql += " AND ip = :ip";
@@ -185,6 +186,8 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
         auto& st = prep.statement();
 
         st.exchange(use(minNumFailures));
+        auto preferredType = static_cast<int>(PeerType::PREFERRED);
+        st.exchange(use(preferredType));
 
         std::string ip;
         if (address)
@@ -365,19 +368,24 @@ namespace
 {
 
 static std::chrono::seconds
-computeBackoff(size_t numFailures)
+computeBackoff(size_t numFailures, PeerType peerType)
 {
     constexpr uint32 const SECONDS_PER_BACKOFF = 10;
-    constexpr size_t const MAX_BACKOFF_EXPONENT = 10;
 
-    uint32 backoffCount = static_cast<uint32>(
-        std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
+    uint32 backoffCount = static_cast<uint32>(std::min<size_t>(
+        PeerManager::maxBackoffExponent(peerType), numFailures));
     auto nsecs =
         std::chrono::seconds(static_cast<uint32>(getGlobalRandomEngine()()) %
                                  ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
                              1);
     return nsecs;
 }
+}
+
+size_t
+PeerManager::maxBackoffExponent(PeerType peerType)
+{
+    return peerType == PeerType::PREFERRED ? 3 : 10;
 }
 
 void
@@ -397,8 +405,9 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     {
         peer.mNumFailures =
             backOff == BackOffUpdate::RESET ? 0 : peer.mNumFailures + 1;
-        auto nextAttempt =
-            app.getClock().system_now() + computeBackoff(peer.mNumFailures);
+        auto peerType = static_cast<PeerType>(peer.mType);
+        auto nextAttempt = app.getClock().system_now() +
+                           computeBackoff(peer.mNumFailures, peerType);
         peer.mNextAttempt = VirtualClock::systemPointToTm(nextAttempt);
         break;
     }

@@ -142,6 +142,12 @@ AppConnector::now() const
     return mApp.getClock().now();
 }
 
+VirtualClock::system_time_point
+AppConnector::systemNow() const
+{
+    return mApp.getClock().system_now();
+}
+
 bool
 AppConnector::shouldYield() const
 {
