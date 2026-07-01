@@ -209,7 +209,9 @@ WIP_SOROBAN_PROTOCOL=p28
 
 CARGO_XDR_FEATURE_FLAGS =
 if CAP_0084_MUXED_CONTRACT
-CARGO_XDR_FEATURE_FLAGS += --features cap_0084_muxed_contract
+# CAP-0084 host code is gated on the umbrella `next` feature (rs-soroban-env#1696);
+# enabling `next` pulls in the stellar-xdr cap_0084_muxed_contract XDR variant.
+CARGO_XDR_FEATURE_FLAGS += --features next
 endif
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
