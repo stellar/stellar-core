@@ -52,6 +52,16 @@ SCP::stopNomination(uint64 slotIndex)
 }
 
 void
+SCP::receivedTxSet(uint64 slotIndex, Value const& value)
+{
+    auto s = getSlot(slotIndex, false);
+    if (s)
+    {
+        s->receivedTxSet(value);
+    }
+}
+
+void
 SCP::updateLocalQuorumSet(SCPQuorumSet const& qSet)
 {
     mLocalNode->updateQuorumSet(qSet);
