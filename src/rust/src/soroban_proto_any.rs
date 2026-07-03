@@ -10,7 +10,7 @@ use crate::{
         InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
-use log::{debug, error, trace, warn};
+use log::{debug, error, trace};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (soroban_proto_any) is bound to _multiple locations_ in the

@@ -83,6 +83,7 @@ pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
     }
 }
 
+#[cfg_attr(feature = "fastdev", allow(unused_variables))]
 fn modify_resources_for_extra_test_execution(
     instruction_limit: &mut u32,
     resources_buf: &mut CxxBuf,
