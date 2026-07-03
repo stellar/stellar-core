@@ -114,6 +114,13 @@ tracy-client = { version = "=0.17.0", features = [
 # Cargo.lock! The unified build will re-resolve transitive dependencies and
 # unify them, perturbing the contents of the lockfile.
 
+[dependencies.soroban-env-host-p28]
+version = "=27.0.0"
+git = "https://github.com/sisuresh/rs-soroban-env"
+package = "soroban-env-host"
+rev = "87a9b566425bd34d82272b2188545b33319c6cdb"
+optional = true
+
 [dependencies.soroban-env-host-p27]
 version = "=26.1.2"
 git = "https://github.com/stellar/rs-soroban-env"
@@ -202,7 +209,9 @@ unified = ["dep:soroban-env-host-p21",
            "dep:soroban-env-host-p24",
            "dep:soroban-env-host-p25",
            "dep:soroban-env-host-p26",
-           "dep:soroban-env-host-p27"]
+           "dep:soroban-env-host-p27",
+           "dep:soroban-env-host-p28",
+           "soroban-env-host-p28/next"]
 
 tracy = ["dep:tracy-client"]
 

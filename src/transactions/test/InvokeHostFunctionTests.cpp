@@ -600,7 +600,14 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
     SorobanTest test(cfg);
     auto& root = test.getRoot();
 
+#ifdef CAP_0084_MUXED_CONTRACT
+    // a1 makes several native transfers within a single run (100M + 300M +
+    // 400M for the muxed-contract case), so it needs enough balance to stay
+    // above its account reserve after all of them.
+    auto a1 = root.create("a1", 2'000'000'000);
+#else
     auto a1 = root.create("a1", 1'000'000'000);
+#endif
     auto a2 = root.create("a2", 1'000'000'000);
     Asset asset = makeAsset(root.getSecretKey(), "USDC");
     a1.changeTrust(asset, 2'000'000'000);
@@ -685,6 +692,45 @@ TEST_CASE("Stellar asset contract transfer with CAP-67 address types",
                 a1, makeClaimableBalanceAddress(ClaimableBalanceID()), 1));
             REQUIRE(client.lastEvent() == std::nullopt);
         }
+#ifdef CAP_0084_MUXED_CONTRACT
+        {
+            INFO("transfer to muxed contract (CAP-0084)");
+            // The destination is the SAC-transfer contract wrapped in a muxed
+            // contract address; the SAC de-muxes to the underlying contract for
+            // the balance and surfaces the id via the `to_muxed_id` event.
+            REQUIRE(
+                client.transfer(a1,
+                                makeMuxedContractAddress(
+                                    transferContract.getAddress().contractId(),
+                                    987'654'321'987'654'321ULL),
+                                400'000'000));
+            REQUIRE(*client.lastEvent() ==
+                    client.makeTransferEvent(
+                        a1Address, transferContract.getAddress(), 400'000'000,
+                        987'654'321'987'654'321ULL));
+        }
+        if (!useNativeAsset)
+        {
+            INFO("mint to muxed contract (CAP-0084)");
+            // Mint to a muxed-contract destination: the SAC de-muxes to the
+            // underlying contract for the balance (asserted inside mint() via
+            // the de-muxed getBalance) and surfaces the id via `to_muxed_id`.
+            // Native has no admin, so mint only applies to the issued asset.
+            uint64_t const toMuxId = 111'222'333'444'555'666ULL;
+            REQUIRE(client.mint(
+                root,
+                makeMuxedContractAddress(
+                    transferContract.getAddress().contractId(), toMuxId),
+                500'000'000));
+            REQUIRE(*client.lastEvent() ==
+                    makeMintOrBurnEvent(
+                        /*isMint=*/true,
+                        client.getContract().getAddress().contractId(),
+                        tokenAsset, transferContract.getAddress(), 500'000'000,
+                        SCMapEntry(makeSymbolSCVal("to_muxed_id"),
+                                   makeU64(toMuxId))));
+        }
+#endif
     };
 
     SECTION("native asset")
@@ -7681,7 +7727,12 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    moduleCacheProtocolCount -= 1;
+    // p28 (CAP-0084) ships its own work-in-progress next host with a separate
+    // module cache (see p28_cache in soroban_module_cache.rs), so the next
+    // protocol version _does_ add to the module cache count and the following
+    // line stays commented-out.
+    //
+    // moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
