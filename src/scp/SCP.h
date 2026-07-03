@@ -59,6 +59,10 @@ class SCP
     // stops nomination for a slot
     void stopNomination(uint64 slotIndex);
 
+    // Notify SCP that the tx set referenced by @p value has arrived so that it
+    // may resume balloting if stalled waiting for this tx set.
+    void receivedTxSet(uint64 slotIndex, Value const& value);
+
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);
     SCPQuorumSet const& getLocalQuorumSet();
