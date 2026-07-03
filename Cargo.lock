@@ -1463,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "soroban-builtin-sdk-macros"
 version = "27.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=87a9b566425bd34d82272b2188545b33319c6cdb#87a9b566425bd34d82272b2188545b33319c6cdb"
+source = "git+https://github.com/sisuresh/rs-soroban-env?rev=26b035c00663a424a0cdc4732911d49ddb6bb26f#26b035c00663a424a0cdc4732911d49ddb6bb26f"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -1587,7 +1587,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "27.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=87a9b566425bd34d82272b2188545b33319c6cdb#87a9b566425bd34d82272b2188545b33319c6cdb"
+source = "git+https://github.com/sisuresh/rs-soroban-env?rev=26b035c00663a424a0cdc4732911d49ddb6bb26f#26b035c00663a424a0cdc4732911d49ddb6bb26f"
 dependencies = [
  "crate-git-revision 0.0.9",
  "ethnum",
@@ -1847,7 +1847,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-host"
 version = "27.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=87a9b566425bd34d82272b2188545b33319c6cdb#87a9b566425bd34d82272b2188545b33319c6cdb"
+source = "git+https://github.com/sisuresh/rs-soroban-env?rev=26b035c00663a424a0cdc4732911d49ddb6bb26f#26b035c00663a424a0cdc4732911d49ddb6bb26f"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-bn254 0.5.0",
@@ -1981,7 +1981,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-macros"
 version = "27.0.0"
-source = "git+https://github.com/sisuresh/rs-soroban-env?rev=87a9b566425bd34d82272b2188545b33319c6cdb#87a9b566425bd34d82272b2188545b33319c6cdb"
+source = "git+https://github.com/sisuresh/rs-soroban-env?rev=26b035c00663a424a0cdc4732911d49ddb6bb26f#26b035c00663a424a0cdc4732911d49ddb6bb26f"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -2236,7 +2236,7 @@ dependencies = [
 [[package]]
 name = "stellar-xdr"
 version = "28.0.0"
-source = "git+https://github.com/sisuresh/rs-stellar-xdr?rev=8f826caa99f3b4c55e4d958eb5b6a9a1dbbf9873#8f826caa99f3b4c55e4d958eb5b6a9a1dbbf9873"
+source = "git+https://github.com/sisuresh/rs-stellar-xdr?rev=cf7fdedf7ca95fccf45c82e6829d14637c9b5e4c#cf7fdedf7ca95fccf45c82e6829d14637c9b5e4c"
 dependencies = [
  "base64 0.22.1",
  "crate-git-revision 0.0.9",
