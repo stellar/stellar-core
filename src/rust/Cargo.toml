@@ -114,6 +114,14 @@ tracy-client = { version = "=0.17.0", features = [
 # Cargo.lock! The unified build will re-resolve transitive dependencies and
 # unify them, perturbing the contents of the lockfile.
 
+[dependencies.soroban-env-host-p28]
+version = "=27.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "883fd56374fc619afaa4c4c7489563555b7173f2"
+optional = true
+features = ["next"]
+
 [dependencies.soroban-env-host-p27]
 version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
@@ -196,8 +204,8 @@ rev = "b422b366ede667c030c78ffe18b2010194698dbd"
 
 # Turn on the optional fastdev build. This is typically only useful in an IDE or when
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
-fastdev = ["dep:soroban-env-host-p26",
-           "dep:soroban-env-host-p27",
+fastdev = ["dep:soroban-env-host-p27",
+           "dep:soroban-env-host-p28",
            "next"]
 
 tracy = ["dep:tracy-client"]
