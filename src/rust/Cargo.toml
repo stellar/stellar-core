@@ -167,14 +167,14 @@ optional = true
 # supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 
 [dependencies.soroban-synth-wasm]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 
 # The soroban-fuzz-targets crate will actually pull in _its own copy_ of the
 # soroban host (or at least unify with one of the versions above if you're doing
@@ -182,9 +182,9 @@ rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 # soroban is updated -- it should track the highest protocol available (or
 # at least whichever one you want to fuzz).
 [dependencies.soroban-fuzz-targets]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 optional = true
 
 [dependencies.stellar-quorum-analyzer]
