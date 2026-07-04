@@ -1047,6 +1047,12 @@ TEST_CASE("upgrades affect in-memory Soroban state state size",
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
     cfg.USE_CONFIG_FOR_GENESIS = true;
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
 
     uint32_t const windowSize = 15;
     uint32_t const samplePeriod = 4;
@@ -3892,6 +3898,12 @@ TEST_CASE("protocol 23 upgrade sets default SCP timing values", "[upgrades]")
     VirtualClock clock;
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 22;
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
 
     auto app = createTestApplication(clock, cfg);
     auto& lm = app->getLedgerManager();
@@ -4043,6 +4055,12 @@ TEST_CASE("p24 upgrade fixes corrupted hot archive entries",
     Config cfg(getTestConfig());
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = corruptedProtocolVersion;
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
     auto app = createTestApplication(clock, cfg);
     gIsProductionNetwork = true;
     overrideSorobanNetworkConfigForTest(*app);
