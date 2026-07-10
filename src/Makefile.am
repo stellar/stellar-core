@@ -100,6 +100,9 @@ XDR_FEATURE_FLAGS =
 if CAP_0083
 XDR_FEATURE_FLAGS += -DCAP_0083
 endif
+if CAP_0085_EXECUTABLE_REF
+XDR_FEATURE_FLAGS += -DCAP_0085_EXECUTABLE_REF
+endif
 
 SUFFIXES = .x .h .rs
 .x.h:
@@ -202,9 +205,15 @@ SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
 # ALL_SOROBAN_PROTOCOLS as you see fit).
 
 ALL_SOROBAN_PROTOCOLS=p21 p22 p23 p24 p25 p26 p27
-WIP_SOROBAN_PROTOCOL=
+WIP_SOROBAN_PROTOCOL=p28
 
 CARGO_XDR_FEATURE_FLAGS =
+if CAP_0085_EXECUTABLE_REF
+# CAP-0085 host code is gated on the per-cap leaf feature `cap_0085_executable_ref`
+# (rs-soroban-env#1703), which the umbrella `next` feature aggregates; building the
+# p28 host with `next` enables it and pulls in the matching stellar-xdr XDR variant.
+CARGO_XDR_FEATURE_FLAGS += --features next
+endif
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)

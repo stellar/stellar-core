@@ -383,6 +383,17 @@ TransactionFrame::validateHostFn() const
         {
             return false;
         }
+        // TODO(CAP-0085, SPIKE): once the p28 host acceptance logic
+        // (rs-soroban-env#1703) and the CAP-0085 spec are cross-checked, relax
+        // this to also accept CONTRACT_EXECUTABLE_EXTERNAL_REF for FROM_ADDRESS
+        // creates when
+        //   protocolVersionStartsFrom(ledgerVersion,
+        //                             EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION).
+        // That requires threading ledgerVersion (from the current LCL header)
+        // through the virtual validateHostFn() interface
+        // (TransactionFrameBase.h + the FeeBump/TestFrame overrides + the
+        // TransactionQueue caller). Deferred for this SPIKE: external-ref creates
+        // stay rejected core-side, which keeps existing behavior/tests intact.
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS &&
             executable.type() != CONTRACT_EXECUTABLE_WASM)
         {

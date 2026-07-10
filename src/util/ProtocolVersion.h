@@ -71,4 +71,14 @@ constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_28;
 constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
     ProtocolVersion::V_UINT32_MAX;
 #endif
+
+// CAP-0085: protocol version from which contracts may be created with an
+// externally-referenced executable (CONTRACT_EXECUTABLE_EXTERNAL_REF).
+#ifdef CAP_0085_EXECUTABLE_REF
+constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+#else
+constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
+    ProtocolVersion::V_UINT32_MAX;
+#endif
 }
