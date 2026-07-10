@@ -21,7 +21,7 @@ Floodgate::FloodRecord::FloodRecord(uint32_t ledger, Peer::pointer peer)
     : mLedgerSeq(ledger)
 {
     if (peer)
-        mPeersTold.insert(peer->toString());
+        mPeersTold.insert(peer->getPeerID());
 }
 
 Floodgate::Floodgate(Application& app)
@@ -75,7 +75,7 @@ Floodgate::addRecord(Peer::pointer peer, Hash const& index)
     }
     else
     {
-        result->second->mPeersTold.insert(peer->toString());
+        result->second->mPeersTold.insert(peer->getPeerID());
         return false;
     }
 }
@@ -122,7 +122,7 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
     {
         bool pullMode = msg->type() == TRANSACTION;
 
-        if (peersTold.insert(peer.second->toString()).second)
+        if (peersTold.insert(peer.second->getPeerID()).second)
         {
             if (pullMode)
             {
@@ -177,7 +177,7 @@ Floodgate::getPeersKnows(Hash const& h)
         auto const& peers = mApp.getOverlayManager().getAuthenticatedPeers();
         for (auto& p : peers)
         {
-            if (ids.find(p.second->toString()) != ids.end())
+            if (ids.find(p.second->getPeerID()) != ids.end())
             {
                 res.insert(p.second);
             }
