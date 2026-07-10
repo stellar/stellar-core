@@ -1998,7 +1998,7 @@ dependencies = [
 [[package]]
 name = "stellar-quorum-analyzer"
 version = "0.1.0"
-source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=f67e9e2f080c2cc1a332d894c42277c64845e257#f67e9e2f080c2cc1a332d894c42277c64845e257"
+source = "git+https://github.com/stellar/stellar-quorum-analyzer?rev=b422b366ede667c030c78ffe18b2010194698dbd#b422b366ede667c030c78ffe18b2010194698dbd"
 dependencies = [
  "batsat",
  "itertools 0.10.5",

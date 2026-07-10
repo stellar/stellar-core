@@ -307,6 +307,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     QUORUM_INTERSECTION_CHECKER = true;
     USE_QUORUM_INTERSECTION_CHECKER_V2 = false;
     QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 5000; // 5 secs
+    // NB: this budget is compared against a conservative over-estimate of the
+    // solver's memory (charged per clause/variable), not measured allocator
+    // usage. Under the current tier-1 network configuration (7 orgs) usage
+    // stays well under this limit, but the solver's encoding grows
+    // combinatorially with a vertex's degree, so if the number of tier-1
+    // organizations ever increases we will have to revisit this limit.
     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
         100 * 1024 * 1024; // 100 MiB
 

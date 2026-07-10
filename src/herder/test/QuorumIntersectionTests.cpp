@@ -112,6 +112,24 @@ networkEnjoysQuorumIntersectionV2Wrapper(QuorumTracker::QuorumMap const& qmap,
     return state->mStatus == QuorumCheckerStatus::UNSAT;
 }
 
+// Like networkEnjoysQuorumIntersectionV2Wrapper, but returns the raw checker
+// status so tests can distinguish UNSAT (enjoys intersection) from NO_QUORUM
+// (the FBAS admits no quorum at all -- a halted/degenerate configuration).
+QuorumCheckerStatus
+quorumCheckStatusV2Wrapper(QuorumTracker::QuorumMap const& qmap,
+                           Config const& cfg)
+{
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto state = std::make_shared<QuorumMapIntersectionState>(*app);
+    state->mRecalculating = true;
+    quorumIntersectionCheckerV2Wrapper(
+        *app, state, qmap, app->getProcessManager(), clock, false,
+        cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
+        cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
+    return state->mStatus;
+}
+
 std::set<std::set<NodeID>>
 runIntersectionCriticalGroupsCheckV2(QuorumTracker::QuorumMap const& qmap,
                                      Config const& cfg)
@@ -235,6 +253,58 @@ TEST_CASE("quorum non intersection basic 4-node",
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 
     REQUIRE(!networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
+}
+
+TEST_CASE("quorum no-quorum threshold exceeds degree",
+          "[herder][quorumintersection]")
+{
+    QuorumTracker::QuorumMap qm;
+
+    PublicKey pkA = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkB = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkC = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkD = SecretKey::pseudoRandomForTesting().getPublicKey();
+    // A "ghost" validator that is referenced by others' quorum sets but is
+    // itself absent from the quorum map, so it can never be available. With a
+    // threshold of 3 over {self, peer, ghost}, no node can ever reach its
+    // threshold, so the FBAS admits no quorum at all. This must be reported as
+    // NO_QUORUM, and is distinct from UNSAT ("enjoys quorum intersection").
+    PublicKey pkGhost = SecretKey::pseudoRandomForTesting().getPublicKey();
+
+    qm[pkA] = QuorumTracker::NodeInfo{
+        make_shared<QS>(3, VK({pkA, pkB, pkGhost}), VQ{}), 0};
+    qm[pkB] = QuorumTracker::NodeInfo{
+        make_shared<QS>(3, VK({pkA, pkB, pkGhost}), VQ{}), 0};
+    qm[pkC] = QuorumTracker::NodeInfo{
+        make_shared<QS>(3, VK({pkC, pkD, pkGhost}), VQ{}), 0};
+    qm[pkD] = QuorumTracker::NodeInfo{
+        make_shared<QS>(3, VK({pkC, pkD, pkGhost}), VQ{}), 0};
+
+    Config cfg(getTestConfig());
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto state = std::make_shared<QuorumMapIntersectionState>(*app);
+
+    auto& noQuorumCounter =
+        state->mMetrics.NewCounter({"scp", "qic", "result-no-quorum"});
+    auto noQuorumCountBefore = noQuorumCounter.count();
+
+    state->mRecalculating = true;
+    state->mStatus = QuorumCheckerStatus::UNKNOWN;
+    quorumIntersectionCheckerV2Wrapper(
+        *app, state, qm, app->getProcessManager(), clock, false,
+        cfg.QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS,
+        cfg.QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES);
+
+    REQUIRE(state->mStatus == QuorumCheckerStatus::NO_QUORUM);
+    REQUIRE(noQuorumCounter.count() == noQuorumCountBefore + 1);
+    // NO_QUORUM is a complete result (records the checked ledger) but it is not
+    // a "good" result, so it does not advance mLastGoodLedger and the network
+    // does not enjoy quorum intersection.
+    REQUIRE(state->mLastCheckLedger != 0);
+    REQUIRE(state->mLastGoodLedger == 0);
+    REQUIRE(!state->enjoysQuorunIntersection());
 }
 
 TEST_CASE("quorum non intersection 6-node", "[herder][quorumintersection]")
@@ -956,8 +1026,13 @@ TEST_CASE("quorum intersection 6-org 1-node 4-null qsets",
     // for org2..org5. We know org0..org1 have threshold 67% = 3-of-4 (4 being
     // "self + 3 neighbours"); the current logic in the quorum intersection
     // checker (see buildGraph and convertSCPQuorumSet) will treat this network
-    // as _only_ having 2-nodes and will therefore declare it vacuously enjoying
-    // quorum intersection due to being halted.
+    // as _only_ having 2-nodes and therefore as a halted network with no
+    // quorum.
+    //
+    // The V1 checker declares such a halted network as vacuously enjoying
+    // quorum intersection; the V2 checker instead reports NO_QUORUM (the FBAS
+    // admits no quorum at all), which is not conflated with UNSAT ("enjoys
+    // intersection").
     //
     // (At other points in the design, and possibly again in the future if we
     // change our minds, we modeled this differently, treating the null-qset
@@ -991,7 +1066,10 @@ TEST_CASE("quorum intersection 6-org 1-node 4-null qsets",
     REQUIRE(qic->networkEnjoysQuorumIntersection());
     REQUIRE(qic->getMaxQuorumsFound() == 0);
 
-    REQUIRE(networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
+    // V2 reports the halted network as having no quorum, rather than vacuously
+    // enjoying quorum intersection like V1.
+    REQUIRE(quorumCheckStatusV2Wrapper(qm, cfg) ==
+            QuorumCheckerStatus::NO_QUORUM);
 }
 
 TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
@@ -1008,10 +1086,11 @@ TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
     //           +-> org3 <-+
     //
     // As with the case before, this represents (to the quorum intersection
-    // checker's eyes) a halted network which vacuously enjoys quorum
-    // intersection.  But if we were using one of the other models for the
-    // meaning of a null qset, it might be different: split in the byzantine
-    // case, live and enjoying quorum intersection in the live-and-unknown case.
+    // checker's eyes) a halted network with no quorum. The V1 checker treats it
+    // as vacuously enjoying quorum intersection, while the V2 checker reports
+    // NO_QUORUM. But if we were using one of the other models for the meaning
+    // of a null qset, it might be different: split in the byzantine case, live
+    // and enjoying quorum intersection in the live-and-unknown case.
 
     auto orgs = generateOrgs(4, {1});
     auto qm = interconnectOrgsUnidir(orgs, {
@@ -1040,7 +1119,10 @@ TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
     REQUIRE(qic->networkEnjoysQuorumIntersection());
     REQUIRE(qic->getMaxQuorumsFound() == 0);
 
-    REQUIRE(networkEnjoysQuorumIntersectionV2Wrapper(qm, cfg));
+    // V2 reports the halted network as having no quorum, rather than vacuously
+    // enjoying quorum intersection like V1.
+    REQUIRE(quorumCheckStatusV2Wrapper(qm, cfg) ==
+            QuorumCheckerStatus::NO_QUORUM);
 }
 
 TEST_CASE("quorum intersection 6-org 3-node fully-connected",

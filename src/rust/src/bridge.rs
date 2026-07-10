@@ -181,6 +181,7 @@ pub(crate) mod rust_bridge {
         UNSAT = 0,
         SAT = 101,
         UNKNOWN = 102,
+        NO_QUORUM = 103,
     }
 
     struct QuorumSplit {
@@ -363,25 +364,27 @@ pub(crate) mod rust_bridge {
         //  - `QuorumCheckerStatus::UNKNOWN`. Solver could not finish, possibly
         //     due to reaching some internal limits (e.g. num conflicts) not
         //     including resource limits (see "Resource limits and errors")
+        //  - `QuorumCheckerStatus::NO_QUORUM` if the FBAS contains no quorum at
+        //     all (a degenerate / potential-halt configuration). The
+        //     disjoint-quorum question is vacuously unsatisfiable here, but this
+        //     must NOT be conflated with `UNSAT` ("a quorum exists and all
+        //     quorums intersect"): a network with no quorum does not enjoy
+        //     quorum intersection.
         //
         // Resource limits and errors:
         //
         // The quorum checker accepts two limits (passed via `resource_limit`),
-        // time (ms) and memory (bytes). The time limit is enforced internally
-        // via code logic, once exceeds, returns a solver error. The memory
-        // limit is enforced by a global memory allocator, and if exceeded, will
-        // abort the program. In other words, memory limit is a hard, system
-        // enforced limit.
+        // time (ms) and memory (bytes). Both are enforced internally via code
+        // logic; once exceeded, the solver returns an error. Memory is not
+        // measured directly but conservatively *estimated* from the solver's
+        // clause/variable counts, so the limit is a soft, per-solver limit
+        // rather than a hard, process-global one.
         //
         // Errors:
-        //  - if resource limits (not including memory) have been exceeded.
-        //  - any other solver error In either sucess or error case, the
+        //  - if resource limits (time or estimated memory) have been exceeded.
+        //  - any other solver error. In either success or error case, the
         // `resource_usage` will be updated with the actual resource
         // consumption.
-        //
-        // Aborts:
-        // - if the memory limit has been exceeded
-        // Abort is non-recoverable (it cannot be caught by catch_unwind)
         fn network_enjoys_quorum_intersection(
             nodes: &Vec<CxxBuf>,
             quorum_set: &Vec<CxxBuf>,
@@ -389,13 +392,6 @@ pub(crate) mod rust_bridge {
             resource_limit: &QuorumCheckerResource,
             resource_usage: &mut QuorumCheckerResource,
         ) -> Result<QuorumCheckerStatus>;
-
-        // The QI checker actually manages the memory limit using a global
-        // allocator, which winds up controlling _all_ memory allocation by
-        // rust code in the process. So we want to ensure that limit is unlimited
-        // when the process starts up -- the QI check call will limit it later,
-        // if and only if it's running as a QI-checking subprocess.
-        fn set_rust_global_memory_limit_to_unlimited();
 
         // Soroban fuzzing support - always declared but only functional with --features fuzz.
         // Panics on internal errors (which libfuzzer will catch as crashes).
