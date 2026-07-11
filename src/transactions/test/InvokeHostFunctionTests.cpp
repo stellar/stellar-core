@@ -2489,9 +2489,14 @@ TEST_CASE("contract errors cause transaction to fail", "[tx][soroban]")
     }
 }
 
-TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
+TEST_CASE_VERSIONS("settings upgrade", "[tx][soroban][upgrades]")
 {
     auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, /* useTestLimits*/ false);
     auto runTest = [&]() {
@@ -5256,9 +5261,14 @@ TEST_CASE("persistent entry archival", "[tx][soroban][archival]")
     }
 }
 
-TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("autorestore contract instance", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        return;
+    }
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.minPersistentTTL =
@@ -5457,9 +5467,14 @@ TEST_CASE("autorestore contract instance", "[tx][soroban][archival]")
     }
 }
 
-TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("autorestore with storage resize", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        return;
+    }
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.minPersistentTTL =
@@ -10458,9 +10473,14 @@ TEST_CASE_VERSIONS("validate return values", "[tx][soroban][parallelapply]")
 
 // Test that autorestore works when keys aren't explicitly written and
 // belong to another uncalled contractID.
-TEST_CASE("autorestore from another contract", "[tx][soroban][archival]")
+TEST_CASE_VERSIONS("autorestore from another contract", "[tx][soroban][archival]")
 {
     auto cfg = getTestConfig();
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION))
+    {
+        return;
+    }
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(cfg, true, [](SorobanNetworkConfig& sorobanCfg) {
         sorobanCfg.mStateArchivalSettings.minPersistentTTL =
