@@ -2555,6 +2555,10 @@ TEST_CASE_VERSIONS("settings upgrade", "[tx][soroban][upgrades]")
 
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
             auto costEntry = ltx.load(configSettingKey(type));
+            if (!costEntry)
+            {
+                continue;
+            }
             updatedEntries.emplace_back(
                 costEntry.current().data.configSetting());
         }
