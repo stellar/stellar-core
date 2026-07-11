@@ -1101,7 +1101,7 @@ TEST_CASE("version test", "[tx][soroban]")
     }
 }
 
-TEST_CASE("Soroban footprint validation", "[tx][soroban]")
+TEST_CASE_VERSIONS("Soroban footprint validation", "[tx][soroban]")
 {
     auto appCfg = getTestConfig();
     if (protocolVersionIsBefore(appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
@@ -1381,7 +1381,10 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
             resources.footprint.readWrite.emplace_back(persistentKey);
             resources.footprint.readWrite.emplace_back(persistentKey2);
             resources.footprint.readWrite.emplace_back(persistentKey3);
-            testValidInvoke(true, std::vector<uint32_t>{0, 2});
+            testValidInvoke(protocolVersionStartsFrom(
+                                appCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                AUTO_RESTORE_PROTOCOL_VERSION),
+                            std::vector<uint32_t>{0, 2});
         }
 
         SECTION("entry in readOnly footprint")
@@ -5623,10 +5626,16 @@ TEST_CASE("autorestore with storage resize", "[tx][soroban][archival]")
  get-settings-upgrade-txs command to make sure the transactions have the
  proper resources set.
 */
-TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
+TEST_CASE_VERSIONS("settings upgrade command line utils",
+                   "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = app->getRoot();
@@ -5683,6 +5692,12 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto entry = ltx.load(configSettingKey(type));
+        // Config setting IDs introduced by later protocols do not have ledger
+        // entries yet.
+        if (!entry)
+        {
+            continue;
+        }
 
         // Store the initial entries before we modify the cost types below
         initialEntries.emplace_back(entry.current().data.configSetting());
@@ -5940,7 +5955,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     REQUIRE(ret == "");
 
     auto checkSettings = [&](xdr::xvector<ConfigSettingEntry> const& entries) {
-        auto expectedIndex = 0;
+        size_t expectedIndex = 0;
         for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
         {
             auto type = static_cast<ConfigSettingID>(t);
@@ -5959,11 +5974,16 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto entry = ltx.load(configSettingKey(type));
+            if (!entry)
+            {
+                continue;
+            }
 
             REQUIRE(entry.current().data.configSetting() ==
                     entries.at(expectedIndex));
             ++expectedIndex;
         }
+        REQUIRE(expectedIndex == entries.size());
     };
 
     SECTION("success")
