@@ -219,9 +219,9 @@ TransactionTestFrame::validateSorobanMemo() const
 }
 
 bool
-TransactionTestFrame::validateHostFn() const
+TransactionTestFrame::validateHostFn(uint32_t ledgerVersion) const
 {
-    return mTransactionFrame->validateHostFn();
+    return mTransactionFrame->validateHostFn(ledgerVersion);
 }
 
 int64_t

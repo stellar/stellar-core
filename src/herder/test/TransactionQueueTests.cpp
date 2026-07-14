@@ -24,6 +24,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
@@ -1264,50 +1265,65 @@ TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
                 TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
 
-    auto runInvalidCreateContractTest =
-        [&](HostFunctionType hostFnType, ContractIDPreimageType preimageType,
-            ContractExecutableType executableType) {
-            Operation createOp;
-            createOp.body.type(INVOKE_HOST_FUNCTION);
-            auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
-            createHF.type(hostFnType);
+    auto makeCreateContractTx = [&](HostFunctionType hostFnType,
+                                    ContractIDPreimageType preimageType,
+                                    ContractExecutableType executableType) {
+        Operation createOp;
+        createOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
+        createHF.type(hostFnType);
 
-            auto setPreimageAndExecutable = [&](ContractIDPreimage& preimage,
-                                                ContractExecutable& exec) {
-                preimage.type(preimageType);
-                if (preimageType == CONTRACT_ID_PREIMAGE_FROM_ASSET)
-                {
-                    preimage.fromAsset() = makeNativeAsset();
-                }
-                else
-                {
-                    preimage.fromAddress().address =
-                        makeAccountAddress(a1.getPublicKey());
-                    preimage.fromAddress().salt = sha256("salt");
-                }
-                exec.type(executableType);
-                if (executableType == CONTRACT_EXECUTABLE_WASM)
-                {
-                    exec.wasm_hash() = sha256(wasm.data);
-                }
-            };
-
-            if (hostFnType == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
+        auto setPreimageAndExecutable = [&](ContractIDPreimage& preimage,
+                                            ContractExecutable& exec) {
+            preimage.type(preimageType);
+            if (preimageType == CONTRACT_ID_PREIMAGE_FROM_ASSET)
             {
-                setPreimageAndExecutable(
-                    createHF.createContract().contractIDPreimage,
-                    createHF.createContract().executable);
+                preimage.fromAsset() = makeNativeAsset();
             }
             else
             {
-                setPreimageAndExecutable(
-                    createHF.createContractV2().contractIDPreimage,
-                    createHF.createContractV2().executable);
+                preimage.fromAddress().address =
+                    makeAccountAddress(a1.getPublicKey());
+                preimage.fromAddress().salt = sha256("salt");
             }
+            exec.type(executableType);
+            if (executableType == CONTRACT_EXECUTABLE_WASM)
+            {
+                exec.wasm_hash() = sha256(wasm.data);
+            }
+#ifdef CAP_0085_EXECUTABLE_REF
+            else if (executableType == CONTRACT_EXECUTABLE_EXTERNAL_REF)
+            {
+                exec.external_ref().executable_owner =
+                    makeContractAddress(sha256("owner"));
+                exec.external_ref().tag = "tag";
+            }
+#endif
+        };
 
-            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
-                app->getNetworkID(), a1, {createOp}, {}, resources,
-                uploadResourceFee + 100, uploadResourceFee);
+        if (hostFnType == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
+        {
+            setPreimageAndExecutable(
+                createHF.createContract().contractIDPreimage,
+                createHF.createContract().executable);
+        }
+        else
+        {
+            setPreimageAndExecutable(
+                createHF.createContractV2().contractIDPreimage,
+                createHF.createContractV2().executable);
+        }
+
+        return sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {createOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee);
+    };
+
+    auto runInvalidCreateContractTest =
+        [&](HostFunctionType hostFnType, ContractIDPreimageType preimageType,
+            ContractExecutableType executableType) {
+            auto tx =
+                makeCreateContractTx(hostFnType, preimageType, executableType);
             auto feeBumpTx =
                 feeBump(*app, feeBumper, tx, uploadResourceFee + 200);
 
@@ -1336,6 +1352,35 @@ TEST_CASE("Soroban tx filtering", "[soroban][transactionqueue]")
                                      CONTRACT_ID_PREIMAGE_FROM_ADDRESS,
                                      CONTRACT_EXECUTABLE_STELLAR_ASSET);
     }
+
+#ifdef CAP_0085_EXECUTABLE_REF
+    SECTION("CAP-0085 external ref executable")
+    {
+        uint32_t const gate =
+            static_cast<uint32_t>(EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION);
+
+        // FROM_ADDRESS + external ref is accepted starting at the CAP-0085
+        // protocol version and rejected just below it, for both host-fn
+        // variants.
+        for (auto hostFnType : {HOST_FUNCTION_TYPE_CREATE_CONTRACT,
+                                HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2})
+        {
+            auto tx = makeCreateContractTx(hostFnType,
+                                           CONTRACT_ID_PREIMAGE_FROM_ADDRESS,
+                                           CONTRACT_EXECUTABLE_EXTERNAL_REF);
+            REQUIRE(tx->validateHostFn(gate));
+            REQUIRE_FALSE(tx->validateHostFn(gate - 1));
+        }
+
+        // FROM_ASSET + external ref stays rejected.
+        runInvalidCreateContractTest(HOST_FUNCTION_TYPE_CREATE_CONTRACT,
+                                     CONTRACT_ID_PREIMAGE_FROM_ASSET,
+                                     CONTRACT_EXECUTABLE_EXTERNAL_REF);
+        runInvalidCreateContractTest(HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2,
+                                     CONTRACT_ID_PREIMAGE_FROM_ASSET,
+                                     CONTRACT_EXECUTABLE_EXTERNAL_REF);
+    }
+#endif
 }
 
 TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")

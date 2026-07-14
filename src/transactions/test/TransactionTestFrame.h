@@ -108,7 +108,7 @@ class TransactionTestFrame : public TransactionFrameBase
     bool validateAccountFilterForFlooding(
         std::set<AccountID> const& filteredAccounts) const override;
     bool validateSorobanMemo() const override;
-    bool validateHostFn() const override;
+    bool validateHostFn(uint32_t ledgerVersion) const override;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.

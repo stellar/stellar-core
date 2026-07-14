@@ -544,9 +544,9 @@ FeeBumpTransactionFrame::validateSorobanMemo() const
 }
 
 bool
-FeeBumpTransactionFrame::validateHostFn() const
+FeeBumpTransactionFrame::validateHostFn(uint32_t ledgerVersion) const
 {
-    return mInnerTx->validateHostFn();
+    return mInnerTx->validateHostFn(ledgerVersion);
 }
 
 int64_t

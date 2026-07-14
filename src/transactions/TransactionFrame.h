@@ -224,7 +224,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateAccountFilterForFlooding(
         std::set<AccountID> const& filteredAccounts) const override;
     bool validateSorobanMemo() const override;
-    bool validateHostFn() const override;
+    bool validateHostFn(uint32_t ledgerVersion) const override;
 
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;

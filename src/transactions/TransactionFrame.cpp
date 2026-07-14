@@ -354,7 +354,7 @@ TransactionFrame::validateAccountFilterForFlooding(
 }
 
 bool
-TransactionFrame::validateHostFn() const
+TransactionFrame::validateHostFn(uint32_t ledgerVersion) const
 {
     if (!isSoroban())
     {
@@ -376,28 +376,35 @@ TransactionFrame::validateHostFn() const
     auto const& hostFn = op.body.invokeHostFunctionOp().hostFunction;
 
     auto validateCreateContract =
-        [](ContractIDPreimage const& preimage,
-           ContractExecutable const& executable) -> bool {
+        [ledgerVersion](ContractIDPreimage const& preimage,
+                        ContractExecutable const& executable) -> bool {
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             executable.type() != CONTRACT_EXECUTABLE_STELLAR_ASSET)
         {
             return false;
         }
-        // TODO(CAP-0085, SPIKE): once the p28 host acceptance logic
-        // (rs-soroban-env#1703) and the CAP-0085 spec are cross-checked, relax
-        // this to also accept CONTRACT_EXECUTABLE_EXTERNAL_REF for FROM_ADDRESS
-        // creates when
-        //   protocolVersionStartsFrom(ledgerVersion,
-        //                             EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION).
-        // That requires threading ledgerVersion (from the current LCL header)
-        // through the virtual validateHostFn() interface
-        // (TransactionFrameBase.h + the FeeBump/TestFrame overrides + the
-        // TransactionQueue caller). Deferred for this SPIKE: external-ref creates
-        // stay rejected core-side, which keeps existing behavior/tests intact.
-        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS &&
-            executable.type() != CONTRACT_EXECUTABLE_WASM)
+        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS)
         {
-            return false;
+            bool validExecutable =
+                executable.type() == CONTRACT_EXECUTABLE_WASM;
+#ifdef CAP_0085_EXECUTABLE_REF
+            // CAP-0085: FROM_ADDRESS creates may also target an external
+            // executable reference starting at the CAP-0085 protocol version.
+            // CREATE_CONTRACT / CREATE_CONTRACT_V2 resolve
+            // CONTRACT_EXECUTABLE_EXTERNAL_REF with the same semantics as
+            // create_external_ref_contract (CAP-0085 spec, InvokeHostFunctionOp
+            // update). The host enforces reference validity (rs-soroban-env
+            // frame.rs); this admission check only gates the executable type.
+            validExecutable =
+                validExecutable ||
+                (protocolVersionStartsFrom(
+                     ledgerVersion, EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION) &&
+                 executable.type() == CONTRACT_EXECUTABLE_EXTERNAL_REF);
+#endif
+            if (!validExecutable)
+            {
+                return false;
+            }
         }
         return true;
     };
