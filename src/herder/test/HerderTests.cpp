@@ -1458,12 +1458,12 @@ TEST_CASE("txset base fee", "[herder][txset]")
                            uint32_t expNotChargedAccounts = 0) {
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
-                if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
-                {
-                    SUCCEED("Skipping historical Soroban protocol test: requested "
-                        "protocol is not linked in this build");
-                    return;
-                }
+        if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+        {
+            SUCCEED("Skipping historical Soroban protocol test: requested "
+                    "protocol is not linked in this build");
+            return;
+        }
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
