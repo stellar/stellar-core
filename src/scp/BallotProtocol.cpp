@@ -98,7 +98,7 @@ BallotProtocol::isNewerStatement(SCPStatement const& oldst,
         else
         {
             // Lexicographical order between PREPARE statements:
-            // (b, p, p', h)
+            // (b, p, p', h, c)
             auto const& oldPrep = oldst.pledges.prepare();
             auto const& prep = st.pledges.prepare();
 
