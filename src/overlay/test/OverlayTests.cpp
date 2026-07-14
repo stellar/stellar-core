@@ -175,6 +175,13 @@ TEST_CASE("mixed overlay versions do not prefer direct qset peers",
     REQUIRE(info);
     REQUIRE(info->remoteRole == RemoteQsetRole::Unknown);
 
+    // The v41 side must record Unknown too (not None): the v42 peer withheld
+    // its flag only because our advertised version predates the feature.
+    auto info2 = app2->getOverlayManager().getQuorumPeerState().getInfo(
+        cfg1.NODE_SEED.getPublicKey());
+    REQUIRE(info2);
+    REQUIRE(info2->remoteRole == RemoteQsetRole::Unknown);
+
     testutil::shutdownWorkScheduler(*app2);
     testutil::shutdownWorkScheduler(*app1);
 }
@@ -253,6 +260,161 @@ TEST_CASE("mutual direct qset preference persists across restart",
         PeerBareAddress{"127.0.0.1", cfg2.PEER_PORT});
     REQUIRE(peerRecord.second);
     REQUIRE(peerRecord.first.mType == static_cast<int>(PeerType::PREFERRED));
+}
+
+TEST_CASE("qset peer demoted when no longer mutual", "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    addDirectQsetPeer(cfg1, cfg2);
+    addDirectQsetPeer(cfg2, cfg1);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+        REQUIRE(knowsAsPreferred(*app1, *app2));
+    }
+    testutil::crankSome(clock);
+
+    // The peer "restarts" with the same key but with our node no longer in
+    // its qset. Model the restarted node as a separate app since destroying
+    // an app stops the shared clock.
+    auto cfg2b = getTestConfig(2);
+    cfg2b.NODE_SEED = cfg2.NODE_SEED;
+    auto app2b = createTestApplication(clock, cfg2b);
+
+    LoopbackPeerConnection conn2(*app1, *app2b);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn2.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn2.getAcceptor()->isAuthenticatedForTesting());
+
+    auto info = app1->getOverlayManager().getQuorumPeerState().getInfo(
+        cfg2.NODE_SEED.getPublicKey());
+    REQUIRE(info);
+    REQUIRE(info->remoteRole == RemoteQsetRole::None);
+
+    // Both the old and the new address lost preferred status so we back off
+    // gracefully instead of aggressively chasing a non-mutual peer
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+    REQUIRE(knowsAsOutbound(*app1, *app2b));
+
+    testutil::shutdownWorkScheduler(*app2b);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("qset peer address change updates preferred records",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    addDirectQsetPeer(cfg1, cfg2);
+    addDirectQsetPeer(cfg2, cfg1);
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+        REQUIRE(knowsAsPreferred(*app1, *app2));
+    }
+    testutil::crankSome(clock);
+
+    // The peer returns with the same key at a different address (a separate
+    // app, since destroying an app stops the shared clock) and dials us
+    auto cfg2b = getTestConfig(2);
+    cfg2b.NODE_SEED = cfg2.NODE_SEED;
+    addDirectQsetPeer(cfg2b, cfg1);
+    auto app2b = createTestApplication(clock, cfg2b);
+
+    LoopbackPeerConnection conn2(*app2b, *app1);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn2.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn2.getAcceptor()->isAuthenticatedForTesting());
+
+    auto info = app1->getOverlayManager().getQuorumPeerState().getInfo(
+        cfg2.NODE_SEED.getPublicKey());
+    REQUIRE(info);
+    REQUIRE(info->remoteRole == RemoteQsetRole::Direct);
+    REQUIRE(info->address ==
+            PeerBareAddress{"127.0.0.1", cfg2b.PEER_PORT});
+
+    // The new address is preferred and the stale one was demoted
+    REQUIRE(knowsAsPreferred(*app1, *app2b));
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+
+    testutil::shutdownWorkScheduler(*app2b);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
+TEST_CASE("direct qset peers converge to a fully connected top tier",
+          "[overlay][simulation]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    // Four validators sharing one symmetric qset, with ordinary connection
+    // budgets far too small for a full mesh: full top-tier connectivity must
+    // come from mutual qset peering, not spare ordinary capacity.
+    auto simulation = Topologies::separate(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, 0, [](int i) {
+            auto cfg = getTestConfig(i + 1);
+            cfg.TARGET_PEER_CONNECTIONS = 1;
+            cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+            cfg.RUN_STANDALONE = false;
+            cfg.MODE_DOES_CATCHUP = false;
+            return cfg;
+        });
+
+    auto nodeIDs = simulation->getNodeIDs();
+    REQUIRE(nodeIDs.size() == 4);
+
+    // Sparse initial knowledge: a simple chain 0-1-2-3. The rest of the
+    // addresses must be found via gossip and qset peer discovery.
+    simulation->addPendingConnection(nodeIDs[0], nodeIDs[1]);
+    simulation->addPendingConnection(nodeIDs[1], nodeIDs[2]);
+    simulation->addPendingConnection(nodeIDs[2], nodeIDs[3]);
+
+    simulation->startAllNodes();
+
+    auto fullyConnected = [&]() {
+        for (auto const& node : simulation->getNodes())
+        {
+            if (node->getOverlayManager().getAuthenticatedPeersCount() < 3)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    simulation->crankUntil(fullyConnected, std::chrono::seconds(120), false);
+    REQUIRE(fullyConnected());
+
+    // Every pair of validators considers the other a preferred peer
+    auto nodes = simulation->getNodes();
+    for (auto const& knowing : nodes)
+    {
+        for (auto const& known : nodes)
+        {
+            if (knowing == known)
+            {
+                continue;
+            }
+            REQUIRE(knowsAsPreferred(*knowing, *known));
+        }
+    }
 }
 
 TEST_CASE("loopback peer with 0 port", "[overlay][connections]")
@@ -2123,6 +2285,10 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections][acceptance]")
         auto cfg = getTestConfig(id);
         cfg.TARGET_PEER_CONNECTIONS = targetOutboundConnections;
         cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInboundConnections;
+        // This legacy test relies on the 1-in/1-out caps binding between
+        // nodes that share a qset. Pin below v42 so mutual qset peering does
+        // not bypass the saturation limits the test depends on.
+        cfg.OVERLAY_PROTOCOL_VERSION = 41;
         return cfg;
     };
 

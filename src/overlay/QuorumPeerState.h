@@ -36,9 +36,21 @@ class QuorumPeerState
     UnorderedMap<NodeID, QuorumPeerInfo> mInfo;
 
   public:
-    void reconcile(std::set<NodeID> const& directQset);
-    void recordHandshake(NodeID const& nodeID, RemoteQsetRole remoteRole,
-                         PeerBareAddress const& address, uint64_t nowSecs);
+    // Drops entries no longer in our configured qset (returning them so the
+    // caller can clean up any associated peer records) and creates fresh
+    // entries for new qset members.
+    std::vector<std::pair<NodeID, QuorumPeerInfo>>
+    reconcile(std::set<NodeID> const& directQset);
+    // Records the outcome of an authenticated handshake. Returns the
+    // previously known address if the peer moved, so the caller can demote
+    // the stale record.
+    std::optional<PeerBareAddress>
+    recordHandshake(NodeID const& nodeID, RemoteQsetRole remoteRole,
+                    PeerBareAddress const& address, uint64_t nowSecs);
+    // Moves lastConnection forward for a peer we currently hold a live
+    // authenticated connection to (or that gets a fresh TTL window after a
+    // restart), so its address is not expired while it is still in use.
+    void refreshLastConnection(NodeID const& nodeID, uint64_t nowSecs);
     std::vector<std::pair<NodeID, QuorumPeerInfo>>
     expireStaleAddresses(uint64_t nowSecs, std::chrono::seconds ttl);
 

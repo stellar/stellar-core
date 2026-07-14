@@ -588,4 +588,41 @@ TEST_CASE("preferred peer backoff cap is lower", "[overlay][PeerManager]")
 
     REQUIRE(delay <= maxPreferredDelay);
 }
+
+TEST_CASE("preferred peers are retried beyond the failure cutoff",
+          "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+
+    // A mutual qset peer may be offline for a long time; its preferred
+    // record must remain a connection candidate no matter how many failures
+    // it has accumulated.
+    size_t manyFailures = Config::REALLY_DEAD_NUM_FAILURES_CUTOFF + 10;
+    auto pastAttempt = VirtualClock::systemPointToTm(
+        app->getClock().system_now() - std::chrono::seconds(1));
+
+    peerManager.store(localhost(1),
+                      {pastAttempt, manyFailures,
+                       static_cast<int>(PeerType::PREFERRED)},
+                      false);
+    peerManager.store(localhost(2),
+                      {pastAttempt, manyFailures,
+                       static_cast<int>(PeerType::OUTBOUND)},
+                      false);
+
+    auto anyAddress = [](PeerBareAddress const&) { return true; };
+
+    RandomPeerSource preferredSource(
+        peerManager, RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
+    auto preferred = preferredSource.getRandomPeers(10, anyAddress);
+    REQUIRE(preferred.size() == 1);
+    REQUIRE(preferred.front() == localhost(1));
+
+    // Ordinary peers still stop being considered past the cutoff
+    RandomPeerSource outboundSource(
+        peerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND));
+    REQUIRE(outboundSource.getRandomPeers(10, anyAddress).empty());
+}
 }

@@ -153,6 +153,30 @@ class OverlayManagerStub : public OverlayManagerImpl
         return peerStub;
     }
 
+    // Like authenticatePeer, but reports rejection instead of asserting
+    bool
+    tryAuthenticatePeer(PeerBareAddress const& address, Peer::PeerRole role,
+                        bool isMutualQsetPeer = false)
+    {
+        auto peerStub = std::make_shared<PeerStub>(mApp, address, role);
+        peerStub->setMutualQsetPeer(isMutualQsetPeer);
+        if (role == Peer::WE_CALLED_REMOTE)
+        {
+            REQUIRE(addOutboundConnection(peerStub));
+        }
+        else
+        {
+            maybeAddInboundConnection(peerStub);
+        }
+        return acceptAuthenticatedPeer(peerStub);
+    }
+
+    void
+    addConfigPreferredAddressForTesting(PeerBareAddress const& address)
+    {
+        mConfigurationPreferredPeers.insert(address);
+    }
+
     void
     addDirectQsetPeerForTesting(NodeID const& nodeID)
     {
@@ -519,6 +543,173 @@ class OverlayManagerTests
         REQUIRE(pm.mConnectionAttempts.empty());
         REQUIRE(availablePendingSlots == 10);
     }
+
+    void
+    testKnownAddressQsetPeersAreNotProbed()
+    {
+        OverlayManagerStub& pm = app->getOverlayManager();
+
+        // A disconnected mutual qset peer with a known address is dialed
+        // directly through its (preferred) peer record; random discovery
+        // probing is only for peers with unknown addresses.
+        auto qsetNode = randomNodeID();
+        auto qsetAddress = localhost(9250);
+        pm.addDirectQsetPeerForTesting(qsetNode);
+        pm.getQuorumPeerState().recordHandshake(
+            qsetNode, RemoteQsetRole::Direct, qsetAddress,
+            static_cast<uint64_t>(
+                VirtualClock::to_time_t(app->getClock().system_now())));
+        pm.getPeerManager().ensureExists(localhost(9251));
+
+        int availablePendingSlots = 10;
+        pm.connectToQsetPeers(availablePendingSlots);
+
+        REQUIRE(pm.mConnectionAttempts.empty());
+        REQUIRE(availablePendingSlots == 10);
+    }
+
+    int
+    storedPeerType(PeerBareAddress const& address)
+    {
+        auto record =
+            app->getOverlayManager().getPeerManager().load(address);
+        REQUIRE(record.second);
+        return record.first.mType;
+    }
+
+    void
+    testInboundQsetPeersDoNotConsumeInboundSlots()
+    {
+        OverlayManagerStub& pm = app->getOverlayManager();
+        auto maxInbound = app->getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS;
+
+        // Mutual qset peers connect first, well beyond the inbound cap
+        for (auto i = 0; i < maxInbound + 2; ++i)
+        {
+            pm.authenticatePeer(localhost(10000 + i), Peer::REMOTE_CALLED_US,
+                                /* isMutualQsetPeer */ true);
+        }
+        REQUIRE(pm.mInboundPeers.mAuthenticated.size() ==
+                static_cast<size_t>(maxInbound + 2));
+
+        // Ordinary inbound watchers must still get their full allowance
+        for (auto i = 0; i < maxInbound; ++i)
+        {
+            REQUIRE(pm.tryAuthenticatePeer(localhost(10100 + i),
+                                           Peer::REMOTE_CALLED_US));
+        }
+        // ...and only the allowance
+        REQUIRE(!pm.tryAuthenticatePeer(localhost(10200),
+                                        Peer::REMOTE_CALLED_US));
+        REQUIRE(pm.mInboundPeers.mAuthenticated.size() ==
+                static_cast<size_t>(2 * maxInbound + 2));
+    }
+
+    void
+    testExpirySkipsConnectedQsetPeers()
+    {
+        OverlayManagerStub& pm = app->getOverlayManager();
+
+        auto connectedNode = randomNodeID();
+        auto connectedAddress = localhost(9300);
+        auto offlineNode = randomNodeID();
+        auto offlineAddress = localhost(9301);
+        pm.addDirectQsetPeerForTesting(connectedNode);
+        pm.addDirectQsetPeerForTesting(offlineNode);
+
+        pm.authenticatePeer(connectedAddress, Peer::WE_CALLED_REMOTE,
+                            /* isMutualQsetPeer */ true, &connectedNode);
+
+        // Both peers last handshaked at t=1, far beyond the TTL
+        pm.getQuorumPeerState().recordHandshake(
+            connectedNode, RemoteQsetRole::Direct, connectedAddress, 1);
+        pm.getQuorumPeerState().recordHandshake(
+            offlineNode, RemoteQsetRole::Direct, offlineAddress, 1);
+        pm.getPeerManager().update(offlineAddress, PeerType::PREFERRED,
+                                   /* preferredTypeKnown */ true);
+
+        clock.setCurrentVirtualTime(
+            VirtualClock::time_point(std::chrono::hours(48)));
+        pm.expireStaleQuorumPeerAddresses();
+
+        // The live connection kept its state fresh
+        auto connectedInfo = pm.getQuorumPeerState().getInfo(connectedNode);
+        REQUIRE(connectedInfo);
+        REQUIRE(connectedInfo->remoteRole == RemoteQsetRole::Direct);
+        REQUIRE(connectedInfo->address);
+
+        // The offline peer's stale address expired and was demoted
+        auto offlineInfo = pm.getQuorumPeerState().getInfo(offlineNode);
+        REQUIRE(offlineInfo);
+        REQUIRE(offlineInfo->remoteRole == RemoteQsetRole::Unknown);
+        REQUIRE(!offlineInfo->address);
+        REQUIRE(storedPeerType(offlineAddress) ==
+                static_cast<int>(PeerType::OUTBOUND));
+    }
+
+    void
+    testQsetHandshakeDemotions()
+    {
+        OverlayManagerStub& pm = app->getOverlayManager();
+
+        auto node = randomNodeID();
+        auto address1 = localhost(9500);
+        auto address2 = localhost(9501);
+        pm.addDirectQsetPeerForTesting(node);
+
+        // A mutual handshake marks the address preferred
+        pm.recordQsetPeerHandshake(node, RemoteQsetRole::Direct, address1);
+        REQUIRE(storedPeerType(address1) ==
+                static_cast<int>(PeerType::PREFERRED));
+
+        // The peer moves: the new address becomes preferred, the old one is
+        // demoted
+        pm.recordQsetPeerHandshake(node, RemoteQsetRole::Direct, address2);
+        REQUIRE(storedPeerType(address2) ==
+                static_cast<int>(PeerType::PREFERRED));
+        REQUIRE(storedPeerType(address1) ==
+                static_cast<int>(PeerType::OUTBOUND));
+
+        // The peering stops being mutual: the address is demoted so we back
+        // off gracefully
+        pm.recordQsetPeerHandshake(node, RemoteQsetRole::None, address2);
+        REQUIRE(storedPeerType(address2) ==
+                static_cast<int>(PeerType::OUTBOUND));
+        auto info = pm.getQuorumPeerState().getInfo(node);
+        REQUIRE(info);
+        REQUIRE(info->remoteRole == RemoteQsetRole::None);
+
+        // Operator-configured preferred addresses are never demoted
+        auto configPreferred = localhost(9502);
+        pm.addConfigPreferredAddressForTesting(configPreferred);
+        pm.getPeerManager().update(configPreferred, PeerType::PREFERRED,
+                                   /* preferredTypeKnown */ true);
+        pm.recordQsetPeerHandshake(node, RemoteQsetRole::None,
+                                   configPreferred);
+        REQUIRE(storedPeerType(configPreferred) ==
+                static_cast<int>(PeerType::PREFERRED));
+    }
+
+    void
+    testReconcileDemotesRemovedQsetPeers()
+    {
+        OverlayManagerStub& pm = app->getOverlayManager();
+
+        // A peer from a previous run's qset, no longer in our config
+        auto removedNode = randomNodeID();
+        auto removedAddress = localhost(9600);
+        pm.getQuorumPeerState().recordHandshake(
+            removedNode, RemoteQsetRole::Direct, removedAddress, 1);
+        pm.getPeerManager().update(removedAddress, PeerType::PREFERRED,
+                                   /* preferredTypeKnown */ true);
+        pm.persistQuorumPeerState();
+
+        pm.reconcileQuorumPeerState();
+
+        REQUIRE(!pm.getQuorumPeerState().getInfo(removedNode));
+        REQUIRE(storedPeerType(removedAddress) ==
+                static_cast<int>(PeerType::OUTBOUND));
+    }
 };
 
 TEST_CASE_METHOD(OverlayManagerTests, "storeConfigPeers() adds", "[overlay]")
@@ -576,5 +767,40 @@ TEST_CASE_METHOD(OverlayManagerTests,
                  "[overlay][OverlayManager]")
 {
     testKnownNonMutualQsetPeersAreNotProbed();
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "connectToQsetPeers skips qset peers with known addresses",
+                 "[overlay][OverlayManager]")
+{
+    testKnownAddressQsetPeersAreNotProbed();
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "inbound qset peers do not consume inbound slots",
+                 "[overlay][OverlayManager]")
+{
+    testInboundQsetPeersDoNotConsumeInboundSlots();
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "expiry skips connected qset peers",
+                 "[overlay][OverlayManager]")
+{
+    testExpirySkipsConnectedQsetPeers();
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "qset handshake promotes and demotes peer records",
+                 "[overlay][OverlayManager]")
+{
+    testQsetHandshakeDemotions();
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "reconcile demotes peers removed from the qset",
+                 "[overlay][OverlayManager]")
+{
+    testReconcileDemotesRemovedQsetPeers();
 }
 }

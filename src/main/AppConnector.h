@@ -59,7 +59,6 @@ class AppConnector
     void postOnEvictionBackgroundThread(std::function<void()>&& f,
                                         std::string const& jobName);
     VirtualClock::time_point now() const;
-    VirtualClock::system_time_point systemNow() const;
     Config const& getConfig() const;
     rust::Box<rust_bridge::SorobanModuleCache> getModuleCache();
     bool overlayShuttingDown() const;

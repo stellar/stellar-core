@@ -48,8 +48,15 @@ peerTypeToFilter(PeerType peerType)
 PeerQuery
 RandomPeerSource::nextAttemptCutoff(PeerType requireExactType)
 {
-    return {true, Config::REALLY_DEAD_NUM_FAILURES_CUTOFF,
-            peerTypeToFilter(requireExactType)};
+    // Preferred peers (operator-configured or mutual direct-qset peers) are
+    // retried indefinitely; ordinary peers stop being considered once they
+    // accumulate enough failures.
+    std::optional<size_t> maxNumFailures;
+    if (requireExactType != PeerType::PREFERRED)
+    {
+        maxNumFailures = Config::REALLY_DEAD_NUM_FAILURES_CUTOFF;
+    }
+    return {true, maxNumFailures, peerTypeToFilter(requireExactType)};
 }
 
 RandomPeerSource::RandomPeerSource(PeerManager& peerManager,

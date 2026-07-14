@@ -537,6 +537,14 @@ Peer::getJsonInfo(bool compact) const
     return res;
 }
 
+bool
+Peer::supportsQuorumPeering() const
+{
+    return mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
+               QUORUM_PEERING_OVERLAY_VERSION &&
+           mRemoteOverlayVersion >= QUORUM_PEERING_OVERLAY_VERSION;
+}
+
 void
 Peer::sendAuth()
 {
@@ -546,12 +554,10 @@ Peer::sendAuth()
     StellarMessage msg;
     msg.type(AUTH);
     auto flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
-    if (mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
-            QUORUM_PEERING_OVERLAY_VERSION &&
-        mRemoteOverlayVersion >= QUORUM_PEERING_OVERLAY_VERSION &&
+    if (supportsQuorumPeering() &&
         mAppConnector.getOverlayManager().isDirectQsetPeer(mPeerID))
     {
-        flags |= AUTH_MSG_FLAG_PEER_IN_QUORUM;
+        flags |= AUTH_MSG_FLAG_PEER_IN_DIRECT_QSET;
     }
     msg.auth().flags = flags;
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
@@ -1785,22 +1791,12 @@ Peer::updatePeerRecordAfterAuthentication()
     if (overlayManager.isDirectQsetPeer(mPeerID))
     {
         auto const remoteRole =
-            mRemoteOverlayVersion < QUORUM_PEERING_OVERLAY_VERSION
+            !supportsQuorumPeering()
                 ? RemoteQsetRole::Unknown
                 : (mPeerHasUsInQset ? RemoteQsetRole::Direct
                                     : RemoteQsetRole::None);
-        auto const now = static_cast<uint64_t>(
-            VirtualClock::to_time_t(mAppConnector.systemNow()));
-        overlayManager.getQuorumPeerState().recordHandshake(mPeerID, remoteRole,
-                                                            getAddress(), now);
-        overlayManager.persistQuorumPeerState();
-
-        if (mIsMutualQsetPeer)
-        {
-            overlayManager.getPeerManager().update(
-                getAddress(), PeerType::PREFERRED,
-                /* preferredTypeKnown */ true);
-        }
+        overlayManager.recordQsetPeerHandshake(mPeerID, remoteRole,
+                                               getAddress());
     }
     else
     {
@@ -1991,10 +1987,10 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    if (mRemoteOverlayVersion >= QUORUM_PEERING_OVERLAY_VERSION)
+    if (supportsQuorumPeering())
     {
         mPeerHasUsInQset =
-            (msg.auth().flags & AUTH_MSG_FLAG_PEER_IN_QUORUM) != 0;
+            (msg.auth().flags & AUTH_MSG_FLAG_PEER_IN_DIRECT_QSET) != 0;
         mIsMutualQsetPeer =
             mPeerHasUsInQset &&
             mAppConnector.getOverlayManager().isDirectQsetPeer(mPeerID);

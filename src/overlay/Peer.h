@@ -279,6 +279,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool mPeerHasUsInQset{false};
     bool mIsMutualQsetPeer{false};
 
+    // Whether both sides of this connection run an overlay version that
+    // understands the direct-qset peering AUTH flag.
+    bool supportsQuorumPeering() const;
+
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
     void maybeProcessPingResponse(Hash const& id);

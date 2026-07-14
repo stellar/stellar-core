@@ -208,6 +208,16 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
     return true;
 }
 
+size_t
+OverlayManagerImpl::PeersList::nonQsetAuthenticatedCount() const
+{
+    releaseAssert(threadIsMain());
+    auto mutualQsetCount = std::count_if(
+        std::begin(mAuthenticated), std::end(mAuthenticated),
+        [](auto const& peer) { return peer.second->isMutualQsetPeer(); });
+    return mAuthenticated.size() - mutualQsetCount;
+}
+
 bool
 OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
@@ -223,9 +233,11 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 
     CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {}",
                peer->toString());
+    // Mutual direct-qset peers do not count against the operator-configured
+    // limit, so capacity checks compare against the non-qset population only.
     if (mOverlayManager.isPreferred(peer.get()))
     {
-        if (mAuthenticated.size() < mMaxAuthenticatedCount)
+        if (nonQsetAuthenticatedCount() < mMaxAuthenticatedCount)
         {
             return moveToAuthenticated(peer);
         }
@@ -247,7 +259,7 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
     }
 
     if (!mOverlayManager.mApp.getConfig().PREFERRED_PEERS_ONLY &&
-        mAuthenticated.size() < mMaxAuthenticatedCount)
+        nonQsetAuthenticatedCount() < mMaxAuthenticatedCount)
     {
         return moveToAuthenticated(peer);
     }
@@ -343,11 +355,16 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     mPeerSources[PeerType::PREFERRED] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
 
-    LocalNode::forAllNodes(mApp.getConfig().QUORUM_SET,
-                           [&](NodeID const& nodeID) {
-                               mDirectQsetPeers.insert(nodeID);
-                               return true;
-                           });
+    LocalNode::forAllNodes(
+        mApp.getConfig().QUORUM_SET, [&](NodeID const& nodeID) {
+            // Validators usually list themselves in their own qset; we never
+            // connect to ourselves, so keep self out of the peering state.
+            if (!(nodeID == mApp.getConfig().NODE_SEED.getPublicKey()))
+            {
+                mDirectQsetPeers.insert(nodeID);
+            }
+            return true;
+        });
 }
 
 OverlayManagerImpl::~OverlayManagerImpl()
@@ -392,13 +409,24 @@ OverlayManagerImpl::reconcileQuorumPeerState()
     mQuorumPeerState =
         QuorumPeerState::fromJson(mApp.getPersistentState().getState(
             PersistentState::kQuorumPeerInfo, session));
-    mQuorumPeerState.reconcile(mDirectQsetPeers);
+    auto removed = mQuorumPeerState.reconcile(mDirectQsetPeers);
+    for (auto const& entry : removed)
+    {
+        // Peers no longer in our qset must not keep their aggressive
+        // reconnection priority.
+        if (entry.second.address)
+        {
+            demoteQsetPeerAddress(entry.first, *entry.second.address);
+        }
+    }
     persistQuorumPeerState();
 }
 
 void
 OverlayManagerImpl::seedQuorumPeerAddresses()
 {
+    auto const now = static_cast<uint64_t>(
+        VirtualClock::to_time_t(mApp.getClock().system_now()));
     for (auto const& entry : mQuorumPeerState.getInfo())
     {
         auto const& info = entry.second;
@@ -406,6 +434,12 @@ OverlayManagerImpl::seedQuorumPeerAddresses()
         {
             continue;
         }
+
+        // Give every persisted address a fresh TTL window after a restart:
+        // lastConnection is only recorded at handshake time, so without this
+        // the state of a long-lived pre-restart connection would be expired
+        // before we get a chance to reconnect.
+        mQuorumPeerState.refreshLastConnection(entry.first, now);
 
         if (info.remoteRole == RemoteQsetRole::Direct)
         {
@@ -420,6 +454,7 @@ OverlayManagerImpl::seedQuorumPeerAddresses()
                                     PeerManager::BackOffUpdate::HARD_RESET);
         }
     }
+    persistQuorumPeerState();
 }
 
 void
@@ -427,6 +462,15 @@ OverlayManagerImpl::expireStaleQuorumPeerAddresses()
 {
     auto const now = static_cast<uint64_t>(
         VirtualClock::to_time_t(mApp.getClock().system_now()));
+
+    // A live authenticated connection keeps a qset peer's address fresh;
+    // lastConnection is otherwise only written at handshake time, and
+    // connections routinely outlive the TTL.
+    for (auto const& peer : getAuthenticatedPeers())
+    {
+        mQuorumPeerState.refreshLastConnection(peer.first, now);
+    }
+
     auto expired = mQuorumPeerState.expireStaleAddresses(
         now, QUORUM_PEER_STALE_ADDRESS_TTL);
     for (auto const& entry : expired)
@@ -434,8 +478,12 @@ OverlayManagerImpl::expireStaleQuorumPeerAddresses()
         auto const& info = entry.second;
         if (info.address)
         {
-            getPeerManager().update(*info.address, PeerType::OUTBOUND,
-                                    /* preferredTypeKnown */ true);
+            CLOG_INFO(Overlay,
+                      "Expiring stale address {} of direct qset peer {}, "
+                      "re-entering discovery",
+                      info.address->toString(),
+                      mApp.getConfig().toShortString(entry.first));
+            demoteQsetPeerAddress(entry.first, *info.address);
         }
     }
 
@@ -697,7 +745,6 @@ OverlayManagerImpl::connectToQsetPeers(int& availablePendingSlots)
     }
 
     auto missing = mDirectQsetPeers;
-    missing.erase(mApp.getConfig().NODE_SEED.getPublicKey());
     for (auto const& peer : getAuthenticatedPeers())
     {
         missing.erase(peer.first);
@@ -705,7 +752,12 @@ OverlayManagerImpl::connectToQsetPeers(int& availablePendingSlots)
     for (auto it = missing.begin(); it != missing.end();)
     {
         auto info = mQuorumPeerState.getInfo(*it);
-        if (info && info->remoteRole == RemoteQsetRole::None)
+        // Discovery probing is only for peers whose address we do not know.
+        // Peers with a known address are dialed directly through the peers
+        // table (as PREFERRED when mutual), and peers that told us the
+        // relationship is not mutual are not chased at all.
+        if (info &&
+            (info->remoteRole == RemoteQsetRole::None || info->address))
         {
             it = missing.erase(it);
         }
@@ -743,6 +795,10 @@ OverlayManagerImpl::connectToQsetPeers(int& availablePendingSlots)
             continue;
         }
 
+        CLOG_DEBUG(Overlay,
+                   "Probing {} while searching for {} direct qset peers with "
+                   "unknown addresses",
+                   address.toString(), missing.size());
         if (connectToImpl(address, false))
         {
             --availablePendingSlots;
@@ -973,12 +1029,7 @@ OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
             ? OverlayManager::MIN_INBOUND_FACTOR
             : mApp.getConfig().TARGET_PEER_CONNECTIONS;
 
-    auto mutualQsetCount = std::count_if(
-        std::begin(mOutboundPeers.mAuthenticated),
-        std::end(mOutboundPeers.mAuthenticated),
-        [](auto const& peer) { return peer.second->isMutualQsetPeer(); });
-    auto ordinaryOutboundCount =
-        mOutboundPeers.mAuthenticated.size() - mutualQsetCount;
+    auto ordinaryOutboundCount = mOutboundPeers.nonQsetAuthenticatedCount();
 
     if (ordinaryOutboundCount < adjustedTarget)
     {
@@ -1031,6 +1082,11 @@ OverlayManagerImpl::updateSizeCounters()
     mOverlayMetrics.mPendingPeersSize.set_count(getPendingPeersCount());
     mOverlayMetrics.mAuthenticatedPeersSize.set_count(
         getAuthenticatedPeersCount());
+    mOverlayMetrics.mMutualQsetPeersSize.set_count(static_cast<int64_t>(
+        (mInboundPeers.mAuthenticated.size() -
+         mInboundPeers.nonQsetAuthenticatedCount()) +
+        (mOutboundPeers.mAuthenticated.size() -
+         mOutboundPeers.nonQsetAuthenticatedCount())));
 }
 
 void
@@ -1067,10 +1123,30 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
 bool
 OverlayManagerImpl::isPossiblyPreferred(std::string const& ip) const
 {
-    return std::any_of(
-        std::begin(mConfigurationPreferredPeers),
-        std::end(mConfigurationPreferredPeers),
-        [&](PeerBareAddress const& address) { return address.getIP() == ip; });
+    if (std::any_of(
+            std::begin(mConfigurationPreferredPeers),
+            std::end(mConfigurationPreferredPeers),
+            [&](PeerBareAddress const& address)
+            { return address.getIP() == ip; }))
+    {
+        return true;
+    }
+
+    // An inbound connection from a mutual qset peer must be able to reach the
+    // authentication stage even when ordinary pending slots are saturated, so
+    // addresses matching known qset peers get the same pending-slot
+    // preference as configured preferred peers.
+    for (auto const& entry : mQuorumPeerState.getInfo())
+    {
+        auto const& info = entry.second;
+        if (info.remoteRole != RemoteQsetRole::None && info.address &&
+            info.address->getIP() == ip)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool
@@ -1271,11 +1347,73 @@ OverlayManagerImpl::isDirectQsetPeer(NodeID const& nodeID) const
 }
 
 void
+OverlayManagerImpl::recordQsetPeerHandshake(NodeID const& nodeID,
+                                            RemoteQsetRole remoteRole,
+                                            PeerBareAddress const& address)
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(isDirectQsetPeer(nodeID));
+    releaseAssert(!address.isEmpty());
+
+    auto const now = static_cast<uint64_t>(
+        VirtualClock::to_time_t(mApp.getClock().system_now()));
+    auto previousAddress =
+        mQuorumPeerState.recordHandshake(nodeID, remoteRole, address, now);
+    persistQuorumPeerState();
+
+    if (remoteRole == RemoteQsetRole::Direct)
+    {
+        // The peering is mutual: remember the address as preferred so we
+        // reconnect aggressively across restarts.
+        getPeerManager().update(address, PeerType::PREFERRED,
+                                /* preferredTypeKnown */ true);
+    }
+    else if (remoteRole == RemoteQsetRole::None)
+    {
+        // The peer explicitly told us the relationship is not mutual (e.g.
+        // its operator dropped us from its qset); back off gracefully rather
+        // than keep dialing it as a preferred peer.
+        demoteQsetPeerAddress(nodeID, address);
+    }
+
+    if (previousAddress)
+    {
+        // The peer moved to a new address; stop chasing the old one.
+        CLOG_INFO(Overlay, "Direct qset peer {} moved from {} to {}",
+                  mApp.getConfig().toShortString(nodeID),
+                  previousAddress->toString(), address.toString());
+        demoteQsetPeerAddress(nodeID, *previousAddress);
+    }
+}
+
+void
+OverlayManagerImpl::demoteQsetPeerAddress(NodeID const& nodeID,
+                                          PeerBareAddress const& address)
+{
+    // Never demote addresses (or keys) the operator explicitly configured as
+    // preferred; qset peering only manages the records it created itself.
+    if (mConfigurationPreferredPeers.find(address) !=
+            mConfigurationPreferredPeers.end() ||
+        mApp.getConfig().PREFERRED_PEER_KEYS.count(nodeID) != 0)
+    {
+        return;
+    }
+    getPeerManager().update(address, PeerType::OUTBOUND,
+                            /* preferredTypeKnown */ true);
+}
+
+void
 OverlayManagerImpl::recordProbedNonQsetAddress(PeerBareAddress const& address)
 {
     releaseAssert(threadIsMain());
     releaseAssert(!address.isEmpty());
-    mProbedNonQset.insert(address);
+    // Cap the in-memory book-keeping; beyond the cap the only cost is a
+    // redundant probe of an address we have already seen.
+    constexpr size_t MAX_PROBED_NON_QSET_ADDRESSES = 10000;
+    if (mProbedNonQset.size() < MAX_PROBED_NON_QSET_ADDRESSES)
+    {
+        mProbedNonQset.insert(address);
+    }
 }
 
 static xdr::opaque_array<32> const TX_BATCH_HASH = [] {

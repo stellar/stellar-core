@@ -6,6 +6,7 @@
 
 #include "crypto/KeyUtils.h"
 #include "lib/json/json.h"
+#include "util/Logging.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -82,13 +83,15 @@ addressFromString(std::string const& address)
 
 }
 
-void
+std::vector<std::pair<NodeID, QuorumPeerInfo>>
 QuorumPeerState::reconcile(std::set<NodeID> const& directQset)
 {
+    std::vector<std::pair<NodeID, QuorumPeerInfo>> removed;
     for (auto it = mInfo.begin(); it != mInfo.end();)
     {
         if (directQset.count(it->first) == 0)
         {
+            removed.emplace_back(it->first, it->second);
             it = mInfo.erase(it);
         }
         else
@@ -101,18 +104,36 @@ QuorumPeerState::reconcile(std::set<NodeID> const& directQset)
     {
         mInfo.emplace(nodeID, QuorumPeerInfo{});
     }
+
+    return removed;
 }
 
-void
+std::optional<PeerBareAddress>
 QuorumPeerState::recordHandshake(NodeID const& nodeID,
                                  RemoteQsetRole remoteRole,
                                  PeerBareAddress const& address,
                                  uint64_t nowSecs)
 {
     auto& info = mInfo[nodeID];
+    std::optional<PeerBareAddress> previousAddress;
+    if (info.address && *info.address != address)
+    {
+        previousAddress = info.address;
+    }
     info.remoteRole = remoteRole;
     info.address = address;
     info.lastConnection = nowSecs;
+    return previousAddress;
+}
+
+void
+QuorumPeerState::refreshLastConnection(NodeID const& nodeID, uint64_t nowSecs)
+{
+    auto it = mInfo.find(nodeID);
+    if (it != mInfo.end() && nowSecs > it->second.lastConnection)
+    {
+        it->second.lastConnection = nowSecs;
+    }
 }
 
 std::vector<std::pair<NodeID, QuorumPeerInfo>>
@@ -124,6 +145,14 @@ QuorumPeerState::expireStaleAddresses(uint64_t nowSecs,
 
     for (auto& [nodeID, info] : mInfo)
     {
+        // A peer that told us the relationship is not mutual is not being
+        // chased, so there is no address to rediscover; keep its state so we
+        // do not cycle back through discovery and re-handshake with it.
+        if (info.remoteRole == RemoteQsetRole::None)
+        {
+            continue;
+        }
+
         if ((info.address || info.remoteRole != RemoteQsetRole::Unknown) &&
             info.lastConnection != 0 && nowSecs > info.lastConnection &&
             nowSecs - info.lastConnection > ttlSecs)
@@ -182,6 +211,8 @@ QuorumPeerState::fromJson(std::string const& json)
     if (!reader.parse(json, root) || !root.isObject() ||
         !root["peers"].isArray())
     {
+        CLOG_WARNING(Overlay, "Failed to parse persisted quorum peer state; "
+                              "qset peer discovery will start fresh");
         return state;
     }
 
@@ -202,6 +233,8 @@ QuorumPeerState::fromJson(std::string const& json)
         }
         catch (...)
         {
+            CLOG_WARNING(Overlay,
+                         "Skipping malformed persisted quorum peer entry");
         }
     }
 
