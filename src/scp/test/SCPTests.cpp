@@ -3961,12 +3961,12 @@ TEST_CASE("setConfirmPrepared stalls on kStructurallyValidValue value",
         // {v1, v2} is a quorum voting prepare (2, y): the node accepts it as
         // prepared (p = (2,y), p' = (1,x)), which invalidates the resume path.
         SCPBallot yB2(2, yValue);
-        REQUIRE(scp.receiveEnvelope(
-                    makePrepare(v1SecretKey, qSetHash, 0, yB2)) ==
-                SCP::EnvelopeState::VALID);
-        REQUIRE(scp.receiveEnvelope(
-                    makePrepare(v2SecretKey, qSetHash, 0, yB2)) ==
-                SCP::EnvelopeState::VALID);
+        REQUIRE(
+            scp.receiveEnvelope(makePrepare(v1SecretKey, qSetHash, 0, yB2)) ==
+            SCP::EnvelopeState::VALID);
+        REQUIRE(
+            scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, yB2)) ==
+            SCP::EnvelopeState::VALID);
 
         auto const envsAfterPrepared = scp.mEnvs.size();
         auto const& prep = scp.mEnvs.back().statement.pledges.prepare();
