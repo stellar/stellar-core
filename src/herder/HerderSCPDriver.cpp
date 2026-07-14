@@ -468,8 +468,13 @@ HerderSCPDriver::validateValueAgainstLocalState(uint64_t slotIndex,
 
         if (!txSet)
         {
-            if (isParallelTxSetDownloadEnabled() &&
-                mPendingEnvelopes.getTxSetWaitingTime(txSetHash).has_value())
+            // Parallel tx set downloading must be enabled to get here. This
+            // check has a carve-out for slots restored from the database
+            // because the setting may have previously been enabled on those
+            // slots.
+            releaseAssert(isParallelTxSetDownloadEnabled() ||
+                          mRestoredSlotIndices.count(slotIndex));
+            if (protocolAllowsEmptyTxSetValues())
             {
                 res = SCPDriver::kStructurallyValidValue;
             }
@@ -1988,6 +1993,12 @@ HerderSCPDriver::getNominationTimeouts(uint64_t slotIndex) const
         return it->second.mNominationTimeoutCount;
     }
     return std::nullopt;
+}
+
+void
+HerderSCPDriver::markSlotAsRestored(uint64_t slotIndex)
+{
+    mRestoredSlotIndices.insert(slotIndex);
 }
 
 }

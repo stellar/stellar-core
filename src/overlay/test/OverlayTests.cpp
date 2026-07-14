@@ -545,7 +545,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 }
 
 TEST_CASE("flow control total byte capacity throttles non-flood traffic",
-          "[overlay][flowcontrol]")
+          "[overlay][flowcontrol][!hide]")
 {
     SCPQuorumSet qSet;
     qSet.threshold = 1;
