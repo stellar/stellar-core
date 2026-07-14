@@ -115,10 +115,10 @@ tracy-client = { version = "=0.17.0", features = [
 # unify them, perturbing the contents of the lockfile.
 
 [dependencies.soroban-env-host-p27]
-version = "=26.1.2"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "c0e58f94ff2983a09440cef6a54253349fd3c4db"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 optional = true
 
 [dependencies.soroban-env-host-p26]
