@@ -757,6 +757,85 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     stroopySeqs.push_back(stroopy.loadSequenceNumber());
 }
 
+#ifdef CAP_0083
+void
+CatchupSimulation::generateEmptyTxSetLedger()
+{
+    auto& lm = getApp().getLedgerManager();
+    auto const lcl = lm.getLastClosedLedgerHeader();
+    uint32_t ledgerSeq = lcl.header.ledgerSeq + 1;
+    uint64_t closeTime = 60 * 5 * ledgerSeq;
+
+    // An empty-tx-set value replaces a proposed value whose tx set the network
+    // gave up waiting for. Craft such a proposal (the referenced tx set
+    // deliberately does not exist anywhere) and convert it exactly as balloting
+    // does when voting to drop the tx set.
+    Hash proposedTxSetHash;
+    proposedTxSetHash.fill(0xAB);
+    StellarValue proposal = getApp().getHerder().makeStellarValue(
+        proposedTxSetHash, closeTime, emptyUpgradeSteps,
+        getApp().getConfig().NODE_SEED);
+
+    auto& herder = static_cast<HerderImpl&>(getApp().getHerder());
+    Value emptyValue = herder.getHerderSCPDriver().makeEmptyTxSetValueFromValue(
+        xdr::xdr_to_opaque(proposal));
+    StellarValue sv;
+    xdr::xdr_from_opaque(emptyValue, sv);
+
+    // The applied tx set is the empty set pinned to the current LCL
+    TxSetXDRFrameConstPtr txSet = TxSetXDRFrame::makeEmpty(lcl);
+
+    CLOG_INFO(History, "Closing synthetic empty-tx-set ledger {}", ledgerSeq);
+
+    mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
+
+    lm.applyLedger(mLedgerCloseDatas.back());
+
+    auto const& lclh = lm.getLastClosedLedgerHeader();
+    // The header must record the empty-tx-set hash, not the applied
+    // (empty) tx set's contents hash.
+    REQUIRE(lclh.header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH);
+    REQUIRE(lclh.header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET);
+
+    auto root = getApp().getRoot();
+    auto alice = TestAccount{getApp(), getAccount("alice")};
+    auto bob = TestAccount{getApp(), getAccount("bob")};
+    auto carol = TestAccount{getApp(), getAccount("carol")};
+    auto eve = TestAccount{getApp(), getAccount("eve")};
+    auto stroopy = TestAccount{getApp(), getAccount("stroopy")};
+
+    mLedgerSeqs.push_back(lclh.header.ledgerSeq);
+    mLedgerHashes.push_back(lclh.hash);
+    mBucketListHashes.push_back(lclh.header.bucketListHash);
+    mBucket0Hashes.push_back(getApp()
+                                 .getBucketManager()
+                                 .getLiveBucketList()
+                                 .getLevel(0)
+                                 .getCurr()
+                                 ->getHash());
+    mBucket1Hashes.push_back(getApp()
+                                 .getBucketManager()
+                                 .getLiveBucketList()
+                                 .getLevel(2)
+                                 .getCurr()
+                                 ->getHash());
+
+    rootBalances.push_back(root->getBalance());
+    aliceBalances.push_back(alice.getBalance());
+    bobBalances.push_back(bob.getBalance());
+    carolBalances.push_back(carol.getBalance());
+    eveBalances.push_back(eve.getBalance());
+    stroopyBalances.push_back(stroopy.getBalance());
+
+    rootSeqs.push_back(root->loadSequenceNumber());
+    aliceSeqs.push_back(alice.loadSequenceNumber());
+    bobSeqs.push_back(bob.loadSequenceNumber());
+    carolSeqs.push_back(carol.loadSequenceNumber());
+    eveSeqs.push_back(eve.loadSequenceNumber());
+    stroopySeqs.push_back(stroopy.loadSequenceNumber());
+}
+#endif // CAP_0083
+
 void
 CatchupSimulation::setUpgradeLedger(uint32_t ledger,
                                     ProtocolVersion upgradeProtocolVersion)

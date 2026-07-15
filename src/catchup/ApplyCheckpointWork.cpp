@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucketList.h"
 #include "catchup/ApplyLedgerWork.h"
+#include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryUtils.h"
@@ -14,6 +15,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -273,11 +275,46 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     }
 #endif
 
+#ifdef CAP_0083
+    // Empty-tx-set values should have the empty-tx-set hash (and vice versa)
+    if ((header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
+        (header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET))
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("ledger header for {:d} has mismatched empty-tx-set "
+                       "hash and StellarValue type {:d}"),
+            header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v())));
+    }
+#endif // CAP_0083
+
     // We've verified the ledgerHeader (in the "trusted part of history"
     // sense) in CATCHUP_VERIFY phase; we now need to check that the
     // txhash we're about to apply is the one denoted by that ledger
-    // header.
-    if (header.scpValue.txSetHash != txset->getContentsHash())
+    // header
+    if (header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH)
+    {
+        // Should not see empty-tx-set values prior to the protocol version that
+        // enables them
+        if (!protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
+                                       EMPTY_TX_SET_PROTOCOL_VERSION))
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("ledger header for {:d} carries the empty-tx-set "
+                           "hash prior to protocol-level support"),
+                header.ledgerSeq));
+        }
+
+        // Empty-tx-set values must have empty tx sets
+        if (txset->sizeTxTotal() != 0)
+        {
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("replay txset for {:d} contains {:d} transactions, "
+                           "but its ledger header carries the empty-tx-set "
+                           "hash"),
+                header.ledgerSeq, txset->sizeTxTotal()));
+        }
+    }
+    else if (header.scpValue.txSetHash != txset->getContentsHash())
     {
         throw std::runtime_error(
             fmt::format(FMT_STRING("replay txset hash differs from txset hash "
