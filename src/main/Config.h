@@ -542,9 +542,11 @@ class Config : public std::enable_shared_from_this<Config>
     // also enabled.
     bool BACKGROUND_TX_SIG_VERIFICATION;
 
-    // Experimental flag to use externalized close time for trigger timer
-    // calculation instead of prepare start time.
-    bool EXPERIMENTAL_TRIGGER_TIMER;
+    // Starting from protocol 28 the trigger-next-ledger timer is anchored on
+    // the externalized consensus close time. Setting this flag to true forces
+    // the older prepare-start based timer even on protocol 28 and later. This
+    // is an emergency fallback and defaults to false.
+    bool FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER;
 
     // Hostname of an NTP server to periodically query in order to detect drift
     // of this node's local clock. This is detection only: core never adjusts

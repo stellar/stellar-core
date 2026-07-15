@@ -9070,10 +9070,103 @@ TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
 }
 #endif // CAP_0083
 
-TEST_CASE("experimental trigger timer", "[herder][!hide]")
+static bool
+triggerTimerProtocolSupported()
 {
+    return protocolVersionStartsFrom(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION);
+}
+
+// Four top-tier validators over TCP on the real clock, with a 1s artificial
+// apply delay and a configurable nomination-emit delay so we can actually see
+// the impact of the two different timers.
+static Simulation::pointer
+makeTriggerTimerSimulation(
+    bool forcePrepareStartTimer, std::chrono::milliseconds nominationEmitDelay,
+    std::chrono::milliseconds driftClockOffset =
+        std::chrono::milliseconds::zero(),
+    std::optional<uint32_t> startingProtocol = std::nullopt)
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto simulation = Topologies::separateAllHighQuality(
+        4, Simulation::OVER_TCP, networkID, [&](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
+            cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+            cfg.FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER =
+                forcePrepareStartTimer;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::milliseconds(1000);
+            cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
+                nominationEmitDelay;
+            // Remember enough SCP slots that the tests can attribute every
+            // externalized value in their measurement windows to its
+            // proposer.
+            cfg.MAX_SLOTS_TO_REMEMBER = 24;
+            if (startingProtocol)
+            {
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *startingProtocol;
+            }
+
+            // Drift one validator. Note: i == 0 is the Simulation's
+            // idle app (its config is generated first by the constructor),
+            // so the first real validator is i == 1.
+            if (i == 1)
+            {
+                cfg.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
+                    driftClockOffset;
+            }
+            return cfg;
+        });
+
+    simulation->fullyConnectAllPending();
+    simulation->startAllNodes();
+    REQUIRE(simulation->getExpectedLedgerCloseTime() ==
+            std::chrono::seconds(5));
+    return simulation;
+}
+
+static uint32_t
+minLedger(std::vector<Application::pointer> const& nodes)
+{
+    return std::min_element(
+               nodes.begin(), nodes.end(),
+               [](Application::pointer const& lhs,
+                  Application::pointer const& rhs) {
+                   return lhs->getLedgerManager().getLastClosedLedgerNum() <
+                          rhs->getLedgerManager().getLastClosedLedgerNum();
+               })
+        ->get()
+        ->getLedgerManager()
+        .getLastClosedLedgerNum();
+}
+
+// Crank until every node has externalized `count` more ledgers; returns the
+// elapsed real time.
+static std::chrono::milliseconds
+closeLedgers(Simulation::pointer const& simulation, uint32_t count,
+             bool finalCrank = false)
+{
+    auto nodes = simulation->getNodes();
+    auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+    auto const target = minLedger(nodes) + count;
+    auto const start = nodes.front()->getClock().now();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(target, 1); },
+        10 * (count + 1) * expectedClose, finalCrank);
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        nodes.front()->getClock().now() - start);
+}
+
+TEST_CASE("consensus close time trigger timer", "[herder][!hide]")
+{
+    if (!triggerTimerProtocolSupported())
+    {
+        return;
+    }
+
     constexpr uint32_t LEDGERS_TO_RUN = 10;
-    constexpr int64_t MIN_DRIFT_FALLBACKS = (LEDGERS_TO_RUN + 1) / 2;
     auto const driftOffset = std::chrono::seconds(4);
 
     struct RunResult
@@ -9081,7 +9174,8 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
         std::chrono::milliseconds elapsed;
         int64_t totalFallbacks{0};
         int64_t driftedNodeFallbacks{0};
-        int64_t otherNodeFallbacks{0};
+        int64_t maxOtherNodeFallbacks{0};
+        int64_t driftedLedSlots{0};
         bool sawNominationTimeout{false};
     };
 
@@ -9099,68 +9193,24 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
     };
 
     auto runSimulation =
-        [&](bool experimentalTriggerTimer,
+        [&](bool forcePrepareStartTimer,
             std::chrono::milliseconds nominationEmitDelay,
             std::chrono::milliseconds triggerClockOffset =
                 std::chrono::milliseconds::zero()) -> RunResult {
-        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-
-        auto simulation = Topologies::separateAllHighQuality(
-            4, Simulation::OVER_TCP, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
-                cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
-                cfg.EXPERIMENTAL_TRIGGER_TIMER = experimentalTriggerTimer;
-                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
-                    std::chrono::milliseconds(1000);
-                cfg.ARTIFICIALLY_DELAY_NOMINATION_EMIT_FOR_TESTING =
-                    nominationEmitDelay;
-
-                // Drift one validator. Note: i == 0 is the Simulation's
-                // idle app (its config is generated first by the constructor),
-                // so the first real validator is i == 1.
-                if (i == 1)
-                {
-                    cfg.ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING =
-                        triggerClockOffset;
-                }
-                return cfg;
-            });
-
-        simulation->fullyConnectAllPending();
-        simulation->startAllNodes();
+        auto simulation = makeTriggerTimerSimulation(
+            forcePrepareStartTimer, nominationEmitDelay, triggerClockOffset);
         auto nodes = simulation->getNodes();
-        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
-        REQUIRE(expectedClose == std::chrono::seconds(5));
 
         std::vector<int64_t> fallbackCounts;
         std::transform(nodes.begin(), nodes.end(),
                        std::back_inserter(fallbackCounts), fallbackCount);
 
-        auto minLedger = [&]() {
-            return std::min_element(nodes.begin(), nodes.end(),
-                                    [](Application::pointer const& lhs,
-                                       Application::pointer const& rhs) {
-                                        return lhs->getLedgerManager()
-                                                   .getLastClosedLedgerNum() <
-                                               rhs->getLedgerManager()
-                                                   .getLastClosedLedgerNum();
-                                    })
-                ->get()
-                ->getLedgerManager()
-                .getLastClosedLedgerNum();
-        };
-
-        auto const startLedger = minLedger();
-        auto targetLedger = startLedger + LEDGERS_TO_RUN;
-        auto const startTime = nodes.front()->getClock().now();
-
-        simulation->crankUntil(
-            [&]() { return simulation->haveAllExternalized(targetLedger, 1); },
-            10 * (LEDGERS_TO_RUN + 1) * expectedClose, true);
+        auto const startLedger = minLedger(nodes);
+        auto const targetLedger = startLedger + LEDGERS_TO_RUN;
 
         RunResult result;
-        result.elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            nodes.front()->getClock().now() - startTime);
+        result.elapsed =
+            closeLedgers(simulation, LEDGERS_TO_RUN, /*finalCrank=*/true);
 
         for (size_t i = 0; i < nodes.size(); ++i)
         {
@@ -9178,7 +9228,8 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
             }
             else
             {
-                result.otherNodeFallbacks += delta;
+                result.maxOtherNodeFallbacks =
+                    std::max(result.maxOtherNodeFallbacks, delta);
             }
 
             auto const& driver =
@@ -9194,42 +9245,194 @@ TEST_CASE("experimental trigger timer", "[herder][!hide]")
             }
         }
 
+        // Count the externalized values the drifted
+        // validator proposed. This indicates that the non-drifting nodes
+        // hit the fallback timer, as they were drifting relative to network
+        // time for the given slot.
+        std::optional<PublicKey> driftedKey;
+        for (auto const& node : nodes)
+        {
+            if (triggerClockOffset != std::chrono::milliseconds::zero() &&
+                node->getConfig()
+                        .ARTIFICIALLY_SET_SYSTEM_CLOCK_OFFSET_FOR_TESTING ==
+                    triggerClockOffset)
+            {
+                driftedKey = node->getConfig().NODE_SEED.getPublicKey();
+            }
+        }
+        if (driftedKey)
+        {
+            auto& scp =
+                dynamic_cast<HerderImpl&>(nodes.front()->getHerder()).getSCP();
+            for (uint32_t ledger = startLedger + 1; ledger <= targetLedger;
+                 ++ledger)
+            {
+                auto const envs = scp.getExternalizingState(ledger);
+                auto const ext = std::find_if(
+                    envs.begin(), envs.end(), [](SCPEnvelope const& e) {
+                        return e.statement.pledges.type() == SCP_ST_EXTERNALIZE;
+                    });
+                releaseAssert(ext != envs.end());
+                StellarValue sv;
+                xdr::xdr_from_opaque(
+                    ext->statement.pledges.externalize().commit.value, sv);
+                if (sv.ext.v() == STELLAR_VALUE_SIGNED &&
+                    sv.ext.lcValueSignature().nodeID == *driftedKey)
+                {
+                    ++result.driftedLedSlots;
+                }
+            }
+        }
+
         return result;
     };
 
     // New timer is faster without drift.
     {
         auto const nominationDelay = std::chrono::milliseconds(1000);
-        auto const oldTimer = runSimulation(false, nominationDelay);
-        auto const newTimer = runSimulation(true, nominationDelay);
+        auto const oldTimer = runSimulation(true, nominationDelay);
+        auto const newTimer = runSimulation(false, nominationDelay);
 
         REQUIRE(newTimer.elapsed < oldTimer.elapsed);
         REQUIRE(newTimer.totalFallbacks == 0);
     }
 
+    constexpr int64_t FALLBACK_SLACK = 1;
+
     // One node drifting ahead falls back.
     {
-        auto const nodeAhead =
-            runSimulation(true, std::chrono::milliseconds::zero(), driftOffset);
-        REQUIRE(nodeAhead.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
-        // Fallback must be specific to the drifted node: in-sync nodes should
-        // stay on the network-close-time anchor.
-        REQUIRE(nodeAhead.otherNodeFallbacks == 0);
+        auto const nodeAhead = runSimulation(
+            false, std::chrono::milliseconds::zero(), driftOffset);
+        REQUIRE(nodeAhead.driftedNodeFallbacks >=
+                LEDGERS_TO_RUN - nodeAhead.driftedLedSlots - FALLBACK_SLACK);
+
+        // Note: When the drifting node leads the round, non-drifting nodes
+        // may fall back.
+        REQUIRE(nodeAhead.maxOtherNodeFallbacks <=
+                nodeAhead.driftedLedSlots + FALLBACK_SLACK);
     }
 
     // One node drifting behind falls back.
     {
         auto const nodeBehind = runSimulation(
-            true, std::chrono::milliseconds::zero(), -driftOffset);
-        REQUIRE(nodeBehind.driftedNodeFallbacks >= MIN_DRIFT_FALLBACKS);
-        REQUIRE(nodeBehind.otherNodeFallbacks == 0);
+            false, std::chrono::milliseconds::zero(), -driftOffset);
+        REQUIRE(nodeBehind.driftedNodeFallbacks >=
+                LEDGERS_TO_RUN - nodeBehind.driftedLedSlots - FALLBACK_SLACK);
+
+        // Note: When the drifting node leads the round, non-drifting nodes
+        // may fall back.
+        REQUIRE(nodeBehind.maxOtherNodeFallbacks <=
+                nodeBehind.driftedLedSlots + FALLBACK_SLACK);
     }
 
     // Long nomination does not cause timer fallback
     {
         auto const nominationDelay = std::chrono::milliseconds(5000);
-        auto const slowNomination = runSimulation(true, nominationDelay);
+        auto const slowNomination = runSimulation(false, nominationDelay);
         REQUIRE(slowNomination.sawNominationTimeout);
         REQUIRE(slowNomination.totalFallbacks == 0);
+    }
+}
+
+TEST_CASE("trigger timer switches anchor at protocol 28 upgrade",
+          "[herder][upgrades][!hide]")
+{
+    if (!triggerTimerProtocolSupported())
+    {
+        return;
+    }
+
+    auto const upgradeVersion =
+        static_cast<uint32_t>(CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION);
+
+    // With a delayed nomination emit, the prepare-start timer paces ledgers
+    // at roughly expectedClose + nominationEmitDelay (nomination happens
+    // before the anchor point), while the consensus-close-time timer absorbs
+    // the nomination delay and paces at expectedClose. This delta helps us
+    // measure the timer change after the upgrade.
+    constexpr uint32_t LEDGERS_TO_MEASURE = 8;
+    auto const nominationEmitDelay = std::chrono::milliseconds(1000);
+
+    struct RunResult
+    {
+        std::chrono::milliseconds preUpgrade;
+        std::chrono::milliseconds postUpgrade;
+    };
+
+    auto runSimulation = [&](bool forcePrepareStartTimer) -> RunResult {
+        // Start the network one protocol before the trigger-timer switch.
+        auto simulation = makeTriggerTimerSimulation(
+            forcePrepareStartTimer, nominationEmitDelay,
+            std::chrono::milliseconds::zero(), upgradeVersion - 1);
+        auto nodes = simulation->getNodes();
+        auto const expectedClose = simulation->getExpectedLedgerCloseTime();
+
+        auto lclVersion = [](Application::pointer const& node) {
+            return node->getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion;
+        };
+
+        // Measure the cadence on the pre-28 protocol.
+        simulation->crankUntil(
+            [&]() { return simulation->haveAllExternalized(3, 1); },
+            10 * expectedClose, false);
+        auto const preUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
+        for (auto const& node : nodes)
+        {
+            REQUIRE(lclVersion(node) == upgradeVersion - 1);
+        }
+
+        // Upgrade to protocol 28
+        Upgrades::UpgradeParameters scheduledUpgrades;
+        scheduledUpgrades.mUpgradeTime =
+            VirtualClock::from_time_t(nodes[0]
+                                          ->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.closeTime);
+        scheduledUpgrades.mProtocolVersion = upgradeVersion;
+        for (auto const& node : nodes)
+        {
+            node->getHerder().setUpgrades(scheduledUpgrades);
+        }
+
+        // Crank until every node has closed the upgrade ledger, then one
+        // more ledger so the measured window is fully post-upgrade.
+        simulation->crankUntil(
+            [&]() {
+                return std::all_of(nodes.begin(), nodes.end(),
+                                   [&](Application::pointer const& node) {
+                                       return lclVersion(node) ==
+                                              upgradeVersion;
+                                   });
+            },
+            10 * expectedClose, false);
+        closeLedgers(simulation, 1);
+
+        auto const postUpgrade = closeLedgers(simulation, LEDGERS_TO_MEASURE);
+        for (auto const& node : nodes)
+        {
+            REQUIRE(lclVersion(node) == upgradeVersion);
+        }
+
+        return {preUpgrade, postUpgrade};
+    };
+
+    // Expected cadence saving is nominationEmitDelay per ledger; splitting
+    // pass/fail at half of it tolerates scheduling noise in both directions.
+    auto const cadenceMargin = LEDGERS_TO_MEASURE * nominationEmitDelay / 2;
+
+    // Crossing the boundary switches to the consensus-close-time anchor:
+    // post-upgrade ledgers close significantly faster.
+    {
+        auto const result = runSimulation(false);
+        REQUIRE(result.postUpgrade + cadenceMargin < result.preUpgrade);
+    }
+
+    // The override flag keeps the prepare-start anchor after the upgrade, so
+    // the cadence does not improve.
+    {
+        auto const result = runSimulation(true);
+        REQUIRE(result.postUpgrade + cadenceMargin > result.preUpgrade);
     }
 }

@@ -566,7 +566,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.MANUAL_CLOSE = true;
 
         thisConfig.TEST_CASES_ENABLED = true;
-        thisConfig.EXPERIMENTAL_TRIGGER_TIMER = true;
 
         // Never perform real NTP network I/O from the test suite.
         thisConfig.NTP_DRIFT_CHECK_SERVER = "";

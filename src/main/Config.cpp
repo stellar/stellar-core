@@ -177,7 +177,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_SOROBAN_METRICS_FOR_TESTING = false;
     DISABLE_TX_META_FOR_TESTING = false;
     BACKGROUND_TX_SIG_VERIFICATION = true;
-    EXPERIMENTAL_TRIGGER_TIMER = false;
+    FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER = false;
     NTP_DRIFT_CHECK_SERVER = "pool.ntp.org";
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -1222,8 +1222,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_TX_SIG_VERIFICATION",
                  [&]() { BACKGROUND_TX_SIG_VERIFICATION = readBool(item); }},
-                {"EXPERIMENTAL_TRIGGER_TIMER",
-                 [&]() { EXPERIMENTAL_TRIGGER_TIMER = readBool(item); }},
+                {"FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER",
+                 [&]() {
+                     FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER =
+                         readBool(item);
+                 }},
                 {"NTP_DRIFT_CHECK_SERVER",
                  [&]() { NTP_DRIFT_CHECK_SERVER = readString(item); }},
                 {"ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING",

@@ -1441,8 +1441,18 @@ HerderImpl::setupTriggerNextLedger()
 
     auto now = mApp.getClock().now();
 
+    // Starting from protocol 28 the trigger timer is anchored on the
+    // network-agreed consensus close time.
+    // FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER forces the older
+    // prepare-start anchor as an emergency fallback.
+    bool const useConsensusCloseTimeAnchor =
+        protocolVersionStartsFrom(
+            lcl.header.ledgerVersion,
+            CONSENSUS_CLOSE_TIME_TRIGGER_PROTOCOL_VERSION) &&
+        !mApp.getConfig().FORCE_OLD_STYLE_PREPARE_START_TRIGGER_TIMER;
+
     auto lastLedgerStartingPoint =
-        mApp.getConfig().EXPERIMENTAL_TRIGGER_TIMER
+        useConsensusCloseTimeAnchor
             ? triggerAnchorFromConsensusCloseTime(lastIndex, now, milliseconds)
             : triggerAnchorFromPrepareStart(lastIndex, now, milliseconds);
 
