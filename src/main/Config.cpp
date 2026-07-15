@@ -285,6 +285,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY_BYTES = 0;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
+    PEER_TOTAL_READING_CAPACITY_BYTES = 1024 * 1024;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -1140,6 +1141,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      PEER_FLOOD_READING_CAPACITY_BYTES =
                          readInt<uint32_t>(item, 0);
+                 }},
+                {"PEER_TOTAL_READING_CAPACITY_BYTES",
+                 [&]() {
+                     PEER_TOTAL_READING_CAPACITY_BYTES =
+                         readInt<uint32_t>(item, 1);
                  }},
                 {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES",
                  [&]() {

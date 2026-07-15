@@ -5,6 +5,7 @@
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/Peer.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -28,8 +29,7 @@ FlowControlMessageCapacity::getMsgResourceCount(StellarMessage const& msg) const
 FlowControlCapacity::ReadingCapacity
 FlowControlMessageCapacity::getCapacityLimits() const
 {
-    return {mConfig.PEER_FLOOD_READING_CAPACITY,
-            std::make_optional<uint64_t>(mConfig.PEER_READING_CAPACITY)};
+    return {mConfig.PEER_FLOOD_READING_CAPACITY, mConfig.PEER_READING_CAPACITY};
 }
 
 void
@@ -50,14 +50,15 @@ bool
 FlowControlMessageCapacity::canRead() const
 {
     ZoneScoped;
-    releaseAssert(mCapacity.mTotalCapacity);
-    return *mCapacity.mTotalCapacity > 0;
+    return mCapacity.mTotalCapacity > 0;
 }
 
 FlowControlByteCapacity::FlowControlByteCapacity(Config const& cfg,
                                                  NodeID const& nodeID,
-                                                 uint32_t capacity)
-    : FlowControlCapacity(cfg, nodeID), mCapacityLimits{capacity, std::nullopt}
+                                                 uint32_t floodCapacity)
+    : FlowControlCapacity(cfg, nodeID)
+    , mCapacityLimits{floodCapacity, BYTE_CAPACITY_READ_FLOOR +
+                                         cfg.PEER_TOTAL_READING_CAPACITY_BYTES}
 {
     mCapacity = mCapacityLimits;
 }
@@ -91,8 +92,7 @@ FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
 bool
 FlowControlByteCapacity::canRead() const
 {
-    releaseAssert(!mCapacity.mTotalCapacity);
-    return true;
+    return mCapacity.mTotalCapacity > BYTE_CAPACITY_READ_FLOOR;
 }
 
 void
@@ -115,16 +115,8 @@ FlowControlCapacity::checkCapacityInvariants() const
     ZoneScoped;
     releaseAssert(getCapacityLimits().mFloodCapacity >=
                   mCapacity.mFloodCapacity);
-    if (getCapacityLimits().mTotalCapacity)
-    {
-        releaseAssert(mCapacity.mTotalCapacity);
-        releaseAssert(*getCapacityLimits().mTotalCapacity >=
-                      *mCapacity.mTotalCapacity);
-    }
-    else
-    {
-        releaseAssert(!mCapacity.mTotalCapacity);
-    }
+    releaseAssert(getCapacityLimits().mTotalCapacity >=
+                  mCapacity.mTotalCapacity);
 }
 
 void
@@ -150,12 +142,9 @@ FlowControlCapacity::canLockLocalCapacity(StellarMessage const& msg) const
             return false;
         }
     }
-    if (mCapacity.mTotalCapacity)
+    if (mCapacity.mTotalCapacity < msgResources)
     {
-        if (*mCapacity.mTotalCapacity < msgResources)
-        {
-            return false;
-        }
+        return false;
     }
     return true;
 }
@@ -168,14 +157,12 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
     releaseAssert(canLockLocalCapacity(msg));
 
     auto msgResources = getMsgResourceCount(msg);
-    if (mCapacity.mTotalCapacity)
-    {
-        releaseAssert(*mCapacity.mTotalCapacity >= msgResources);
-        *mCapacity.mTotalCapacity -= msgResources;
-    }
+    releaseAssert(mCapacity.mTotalCapacity >= msgResources);
+    mCapacity.mTotalCapacity -= msgResources;
 
     if (OverlayManager::isFloodMessage(msg))
     {
+        releaseAssert(mCapacity.mFloodCapacity >= msgResources);
         mCapacity.mFloodCapacity -= msgResources;
         if (mCapacity.mFloodCapacity == 0)
         {
@@ -192,10 +179,7 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
 
     uint64_t releasedFloodCapacity = 0;
     size_t resourcesFreed = getMsgResourceCount(msg);
-    if (mCapacity.mTotalCapacity)
-    {
-        *mCapacity.mTotalCapacity += resourcesFreed;
-    }
+    mCapacity.mTotalCapacity += resourcesFreed;
 
     if (OverlayManager::isFloodMessage(msg))
     {
