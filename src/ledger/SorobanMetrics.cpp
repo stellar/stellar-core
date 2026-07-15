@@ -211,39 +211,31 @@ SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
 SorobanMetrics::ApplyMetricsBatch&
 SorobanMetrics::getApplyThreadBatch()
 {
-    // One entry per (thread, SorobanMetrics instance): tests can run several
-    // applications in one process and threads outlive applications, so the
-    // weak_ptr is re-validated on every first-use (the registry owns the
-    // batches; a stale entry from a destroyed instance whose address got
-    // reused expires together with its registry).
-    static thread_local std::unordered_map<SorobanMetrics const*,
-                                           std::weak_ptr<ApplyMetricsBatch>>
-        tlBatches;
-    auto& weak = tlBatches[this];
-    if (auto existing = weak.lock())
+    std::lock_guard<std::mutex> lock(mApplyBatchesMutex);
+    auto [it, inserted] = mApplyBatches.try_emplace(std::this_thread::get_id());
+    if (inserted)
     {
-        return *existing;
+        it->second = std::make_unique<ApplyMetricsBatch>();
     }
-    auto batch = std::make_shared<ApplyMetricsBatch>();
-    {
-        std::lock_guard<std::mutex> lock(mApplyBatchesMutex);
-        mApplyBatches.push_back(batch);
-    }
-    weak = batch;
-    return *batch;
+    return *it->second;
 }
 
 void
 SorobanMetrics::flushApplyMetricsBatches()
 {
-    std::vector<std::shared_ptr<ApplyMetricsBatch>> batches;
+    std::vector<std::unique_ptr<ApplyMetricsBatch>> batches;
     {
         std::lock_guard<std::mutex> lock(mApplyBatchesMutex);
-        batches = mApplyBatches;
-    }
-    if (batches.empty())
-    {
-        return;
+        if (mApplyBatches.empty())
+        {
+            return;
+        }
+        batches.reserve(mApplyBatches.size());
+        for (auto& [_, v] : mApplyBatches)
+        {
+            batches.emplace_back(std::move(v));
+        }
+        mApplyBatches.clear();
     }
 
     ApplyMetricsBatch total;

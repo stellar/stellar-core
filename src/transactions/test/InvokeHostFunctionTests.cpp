@@ -7641,7 +7641,7 @@ TEST_CASE("module cache rebuild on incremental wasm uploads",
             static_cast<uint64_t>(rebuildBytesAtStartup));
 }
 
-TEST_CASE("soroban metrics published at ledger close", "[tx][soroban]")
+TEST_CASE("soroban metrics published at ledger close", "[soroban]")
 {
     SorobanTest test;
     auto const& contract =

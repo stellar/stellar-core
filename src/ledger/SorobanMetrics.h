@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace medida
@@ -97,7 +99,8 @@ class SorobanMetrics
     // All per-thread batches handed out by getApplyThreadBatch(), drained on
     // each publishAndResetLedgerWideMetrics() call.
     std::mutex mApplyBatchesMutex;
-    std::vector<std::shared_ptr<ApplyMetricsBatch>> mApplyBatches;
+    std::unordered_map<std::thread::id, std::unique_ptr<ApplyMetricsBatch>>
+        mApplyBatches;
 
     void flushApplyMetricsBatches();
 

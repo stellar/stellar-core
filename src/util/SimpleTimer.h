@@ -2,8 +2,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <medida/counter.h>
 #include <medida/metric_name.h>
+#include <string>
 
 namespace stellar
 {
