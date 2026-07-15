@@ -896,6 +896,13 @@ LedgerManagerImpl::getInMemorySorobanStateForTesting()
 void
 LedgerManagerImpl::rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion)
 {
+    // Make sure we don't race on an in-progress compilation.
+    if (mApplyState.isCompilationRunning())
+    {
+        mApplyState.finishPendingCompilation();
+        mApplyState.markEndOfSetupPhase();
+    }
+
     mApplyState.resetToSetupPhase();
     mApplyState.getInMemorySorobanStateForTesting().clearForTesting();
     mApplyState.populateInMemorySorobanState();
