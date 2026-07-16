@@ -3,12 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/test.h"
+#include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/Logging.h"
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
+#include <medida/histogram.h>
+#include <medida/meter.h>
+#include <medida/timer.h>
 #include <numeric>
 #include <stdexcept>
 #include <xdrpp/printer.h>
@@ -21,6 +25,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "ledger/SorobanMetrics.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
@@ -7634,6 +7639,65 @@ TEST_CASE("module cache rebuild on incremental wasm uploads",
             static_cast<uint64_t>(rebuildBytesAtStartup));
     REQUIRE(uploadedRawAtTrigger >
             static_cast<uint64_t>(rebuildBytesAtStartup));
+}
+
+TEST_CASE("soroban metrics published at ledger close", "[soroban]")
+{
+    SorobanTest test;
+    auto const& contract =
+        test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+
+    auto minBalance = test.getApp().getLedgerManager().getLastMinBalance(1);
+    auto txSourceA = test.getRoot().create("txSourceA", minBalance * 100);
+    auto txSourceB = test.getRoot().create("txSourceB", minBalance * 100);
+    auto txSourceC = test.getRoot().create("txSourceC", minBalance * 100);
+    auto txSourceD = test.getRoot().create("txSourceD", minBalance * 100);
+    std::vector<TestAccount*> txSources = {&txSourceA, &txSourceB, &txSourceC,
+                                           &txSourceD};
+
+    auto& metrics = test.getApp().getLedgerManager().getSorobanMetrics();
+    auto preSuccess = metrics.mHostFnOpSuccess.count();
+    auto preReadEntry = metrics.mHostFnOpReadEntry.count();
+    auto preWriteEntry = metrics.mHostFnOpWriteEntry.count();
+    auto preTxSize = metrics.mTxSizeByte.count();
+    auto preInvokeTime = metrics.mHostFnOpInvokeTimeNsecs.count();
+    auto preExec = metrics.mHostFnOpExec.count();
+    auto preTxApply = metrics.mTransactionApply.count();
+    auto preOpApply = metrics.mOperationApply.count();
+
+    constexpr uint32_t ledgerCount = 3;
+    auto const txCountPerLedger = txSources.size();
+    for (uint32_t i = 0; i < ledgerCount; ++i)
+    {
+        std::vector<TransactionFrameBasePtr> txs;
+        for (auto* source : txSources)
+        {
+            txs.emplace_back(
+                makeAddTx(contract, INVOKE_ADD_UNCACHED_COST_PASS, *source));
+        }
+
+        ParallelSorobanOrder order = {{{0, 1}, {2, 3}}};
+        auto r = closeLedger(test.getApp(), txs, order);
+        REQUIRE(r.results.size() == txs.size());
+        checkResults(r, txs.size(), 0);
+    }
+
+    auto const appliedTxCount = ledgerCount * txCountPerLedger;
+    auto const expectedReadEntries = appliedTxCount * contract.getKeys().size();
+
+    // Per-op/per-tx metrics recorded during apply are batched per thread and
+    // published by the ledger close that applied the tx, so all samples from
+    // the parallel apply threads must be visible here.
+    REQUIRE(metrics.mHostFnOpSuccess.count() == preSuccess + appliedTxCount);
+    REQUIRE(metrics.mHostFnOpReadEntry.count() ==
+            preReadEntry + expectedReadEntries);
+    REQUIRE(metrics.mHostFnOpWriteEntry.count() == preWriteEntry);
+    REQUIRE(metrics.mTxSizeByte.count() == preTxSize + appliedTxCount);
+    REQUIRE(metrics.mHostFnOpInvokeTimeNsecs.count() ==
+            preInvokeTime + appliedTxCount);
+    REQUIRE(metrics.mHostFnOpExec.count() == preExec + appliedTxCount);
+    REQUIRE(metrics.mTransactionApply.count() == preTxApply + appliedTxCount);
+    REQUIRE(metrics.mOperationApply.count() == preOpApply + appliedTxCount);
 }
 
 TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
