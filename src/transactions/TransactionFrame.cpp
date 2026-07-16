@@ -1099,7 +1099,6 @@ TransactionFrame::updateSorobanMetrics(AppConnector& app) const
     // ledger)
     {
         auto& batch = metrics.getApplyThreadBatch();
-        std::lock_guard<std::mutex> lock(batch.mMutex);
         batch.mTxSizeByte.push_back(txSize);
     }
     // accumulate the ledger-wide metrics, which will get emitted at the ledger

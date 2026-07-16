@@ -32,14 +32,16 @@ class SorobanMetrics
 {
   public:
     // Accumulates apply-path metric updates from a single thread. Hot apply
-    // code records into its own thread's batch (brief, uncontended lock
-    // acquisition), and the batches are drained into the underlying
-    // process-wide medida metrics once per ledger on the main thread via
-    // publishAndResetLedgerWideMetrics(). This keeps shared metric state (its
-    // locks and cache lines) off the parallel apply threads.
+    // code records into its own thread's batch, and the batches are drained
+    // into the underlying process-wide medida metrics once per ledger on the
+    // main thread via publishAndResetLedgerWideMetrics(). This both avoids fine
+    // grained locking and leverages batch update interfaces on medida.
+    //
+    // Note: this class is _not_ threadsafe. An instance is owned by each thread
+    // ( in a map keyed by thread ID) and each thread should only access its
+    // own.
     struct ApplyMetricsBatch
     {
-        std::mutex mMutex;
 
         // Pending Meter increments (Marks summed since the last publish).
         uint64_t mHostFnOpReadEntry{0};
@@ -268,7 +270,6 @@ class BatchedTimerScope
                            std::chrono::steady_clock::now() - mStart)
                            .count();
         auto& batch = mMetrics.getApplyThreadBatch();
-        std::lock_guard<std::mutex> lock(batch.mMutex);
         (batch.*mField).push_back(elapsed);
     }
 

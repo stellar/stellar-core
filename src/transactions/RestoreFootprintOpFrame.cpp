@@ -46,7 +46,6 @@ struct RestoreFootprintMetrics
         // rather than updating process-wide metrics from every (possibly
         // concurrent) operation.
         auto& batch = mMetrics.getApplyThreadBatch();
-        std::lock_guard<std::mutex> lock(batch.mMutex);
         batch.mRestoreFpOpReadLedgerByte += mLedgerReadByte;
         batch.mRestoreFpOpWriteLedgerByte += mLedgerWriteByte;
         if (mExecTimed)

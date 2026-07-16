@@ -166,7 +166,6 @@ struct HostFunctionMetrics
         // per ledger) instead of updating ~25 process-wide metrics from
         // every (possibly concurrent) operation.
         auto& batch = mMetrics.getApplyThreadBatch();
-        std::lock_guard<std::mutex> lock(batch.mMutex);
 
         batch.mHostFnOpReadEntry += mReadEntry;
         batch.mHostFnOpWriteEntry += mWriteEntry;

@@ -250,7 +250,6 @@ SorobanMetrics::flushApplyMetricsBatches()
     };
     for (auto const& b : batches)
     {
-        std::lock_guard<std::mutex> lock(b->mMutex);
         total.mHostFnOpReadEntry += take(b->mHostFnOpReadEntry);
         total.mHostFnOpWriteEntry += take(b->mHostFnOpWriteEntry);
         total.mHostFnOpReadKeyByte += take(b->mHostFnOpReadKeyByte);
