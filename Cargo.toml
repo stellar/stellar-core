@@ -15,7 +15,7 @@ debug = true
 
 [profile.fastdev]
 inherits = "release"
-lto = false
+lto = "off"
 debug = "line-tables-only"
 codegen-units = 16
 split-debuginfo = "unpacked"
