@@ -18,6 +18,7 @@
 #include "transactions/ParallelApplyUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Math.h"
+#include "util/UnorderedMap.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <atomic>
@@ -431,6 +432,34 @@ class LedgerManagerImpl : public LedgerManager
     std::optional<LedgerCloseMetaFrame> mLastLedgerCloseMeta;
     // Local prng for OP_APPLY_SLEEP_TIME_*_FOR_TESTING.
     stellar_default_random_engine mApplySleepRng;
+
+    // Metrics for measuring tx e2e latency. Active only when
+    // Config::LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING is set.
+    struct TxLatencyMetrics
+    {
+        // Lifetime totals (cumulative; not reset between runs).
+        medida::Counter& mTxsSubmitted;
+        medida::Counter& mTxsExternalized;
+        // Per-run "loadgen.tx-latency-run.*" statistics (ms), reset by
+        // beginTxLatencyMeasurement.
+        medida::Counter& mRunMin;
+        medida::Counter& mRunMax;
+        medida::Counter& mRunMean;
+        medida::Counter& mRunP50;
+        medida::Counter& mRunP75;
+        medida::Counter& mRunP99;
+        ANNOTATED_MUTEX(mMutex);
+        UnorderedMap<Hash, VirtualClock::time_point>
+            mTxSubmitTimes GUARDED_BY(mMutex);
+        // Each recorded submission -> meta-emission latency in ms
+        std::vector<uint32_t> mSamples GUARDED_BY(mMutex);
+
+        TxLatencyMetrics(MetricsRegistry& registry);
+    } mTxLatencyMetrics;
+
+    // End point of the tx-latency metric: matches the ledger-close meta's
+    // txProcessing entries against mTxSubmitTimes and records each latency.
+    void recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm);
 #endif
 
     void setState(State s);
@@ -533,6 +562,9 @@ class LedgerManagerImpl : public LedgerManager
     getModuleCacheForTesting() override;
     void rebuildInMemorySorobanStateForTesting(uint32_t ledgerVersion) override;
     uint64_t getSorobanInMemoryStateSizeForTesting() override;
+    void recordTxSubmission(Hash const& contentsHash) override;
+    void beginTxLatencyMeasurement(uint32_t expectedTxCount) override;
+    void finalizeTxLatencyMeasurement() override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
