@@ -43,10 +43,12 @@ class TestSCP : public SCPDriver
     uint32_t mIncrementBallotTimeoutMS = 1000;
     uint32_t mInitialNominationTimeoutMS = 1000;
     uint32_t mIncrementNominationTimeoutMS = 1000;
+    bool const mProtocolAllowsEmptyTxSetValues;
 
     TestSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal,
-            bool isValidator = true)
+            bool isValidator = true, bool protocolAllowsEmptyTxSetValues = true)
         : mSCP(*this, nodeID, isValidator, qSetLocal)
+        , mProtocolAllowsEmptyTxSetValues(protocolAllowsEmptyTxSetValues)
     {
         mPriorityLookup = [&](NodeID const& n) {
             return (n == mSCP.getLocalNodeID()) ? 1000 : 1;
@@ -163,13 +165,17 @@ class TestSCP : public SCPDriver
     bool
     isParallelTxSetDownloadEnabled() const override
     {
-        return true;
+        // Leave unimplemented. A node's parallel downloading setting only
+        // affects higher level systems (such as PendingEnvelopes).
+        // NominationProtocol and BallotProtocol only reason about whether the
+        // protocol supports empty-tx-set values
+        releaseAssert(false);
     }
 
     bool
     protocolAllowsEmptyTxSetValues() const override
     {
-        return true;
+        return mProtocolAllowsEmptyTxSetValues;
     }
 
     void
@@ -859,7 +865,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
-    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    bool const protocolAllowsEmptyTxSetValues = GENERATE(false, true);
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet, /*isValidator*/ true,
+                protocolAllowsEmptyTxSetValues);
 
     auto test = [&](TestSCP& scp) {
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
@@ -2649,7 +2657,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         SECTION("non validator watching the network")
         {
             SIMULATION_CREATE_NODE(NV);
-            TestSCP scpNV(vNVSecretKey.getPublicKey(), qSet, false);
+            TestSCP scpNV(vNVSecretKey.getPublicKey(), qSet, false,
+                          protocolAllowsEmptyTxSetValues);
             scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
             uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
 
@@ -2678,7 +2687,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         SECTION("restore ballot protocol")
         {
-            TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
+            TestSCP scp2(v0SecretKey.getPublicKey(), qSet, /*isValidator*/ true,
+                         protocolAllowsEmptyTxSetValues);
             scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
             SCPBallot b(2, xValue);
             SECTION("prepare")
@@ -2723,7 +2733,9 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
 
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
-    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    bool const protocolAllowsEmptyTxSetValues = GENERATE(false, true);
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet, /*isValidator*/ true,
+                protocolAllowsEmptyTxSetValues);
 
     auto test = [&](TestSCP& scp) {
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
@@ -2870,7 +2882,9 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
         SECTION("node without self - quorum timeout")
         {
             SIMULATION_CREATE_NODE(NodeNS);
-            TestSCP scpNNS(vNodeNSSecretKey.getPublicKey(), qSet);
+            TestSCP scpNNS(vNodeNSSecretKey.getPublicKey(), qSet,
+                           /*isValidator*/ true,
+                           protocolAllowsEmptyTxSetValues);
             scpNNS.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
             uint256 qSetHashNodeNS =
                 scpNNS.mSCP.getLocalNode()->getQuorumSetHash();
@@ -2927,9 +2941,11 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                            expectedLeaders.end()));
     };
 
+    bool const protocolAllowsEmptyTxSetValues = GENERATE(false, true);
     SECTION("nomination - v0 is top")
     {
-        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+        TestSCP scp(v0SecretKey.getPublicKey(), qSet, /*isValidator*/ true,
+                    protocolAllowsEmptyTxSetValues);
 
         auto test = [&](TestSCP& scp) {
             uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
@@ -3043,7 +3059,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     }
                     SECTION("nomination - restored state")
                     {
-                        TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
+                        TestSCP scp2(v0SecretKey.getPublicKey(), qSet,
+                                     /*isValidator*/ true,
+                                     protocolAllowsEmptyTxSetValues);
                         scp2.storeQuorumSet(
                             std::make_shared<SCPQuorumSet>(qSet));
 
@@ -3280,7 +3298,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     }
     SECTION("v1 is top node")
     {
-        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+        TestSCP scp(v0SecretKey.getPublicKey(), qSet, /*isValidator*/ true,
+                    protocolAllowsEmptyTxSetValues);
 
         auto test = [&](TestSCP& scp) {
             uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
