@@ -1313,6 +1313,10 @@ impl App {
                             cp.resolved.clear();
                         }
 
+                        self.libp2p_handle
+                            .set_known_peer_count(all_peers.len().saturating_sub(1))
+                            .await;
+
                         // Prune known_peers and peer_hostnames for peers whose
                         // hostnames are no longer in the config. Prevents stale
                         // entries from re-dialing removed peers.
