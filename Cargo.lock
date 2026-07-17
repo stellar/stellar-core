@@ -3783,6 +3783,7 @@ dependencies = [
  "blake2",
  "digest",
  "futures",
+ "hickory-resolver",
  "hostname",
  "libp2p",
  "libp2p-stream",
