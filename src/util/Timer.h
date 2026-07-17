@@ -9,7 +9,6 @@
 // else.
 #include "util/asio.h"
 #include "util/NonCopyable.h"
-#include "util/Scheduler.h"
 #include "util/ThreadAnnotations.h"
 
 #include <atomic>
@@ -47,9 +46,8 @@ using RealSteadyTimer = asio::steady_timer;
  *   for any time-based transitions to _literally_ occur due to the passage of
  *   wall-clock time, when there's no other work to do.
  *
- * The VirtualClock type also contains an instance of Scheduler, which is a
- * fair time-slicing and load-shedding system for balancing multiple streams
- * of callbacks each competing for main thread execution.
+ * The VirtualClock type also owns the ASIO event loop that dispatches callbacks
+ * on the main thread.
  */
 
 class VirtualTimer;
@@ -61,8 +59,6 @@ class VirtualClockEventCompare
     bool operator()(std::shared_ptr<VirtualClockEvent> a,
                     std::shared_ptr<VirtualClockEvent> b);
 };
-
-extern std::chrono::seconds const SCHEDULER_LATENCY_WINDOW;
 
 class VirtualClock
 {
@@ -171,28 +167,20 @@ class VirtualClock
 
     std::atomic<int> mBackgroundWorkCount{0};
 
-    // There are three separate queue-like things in a given VirtualClock.
+    // There are two separate queue-like things in a given VirtualClock.
     //
-    // The first is the action Scheduler, which multiplexes (with some level of
-    // fair real-time-slicing) multiple streams of callbacks competing for main
-    // thread (real) time. Only the main thread ever accesses the Scheduler.
-    //
-    // The second is a simple "pending actions" queue that is protected by a
+    // The first is a simple "pending actions" queue that is protected by a
     // short-duration mutex. This is a threadsafe _submission_ point for adding
-    // actions to the Scheduler -- any thread can enqueue, and only the main
-    // thread will dequeue (immediately re-enqueueing into the Scheduler for
-    // further time-slicing / load-shedding).
+    // actions that the main thread will transfer to the ASIO queue.
     //
-    // The third is a priority queue of VirtualClockEvents, which is the part of
-    // the VirtualClock that manages the progress of virtual time and the
+    // The second is a priority queue of VirtualClockEvents, which is the part
+    // of the VirtualClock that manages the progress of virtual time and the
     // dispatch of timers as virtual time advances past them.
     std::chrono::steady_clock::time_point mLastDispatchStart;
-    std::unique_ptr<Scheduler> mActionScheduler;
 
     mutable ANNOTATED_MUTEX(mPendingActionQueueMutex);
-    std::queue<
-        std::tuple<std::function<void()>, std::string, Scheduler::ActionType>>
-        mPendingActionQueue GUARDED_BY(mPendingActionQueueMutex);
+    std::queue<std::function<void()>> mPendingActionQueue
+        GUARDED_BY(mPendingActionQueueMutex);
 
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
@@ -264,12 +252,10 @@ class VirtualClock
     // Returns the time of the next scheduled event.
     time_point next() const;
 
-    void postAction(std::function<void()>&& f, std::string&& name,
-                    Scheduler::ActionType type);
+    void postAction(std::function<void()>&& f);
 
     size_t getActionQueueSize() const;
     bool actionQueueIsOverloaded() const;
-    Scheduler::ActionType currentSchedulerActionType() const;
 
 #ifdef BUILD_TESTS
     // Inject a wall-clock offset into system_now() to simulate clock drift.

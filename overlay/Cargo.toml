@@ -28,6 +28,7 @@ stellar-xdr = { version = "=26.0.0", default-features = true }
 libp2p = { version = "0.54", features = ["tokio", "macros", "identify", "quic"] }
 libp2p-stream = "0.2.0-alpha"
 futures = "0.3"
+hickory-resolver = "0.24.4"
 
 # Logging
 tracing = "0.1"

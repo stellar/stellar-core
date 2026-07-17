@@ -90,10 +90,10 @@ AppConnector::getNetworkID() const
 }
 
 void
-AppConnector::postOnMainThread(std::function<void()>&& f, std::string&& message,
-                               Scheduler::ActionType type)
+AppConnector::postOnMainThread(std::function<void()>&& f,
+                               std::string&& message)
 {
-    mApp.postOnMainThread(std::move(f), std::move(message), type);
+    mApp.postOnMainThread(std::move(f), std::move(message));
 }
 
 void

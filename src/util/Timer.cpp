@@ -6,7 +6,6 @@
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/Scheduler.h"
 #include <Tracy.hpp>
 #include <chrono>
 #include <cstdio>
@@ -19,12 +18,9 @@ using namespace std;
 
 static std::chrono::milliseconds const CRANK_TIME_SLICE(500);
 static size_t const CRANK_EVENT_SLICE = 100;
-std::chrono::seconds const SCHEDULER_LATENCY_WINDOW(5);
 
 VirtualClock::VirtualClock(Mode mode)
     : mMode(mode)
-    , mActionScheduler(
-          std::make_unique<Scheduler>(*this, SCHEDULER_LATENCY_WINDOW))
     , mRealTimer(mIOContext)
 {
 }
@@ -270,16 +266,11 @@ VirtualClock::shutdown()
 
         getIOContext().stop();
 
-        // Clear pending queue for the scheduler
+        // Clear pending action queue.
         {
             LOCK_GUARD(mPendingActionQueueMutex, guard);
-            mPendingActionQueue =
-                std::queue<std::tuple<std::function<void()>, std::string,
-                                      Scheduler::ActionType>>();
+            mPendingActionQueue = std::queue<std::function<void()>>();
         }
-
-        // Clear scheduler queues
-        mActionScheduler->shutdown();
     }
 }
 
@@ -382,31 +373,13 @@ VirtualClock::crank(bool block)
 
         // Dispatch some IO event completions.
         mLastDispatchStart = now();
-        // Bias towards the execution queue exponentially based on how long the
-        // scheduler has been overloaded.
-        auto overloadedDuration =
-            std::min(static_cast<std::chrono::seconds::rep>(30),
-                     mActionScheduler->getOverloadedDuration().count());
-        std::string overloadStr =
-            overloadedDuration > 0 ? "overloaded" : "slack";
-        size_t ioDivisor = 1ULL << overloadedDuration;
         {
             ZoneNamedN(ioPollZone, "ASIO polling", true);
-            ZoneText(overloadStr.c_str(), overloadStr.size());
             progressCount += crankStep(
-                *this, [this] { return this->mIOContext.poll_one(); },
-                ioDivisor);
+                *this, [this] { return this->mIOContext.poll_one(); });
         }
 
-        // Dispatch some scheduled actions.
-        mLastDispatchStart = now();
-        {
-            ZoneNamedN(schedZone, "scheduler", true);
-            progressCount += crankStep(
-                *this, [this] { return this->mActionScheduler->runOne(); });
-        }
-
-        // Subtract out any timer cancellations from the above two steps.
+        // Subtract out any timer cancellations from the above step.
         progressCount -= nRealTimerCancelEvents;
 
         if (mMode == VIRTUAL_TIME && progressCount == 0 &&
@@ -431,16 +404,12 @@ VirtualClock::crank(bool block)
         }
     }
 
-    // Transfer any pending actions to the scheduler, counting them as
-    // "progress" also.
+    // Transfer any pending actions to ASIO, counting them as "progress" also.
     {
         LOCK_GUARD(mPendingActionQueueMutex, guard);
         while (!mPendingActionQueue.empty())
         {
-            auto& f = mPendingActionQueue.front();
-            mActionScheduler->enqueue(std::move(std::get<1>(f)),
-                                      std::move(std::get<0>(f)),
-                                      std::get<2>(f));
+            asio::post(mIOContext, std::move(mPendingActionQueue.front()));
             mPendingActionQueue.pop();
             progressCount++;
         }
@@ -474,8 +443,7 @@ VirtualClock::crank(bool block)
 }
 
 void
-VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
-                         Scheduler::ActionType type)
+VirtualClock::postAction(std::function<void()>&& f)
 {
     if (isStopped())
     {
@@ -486,7 +454,7 @@ VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
     {
         LOCK_GUARD(mPendingActionQueueMutex, lock);
         queueWasEmpty = mPendingActionQueue.empty();
-        mPendingActionQueue.emplace(std::move(f), std::move(name), type);
+        mPendingActionQueue.emplace(std::move(f));
     }
 
     // The pending queue is emptied by the main thread just before the main
@@ -515,24 +483,16 @@ VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
 size_t
 VirtualClock::getActionQueueSize() const
 {
-    size_t pending = 0;
     {
         LOCK_GUARD(mPendingActionQueueMutex, guard);
-        pending = mPendingActionQueue.size();
+        return mPendingActionQueue.size();
     }
-    return pending + mActionScheduler->size();
 }
 
 bool
 VirtualClock::actionQueueIsOverloaded() const
 {
-    return mActionScheduler->getOverloadedDuration().count() != 0;
-}
-
-Scheduler::ActionType
-VirtualClock::currentSchedulerActionType() const
-{
-    return mActionScheduler->currentActionType();
+    return false;
 }
 
 asio::io_context&

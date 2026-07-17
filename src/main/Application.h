@@ -255,9 +255,8 @@ class Application
     virtual asio::io_context& getOverlayIOContext() = 0;
     virtual asio::io_context& getLedgerCloseIOContext() = 0;
 
-    virtual void postOnMainThread(
-        std::function<void()>&& f, std::string&& name,
-        Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION) = 0;
+    virtual void postOnMainThread(std::function<void()>&& f,
+                                  std::string&& name) = 0;
 
     // While both are lower priority than the main thread, eviction threads have
     // more priority than regular worker background threads

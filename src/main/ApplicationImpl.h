@@ -90,8 +90,8 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getOverlayIOContext() override;
     virtual asio::io_context& getLedgerCloseIOContext() override;
 
-    virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
-                                  Scheduler::ActionType type) override;
+    virtual void postOnMainThread(std::function<void()>&& f,
+                                  std::string&& name) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;
     virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
