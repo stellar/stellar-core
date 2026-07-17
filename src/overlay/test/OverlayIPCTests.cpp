@@ -227,7 +227,6 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
 // Include simulation headers for the E2E test
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerTxn.h"
 #include "main/AppConnector.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"

@@ -36,23 +36,29 @@ Logic:
 
 ### Inbound: SCP stream handler
 
-`libp2p_overlay.rs:1291-1368`. Each peer has a dedicated inbound SCP
+`libp2p_overlay.rs:1390-1523`. Each peer has a dedicated inbound SCP
 stream task that loops on length-prefixed reads:
 
 1. **Read frame**: 4-byte big-endian length prefix + payload (see
    [transport.md](transport.md#frame-formats)).
-2. **State-request shortcut**: if the payload is exactly **4 bytes**, it
-   is interpreted as a `GET_SCP_STATE` request — the four bytes are a
-   ledger sequence number. The handler emits an `ScpStateRequested`
-   event and continues.
-3. **Hash + dedup**: Blake2b the envelope, check `scp_seen`. If already
-   seen, log as duplicate and skip.
+2. **Strict decode**: the payload is parsed as a `StellarMessage`;
+   malformed messages are dropped. A `GetScpState(ledger_seq)` arm
+   emits an `ScpStateRequested` event and continues; only `ScpMessage`
+   arms proceed. This is the *single* decode an inbound envelope gets in
+   the overlay — everything downstream works on the canonical envelope
+   bytes (the frame after the 4-byte union discriminant).
+3. **Hash + dedup**: Blake2b the envelope bytes, check `scp_seen`.
 4. **Record sender** in `scp_sent_to`: insert this peer's `PeerId` for
-   the hash. This guarantees that when Core later asks us to re-broadcast,
-   we don't echo back to the peer who just sent it.
-5. **Forward to Core**: emit `ScpReceived { envelope, from }` on the
-   *unbounded* event channel. Core processes it and calls
-   `BroadcastScp` to relay.
+   the hash (done for duplicates too). This guarantees that when Core
+   later asks us to re-broadcast, we don't echo back to the peer who
+   just sent it. If the envelope was already seen, stop here.
+5. **Extract + forward to Core** (first sighting only): pull any
+   referenced TX set hashes off the already-decoded envelope and emit
+   `ScpReceived { envelope, txset_hashes, from }` on the *unbounded*
+   event channel. The main loop records the sender as a TX set source
+   and prefetches missing sets (see
+   [txset-fetching.md](txset-fetching.md)), then forwards the envelope
+   to Core, which processes it and calls `BroadcastScp` to relay.
 
 ## Relay walkthrough
 

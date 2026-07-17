@@ -3,10 +3,13 @@
 //! Wire format: length-prefixed `StellarMessage` XDR.
 
 use std::io;
+use std::sync::Arc;
 use stellar_xdr::curr::{
     FloodAdvert, FloodDemand, Hash, Limits, ReadXdr, StellarMessage, TxAdvertVector,
     TxDemandVector, WriteXdr,
 };
+
+use crate::wire::ValidatedTx;
 
 /// A single INV entry: hash + fee for prioritization
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +41,19 @@ impl InvBatch {
     pub fn push(&mut self, entry: InvEntry) {
         self.entries.push(entry);
     }
+
+    /// Encode as a `StellarMessage::FloodAdvert` XDR.
+    pub fn encode(&self) -> io::Result<Vec<u8>> {
+        let hashes = self
+            .entries
+            .iter()
+            .map(|e| Hash(e.hash))
+            .collect::<Vec<_>>();
+        let tx_hashes = TxAdvertVector::try_from(hashes).map_err(to_invalid_data)?;
+        StellarMessage::FloodAdvert(FloodAdvert { tx_hashes })
+            .to_xdr(Limits::none())
+            .map_err(to_invalid_data)
+    }
 }
 
 impl Default for InvBatch {
@@ -60,6 +76,19 @@ impl GetData {
     pub fn push(&mut self, hash: [u8; 32]) {
         self.hashes.push(hash);
     }
+
+    /// Encode as a `StellarMessage::FloodDemand` XDR.
+    pub fn encode(&self) -> io::Result<Vec<u8>> {
+        let hashes = self
+            .hashes
+            .iter()
+            .map(|hash| Hash(*hash))
+            .collect::<Vec<_>>();
+        let tx_hashes = TxDemandVector::try_from(hashes).map_err(to_invalid_data)?;
+        StellarMessage::FloodDemand(FloodDemand { tx_hashes })
+            .to_xdr(Limits::none())
+            .map_err(to_invalid_data)
+    }
 }
 
 impl Default for GetData {
@@ -68,11 +97,15 @@ impl Default for GetData {
     }
 }
 
-/// Parsed TX stream message
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Parsed TX stream message.
+///
+/// The `Tx` arm carries an already-validated `Arc<ValidatedTx>`: `decode`
+/// performs the single strict `StellarMessage` decode this module is allowed to
+/// do, then mints the tx from the decoded envelope without re-decoding.
+#[derive(Debug, Clone)]
 pub enum TxStreamMessage {
-    /// Full transaction data
-    Tx(Vec<u8>),
+    /// A validated transaction
+    Tx(Arc<ValidatedTx>),
     /// Batch of INV announcements
     InvBatch(InvBatch),
     /// Request for transactions
@@ -80,37 +113,17 @@ pub enum TxStreamMessage {
 }
 
 impl TxStreamMessage {
-    /// Encode message as StellarMessage XDR.
-    pub fn encode(&self) -> io::Result<Vec<u8>> {
-        match self {
-            TxStreamMessage::Tx(data) => {
-                crate::xdr::encode_transaction_message_from_xdr(data).map_err(to_invalid_data)
-            }
-            TxStreamMessage::InvBatch(batch) => {
-                let hashes = batch
-                    .entries
-                    .iter()
-                    .map(|entry| Hash(entry.hash))
-                    .collect::<Vec<_>>();
-                let tx_hashes = TxAdvertVector::try_from(hashes).map_err(to_invalid_data)?;
-                let message = StellarMessage::FloodAdvert(FloodAdvert { tx_hashes });
-                message.to_xdr(Limits::none()).map_err(to_invalid_data)
-            }
-            TxStreamMessage::GetData(gd) => {
-                let hashes = gd.hashes.iter().map(|hash| Hash(*hash)).collect::<Vec<_>>();
-                let tx_hashes = TxDemandVector::try_from(hashes).map_err(to_invalid_data)?;
-                let message = StellarMessage::FloodDemand(FloodDemand { tx_hashes });
-                message.to_xdr(Limits::none()).map_err(to_invalid_data)
-            }
-        }
-    }
-
-    /// Decode StellarMessage XDR from the TX stream.
+    /// Decode a `StellarMessage` off the TX stream.
+    ///
+    /// This is a trust boundary: `data` came from a peer. The single decode here
+    /// both validates the message and, for transactions, produces the
+    /// `ValidatedTx` (minted from the decoded envelope and its original bytes,
+    /// `data[4..]`, after the 4-byte union discriminant).
     pub fn decode(data: &[u8]) -> io::Result<Self> {
         match StellarMessage::from_xdr(data, Limits::none()).map_err(to_invalid_data)? {
             StellarMessage::Transaction(envelope) => {
                 let tx =
-                    crate::xdr::canonical_transaction_xdr(envelope).map_err(to_invalid_data)?;
+                    ValidatedTx::from_network(&envelope, &data[4..]).map_err(to_invalid_data)?;
                 Ok(TxStreamMessage::Tx(tx))
             }
             StellarMessage::FloodAdvert(advert) => {
@@ -148,11 +161,12 @@ mod tests {
     #[test]
     fn test_tx_stream_message_tx() {
         let tx_data = valid_transaction_xdr(1000, 1, 1);
-        let msg = TxStreamMessage::Tx(tx_data.clone());
+        let encoded = crate::xdr::frame_transaction(&tx_data);
 
-        let encoded = msg.encode().unwrap();
-        let decoded = TxStreamMessage::decode(&encoded).unwrap();
-        assert_eq!(msg, decoded);
+        match TxStreamMessage::decode(&encoded).unwrap() {
+            TxStreamMessage::Tx(tx) => assert_eq!(tx.bytes(), &tx_data[..]),
+            _ => panic!("Expected Tx"),
+        }
     }
 
     #[test]
@@ -162,9 +176,7 @@ mod tests {
             hash: [0x42; 32],
             fee_per_op: 500,
         });
-        let msg = TxStreamMessage::InvBatch(batch.clone());
-
-        let encoded = msg.encode().unwrap();
+        let encoded = batch.encode().unwrap();
         let decoded = TxStreamMessage::decode(&encoded).unwrap();
         if let TxStreamMessage::InvBatch(decoded_batch) = decoded {
             assert_eq!(decoded_batch.entries.len(), 1);
@@ -178,9 +190,7 @@ mod tests {
     fn test_tx_stream_message_getdata() {
         let mut gd = GetData::new();
         gd.push([0xFF; 32]);
-        let msg = TxStreamMessage::GetData(gd.clone());
-
-        let encoded = msg.encode().unwrap();
+        let encoded = gd.encode().unwrap();
         let decoded = TxStreamMessage::decode(&encoded).unwrap();
         if let TxStreamMessage::GetData(decoded_gd) = decoded {
             assert_eq!(gd, decoded_gd);

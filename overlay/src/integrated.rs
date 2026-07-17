@@ -11,17 +11,13 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, info};
 
 use crate::flood::Mempool;
-use crate::xdr::parse_supported_transaction;
+use crate::wire::ValidatedTx;
 
 /// Commands from Core to Overlay
 #[derive(Debug, Clone)]
 pub enum CoreCommand {
-    /// Submit a transaction for flooding
-    SubmitTx {
-        data: Vec<u8>,
-        fee: u64,
-        num_ops: u32,
-    },
+    /// Submit a validated transaction for flooding
+    SubmitTx(Arc<ValidatedTx>),
 
     /// Request top N transactions by fee
     GetTopTxs {
@@ -69,40 +65,16 @@ impl Overlay {
     /// Handle a command from Core.
     async fn handle_core_command(&self, cmd: CoreCommand) {
         match cmd {
-            CoreCommand::SubmitTx { data, fee, num_ops } => {
-                let parsed = match parse_supported_transaction(&data) {
-                    Ok(parsed) => parsed,
-                    Err(e) => {
-                        debug!("[SubmitTx] dropping unsupported TX: {}", e);
-                        return;
-                    }
-                };
+            CoreCommand::SubmitTx(tx) => {
                 debug!(
-                    "[SubmitTx] TX: hash={:?}, size={}, fee={}, ops={}, class={:?}",
-                    &parsed.full_hash[..4],
-                    parsed.envelope_xdr.len(),
-                    parsed.fee,
-                    parsed.num_ops,
-                    parsed.class
+                    "[SubmitTx] TX: hash={:02x?}, size={}, fee={}, ops={}",
+                    &tx.hash()[..4],
+                    tx.bytes().len(),
+                    tx.fee(),
+                    tx.num_ops()
                 );
-                if fee != parsed.fee || num_ops != parsed.num_ops {
-                    debug!(
-                        "[SubmitTx] caller metadata fee/ops=({}/{}) differs from XDR fee/ops=({}/{})",
-                        fee, num_ops, parsed.fee, parsed.num_ops
-                    );
-                }
-
                 let mut mempool = self.mempool.write().await;
-                let entry = crate::flood::TxEntry {
-                    data: parsed.envelope_xdr,
-                    hash: parsed.full_hash,
-                    source_account: parsed.source_account,
-                    sequence: parsed.sequence,
-                    fee: parsed.fee,
-                    num_ops: parsed.num_ops,
-                    received_at: std::time::Instant::now(),
-                };
-                mempool.insert(entry);
+                mempool.insert(tx);
             }
 
             CoreCommand::GetTopTxs { count, reply } => {
@@ -110,7 +82,7 @@ impl Overlay {
                 let top_hashes = mempool.top_by_fee(count);
                 let txs: Vec<([u8; 32], Vec<u8>)> = top_hashes
                     .iter()
-                    .filter_map(|h| mempool.get(h).map(|e| (*h, e.data.clone())))
+                    .filter_map(|h| mempool.get(h).map(|meta| (*h, meta.bytes().to_vec())))
                     .collect();
                 let _ = reply.send(txs).await;
             }
@@ -152,11 +124,9 @@ impl OverlayHandle {
         Self { cmd_tx }
     }
 
-    /// Submit a transaction.
-    pub fn submit_tx(&self, data: Vec<u8>, fee: u64, num_ops: u32) {
-        let _ = self
-            .cmd_tx
-            .send(CoreCommand::SubmitTx { data, fee, num_ops });
+    /// Submit a validated transaction.
+    pub fn submit_tx(&self, tx: Arc<ValidatedTx>) {
+        let _ = self.cmd_tx.send(CoreCommand::SubmitTx(tx));
     }
 
     /// Get top transactions by fee.
@@ -199,8 +169,8 @@ mod tests {
         });
 
         // Submit a TX
-        let tx = valid_transaction_xdr(100, 1, 1);
-        handle.submit_tx(tx, 100, 1);
+        let tx = ValidatedTx::from_core_trusted(valid_transaction_xdr(100, 1, 1), 100, 1).unwrap();
+        handle.submit_tx(tx);
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Verify it's in mempool
@@ -222,9 +192,9 @@ mod tests {
         let tx1 = valid_transaction_xdr(100, 1, 1);
         let tx2 = valid_transaction_xdr(500, 2, 1);
         let tx3 = valid_transaction_xdr(200, 3, 1);
-        handle.submit_tx(tx1, 100, 1);
-        handle.submit_tx(tx2.clone(), 500, 1);
-        handle.submit_tx(tx3, 200, 1);
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx1, 100, 1).unwrap());
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx2.clone(), 500, 1).unwrap());
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx3, 200, 1).unwrap());
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Get top 2
@@ -245,8 +215,12 @@ mod tests {
         });
 
         // Submit only 2 TXs
-        handle.submit_tx(valid_transaction_xdr(100, 1, 1), 100, 1);
-        handle.submit_tx(valid_transaction_xdr(200, 2, 1), 200, 1);
+        handle.submit_tx(
+            ValidatedTx::from_core_trusted(valid_transaction_xdr(100, 1, 1), 100, 1).unwrap(),
+        );
+        handle.submit_tx(
+            ValidatedTx::from_core_trusted(valid_transaction_xdr(200, 2, 1), 200, 1).unwrap(),
+        );
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Ask for 10
@@ -288,9 +262,9 @@ mod tests {
         let tx1 = valid_transaction_xdr(200, 1, 2);
         let tx2 = valid_transaction_xdr(150, 2, 1);
         let tx3 = valid_transaction_xdr(300, 3, 4);
-        handle.submit_tx(tx1.clone(), 200, 2);
-        handle.submit_tx(tx2.clone(), 150, 1);
-        handle.submit_tx(tx3.clone(), 300, 4);
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx1.clone(), 200, 2).unwrap());
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx2.clone(), 150, 1).unwrap());
+        handle.submit_tx(ValidatedTx::from_core_trusted(tx3.clone(), 300, 4).unwrap());
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         let top = handle.get_top_txs(3).await;

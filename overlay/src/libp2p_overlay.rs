@@ -15,6 +15,7 @@ use crate::flood::{
     GetData, InvBatch, InvBatcher, InvEntry, InvTracker, PendingRequests, TxBuffer, TxStreamMessage,
 };
 use crate::metrics::OverlayMetrics;
+use crate::wire::ValidatedTx;
 use futures::{AsyncReadExt, AsyncWriteExt, StreamExt};
 use libp2p::{
     identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
@@ -50,10 +51,15 @@ const TX_EVENT_CHANNEL_CAPACITY: usize = 10_000;
 /// Events from the overlay to the application
 #[derive(Debug, Clone)]
 pub enum OverlayEvent {
-    /// Received SCP envelope from peer
-    ScpReceived { envelope: Vec<u8>, from: PeerId },
+    /// Received SCP envelope from peer, with any tx set hashes it references
+    /// (extracted during the reader's single decode).
+    ScpReceived {
+        envelope: Vec<u8>,
+        txset_hashes: Vec<[u8; 32]>,
+        from: PeerId,
+    },
     /// Received TX from peer
-    TxReceived { tx: Vec<u8>, from: PeerId },
+    TxReceived { tx: Arc<ValidatedTx>, from: PeerId },
     /// Received TX set response
     TxSetReceived {
         hash: [u8; 32],
@@ -75,8 +81,8 @@ pub enum OverlayEvent {
 pub enum OverlayCommand {
     /// Broadcast SCP envelope to all peers
     BroadcastScp(Vec<u8>),
-    /// Broadcast TX to all peers
-    BroadcastTx(Vec<u8>),
+    /// Broadcast a validated TX to all peers
+    BroadcastTx(Arc<ValidatedTx>),
     /// Request TX set from a peer (picks best peer)
     FetchTxSet { hash: [u8; 32] },
     /// Send TX set to a specific peer (response to their request)
@@ -167,7 +173,7 @@ impl OverlayHandle {
         }
     }
 
-    pub async fn broadcast_tx(&self, tx: Vec<u8>) {
+    pub async fn broadcast_tx(&self, tx: Arc<ValidatedTx>) {
         if let Err(e) = self.cmd_tx.send(OverlayCommand::BroadcastTx(tx)).await {
             warn!(
                 "Overlay command channel closed, failed to send BroadcastTx: {}",
@@ -509,7 +515,7 @@ impl StellarOverlay {
                             self.broadcast_scp(&envelope).await;
                         }
                         OverlayCommand::BroadcastTx(tx) => {
-                            self.broadcast_tx(&tx).await;
+                            self.broadcast_tx(tx).await;
                         }
                         OverlayCommand::FetchTxSet { hash } => {
                             self.fetch_txset(hash).await;
@@ -555,13 +561,7 @@ impl StellarOverlay {
                         OverlayCommand::SendScpToPeer { peer_id, envelope } => {
                             // Don't hold &self across await - extract state and call helper directly
                             let state = Arc::clone(&self.state);
-                            let message = match crate::xdr::encode_scp_message(&envelope) {
-                                Ok(message) => message,
-                                Err(e) => {
-                                    warn!("Dropping invalid SCP envelope for {}: {}", peer_id, e);
-                                    continue;
-                                }
-                            };
+                            let message = crate::xdr::frame_scp(&envelope);
                             if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &message).await {
                                 warn!("Failed to send SCP to {}: {:?}", peer_id, e);
                             }
@@ -738,13 +738,8 @@ impl StellarOverlay {
 
     /// Broadcast SCP envelope to all connected peers
     async fn broadcast_scp(&mut self, envelope: &[u8]) {
-        let message = match crate::xdr::encode_scp_message(envelope) {
-            Ok(message) => message,
-            Err(e) => {
-                warn!("SCP_BROADCAST_DROP: Dropping invalid SCP envelope: {}", e);
-                return;
-            }
-        };
+        // Core is trusted for encoding; frame by concatenation (no decode).
+        let message = crate::xdr::frame_scp(envelope);
         let hash = blake2b_hash(envelope);
 
         // Mark as seen for inbound dedup (if we later receive this from a peer, skip it)
@@ -832,17 +827,9 @@ impl StellarOverlay {
 
     /// Broadcast TX to all connected peers
     /// Broadcast TX using INV/GETDATA protocol (bandwidth efficient)
-    async fn broadcast_tx(&mut self, tx: &[u8]) {
-        let parsed = match crate::xdr::parse_supported_transaction(tx) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                warn!("TX_BROADCAST_DROP: Dropping invalid TX from Core: {}", e);
-                return;
-            }
-        };
-        let hash = parsed.full_hash;
-        let tx = parsed.envelope_xdr;
-        let fee_per_op = (parsed.fee / u64::from(parsed.num_ops.max(1))) as i64;
+    async fn broadcast_tx(&mut self, tx: Arc<ValidatedTx>) {
+        let hash = *tx.hash();
+        let fee_per_op = tx.fee_per_op();
 
         // Dedup check
         {
@@ -861,7 +848,7 @@ impl StellarOverlay {
         // Store TX in buffer for GETDATA responses
         {
             let mut buffer = self.state.tx_buffer.write().await;
-            buffer.insert(hash, tx.clone());
+            buffer.insert(hash, tx.bytes().to_vec());
         }
 
         let streams = self.state.peer_streams.read().await;
@@ -876,7 +863,7 @@ impl StellarOverlay {
         debug!(
             "TX_INV: Announcing TX {:02x?}... ({} bytes) to {} peers via INV",
             &hash[..4],
-            tx.len(),
+            tx.bytes().len(),
             peers.len()
         );
         self.state
@@ -979,22 +966,7 @@ impl StellarOverlay {
             .await
             .insert(hash, (peer.clone(), Instant::now()));
 
-        let request = match crate::xdr::encode_get_tx_set(hash) {
-            Ok(request) => request,
-            Err(e) => {
-                warn!(
-                    "TXSET_FETCH_FAIL: Failed to encode request for TxSet {:02x?}...: {}",
-                    &hash[..4],
-                    e
-                );
-                self.state
-                    .pending_txset_requests
-                    .write()
-                    .await
-                    .remove(&hash);
-                return;
-            }
-        };
+        let request = crate::xdr::frame_get_tx_set(hash);
 
         match send_to_peer_stream(&self.state, peer.clone(), StreamType::TxSet, &request).await {
             Ok(_) => info!(
@@ -1027,18 +999,9 @@ impl StellarOverlay {
             peer
         );
 
-        let response = match crate::xdr::encode_generalized_tx_set_message(&data, &hash) {
-            Ok(response) => response,
-            Err(e) => {
-                warn!(
-                    "TXSET_SEND_DROP: Dropping invalid TxSet {:02x?}... for {}: {}",
-                    &hash[..4],
-                    peer,
-                    e
-                );
-                return;
-            }
-        };
+        // `data` is a tx set we already validated on entry (from a peer) or
+        // built locally (trusted core); frame by concatenation.
+        let response = crate::xdr::frame_tx_set(&data);
 
         match send_to_peer_stream(&self.state, peer, StreamType::TxSet, &response).await {
             Ok(_) => {
@@ -1088,13 +1051,7 @@ impl StellarOverlay {
             peers.len()
         );
 
-        let request = match crate::xdr::encode_get_scp_state(ledger_seq) {
-            Ok(request) => request,
-            Err(e) => {
-                warn!("Failed to encode SCP state request: {}", e);
-                return;
-            }
-        };
+        let request = crate::xdr::frame_get_scp_state(ledger_seq);
         for peer_id in peers {
             if let Err(e) =
                 send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &request).await
@@ -1106,8 +1063,7 @@ impl StellarOverlay {
 
     /// Send SCP envelope to a specific peer
     pub async fn send_scp_to_peer(&self, peer_id: PeerId, envelope: &[u8]) -> io::Result<()> {
-        let message = crate::xdr::encode_scp_message(envelope)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
+        let message = crate::xdr::frame_scp(envelope);
         send_to_peer_stream(&self.state, peer_id, StreamType::Scp, &message).await
     }
 }
@@ -1179,13 +1135,7 @@ async fn open_streams_to_peer(mut control: Control, state: Arc<SharedState>, pee
     // Request SCP state from newly connected peer
     info!("Peer {} streams opened, sending SCP state request", peer_id);
     let ledger_seq: u32 = 0;
-    let request = match crate::xdr::encode_get_scp_state(ledger_seq) {
-        Ok(request) => request,
-        Err(e) => {
-            info!("Failed to encode SCP state request for {}: {}", peer_id, e);
-            return;
-        }
-    };
+    let request = crate::xdr::frame_get_scp_state(ledger_seq);
     if let Err(e) = send_to_peer_stream(&state, peer_id.clone(), StreamType::Scp, &request).await {
         info!(
             "Failed to request SCP state from newly connected peer {}: {:?}",
@@ -1380,8 +1330,7 @@ async fn flush_inv_batch_to_peer(state: &Arc<SharedState>, peer: PeerId) {
 /// Send an INV batch to a peer
 async fn send_inv_batch(state: &Arc<SharedState>, peer: PeerId, batch: InvBatch) {
     let batch_size = batch.entries.len() as u64;
-    let msg = TxStreamMessage::InvBatch(batch);
-    let encoded = match msg.encode() {
+    let encoded = match batch.encode() {
         Ok(encoded) => encoded,
         Err(e) => {
             state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
@@ -1466,7 +1415,7 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                             }
                         };
 
-                        let envelope = match message {
+                        let scp_envelope = match message {
                             stellar_xdr::curr::StellarMessage::GetScpState(ledger_seq) => {
                                 info!(
                                     "SCP_STATE_REQ: Peer {} requests SCP state for ledger >= {}",
@@ -1484,17 +1433,8 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                                 }
                                 continue;
                             }
-                            stellar_xdr::curr::StellarMessage::ScpMessage(envelope) => {
-                                match crate::xdr::canonical_scp_envelope_xdr(envelope) {
-                                    Ok(envelope) => envelope,
-                                    Err(e) => {
-                                        warn!(
-                                            "SCP_PARSE_ERR: Dropping invalid SCP envelope from {}: {}",
-                                            peer_id, e
-                                        );
-                                        continue;
-                                    }
-                                }
+                            stellar_xdr::curr::StellarMessage::ScpMessage(scp_envelope) => {
+                                scp_envelope
                             }
                             other => {
                                 warn!(
@@ -1506,7 +1446,11 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                             }
                         };
 
-                        let hash = blake2b_hash(&envelope);
+                        // The canonical envelope bytes are the frame after the
+                        // 4-byte discriminant; dedup on their hash before doing
+                        // any more work (duplicates are the common case).
+                        let envelope_bytes = &data[4..];
+                        let hash = blake2b_hash(envelope_bytes);
                         let recv_start = std::time::Instant::now();
                         let is_dup = {
                             let mut seen = state.scp_seen.write().await;
@@ -1542,13 +1486,17 @@ async fn handle_inbound_scp_streams(mut incoming: IncomingStreams, state: Arc<Sh
                         info!(
                             "SCP_RECV: Received SCP {:02x?}... ({} bytes) from {}",
                             &hash[..4],
-                            envelope.len(),
+                            envelope_bytes.len(),
                             peer_id
                         );
 
-                        // Forward to Core
+                        // First sighting: extract any referenced tx set hashes
+                        // from the single decode above and forward to Core.
+                        let txset_hashes =
+                            crate::xdr::extract_txset_hashes_from_envelope(&scp_envelope);
                         if let Err(e) = state.event_tx.send(OverlayEvent::ScpReceived {
-                            envelope,
+                            envelope: envelope_bytes.to_vec(),
+                            txset_hashes,
                             from: peer_id.clone(),
                         }) {
                             warn!("Failed to forward SCP event from {}: {}", peer_id, e);
@@ -1621,8 +1569,8 @@ async fn handle_tx_stream_message(
         Ok(TxStreamMessage::GetData(getdata)) => {
             handle_getdata(state, peer_id, getdata, stream).await;
         }
-        Ok(TxStreamMessage::Tx(tx_data)) => {
-            handle_tx_response(state, peer_id, tx_data).await;
+        Ok(TxStreamMessage::Tx(tx)) => {
+            handle_tx_response(state, peer_id, tx).await;
         }
         Err(e) => {
             warn!(
@@ -1690,8 +1638,7 @@ async fn handle_inv_batch(state: &Arc<SharedState>, peer_id: &PeerId, batch: Inv
         for hash in to_request {
             getdata.push(hash);
         }
-        let msg = TxStreamMessage::GetData(getdata);
-        let encoded = match msg.encode() {
+        let encoded = match getdata.encode() {
             Ok(encoded) => encoded,
             Err(e) => {
                 warn!("Failed to encode GETDATA for {}: {}", peer_id, e);
@@ -1736,16 +1683,9 @@ async fn handle_getdata(
                 .metrics
                 .flood_fulfilled
                 .fetch_add(1, Ordering::Relaxed);
-            // Send TX response
-            let msg = TxStreamMessage::Tx(tx_data);
-            let encoded = match msg.encode() {
-                Ok(encoded) => encoded,
-                Err(e) => {
-                    state.metrics.error_write.fetch_add(1, Ordering::Relaxed);
-                    warn!("Failed to encode TX response for {}: {}", peer_id, e);
-                    continue;
-                }
-            };
+            // Send TX response. Buffered bytes were validated on entry, so
+            // framing them (concat) yields valid wire XDR by construction.
+            let encoded = crate::xdr::frame_transaction(&tx_data);
 
             let state_clone = Arc::clone(state);
             let peer_clone = *peer_id;
@@ -1785,19 +1725,12 @@ async fn handle_getdata(
 }
 
 /// Handle TX response (from GETDATA request)
-async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<u8>) {
-    let parsed = match crate::xdr::parse_supported_transaction(&tx) {
-        Ok(parsed) => parsed,
-        Err(e) => {
-            warn!("TX_RECV_DROP: Dropping invalid TX from {}: {}", peer_id, e);
-            return;
-        }
-    };
-    let hash = parsed.full_hash;
-    let tx = parsed.envelope_xdr;
-    let fee_per_op = (parsed.fee / u64::from(parsed.num_ops.max(1))) as i64;
+async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<ValidatedTx>) {
+    // `tx` was validated in the stream reader's single decode.
+    let hash = *tx.hash();
+    let fee_per_op = tx.fee_per_op();
     let recv_start = std::time::Instant::now();
-    let tx_len = tx.len() as u64;
+    let tx_len = tx.bytes().len() as u64;
 
     // Dedup
     {
@@ -1840,19 +1773,19 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Vec<
     // Store in buffer for responding to others' GETDATA
     {
         let mut buffer = state.tx_buffer.write().await;
-        buffer.insert(hash, tx.clone());
+        buffer.insert(hash, tx.bytes().to_vec());
     }
 
     debug!(
         "TX_RECV: Received TX {:02x?}... ({} bytes) from {}",
         &hash[..4],
-        tx.len(),
+        tx.bytes().len(),
         peer_id
     );
 
     // Forward to Core via bounded TX channel
     if let Err(_) = state.tx_event_tx.try_send(OverlayEvent::TxReceived {
-        tx: tx.clone(),
+        tx: Arc::clone(&tx),
         from: peer_id.clone(),
     }) {
         state.metrics.message_drop.fetch_add(1, Ordering::Relaxed);
@@ -1964,18 +1897,13 @@ async fn handle_inbound_txset_streams(mut incoming: IncomingStreams, state: Arc<
                                     );
                                 }
                             }
-                            stellar_xdr::curr::StellarMessage::GeneralizedTxSet(tx_set) => {
-                                let (hash, txset_data) =
-                                    match crate::xdr::canonical_generalized_tx_set_xdr(tx_set) {
-                                        Ok(value) => value,
-                                        Err(e) => {
-                                            warn!(
-                                                "TXSET_PARSE_ERR: Dropping invalid TxSet from {}: {}",
-                                                peer_id, e
-                                            );
-                                            continue;
-                                        }
-                                    };
+                            stellar_xdr::curr::StellarMessage::GeneralizedTxSet(_tx_set) => {
+                                // The message was strict-decoded above, so the
+                                // bytes after the 4-byte discriminant are the
+                                // canonical tx set; hash the original bytes
+                                // rather than re-encoding.
+                                let txset_data = data[4..].to_vec();
+                                let hash = crate::xdr::sha256_hash(&txset_data);
 
                                 // Clear pending request flag and measure fetch latency
                                 let was_pending = {
@@ -2110,8 +2038,7 @@ async fn inv_getdata_housekeeping_task(state: Arc<SharedState>) {
                     peer
                 );
                 let getdata = GetData { hashes };
-                let msg = TxStreamMessage::GetData(getdata);
-                let encoded = match msg.encode() {
+                let encoded = match getdata.encode() {
                     Ok(encoded) => encoded,
                     Err(e) => {
                         warn!("Failed to encode GETDATA retry to {}: {}", peer, e);
@@ -2153,14 +2080,22 @@ fn test_tx_xdr(sequence: i64) -> Vec<u8> {
     crate::xdr::tests::valid_transaction_xdr(1000, sequence, 1)
 }
 
+/// Wrap raw envelope bytes as a validated tx for tests that drive broadcast.
+#[cfg(test)]
+fn vtx(bytes: Vec<u8>) -> Arc<ValidatedTx> {
+    ValidatedTx::from_core_trusted(bytes, 0, 1).unwrap()
+}
+
 #[cfg(test)]
 fn test_txset_xdr(seed: u8) -> ([u8; 32], Vec<u8>) {
-    use stellar_xdr::curr::{GeneralizedTransactionSet, Hash};
+    use stellar_xdr::curr::{GeneralizedTransactionSet, Hash, Limits, WriteXdr};
 
     let mut tx_set = GeneralizedTransactionSet::default();
     let GeneralizedTransactionSet::V1(v1) = &mut tx_set;
     v1.previous_ledger_hash = Hash([seed; 32]);
-    crate::xdr::canonical_generalized_tx_set_xdr(tx_set).unwrap()
+    let bytes = tx_set.to_xdr(Limits::none()).unwrap();
+    let hash = crate::xdr::sha256_hash(&bytes);
+    (hash, bytes)
 }
 
 #[cfg(test)]
@@ -2343,7 +2278,7 @@ mod tests {
         let tx_start = std::time::Instant::now();
         for i in 0..tx_count {
             let tx = test_tx_xdr(i as i64);
-            handle1.broadcast_tx(tx).await;
+            handle1.broadcast_tx(vtx(tx)).await;
         }
 
         // Immediately send small SCP (should bypass TX queue)
@@ -2458,7 +2393,7 @@ mod tests {
         // Immediately send TX (should bypass SCP queue)
         let tx_msg = test_tx_xdr(10_000);
         let tx_send_time = std::time::Instant::now();
-        handle1.broadcast_tx(tx_msg.clone()).await;
+        handle1.broadcast_tx(vtx(tx_msg.clone())).await;
 
         // Track when TX arrives vs when all SCPs arrive
         // SCP comes on unbounded events channel, TX on bounded tx_events channel
@@ -2471,7 +2406,7 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events2.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx == tx_msg && tx_received_at.is_none() {
+                        if tx.bytes() == tx_msg.as_slice() && tx_received_at.is_none() {
                             tx_received_at = Some(std::time::Instant::now());
                         }
                     }
@@ -2555,7 +2490,7 @@ mod tests {
 
         // Send TX
         let tx_msg = test_tx_xdr(20_000);
-        handle1.broadcast_tx(tx_msg.clone()).await;
+        handle1.broadcast_tx(vtx(tx_msg.clone())).await;
 
         // Wait for TX on the bounded TX events channel
         let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -2565,7 +2500,7 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events2.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        assert_eq!(tx, tx_msg);
+                        assert_eq!(tx.bytes(), tx_msg.as_slice());
                         received = true;
                     }
                 }
@@ -2697,7 +2632,7 @@ mod tests {
         let tx_count = 10;
         for i in 0..tx_count {
             let tx = test_tx_xdr(i as i64);
-            handle1.broadcast_tx(tx).await;
+            handle1.broadcast_tx(vtx(tx)).await;
         }
 
         // Wait for all TXs on bounded TX events channel
@@ -2758,9 +2693,9 @@ mod tests {
 
         // Send same TX twice
         let tx = test_tx_xdr(30_000);
-        handle1.broadcast_tx(tx.clone()).await;
+        handle1.broadcast_tx(vtx(tx.clone())).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
-        handle1.broadcast_tx(tx.clone()).await;
+        handle1.broadcast_tx(vtx(tx.clone())).await;
 
         // Wait and count received TXs
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2911,7 +2846,7 @@ mod tests {
 
         // A broadcasts TX
         let tx_msg = test_tx_xdr(40_000);
-        handle_a.broadcast_tx(tx_msg.clone()).await;
+        handle_a.broadcast_tx(vtx(tx_msg.clone())).await;
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
         let mut b_received = false;
@@ -2921,14 +2856,14 @@ mod tests {
             tokio::select! {
                 Some(event) = tx_events_b.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx == tx_msg {
+                        if tx.bytes() == tx_msg.as_slice() {
                             b_received = true;
                         }
                     }
                 }
                 Some(event) = tx_events_c.recv() => {
                     if let OverlayEvent::TxReceived { tx, .. } = event {
-                        if tx == tx_msg {
+                        if tx.bytes() == tx_msg.as_slice() {
                             c_received = true;
                         }
                     }
@@ -3041,7 +2976,7 @@ mod tests {
             for i in 0..tx_flood_count {
                 // Each TX unique to avoid dedup
                 let tx = test_tx_xdr(i as i64);
-                handle1_clone.broadcast_tx(tx).await;
+                handle1_clone.broadcast_tx(vtx(tx)).await;
                 // Small yield to avoid overwhelming the command channel
                 if i % 1000 == 0 {
                     tokio::task::yield_now().await;
@@ -4066,7 +4001,7 @@ async fn test_inv_getdata_tx_propagation() {
 
     // Node1 broadcasts a TX
     let test_tx = test_tx_xdr(50_000);
-    handle1.broadcast_tx(test_tx.clone()).await;
+    handle1.broadcast_tx(vtx(test_tx.clone())).await;
 
     // Wait for INV→GETDATA→TX flow (with batching delay + RTT)
     // - INV is batched for up to 100ms
@@ -4079,7 +4014,7 @@ async fn test_inv_getdata_tx_propagation() {
         tokio::select! {
             Some(event) = tx_events2.recv() => {
                 if let OverlayEvent::TxReceived { tx, from } = event {
-                    if tx == test_tx && from == peer1_id {
+                    if tx.bytes() == test_tx.as_slice() && from == peer1_id {
                         tx_received = true;
                     }
                 }
@@ -4162,7 +4097,7 @@ async fn test_inv_getdata_three_node_relay() {
 
     // Node1 broadcasts a TX
     let test_tx = test_tx_xdr(60_000);
-    handle1.broadcast_tx(test_tx.clone()).await;
+    handle1.broadcast_tx(vtx(test_tx.clone())).await;
 
     // First verify Node2 receives the TX from Node1
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -4171,8 +4106,12 @@ async fn test_inv_getdata_three_node_relay() {
         tokio::select! {
             Some(event) = tx_events2.recv() => {
                 if let OverlayEvent::TxReceived { tx, from } = event {
-                    eprintln!("Node2 received TX from {}: {:02x?}", from, &tx[..tx.len().min(8)]);
-                    if tx == test_tx && from == peer1_id {
+                    eprintln!(
+                        "Node2 received TX from {}: {:02x?}",
+                        from,
+                        &tx.bytes()[..tx.bytes().len().min(8)]
+                    );
+                    if tx.bytes() == test_tx.as_slice() && from == peer1_id {
                         node2_received = true;
                     }
                 }
@@ -4191,9 +4130,13 @@ async fn test_inv_getdata_three_node_relay() {
         tokio::select! {
             Some(event) = tx_events3.recv() => {
                 if let OverlayEvent::TxReceived { tx, from } = event {
-                    eprintln!("Node3 received TX from {}: {:02x?}", from, &tx[..tx.len().min(8)]);
+                    eprintln!(
+                        "Node3 received TX from {}: {:02x?}",
+                        from,
+                        &tx.bytes()[..tx.bytes().len().min(8)]
+                    );
                     // Node3 must receive TX from Node2 (relay), not Node1 (no direct connection)
-                    if tx == test_tx && from == peer2_id {
+                    if tx.bytes() == test_tx.as_slice() && from == peer2_id {
                         tx_received = true;
                     }
                 }
@@ -4290,7 +4233,7 @@ async fn test_scp_relay_three_nodes() {
     while tokio::time::Instant::now() < deadline && !node2_received {
         tokio::select! {
             Some(event) = events2.recv() => {
-                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                if let OverlayEvent::ScpReceived { envelope, from, .. } = event {
                     if envelope == scp_msg && from == peer1_id {
                         node2_received = true;
                     }
@@ -4310,7 +4253,7 @@ async fn test_scp_relay_three_nodes() {
     while tokio::time::Instant::now() < deadline && !node3_received {
         tokio::select! {
             Some(event) = events3.recv() => {
-                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                if let OverlayEvent::ScpReceived { envelope, from, .. } = event {
                     if envelope == scp_msg && from == peer2_id {
                         node3_received = true;
                     }
@@ -4383,7 +4326,7 @@ async fn test_scp_relay_no_echo_to_sender() {
     while tokio::time::Instant::now() < deadline && !node2_received {
         tokio::select! {
             Some(event) = events2.recv() => {
-                if let OverlayEvent::ScpReceived { envelope, from } = event {
+                if let OverlayEvent::ScpReceived { envelope, from, .. } = event {
                     if envelope == scp_msg && from == peer1_id {
                         node2_received = true;
                     }

@@ -181,18 +181,17 @@ overlay/
 These limitations live across multiple subsystems; details are in the
 relevant subsystem doc.
 
-- **Network-received TXs land in the mempool with `fee=0, num_ops=1,
-  account=0, sequence=0`** — XDR parsing of `TransactionEnvelope` is not
-  yet implemented (`main.rs:748`, `integrated.rs:144`). This breaks
-  fee ordering, account grouping, and the `fee_per_op` carried in
-  outbound INV entries for relayed TXs.
+- **No per-account mempool grouping** — every transaction (local or
+  network) carries its real fee and op count via `ValidatedTx`
+  (`wire.rs`), so fee ordering and outbound INV `fee_per_op` are
+  correct, but source account and sequence number are not tracked and
+  per-account queries are not possible.
 - **TX-set fetch retry is commented out** (`libp2p_overlay.rs:1829-1916`).
   A pending fetch to a silent peer leaks until the peer disconnects;
   Core's own retry policy is the only safety net.
-- **`max_mempool_size`, `tx_push_peer_count`, `target_outbound_peers`,
-  and `max_inbound_peers` are unused**. The mempool is hardcoded to
-  100,000 entries; the overlay does not enforce inbound or outbound
-  connection limits.
+- **The mempool size (100,000 entries) and the peer/connection fanout
+  are hardcoded** — there are no config knobs for them, and the overlay
+  does not enforce inbound or outbound connection limits.
 - **TxSet cache eviction under capacity pressure is non-deterministic**
   (`HashMap::keys().next()`, `txset.rs:48`). Per-ledger
   `evict_before(seq-12)` keeps the cache bounded in practice.
