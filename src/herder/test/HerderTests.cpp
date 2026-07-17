@@ -9048,6 +9048,120 @@ TEST_CASE_VERSIONS("Herder properly validates when tx set is missing",
         });
 }
 
+// Test that a stalled ballot resumes immediately on tx set arrival
+TEST_CASE_VERSIONS("tx set arrival resumes stalled balloting", "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = true;
+
+    VirtualClock clock;
+
+    auto v1Key = SecretKey::pseudoRandomForTesting();
+    auto v2Key = SecretKey::pseudoRandomForTesting();
+    auto const& v1Pk = v1Key.getPublicKey();
+    auto const& v2Pk = v2Key.getPublicKey();
+
+    // Local quorum set {self, v1, v2} with threshold 2
+    cfg.QUORUM_SET.threshold = 2;
+    cfg.QUORUM_SET.validators.emplace_back(v1Pk);
+    cfg.QUORUM_SET.validators.emplace_back(v2Pk);
+
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    for_versions_from(
+        static_cast<uint32_t>(EMPTY_TX_SET_PROTOCOL_VERSION), *app, [&] {
+            auto const lcl =
+                app->getLedgerManager().getLastClosedLedgerHeader();
+            uint64_t const slotIndex = lcl.header.ledgerSeq + 1;
+            auto& herder = dynamic_cast<HerderImpl&>(app->getHerder());
+            auto& pendingEnvelopes = herder.getPendingEnvelopes();
+
+            // Peers use the same 3-node qset; pre-cache it so envelopes don't
+            // block on a qset fetch.
+            SCPQuorumSet qSet;
+            qSet.threshold = 2;
+            qSet.validators.push_back(cfg.NODE_SEED.getPublicKey());
+            qSet.validators.push_back(v1Pk);
+            qSet.validators.push_back(v2Pk);
+            auto qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+            pendingEnvelopes.addSCPQuorumSet(qSetHash, qSet);
+
+            // Create a non-empty tx set that the node does not have
+            auto root = app->getRoot();
+            std::vector<TransactionFrameBasePtr> txs = {
+                root->tx({payment(root->getPublicKey(), 1)})};
+            auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
+            auto txSetHash = txSet->getContentsHash();
+
+            auto sv = herder.makeStellarValue(
+                txSetHash, lcl.header.scpValue.closeTime + 1,
+                emptyUpgradeSteps, v1Key);
+            auto opaqueValue = xdr::xdr_to_opaque(sv);
+
+            auto makePrepareFromPeer = [&](SecretKey const& peerKey) {
+                SCPEnvelope env;
+                env.statement.slotIndex = slotIndex;
+                env.statement.pledges.type(SCP_ST_PREPARE);
+                auto& prep = env.statement.pledges.prepare();
+                prep.ballot.counter = 1;
+                prep.ballot.value = opaqueValue;
+                prep.prepared.activate() = prep.ballot;
+                prep.quorumSetHash = qSetHash;
+                env.statement.nodeID = peerKey.getPublicKey();
+                herder.signEnvelope(peerKey, env);
+                return env;
+            };
+
+            // Both peers accept-prepared (1, v). The envelopes are
+            // ready without the tx set (parallel downloading), and processing
+            // them drives the local node to confirm-prepared and then stall
+            // because the tx set is still missing.
+            REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(v1Key)) ==
+                    Herder::ENVELOPE_STATUS_READY);
+            REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(v2Key)) ==
+                    Herder::ENVELOPE_STATUS_READY);
+
+            auto localPrepare = [&]() {
+                auto const* env = herder.getSCP().getLatestMessage(
+                    cfg.NODE_SEED.getPublicKey());
+                REQUIRE(env);
+                REQUIRE(env->statement.pledges.type() == SCP_ST_PREPARE);
+                return env->statement.pledges.prepare();
+            };
+
+            // Stalled: h is set but the commit is deferred (nC == 0).
+            {
+                auto const prep = localPrepare();
+                REQUIRE(prep.ballot.counter == 1);
+                REQUIRE(prep.nH == 1);
+                REQUIRE(prep.nC == 0);
+            }
+
+            // Deliver the tx set
+            REQUIRE(herder.recvTxSet(txSetHash, txSet));
+
+            // Resumed: the commit completed at the same counter, indicating
+            // the lack of a ballot timeout
+            {
+                auto const prep = localPrepare();
+                REQUIRE(prep.ballot.counter == 1);
+                REQUIRE(prep.nH == 1);
+                REQUIRE(prep.nC == 1);
+            }
+
+            // Repeat delivery is a no-op: the tx set is no longer being
+            // fetched, and balloting state does not change.
+            REQUIRE(!herder.recvTxSet(txSetHash, txSet));
+            {
+                auto const prep = localPrepare();
+                REQUIRE(prep.ballot.counter == 1);
+                REQUIRE(prep.nH == 1);
+                REQUIRE(prep.nC == 1);
+            }
+        });
+}
+
 #ifdef CAP_0083
 // This tests that the network externalizes an empty-tx-set value when a
 // voted-for value is not available on the network.
