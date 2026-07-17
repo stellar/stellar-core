@@ -9094,9 +9094,9 @@ TEST_CASE_VERSIONS("tx set arrival resumes stalled balloting", "[herder]")
             auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
             auto txSetHash = txSet->getContentsHash();
 
-            auto sv = herder.makeStellarValue(
-                txSetHash, lcl.header.scpValue.closeTime + 1,
-                emptyUpgradeSteps, v1Key);
+            auto sv = herder.makeStellarValue(txSetHash,
+                                              lcl.header.scpValue.closeTime + 1,
+                                              emptyUpgradeSteps, v1Key);
             auto opaqueValue = xdr::xdr_to_opaque(sv);
 
             auto makePrepareFromPeer = [&](SecretKey const& peerKey) {
