@@ -38,7 +38,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
     SECTION("empty tracker")
     {
-        Tracker t{*app, hash, nullAskPeer};
+        Tracker t{*app, hash, nullAskPeer, ItemFetcherKind::TxSet};
         REQUIRE(t.size() == 0);
         REQUIRE(t.empty());
         REQUIRE(t.getLastSeenSlotIndex() == 0);
@@ -46,7 +46,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
     SECTION("can listen on envelope")
     {
-        Tracker t{*app, hash, nullAskPeer};
+        Tracker t{*app, hash, nullAskPeer, ItemFetcherKind::TxSet};
         auto env1 = makeEnvelope(1);
         t.listen(env1);
 
@@ -63,7 +63,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
     SECTION("listen twice on the same envelope")
     {
-        Tracker t{*app, hash, nullAskPeer};
+        Tracker t{*app, hash, nullAskPeer, ItemFetcherKind::TxSet};
         auto env1 = makeEnvelope(1);
         t.listen(env1);
         // this should no-op (idempotent)
@@ -76,7 +76,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
     SECTION("can listen on different envelopes")
     {
-        Tracker t{*app, hash, nullAskPeer};
+        Tracker t{*app, hash, nullAskPeer, ItemFetcherKind::TxSet};
         auto env1 = makeEnvelope(1);
         auto env2 = makeEnvelope(2);
         t.listen(env1);
@@ -90,7 +90,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
     SECTION("properly removes old envelopes")
     {
-        Tracker t{*app, hash, nullAskPeer};
+        Tracker t{*app, hash, nullAskPeer, ItemFetcherKind::TxSet};
         auto env1 = makeEnvelope(1);
         auto env2 = makeEnvelope(2);
         auto env3 = makeEnvelope(3);

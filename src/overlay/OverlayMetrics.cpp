@@ -37,6 +37,16 @@ OverlayMetrics::OverlayMetrics(Application& app)
 
     , mItemFetcherNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
+    , mItemFetcherClaimAsk(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-ask"}, "item-fetcher"))
+    , mItemFetcherClaimDropped(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-dropped"}, "item-fetcher"))
+    , mItemFetcherClaimGraceWait(app.getMetrics().NewTimer(
+          {"overlay", "item-fetcher", "claim-grace-wait"}))
+    , mItemFetcherClaimGraceSatisfied(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-grace-satisfied"}, "item-fetcher"))
+    , mItemFetcherClaimGraceExpired(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "claim-grace-expired"}, "item-fetcher"))
 
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
@@ -82,6 +92,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "flood-advert"}))
     , mRecvFloodDemandTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "flood-demand"}))
+    , mRecvHaveTxSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "have-tx-set"}))
     , mRecvTxBatchTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "tx-batch"}))
 
@@ -144,6 +156,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "flood-advert"}, "message"))
     , mSendFloodDemandMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "flood-demand"}, "message"))
+    , mSendHaveTxSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "have-tx-set"}, "message"))
     , mMessagesDemanded(app.getMetrics().NewMeter(
           {"overlay", "flood", "demanded"}, "message"))
     , mMessagesFulfilledMeter(app.getMetrics().NewMeter(

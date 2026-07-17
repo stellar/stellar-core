@@ -98,6 +98,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
         uint32_t mNumQueries{0};
     };
 
+    // Cadence of the per-peer recurrent timer
+    static constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD{5};
+
+    // Max HAVE_TX_SET messages accepted per peer per RECURRENT_TIMER_PERIOD
+    static constexpr uint32_t HAVE_TX_SET_MAX_PER_PERIOD = 32;
+
+    // First overlay protocol version supporting the HAVE_TX_SET message.
+    static constexpr uint32_t FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET = 42;
+
     static inline int
     format_as(PeerState const& s)
     {
@@ -275,6 +284,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     QueryInfo mQSetQueryInfo;
     QueryInfo mTxSetQueryInfo;
     QueryInfo mSCPStateQueryInfo;
+    // HAVE_TX_SET messages accepted in the current admission window
+    std::atomic<uint32_t> mHaveTxSetAdmitted{0};
     bool mPeersReceived{false};
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
@@ -311,6 +322,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetSCPState(StellarMessage const& msg);
     void recvFloodAdvert(StellarMessage const& msg);
     void recvFloodDemand(StellarMessage const& msg);
+    void recvHaveTxSet(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();
@@ -507,6 +519,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         releaseAssert(threadIsMain());
         return mSCPStateQueryInfo.mNumQueries;
+    }
+
+    uint32_t
+    getHaveTxSetAdmittedForTesting() const
+    {
+        return mHaveTxSetAdmitted.load(std::memory_order_relaxed);
     }
 #endif
 

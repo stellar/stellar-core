@@ -379,8 +379,6 @@ Peer::startRecurrentTimer()
     releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
-    constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD(5);
-
     if (shouldAbort(guard))
     {
         return;
@@ -443,6 +441,9 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
 
     if (!error)
     {
+        // Reset the HAVE_TX_SET budget
+        mHaveTxSetAdmitted.store(0, std::memory_order_relaxed);
+
         auto now = mAppConnector.now();
         auto timeout = getIOTimeout();
         auto stragglerTimeout = std::chrono::seconds(
@@ -821,6 +822,9 @@ Peer::msgSummary(StellarMessage const& msg)
         return "FLODADVERT";
     case FLOOD_DEMAND:
         return "FLOODDEMAND";
+    case HAVE_TX_SET:
+        return fmt::format(FMT_STRING("HAVETXSET {}"),
+                           hexAbbrev(msg.haveTxSet().txSetHash));
     }
     return "UNKNOWN";
 }
@@ -893,6 +897,9 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         break;
     case FLOOD_DEMAND:
         mOverlayMetrics.mSendFloodDemandMeter.Mark();
+        break;
+    case HAVE_TX_SET:
+        mOverlayMetrics.mSendHaveTxSetMeter.Mark();
         break;
     };
 
@@ -1096,6 +1103,18 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     case GENERALIZED_TX_SET:
     case SCP_QUORUMSET:
     case SCP_MESSAGE:
+        cat = "SCP";
+        break;
+
+    case HAVE_TX_SET:
+        if (mHaveTxSetAdmitted.load(std::memory_order_relaxed) >=
+            HAVE_TX_SET_MAX_PER_PERIOD)
+        {
+            // Drop HAVE_TX_SET message if over the limit
+            mOverlayMetrics.mItemFetcherClaimDropped.Mark();
+            return true;
+        }
+        mHaveTxSetAdmitted.fetch_add(1, std::memory_order_relaxed);
         cat = "SCP";
         break;
 
@@ -1403,6 +1422,13 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     {
         auto t = mOverlayMetrics.mRecvFloodDemandTimer.TimeScope();
         recvFloodDemand(stellarMsg);
+    }
+    break;
+
+    case HAVE_TX_SET:
+    {
+        auto t = mOverlayMetrics.mRecvHaveTxSetTimer.TimeScope();
+        recvHaveTxSet(stellarMsg);
     }
     }
 }
@@ -2099,6 +2125,22 @@ Peer::recvFloodDemand(StellarMessage const& msg)
     // Pass the demand to OverlayManager for processing
     mAppConnector.getOverlayManager().recvTxDemand(msg.floodDemand(),
                                                    shared_from_this());
+}
+
+void
+Peer::recvHaveTxSet(StellarMessage const& msg)
+{
+    releaseAssert(threadIsMain());
+    if (getRemoteOverlayVersion() <
+        FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET)
+    {
+        // The peer advertised an overlay version that predates HAVE_TX_SET,
+        // yet sent one anyway.
+        sendErrorAndDrop(ERR_MISC, "HAVE_TX_SET from old overlay version");
+        return;
+    }
+    mAppConnector.getHerder().recvHaveTxSet(msg.haveTxSet().txSetHash,
+                                            shared_from_this());
 }
 
 Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
