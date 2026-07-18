@@ -75,6 +75,30 @@ checkResults(TransactionResultSet& r, int expectedSuccess, int expectedFailed)
     REQUIRE(expectedFailed == expectedFailed);
 };
 
+uint32_t
+getParallelSorobanTestProtocolVersion()
+{
+    uint32_t testLedgerProtocolVersion =
+        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+#ifdef ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+    // Fastdev only links recent Soroban hosts, so avoid forcing these tests
+    // through the first historical parallel-Soroban protocol in next builds.
+    testLedgerProtocolVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+#endif
+    return testLedgerProtocolVersion;
+}
+
+bool
+isSorobanProtocolLinked(Config const& cfg, ProtocolVersion protocolVersion)
+{
+    auto sorobanProtocolCfg = cfg;
+    sorobanProtocolCfg.USE_CONFIG_FOR_GENESIS = true;
+    sorobanProtocolCfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(protocolVersion);
+    return testutil::isTestApplicationProtocolVersionSupported(
+        sorobanProtocolCfg);
+}
+
 void
 overrideNetworkSettingsToMin(Application& app)
 {
@@ -7195,6 +7219,12 @@ TEST_CASE("Module cache", "[tx][soroban]")
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     cfg.USE_CONFIG_FOR_GENESIS = false;
+    if (!isSorobanProtocolLinked(cfg, SOROBAN_PROTOCOL_VERSION))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
 
     auto app = createTestApplication(clock, cfg);
 
@@ -7250,6 +7280,12 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     cfg.USE_CONFIG_FOR_GENESIS = false;
+    if (!isSorobanProtocolLinked(cfg, SOROBAN_PROTOCOL_VERSION))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
 
     auto app = createTestApplication(clock, cfg);
 
@@ -7707,6 +7743,12 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // Start in p22
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<int>(REUSABLE_SOROBAN_MODULE_CACHE_PROTOCOL_VERSION) - 1;
+    if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+    {
+        SUCCEED("Skipping historical Soroban protocol test: requested "
+                "protocol is not linked in this build");
+        return;
+    }
     auto app = createTestApplication(clock, cfg);
 
     // Deploy and invoke contract in protocol 22
@@ -7745,7 +7787,7 @@ TEST_CASE("Module cache across protocol versions", "[tx][soroban][modulecache]")
     // work-in-progress next host, in which case there _is_ a separate module
     // cache and the following line of code should be commented-out.
     //
-    moduleCacheProtocolCount -= 1;
+    // moduleCacheProtocolCount -= 1;
 #endif
     REQUIRE(app->getLedgerManager()
                 .getSorobanMetrics()
@@ -8362,10 +8404,9 @@ TEST_CASE_VERSIONS("non-fee source account is recipient of payment in both "
 TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
     TmpDirManager tdm(std::string("metatest-soroban-") +
@@ -8607,6 +8648,14 @@ TEST_CASE("parallel txs", "[tx][soroban][parallelapply]")
     }
     SECTION("internal error")
     {
+        if (testLedgerProtocolVersion !=
+            static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+        {
+            SUCCEED("Skipping p23 internal-error behavior: requested "
+                    "protocol is not linked in this build");
+            return;
+        }
+
         auto i1Spec =
             client.writeKeySpec("key2", ContractDataDurability::TEMPORARY);
         auto i1 = client.getContract().prepareInvocation(
@@ -8919,10 +8968,9 @@ TEST_CASE("Failed write still causes ttl observation",
           "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
     SorobanTest test(cfg);
@@ -9012,10 +9060,9 @@ TEST_CASE("Failed write still causes ttl observation",
 TEST_CASE("parallel txs hit declared readBytes", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
     SorobanTest test(cfg);
@@ -9116,10 +9163,9 @@ TEST_CASE("delete non existent entry with parallel apply",
           "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);
@@ -9469,10 +9515,9 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
 {
     uint32 const MAX_TRANSACTIONS_PER_LEDGER = 500;
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
     // This is required because we're setting the min stage count above one,
@@ -9592,10 +9637,9 @@ TEST_CASE("apply generated parallel tx sets", "[soroban][parallelapply]")
 TEST_CASE("parallel restore and extend op", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);
@@ -9710,10 +9754,9 @@ TEST_CASE("read-only bumps across threads", "[tx][soroban][parallelapply]")
 TEST_CASE("parallel restore and update", "[tx][soroban][parallelapply]")
 {
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    auto testLedgerProtocolVersion = getParallelSorobanTestProtocolVersion();
+    cfg.LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = testLedgerProtocolVersion;
 
     SorobanTest test(cfg);
     ContractStorageTestClient client(test);

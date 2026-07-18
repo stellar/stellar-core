@@ -34,6 +34,9 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
+bool isTestApplicationProtocolVersionSupported(Config const& cfg);
+void validateTestApplicationProtocolVersion(Config const& cfg);
+
 template <class BucketT> class BucketListDepthModifier
 {
     BUCKET_TYPE_ASSERT(BucketT);
@@ -90,6 +93,7 @@ std::shared_ptr<T>
 createTestApplication(VirtualClock& clock, Config const& cfg, Args&&... args,
                       bool newDB = true, bool startApp = true)
 {
+    testutil::validateTestApplicationProtocolVersion(cfg);
     Config c2(cfg);
     c2.adjust();
     auto app = Application::create<T, Args...>(

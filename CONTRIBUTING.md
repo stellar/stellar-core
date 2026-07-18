@@ -116,7 +116,7 @@ See https://clang.llvm.org/docs/AddressSanitizer.html for more information.
 
 *Note*: ASan will ignore any memory errors in Rust code unless you build with
 Rust's ASan support. And building with Rust's ASan support requires configuring
-with `--enable-unified-rust-unsafe-for-production`. See below on "unified Rust
+with `--enable-fastdev-unsafe-for-production`. See below on "fastdev Rust
 builds".
 
 *Note*: Rust's ASan support also requires a nightly compiler and the rust-src
@@ -156,7 +156,7 @@ See https://clang.llvm.org/docs/ThreadSanitizer.html for more information.
 *Note*: Since Rust code is run on multiple threads and those threads are
 launched _from C++_ TSan will report races in Rust code unless you build with
 Rust's TSan support. And building with Rust's TSan support requires configuring
-with `--enable-unified-rust-unsafe-for-production`.
+with `--enable-fastdev-unsafe-for-production`.
 
 *Note*: Rust's ASan support also requires a nightly compiler and the rust-src
 component. Install these with:
@@ -294,7 +294,7 @@ files. You should then inspect to see that only the transactions you expected to
 see change did so. If so, commit the changes as a new set of baselines for
 future tests.
 
-## Unified and non-unified Rust builds
+## Fastdev and non-unified Rust builds
 
 As of protocol 20, some components of stellar-core are written in Rust (notably
 soroban).
@@ -331,23 +331,29 @@ and it _usually_ works. But there are two cases you might not want it.
      the stdlib and producing some sort of link-time dependency on crates that
      are only used as procedural macros).
 
-For both of these cases, we've added the ability to (optionally) switch back to
-the normal way Rust expects you to build a crate that links multiple versions of
-a dependency: with a single "unified" cargo invocation, at the top level. There
-are two different ways to enable this:
+For both of these cases, we've added a fastdev mode that switches back to the
+normal way Rust expects you to build a crate, with a single cargo invocation at
+the top level and only the current and next Soroban hosts compiled in. There are
+two different ways to enable this:
 
-  - By configuring with `--enable-unified-rust-unsafe-for-production`, if one
-    wants to _build_ a stellar-core with unified rust.
+  - By configuring with `--enable-fastdev-unsafe-for-production`, if one wants
+    to _build_ a stellar-core with fastdev rust.
 
-  - By toggling the "unified" feature flag in the IDE (eg. using the "Rust
+  - By toggling the "fastdev" feature flag in the IDE (eg. using the "Rust
     Feature Toggler" editor extension in VS code) if one merely wants to _edit_
-    a stellar-core with unified rust.
+    a stellar-core with fastdev rust.
 
 The configure flag has got such a long and unwieldy name because _it will build
-soroban with slightly different versions of transitive dependencies_, a
-configuration we do _not_ want to ship in production builds.
+soroban with fewer host versions and slightly different versions of transitive
+dependencies_, a configuration we do _not_ want to ship in production builds.
 
 It is fine for debugging though. In practice those different versions of
 transitive dependencies are rarely "all that different". You will _probably_ not
 be able to observe any differences. We just don't want to chance it in
 production.
+
+To reduce the set of possible configurations and flags, fastdev also acts as
+a superset of `--enable-next-protocol-version-unsafe-for-production` (i.e. it
+also turns on the `next` feature and links in whatever the next-protocol soroban
+host is).
+

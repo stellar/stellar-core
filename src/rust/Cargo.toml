@@ -98,21 +98,29 @@ tracy-client = { version = "=0.17.0", features = [
 # makes it difficult to use an IDE to work on this crate since the IDE will not
 # be able to resolve the hosts to anything at all. So we keep some _optional_
 # copies of the host dependencies here, and allow enabling them with the
-# `unified` feature here.
+# `fastdev` feature here.
 #
 # To reiterate: the soroban-env-host-p{21,22,23}... dependency blocks listed
 # here are NOT part of the default build. The default build relies on the
 # versions pinned as git submodules.
 #
-# However, you can _manually_ switch the default build by enabling the `unified`
+# However, you can _manually_ switch the default build by enabling the `fastdev`
 # feature using a feature-toggle in an IDE (eg. using the VS Code "Rust Feature
 # Toggler" extension), and the build system (src/Makefile.am) can be configured
-# to use the `unified` feature if you configure with
-# --enable-unified-rust-unsafe-for-production.
+# to use the `fastdev` feature if you configure with
+# --enable-fastdev-unsafe-for-production.
 #
-# If you do a unified build, be careful to reset any changes the IDE makes to
+# If you do a fastdev build, be careful to reset any changes the IDE makes to
 # Cargo.lock! The unified build will re-resolve transitive dependencies and
 # unify them, perturbing the contents of the lockfile.
+
+[dependencies.soroban-env-host-p28]
+version = "=27.0.0"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "883fd56374fc619afaa4c4c7489563555b7173f2"
+optional = true
+features = ["next"]
 
 [dependencies.soroban-env-host-p27]
 version = "=27.0.0"
@@ -167,14 +175,14 @@ optional = true
 # supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 
 [dependencies.soroban-synth-wasm]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 
 # The soroban-fuzz-targets crate will actually pull in _its own copy_ of the
 # soroban host (or at least unify with one of the versions above if you're doing
@@ -182,9 +190,9 @@ rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
 # soroban is updated -- it should track the highest protocol available (or
 # at least whichever one you want to fuzz).
 [dependencies.soroban-fuzz-targets]
-version = "=26.0.0"
+version = "=27.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "b351f88a468d3b9e1d6de53d5b0ca585f6b7dadb"
+rev = "b03d2563f3a08d51095a19bdbb6d90364b8ce04a"
 optional = true
 
 [dependencies.stellar-quorum-analyzer]
@@ -194,15 +202,11 @@ rev = "b422b366ede667c030c78ffe18b2010194698dbd"
 
 [features]
 
-# Turn on the optional unified build. This is typically only useful in an IDE or when
+# Turn on the optional fastdev build. This is typically only useful in an IDE or when
 # orchestrated by the build system. See note above and in docs/CONTRIBUTING.md.
-unified = ["dep:soroban-env-host-p21",
-           "dep:soroban-env-host-p22",
-           "dep:soroban-env-host-p23",
-           "dep:soroban-env-host-p24",
-           "dep:soroban-env-host-p25",
-           "dep:soroban-env-host-p26",
-           "dep:soroban-env-host-p27"]
+fastdev = ["dep:soroban-env-host-p27",
+           "dep:soroban-env-host-p28",
+           "next"]
 
 tracy = ["dep:tracy-client"]
 

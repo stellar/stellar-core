@@ -1042,7 +1042,15 @@ TEST_CASE("txset", "[herder][txset]")
 {
     SECTION("generalized tx set protocol")
     {
-        testTxSet(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
+        uint32_t generalizedTxSetProtocolVersion =
+            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION);
+#ifdef ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
+        // Fastdev only links recent Soroban hosts, and this test just needs a
+        // generalized-txset-capable protocol.
+        generalizedTxSetProtocolVersion =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1;
+#endif
+        testTxSet(generalizedTxSetProtocolVersion);
     }
     SECTION("protocol current")
     {
@@ -1450,6 +1458,12 @@ TEST_CASE("txset base fee", "[herder][txset]")
                            uint32_t expNotChargedAccounts = 0) {
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+        {
+            SUCCEED("Skipping historical Soroban protocol test: requested "
+                    "protocol is not linked in this build");
+            return;
+        }
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
@@ -1671,7 +1685,7 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     auto max = std::numeric_limits<uint32_t>::max();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
     // Pre-create enough genesis accounts for the test

@@ -1430,6 +1430,15 @@ TEST_CASE("TransactionQueue Key Filtering", "[soroban][transactionqueue]")
     }
     SECTION("protocol version 24")
     {
+        auto cfg = getTestConfig();
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 24;
+        if (!testutil::isTestApplicationProtocolVersionSupported(cfg))
+        {
+            SUCCEED("Skipping historical Soroban protocol test: requested "
+                    "protocol is not linked in this build");
+            return;
+        }
+
         SECTION("should filter")
         {
             for (auto const& keyToFilter : keysToFilterP24)

@@ -6,6 +6,7 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/ImmutableLedgerView.h"
 #include "ledger/test/LedgerTestUtils.h"
+#include "rust/RustBridge.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
 #include "test/TxTests.h"
@@ -16,11 +17,119 @@
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
 
+#include <algorithm>
+#include <sstream>
+
 namespace stellar
 {
 
 namespace testutil
 {
+
+bool isTestApplicationProtocolVersionSupported(Config const& cfg);
+
+namespace
+{
+bool
+isProtocolBackedByLinkedSorobanHost(uint32_t protocolVersion,
+                                    std::vector<uint32_t> const& hostProtocols)
+{
+    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        return true;
+    }
+
+    auto selectedHost = std::find_if(
+        hostProtocols.begin(), hostProtocols.end(),
+        [&](uint32_t hostProtocol) { return protocolVersion <= hostProtocol; });
+    if (selectedHost == hostProtocols.end())
+    {
+        return false;
+    }
+
+    // Protocol 20 is serviced by the p21 host. All later Soroban protocols
+    // should have their own linked host in non-fastdev builds.
+    return protocolVersion == static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)
+               ? *selectedHost == static_cast<uint32_t>(ProtocolVersion::V_21)
+               : *selectedHost == protocolVersion;
+}
+
+std::string
+joinProtocolVersions(std::vector<uint32_t> const& protocolVersions)
+{
+    std::ostringstream out;
+    for (size_t i = 0; i < protocolVersions.size(); ++i)
+    {
+        if (i != 0)
+        {
+            out << ", ";
+        }
+        out << protocolVersions[i];
+    }
+    return out.str();
+}
+}
+
+void
+validateTestApplicationProtocolVersion(Config const& cfg)
+{
+    if (isTestApplicationProtocolVersionSupported(cfg))
+    {
+        return;
+    }
+
+    auto const protocolVersion = cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
+    std::vector<uint32_t> hostProtocols;
+    auto rustVersions = rust_bridge::get_soroban_version_info(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    for (auto const& host : rustVersions)
+    {
+        hostProtocols.emplace_back(host.env_max_proto);
+    }
+
+    std::ostringstream msg;
+    msg << "Test application requested genesis ledger protocol "
+        << protocolVersion
+        << ", but this binary does not have the matching Soroban host linked. "
+        << "Linked Soroban host protocols: ["
+        << joinProtocolVersions(hostProtocols)
+        << "]. This usually means the build is using fastdev/unified Rust "
+        << "mode, where historical Soroban protocols are collapsed to a newer "
+        << "host and can fail later with opaque Soroban invocation errors. "
+        << "Use a linked protocol for this test, or rebuild without fastdev "
+        << "when testing historical Soroban protocol behavior.";
+    throw std::runtime_error(msg.str());
+}
+
+bool
+isTestApplicationProtocolVersionSupported(Config const& cfg)
+{
+    if (!cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        return true;
+    }
+
+    auto const protocolVersion = cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
+    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        return true;
+    }
+
+    std::vector<uint32_t> hostProtocols;
+    auto rustVersions = rust_bridge::get_soroban_version_info(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    for (auto const& host : rustVersions)
+    {
+        hostProtocols.emplace_back(host.env_max_proto);
+    }
+
+    if (isProtocolBackedByLinkedSorobanHost(protocolVersion, hostProtocols))
+    {
+        return true;
+    }
+
+    return false;
+}
 
 void
 crankSome(VirtualClock& clock)
