@@ -230,7 +230,7 @@ class TransactionFrameBase
     virtual bool validateAccountFilterForFlooding(
         std::set<AccountID> const& filteredAccounts) const = 0;
     virtual bool validateSorobanMemo() const = 0;
-    virtual bool validateHostFn() const = 0;
+    virtual bool validateHostFn(uint32_t ledgerVersion) const = 0;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.

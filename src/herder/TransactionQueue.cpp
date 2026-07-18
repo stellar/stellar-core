@@ -526,7 +526,7 @@ TransactionQueue::canAdd(
                          txSOROBAN_INVALID, diagnosticEvents.finalize());
     }
 
-    if (!tx->validateHostFn())
+    if (!tx->validateHostFn(ledgerVersion))
     {
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, *tx,
                          txSOROBAN_INVALID, diagnosticEvents.finalize());

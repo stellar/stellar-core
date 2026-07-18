@@ -354,7 +354,7 @@ TransactionFrame::validateAccountFilterForFlooding(
 }
 
 bool
-TransactionFrame::validateHostFn() const
+TransactionFrame::validateHostFn(uint32_t ledgerVersion) const
 {
     if (!isSoroban())
     {
@@ -376,17 +376,35 @@ TransactionFrame::validateHostFn() const
     auto const& hostFn = op.body.invokeHostFunctionOp().hostFunction;
 
     auto validateCreateContract =
-        [](ContractIDPreimage const& preimage,
-           ContractExecutable const& executable) -> bool {
+        [ledgerVersion](ContractIDPreimage const& preimage,
+                        ContractExecutable const& executable) -> bool {
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             executable.type() != CONTRACT_EXECUTABLE_STELLAR_ASSET)
         {
             return false;
         }
-        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS &&
-            executable.type() != CONTRACT_EXECUTABLE_WASM)
+        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ADDRESS)
         {
-            return false;
+            bool validExecutable =
+                executable.type() == CONTRACT_EXECUTABLE_WASM;
+#ifdef CAP_0085_EXECUTABLE_REF
+            // CAP-0085: FROM_ADDRESS creates may also target an external
+            // executable reference starting at the CAP-0085 protocol version.
+            // CREATE_CONTRACT / CREATE_CONTRACT_V2 resolve
+            // CONTRACT_EXECUTABLE_EXTERNAL_REF with the same semantics as
+            // create_external_ref_contract (CAP-0085 spec, InvokeHostFunctionOp
+            // update). The host enforces reference validity (rs-soroban-env
+            // frame.rs); this admission check only gates the executable type.
+            validExecutable =
+                validExecutable ||
+                (protocolVersionStartsFrom(
+                     ledgerVersion, EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION) &&
+                 executable.type() == CONTRACT_EXECUTABLE_EXTERNAL_REF);
+#endif
+            if (!validExecutable)
+            {
+                return false;
+            }
         }
         return true;
     };

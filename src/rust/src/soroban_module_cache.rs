@@ -14,6 +14,8 @@
 // current-protocol cache as soon as we start, as well as the next-protocol
 // cache (if it exists) so that we can upgrade without stalling.
 
+#[cfg(feature = "next")]
+use crate::soroban_proto_all::p28;
 use crate::{
     rust_bridge::CxxBuf,
     soroban_proto_all::{get_host_module_for_protocol, p23, p24, p25, p26, p27, protocol_agnostic},
@@ -25,6 +27,8 @@ pub(crate) struct SorobanModuleCache {
     pub(crate) p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache,
     pub(crate) p27_cache: p27::soroban_proto_any::ProtocolSpecificModuleCache,
+    #[cfg(feature = "next")]
+    pub(crate) p28_cache: p28::soroban_proto_any::ProtocolSpecificModuleCache,
 }
 
 impl SorobanModuleCache {
@@ -35,6 +39,8 @@ impl SorobanModuleCache {
             p25_cache: p25::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p26_cache: p26::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
             p27_cache: p27::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
+            #[cfg(feature = "next")]
+            p28_cache: p28::soroban_proto_any::ProtocolSpecificModuleCache::new()?,
         })
     }
     pub fn compile(
@@ -49,7 +55,7 @@ impl SorobanModuleCache {
             26 => self.p26_cache.compile(_wasm),
             27 => self.p27_cache.compile(_wasm),
             #[cfg(feature = "next")]
-            28 => self.p27_cache.compile(_wasm),
+            28 => self.p28_cache.compile(_wasm),
             // Add other protocols here as needed.
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
@@ -61,6 +67,8 @@ impl SorobanModuleCache {
             p25_cache: self.p25_cache.shallow_clone()?,
             p26_cache: self.p26_cache.shallow_clone()?,
             p27_cache: self.p27_cache.shallow_clone()?,
+            #[cfg(feature = "next")]
+            p28_cache: self.p28_cache.shallow_clone()?,
         }))
     }
 
@@ -74,6 +82,8 @@ impl SorobanModuleCache {
         self.p25_cache.evict(&_hash)?;
         self.p26_cache.evict(&_hash)?;
         self.p27_cache.evict(&_hash)?;
+        #[cfg(feature = "next")]
+        self.p28_cache.evict(&_hash)?;
         Ok(())
     }
     pub fn clear(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -82,6 +92,8 @@ impl SorobanModuleCache {
         self.p25_cache.clear()?;
         self.p26_cache.clear()?;
         self.p27_cache.clear()?;
+        #[cfg(feature = "next")]
+        self.p28_cache.clear()?;
         Ok(())
     }
 
@@ -101,7 +113,7 @@ impl SorobanModuleCache {
             26 => self.p26_cache.contains_module(&_hash),
             27 => self.p27_cache.contains_module(&_hash),
             #[cfg(feature = "next")]
-            28 => self.p27_cache.contains_module(&_hash),
+            28 => self.p28_cache.contains_module(&_hash),
             _ => Err(protocol_agnostic::make_error("unsupported protocol")),
         }
     }
@@ -118,7 +130,7 @@ impl SorobanModuleCache {
             26 => bytes = bytes.max(self.p26_cache.get_wasm_bytes_input()?),
             27 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
             #[cfg(feature = "next")]
-            28 => bytes = bytes.max(self.p27_cache.get_wasm_bytes_input()?),
+            28 => bytes = bytes.max(self.p28_cache.get_wasm_bytes_input()?),
             _ => return Err(protocol_agnostic::make_error("unsupported protocol")),
         }
         Ok(bytes)
