@@ -644,6 +644,12 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf,
     ZoneScoped;
     TransactionQueue::AddResult result(
         TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
+#ifdef BUILD_TESTS
+    if (submittedFromSelf)
+    {
+        mLedgerManager.recordTxSubmission(tx->getContentsHash());
+    }
+#endif
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee

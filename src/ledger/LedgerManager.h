@@ -299,6 +299,16 @@ class LedgerManager
     virtual ::rust::Box<rust_bridge::SorobanModuleCache>
     getModuleCacheForTesting() = 0;
     virtual uint64_t getSorobanInMemoryStateSizeForTesting() = 0;
+
+    // Records the submission time of a self-submitted transaction for the
+    // tx-latency metrics. No-op unless
+    // Config::LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING is set.
+    virtual void recordTxSubmission(Hash const& contentsHash) = 0;
+
+    // Begins/ends a load-generation latency measurement window. No-op unless
+    // Config::LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING is set.
+    virtual void beginTxLatencyMeasurement(uint32_t expectedTxCount) = 0;
+    virtual void finalizeTxLatencyMeasurement() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
