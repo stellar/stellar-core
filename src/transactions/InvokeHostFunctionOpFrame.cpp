@@ -314,7 +314,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
-        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
+        uint32_t protocolVersion)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -329,7 +330,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
-        , mProtocolVersion(getLedgerVersion())
+        , mProtocolVersion(protocolVersion)
     {
         mMetrics.mDeclaredCpuInsn = mResources.instructions;
         auto const& footprint = mResources.footprint;
@@ -583,10 +584,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                 {
                     auto leBuf = toCxxBuf(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
-                    // The lazy interface needs the entry's precomputed
-                    // size-for-rent; only entries with a TTL carry it.
                     addEntryToHostInputs(*entryOpt, std::move(leBuf),
-                                         &*ttlEntry);
+                                         ttlEntry ? &*ttlEntry : nullptr);
                 }
                 else
                 {
@@ -1152,7 +1151,8 @@ class InvokeHostFunctionPreV23ApplyHelper
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
+              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache,
+              ltx.loadHeader().current().ledgerVersion)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1335,7 +1335,8 @@ class InvokeHostFunctionParallelApplyHelper
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, threadState.getSorobanConfig(),
-              threadState.getSnapshot(), threadState.getModuleCache())
+              threadState.getSnapshot(), threadState.getModuleCache(),
+              ledgerInfo.getLedgerVersion())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;
