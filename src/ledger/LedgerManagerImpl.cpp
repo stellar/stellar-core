@@ -1369,25 +1369,26 @@ LedgerManagerImpl::recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm)
     }
     VirtualClock::time_point const emitTime = mApp.getClock().now();
     MutexLocker guard(mTxLatencyMetrics.mMutex);
-    auto probe = [&](auto const& txProcessing) {
-        for (auto const& txp : txProcessing)
-        {
-            if (auto submitted = mTxLatencyMetrics.mTxSubmitTimes.find(
-                    txp.result.transactionHash);
-                submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
+    auto probe =
+        [&](auto const& txProcessing) REQUIRES(mTxLatencyMetrics.mMutex) {
+            for (auto const& txp : txProcessing)
             {
-                auto const latency = emitTime - submitted->second;
-                mTxLatencyMetrics.mTxsExternalized.inc();
-                int64_t const ms =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(
-                        latency)
-                        .count();
-                mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
-                    ms, 0, std::numeric_limits<uint32_t>::max()));
-                mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
+                if (auto submitted = mTxLatencyMetrics.mTxSubmitTimes.find(
+                        txp.result.transactionHash);
+                    submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
+                {
+                    auto const latency = emitTime - submitted->second;
+                    mTxLatencyMetrics.mTxsExternalized.inc();
+                    int64_t const ms =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            latency)
+                            .count();
+                    mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
+                        ms, 0, std::numeric_limits<uint32_t>::max()));
+                    mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
+                }
             }
-        }
-    };
+        };
     switch (lcm.v())
     {
     case 0:
@@ -1450,7 +1451,8 @@ LedgerManagerImpl::finalizeTxLatencyMeasurement()
     std::sort(samples.begin(), samples.end());
     size_t const n = samples.size();
 
-    auto percentile = [&](size_t p) -> uint32_t {
+    auto percentile = [&](size_t p)
+                          REQUIRES(mTxLatencyMetrics.mMutex) -> uint32_t {
         // Calculate ceiling of rank
         size_t rank = (p * n + 99) / 100;
         rank = std::clamp<size_t>(rank, 1, n);
