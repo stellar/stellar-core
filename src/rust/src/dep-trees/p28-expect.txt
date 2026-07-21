@@ -259,7 +259,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=cf7fdedf7ca95fccf45c82e6829d14637c9b5e4c#cf7fdedf)
+│   │   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=3d2ad659a3a285aae9543069ee18cb6245a427ce#3d2ad659)
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── ethnum v1.5.3
 │   │   │   ├── hex v0.4.3
@@ -289,7 +289,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=cf7fdedf7ca95fccf45c82e6829d14637c9b5e4c#cf7fdedf)
+│   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=3d2ad659a3a285aae9543069ee18cb6245a427ce#3d2ad659)
 │   │   ├── base64 v0.22.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── ethnum v1.5.3

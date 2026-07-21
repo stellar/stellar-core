@@ -64,6 +64,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
     "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
@@ -140,6 +141,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING = false;
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
     ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
         std::chrono::minutes::zero();
@@ -307,6 +309,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     QUORUM_INTERSECTION_CHECKER = true;
     USE_QUORUM_INTERSECTION_CHECKER_V2 = false;
     QUORUM_INTERSECTION_CHECKER_TIME_LIMIT_MS = 5000; // 5 secs
+    // NB: this budget is compared against a conservative over-estimate of the
+    // solver's memory (charged per clause/variable), not measured allocator
+    // usage. Under the current tier-1 network configuration (7 orgs) usage
+    // stays well under this limit, but the solver's encoding grows
+    // combinatorially with a vertex's degree, so if the number of tier-1
+    // organizations ever increases we will have to revisit this limit.
     QUORUM_INTERSECTION_CHECKER_MEMORY_LIMIT_BYTES =
         100 * 1024 * 1024; // 100 MiB
 
@@ -1686,6 +1694,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
                          readIntArray<uint32_t>(item);
+                 }},
+                {"LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING =
+                         readBool(item);
                  }},
 #ifdef BUILD_TESTS
                 {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",

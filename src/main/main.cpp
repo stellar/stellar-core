@@ -411,8 +411,6 @@ main(int argc, char* const* argv)
     // that would call std::terminate
     std::set_terminate(printBacktraceAndAbort);
 
-    rust_bridge::set_rust_global_memory_limit_to_unlimited();
-
     Logging::init();
     if (sodium_init() != 0)
     {
