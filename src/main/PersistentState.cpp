@@ -23,10 +23,8 @@ std::string PersistentState::mainMapping[kLastEntryMain] = {
     "networkpassphrase", "rebuildledger"};
 
 std::string PersistentState::miscMapping[kLastEntry] = {
-    "miscdatabaseschema",
-    "ledgerupgrades",
-    "lastscpdataxdr",
-    "txset",
+    "miscdatabaseschema", "ledgerupgrades", "lastscpdataxdr", "txset",
+    "quorumpeerinfo",
 };
 
 std::string PersistentState::kSQLCreateStatement =

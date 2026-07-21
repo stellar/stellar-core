@@ -579,6 +579,13 @@ class Config : public std::enable_shared_from_this<Config>
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;
 
+    // A config to allow gossiping (advertising and accepting in PEERS
+    // messages) and connecting to RFC1918 private addresses (10/8, 172.16/12,
+    // 192.168/16). Private addresses are normally filtered out of peer
+    // exchange, which disables gossip-based peer discovery in environments
+    // where every node has a private address (e.g. a Kubernetes pod network).
+    bool ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
+
     // Set to use config file values for genesis ledger
     // not setable in config file - only tests are allowed to do this
     bool USE_CONFIG_FOR_GENESIS;

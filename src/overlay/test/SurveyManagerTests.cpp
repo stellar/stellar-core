@@ -109,6 +109,10 @@ setupStaticNetworkTopology(std::vector<Config>& configList,
     for (int i = A; i <= E; ++i)
     {
         auto cfg = simulation->newConfig();
+        // These survey tests assert exact hand-built topologies. Pin below
+        // v42 so mutual qset peering does not add direct connections between
+        // qset members (e.g. A-C).
+        cfg.OVERLAY_PROTOCOL_VERSION = 41;
         configList.emplace_back(cfg);
 
         keyList.emplace_back(cfg.NODE_SEED.getPublicKey());
@@ -771,6 +775,10 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
     for (int i = A; i <= F; ++i)
     {
         auto cfg = simulation->newConfig();
+        // This survey test asserts an exact hand-built topology. Pin below
+        // v42 so mutual qset peering does not add direct connections between
+        // qset members (e.g. A-C-F).
+        cfg.OVERLAY_PROTOCOL_VERSION = 41;
         configList.emplace_back(cfg);
 
         keyList.emplace_back(cfg.NODE_SEED.getPublicKey());

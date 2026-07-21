@@ -276,6 +276,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     QueryInfo mTxSetQueryInfo;
     QueryInfo mSCPStateQueryInfo;
     bool mPeersReceived{false};
+    bool mPeerHasUsInQset{false};
+    bool mIsMutualQsetPeer{false};
+
+    // Whether both sides of this connection run an overlay version that
+    // understands the direct-qset peering AUTH flag.
+    bool supportsQuorumPeering() const;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -417,6 +423,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         releaseAssert(threadIsMain());
         return mPeerID;
+    }
+
+    bool
+    isMutualQsetPeer() const
+    {
+        releaseAssert(threadIsMain());
+        return mIsMutualQsetPeer;
     }
 
     std::string const& toString();

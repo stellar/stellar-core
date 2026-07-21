@@ -36,6 +36,7 @@ class PersistentState
         kLedgerUpgrades,
         kLastSCPDataXDR,
         kTxSet,
+        kQuorumPeerInfo,
         kLastEntry,
     };
 

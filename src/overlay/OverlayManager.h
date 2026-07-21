@@ -50,8 +50,10 @@ namespace stellar
 class PeerAuth;
 class PeerBareAddress;
 class PeerManager;
+class QuorumPeerState;
 class SurveyManager;
 struct StellarMessage;
+enum class RemoteQsetRole : uint32_t;
 
 class OverlayManager
 {
@@ -141,6 +143,14 @@ class OverlayManager
     virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
 
     virtual bool isPreferred(Peer* peer) const = 0;
+    virtual bool isDirectQsetPeer(NodeID const& nodeID) const = 0;
+    // Records the outcome of an authenticated handshake with a direct qset
+    // peer: updates persisted quorum peer state and promotes or demotes the
+    // peer's addresses in the peers table based on mutuality.
+    virtual void recordQsetPeerHandshake(NodeID const& nodeID,
+                                         RemoteQsetRole remoteRole,
+                                         PeerBareAddress const& address) = 0;
+    virtual void recordProbedNonQsetAddress(PeerBareAddress const& address) = 0;
     virtual bool isPossiblyPreferred(std::string const& ip) const = 0;
     virtual bool haveSpaceForConnection(std::string const& ip) const = 0;
 
@@ -189,6 +199,8 @@ class OverlayManager
 
     // Return the persistent peer manager
     virtual PeerManager& getPeerManager() = 0;
+    virtual QuorumPeerState& getQuorumPeerState() = 0;
+    virtual void persistQuorumPeerState() = 0;
 
     virtual SurveyManager& getSurveyManager() = 0;
 

@@ -78,6 +78,7 @@ class PeerManager
     };
 
     static void maybeDropAndCreateNew(SessionWrapper& sess);
+    static size_t maxBackoffExponent(PeerType peerType);
 
     explicit PeerManager(Application& app);
 

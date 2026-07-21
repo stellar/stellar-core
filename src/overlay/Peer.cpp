@@ -23,6 +23,7 @@
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerManager.h"
+#include "overlay/QuorumPeerState.h"
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxAdverts.h"
@@ -42,7 +43,6 @@
 
 #include <Tracy.hpp>
 #include <soci.h>
-#include <time.h>
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
@@ -59,6 +59,7 @@ namespace
 // Maximum number of GET_SCP_STATE requests per window per peer to respond to. A
 // window defaults to roughly 1 minute.
 constexpr uint32_t GET_SCP_STATE_MAX_RATE = 10;
+constexpr uint32_t QUORUM_PEERING_OVERLAY_VERSION = 42;
 
 // Check the signature(s) in `tx`, adding the result to the signature cache in
 // the process. This function requires that background signature verification
@@ -536,6 +537,14 @@ Peer::getJsonInfo(bool compact) const
     return res;
 }
 
+bool
+Peer::supportsQuorumPeering() const
+{
+    return mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
+               QUORUM_PEERING_OVERLAY_VERSION &&
+           mRemoteOverlayVersion >= QUORUM_PEERING_OVERLAY_VERSION;
+}
+
 void
 Peer::sendAuth()
 {
@@ -544,7 +553,13 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
-    msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+    auto flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+    if (supportsQuorumPeering() &&
+        mAppConnector.getOverlayManager().isDirectQsetPeer(mPeerID))
+    {
+        flags |= AUTH_MSG_FLAG_PEER_IN_DIRECT_QSET;
+    }
+    msg.auth().flags = flags;
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -1772,6 +1787,22 @@ Peer::updatePeerRecordAfterAuthentication()
             getAddress(), PeerManager::BackOffUpdate::RESET);
     }
 
+    auto& overlayManager = mAppConnector.getOverlayManager();
+    if (overlayManager.isDirectQsetPeer(mPeerID))
+    {
+        auto const remoteRole =
+            !supportsQuorumPeering()
+                ? RemoteQsetRole::Unknown
+                : (mPeerHasUsInQset ? RemoteQsetRole::Direct
+                                    : RemoteQsetRole::None);
+        overlayManager.recordQsetPeerHandshake(mPeerID, remoteRole,
+                                               getAddress());
+    }
+    else
+    {
+        overlayManager.recordProbedNonQsetAddress(getAddress());
+    }
+
     CLOG_DEBUG(Overlay, "successful handshake with {}@{}",
                mAppConnector.getConfig().toShortString(mPeerID), toString());
 }
@@ -1949,10 +1980,20 @@ Peer::recvAuth(StellarMessage const& msg)
         sendPeers();
     }
 
-    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
+    if ((msg.auth().flags & AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED) !=
+        AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
     {
         sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
         return;
+    }
+
+    if (supportsQuorumPeering())
+    {
+        mPeerHasUsInQset =
+            (msg.auth().flags & AUTH_MSG_FLAG_PEER_IN_DIRECT_QSET) != 0;
+        mIsMutualQsetPeer =
+            mPeerHasUsInQset &&
+            mAppConnector.getOverlayManager().isDirectQsetPeer(mPeerID);
     }
 
     updatePeerRecordAfterAuthentication();
@@ -2018,7 +2059,8 @@ Peer::recvPeers(StellarMessage const& msg)
         releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
-        if (address.isPrivate())
+        if (address.isPrivate() &&
+            !mAppConnector.getConfig().ALLOW_PRIVATE_ADDRESSES_FOR_TESTING)
         {
             CLOG_DEBUG(Overlay, "ignoring received private address {}",
                        address.toString());

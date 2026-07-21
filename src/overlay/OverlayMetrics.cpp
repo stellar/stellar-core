@@ -170,6 +170,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewCounter({"overlay", "connection", "pending"}))
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
+    , mMutualQsetPeersSize(app.getMetrics().NewCounter(
+          {"overlay", "connection", "mutual-qset-peers"}))
     , mUniqueFloodBytesRecv(app.getMetrics().NewMeter(
           {"overlay", "flood", "unique-recv"}, "byte"))
     , mDuplicateFloodBytesRecv(app.getMetrics().NewMeter(
