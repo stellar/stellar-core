@@ -4,8 +4,8 @@ See [Concept documentation](https://www.stellar.org/developers/guides/concepts/t
 Anything that changes the ledger is called a _Transaction_.
 Transactions have an arbitrary list of operations inside them.
 
-See the "struct Transaction" definition in src/xdr/Stellar-transaction.x
-for the protocol definition.
+See the `Transaction` struct in
+`src/protocol-curr/xdr/Stellar-transaction.x` for the protocol definition.
 See the TransactionFrame class for the implementation.
 
 
@@ -136,7 +136,7 @@ of the operation or in the case of failure records why in structured form.
 Results are queued in LedgerCloseMeta to be consumed by downstream systems (if configured)
 
 ## List of operations
-See `src/xdr/Stellar-transaction.x` for a detailed list of all operations and results.
+See `src/protocol-curr/xdr/Stellar-transaction.x` for a detailed list of all operations and results.
 
 ## Implementation
 For each operation type, there is a matching Frame class: for example, the Payment Operation has a PaymentFrame class associated with it.
@@ -282,4 +282,3 @@ the signatures is greater or equal to the threshold for that level.
    currency they want to a holding account. Now they set the weight of the master
    key of the source account to 0, which makes it an invalid signing key.
  - w:0 l:0 m:0 h:0
-
