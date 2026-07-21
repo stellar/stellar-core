@@ -75,4 +75,12 @@ constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
 constexpr ProtocolVersion INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION =
     ProtocolVersion::V_28;
 
+#ifdef CAP_0085_EXECUTABLE_REF
+constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+#else
+constexpr ProtocolVersion EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION =
+    ProtocolVersion::V_UINT32_MAX;
+#endif
+
 } // namespace stellar

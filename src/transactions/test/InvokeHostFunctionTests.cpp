@@ -18,6 +18,7 @@
 #include <xdrpp/printer.h>
 
 #include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
@@ -11088,3 +11089,99 @@ TEST_CASE_VERSIONS("classic phase bumps sequence of soroban source account",
                          -refund, ledgerVersion, true);
     });
 }
+
+#ifdef CAP_0085_EXECUTABLE_REF
+TEST_CASE("create and invoke external ref contract", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication<BucketTestUtils::BucketTestApplication>(
+        clock, cfg);
+    SorobanTest test(app);
+    releaseAssert(protocolVersionStartsFrom(
+        test.getLedgerVersion(), EXTERNAL_EXECUTABLE_REF_PROTOCOL_VERSION));
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    SCBytes wasmBytes(wasm.data.begin(), wasm.data.end());
+    Hash wasmHash = sha256(wasmBytes);
+    auto wasmKey = contractCodeKey(wasmHash);
+    SorobanResources uploadResources =
+        defaultUploadWasmResourcesWithoutFootprint(wasm,
+                                                   test.getLedgerVersion());
+    auto uploadTx = makeSorobanWasmUploadTx(test.getApp(), test.getRoot(), wasm,
+                                            uploadResources, 1000);
+    REQUIRE(isSuccessResult(test.invokeTx(uploadTx)));
+
+    SCAddress owner = makeContractAddress(sha256("external ref owner"));
+    SCString tag("exec ref");
+    SCVal tagKey(SCV_EXECUTABLE_TAG);
+    tagKey.executable_tag() = tag;
+    auto refKey =
+        contractDataKey(owner, tagKey, ContractDataDurability::PERSISTENT);
+
+    // Inject the reference entry (and its TTL) directly into the ledger, which
+    // works thanks to using BucketTestUtils::BucketTestApplication app.
+    // We currently don't have a test Wasm that creates executable references,
+    // if we add one, we should use it instead of injecting the entry directly.
+    {
+        auto ledgerSeq = test.getLCLSeq() + 1;
+
+        LedgerEntry refEntry;
+        refEntry.lastModifiedLedgerSeq = ledgerSeq;
+        refEntry.data.type(CONTRACT_DATA);
+        auto& cd = refEntry.data.contractData();
+        cd.contract = owner;
+        cd.key = tagKey;
+        cd.durability = ContractDataDurability::PERSISTENT;
+        cd.val = makeBytesSCVal(wasmHash);
+
+        LedgerEntry ttlEntry;
+        ttlEntry.lastModifiedLedgerSeq = ledgerSeq;
+        ttlEntry.data.type(TTL);
+        ttlEntry.data.ttl().keyHash = getTTLKey(refKey).ttl().keyHash;
+        ttlEntry.data.ttl().liveUntilLedgerSeq = ledgerSeq + 1'000'000;
+
+        app->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+            {refEntry, ttlEntry}, {}, {}, /*alsoAddActualEntries=*/true);
+        closeLedger(test.getApp());
+    }
+
+    auto idPreimage =
+        makeContractIDPreimage(test.getRoot(), sha256("external ref salt"));
+    auto contractID = xdrSha256(
+        makeFullContractIdPreimage(test.getApp().getNetworkID(), idPreimage));
+    auto contractAddress = makeContractAddress(contractID);
+    auto contractInstanceKey = makeContractInstanceKey(contractAddress);
+
+    ContractExecutable executable(CONTRACT_EXECUTABLE_EXTERNAL_REF);
+    executable.external_ref().executable_owner = owner;
+    executable.external_ref().tag = tag;
+
+    SorobanResources createResources{};
+    createResources.instructions = 2'000'000;
+    createResources.writeBytes = 500;
+    createResources.footprint.readOnly = {refKey, wasmKey};
+    createResources.footprint.readWrite = {contractInstanceKey};
+
+    auto createTx =
+        makeSorobanCreateContractTx(test.getApp(), test.getRoot(), idPreimage,
+                                    executable, createResources, 1000);
+    REQUIRE(isSuccessResult(test.invokeTx(createTx)));
+
+    {
+        auto ledgerView =
+            test.getApp().getLedgerManager().copyImmutableLedgerView();
+        auto le = ledgerView.load(contractInstanceKey);
+        REQUIRE(le);
+        REQUIRE(le.current().data.contractData().val.instance().executable ==
+                executable);
+    }
+    TestContract contract(test, contractAddress,
+                          {contractInstanceKey, refKey, wasmKey});
+    auto spec = SorobanInvocationSpec().setInstructions(1'000'000);
+    auto invocation =
+        contract.prepareInvocation("add", {makeI32(3), makeI32(4)}, spec);
+    REQUIRE(invocation.invoke());
+    REQUIRE(invocation.getReturnValue().i32() == 7);
+}
+#endif // CAP_0085_EXECUTABLE_REF
