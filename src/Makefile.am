@@ -106,6 +106,9 @@ XDR_FEATURE_FLAGS =
 if CAP_0083
 XDR_FEATURE_FLAGS += -DCAP_0083
 endif
+if CAP_0084_MUXED_CONTRACT
+XDR_FEATURE_FLAGS += -DCAP_0084_MUXED_CONTRACT
+endif
 
 SUFFIXES = .x .h .rs
 .x.h:
@@ -221,6 +224,12 @@ endif
 WIP_SOROBAN_PROTOCOL=
 
 CARGO_XDR_FEATURE_FLAGS =
+if CAP_0084_MUXED_CONTRACT
+# CAP-0084 host code is gated on the per-cap leaf feature `cap_0084_muxed_contract`
+# (rs-soroban-env#1700), which the umbrella `next` feature aggregates; building the
+# p28 host with `next` enables it and pulls in the matching stellar-xdr XDR variant.
+CARGO_XDR_FEATURE_FLAGS += --features next
+endif
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ALL_SOROBAN_PROTOCOLS+=$(WIP_SOROBAN_PROTOCOL)

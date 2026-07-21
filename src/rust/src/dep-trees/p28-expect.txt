@@ -259,7 +259,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v27.0.0
+│   │   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=3d2ad659a3a285aae9543069ee18cb6245a427ce#3d2ad659)
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── ethnum v1.5.3
 │   │   │   ├── hex v0.4.3
@@ -272,7 +272,10 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   │           ├── serde_derive v1.0.192 (proc-macro) (*)
 │   │   │           └── serde_json v1.0.108 (*)
 │   │   │   [build-dependencies]
-│   │   │   └── crate-git-revision v0.0.6 (*)
+│   │   │   └── crate-git-revision v0.0.9
+│   │   │       ├── serde v1.0.192 (*)
+│   │   │       ├── serde_derive v1.0.192 (proc-macro) (*)
+│   │   │       └── serde_json v1.0.108 (*)
 │   │   └── syn v2.0.39 (*)
 │   ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
 │   │   ├── smallvec v1.13.2
@@ -286,7 +289,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v27.0.0
+│   ├── stellar-xdr v28.0.0 (https://github.com/sisuresh/rs-stellar-xdr?rev=3d2ad659a3a285aae9543069ee18cb6245a427ce#3d2ad659)
 │   │   ├── base64 v0.22.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── ethnum v1.5.3
@@ -294,17 +297,14 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   ├── sha2 v0.10.9 (*)
 │   │   └── stellar-strkey v0.0.13 (*)
 │   │   [build-dependencies]
-│   │   └── crate-git-revision v0.0.6 (*)
+│   │   └── crate-git-revision v0.0.9 (*)
 │   └── wasmparser v0.116.1
 │       ├── indexmap v2.0.2
 │       │   ├── equivalent v1.0.1
 │       │   └── hashbrown v0.14.1
 │       └── semver v1.0.17
 │   [build-dependencies]
-│   └── crate-git-revision v0.0.9
-│       ├── serde v1.0.192 (*)
-│       ├── serde_derive v1.0.192 (proc-macro) (*)
-│       └── serde_json v1.0.108 (*)
+│   └── crate-git-revision v0.0.9 (*)
 ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de) (*)
 ├── static_assertions v1.1.0
 ├── stellar-strkey v0.0.13 (*)

@@ -25,8 +25,8 @@
 	ignore = dirty
 [submodule "src/protocol-curr/xdr"]
 	path = src/protocol-curr/xdr
-	url = https://github.com/stellar/stellar-xdr
-	branch = main
+	url = https://github.com/sisuresh/stellar-xdr-next.git
+	branch = p28-cap-0084
 [submodule "src/rust/soroban/p21"]
 	path = src/rust/soroban/p21
 	url = https://github.com/stellar/rs-soroban-env
@@ -51,7 +51,8 @@
 	url = https://github.com/stellar/rs-soroban-env.git
 [submodule "src/rust/soroban/p28"]
 	path = src/rust/soroban/p28
-	url = https://github.com/stellar/rs-soroban-env.git
+	url = https://github.com/sisuresh/rs-soroban-env.git
+	branch = p28-cap-0084
 [submodule "lib/gperftools"]
 	path = lib/gperftools
 	url = https://github.com/gperftools/gperftools.git
