@@ -71,4 +71,8 @@ constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION = ProtocolVersion::V_28;
 constexpr ProtocolVersion EMPTY_TX_SET_PROTOCOL_VERSION =
     ProtocolVersion::V_UINT32_MAX;
 #endif
-}
+
+constexpr ProtocolVersion INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION =
+    ProtocolVersion::V_28;
+
+} // namespace stellar
