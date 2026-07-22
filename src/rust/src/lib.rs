@@ -34,6 +34,7 @@ mod i128;
 mod log;
 mod ntp;
 mod quorum_checker;
+mod sha256;
 mod soroban_invoke;
 mod soroban_module_cache;
 mod soroban_test_wasm;
