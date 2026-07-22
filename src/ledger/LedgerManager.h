@@ -302,11 +302,11 @@ class LedgerManager
 
     // Records the submission time of a self-submitted transaction for the
     // tx-latency metrics. No-op unless
-    // Config::LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING is set.
+    // Config::LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING is set.
     virtual void recordTxSubmission(Hash const& contentsHash) = 0;
 
     // Begins/ends a load-generation latency measurement window. No-op unless
-    // Config::LOADGEN_MEASURE_TX_LATENCY_FOR_TESTING is set.
+    // Config::LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING is set.
     virtual void beginTxLatencyMeasurement(uint32_t expectedTxCount) = 0;
     virtual void finalizeTxLatencyMeasurement() = 0;
 #endif
