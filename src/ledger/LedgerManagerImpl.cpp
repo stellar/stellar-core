@@ -1937,7 +1937,6 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             appliedLedgerState->getLastClosedLedgerHeader();
         // Copy this before we move it into mNextMetaToEmit below
         mLastLedgerCloseMeta = *ledgerCloseMeta;
-        recordTxMetaEmissionLatency(*applicableTxSet);
     }
 #endif
 
@@ -2042,6 +2041,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
 #ifdef BUILD_TESTS
     maybeSimulateSleep(mApp.getConfig(), txSet->sizeOpTotalForLogging(),
                        applyLedgerTime, mApplySleepRng);
+    recordTxMetaEmissionLatency(*applicableTxSet);
 #endif
 
     // Steps 6, 7, 8 are done in `advanceLedgerStateAndPublish`
