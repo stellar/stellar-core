@@ -1361,7 +1361,8 @@ LedgerManagerImpl::recordTxSubmission(Hash const& contentsHash)
 }
 
 void
-LedgerManagerImpl::recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm)
+LedgerManagerImpl::recordTxMetaEmissionLatency(
+    ApplicableTxSetFrame const& txSet)
 {
     if (!mApp.getConfig().LOADGEN_MEASURE_TX_E2E_LATENCY_FOR_TESTING)
     {
@@ -1369,39 +1370,25 @@ LedgerManagerImpl::recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm)
     }
     VirtualClock::time_point const emitTime = mApp.getClock().now();
     MutexLocker guard(mTxLatencyMetrics.mMutex);
-    auto probe =
-        [&](auto const& txProcessing) REQUIRES(mTxLatencyMetrics.mMutex) {
-            for (auto const& txp : txProcessing)
-            {
-                if (auto submitted = mTxLatencyMetrics.mTxSubmitTimes.find(
-                        txp.result.transactionHash);
-                    submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
-                {
-                    auto const latency = emitTime - submitted->second;
-                    mTxLatencyMetrics.mTxsExternalized.inc();
-                    int64_t const ms =
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                            latency)
-                            .count();
-                    mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
-                        ms, 0, std::numeric_limits<uint32_t>::max()));
-                    mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
-                }
-            }
-        };
-    switch (lcm.v())
+    for (auto const& phase : txSet.getPhases())
     {
-    case 0:
-        probe(lcm.v0().txProcessing);
-        break;
-    case 1:
-        probe(lcm.v1().txProcessing);
-        break;
-    case 2:
-        probe(lcm.v2().txProcessing);
-        break;
-    default:
-        releaseAssert(false);
+        for (auto const& tx : phase)
+        {
+            if (auto submitted = mTxLatencyMetrics.mTxSubmitTimes.find(
+                    tx->getContentsHash());
+                submitted != mTxLatencyMetrics.mTxSubmitTimes.end())
+            {
+                auto const latency = emitTime - submitted->second;
+                mTxLatencyMetrics.mTxsExternalized.inc();
+                int64_t const ms =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        latency)
+                        .count();
+                mTxLatencyMetrics.mSamples.push_back(std::clamp<int64_t>(
+                    ms, 0, std::numeric_limits<uint32_t>::max()));
+                mTxLatencyMetrics.mTxSubmitTimes.erase(submitted);
+            }
+        }
     }
 }
 
@@ -1950,7 +1937,7 @@ LedgerManagerImpl::applyLedger(LedgerCloseData const& ledgerData,
             appliedLedgerState->getLastClosedLedgerHeader();
         // Copy this before we move it into mNextMetaToEmit below
         mLastLedgerCloseMeta = *ledgerCloseMeta;
-        recordTxMetaEmissionLatency(ledgerCloseMeta->getXDR());
+        recordTxMetaEmissionLatency(*applicableTxSet);
     }
 #endif
 
