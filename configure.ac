@@ -584,6 +584,9 @@ AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
 AM_CONDITIONAL(CAP_0083,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
+AM_CONDITIONAL(CAP_0085_EXECUTABLE_REF,
+    [test x$enable_next_protocol_version_unsafe_for_production = xyes])
+
 AC_PATH_PROG(CARGO, cargo)
 if test x"$CARGO" = x; then
   AC_MSG_ERROR([cannot find cargo, needed for rust code])

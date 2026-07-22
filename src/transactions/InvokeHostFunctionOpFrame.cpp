@@ -285,8 +285,16 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
     SorobanNetworkConfig const& mSorobanConfig;
     Config const& mAppConfig;
 
+    // Ledger entries pre-p28: disjoint vectors of all the existing ledger
+    // entries and TTLs of the existing entries that have TTL.
     rust::Vec<CxxBuf> mLedgerEntryCxxBufs;
     rust::Vec<CxxBuf> mTtlEntryCxxBufs;
+    // Ledger entries for p28+: one entry per footprint key in footprint order
+    // (RO, then RW), with TTL and rent size for each eligible entry.
+    // Non-existing entries are represented by an empty `CxxBuf`. TTL and
+    // rent size for non-existing entries and entries that aren't subject to TTL
+    // are set to 0 and ignored.
+    rust::Vec<CxxLedgerEntryWithTtlMeta> mLedgerEntriesAndTtls;
     rust::Vec<uint32_t> mAutoRestoredRwEntryIndices;
     HostFunctionMetrics mMetrics;
     // Used for hot archive access only
@@ -298,13 +306,16 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
                     SACReconciliationInfo>
         mProtocol23SACReconciliationEvents;
 
+    uint32_t mProtocolVersion;
+
     InvokeHostFunctionApplyHelper(
         AppConnector& app, Hash const& sorobanBasePrngSeed,
         OperationResult& res,
         std::optional<RefundableFeeTracker>& refundableFeeTracker,
         OperationMetaBuilder& opMeta, InvokeHostFunctionOpFrame const& opFrame,
         SorobanNetworkConfig const& sorobanConfig, ApplyLedgerView applyView,
-        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
+        rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache,
+        uint32_t protocolVersion)
         : mApp(app)
         , mRes(res)
         , mRefundableFeeTracker(refundableFeeTracker)
@@ -319,6 +330,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         , mApplyLedgerView(std::move(applyView))
         , mModuleCache(moduleCache)
         , mDiagnosticEvents(mOpMeta.getDiagnosticEventManager())
+        , mProtocolVersion(protocolVersion)
     {
         mMetrics.mDeclaredCpuInsn = mResources.instructions;
         auto const& footprint = mResources.footprint;
@@ -328,6 +340,7 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         // Get the entries for the footprint
         mLedgerEntryCxxBufs.reserve(footprintLength);
         mTtlEntryCxxBufs.reserve(footprintLength);
+        mLedgerEntriesAndTtls.reserve(footprintLength);
     }
 
     virtual CxxLedgerInfo getLedgerInfo() = 0;
@@ -369,10 +382,174 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
         return true;
     }
 
-    // Checks and meters the given keys. Returns false
-    // if the operation should fail and populates
-    // result code and diagnostic events. Returns true
-    // if no failure occurred.
+    void
+    addNonExistentEntryToHostInputs()
+    {
+        if (protocolVersionStartsFrom(mProtocolVersion,
+                                      INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION))
+        {
+            CxxLedgerEntryWithTtlMeta item{};
+            // Pass empty buffer for non-existing entries.
+            item.entry = CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+            mLedgerEntriesAndTtls.emplace_back(std::move(item));
+        }
+        // We don't explicitly pass non-existing entries to invoke host function
+        // v1.
+    }
+
+    void
+    addEntryToHostInputs(LedgerEntry const& le, CxxBuf&& leBuf,
+                         TTLEntry const* ttlEntry)
+    {
+        if (protocolVersionStartsFrom(mProtocolVersion,
+                                      INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION))
+        {
+            CxxLedgerEntryWithTtlMeta entry{};
+            if (ttlEntry != nullptr)
+            {
+                entry.live_until_ledger = ttlEntry->liveUntilLedgerSeq;
+                entry.entry_size_for_rent = ledgerEntrySizeForRent(
+                    le, static_cast<uint32>(leBuf.data->size()),
+                    mProtocolVersion, mSorobanConfig);
+            }
+            entry.entry = std::move(leBuf);
+            mLedgerEntriesAndTtls.emplace_back(std::move(entry));
+            return;
+        }
+        // Invoke host function v1: populate the encoded entry and corresponding
+        // TTL entry.
+        // For entry types without a TTL entry pass empty buffer.
+        auto ttlBuf = ttlEntry != nullptr
+                          ? toCxxBuf(*ttlEntry)
+                          : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+        mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
+        mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+    }
+
+    // Helper enum for processRead*() function results below.
+    enum class ProcessReadResult
+    {
+        // Error: we failed for some reason and transaction should fail.
+        ERROR,
+        // Entry definitely does not exist in the ledger.
+        NON_EXISTENT,
+        // Entry exists in the ledger and is live.
+        LIVE,
+        // Classic entry that might exist in the ledger and may never be
+        // archived. The caller should check if the entry actually exists.
+        CLASSIC_ENTRY_MAYBE_EXISTS,
+        // Entry has been auto-restored and added to the host inputs as a part
+        // of auto-restoration - no further processing necessary.
+        RESTORED_AND_PROCESSED,
+    };
+
+    ProcessReadResult
+    processRead(LedgerKey const& lk, uint32_t ledgerVersion, uint32_t ledgerSeq,
+                bool isReadOnly, uint32_t restoredLiveUntilLedger,
+                size_t entryIdxInFootprint,
+                std::optional<TTLEntry>& outTtlEntry)
+    {
+        if (!isSorobanEntry(lk))
+        {
+            return ProcessReadResult::CLASSIC_ENTRY_MAYBE_EXISTS;
+        }
+        // Deal with Soroban now: we need to check if the entry is archived (
+        // and maybe auto-restore it), or if it's actually non-existent.
+        auto ttlKey = getTTLKey(lk);
+
+        // handleArchivedEntry may need to load the TTL key to write the
+        // restored TTL, so make sure any TTL ltxe destructs before
+        // calling handleArchivedEntry
+        auto ttlEntryOpt = getLedgerEntryOpt(ttlKey);
+
+        // TTL entry is missing - the entry either doesn't exist in the ledger,
+        // or has been archived and removed from the live state.
+        if (!ttlEntryOpt)
+        {
+            return processReadForEntryWithMissingTTL(
+                lk, ledgerVersion, ledgerSeq, isReadOnly,
+                restoredLiveUntilLedger, entryIdxInFootprint);
+        }
+
+        // Even if TTL entry exists, the entry may still be expired logically -
+        // check if it's live according to the TTL entry's live-until ledger.
+        if (isLive(ttlEntryOpt.value(), ledgerSeq))
+        {
+            outTtlEntry = ttlEntryOpt->data.ttl();
+            return ProcessReadResult::LIVE;
+        }
+        if (isTemporaryEntry(lk))
+        {
+            // For temporary entries, treat the expired entry as if it does not
+            // exist.
+            return ProcessReadResult::NON_EXISTENT;
+        }
+
+        auto entryOpt = getLedgerEntryOpt(lk);
+        releaseAssertOrThrow(entryOpt);
+        // Try to auto-restore the entry in the live state. On success, this
+        // will also add the restored entry to the host inputs.
+        if (!handleArchivedEntry(
+                lk, *entryOpt, isReadOnly, restoredLiveUntilLedger,
+                /*isHotArchiveEntry=*/false, entryIdxInFootprint))
+        {
+            return ProcessReadResult::ERROR;
+        }
+        return ProcessReadResult::RESTORED_AND_PROCESSED;
+    }
+
+    ProcessReadResult
+    processReadForEntryWithMissingTTL(LedgerKey const& lk,
+                                      uint32_t ledgerVersion,
+                                      uint32_t ledgerSeq, bool isReadOnly,
+                                      uint32_t restoredLiveUntilLedger,
+                                      size_t entryIdxInFootprint)
+    {
+        // Temporary entries are never archived, so if there is no TTL
+        // entry, then there is no entry itself.
+        // Prior to protocol 23 expired entries were not archived, so the
+        // entry without a TTL entry must not exist.
+        if (!isPersistentEntry(lk) ||
+            protocolVersionIsBefore(ledgerVersion,
+                                    AUTO_RESTORE_PROTOCOL_VERSION))
+        {
+            return ProcessReadResult::NON_EXISTENT;
+        }
+        // Now we may be dealing with an archived persistent entry.
+
+        // Optimization: before doing a disk load on the Hot Archive, check
+        // the in-memory map to see if the entry was already restored
+        // from the hot archive by an earlier TX and then deleted (as it
+        // doesn't exist in the live state anymore).
+        if (previouslyRestoredFromHotArchive(lk))
+        {
+            return ProcessReadResult::NON_EXISTENT;
+        }
+
+        auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
+        if (!archiveEntry)
+        {
+            // The entry is not in the hot archive, so it doesn't exist.
+            return ProcessReadResult::NON_EXISTENT;
+        }
+
+        releaseAssertOrThrow(archiveEntry->type() ==
+                             HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+        // Try to restore the archived entry. On success, this will also add
+        // the restored entry to the host inputs.
+        if (!handleArchivedEntry(lk, archiveEntry->archivedEntry(), isReadOnly,
+                                 restoredLiveUntilLedger,
+                                 /*isHotArchiveEntry=*/true,
+                                 entryIdxInFootprint))
+        {
+            return ProcessReadResult::ERROR;
+        }
+        return ProcessReadResult::RESTORED_AND_PROCESSED;
+    }
+
+    // Checks and meters the given keys. Returns false if the operation should
+    // fail and populates result code and diagnostic events. Returns true if no
+    // failure occurred.
     bool
     addReads(xdr::xvector<LedgerKey> const& footprintKeys, bool isReadOnly)
     {
@@ -389,103 +566,49 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
             uint32_t entrySize = 0u;
             std::optional<TTLEntry> ttlEntry;
-            bool sorobanEntryLive = false;
-
-            // For soroban entries, check if the entry is expired before loading
-            if (isSorobanEntry(lk))
+            auto processResult =
+                processRead(lk, ledgerVersion, ledgerSeq, isReadOnly,
+                            restoredLiveUntilLedger, i, ttlEntry);
+            switch (processResult)
             {
-                auto ttlKey = getTTLKey(lk);
-
-                // handleArchivedEntry may need to load the TTL key to write the
-                // restored TTL, so make sure any TTL ltxe destructs before
-                // calling handleArchivedEntry
-                auto ttlEntryOpt = getLedgerEntryOpt(ttlKey);
-
-                if (ttlEntryOpt)
-                {
-                    if (!isLive(ttlEntryOpt.value(), ledgerSeq))
-                    {
-                        // For temporary entries, treat the expired entry as
-                        // if the key did not exist
-                        if (!isTemporaryEntry(lk))
-                        {
-                            auto entryOpt = getLedgerEntryOpt(lk);
-                            releaseAssertOrThrow(entryOpt);
-                            if (!handleArchivedEntry(
-                                    lk, *entryOpt, isReadOnly,
-                                    restoredLiveUntilLedger,
-                                    /*isHotArchiveEntry=*/false, i))
-                            {
-                                return false;
-                            }
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        sorobanEntryLive = true;
-                        ttlEntry = ttlEntryOpt->data.ttl();
-                    }
-                }
-                // Starting from protocol 23, check the hot archive for this
-                // key, and restore it if this transaction is configured to.
-                // Otherwise, fail the transaction.
-                else if (protocolVersionStartsFrom(
-                             ledgerVersion,
-                             PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
-                         isPersistentEntry(lk))
-                {
-                    // Before doing a disk load on the Hot Archive, check the
-                    // in-memory map to see if the entry was already restored
-                    // from the hot archive by an earlier TX.
-                    if (previouslyRestoredFromHotArchive(lk))
-                    {
-                        continue;
-                    }
-
-                    auto archiveEntry = mApplyLedgerView.loadArchiveEntry(lk);
-                    if (archiveEntry)
-                    {
-                        releaseAssertOrThrow(
-                            archiveEntry->type() ==
-                            HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
-                        if (!handleArchivedEntry(
-                                lk, archiveEntry->archivedEntry(), isReadOnly,
-                                restoredLiveUntilLedger,
-                                /*isHotArchiveEntry=*/true, i))
-                        {
-                            return false;
-                        }
-
-                        continue;
-                    }
-                }
-            }
-
-            if (!isSorobanEntry(lk) || sorobanEntryLive)
+            case ProcessReadResult::ERROR:
+                return false;
+            case ProcessReadResult::NON_EXISTENT:
+                addNonExistentEntryToHostInputs();
+                break;
+            case ProcessReadResult::LIVE:
+            case ProcessReadResult::CLASSIC_ENTRY_MAYBE_EXISTS:
             {
                 auto entryOpt = getLedgerEntryOpt(lk);
                 if (entryOpt)
                 {
                     auto leBuf = toCxxBuf(*entryOpt);
                     entrySize = static_cast<uint32_t>(leBuf.data->size());
-
-                    // For entry types that don't have an ttlEntry (i.e.
-                    // Accounts), the rust host expects an "empty" CxxBuf such
-                    // that the buffer has a non-null pointer that points to an
-                    // empty byte vector
-                    auto ttlBuf =
-                        ttlEntry
-                            ? toCxxBuf(*ttlEntry)
-                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
-
-                    mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
-                    mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+                    addEntryToHostInputs(*entryOpt, std::move(leBuf),
+                                         ttlEntry ? &*ttlEntry : nullptr);
                 }
-                else if (isSorobanEntry(lk))
+                else
                 {
-                    releaseAssertOrThrow(!ttlEntry);
+                    // Soroban entry must exist in this code path as it's marked
+                    // 'live'.
+                    releaseAssertOrThrow(
+                        processResult ==
+                        ProcessReadResult::CLASSIC_ENTRY_MAYBE_EXISTS);
+                    addNonExistentEntryToHostInputs();
                 }
+                break;
+            }
+            case ProcessReadResult::RESTORED_AND_PROCESSED:
+                // Entry has already been added to the host inputs - nothing
+                // else to do.
+                break;
+            }
+            if (processResult == ProcessReadResult::RESTORED_AND_PROCESSED)
+            {
+                // No further checks or metering needed for the restored
+                // entries. These have already been metered during the initial
+                // processing.
+                continue;
             }
 
             if (!validateContractLedgerEntry(lk, entrySize, mSorobanConfig,
@@ -502,8 +625,8 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             // unless read from hot archive, and the hot archive restore path
             // above meters disk reads.
             if (!isSorobanEntry(lk) ||
-                protocolVersionIsBefore(
-                    ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                protocolVersionIsBefore(ledgerVersion,
+                                        AUTO_RESTORE_PROTOCOL_VERSION))
             {
                 if (!meterDiskReadResource(lk, keySize, entrySize))
                 {
@@ -558,16 +681,34 @@ class InvokeHostFunctionApplyHelper : virtual LedgerAccessHelper
             basePrngSeedBuf.data->assign(mSorobanBasePrngSeed.begin(),
                                          mSorobanBasePrngSeed.end());
 
-            out = rust_bridge::invoke_host_function(
-                mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
-                mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
-                mResources.instructions,
-                toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
-                toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
-                toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
-                getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
-                basePrngSeedBuf,
-                mSorobanConfig.rustBridgeRentFeeConfiguration(), *mModuleCache);
+            if (protocolVersionStartsFrom(
+                    mProtocolVersion, INVOKE_HOST_FUNCTION_V2_PROTOCOL_VERSION))
+            {
+                out = rust_bridge::invoke_host_function_v2(
+                    mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+                    mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
+                    mResources.instructions,
+                    toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
+                    toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
+                    toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
+                    getLedgerInfo(), mLedgerEntriesAndTtls, basePrngSeedBuf,
+                    mSorobanConfig.rustBridgeRentFeeConfiguration(),
+                    *mModuleCache);
+            }
+            else
+            {
+                out = rust_bridge::invoke_host_function(
+                    mAppConfig.CURRENT_LEDGER_PROTOCOL_VERSION,
+                    mAppConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
+                    mResources.instructions,
+                    toCxxBuf(mOpFrame.mInvokeHostFunction.hostFunction),
+                    toCxxBuf(mResources), mAutoRestoredRwEntryIndices,
+                    toCxxBuf(mOpFrame.getSourceID()), authEntryCxxBufs,
+                    getLedgerInfo(), mLedgerEntryCxxBufs, mTtlEntryCxxBufs,
+                    basePrngSeedBuf,
+                    mSorobanConfig.rustBridgeRentFeeConfiguration(),
+                    *mModuleCache);
+            }
             mMetrics.mCpuInsn = out.cpu_insns;
             mMetrics.mMemByte = out.mem_bytes;
             mMetrics.mInvokeTimeNsecs = out.time_nsecs;
@@ -1010,7 +1151,8 @@ class InvokeHostFunctionPreV23ApplyHelper
         rust::Box<rust_bridge::SorobanModuleCache> const& moduleCache)
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
-              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache)
+              opFrame, sorobanConfig, app.copyApplyLedgerView(), moduleCache,
+              ltx.loadHeader().current().ledgerVersion)
         , PreV23LedgerAccessHelper(ltx)
     {
     }
@@ -1100,10 +1242,8 @@ class InvokeHostFunctionParallelApplyHelper
                 mTxState.addLiveBucketlistRestore(lk, le, ttlKey, ttlEntry);
             }
 
-            // Finally, add the entries to the Cxx buffer as if they were live.
-            mLedgerEntryCxxBufs.emplace_back(std::move(leBuf));
-            auto ttlBuf = toCxxBuf(ttlEntry.data.ttl());
-            mTtlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+            // Finally, add the entries to the host inputs as if they were live.
+            addEntryToHostInputs(le, std::move(leBuf), &ttlEntry.data.ttl());
             mAutoRestoredRwEntryIndices.push_back(index);
 
             // Validate restored entry against Protocol 23 corruption data if
@@ -1195,7 +1335,8 @@ class InvokeHostFunctionParallelApplyHelper
         : InvokeHostFunctionApplyHelper(
               app, sorobanBasePrngSeed, res, refundableFeeTracker, opMeta,
               opFrame, threadState.getSorobanConfig(),
-              threadState.getSnapshot(), threadState.getModuleCache())
+              threadState.getSnapshot(), threadState.getModuleCache(),
+              ledgerInfo.getLedgerVersion())
         , ParallelLedgerAccessHelper(threadState, ledgerInfo)
     {
         ZoneScoped;

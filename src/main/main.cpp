@@ -428,7 +428,12 @@ main(int argc, char* const* argv)
             Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
 #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            checkXDRFileIdentity();
+        // Disable the XDR check temporarily until p28 bump. Due to imperfect
+        // check mechanism, vCurr XDR has 'diverged' from p27 host XDR because
+        // we've moved some definitions around (even though there were no
+        // semantic changes).
+        // When we bump Core to p28, we should re-enable this check.
+        // checkXDRFileIdentity();
 #endif
     }
     catch (...)

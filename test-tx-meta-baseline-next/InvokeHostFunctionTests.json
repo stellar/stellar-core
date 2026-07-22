@@ -2216,6 +2216,7 @@
 		"+cR3oq2qY0I="
 	],
 	"contract storage|protocol version 28|footprint|unused readWrite key" : [ "cPvvRUP0NPQ=" ],
+	"create and invoke external ref contract" : [ "+cR3oq2qY0I=" ],
 	"create in first stage delete in second stage" : [ "+cR3oq2qY0I=", "0hd/OzcsUOc=", "WlN4KxDWk6Q=" ],
 	"delete in first stage extend in second stage" : [ "+cR3oq2qY0I=", "0hd/OzcsUOc=", "WlN4KxDWk6Q=" ],
 	"delete non existent entry with parallel apply" : [ "+cR3oq2qY0I=", "MQWsAsiP/Lg=" ],

@@ -99,6 +99,26 @@ pub(crate) mod rust_bridge {
         pub mem_cost_params: CxxBuf,
     }
 
+    // A single footprint key's loaded state passed to the lazy-decoding invoke
+    // path (`invoke_host_function_v2`, protocol 28+). There is exactly one of
+    // these per footprint key, in footprint order (`read_only` keys followed by
+    // `read_write` keys).
+    struct CxxLedgerEntryWithTtlMeta {
+        // The encoded `LedgerEntry`, decoded lazily by the host. Empty for
+        // keys with no live ledger entry (the host treats the key as absent).
+        entry: CxxBuf,
+        // The entry's live-until ledger, if the entry exists and has one,
+        // 0 otherwise.
+        // Using a sentinel value is safe here, as even if Core provides a 0
+        // TTL for a live entry, the host invariant will be violated (no TTL
+        // for an entry that must have one), and the execution will fail with
+        // an internal error.
+        live_until_ledger: u32,
+        // Entry size in bytes used for rent computations.
+        // 0 if the entry does not exist, or if an entry doesn't have TTL.
+        entry_size_for_rent: u32,
+    }
+
     #[derive(Debug)]
     enum BridgeError {
         VersionNotYetSupported,
@@ -232,6 +252,23 @@ pub(crate) mod rust_bridge {
             module_cache: &SorobanModuleCache,
         ) -> Result<InvokeHostFunctionOutput>;
 
+        // A new interface of invoke_host_function used from p28 onwards.
+        fn invoke_host_function_v2(
+            config_max_protocol: u32,
+            enable_diagnostics: bool,
+            instruction_limit: u32,
+            hf_buf: &CxxBuf,
+            resources: CxxBuf,
+            restored_rw_entry_indices: &Vec<u32>,
+            source_account: &CxxBuf,
+            auth_entries: &Vec<CxxBuf>,
+            ledger_info: CxxLedgerInfo,
+            ledger_entries_and_ttls: &Vec<CxxLedgerEntryWithTtlMeta>,
+            base_prng_seed: &CxxBuf,
+            rent_fee_configuration: CxxRentFeeConfiguration,
+            module_cache: &SorobanModuleCache,
+        ) -> Result<InvokeHostFunctionOutput>;
+
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
@@ -313,10 +350,26 @@ pub(crate) mod rust_bridge {
         // fee computation.
         // In-memory size is only used for contract code starting from protocol
         // 23, so it's an error to call this in the earlier protocols.
+        // Superseded by `contract_code_memory_size_for_rent_v2` starting from
+        // protocol 28.
         fn contract_code_memory_size_for_rent(
             config_max_protocol: u32,
             protocol_version: u32,
             contract_code_entry: &CxxBuf,
+            cpu_cost_params: &CxxBuf,
+            mem_cost_params: &CxxBuf,
+        ) -> Result<u32>;
+
+        // `contract_code_memory_size_for_rent` version to use starting from
+        // protocol 28.
+        // This has the same semantics, but takes only important parts of the
+        // `ContractCodeEntry`: the encoded extension and the code size (the
+        // code itself was never necessary for the computation).
+        fn contract_code_memory_size_for_rent_v2(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            contract_code_entry_ext: &CxxBuf,
+            code_size_bytes: u32,
             cpu_cost_params: &CxxBuf,
             mem_cost_params: &CxxBuf,
         ) -> Result<u32>;

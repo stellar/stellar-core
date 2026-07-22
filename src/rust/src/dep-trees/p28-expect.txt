@@ -1,4 +1,4 @@
-soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
+soroban-env-host v28.0.0 (src/rust/soroban/p28/soroban-env-host)
 ├── ark-bls12-381 v0.5.0
 │   ├── ark-ec v0.5.0
 │   │   ├── ahash v0.8.11
@@ -236,17 +236,17 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v27.0.0 (proc-macro) (src/rust/soroban/p28/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v28.0.0 (proc-macro) (src/rust/soroban/p28/soroban-builtin-sdk-macros)
 │   ├── itertools v0.13.0
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v27.0.0 (src/rust/soroban/p28/soroban-env-common)
+├── soroban-env-common v28.0.0 (src/rust/soroban/p28/soroban-env-common)
 │   ├── ethnum v1.5.3
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v27.0.0 (proc-macro) (src/rust/soroban/p28/soroban-env-macros)
+│   ├── soroban-env-macros v28.0.0 (proc-macro) (src/rust/soroban/p28/soroban-env-macros)
 │   │   ├── itertools v0.13.0 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)
@@ -259,7 +259,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   │   ├── itoa v1.0.6
 │   │   │   ├── ryu v1.0.13
 │   │   │   └── serde v1.0.192 (*)
-│   │   ├── stellar-xdr v27.0.0
+│   │   ├── stellar-xdr v27.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=a90de0c0d6eba8be668e9074cfb7b285ac0ecd34#a90de0c0)
 │   │   │   ├── escape-bytes v0.1.1
 │   │   │   ├── ethnum v1.5.3
 │   │   │   ├── hex v0.4.3
@@ -272,7 +272,10 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   │           ├── serde_derive v1.0.192 (proc-macro) (*)
 │   │   │           └── serde_json v1.0.108 (*)
 │   │   │   [build-dependencies]
-│   │   │   └── crate-git-revision v0.0.6 (*)
+│   │   │   └── crate-git-revision v0.0.9
+│   │   │       ├── serde v1.0.192 (*)
+│   │   │       ├── serde_derive v1.0.192 (proc-macro) (*)
+│   │   │       └── serde_json v1.0.108 (*)
 │   │   └── syn v2.0.39 (*)
 │   ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
 │   │   ├── smallvec v1.13.2
@@ -286,7 +289,7 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   └── wasmparser-nostd v0.100.2
 │   │       └── indexmap-nostd v0.4.0
 │   ├── static_assertions v1.1.0
-│   ├── stellar-xdr v27.0.0
+│   ├── stellar-xdr v27.0.0 (https://github.com/stellar/rs-stellar-xdr?rev=a90de0c0d6eba8be668e9074cfb7b285ac0ecd34#a90de0c0)
 │   │   ├── base64 v0.22.1
 │   │   ├── escape-bytes v0.1.1
 │   │   ├── ethnum v1.5.3
@@ -294,17 +297,14 @@ soroban-env-host v27.0.0 (src/rust/soroban/p28/soroban-env-host)
 │   │   ├── sha2 v0.10.9 (*)
 │   │   └── stellar-strkey v0.0.13 (*)
 │   │   [build-dependencies]
-│   │   └── crate-git-revision v0.0.6 (*)
+│   │   └── crate-git-revision v0.0.9 (*)
 │   └── wasmparser v0.116.1
 │       ├── indexmap v2.0.2
 │       │   ├── equivalent v1.0.1
 │       │   └── hashbrown v0.14.1
 │       └── semver v1.0.17
 │   [build-dependencies]
-│   └── crate-git-revision v0.0.9
-│       ├── serde v1.0.192 (*)
-│       ├── serde_derive v1.0.192 (proc-macro) (*)
-│       └── serde_json v1.0.108 (*)
+│   └── crate-git-revision v0.0.9 (*)
 ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de) (*)
 ├── static_assertions v1.1.0
 ├── stellar-strkey v0.0.13 (*)

@@ -1,7 +1,7 @@
 use crate::{
-    CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo, CxxRentFeeConfiguration,
-    CxxRentWriteFeeConfiguration, CxxTransactionResources, FeePair, InvokeHostFunctionOutput,
-    SorobanModuleCache, SorobanVersionInfo,
+    CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerEntryWithTtlMeta,
+    CxxLedgerInfo, CxxRentFeeConfiguration, CxxRentWriteFeeConfiguration, CxxTransactionResources,
+    FeePair, InvokeHostFunctionOutput, SorobanModuleCache, SorobanVersionInfo,
 };
 
 #[cfg(feature = "testutils")]
@@ -52,6 +52,135 @@ pub(crate) mod protocol_agnostic {
     pub(crate) use super::soroban_curr::soroban_env_host::xdr::int128_helpers;
 }
 
+// There are two invoke entry points, selected by the C++ caller based on the
+// ledger protocol version:
+//
+//   * Pre-p28: `invoke_host_function_with_trace_hook_and_module_cache`, taking
+//     `encoded_ledger_entries`/`encoded_ttl_entries` iterators in arbitrary
+//     order.
+//   * p28+: `invoke_host_function_v2_with_trace_hook_and_module_cache`, taking
+//     ledger entries zipped with TTL metadata in the footprint order.
+//
+// Each protocol module supports exactly one of them and has another one defined
+// as a never-called invoke_v1/2_unsupported stub.
+
+#[cfg(feature = "next")]
+macro_rules! invoke_v1_unsupported_stub {
+    () => {
+        #[allow(unused_variables)]
+        pub fn invoke_host_function_with_trace_hook_and_module_cache<
+            T: AsRef<[u8]>,
+            I: ExactSizeIterator<Item = T>,
+        >(
+            budget: &Budget,
+            enable_diagnostics: bool,
+            encoded_host_fn: T,
+            encoded_resources: T,
+            restored_rw_entry_indices: &[u32],
+            encoded_source_account: T,
+            encoded_auth_entries: I,
+            ledger_info: LedgerInfo,
+            encoded_ledger_entries: I,
+            encoded_ttl_entries: I,
+            base_prng_seed: T,
+            diagnostic_events: &mut Vec<DiagnosticEvent>,
+            trace_hook: Option<TraceHook>,
+            module_cache: &SorobanModuleCache,
+        ) -> Result<InvokeHostFunctionResult, HostError> {
+            // This host only supports the lazy-decoding (v2) invoke interface;
+            // the caller must never route here.
+            Err(soroban_env_host::Error::from_type_and_code(
+                soroban_env_host::xdr::ScErrorType::Context,
+                soroban_env_host::xdr::ScErrorCode::InternalError,
+            )
+            .into())
+        }
+    };
+}
+
+macro_rules! invoke_v2_unsupported_stub {
+    () => {
+        #[allow(unused_variables)]
+        pub fn invoke_host_function_v2_with_trace_hook_and_module_cache<
+            T: AsRef<[u8]>,
+            I: ExactSizeIterator<Item = T>,
+            LI: ExactSizeIterator<Item = (Option<T>, Option<TtlLedgerEntryMeta>)>,
+        >(
+            budget: &Budget,
+            enable_diagnostics: bool,
+            encoded_host_fn: T,
+            encoded_resources: T,
+            restored_rw_entry_indices: &[u32],
+            encoded_source_account: T,
+            encoded_auth_entries: I,
+            ledger_info: LedgerInfo,
+            encoded_ledger_entries: LI,
+            base_prng_seed: T,
+            diagnostic_events: &mut Vec<DiagnosticEvent>,
+            trace_hook: Option<TraceHook>,
+            module_cache: &SorobanModuleCache,
+        ) -> Result<InvokeHostFunctionResult, HostError> {
+            // This host only supports the legacy invoke interface; the caller
+            // must never route here.
+            Err(soroban_env_host::Error::from_type_and_code(
+                soroban_env_host::xdr::ScErrorType::Context,
+                soroban_env_host::xdr::ScErrorCode::InternalError,
+            )
+            .into())
+        }
+    };
+}
+
+// Similar to the invoke stubs, we have two versions of the
+// wasm_module_memory_cost with different interfaces: pre-p28, and p28+.
+
+#[cfg(feature = "next")]
+macro_rules! wasm_module_memory_cost_v1_unsupported_stub {
+    () => {
+        #[allow(unused_variables)]
+        pub(crate) fn wasm_module_memory_cost_wrapper(
+            budget: &Budget,
+            contract_code_entry: &ContractCodeEntry,
+        ) -> Result<u64, HostError> {
+            Err(soroban_env_host::Error::from_type_and_code(
+                soroban_env_host::xdr::ScErrorType::Context,
+                soroban_env_host::xdr::ScErrorCode::InternalError,
+            )
+            .into())
+        }
+    };
+}
+
+macro_rules! wasm_module_memory_cost_v2_unsupported_stub {
+    () => {
+        #[allow(unused_variables)]
+        pub(crate) fn wasm_module_memory_cost_v2_wrapper(
+            budget: &Budget,
+            contract_code_entry_ext: &soroban_env_host::xdr::ContractCodeEntryExt,
+            code_size_bytes: u32,
+        ) -> Result<u64, HostError> {
+            Err(soroban_env_host::Error::from_type_and_code(
+                soroban_env_host::xdr::ScErrorType::Context,
+                soroban_env_host::xdr::ScErrorCode::InternalError,
+            )
+            .into())
+        }
+    };
+}
+
+// Definition for `TtlLedgerEntryMeta` for hosts prior to p28 that don't have
+// it defined. This is only necessary for code to compile, legacy hosts won't
+// ever use this.
+macro_rules! ttl_ledger_entry_meta_stub {
+    () => {
+        #[allow(dead_code)]
+        pub(crate) struct TtlLedgerEntryMeta {
+            live_until_ledger: u32,
+            entry_size_for_rent: u32,
+        }
+    };
+}
+
 #[cfg(feature = "next")]
 #[path = "."]
 pub(crate) mod p28 {
@@ -72,13 +201,15 @@ pub(crate) mod p28 {
             RentFeeConfiguration, RentWriteFeeConfiguration, TransactionResources,
         },
         vm::wasm_module_memory_cost,
-        xdr::{ContractCodeEntry, DiagnosticEvent},
+        xdr::{ContractCodeEntry, ContractCodeEntryExt, DiagnosticEvent},
         HostError, LedgerInfo, TraceHook,
     };
+
     pub(crate) use soroban_env_host_p28 as soroban_env_host;
 
     pub(crate) mod soroban_proto_any;
 
+    pub(crate) use soroban_env_host::e2e_invoke::TtlLedgerEntryMeta;
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
@@ -106,9 +237,12 @@ pub(crate) mod p28 {
             .collect()
     }
 
-    pub fn invoke_host_function_with_trace_hook_and_module_cache<
+    invoke_v1_unsupported_stub!();
+
+    pub fn invoke_host_function_v2_with_trace_hook_and_module_cache<
         T: AsRef<[u8]>,
         I: ExactSizeIterator<Item = T>,
+        LI: ExactSizeIterator<Item = (Option<T>, Option<TtlLedgerEntryMeta>)>,
     >(
         budget: &Budget,
         enable_diagnostics: bool,
@@ -118,8 +252,7 @@ pub(crate) mod p28 {
         encoded_source_account: T,
         encoded_auth_entries: I,
         ledger_info: LedgerInfo,
-        encoded_ledger_entries: I,
-        encoded_ttl_entries: I,
+        encoded_ledger_entries: LI,
         base_prng_seed: T,
         diagnostic_events: &mut Vec<DiagnosticEvent>,
         trace_hook: Option<TraceHook>,
@@ -135,7 +268,6 @@ pub(crate) mod p28 {
             encoded_auth_entries,
             ledger_info,
             encoded_ledger_entries,
-            encoded_ttl_entries,
             base_prng_seed,
             diagnostic_events,
             trace_hook,
@@ -143,11 +275,14 @@ pub(crate) mod p28 {
         )
     }
 
-    pub(crate) fn wasm_module_memory_cost_wrapper(
+    wasm_module_memory_cost_v1_unsupported_stub!();
+
+    pub(crate) fn wasm_module_memory_cost_v2_wrapper(
         budget: &Budget,
-        contract_code_entry: &ContractCodeEntry,
+        contract_code_entry_ext: &ContractCodeEntryExt,
+        code_size_bytes: u32,
     ) -> Result<u64, HostError> {
-        wasm_module_memory_cost(budget, contract_code_entry)
+        wasm_module_memory_cost(budget, contract_code_entry_ext, code_size_bytes)
     }
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
@@ -249,6 +384,8 @@ pub(crate) mod p27 {
 
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
+    ttl_ledger_entry_meta_stub!();
+
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
     }
@@ -273,6 +410,8 @@ pub(crate) mod p27 {
             .map(|s| s.to_string())
             .collect()
     }
+
+    invoke_v2_unsupported_stub!();
 
     pub fn invoke_host_function_with_trace_hook_and_module_cache<
         T: AsRef<[u8]>,
@@ -317,6 +456,9 @@ pub(crate) mod p27 {
     ) -> Result<u64, HostError> {
         wasm_module_memory_cost(budget, contract_code_entry)
     }
+
+    // This host predates the ext + code-size code-rent interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -421,6 +563,8 @@ pub(crate) mod p26 {
     // these imports).
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
@@ -484,12 +628,18 @@ pub(crate) mod p26 {
         )
     }
 
+    // p26's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn wasm_module_memory_cost_wrapper(
         budget: &Budget,
         contract_code_entry: &ContractCodeEntry,
     ) -> Result<u64, HostError> {
         wasm_module_memory_cost(budget, contract_code_entry)
     }
+
+    // This host predates the ext + code-size code-rent interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -594,6 +744,8 @@ pub(crate) mod p25 {
     // these imports).
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
@@ -640,6 +792,9 @@ pub(crate) mod p25 {
         )
     }
 
+    // p25's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn get_xdr_features() -> Vec<String> {
         vec![]
     }
@@ -664,6 +819,9 @@ pub(crate) mod p25 {
     ) -> Result<u64, HostError> {
         wasm_module_memory_cost(budget, contract_code_entry)
     }
+
+    // This host predates the ext + code-size code-rent interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -768,6 +926,8 @@ pub(crate) mod p24 {
     // these imports).
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
@@ -814,6 +974,9 @@ pub(crate) mod p24 {
         )
     }
 
+    // p24's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn get_xdr_features() -> Vec<String> {
         vec![]
     }
@@ -838,6 +1001,9 @@ pub(crate) mod p24 {
     ) -> Result<u64, HostError> {
         wasm_module_memory_cost(budget, contract_code_entry)
     }
+
+    // This host predates the ext + code-size code-rent interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -942,6 +1108,8 @@ pub(crate) mod p23 {
     // these imports).
     pub(crate) use soroban_env_host::{CompilationContext, ErrorHandler, ModuleCache};
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
@@ -988,6 +1156,9 @@ pub(crate) mod p23 {
         )
     }
 
+    // p23's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn get_xdr_features() -> Vec<String> {
         vec![]
     }
@@ -1012,6 +1183,9 @@ pub(crate) mod p23 {
     ) -> Result<u64, HostError> {
         wasm_module_memory_cost(budget, contract_code_entry)
     }
+
+    // This host predates the ext + code-size code-rent interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -1090,6 +1264,9 @@ pub(crate) mod p22 {
     pub(crate) extern crate soroban_env_host_p22;
     pub(crate) use soroban_env_host_p22 as soroban_env_host;
 
+    // p22's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn get_xdr_base_git_rev() -> String {
         use soroban_env_host::VERSION;
         match VERSION.xdr.xdr {
@@ -1173,6 +1350,8 @@ pub(crate) mod p22 {
     #[allow(dead_code)]
     pub(crate) trait CompilationContext: ErrorHandler + AsBudget {}
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         v.interface.pre_release
@@ -1223,6 +1402,10 @@ pub(crate) mod p22 {
     ) -> Result<u64, HostError> {
         Err(INTERNAL_ERROR.into())
     }
+
+    // This host predates both the contract code rent sizing (p23+) and the
+    // ext + code-size interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -1298,6 +1481,9 @@ pub(crate) mod p21 {
     pub(crate) extern crate soroban_env_host_p21;
     pub(crate) use soroban_env_host_p21 as soroban_env_host;
 
+    // p21's host only supports the legacy invoke interface.
+    invoke_v2_unsupported_stub!();
+
     pub(crate) fn get_xdr_base_git_rev() -> String {
         use soroban_env_host::VERSION;
         match VERSION.xdr.xdr {
@@ -1381,6 +1567,8 @@ pub(crate) mod p21 {
     #[allow(dead_code)]
     pub(crate) trait CompilationContext: ErrorHandler + AsBudget {}
 
+    ttl_ledger_entry_meta_stub!();
+
     // An adapter for some API breakage between p21 and p22.
     pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
         soroban_env_host::meta::get_pre_release_version(v.interface)
@@ -1431,6 +1619,10 @@ pub(crate) mod p21 {
     ) -> Result<u64, HostError> {
         Err(INTERNAL_ERROR.into())
     }
+
+    // This host predates both the contract code rent sizing (p23+) and the
+    // ext + code-size interface (p28+).
+    wasm_module_memory_cost_v2_unsupported_stub!();
 
     pub(crate) fn compute_rent_write_fee_per_1kb_wrapper(
         bucket_list_size: i64,
@@ -1589,6 +1781,21 @@ pub(crate) struct HostModule {
             rent_fee_configuration: &CxxRentFeeConfiguration,
             module_cache: &SorobanModuleCache,
         ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+    pub(crate) invoke_host_function_v2:
+        fn(
+            enable_diagnostics: bool,
+            instruction_limit: u32,
+            hf_buf: &CxxBuf,
+            resources_buf: &CxxBuf,
+            restored_rw_entry_indices: &Vec<u32>,
+            source_account_buf: &CxxBuf,
+            auth_entries: &Vec<CxxBuf>,
+            ledger_info: &CxxLedgerInfo,
+            ledger_entries_and_ttls: &Vec<CxxLedgerEntryWithTtlMeta>,
+            base_prng_seed: &CxxBuf,
+            rent_fee_configuration: &CxxRentFeeConfiguration,
+            module_cache: &SorobanModuleCache,
+        ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
     pub(crate) compute_transaction_resource_fee:
         fn(tx_resources: CxxTransactionResources, fee_config: CxxFeeConfiguration) -> FeePair,
     pub(crate) compute_rent_fee: fn(
@@ -1600,6 +1807,13 @@ pub(crate) struct HostModule {
         fn(bucket_list_size: i64, fee_config: CxxRentWriteFeeConfiguration) -> i64,
     pub(crate) contract_code_memory_size_for_rent: fn(
         contract_code_entry: &CxxBuf,
+        cpu_cost_params: &CxxBuf,
+        mem_cost_params: &CxxBuf,
+    )
+        -> Result<u32, Box<dyn std::error::Error>>,
+    pub(crate) contract_code_memory_size_for_rent_v2: fn(
+        contract_code_entry_ext: &CxxBuf,
+        code_size_bytes: u32,
         cpu_cost_params: &CxxBuf,
         mem_cost_params: &CxxBuf,
     )
@@ -1617,6 +1831,7 @@ macro_rules! proto_versioned_functions_for_module {
             max_proto: $module::soroban_proto_any::get_max_proto(),
             get_soroban_version_info: $module::soroban_proto_any::get_soroban_version_info,
             invoke_host_function: $module::soroban_proto_any::invoke_host_function,
+            invoke_host_function_v2: $module::soroban_proto_any::invoke_host_function_v2,
             compute_transaction_resource_fee:
                 $module::soroban_proto_any::compute_transaction_resource_fee,
             compute_rent_fee: $module::soroban_proto_any::compute_rent_fee,
@@ -1624,6 +1839,8 @@ macro_rules! proto_versioned_functions_for_module {
                 $module::soroban_proto_any::compute_rent_write_fee_per_1kb,
             contract_code_memory_size_for_rent:
                 $module::soroban_proto_any::contract_code_memory_size_for_rent,
+            contract_code_memory_size_for_rent_v2:
+                $module::soroban_proto_any::contract_code_memory_size_for_rent_v2,
             can_parse_transaction: $module::soroban_proto_any::can_parse_transaction,
             #[cfg(feature = "testutils")]
             rustbuf_containing_scval_to_string:

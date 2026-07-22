@@ -189,3 +189,20 @@ pub(crate) fn contract_code_memory_size_for_rent(
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     (hm.contract_code_memory_size_for_rent)(contract_code_entry, cpu_cost_params, mem_cost_params)
 }
+
+pub(crate) fn contract_code_memory_size_for_rent_v2(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    contract_code_entry_ext: &CxxBuf,
+    code_size_bytes: u32,
+    cpu_cost_params: &CxxBuf,
+    mem_cost_params: &CxxBuf,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    (hm.contract_code_memory_size_for_rent_v2)(
+        contract_code_entry_ext,
+        code_size_bytes,
+        cpu_cost_params,
+        mem_cost_params,
+    )
+}
