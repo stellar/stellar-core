@@ -463,9 +463,9 @@ class LedgerManagerImpl : public LedgerManager
         TxLatencyMetrics(MetricsRegistry& registry);
     } mTxLatencyMetrics;
 
-    // End point of the tx-latency metric: matches the ledger-close meta's
-    // txProcessing entries against mTxSubmitTimes and records each latency.
-    void recordTxMetaEmissionLatency(LedgerCloseMeta const& lcm);
+    // End point of the tx-latency metric: records the submission to meta
+    // emission latency for each externalized transaction.
+    void recordTxMetaEmissionLatency(ApplicableTxSetFrame const& txSet);
 #endif
 
     void setState(State s);
