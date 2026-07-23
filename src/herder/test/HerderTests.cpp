@@ -30,6 +30,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/CommandHandler.h"
+#include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "test/Catch2.h"
@@ -40,6 +41,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/TransactionTestFrame.h"
+#include "util/Decoder.h"
 #include "util/Math.h"
 #include "util/MetricsRegistry.h"
 #include "util/ProtocolVersion.h"
@@ -48,6 +50,7 @@
 #include "crypto/KeyUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
+#include "xdr/Stellar-internal.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
 #include "xdrpp/marshal.h"
@@ -9081,6 +9084,143 @@ TEST_CASE("network externalizes empty-tx-set on missing value", "[herder][tx]")
 
     // Capture meta for use with --capture-lcm
     txtest::captureLastClosedLedgerLcm(*app);
+}
+
+// Test that the node properly handles a restart when voting on a value whose tx
+// set it has not successfully downloaded
+TEST_CASE("SCP state restore with missing tx set", "[herder]")
+{
+    auto cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
+    cfg.MANUAL_CLOSE = false;
+    // Test with parallel tx set downloading both enabled and disabled. The
+    // disabled case tests a node operator shutting down a node with parallel tx
+    // set downloading enabled, then flipping the flag off and restarting the
+    // node.
+    bool const parallelTxSetDownload = GENERATE(true, false);
+    CAPTURE(parallelTxSetDownload);
+    cfg.EXPERIMENTAL_PARALLEL_TX_SET_DOWNLOAD = parallelTxSetDownload;
+
+    auto const peerKey = SecretKey::fromSeed(sha256("scp state restore peer"));
+    auto const& peerPk = peerKey.getPublicKey();
+    auto const selfPk = cfg.NODE_SEED.getPublicKey();
+
+    // {self, peer} with threshold 2, so that {peer} alone is v-blocking
+    cfg.QUORUM_SET.validators.emplace_back(peerPk);
+    cfg.QUORUM_SET.threshold = 2;
+
+    // Tx set hash deliberately fake: never downloaded, so never persisted
+    Hash fakeTxSetHash;
+    fakeTxSetHash.fill(0xAB);
+
+    uint64 slot = 0;
+    Value value;
+
+    // Create the node's database and persist SCP state for slot LCL+1 that
+    // ballots on `fakeTxSetHash` without persisting any tx set. This simulates
+    // a node emitting a PREPARE for a value whose tx set is still downloading.
+    {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg, /*newDB*/ true,
+                                         /*startApp*/ false);
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        slot = lcl.header.ledgerSeq + 1;
+
+        auto sv = herder.makeStellarValue(fakeTxSetHash, app->timeNow() + 1,
+                                          emptyUpgradeSteps, cfg.NODE_SEED);
+        value = xdr::xdr_to_opaque(sv);
+
+        SCPEnvelope env;
+        env.statement.slotIndex = slot;
+        env.statement.nodeID = selfPk;
+        env.statement.pledges.type(SCP_ST_PREPARE);
+        auto& prep = env.statement.pledges.prepare();
+        prep.ballot.counter = 1;
+        prep.ballot.value = value;
+        prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+        herder.signEnvelope(cfg.NODE_SEED, env);
+
+        PersistedSCPState scpState;
+        scpState.v(1);
+        scpState.v1().scpEnvelopes.emplace_back(env);
+        scpState.v1().quorumSets.emplace_back(
+            herder.getSCP().getLocalQuorumSet());
+        app->getPersistentState().setSCPStateV1ForSlot(
+            slot, decoder::encode_b64(xdr::xdr_to_opaque(scpState)),
+            /*txSets*/ {});
+    }
+
+    // Restart on the same database, restoring the persisted SCP state.
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg, /*newDB*/ false);
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& driver = herder.getHerderSCPDriver();
+
+    // The ballot state was restored
+    REQUIRE(!herder.getSCP().getLatestMessagesSend(slot).empty());
+
+    // The restored value's tx set is missing and nothing is fetching it, but
+    // the value is still structurally valid
+    REQUIRE(driver.validateValue(slot, value, /*nomination*/ false) ==
+            SCPDriver::kStructurallyValidValue);
+
+    // The peer's view of the slot: it timed out waiting for the missing tx
+    // set and moved on to the corresponding empty-tx-set value.
+    Value const emptyValue = driver.makeEmptyTxSetValueFromValue(value);
+
+    auto makePrepareFromPeer = [&](bool includePrepared) {
+        SCPEnvelope env;
+        env.statement.slotIndex = slot;
+        env.statement.nodeID = peerPk;
+        env.statement.pledges.type(SCP_ST_PREPARE);
+        auto& prep = env.statement.pledges.prepare();
+        prep.ballot.counter = 2;
+        prep.ballot.value = emptyValue;
+        if (includePrepared)
+        {
+            prep.prepared.activate() = SCPBallot(1, emptyValue);
+        }
+        prep.quorumSetHash = herder.getSCP().getLocalNode()->getQuorumSetHash();
+        herder.signEnvelope(peerKey, env);
+        return env;
+    };
+
+    auto latestSelfMessage = [&]() -> SCPEnvelope const* {
+        auto const* e = herder.getSCP().getLatestMessage(selfPk);
+        REQUIRE(e != nullptr);
+        REQUIRE(e->statement.pledges.type() == SCP_ST_PREPARE);
+        return e;
+    };
+
+    SECTION("peer accepted the empty-tx-set value as prepared")
+    {
+        // The v-blocking peer accepted (1, emptyValue) as prepared, which
+        // makes the node accept it as prepared too and re-emit its own
+        // statement. The node then abandons its ballot on the restored value
+        // in favor of the empty-tx-set value the peer is ahead on.
+        REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(true)) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        auto const& prep = latestSelfMessage()->statement.pledges.prepare();
+        REQUIRE(prep.ballot.counter == 2);
+        REQUIRE(prep.ballot.value == emptyValue);
+        REQUIRE(prep.prepared);
+        REQUIRE(prep.prepared->value == emptyValue);
+    }
+
+    SECTION("peer is v-blocking ahead")
+    {
+        // The v-blocking peer is on a higher ballot counter, so the node
+        // abandons its ballot. Since nothing is downloading the missing tx
+        // set, the node replaces the restored value with the empty-tx-set
+        // value when bumping.
+        REQUIRE(herder.recvSCPEnvelope(makePrepareFromPeer(false)) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        auto const& prep = latestSelfMessage()->statement.pledges.prepare();
+        REQUIRE(prep.ballot.counter == 2);
+        REQUIRE(prep.ballot.value == emptyValue);
+    }
 }
 #endif // CAP_0083
 

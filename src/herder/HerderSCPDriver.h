@@ -224,6 +224,9 @@ class HerderSCPDriver : public SCPDriver
     }
 #endif
 
+    // Mark a slot as restored from `PersistentState`
+    void markSlotAsRestored(uint64_t slotIndex);
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -241,6 +244,9 @@ class HerderSCPDriver : public SCPDriver
     // available.
     std::map<Hash, std::vector<std::weak_ptr<SCPEnvelopeWrapper>>>
         mPendingTxSetEnvelopeWrappers;
+
+    // Indices of slots that were restored from `PersistentState`
+    UnorderedSet<uint64_t> mRestoredSlotIndices;
 
     struct SCPMetrics
     {

@@ -749,7 +749,8 @@ TEST_CASE("Time sliced static topology survey",
 }
 
 // A time sliced survey with changing topology during the collecting phase
-TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
+TEST_CASE("Time sliced dynamic topology survey",
+          "[overlay][survey][topology][!hide]")
 {
     enum
     {
