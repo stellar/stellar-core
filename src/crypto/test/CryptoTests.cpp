@@ -122,39 +122,68 @@ TEST_CASE("XDRSHA256 is identical to byte SHA256", "[crypto]")
 
 TEST_CASE("SHA256 bytes bench", "[!hide][sha-bytes-bench]")
 {
-    shortHash::initialize();
-    autocheck::rng().seed(11111);
-    std::vector<LedgerEntry> entries;
-    for (size_t i = 0; i < 1000; ++i)
+    size_t const entryCount = 1000;
+    size_t const iterationCount = 10;
+    size_t const totalCount = entryCount * iterationCount;
+
+    std::vector<xdr::opaque_vec<>> entriesXdr;
+    for (size_t i = 0; i < entryCount; ++i)
     {
-        entries.emplace_back(LedgerTestUtils::generateValidLedgerEntry(1000));
+        entriesXdr.emplace_back(xdr::xdr_to_opaque(
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {LedgerEntryType::CONFIG_SETTING}, 1000)));
     }
-    for (size_t i = 0; i < 10000; ++i)
+
+    auto startTime = std::chrono::steady_clock::now();
+    int64_t shaDuration = 0;
+    for (size_t i = 0; i < iterationCount; ++i)
     {
-        for (auto const& e : entries)
+        for (auto const& e : entriesXdr)
         {
-            auto opaque = xdr::xdr_to_opaque(e);
-            sha256(opaque);
+            sha256(e);
         }
     }
+    auto totalDuration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             std::chrono::steady_clock::now() - startTime)
+                             .count();
+    std::cout << "SHA256 bytes bench total duration: " << totalDuration * 1e-9
+              << " s, "
+              << "average duration per entry: "
+              << static_cast<double>(totalDuration) / totalCount * 1e-6 << " ms"
+              << std::endl;
 }
 
 TEST_CASE("SHA256 XDR bench", "[!hide][sha-xdr-bench]")
 {
-    shortHash::initialize();
-    autocheck::rng().seed(11111);
+    size_t const entryCount = 1000;
+    size_t const iterationCount = 10;
+    size_t const totalCount = entryCount * iterationCount;
+
     std::vector<LedgerEntry> entries;
-    for (size_t i = 0; i < 1000; ++i)
+    for (size_t i = 0; i < entryCount; ++i)
     {
-        entries.emplace_back(LedgerTestUtils::generateValidLedgerEntry(1000));
+        entries.emplace_back(
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {LedgerEntryType::CONFIG_SETTING}, 1000));
     }
-    for (size_t i = 0; i < 10000; ++i)
+
+    auto startTime = std::chrono::steady_clock::now();
+    int64_t shaDuration = 0;
+    for (size_t i = 0; i < iterationCount; ++i)
     {
         for (auto const& e : entries)
         {
             xdrSha256(e);
         }
     }
+    auto totalDuration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             std::chrono::steady_clock::now() - startTime)
+                             .count();
+    std::cout << "XDR SHA256 bench total duration: " << totalDuration * 1e-9
+              << " s, "
+              << "average duration per entry: "
+              << static_cast<double>(totalDuration) / totalCount * 1e-6 << " ms"
+              << std::endl;
 }
 
 static std::map<std::string, std::string> blake2TestVectors = {
