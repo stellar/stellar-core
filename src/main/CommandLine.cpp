@@ -1501,13 +1501,18 @@ runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::vector<std::string> newHistories;
+    bool idempotent = false;
 
     return runWithHelp(args,
                        {configurationParser(configOption),
+                        clara::Opt{idempotent}["--idempotent"](
+                            "succeed if the history archive is already "
+                            "initialized"),
                         requiredArgParser(newHistories, "HISTORY-LABEL")},
                        [&] {
                            return initializeHistories(configOption.getConfig(),
-                                                      newHistories);
+                                                      newHistories,
+                                                      idempotent);
                        });
 }
 
