@@ -32,7 +32,7 @@ FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
     : mFlowControlCapacity(connector.getConfig(), mNodeID)
     , mFlowControlBytesCapacity(
           connector.getConfig(), mNodeID,
-          connector.getOverlayManager().getFlowControlBytesTotal())
+          connector.getOverlayManager().getFlowControlFloodByteCapacity())
     , mOverlayMetrics(connector.getOverlayManager().getOverlayMetrics())
     , mAppConnector(connector)
     , mUseBackgroundThread(useBackgroundThread)
@@ -577,20 +577,14 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
     MutexLocker guard(mFlowControlMutex);
 
     Json::Value res;
-    if (mFlowControlCapacity.getCapacity().mTotalCapacity)
-    {
-        res["local_capacity"]["reading"] = static_cast<Json::UInt64>(
-            *(mFlowControlCapacity.getCapacity().mTotalCapacity));
-    }
+    res["local_capacity"]["reading"] = static_cast<Json::UInt64>(
+        mFlowControlCapacity.getCapacity().mTotalCapacity);
     res["local_capacity"]["flood"] = static_cast<Json::UInt64>(
         mFlowControlCapacity.getCapacity().mFloodCapacity);
     res["peer_capacity"] =
         static_cast<Json::UInt64>(mFlowControlCapacity.getOutboundCapacity());
-    if (mFlowControlBytesCapacity.getCapacity().mTotalCapacity)
-    {
-        res["local_capacity_bytes"]["reading"] = static_cast<Json::UInt64>(
-            *(mFlowControlBytesCapacity.getCapacity().mTotalCapacity));
-    }
+    res["local_capacity_bytes"]["reading"] = static_cast<Json::UInt64>(
+        mFlowControlBytesCapacity.getCapacity().mTotalCapacity);
     res["local_capacity_bytes"]["flood"] = static_cast<Json::UInt64>(
         mFlowControlBytesCapacity.getCapacity().mFloodCapacity);
     res["peer_capacity_bytes"] = static_cast<Json::UInt64>(

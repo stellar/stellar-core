@@ -486,6 +486,12 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t PEER_FLOOD_READING_CAPACITY_BYTES;
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
+    // The number of total input bytes on a TCP connection that a receiver will
+    // read and start processing, before it temporarily pauses reading to finish
+    // processing them. As input-processing completes, the balance of this
+    // capacity is replenished.
+    uint32_t PEER_TOTAL_READING_CAPACITY_BYTES;
+
     // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 

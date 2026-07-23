@@ -201,7 +201,7 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-    virtual uint32_t getFlowControlBytesTotal() const = 0;
+    virtual uint32_t getFlowControlFloodByteCapacity() const = 0;
 
     virtual ~OverlayManager()
     {

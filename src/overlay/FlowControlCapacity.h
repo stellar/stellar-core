@@ -5,6 +5,8 @@
 #pragma once
 
 #include "main/Config.h"
+#include "overlay/Peer.h"
+#include "overlay/TCPPeer.h"
 #include <optional>
 
 namespace stellar
@@ -22,7 +24,7 @@ class FlowControlCapacity
     struct ReadingCapacity
     {
         uint64_t mFloodCapacity;
-        std::optional<uint64_t> mTotalCapacity;
+        uint64_t mTotalCapacity;
     };
 
     // Capacity of local node configured by the operator
@@ -80,8 +82,20 @@ class FlowControlByteCapacity : public FlowControlCapacity
     ReadingCapacity mCapacityLimits;
 
   public:
+    // Subtle: when we issue a read, want to deduct the size of the read from
+    // the capacity and stop when we "hit zero"; but we won't know how big the
+    // read is before we perform it. It could be anywhere up to MAX_MESSAGE_SIZE
+    // (plus 4 for the XDR header bytes) and so we treat that as an artificial
+    // floor for the capacity value -- a sort of "virtual zero point" -- and
+    // only allow reads when we have capacity _greater_ than that floor, such
+    // that we know any read won't underflow true 0 and wrap around. The other
+    // option would be to use a signed integer for capacity and tolerate
+    // negative capacities sometimes, which would be confusing/alarming in a
+    // different way. We decided this was nicer.
+    uint64_t static constexpr BYTE_CAPACITY_READ_FLOOR = MAX_MESSAGE_SIZE + 4;
+
     FlowControlByteCapacity(Config const& cfg, NodeID const& nodeID,
-                            uint32_t capacity);
+                            uint32_t floodCapacity);
     virtual ~FlowControlByteCapacity() = default;
     virtual uint64_t
     getMsgResourceCount(StellarMessage const& msg) const override;
