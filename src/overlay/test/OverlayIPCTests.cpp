@@ -227,7 +227,7 @@ TEST_CASE("Two Cores communicate via Rust overlays", "[overlay-ipc][.]")
 // Include simulation headers for the E2E test
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerTxn.h"
+#include "main/AppConnector.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
 #include "simulation/TxGenerator.h"
@@ -795,18 +795,18 @@ TEST_CASE("Rust overlay TX included in ledger", "[overlay-ipc][.]")
 
     REQUIRE(simulation->haveAllExternalized(targetLedger, 2));
 
-    // Verify the destination account exists (TX was applied)
+    // Verify the destination account exists (TX was applied).
     {
-        LedgerTxn ltx(node0->getLedgerTxnRoot());
-        auto destAccount = stellar::loadAccount(ltx, destKey.getPublicKey());
+        auto view = node0->getAppConnector().copyImmutableLedgerView();
+        auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account created successfully!");
     }
 
     // Also verify on node1 (TX propagated and was applied)
     {
-        LedgerTxn ltx(node1->getLedgerTxnRoot());
-        auto destAccount = stellar::loadAccount(ltx, destKey.getPublicKey());
+        auto view = node1->getAppConnector().copyImmutableLedgerView();
+        auto destAccount = view.getAccount(destKey.getPublicKey());
         REQUIRE(destAccount);
         LOG_INFO(DEFAULT_LOG, "Destination account exists on node1 too!");
     }
@@ -1040,9 +1040,8 @@ TEST_CASE("Rust overlay SCP latency under TX load", "[overlay-ipc-large]")
                 // Count included TXs by checking dest account balance
                 // (each payment adds 0.1 XLM = 1000000 stroops, starting from
                 // 100 XLM)
-                LedgerTxn ltx(node0->getLedgerTxnRoot());
-                auto destAccount =
-                    stellar::loadAccount(ltx, destKey.getPublicKey());
+                auto view = node0->getAppConnector().copyImmutableLedgerView();
+                auto destAccount = view.getAccount(destKey.getPublicKey());
                 if (destAccount)
                 {
                     // Each successful payment adds 1000000 stroops

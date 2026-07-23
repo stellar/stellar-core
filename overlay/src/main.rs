@@ -14,6 +14,7 @@ pub mod integrated;
 mod ipc;
 pub mod libp2p_overlay;
 mod metrics;
+mod wire;
 mod xdr;
 
 use std::collections::{HashMap, HashSet};
@@ -35,6 +36,7 @@ use libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
 use metrics::OverlayMetrics;
+use wire::ValidatedTx;
 
 /// Command-line arguments
 struct Args {
@@ -140,11 +142,6 @@ fn multiaddr_to_socket_addr(addr: &Multiaddr) -> Option<SocketAddr> {
         (Some(ip), Some(port)) => Some(SocketAddr::new(ip, port)),
         _ => None,
     }
-}
-
-/// Extract TX set hashes from an SCP envelope.
-fn extract_txset_hashes_from_scp(envelope: &[u8]) -> Vec<[u8; 32]> {
-    xdr::extract_txset_hashes_from_scp(envelope)
 }
 
 /// Resolve a peer address string to a SocketAddr.
@@ -664,7 +661,11 @@ impl App {
     /// Handle an event from the libp2p QUIC overlay (SCP + TX)
     async fn handle_libp2p_event(&mut self, event: LibP2pOverlayEvent) {
         match event {
-            LibP2pOverlayEvent::ScpReceived { envelope, from } => {
+            LibP2pOverlayEvent::ScpReceived {
+                envelope,
+                txset_hashes,
+                from,
+            } => {
                 // Copy first 4 bytes for logging identification
                 let mut id_bytes = [0u8; 4];
                 let id_len = std::cmp::min(envelope.len(), 4);
@@ -677,11 +678,10 @@ impl App {
                     from
                 );
 
-                // Extract TX set hashes and proactively fetch them. Snapshot the
-                // cache-hit check on the main loop, then move the libp2p cmd_tx
-                // awaits into a spawned task so the loop never blocks on the
-                // bounded command channel.
-                let txset_hashes = extract_txset_hashes_from_scp(&envelope);
+                // TX set hashes were extracted during the reader's single
+                // decode. Snapshot the cache-hit check on the main loop, then
+                // move the libp2p cmd_tx awaits into a spawned task so the loop
+                // never blocks on the bounded command channel.
                 if !txset_hashes.is_empty() {
                     let needs_fetch: HashSet<[u8; 32]> = txset_hashes
                         .iter()
@@ -725,28 +725,22 @@ impl App {
                 }
             }
             LibP2pOverlayEvent::TxReceived { tx, from } => {
-                debug!("Received TX via QUIC from {}: {} bytes", from, tx.len());
-                self.overlay_handle.submit_tx(tx, 0, 0);
+                debug!(
+                    "Received TX via QUIC from {}: {} bytes",
+                    from,
+                    tx.bytes().len()
+                );
+                self.overlay_handle.submit_tx(tx);
             }
             LibP2pOverlayEvent::TxSetReceived { hash, data, from } => {
+                // `data` was strict-decoded and its content hash verified in the
+                // reader task, so we cache and forward it as-is.
                 info!(
                     "TXSET_RECV: Received TxSet {:02x?}... ({} bytes) from {}",
                     &hash[..4],
                     data.len(),
                     from
                 );
-                let data = match xdr::verify_generalized_tx_set_xdr(&hash, &data) {
-                    Ok(canonical) => canonical,
-                    Err(e) => {
-                        warn!(
-                            "TXSET_RECV_DROP: Dropping invalid TxSet {:02x?}... from {}: {}",
-                            &hash[..4],
-                            from,
-                            e
-                        );
-                        return;
-                    }
-                };
 
                 // IMPORTANT: Cache the TxSet FIRST, before pushing to Core
                 // This ensures the TxSet is available when SCP processing resumes
@@ -1056,18 +1050,19 @@ impl App {
 
                 let mut hash = [0u8; 32];
                 hash.copy_from_slice(&msg.payload[0..32]);
-                let tx_set_xdr = match xdr::verify_generalized_tx_set_xdr(&hash, &msg.payload[32..])
-                {
-                    Ok(canonical) => canonical,
-                    Err(e) => {
-                        warn!(
-                            "TXSET_CACHE_DROP: Dropping invalid TX set {:02x?}... from Core: {}",
-                            &hash[..4],
-                            e
-                        );
-                        return true;
-                    }
-                };
+                let tx_set_xdr = &msg.payload[32..];
+
+                // Core is trusted for encoding, so we skip decoding. We still
+                // guard the content hash cheaply: caching bytes under a hash
+                // that peers would recompute differently makes the tx set
+                // unfetchable network-wide.
+                if !xdr::tx_set_hash_matches(&hash, tx_set_xdr) {
+                    warn!(
+                        "TXSET_CACHE_DROP: Dropping TX set {:02x?}... from Core: content hash mismatch",
+                        &hash[..4]
+                    );
+                    return true;
+                }
 
                 info!(
                     "TXSET_CACHE: Caching locally-built TX set {:02x?}... ({} bytes)",
@@ -1079,7 +1074,7 @@ impl App {
                     &mut self.tx_set_cache,
                     self.current_ledger_seq,
                     hash,
-                    tx_set_xdr,
+                    tx_set_xdr.to_vec(),
                 );
             }
 
@@ -1094,32 +1089,24 @@ impl App {
                 let num_ops = u32::from_le_bytes(msg.payload[8..12].try_into().unwrap());
                 let tx_data = msg.payload[12..].to_vec();
 
-                let parsed_tx = match xdr::parse_supported_transaction(&tx_data) {
-                    Ok(parsed) => parsed,
+                // Core is trusted for encoding and supplies fee/ops; we only
+                // reject fee-bumps (still unsupported) via a cheap discriminant
+                // check. No decode.
+                let tx = match ValidatedTx::from_core_trusted(tx_data, fee as u64, num_ops) {
+                    Ok(tx) => tx,
                     Err(e) => {
                         warn!("SUBMIT_TX_DROP: Dropping unsupported TX from Core: {}", e);
                         return true;
                     }
                 };
-                if u64::try_from(fee).ok() != Some(parsed_tx.fee) || num_ops != parsed_tx.num_ops {
-                    debug!(
-                        "SUBMIT_TX_METADATA_MISMATCH: Core fee/ops=({}/{}) XDR fee/ops=({}/{})",
-                        fee, num_ops, parsed_tx.fee, parsed_tx.num_ops
-                    );
-                }
 
                 // Add to mempool
-                self.overlay_handle.submit_tx(
-                    parsed_tx.envelope_xdr.clone(),
-                    parsed_tx.fee,
-                    parsed_tx.num_ops,
-                );
+                self.overlay_handle.submit_tx(Arc::clone(&tx));
 
                 // Broadcast TX via libp2p QUIC (dedicated stream)
                 let handle = self.libp2p_handle.clone();
-                let tx_data = parsed_tx.envelope_xdr;
                 tokio::spawn(async move {
-                    handle.broadcast_tx(tx_data).await;
+                    handle.broadcast_tx(tx).await;
                 });
             }
 
@@ -1516,12 +1503,6 @@ mod tests {
         let mut envelope = ScpEnvelope::default();
         envelope.statement.slot_index = slot_index;
         envelope.to_xdr(Limits::none()).unwrap()
-    }
-
-    #[test]
-    fn test_extract_txset_hashes_rejects_invalid_xdr() {
-        assert!(extract_txset_hashes_from_scp(&[]).is_empty());
-        assert!(extract_txset_hashes_from_scp(&[0u8; 40]).is_empty());
     }
 
     // --- DNS resolution tests ---

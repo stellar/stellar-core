@@ -14,25 +14,31 @@ heavy TX traffic cannot stall consensus.
 
 ## Wire format
 
-```
-┌───────────┬──────┬───────────────────────────────────┬───────────────────────┐
-│   Type    │ Code │              Payload              │       Direction       │
-├───────────┼──────┼───────────────────────────────────┼───────────────────────┤
-│ TX        │ 0x01 │ [raw tx bytes]                    │ Responder → requester │
-│ INV_BATCH │ 0x02 │ [count:u32 BE][{hash:32, fee:i64 BE}...]   │ Announcer → all peers │
-│ GETDATA   │ 0x03 │ [count:u32 BE][hash:32...]        │ Requester → announcer │
-└───────────┴──────┴───────────────────────────────────┴───────────────────────┘
-```
+All three message types are length-prefixed `StellarMessage` XDR frames
+(see [transport.md](transport.md#frame-formats)):
 
-The `fee` carried in INV_BATCH entries is **fee-per-op**, intended to
-let the receiver prioritize which TXs to pull first. (See [Known issues](#known-issues-and-todos)
-— for TXs received from the network, this field is currently always 0.)
+| Message   | `StellarMessage` arm | Payload                        | Direction             |
+|-----------|----------------------|--------------------------------|-----------------------|
+| TX        | `Transaction`        | Full `TransactionEnvelope`     | Responder → requester |
+| INV_BATCH | `FloodAdvert`        | TX hashes (32 bytes each)      | Announcer → all peers |
+| GETDATA   | `FloodDemand`        | Requested TX hashes            | Requester → announcer |
 
-Encoding helpers live in `flood/inv_messages.rs`. Constants:
+`FloodAdvert` carries **hashes only** — the wire format has no fee
+field. Each announced entry has an internal `fee_per_op` (read off the
+shared `ValidatedTx`), but it is dropped at encode time, and the
+receive side records announced entries with fee 0
+(`flood/inv_messages.rs`). Receiver-side prioritization of which TXs to
+pull first by announced fee is therefore not possible with this wire
+format. (See [Known issues](#known-issues-and-todos).)
+
+The codec lives in `flood/inv_messages.rs`: the single strict decode of
+an inbound `Transaction` message also mints the `Arc<ValidatedTx>` (fee,
+op count, sha256 hash, canonical bytes) that flows through the rest of
+the pipeline. Constants:
 
 | Constant              | Value | Defined in                    |
 |-----------------------|-------|-------------------------------|
-| `INV_BATCH_MAX_SIZE`  | 1,000 | `flood/inv_messages.rs:65`    |
+| `INV_BATCH_MAX_SIZE`  | 1,000 | `flood/inv_messages.rs:24`    |
 | `INV_BATCH_MAX_DELAY` | 100 ms| `flood/inv_batcher.rs:15`     |
 | `GETDATA_PEER_TIMEOUT`| 1 s   | `flood/pending_requests.rs:13`|
 | `GETDATA_TOTAL_TIMEOUT`| 30 s | `flood/pending_requests.rs:16`|
@@ -82,7 +88,9 @@ without sending a duplicate GETDATA upfront.
 When a node receives a GETDATA:
 
 1. For each requested hash, look up the full TX in `tx_buffer`.
-2. If found, send `TX(data)` (`0x01` + raw bytes) back on the TX stream.
+2. If found, send a `StellarMessage::Transaction` frame back on the TX
+   stream — framed by prefixing the union discriminant to the canonical
+   envelope bytes we already hold, with no decode/re-encode.
 3. If not found (evicted or never had), increment
    `flood_unfulfilled_unknown` and skip.
 
@@ -192,11 +200,11 @@ Node D: receives INV from A, INV from B (via C's relay)
 
 ## Known issues and TODOs
 
-- **INV `fee_per_op` is always 0** for TXs received from the network
-  (`libp2p_overlay.rs` ~line 961, and `main.rs:748` carries a TODO to
-  parse XDR). Fee-based prioritization in INV is therefore disabled
-  end-to-end for relayed TXs.
-- **Mempool fee is 0 for network TXs** for the same reason (XDR parsing
-  not wired); see [mempool.md](mempool.md).
+- **Announced fees never reach the receiver.** Every TX — local or
+  relayed — now knows its real `fee_per_op` (carried by the shared
+  `ValidatedTx`, so mempool fee ordering is correct; see
+  [mempool.md](mempool.md)), but `FloodAdvert` transmits only hashes.
+  The receiver records announced entries with fee 0 and cannot
+  prioritize its pulls by fee.
 - **No DoS scoring** at the overlay layer — a peer flooding INVs is not
   throttled.
