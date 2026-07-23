@@ -41,6 +41,12 @@ class TxAdverts
     void rememberHash(Hash const& hash, uint32_t ledgerSeq);
     void flushAdvert();
     void startAdvertTimer();
+#ifdef BUILD_TESTS
+  public:
+#endif
+    // Get the maximum size for transaction hashes to process, considering both
+    // Soroban and classic limits
+    size_t getTxLimit();
 
   public:
     TxAdverts(Application& app);
