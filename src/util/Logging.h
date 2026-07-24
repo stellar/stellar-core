@@ -157,6 +157,19 @@ class CoutLogger
     }
 };
 
+// Logging uses one *permanent* spdlog logger per partition (plus "default"):
+// the logger objects are created on first use and are never destroyed or
+// replaced for the lifetime of the process. Each logger's single sink is a
+// thread-safe dist_sink_mt whose child sinks (console/file) are swapped in
+// place, under that sink's own mutex, whenever logging is (re)configured.
+// Log levels are atomics inside spdlog.
+//
+// This makes the per-partition getters below (and thus every CLOG_* call
+// site) lock-free and write-free: checking whether a disabled level is
+// enabled costs two loads and touches no shared mutable state, so it can be
+// done freely from concurrently-running threads. It is also safe to cache the
+// returned pointer: reconfiguration changes what the permanent loggers write
+// to, not the logger identities.
 class Logging
 {
     static LogLevel mGlobalLogLevel;
@@ -168,10 +181,6 @@ class Logging
     static std::string mLastPattern;
     static std::string mLastFilenamePattern;
     static bool mLogToConsole;
-    static LogPtr defaultLogPtr;
-#define LOG_PARTITION(name) static LogPtr name##LogPtr;
-#include "util/LogPartitions.def"
-#undef LOG_PARTITION
 #endif
 
   public:
@@ -196,8 +205,8 @@ class Logging
     static std::array<std::string const, 15> const kPartitionNames;
 
 #if defined(USE_SPDLOG)
-    static LogPtr getDefaultLogPtr();
-#define LOG_PARTITION(name) static LogPtr get##name##LogPtr();
+    static spdlog::logger* getDefaultLogPtr();
+#define LOG_PARTITION(name) static spdlog::logger* get##name##LogPtr();
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION
 #endif
