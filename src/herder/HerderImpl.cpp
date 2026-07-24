@@ -2440,6 +2440,7 @@ HerderImpl::restoreSCPState()
             }
             for (auto const& e : scpState.v1().scpEnvelopes)
             {
+                getHerderSCPDriver().markSlotAsRestored(e.statement.slotIndex);
                 auto envW = getHerderSCPDriver().wrapEnvelope(e);
                 getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
                 mLastSlotSaved =
