@@ -833,12 +833,11 @@ SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
         {
             return true;
         }
-        if (auto cmp = compareLedgerKeys(iterators[leftIndex].getKey(),
-                                         iterators[rightIndex].getKey());
-            cmp != std::partial_ordering::equivalent)
+        if (std::strong_ordering cmp = LedgerEntryIdCmp::compare(
+                iterators[leftIndex].getKey(), iterators[rightIndex].getKey());
+            cmp != std::strong_ordering::equal)
         {
-            releaseAssert(cmp != std::partial_ordering::unordered);
-            return cmp == std::partial_ordering::less;
+            return cmp == std::strong_ordering::less;
         }
         return leftIndex < rightIndex;
     };

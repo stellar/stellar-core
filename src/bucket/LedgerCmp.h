@@ -5,6 +5,7 @@
 #pragma once
 
 #include <compare>
+#include <concepts>
 #include <type_traits>
 
 #include "bucket/BucketUtils.h"
@@ -17,26 +18,28 @@ class HotArchiveBucket;
 class LiveBucket;
 
 template <typename T>
-bool
+std::strong_ordering
 lexCompare(T&& lhs1, T&& rhs1)
 {
-    return lhs1 < rhs1;
+    return lhs1 <=> rhs1;
 }
 
 template <typename T, typename... U>
-bool
+std::strong_ordering
 lexCompare(T&& lhs1, T&& rhs1, U&&... args)
 {
-    if (lhs1 < rhs1)
+
+    if (std::strong_ordering cmp = lhs1 <=> rhs1;
+        cmp != std::strong_ordering::equal)
     {
-        return true;
-    }
-    else if (rhs1 < lhs1)
-    {
-        return false;
+        return cmp;
     }
     return lexCompare(std::forward<U>(args)...);
 }
+
+template <typename T>
+concept LedgerKeyComparable =
+    std::same_as<T, LedgerKey> || std::same_as<T, LedgerEntry::_data_t>;
 
 /**
  * Compare two LedgerEntries or LedgerKeys for 'identity', not content.
@@ -55,24 +58,23 @@ lexCompare(T&& lhs1, T&& rhs1, U&&... args)
  */
 struct LedgerEntryIdCmp
 {
-    template <typename T, typename U>
-    auto
-    operator()(T const& a, U const& b) const
-        -> decltype(a.type(), b.type(), bool())
+    static std::strong_ordering
+    compare(LedgerKeyComparable auto const& a,
+            LedgerKeyComparable auto const& b)
     {
         LedgerEntryType aty = a.type();
         LedgerEntryType bty = b.type();
 
         if (aty < bty)
-            return true;
+            return std::strong_ordering::less;
 
         if (aty > bty)
-            return false;
+            return std::strong_ordering::greater;
 
         switch (aty)
         {
         case ACCOUNT:
-            return a.account().accountID < b.account().accountID;
+            return a.account().accountID <=> b.account().accountID;
         case TRUSTLINE:
             return lexCompare(a.trustLine().accountID, b.trustLine().accountID,
                               a.trustLine().asset, b.trustLine().asset);
@@ -83,10 +85,10 @@ struct LedgerEntryIdCmp
             return lexCompare(a.data().accountID, b.data().accountID,
                               a.data().dataName, b.data().dataName);
         case CLAIMABLE_BALANCE:
-            return a.claimableBalance().balanceID <
+            return a.claimableBalance().balanceID <=>
                    b.claimableBalance().balanceID;
         case LIQUIDITY_POOL:
-            return a.liquidityPool().liquidityPoolID <
+            return a.liquidityPool().liquidityPoolID <=>
                    b.liquidityPool().liquidityPoolID;
         case CONTRACT_DATA:
         {
@@ -115,18 +117,21 @@ struct LedgerEntryIdCmp
                     throw std::runtime_error("Unexpected entry type");
                 }
             };
-            return getConfigSettingId(a) < getConfigSettingId(b);
+            return getConfigSettingId(a) <=> getConfigSettingId(b);
         }
         case TTL:
             return lexCompare(a.ttl().keyHash, b.ttl().keyHash);
         }
-        return false;
+        return std::strong_ordering::equal;
+    }
+
+    bool
+    operator()(LedgerKeyComparable auto const& a,
+               LedgerKeyComparable auto const& b) const
+    {
+        return compare(a, b) == std::strong_ordering::less;
     }
 };
-
-// Like LedgerEntryIdCmp, but only compares LedgerKeys, and does a 3-way
-// comparison instead of a less-than.
-std::partial_ordering compareLedgerKeys(LedgerKey const& a, LedgerKey const& b);
 
 /**
  * Compare two BucketEntries for identity by comparing their respective
