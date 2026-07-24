@@ -210,6 +210,12 @@ fastdev = ["dep:soroban-env-host-p27",
 
 tracy = ["dep:tracy-client"]
 
+# Use the C++ tcmalloc (gperftools) allocator that is linked into stellar-core
+# as the Rust global allocator (see src/tcmalloc.rs). This is enabled by the
+# build system (src/Makefile.am) whenever the C++ build uses tcmalloc
+# (USE_TCMALLOC). Builds without it use Rust's default allocator.
+tcmalloc = []
+
 # The "next" feature enables not-yet-released features that (a) break protocol
 # but (b) are still under development, in between protocol releases. This
 # feature is not enabled by default, and is only intended for temporary use when

@@ -53,6 +53,16 @@ else
 CARGO_FEATURE_TRACY =
 endif
 
+# Enable the custom tcmalloc global allocator in the Rust crate whenever the C++
+# build links tcmalloc (see configure.ac). The global allocator lives only in
+# the top-level stellar-core crate, so this is intentionally not passed to the
+# soroban sub-crate builds below.
+if USE_TCMALLOC
+CARGO_FEATURE_TCMALLOC = --features tcmalloc
+else
+CARGO_FEATURE_TCMALLOC =
+endif
+
 # Generated sources that are built separately (not in SRC_CXX_FILES)
 # These are reused by both stellar-core and fuzz targets.
 GENERATED_VERSION_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp
@@ -345,7 +355,8 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(RUST
 		$(RUST_PROFILE_ARG) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
-		$(CARGO_FEATURE_FASTDEV) $(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)
+		$(CARGO_FEATURE_FASTDEV) $(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		$(CARGO_FEATURE_TCMALLOC)
 
 else # !ENABLE_FASTDEV_UNSAFE_FOR_PRODUCTION
 
@@ -456,6 +467,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) $(ALL_SOROBAN_L
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
 		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		$(CARGO_FEATURE_TCMALLOC) \
 		-- \
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)

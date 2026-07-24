@@ -44,6 +44,17 @@ mod soroban_test_extra_protocol;
 
 mod soroban_fuzz;
 
+// When built against a C++ tcmalloc, route all Rust allocations (including the
+// linked-in soroban hosts) through it via a custom global allocator. See
+// tcmalloc.rs for details. Gated on the `tcmalloc` feature so tcmalloc-less
+// builds keep using Rust's default allocator.
+#[cfg(feature = "tcmalloc")]
+mod tcmalloc;
+
+#[cfg(feature = "tcmalloc")]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: tcmalloc::TcMalloc = tcmalloc::TcMalloc;
+
 use soroban_module_cache::SorobanModuleCache;
 
 mod bridge;
