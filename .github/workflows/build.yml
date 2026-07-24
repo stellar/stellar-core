@@ -17,7 +17,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [static-checks, build-linux, build-mac]
+    needs: [static-checks, build-linux, build-linux-fuzz-targets, build-mac]
     runs-on:
       - namespace-profile-noble-24-04-stellar-core-x64-small
     steps:
@@ -193,6 +193,98 @@ jobs:
         if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
         run: |
           echo "${{ github.sha }}" > "build-${{matrix.toolchain}}-${{matrix.protocol}}/.last-tested-commit-sha"
+
+
+  build-linux-fuzz-targets:
+    if: github.event.repository.visibility != 'private'
+    runs-on:
+      - namespace-profile-noble-24-04-stellar-core-x64-large;overrides.cache-tag=config-clang-libfuzzer
+    steps:
+      - name: Checkout with Namespace Git mirrors cache
+        uses: namespacelabs/nscloud-checkout-action@v7
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Configure Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ~/.cargo
+            build-clang-libfuzzer
+
+      - name: Check if commit already tested
+        id: check-last-tested-commit
+        run: |
+          LAST_TESTED_COMMIT_SHA_FILE="build-clang-libfuzzer/.last-tested-commit-sha"
+          if [ -f "$LAST_TESTED_COMMIT_SHA_FILE" ] && [ "$(cat "$LAST_TESTED_COMMIT_SHA_FILE")" = "${{ github.sha }}" ]; then
+            echo "Commit ${{ github.sha }} already tested successfully, skipping build"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install rustup
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: ./install-rust.sh
+
+      - name: Install rustup components
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: rustup component add rustfmt
+
+      - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        with:
+          name: cargo-cache
+          version: 0.8.3
+
+      - uses: stellar/binaries@v50
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        with:
+          name: cargo-sweep
+          version: 0.7.0
+
+      # Restore original modification time of files based on the date of the most
+      # recent commit that modified them as mtimes affect the Go test cache.
+      - name: Restore modification time of checkout files
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        shell: bash
+        run: |
+          # Set a base, fixed modification time of all directories.
+          # git-restore-mtime doesn't set the mtime of all directories.
+          # (see https://github.com/MestreLion/git-tools/issues/47 for details)
+          touch -m -t '201509301646' $(find . -type d -not -path '.git/*')
+          # Restore original modification time from git. git clone sets the
+          # modification time to the current time, but Go tests that access fixtures
+          # get invalidated if their modification times change.
+          #
+          # Note: git-restore-mtime needs to be baked into the image we're
+          # running on.
+          git restore-mtime
+
+      - name: Build fuzz targets
+        if: steps.check-last-tested-commit.outputs.skip != 'true'
+        run: |
+          export CC=clang
+          export CXX=clang++
+          export CFLAGS="-g -fsanitize=fuzzer-no-link,address"
+          export CXXFLAGS="-g -fsanitize=fuzzer-no-link,address"
+          export LIB_FUZZING_ENGINE="-fsanitize=fuzzer"
+          export OUT=./fuzz-out
+          rm -rf fuzz-out
+          mkdir fuzz-out
+          ./build-fuzz.sh
+
+      - name: Check that some fuzz targets were built
+        if: steps.check-last-tested-commit.outputs.skip != 'true' && hashFiles('fuzz-out/fuzz_*') == ''
+        run: exit 1
+
+      - name: Record successful test commit
+        if: ${{ success() && steps.check-last-tested-commit.outputs.skip != 'true' }}
+        run: |
+          echo "${{ github.sha }}" > "build-clang-libfuzzer/.last-tested-commit-sha"
+
+
 
   build-mac:
     if: github.event.repository.visibility != 'private'
