@@ -626,6 +626,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\AppConnector.cpp" />
     <ClCompile Include="..\..\src\main\BannedAccountsPersistor.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
+    <ClCompile Include="..\..\src\main\NtpProbe.cpp" />
     <ClCompile Include="..\..\src\main\QueryServer.cpp" />
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
     <ClCompile Include="..\..\src\main\test\ApplicationUtilsTests.cpp" />
@@ -759,6 +760,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
+    <ClCompile Include="..\..\src\util\BatchExecutor.cpp" />
     <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp" />
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
@@ -1092,6 +1094,7 @@ exit /b 0
     <ClInclude Include="..\..\src\main\AppConnector.h" />
     <ClInclude Include="..\..\src\main\BannedAccountsPersistor.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
+    <ClInclude Include="..\..\src\main\NtpProbe.h" />
     <ClInclude Include="..\..\src\main\QueryServer.h" />
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
@@ -1182,6 +1185,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
+    <ClInclude Include="..\..\src\util\BatchExecutor.h" />
     <ClInclude Include="..\..\src\util\BinaryFuseFilter.h" />
     <ClInclude Include="..\..\src\util\BufferedAsioCerealOutputArchive.h" />
     <ClInclude Include="..\..\src\util\DebugMetaUtils.h" />

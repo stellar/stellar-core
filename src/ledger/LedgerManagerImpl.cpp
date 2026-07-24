@@ -40,6 +40,7 @@
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMeta.h"
 #include "transactions/TransactionUtils.h"
+#include "util/BatchExecutor.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
@@ -2639,42 +2640,37 @@ LedgerManagerImpl::applySorobanStageClustersInParallel(
 {
     ZoneScoped;
 
-    std::vector<std::unique_ptr<ThreadParallelApplyLedgerState>> threadStates;
-    std::vector<std::future<std::unique_ptr<ThreadParallelApplyLedgerState>>>
-        threadFutures;
-
     DeactivateScopeGuard globalStateDeactivateGuard(globalState);
 
+    std::vector<
+        std::function<std::unique_ptr<ThreadParallelApplyLedgerState>()>>
+        tasks;
+    tasks.reserve(stage.numClusters());
     for (size_t i = 0; i < stage.numClusters(); ++i)
     {
-        auto const& cluster = stage.getCluster(i);
-        auto threadStatePtr = std::make_unique<ThreadParallelApplyLedgerState>(
-            app, globalState, cluster, i);
-        threadFutures.emplace_back(std::async(
-            std::launch::async, &LedgerManagerImpl::applyThread, this,
-            std::ref(app), std::move(threadStatePtr), std::cref(cluster),
-            std::cref(config), ledgerInfo, sorobanBasePrngSeed));
+        tasks.emplace_back([this, &app, &globalState, &stage, i, &config,
+                            &ledgerInfo, &sorobanBasePrngSeed]() {
+            auto const& cluster = stage.getCluster(i);
+            auto threadStatePtr =
+                std::make_unique<ThreadParallelApplyLedgerState>(
+                    app, globalState, cluster, i);
+            return applyThread(app, std::move(threadStatePtr), cluster, config,
+                               ledgerInfo, sorobanBasePrngSeed);
+        });
     }
 
-    for (auto& threadFuture : threadFutures)
+    try
     {
-        releaseAssert(threadFuture.valid());
-        try
-        {
-            auto futureResult = threadFuture.get();
-            threadStates.emplace_back(std::move(futureResult));
-        }
-        catch (std::exception const& e)
-        {
-            printErrorAndAbort("Exception on apply thread: ", e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort("Unknown exception on apply thread");
-        }
+        return app.getBatchExecutor().executeBatch(std::move(tasks));
     }
-    threadFutures.clear();
-    return threadStates;
+    catch (std::exception const& e)
+    {
+        printErrorAndAbort("Exception on apply thread: ", e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception on apply thread");
+    }
 }
 
 void

@@ -308,7 +308,8 @@ GlobalParallelApplyLedgerState::GlobalParallelApplyLedgerState(
                          mInMemorySorobanState.getLedgerSeq());
     releaseAssertOrThrow(ltx.getHeader().ledgerSeq ==
                          mLCLApplyView.getLedgerSeq() + 1);
-
+    releaseAssert(threadIsMain() ||
+                  app.threadIsType(Application::ThreadType::APPLY));
     // From now on, we will be using globalState, liveSnapshots, and the
     // hotArchive to collect all entries. Before we continue though, we need to
     // load into the globalEntryMap any classic entries that have been modified
@@ -327,9 +328,6 @@ GlobalParallelApplyLedgerState::
         AppConnector& app, AbstractLedgerTxn& ltx,
         std::vector<ApplyStage> const& stages)
 {
-    releaseAssert(threadIsMain() ||
-                  app.threadIsType(Application::ThreadType::APPLY));
-
     auto fetchInMemoryClassicEntries =
         [&](xdr::xvector<LedgerKey> const& keys) {
             for (auto const& lk : keys)
@@ -564,9 +562,6 @@ ThreadParallelApplyLedgerState::collectClusterFootprintEntriesFromGlobal(
     AppConnector& app, GlobalParallelApplyLedgerState const& global,
     Cluster const& cluster)
 {
-    releaseAssert(threadIsMain() ||
-                  app.threadIsType(Application::ThreadType::APPLY));
-
     // As part of the initialization of this thread state, we need to
     // collect all the keys that are in the global state map. For any keys
     // we need not in the global state, we will fetch them from the live
@@ -751,7 +746,6 @@ ThreadParallelApplyLedgerState::upsertEntry(
 void
 ThreadParallelApplyLedgerState::eraseEntry(LedgerKey const& key)
 {
-
     auto parAppEntry =
         ThreadParallelApplyEntry::dirty(scopeAdoptEntryOpt(std::nullopt));
     mThreadEntryMap.insert_or_assign(key, parAppEntry);

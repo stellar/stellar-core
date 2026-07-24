@@ -53,6 +53,7 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
 #include "transactions/SignatureChecker.h"
+#include "util/BatchExecutor.h"
 #include "util/GlobalChecks.h"
 #include "util/JitterInjection.h"
 #include "util/LogSlowExecution.h"
@@ -109,6 +110,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
               : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
+    , mBatchExecutor(std::make_unique<BatchExecutor>())
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
@@ -1539,6 +1541,13 @@ ApplicationImpl::getLedgerCloseIOContext()
 {
     releaseAssert(mLedgerCloseIOContext);
     return *mLedgerCloseIOContext;
+}
+
+BatchExecutor&
+ApplicationImpl::getBatchExecutor()
+{
+    releaseAssert(mBatchExecutor);
+    return *mBatchExecutor;
 }
 
 void
