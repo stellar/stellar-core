@@ -9,6 +9,7 @@
 #include "util/GlobalChecks.h"
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -95,6 +96,16 @@ class BallotProtocol
     SCPEnvelopeWrapperPtr
         mLastEnvelopeEmit; // last envelope emitted by this node
 
+    // Information about the state of balloting upon stalling when attempting to
+    // set `c` to a value the node has not successfully fetched.
+    struct StalledCommit
+    {
+        SCPBallot mCommitBallot;      // c (deferred; not in the emitted stmt)
+        SCPBallot mHighBallot;        // h
+        SCPStatement mStallStatement; // self statement emitted at the stall
+    };
+    std::optional<StalledCommit> mStalledCommit;
+
   public:
     BallotProtocol(Slot& slot);
 
@@ -118,6 +129,12 @@ class BallotProtocol
     bool bumpState(Value const& value, bool force);
     // flavor that takes the actual desired counter value
     bool bumpState(Value const& value, uint32 n);
+
+    // Called when the tx set referenced by @p value arrives.
+    // If balloting stalled waiting for this tx set, AND the node's state has
+    // not changed since hitting the stall point, this function will resume
+    // balloting for this slot immediately. Otherwise, it does nothing.
+    void receivedTxSet(Value const& value);
 
     // ** status methods
 
@@ -166,8 +183,8 @@ class BallotProtocol
     static std::set<Value> getStatementValues(SCPStatement const& st);
 
     // returns true if st is newer than oldst
-    static bool isNewerStatement(SCPStatement const& oldst,
-                                 SCPStatement const& st);
+    bool isNewerStatement(SCPStatement const& oldst,
+                          SCPStatement const& st) const;
 
   private:
     // attempts to make progress using the latest statement as a hint
@@ -305,9 +322,11 @@ class BallotProtocol
     // we have.
     bool updateCurrentValue(SCPBallot const& ballot);
 
-    // emits a statement reflecting the nodes' current state
-    // and attempts to make progress
-    void emitCurrentStateStatement();
+    // Emits a statement reflecting the node's current state and attempts to
+    // make progress. Returns the statement it generated (built from current
+    // state, *before* the self-processing recursion that may advance the ballot
+    // further), so callers can capture exactly what this call produced.
+    SCPStatement emitCurrentStateStatement();
 
     // verifies that the internal state is consistent
     void checkInvariants();

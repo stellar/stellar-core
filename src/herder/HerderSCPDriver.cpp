@@ -1327,6 +1327,14 @@ HerderSCPDriver::recordBallotBlockedOnTxSet(uint64_t slotIndex,
         timing.mBallotBlockedOnTxSetStart.end())
     {
         timing.mBallotBlockedOnTxSetStart[value] = mApp.getClock().now();
+
+        if (StellarValue sv;
+            isParallelTxSetDownloadEnabled() && toStellarValue(value, sv))
+        {
+            // Remember that `value` is stalled waiting for the tx set
+            // with hash `sv.txSetHash`.
+            mStallingByTxSet[sv.txSetHash].emplace_back(slotIndex, value);
+        }
     }
 }
 
@@ -1345,6 +1353,27 @@ HerderSCPDriver::measureAndRecordBallotBlockedOnTxSet(uint64_t slotIndex,
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     mApp.getClock().now() - valueIt->second);
             mSCPMetrics.mBallotBlockedOnTxSet.Update(elapsed);
+
+            if (StellarValue sv; toStellarValue(value, sv))
+            {
+                // This value is no longer stalled. Remove it from
+                // `mStallingByTxSet`
+                auto sIt = mStallingByTxSet.find(sv.txSetHash);
+                if (sIt != mStallingByTxSet.end())
+                {
+                    auto& vec = sIt->second;
+                    vec.erase(std::remove_if(vec.begin(), vec.end(),
+                                             [&](auto const& p) {
+                                                 return p.first == slotIndex &&
+                                                        p.second == value;
+                                             }),
+                              vec.end());
+                    if (vec.empty())
+                    {
+                        mStallingByTxSet.erase(sIt);
+                    }
+                }
+            }
             return;
         }
     }
@@ -1717,6 +1746,23 @@ HerderSCPDriver::purgeSlotsOutsideRange(std::optional<uint64_t> minSlotIndex,
     // Clean up expired weak_ptrs from the pending tx set registries.
     purgeExpiredWeakPtrs(mPendingTxSetWrappers);
     purgeExpiredWeakPtrs(mPendingTxSetEnvelopeWrappers);
+
+    // Drop stalled-ballot resume entries whose slots fall outside the retained
+    // range.
+    for (auto it = mStallingByTxSet.begin(); it != mStallingByTxSet.end();)
+    {
+        auto& stalling = it->second;
+        stalling.erase(
+            std::remove_if(stalling.begin(), stalling.end(),
+                           [&](auto const& slotAndValue) {
+                               auto const slot = slotAndValue.first;
+                               return slot != slotToKeep &&
+                                      ((minSlotIndex && slot < *minSlotIndex) ||
+                                       (maxSlotIndex && slot > *maxSlotIndex));
+                           }),
+            stalling.end());
+        it = stalling.empty() ? mStallingByTxSet.erase(it) : std::next(it);
+    }
 }
 
 void
@@ -1749,6 +1795,34 @@ HerderSCPDriver::onTxSetReceived(Hash const& txSetHash,
             }
         }
         mPendingTxSetEnvelopeWrappers.erase(envIt);
+    }
+
+    // Resume any slot that stalled waiting for this tx set
+    maybeResumeBalloting(txSetHash);
+}
+
+void
+HerderSCPDriver::maybeResumeBalloting(Hash const& txSetHash)
+{
+    if (!isParallelTxSetDownloadEnabled())
+    {
+        return;
+    }
+
+    auto it = mStallingByTxSet.find(txSetHash);
+    if (it == mStallingByTxSet.end())
+    {
+        return;
+    }
+
+    // Remove entry from `mStallingByTxSet` and iterate over stalling slots
+    // Remove prior to iterating because the `receivedTxSet` flow may itself
+    // modify `mStallingByTxSet`.
+    auto const stalling = std::move(it->second);
+    mStallingByTxSet.erase(it);
+    for (auto const& slotAndValue : stalling)
+    {
+        mSCP.receivedTxSet(slotAndValue.first, slotAndValue.second);
     }
 }
 

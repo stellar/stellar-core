@@ -177,6 +177,10 @@ class HerderSCPDriver : public SCPDriver
     // downloading).
     void onTxSetReceived(Hash const& txSetHash, TxSetXDRFrameConstPtr txSet);
 
+    // If balloting is stalled waiting for txSetHash, then resume balloting from
+    // the stall point. Otherwise, do nothing.
+    void maybeResumeBalloting(Hash const& txSetHash);
+
     double getExternalizeLag(NodeID const& id) const;
 
     Json::Value getQsetLagInfo(bool summary, bool fullKeys);
@@ -314,6 +318,11 @@ class HerderSCPDriver : public SCPDriver
     // * nomination to first prepare
     // * first prepare to externalize
     std::map<uint64_t, SCPTiming> mSCPExecutionTimes;
+
+    // Values stalled at the ballot commit gate waiting for a tx set.
+    // Mapping from <tx set hashes> to pairs of (<slot index>, <stalled value>).
+    UnorderedMap<Hash, std::vector<std::pair<uint64_t, Value>>>
+        mStallingByTxSet;
 
     uint32_t mLedgerSeqNominating;
     ValueWrapperPtr mCurrentValue;
