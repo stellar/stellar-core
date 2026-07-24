@@ -545,7 +545,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 }
 
 TEST_CASE("flow control total byte capacity throttles non-flood traffic",
-          "[overlay][flowcontrol][!hide]")
+          "[overlay][flowcontrol]")
 {
     SCPQuorumSet qSet;
     qSet.threshold = 1;
@@ -563,7 +563,7 @@ TEST_CASE("flow control total byte capacity throttles non-flood traffic",
 
     auto const msgSize = FlowControlCapacity::msgBodySize(*scpQSetMsg);
     uint64_t constexpr MESSAGES_TO_FLOOR = 3;
-    uint64_t constexpr MESSAGES_PER_BURST = MESSAGES_TO_FLOOR + 1;
+    size_t constexpr NUM_CYCLES = 100;
     auto const byteCapacity = msgSize * MESSAGES_TO_FLOOR - 1;
     auto const totalCapacity =
         FlowControlByteCapacity::BYTE_CAPACITY_READ_FLOOR + byteCapacity;
@@ -621,33 +621,21 @@ TEST_CASE("flow control total byte capacity throttles non-flood traffic",
             .getOverlayMetrics()
             .mConnectionReadThrottle.count();
     };
-    auto waitFor = [&](std::string const& phase, auto&& predicate) {
-        auto timeout = std::chrono::seconds(10);
-        auto start = std::chrono::steady_clock::now();
-
-        while (!predicate() &&
-               std::chrono::steady_clock::now() - start <= timeout)
-        {
-            if (simulation->crankAllNodes() == 0)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        }
-
-        auto capacity = getReceiverCapacity();
-        CAPTURE(phase);
-        CAPTURE(capacity.mTotalCapacity);
-        CAPTURE(totalCapacity);
-        CAPTURE(capacity.mFloodCapacity);
-        CAPTURE(receiver->getFlowControl()->isThrottled());
-        CAPTURE(receiver->getFlowControl()->canRead());
-        CAPTURE(sender->isConnectedForTesting());
-        CAPTURE(receiver->isConnectedForTesting());
-        CAPTURE(getReadThrottleCount());
-
-        REQUIRE(predicate());
+    auto getRecvCount = [&]() {
+        return app2->getOverlayManager()
+            .getOverlayMetrics()
+            .mRecvSCPQuorumSetTimer.count();
     };
-    auto waitForReceiverThrottle = [&]() {
+
+    simulation->crankUntil(
+        [&]() {
+            return getReceiverCapacity().mTotalCapacity == totalCapacity &&
+                   !receiver->getFlowControl()->isThrottled();
+        },
+        std::chrono::seconds(10), false);
+    auto const initialCapacity = getReceiverCapacity();
+
+    auto waitForThrottle = [&](size_t cycle) {
         auto timeout = std::chrono::seconds(10);
         auto start = std::chrono::steady_clock::now();
 
@@ -658,6 +646,7 @@ TEST_CASE("flow control total byte capacity throttles non-flood traffic",
         }
 
         auto capacity = getReceiverCapacity();
+        CAPTURE(cycle);
         CAPTURE(capacity.mTotalCapacity);
         CAPTURE(totalCapacity);
         CAPTURE(capacity.mFloodCapacity);
@@ -668,44 +657,41 @@ TEST_CASE("flow control total byte capacity throttles non-flood traffic",
         CAPTURE(getReadThrottleCount());
 
         REQUIRE(receiver->getFlowControl()->isThrottled());
-    };
-    auto drainReceiver = [&]() {
-        waitFor("receiver drains", [&]() {
-            return getReceiverCapacity().mTotalCapacity == totalCapacity &&
-                   !receiver->getFlowControl()->isThrottled();
-        });
-        REQUIRE(getReceiverCapacity().mTotalCapacity == totalCapacity);
-        REQUIRE(!receiver->getFlowControl()->isThrottled());
+        REQUIRE(capacity.mTotalCapacity ==
+                FlowControlByteCapacity::BYTE_CAPACITY_READ_FLOOR - 1);
+        REQUIRE(capacity.mFloodCapacity == initialCapacity.mFloodCapacity);
     };
 
-    drainReceiver();
-    auto const initialFloodCapacity = getReceiverCapacity().mFloodCapacity;
-    auto requireReceiverTotalCapacity = [&](uint64_t total) {
-        auto capacity = getReceiverCapacity();
-        REQUIRE(capacity.mTotalCapacity == total);
-        REQUIRE(capacity.mFloodCapacity == initialFloodCapacity);
-    };
-
-    requireReceiverTotalCapacity(totalCapacity);
+    REQUIRE(initialCapacity.mTotalCapacity == totalCapacity);
     REQUIRE(receiver->getFlowControl()->canRead());
     REQUIRE(!receiver->getFlowControl()->isThrottled());
+    REQUIRE(initialCapacity.mFloodCapacity ==
+            app2->getOverlayManager().getFlowControlFloodByteCapacity());
 
-    for (size_t i = 0; i < 100; ++i)
+    for (size_t cycle = 0; cycle < NUM_CYCLES; ++cycle)
     {
-        CAPTURE(i);
-        drainReceiver();
+        CAPTURE(cycle);
         auto const initialReadThrottleCount = getReadThrottleCount();
-        CAPTURE(initialReadThrottleCount);
-        for (size_t j = 0; j < MESSAGES_PER_BURST; ++j)
+        auto const initialRecvCount = getRecvCount();
+        for (size_t i = 0; i < MESSAGES_TO_FLOOR; ++i)
         {
             sender->sendMessage(scpQSetMsg);
         }
 
-        waitForReceiverThrottle();
-        drainReceiver();
+        waitForThrottle(cycle);
+        simulation->crankUntil(
+            [&]() {
+                return getRecvCount() == initialRecvCount + MESSAGES_TO_FLOOR;
+            },
+            std::chrono::seconds(10), false);
+
+        auto const finalCapacity = getReceiverCapacity();
+        REQUIRE(getRecvCount() == initialRecvCount + MESSAGES_TO_FLOOR);
         REQUIRE(getReadThrottleCount() > initialReadThrottleCount);
-        requireReceiverTotalCapacity(totalCapacity);
+        REQUIRE(finalCapacity.mTotalCapacity == initialCapacity.mTotalCapacity);
+        REQUIRE(finalCapacity.mFloodCapacity == initialCapacity.mFloodCapacity);
         REQUIRE(receiver->getFlowControl()->canRead());
+        REQUIRE(!receiver->getFlowControl()->isThrottled());
         REQUIRE(sender->isConnectedForTesting());
         REQUIRE(receiver->isConnectedForTesting());
     }
