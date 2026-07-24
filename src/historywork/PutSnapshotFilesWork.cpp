@@ -11,6 +11,7 @@
 #include "historywork/PutFilesWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "work/WorkSequence.h"
 #include <Tracy.hpp>
@@ -94,8 +95,18 @@ PutSnapshotFilesWork::doWork()
     }
 
     // Step 1: Get all archive states
-    for (auto const& archive :
-         mApp.getHistoryArchiveManager().getWritableHistoryArchives())
+    auto archives =
+        mApp.getHistoryArchiveManager().getWritableHistoryArchives();
+    if (archives.empty())
+    {
+        CLOG_ERROR(
+            History,
+            "PutSnapshotFilesWork: no writable history archives available");
+        CLOG_FATAL(History, "{}", REPORT_INTERNAL_BUG);
+        return State::WORK_FAILURE;
+    }
+
+    for (auto const& archive : archives)
     {
         mGetStateWorks.emplace_back(
             addWork<GetHistoryArchiveStateWork>(0, archive));
