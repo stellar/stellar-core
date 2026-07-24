@@ -12,7 +12,7 @@ of ledgers that are guaranteed to be in agreement across all the participating
 nodes at all times.
 
 For more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see [`src/scp/readme.md`](/src/scp/readme.md).
+guarantee see [`src/scp/README.md`](/src/scp/README.md).
 
 
 - [Building & Installing](/INSTALL.md)
@@ -29,26 +29,26 @@ guarantee see [`src/scp/readme.md`](/src/scp/readme.md).
 ## Major Components
 
 There are a few major components of the system. Each component has a dedicated
-source directory and its own dedicated `readme.md`.
+source directory and its own dedicated `README.md`.
 
 
 * **SCP** is our implementation of the Stellar Consensus Protocol (SCP). This
   component is fully abstracted from the rest of the system. It receives
   candidate black-box values and signals when these values have reached
   consensus by the network (called _externalizing_ a value) (See
-  [`src/scp/readme.md`](/src/scp/readme.md)).
+  [`src/scp/README.md`](/src/scp/README.md)).
 
 * **Herder** is responsible for interfacing between SCP and the rest of
   `stellar-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
   whether values contain valid signatures, and so forth. Herder often
   accomplishes its tasks by delegating to other components
-  (See [`src/herder/readme.md`](/src/herder/readme.md)).
+  (See [`src/herder/README.md`](/src/herder/README.md)).
 
 * **Overlay** connects to and keeps track of the peers this node knows
   about and is connected to. It floods messages and fetches from peers the data
   that is needed to accomplish consensus (See
-  [`src/overlay/readme.md`](/src/overlay/readme.md)). All
+  [`src/overlay/README.md`](/src/overlay/README.md)). All
   other data downloads are handled without imposing on the SCP-nodes, see
   [`./architecture.md`](/docs/architecture.md).
 
@@ -58,21 +58,21 @@ source directory and its own dedicated `readme.md`.
   informs the overlay system to update its map of flooded messages. Ledger also
   triggers the history system's catching-up routine when it detects that this
   node has fallen behind of the rest of the network (See
-  [`src/ledger/readme.md`](/src/ledger/readme.md)).
+  [`src/ledger/README.md`](/src/ledger/README.md)).
 
 * **History** publishes transaction and ledger entries to off-site permanent
   storage for auditing, and as a source of catch-up data for other nodes. When
   this node falls behind, the history system fetches catch-up data and submits
   it to Ledger twice: first to verify its security, then to apply it (See
-  [`src/history/readme.md`](/src/history/readme.md)).
+  [`src/history/README.md`](/src/history/README.md)).
 
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
   buckets by multiple background threads
-  (See [`src/bucket/readme.md`](/src/bucket/readme.md)).
+  (See [`src/bucket/README.md`](/src/bucket/README.md)).
 
 * **Transactions** implements all the various transaction types (See
-  [src/transactions/readme.md](/src/transactions/readme.md)).
+  [src/transactions/README.md](/src/transactions/README.md)).
 
 
 ## Supporting Code Directories
@@ -96,8 +96,8 @@ source directory and its own dedicated `readme.md`.
 * **src/simulation** provides support for instantiating and exercising
   in-process test networks.
 
-* **src/xdr** contains to definition of the wire protocol in the [`XDR`
+* **src/protocol-curr/xdr** contains the definition of the wire protocol in the [`XDR`
     (RFC4506)](https://tools.ietf.org/html/rfc4506.html) specification language.
 
-* **src/generated** contains the wire protocol's C++ classes, generated from
-  the definitions in `src/xdr`.
+* **src/xdr** contains the wire protocol's generated C++ classes, built from
+  the definitions in `src/protocol-curr/xdr`.
