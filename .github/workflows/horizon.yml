@@ -1,0 +1,22 @@
+name: Horizon Integration Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  horizon:
+    # TODO: pin to a SHA on stellar-horizon main (like rpc.yml does) once the
+    # callable-tests branch is merged.
+    uses: stellar/stellar-horizon/.github/workflows/integration-tests.yml@97078f289d95b398c7ef3526a283fc752743380c
+    with:
+      horizon_git_ref: protocol-next
+      core_git_ref: ${{ github.sha }}
+      protocol_version: '27'
+      stellar_rpc_docker_img: 'stellar/stellar-rpc:27.1.0'
