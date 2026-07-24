@@ -224,6 +224,15 @@ pub(crate) mod rust_bridge {
         // be called from a background thread. Never panics: any failure is
         // reported via NtpProbeResult::succeeded == false.
         fn query_ntp_offset(server: &CxxString, timeout_seconds: u64) -> NtpProbeResult;
+        // SHA-256 via RustCrypto's sha2, writing the 32-byte digest to `out`.
+        unsafe fn compute_sha256(data: *const u8, data_len: usize, out: *mut u8);
+        // Incremental SHA-256, for streaming hashing without materializing a
+        // contiguous input buffer.
+        type RustSha256;
+        fn new_rust_sha256() -> Box<RustSha256>;
+        unsafe fn update(self: &mut RustSha256, data: *const u8, len: usize);
+        unsafe fn finalize(self: &mut RustSha256, out: *mut u8);
+        fn reset(self: &mut RustSha256);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
 
         // Ed25519 signature verification using dalek library.
@@ -482,6 +491,7 @@ use crate::i128::*;
 use crate::log::*;
 use crate::ntp::*;
 use crate::quorum_checker::*;
+use crate::sha256::*;
 use crate::soroban_fuzz::*;
 use crate::soroban_invoke::*;
 use crate::soroban_module_cache::*;

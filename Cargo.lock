@@ -2069,6 +2069,7 @@ dependencies = [
  "rand",
  "rsntp",
  "rustc-simple-version",
+ "sha2",
  "soroban-env-host 21.2.2",
  "soroban-env-host 22.0.0",
  "soroban-env-host 23.0.0",

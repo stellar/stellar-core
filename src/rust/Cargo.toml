@@ -13,6 +13,7 @@ crate-type = ["staticlib"]
 log = "=0.4.19"
 cxx = "=1.0.97"
 base64 = "=0.13.1"
+sha2 = "=0.10.9"
 rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
