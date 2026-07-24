@@ -1450,7 +1450,7 @@ dbModeName(Config::TestDbMode mode)
     }
 }
 
-TEST_CASE("History catchup", "[history][catchup][acceptance]")
+TEST_CASE_VERSIONS("History catchup", "[history][catchup][acceptance]")
 {
     auto runTest = [](bool skipKnownResults) {
         // needs REAL_TIME here, as resolve-snapshot works will fail for one of
