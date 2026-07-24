@@ -211,8 +211,10 @@ std::vector<PeerBareAddress>
 PeerManager::getPeersToSend(size_t size, PeerBareAddress const& address)
 {
     ZoneScoped;
+    bool const allowPrivate =
+        mApp.getConfig().ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
     auto keep = [&](PeerBareAddress const& pba) {
-        return !pba.isPrivate() && pba != address;
+        return (allowPrivate || !pba.isPrivate()) && pba != address;
     };
 
     auto peers = mOutboundPeersToSend->getRandomPeers(size, keep);
