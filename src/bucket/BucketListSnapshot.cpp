@@ -703,6 +703,205 @@ SearchableLiveBucketListSnapshot::scanForEntriesOfType(
     loopAllBuckets(scanBucket);
 }
 
+namespace
+{
+// Iterator for `BucketEntry`s of a given type in a bucket. Expects the stream
+// to be positioned at the start of the type range. This is basically the same
+// as SearchableLiveBucketListSnapshot::scanForEntriesOfType's scanBucket except
+// with more control over when iteration happens.
+class BucketEntryIterator
+{
+    BucketEntry mEntry;
+    LedgerKey mKey;
+    XDRInputFileStream& mStream;
+    LedgerEntryType const mType;
+
+  public:
+    BucketEntryIterator(XDRInputFileStream& stream, LedgerEntryType type)
+        : mStream(stream), mType(type)
+    {
+    }
+
+    BucketEntry const&
+    getEntry() const
+    {
+        return mEntry;
+    }
+    LedgerKey const&
+    getKey() const
+    {
+        return mKey;
+    }
+
+    bool
+    advance()
+    {
+        while (mStream.readOne(mEntry))
+        {
+            if (isBucketMetaEntry<LiveBucket>(mEntry))
+            {
+                continue;
+            }
+            mKey = getBucketLedgerKey(mEntry);
+            if (mKey.type() > mType)
+            {
+                break;
+            }
+
+            if (mKey.type() == mType)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+} // namespace
+
+void
+SearchableLiveBucketListSnapshot::scanForLiveEntriesOfType(
+    LedgerEntryType type,
+    std::function<void(LedgerEntry const&, LedgerKey const&)> callback) const
+{
+    ZoneScoped;
+    // We implement this as a k-way merge over all buckets. We use a loser tree
+    // for this. The benefit over a heap is ~2x fewer comparisons. A loser tree
+    // is like a single-elimination tournament. The leaves of the tree are the
+    // iterators, and the internal nodes represent the loser of the comparison
+    // between the two children. This implementation represents the binary tree
+    // in an array, where the tournament tree is from indices [1, 2n) (leaves
+    // are [n, 2n)). Index 0 is used for keeping track of the overall winner. To
+    // update, we just need to advance the iterator for the winning node and
+    // then do the log(k) comparisons upward along the path to the root to
+    // update the losers. While loser trees often store the whole node value at
+    // intermediate nodes, we just store an index, since copying the XDR types
+    // is probably more expensive than the extra indirection.
+
+    std::vector<BucketEntryIterator> iterators;
+    loopAllBuckets([&iterators, type,
+                    this](std::shared_ptr<LiveBucket const> const& bucket) {
+        if (bucket->isEmpty())
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto range = bucket->getRangeForType(type);
+        if (!range)
+        {
+            return Loop::INCOMPLETE;
+        }
+
+        auto& stream = getStream(bucket);
+        stream.seek(range->first);
+
+        iterators.emplace_back(stream, type);
+        return Loop::INCOMPLETE;
+    });
+
+    if (iterators.empty())
+    {
+        return;
+    }
+
+    size_t const numIterators = iterators.size();
+
+    constexpr int exhausted = -1;
+    std::vector<int> tree;
+    tree.resize(numIterators * 2);
+    for (size_t i = 0; i < numIterators; ++i)
+    {
+        if (iterators[i].advance())
+        {
+            tree[numIterators + i] = i;
+        }
+        else
+        {
+            tree[numIterators + i] = exhausted;
+        }
+    }
+
+    // The leftIndex wins if it should come before the rightIndex. This happens
+    // when the left key is less than the right key, or if they are equal and
+    // the left index is less than the right index (newer buckets shadow older
+    // buckets).
+    auto leftWins = [&iterators](int leftIndex, int rightIndex) -> bool {
+        if (leftIndex == exhausted)
+        {
+            return false;
+        }
+        if (rightIndex == exhausted)
+        {
+            return true;
+        }
+        if (std::strong_ordering cmp = LedgerEntryIdCmp::compare(
+                iterators[leftIndex].getKey(), iterators[rightIndex].getKey());
+            cmp != std::strong_ordering::equal)
+        {
+            return cmp == std::strong_ordering::less;
+        }
+        return leftIndex < rightIndex;
+    };
+
+    // Play the match at index i; store the loser, return the winner
+    auto play = [&tree, &leftWins](auto& play, size_t index) -> int {
+        if (2 * index >= tree.size())
+        {
+            return tree[index];
+        }
+        int left = play(play, 2 * index);
+        int right = play(play, 2 * index + 1);
+        if (leftWins(left, right))
+        {
+            tree[index] = right;
+            return left;
+        }
+        else
+        {
+            tree[index] = left;
+            return right;
+        }
+    };
+    tree[0] = play(play, 1);
+
+    bool first = true;
+    LedgerKey last;
+    while (tree[0] != exhausted)
+    {
+        int index = tree[0];
+        auto& iter = iterators[index];
+        // Only call the callback if this is the first time we've seen the key
+        if (auto& key = iter.getKey(); first || key != last)
+        {
+            last = key;
+            auto& entry = iter.getEntry();
+            if (entry.type() == LIVEENTRY || entry.type() == INITENTRY)
+            {
+                callback(entry.liveEntry(), key);
+            }
+        }
+        first = false;
+
+        if (!iter.advance())
+        {
+            tree[index + numIterators] = exhausted;
+        }
+
+        // Update tournament up the tree to the root. As before, we store the
+        // loser at each node and keep track of the winner in `winner` and at
+        // tree[0].
+        int winner = tree[index + numIterators];
+        for (int i = (index + numIterators) / 2; i > 0; i /= 2)
+        {
+            if (leftWins(tree[i], winner))
+            {
+                std::swap(tree[i], winner);
+            }
+        }
+
+        tree[0] = winner;
+    }
+}
+
 // Helper function to handle scan logic in a single bucket.
 Loop
 SearchableLiveBucketListSnapshot::scanForEvictionInBucket(
