@@ -1018,14 +1018,22 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     bool log = true;
     auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
 
-    auto sendSlot = [weakPeer = std::weak_ptr<Peer>(peer)](SCPEnvelope const& e,
-                                                           bool log) {
+    // Record of which tx sets we've already sent HAVE_TX_SET messages for to
+    // `peer`
+    auto claimedTxSets = std::make_shared<UnorderedSet<Hash>>();
+    auto sendSlot = [this, claimedTxSets, weakPeer = std::weak_ptr<Peer>(peer)](
+                        SCPEnvelope const& e, bool log) {
         // If in the process of shutting down, exit early
         auto peerPtr = weakPeer.lock();
         if (!peerPtr)
         {
             return false;
         }
+
+        // Tell the peer which of the referenced tx sets we hold.  Sent before
+        // the envelope, so the claim is already buffered when the envelope
+        // triggers a fetch.
+        mPendingEnvelopes.sendHaveTxSetClaims(e, peerPtr, *claimedTxSets);
 
         StellarMessage m;
         m.type(SCP_MESSAGE);
@@ -1543,6 +1551,19 @@ HerderImpl::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvTxSet(hash, txset);
+}
+
+void
+HerderImpl::recvHaveTxSet(Hash const& hash, Peer::pointer peer)
+{
+    ZoneScoped;
+    mPendingEnvelopes.recvHaveTxSet(hash, peer);
+}
+
+bool
+HerderImpl::protocolAllowsEmptyTxSetValues() const
+{
+    return mHerderSCPDriver.protocolAllowsEmptyTxSetValues();
 }
 
 void

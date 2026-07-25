@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/TxSetFrame.h"
 #include "main/ApplicationImpl.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
@@ -17,7 +18,11 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/MetricsRegistry.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-types.h"
+#include <algorithm>
+#include <optional>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -75,6 +80,87 @@ makeEnvelope(int id)
     result.statement.pledges.confirm().nPrepared = id;
     return result;
 }
+
+// Shared setup for the fetcher/claim simulation tests
+struct FetchTestSim
+{
+    Simulation::pointer sim;
+    // Main's app, and its Peer objects
+    Application::pointer app;
+    std::vector<std::shared_ptr<LoopbackPeer>> peers;
+    // The remote ends, used to send TO Main, and the remote apps
+    std::vector<std::shared_ptr<LoopbackPeer>> senders;
+    std::vector<Application::pointer> remoteApps;
+
+    // `legacyRemote` pins that remote's overlay version below
+    // FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET.
+    FetchTestSim(size_t numRemotes,
+                 std::optional<size_t> legacyRemote = std::nullopt)
+        : sim(std::make_shared<Simulation>(
+              Simulation::OVER_LOOPBACK,
+              sha256(getTestConfig().NETWORK_PASSPHRASE)))
+        , mMainKey(SecretKey::fromSeed(sha256("NODE_SEED_MAIN")))
+    {
+        auto cfgMain = getTestConfig(1);
+        quieten(cfgMain);
+        sim->addNode(mMainKey, cfgMain.QUORUM_SET, &cfgMain);
+        sim->startAllNodes();
+        app = sim->getNode(mMainKey.getPublicKey());
+        for (size_t i = 0; i < numRemotes; ++i)
+        {
+            addRemote(legacyRemote == i);
+        }
+    }
+
+    // Add another remote node connected to Main, crank until authenticated,
+    // and return Main's Peer object for it.
+    std::shared_ptr<LoopbackPeer>
+    addRemote(bool legacy = false)
+    {
+        size_t const i = peers.size();
+        auto cfg = getTestConfig(static_cast<int>(2 + i));
+        if (legacy)
+        {
+            cfg.OVERLAY_PROTOCOL_VERSION =
+                Peer::FIRST_OVERLAY_VERSION_SUPPORTING_HAVE_TX_SET - 1;
+        }
+        quieten(cfg);
+        auto const key = SecretKey::fromSeed(
+            sha256("NODE_SEED_REMOTE_" + std::to_string(i)));
+        sim->addNode(key, cfg.QUORUM_SET, &cfg);
+        sim->addPendingConnection(mMainKey.getPublicKey(), key.getPublicKey());
+        sim->startAllNodes();
+        auto conn = sim->getLoopbackConnection(mMainKey.getPublicKey(),
+                                               key.getPublicKey());
+        releaseAssert(conn);
+        peers.emplace_back(conn->getInitiator());
+        senders.emplace_back(conn->getAcceptor());
+        remoteApps.emplace_back(sim->getNode(key.getPublicKey()));
+        sim->crankUntil(
+            [&]() {
+                return std::all_of(peers.begin(), peers.end(),
+                                   [](auto const& p) {
+                                       return p->isAuthenticatedForTesting();
+                                   }) &&
+                       std::all_of(senders.begin(), senders.end(),
+                                   [](auto const& p) {
+                                       return p->isAuthenticatedForTesting();
+                                   });
+            },
+            std::chrono::seconds{3}, false);
+        return peers.back();
+    }
+
+  private:
+    static void
+    quieten(Config& cfg)
+    {
+        cfg.NODE_IS_VALIDATOR = false;
+        cfg.FORCE_SCP = false;
+    }
+
+    SecretKey const mMainKey;
+};
 }
 
 TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
@@ -86,11 +172,14 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     std::vector<Peer::pointer> asked;
     std::vector<VirtualClock::time_point> askedTP;
     std::vector<Hash> received;
-    ItemFetcher itemFetcher(*app, [&](Peer::pointer peer, Hash hash) {
-        asked.emplace_back(peer);
-        askedTP.emplace_back(clock.now());
-        peer->sendGetQuorumSet(hash);
-    });
+    ItemFetcher itemFetcher(
+        *app,
+        [&](Peer::pointer peer, Hash hash) {
+            asked.emplace_back(peer);
+            askedTP.emplace_back(clock.now());
+            peer->sendGetQuorumSet(hash);
+        },
+        ItemFetcherKind::QuorumSet);
 
     auto checkFetchingFor = [&itemFetcher](Hash hash,
                                            std::vector<SCPEnvelope> envelopes) {
@@ -270,7 +359,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                     }
                 };
 
-                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_REPLY * 2);
+                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS * 2);
 
                 REQUIRE(asked.size() == 2);
 
@@ -341,14 +430,14 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                         else
                         {
                             REQUIRE(delta >=
-                                    Tracker::MS_TO_WAIT_FOR_FETCH_REPLY);
+                                    Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS);
                         }
                         if (i > 0)
                         {
                             auto deltaGroup = refTP - prevGroup;
                             // gap between groups depend on number of retries
                             auto nextTry =
-                                Tracker::MS_TO_WAIT_FOR_FETCH_REPLY *
+                                Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS *
                                 std::min(Tracker::MAX_REBUILD_FETCH_LIST,
                                          (static_cast<int>(i - 1)) / 2);
                             REQUIRE(deltaGroup >= nextTry);
@@ -382,32 +471,14 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
 TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
 {
-    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto sim =
-        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
-
-    auto cfgMain = getTestConfig(1);
-    auto cfg1 = getTestConfig(2);
-    auto cfg2 = getTestConfig(3);
-
-    SIMULATION_CREATE_NODE(Main);
-    SIMULATION_CREATE_NODE(Node1);
-    SIMULATION_CREATE_NODE(Node2);
-    sim->addNode(vMainSecretKey, cfgMain.QUORUM_SET, &cfgMain);
-
-    sim->addNode(vNode1SecretKey, cfg1.QUORUM_SET, &cfg1);
-    sim->addPendingConnection(vMainNodeID, vNode1NodeID);
-    sim->startAllNodes();
-    auto conn1 = sim->getLoopbackConnection(vMainNodeID, vNode1NodeID);
-    auto peer1 = conn1->getInitiator();
-
-    auto app = sim->getNode(vMainNodeID);
+    FetchTestSim s(1);
+    auto app = s.app;
+    auto peer1 = s.peers[0];
 
     int askCount = 0;
-    ItemFetcher itemFetcher(*app, [&](Peer::pointer, Hash) { askCount++; });
-
-    sim->crankUntil([&]() { return peer1->isAuthenticatedForTesting(); },
-                    std::chrono::seconds{3}, false);
+    ItemFetcher itemFetcher(
+        *app, [&](Peer::pointer, Hash) { askCount++; },
+        ItemFetcherKind::QuorumSet);
 
     // this causes to fetch from `peer1` as it's the only one
     // connected
@@ -431,14 +502,7 @@ TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
     }
     SECTION("with more peers")
     {
-        sim->addNode(vNode2SecretKey, cfg2.QUORUM_SET, &cfg2);
-        sim->addPendingConnection(vMainNodeID, vNode2NodeID);
-        sim->startAllNodes();
-        auto conn2 = sim->getLoopbackConnection(vMainNodeID, vNode2NodeID);
-        auto peer2 = conn2->getInitiator();
-
-        sim->crankUntil([&]() { return peer2->isAuthenticatedForTesting(); },
-                        std::chrono::seconds{3}, false);
+        auto peer2 = s.addRemote();
 
         // still connected
         REQUIRE(peer1->isAuthenticatedForTesting());
@@ -484,4 +548,473 @@ TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
         }
     }
 }
+
+TEST_CASE("ItemFetcher claims", "[overlay][ItemFetcher]")
+{
+    FetchTestSim s(2);
+    auto sim = s.sim;
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+    auto peer2 = s.peers[1];
+
+    int askCount = 0;
+    ItemFetcher itemFetcher(
+        *app, [&](Peer::pointer, Hash) { askCount++; }, ItemFetcherKind::TxSet);
+
+    auto& claimAsk = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-ask"}, "item-fetcher");
+
+    auto env = makeEnvelope(200);
+    auto hash = sha256(ByteSlice("200"));
+
+    SECTION("claim with no live tracker is a no-op")
+    {
+        itemFetcher.peerClaimsItem(hash, peer1);
+        REQUIRE(askCount == 0);
+    }
+
+    SECTION("claim re-enables a missed peer and targets it")
+    {
+        itemFetcher.fetch(hash, env);
+        // Ride out the claim grace period: with no claim known, the first
+        // (blind) ask fires once the grace expires.
+        sim->crankUntil([&]() { return askCount == 1; },
+                        Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS * 2, false);
+        auto tracker = itemFetcher.getTracker(hash);
+        REQUIRE(tracker);
+        auto first = tracker->getLastAskedPeer();
+        REQUIRE(first);
+        auto second = (first == peer1) ? peer2 : peer1;
+
+        // First peer misses; the fetcher moves on to the second
+        tracker->doesntHave(first);
+        REQUIRE(askCount == 2);
+        REQUIRE(tracker->getLastAskedPeer() == second);
+
+        // A claim from the missed peer while an ask is outstanding is
+        // recorded but does not interrupt the outstanding ask
+        tracker->peerClaims(first);
+        REQUIRE(askCount == 2);
+
+        // When the second peer also misses, the claiming peer is re-asked
+        // even though it was asked (and missed) before
+        auto const claimAsksBefore = claimAsk.count();
+        tracker->doesntHave(second);
+        REQUIRE(askCount == 3);
+        REQUIRE(tracker->getLastAskedPeer() == first);
+        REQUIRE(claimAsk.count() == claimAsksBefore + 1);
+    }
+
+    SECTION("claim while idling acts immediately")
+    {
+        itemFetcher.fetch(hash, env);
+        // Ride out the claim grace: with no claim known, the first (blind)
+        // ask fires once the grace expires.
+        sim->crankUntil([&]() { return askCount == 1; },
+                        Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS * 2, false);
+        auto tracker = itemFetcher.getTracker(hash);
+        REQUIRE(tracker);
+        auto first = tracker->getLastAskedPeer();
+        auto second = (first == peer1) ? peer2 : peer1;
+
+        // Both peers miss; with no askable candidates the tracker idles
+        // waiting for a rebuild
+        tracker->doesntHave(first);
+        REQUIRE(askCount == 2);
+        tracker->doesntHave(second);
+        REQUIRE(askCount == 2);
+        REQUIRE(!tracker->getLastAskedPeer());
+
+        // A claim is acted on immediately, without waiting out the timer
+        tracker->peerClaims(second);
+        REQUIRE(askCount == 3);
+        REQUIRE(tracker->getLastAskedPeer() == second);
+    }
+}
+
+TEST_CASE("ItemFetcher claim buffer and grace period", "[overlay][ItemFetcher]")
+{
+    FetchTestSim s(2);
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+    auto peer2 = s.peers[1];
+
+    int askCount = 0;
+    Peer::pointer lastAsked;
+    ItemFetcher itemFetcher(
+        *app,
+        [&](Peer::pointer p, Hash) {
+            ++askCount;
+            lastAsked = p;
+        },
+        ItemFetcherKind::TxSet);
+
+    auto& claimAsk = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-ask"}, "item-fetcher");
+#ifdef CAP_0083
+    auto& graceSatisfied = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-grace-satisfied"}, "item-fetcher");
+    auto& graceExpired = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-grace-expired"}, "item-fetcher");
+#endif
+
+    auto env = makeEnvelope(300);
+    auto hash = sha256(ByteSlice("300"));
+
+    SECTION("buffered claim seeds the tracker's first ask")
+    {
+        // Claim arrives before we are tracking the item: it must be buffered,
+        // not dropped.
+        itemFetcher.peerClaimsItem(hash, peer1);
+        REQUIRE(askCount == 0);
+
+        // When the tracker is created, the buffered claim seeds the claims
+        // tier so the very first ask targets the claimer.
+        itemFetcher.fetch(hash, env);
+        REQUIRE(askCount == 1);
+        REQUIRE(lastAsked == peer1);
+        REQUIRE(claimAsk.count() == 1);
+    }
+
+    SECTION("repeated claims from one peer are deduplicated")
+    {
+        // Claims are keyed by peer: re-claiming the same hash cannot grow
+        // the buffered entry, so a peer's footprint per hash is one slot.
+        itemFetcher.peerClaimsItem(hash, peer1);
+        itemFetcher.peerClaimsItem(hash, peer1);
+        itemFetcher.peerClaimsItem(hash, peer1);
+        REQUIRE(itemFetcher.getNumBufferedClaims(hash) == 1);
+
+        // A distinct claimer occupies its own slot.
+        itemFetcher.peerClaimsItem(hash, peer2);
+        REQUIRE(itemFetcher.getNumBufferedClaims(hash) == 2);
+        REQUIRE(askCount == 0);
+
+        // Creating the tracker consumes the buffered claims; the first ask
+        // targets one of the claimers.
+        itemFetcher.fetch(hash, env);
+        REQUIRE(askCount == 1);
+        REQUIRE((lastAsked == peer1 || lastAsked == peer2));
+        REQUIRE(claimAsk.count() == 1);
+        REQUIRE(itemFetcher.getNumBufferedClaims(hash) == 0);
+    }
+
+#ifdef CAP_0083
+    SECTION("grace period defers the first ask until a claim arrives")
+    {
+        itemFetcher.fetch(hash, env);
+        // With the grace period active and no claimer known, the first ask is
+        // deferred rather than blind-asking a peer.
+        REQUIRE(askCount == 0);
+
+        // A claim during the grace window is acted on immediately.
+        itemFetcher.peerClaimsItem(hash, peer2);
+        REQUIRE(askCount == 1);
+        REQUIRE(lastAsked == peer2);
+        REQUIRE(claimAsk.count() == 1);
+        REQUIRE(graceSatisfied.count() == 1);
+        REQUIRE(graceExpired.count() == 0);
+    }
+
+    SECTION("grace expires and falls back to a blind ask")
+    {
+        auto const start = app->getClock().now();
+        itemFetcher.fetch(hash, env);
+        REQUIRE(askCount == 0);
+
+        // No claim arrives; once the grace expires we fall back to asking a
+        // peer anyway (liveness is preserved).
+        s.sim->crankUntil([&]() { return askCount == 1; },
+                          Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS +
+                              std::chrono::seconds{1},
+                          false);
+        auto const elapsed = app->getClock().now() - start;
+
+        REQUIRE(elapsed >= Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS);
+        REQUIRE(graceExpired.count() == 1);
+        REQUIRE(graceSatisfied.count() == 0);
+    }
+#endif // CAP_0083
+}
+
+TEST_CASE("HAVE_TX_SET admission cap", "[overlay][ItemFetcher]")
+{
+    FetchTestSim s(2);
+    auto sim = s.sim;
+    auto app = s.app;
+    // Main's view of each remote peer (where the admission counter lives)
+    auto peer1 = s.peers[0];
+    auto peer2 = s.peers[1];
+    // The remote ends, used to send claims TO Main
+    auto sender1 = s.senders[0];
+    auto sender2 = s.senders[1];
+
+    auto& dropped = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-dropped"}, "item-fetcher");
+
+    auto claimMsg = [](std::string const& seed) {
+        StellarMessage msg;
+        msg.type(HAVE_TX_SET);
+        msg.haveTxSet().txSetHash = sha256(ByteSlice(seed));
+        return std::make_shared<StellarMessage const>(msg);
+    };
+
+    uint32_t const Q = Peer::HAVE_TX_SET_MAX_PER_PERIOD;
+    uint32_t const K = 8;
+
+    // Fill the budget and then some: exactly Q admissions, K drops.
+    for (uint32_t i = 0; i < Q + K; i++)
+    {
+        sender1->sendMessage(claimMsg("cap-" + std::to_string(i)), false);
+    }
+    sim->crankUntil([&]() { return dropped.count() >= K; },
+                    std::chrono::seconds{5}, false);
+    REQUIRE(dropped.count() == K);
+    REQUIRE(peer1->getHaveTxSetAdmittedForTesting() == Q);
+
+    // The budget is per peer: another peer's claims are unaffected.
+    sender2->sendMessage(claimMsg("iso"), false);
+    sim->crankUntil(
+        [&]() { return peer2->getHaveTxSetAdmittedForTesting() == 1; },
+        std::chrono::seconds{5}, false);
+    REQUIRE(peer2->getHaveTxSetAdmittedForTesting() == 1);
+    REQUIRE(dropped.count() == K);
+
+    // Each peer's recurrent timer resets its budget once per period.
+    sim->crankUntil(
+        [&]() {
+            return peer1->getHaveTxSetAdmittedForTesting() == 0 &&
+                   peer2->getHaveTxSetAdmittedForTesting() == 0;
+        },
+        Peer::RECURRENT_TIMER_PERIOD * 2, false);
+
+    // Post-reset claims are admitted again.
+    sender1->sendMessage(claimMsg("post-reset"), false);
+    sim->crankUntil(
+        [&]() { return peer1->getHaveTxSetAdmittedForTesting() == 1; },
+        std::chrono::seconds{5}, false);
+    REQUIRE(peer1->getHaveTxSetAdmittedForTesting() == 1);
+    REQUIRE(dropped.count() == K);
+}
+
+TEST_CASE("HAVE_TX_SET announce respects peer capability",
+          "[overlay][ItemFetcher]")
+{
+    // The second remote predates HAVE_TX_SET: it must never be sent the
+    // message
+    FetchTestSim s(2, /*legacyRemote=*/1);
+    auto sim = s.sim;
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+    auto peer2 = s.peers[1];
+
+    auto& sent = app->getMetrics().NewMeter({"overlay", "send", "have-tx-set"},
+                                            "message");
+
+    auto& pe = static_cast<HerderImpl&>(app->getHerder()).getPendingEnvelopes();
+    auto txset = TxSetXDRFrame::makeEmpty(
+        app->getLedgerManager().getLastClosedLedgerHeader());
+    auto hash = sha256(ByteSlice("announce"));
+
+    // Obtaining a tx set announces it — but only to the capable peer.
+    pe.addTxSet(hash, 10, txset);
+    REQUIRE(sent.count() == 1);
+
+    // Announce-once per hash: re-adding does not re-announce.
+    pe.addTxSet(hash, 10, txset);
+    REQUIRE(sent.count() == 1);
+
+    // Tx sets restored from disk at startup (slot 0 sentinel) are not
+    // announced.
+    pe.addTxSet(sha256(ByteSlice("restored")), 0, txset);
+    REQUIRE(sent.count() == 1);
+}
+
+TEST_CASE("HAVE_TX_SET claims accompany SCP state", "[overlay][ItemFetcher]")
+{
+    // The second remote predates HAVE_TX_SET: it must never be sent claims
+    FetchTestSim s(2, /*legacyRemote=*/1);
+    auto sim = s.sim;
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+    auto peer2 = s.peers[1];
+
+    auto& sent = app->getMetrics().NewMeter({"overlay", "send", "have-tx-set"},
+                                            "message");
+    auto const sentBase = sent.count();
+
+    auto& pe = static_cast<HerderImpl&>(app->getHerder()).getPendingEnvelopes();
+    auto txset = TxSetXDRFrame::makeEmpty(
+        app->getLedgerManager().getLastClosedLedgerHeader());
+    auto heldHash = sha256(ByteSlice("held"));
+    auto unheldHash = sha256(ByteSlice("unheld"));
+    // Take possession directly, without addTxSet's announce side effect.
+    pe.putTxSet(heldHash, 2, txset);
+
+    // An envelope whose nomination votes reference a held set, an unheld
+    // set, and the empty-tx-set value.
+    SCPEnvelope env;
+    env.statement.slotIndex = 2;
+    env.statement.pledges.type(SCP_ST_NOMINATE);
+    auto addVote = [&](Hash const& h) {
+        StellarValue sv;
+        sv.txSetHash = h;
+        sv.closeTime = 1;
+        env.statement.pledges.nominate().votes.emplace_back(
+            xdr::xdr_to_opaque(sv));
+    };
+    addVote(heldHash);
+    addVote(unheldHash);
+    addVote(Herder::EMPTY_TX_SET_HASH);
+
+    // Only the held set is claimed: the unheld set and the emtpy-tx-set are
+    // skipped.
+    UnorderedSet<Hash> claimed;
+    pe.sendHaveTxSetClaims(env, peer1, claimed);
+    REQUIRE(sent.count() == sentBase + 1);
+    REQUIRE(claimed == UnorderedSet<Hash>{heldHash});
+
+    // Within one exchange, further envelopes referencing the same set do not
+    // re-claim it.
+    pe.sendHaveTxSetClaims(env, peer1, claimed);
+    REQUIRE(sent.count() == sentBase + 1);
+
+    // Legacy peers are never sent claims.
+    UnorderedSet<Hash> claimedLegacy;
+    pe.sendHaveTxSetClaims(env, peer2, claimedLegacy);
+    REQUIRE(sent.count() == sentBase + 1);
+    REQUIRE(claimedLegacy.empty());
+
+    // The claims actually arrive at the capable peer, and both connections
+    // stay up.
+    auto node1 = s.remoteApps[0];
+    sim->crankUntil(
+        [&]() {
+            return node1->getMetrics()
+                       .NewTimer({"overlay", "recv", "have-tx-set"})
+                       .count() >= 1;
+        },
+        std::chrono::seconds{5}, false);
+    REQUIRE(peer1->isAuthenticatedForTesting());
+    REQUIRE(peer2->isAuthenticatedForTesting());
+}
+
+TEST_CASE("HAVE_TX_SET from unsupporting peer is rejected",
+          "[overlay][ItemFetcher]")
+{
+    // The remote advertises a pre-HAVE_TX_SET overlay version.
+    FetchTestSim s(1, /*legacyRemote=*/0);
+    auto sim = s.sim;
+    auto peer1 = s.peers[0];
+    auto sender1 = s.senders[0];
+
+    // The legacy remote sends a HAVE_TX_SET message
+    StellarMessage msg;
+    msg.type(HAVE_TX_SET);
+    msg.haveTxSet().txSetHash = sha256(ByteSlice("violation"));
+    sender1->sendMessage(std::make_shared<StellarMessage const>(msg), false);
+
+    // Legacy remote is dropped
+    sim->crankUntil([&]() { return !peer1->isAuthenticatedForTesting(); },
+                    std::chrono::seconds{5}, false);
+    REQUIRE(!peer1->isAuthenticatedForTesting());
+}
+
+#ifdef CAP_0083
+TEST_CASE("relayer possession semantics", "[overlay][ItemFetcher]")
+{
+    // Once the protocol allows empty-tx-set values, an SCP message relayer
+    // merely knows OF an item and must claim possession explicitly; a legacy
+    // relayer keeps the historical implies-possession semantics.
+    bool legacyPeer = GENERATE(false, true);
+
+    FetchTestSim s(1, legacyPeer ? std::optional<size_t>{0} : std::nullopt);
+    auto sim = s.sim;
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+
+    int askCount = 0;
+    ItemFetcher itemFetcher(
+        *app, [&](Peer::pointer, Hash) { askCount++; }, ItemFetcherKind::TxSet);
+
+    // With no relayer knowledge, the first ask goes out via the random tier
+    // (asked without assumed possession).
+    auto env = makeEnvelope(500);
+    auto hash = sha256(ByteSlice("500"));
+    itemFetcher.fetch(hash, env);
+    // Ride out the claim grace period: with no claim known, the first (blind)
+    // ask fires once the grace period expires.
+    sim->crankForAtLeast(Tracker::MS_TO_WAIT_FOR_FETCH_PROGRESS +
+                             std::chrono::milliseconds(100),
+                         false);
+    auto tracker = itemFetcher.getTracker(hash);
+    REQUIRE(tracker);
+    REQUIRE(askCount == 1);
+    REQUIRE(tracker->getLastAskedPeer() == peer1);
+
+    // Now peer1 relays the envelope.
+    StellarMessage msg(SCP_MESSAGE);
+    msg.envelope() = env;
+    app->getOverlayManager().recvFloodedMsgID(peer1, xdrBlake2(msg));
+
+    tracker->tryNextPeer();
+    if (legacyPeer)
+    {
+        // Historical semantics: knowing of the envelope implies having the
+        // tx set, so the peer is re-asked.
+        REQUIRE(askCount == 2);
+        REQUIRE(tracker->getLastAskedPeer() == peer1);
+    }
+    else
+    {
+        // Knowing OF the item does not re-enable the peer; the fetch idles
+        // in a rebuild instead. Possession must be claimed explicitly (via
+        // HAVE_TX_SET), which the claim tests cover.
+        REQUIRE(askCount == 1);
+        REQUIRE(!tracker->getLastAskedPeer());
+    }
+}
+
+TEST_CASE("legacy relayer bypasses the claim grace period",
+          "[overlay][ItemFetcher]")
+{
+    // A relayer whose overlay version predates HAVE_TX_SET provably fetched
+    // the tx set before relaying, but can never claim possession. Its relay
+    // is treated as a claim: the fetch targets it immediately instead of
+    // waiting out the claim grace.
+    FetchTestSim s(1, /*legacyRemote=*/0);
+    auto app = s.app;
+    auto peer1 = s.peers[0];
+
+    int askCount = 0;
+    Peer::pointer lastAsked;
+    ItemFetcher itemFetcher(
+        *app,
+        [&](Peer::pointer p, Hash) {
+            ++askCount;
+            lastAsked = p;
+        },
+        ItemFetcherKind::TxSet);
+
+    auto& claimAsk = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-ask"}, "item-fetcher");
+    auto& graceSatisfied = app->getMetrics().NewMeter(
+        {"overlay", "item-fetcher", "claim-grace-satisfied"}, "item-fetcher");
+
+    // peer1 relays the envelope before the fetch starts.
+    auto env = makeEnvelope(600);
+    auto hash = sha256(ByteSlice("600"));
+    StellarMessage msg(SCP_MESSAGE);
+    msg.envelope() = env;
+    app->getOverlayManager().recvFloodedMsgID(peer1, xdrBlake2(msg));
+
+    // The first ask fires immediately (no grace period delay) and targets the
+    // legacy relayer.
+    itemFetcher.fetch(hash, env);
+    REQUIRE(askCount == 1);
+    REQUIRE(lastAsked == peer1);
+    REQUIRE(claimAsk.count() == 1);
+    REQUIRE(graceSatisfied.count() == 1);
+}
+#endif // CAP_0083
 }
