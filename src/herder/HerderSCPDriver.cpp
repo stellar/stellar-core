@@ -1066,27 +1066,31 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             }
             // else: EmptyTxSet -> cTxSet stays null, handled by existing
 
-            // Only valid applicable tx sets should be combined.
-            auto cApplicableTxSet =
-                cTxSet ? cTxSet->prepareForApply(mApp, lcl.header) : nullptr;
-            if (!cTxSet || cTxSet->previousLedgerHash() == lcl.hash)
+            // Prefer applicable tx sets. `compareTxSets` down-ranks
+            // non-applicable ones. Without CAP-0083 every candidate here is
+            // applicable (a mismatched one can't be ratified), so the
+            // non-applicable case doesn't arise. Under CAP-0083 a
+            // non-applicable candidate may be selected and is replaced with an
+            // empty-tx-set value during balloting.
+            ApplicableTxSetFrameConstPtr cApplicableTxSet = nullptr;
+            if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
+                cApplicableTxSet = cTxSet->prepareForApply(mApp, lcl.header);
+            }
 
-                if (highest == candidateValues.cend() ||
-                    compareTxSets(
-                        highestApplicableTxSet, cApplicableTxSet,
-                        highest->txSetHash, sv.txSetHash,
-                        highestTxSet
-                            ? std::make_optional(highestTxSet->encodedSize())
-                            : std::nullopt,
-                        cTxSet ? std::make_optional(cTxSet->encodedSize())
-                               : std::nullopt,
-                        lcl.header, candidatesHash))
-                {
-                    highest = it;
-                    highestTxSet = cTxSet;
-                    highestApplicableTxSet = std::move(cApplicableTxSet);
-                }
+            if (highest == candidateValues.cend() ||
+                compareTxSets(highestApplicableTxSet, cApplicableTxSet,
+                              highest->txSetHash, sv.txSetHash,
+                              highestTxSet ? std::make_optional(
+                                                 highestTxSet->encodedSize())
+                                           : std::nullopt,
+                              cTxSet ? std::make_optional(cTxSet->encodedSize())
+                                     : std::nullopt,
+                              lcl.header, candidatesHash))
+            {
+                highest = it;
+                highestTxSet = cTxSet;
+                highestApplicableTxSet = std::move(cApplicableTxSet);
             }
         }
         if (highest == candidateValues.cend())
