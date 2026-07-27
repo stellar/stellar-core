@@ -70,7 +70,7 @@ InMemorySorobanState::updateTTL(LedgerEntry const& ttlEntry)
 
     // TTL updates can apply to either ContractData or ContractCode entries.
     // First check if this TTL belongs to a stored ContractData entry.
-    auto dataIt = mContractDataEntries.find(lk);
+    auto dataIt = mContractDataEntries.find(InternalContractDataMapProbe{lk});
     if (dataIt != mContractDataEntries.end())
     {
         updateContractDataTTL(dataIt, newTtlData);
@@ -92,7 +92,7 @@ InMemorySorobanState::updateContractData(LedgerEntry const& ledgerEntry)
 
     // Entry must already exist since this is an update
     auto lk = LedgerEntryKey(ledgerEntry);
-    auto dataIt = mContractDataEntries.find(lk);
+    auto dataIt = mContractDataEntries.find(InternalContractDataMapProbe{lk});
     releaseAssertOrThrow(dataIt != mContractDataEntries.end());
     releaseAssertOrThrow(dataIt->ledgerEntry != nullptr);
 
@@ -113,7 +113,8 @@ InMemorySorobanState::createContractDataEntry(LedgerEntry const& ledgerEntry)
     releaseAssertOrThrow(ledgerEntry.data.type() == CONTRACT_DATA);
 
     // Verify entry doesn't already exist
-    auto dataIt = mContractDataEntries.find(ledgerEntry);
+    auto dataIt =
+        mContractDataEntries.find(InternalContractDataMapProbe{ledgerEntry});
     releaseAssertOrThrow(dataIt == mContractDataEntries.end());
 
     // Check if we've already seen this entry's TTL (can happen during
@@ -155,7 +156,7 @@ InMemorySorobanState::createTTL(LedgerEntry const& ttlEntry)
 
     // Check if the corresponding ContractData entry already exists
     // (can happen during initialization when entries arrive out of order)
-    auto dataIt = mContractDataEntries.find(lk);
+    auto dataIt = mContractDataEntries.find(InternalContractDataMapProbe{lk});
     if (dataIt != mContractDataEntries.end())
     {
         // ContractData exists but has no TTL yet - update it
@@ -188,7 +189,8 @@ void
 InMemorySorobanState::deleteContractData(LedgerKey const& ledgerKey)
 {
     releaseAssertOrThrow(ledgerKey.type() == CONTRACT_DATA);
-    auto it = mContractDataEntries.find(ledgerKey);
+    auto it =
+        mContractDataEntries.find(InternalContractDataMapProbe{ledgerKey});
     releaseAssertOrThrow(it != mContractDataEntries.end());
     releaseAssertOrThrow(it->ledgerEntry != nullptr);
     updateStateSizeOnEntryUpdate(xdr::xdr_size(*it->ledgerEntry), 0,
@@ -203,7 +205,8 @@ InMemorySorobanState::get(LedgerKey const& ledgerKey) const
     {
     case CONTRACT_DATA:
     {
-        auto it = mContractDataEntries.find(ledgerKey);
+        auto it =
+            mContractDataEntries.find(InternalContractDataMapProbe{ledgerKey});
         if (it == mContractDataEntries.end())
         {
             return nullptr;
@@ -321,7 +324,8 @@ InMemorySorobanState::hasTTL(LedgerKey const& ledgerKey) const
     }
 
     // Check if this is a ContractData TTL (stored with the data)
-    auto dataIt = mContractDataEntries.find(ledgerKey);
+    auto dataIt =
+        mContractDataEntries.find(InternalContractDataMapProbe{ledgerKey});
     if (dataIt != mContractDataEntries.end())
     {
         // Only return true if TTL has been set (non-zero)
@@ -422,7 +426,8 @@ InMemorySorobanState::getTTL(LedgerKey const& ledgerKey) const
 
     // Since the TTL key is the hash of the associated LedgerKey, we don't know
     // which map it could belong in, so check both.
-    auto dataIt = mContractDataEntries.find(ledgerKey);
+    auto dataIt =
+        mContractDataEntries.find(InternalContractDataMapProbe{ledgerKey});
     if (dataIt != mContractDataEntries.end())
     {
         return constructTTLEntry(dataIt->ttlData);

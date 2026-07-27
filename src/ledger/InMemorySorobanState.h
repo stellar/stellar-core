@@ -79,22 +79,40 @@ struct ContractCodeMapEntryT
     }
 };
 
-// InternalContractDataMap provides a memory-efficient map implementation.
-//
-// Soroban keys can be quite large (often dominating LedgerEntry size), so
-// storing them twice in a traditional key-value map would be wasteful. Instead,
-// we use std::unordered_set since LedgerEntry contains both key and value data.
-//
-// We index entries by their TTL key (SHA256 hash of the ContractData key)
-// rather than the full ContractData key. This lets us look up both ContractData
-// entries and their TTLs with one index.
-//
-// Logical map structure:
-//     TTLKey -> <std::shared_ptr<LedgerEntry>, liveUntilLedgerSeq>
-using InternalContractDataMap =
-    std::unordered_set<ContractDataMapEntryT,
-                       struct InternalContractDataEntryHash,
-                       struct InternalContractDataEntryEqual>;
+// Lookup probe for InternalContractDataMap that carries a precomputed digest.
+struct InternalContractDataMapProbe
+{
+    Hash const keyHash;
+
+    static Hash
+    getTTLHash(LedgerKey const& key)
+    {
+        if (key.type() == CONTRACT_DATA)
+        {
+            auto ttlKey = getTTLKey(key);
+            return ttlKey.ttl().keyHash;
+        }
+        else if (key.type() == TTL)
+        {
+            return key.ttl().keyHash;
+        }
+        else
+        {
+            throw std::runtime_error(
+                "Invalid ledger key type for contract data map entry hash");
+        }
+    }
+
+    explicit InternalContractDataMapProbe(LedgerKey const& key)
+        : keyHash(getTTLHash(key))
+    {
+    }
+
+    explicit InternalContractDataMapProbe(LedgerEntry const& entry)
+        : keyHash(getTTLHash(LedgerEntryKey(entry)))
+    {
+    }
+};
 
 inline Hash
 getInternalContractDataMapHash(ContractDataMapEntryT const& entry)
@@ -103,34 +121,15 @@ getInternalContractDataMapHash(ContractDataMapEntryT const& entry)
 }
 
 inline Hash
-getInternalContractDataMapHash(LedgerEntry const& entry)
+getInternalContractDataMapHash(InternalContractDataMapProbe const& entry)
 {
-    return getTTLKey(LedgerEntryKey(entry)).ttl().keyHash;
-}
-
-inline Hash
-getInternalContractDataMapHash(LedgerKey const& key)
-{
-    if (key.type() == CONTRACT_DATA)
-    {
-        auto ttlKey = getTTLKey(key);
-        return ttlKey.ttl().keyHash;
-    }
-    else if (key.type() == TTL)
-    {
-        return key.ttl().keyHash;
-    }
-    else
-    {
-        throw std::runtime_error(
-            "Invalid ledger key type for contract data map entry hash");
-    }
+    return entry.keyHash;
 }
 
 template <typename T>
 concept IsInternalContractDataMapType =
-    std::same_as<T, ContractDataMapEntryT> || std::same_as<T, LedgerEntry> ||
-    std::same_as<T, LedgerKey>;
+    std::same_as<T, ContractDataMapEntryT> ||
+    std::same_as<T, InternalContractDataMapProbe>;
 
 struct InternalContractDataEntryHash
 {
@@ -155,6 +154,22 @@ struct InternalContractDataEntryEqual
                getInternalContractDataMapHash(rhs);
     }
 };
+
+// InternalContractDataMap provides a memory-efficient map implementation.
+//
+// Soroban keys can be quite large (often dominating LedgerEntry size), so
+// storing them twice in a traditional key-value map would be wasteful. Instead,
+// we use std::unordered_set since LedgerEntry contains both key and value data.
+//
+// We index entries by their TTL key (SHA256 hash of the ContractData key)
+// rather than the full ContractData key. This lets us look up both ContractData
+// entries and their TTLs with one index.
+//
+// Logical map structure:
+//     TTLKey -> <std::shared_ptr<LedgerEntry>, liveUntilLedgerSeq>
+using InternalContractDataMap =
+    std::unordered_set<ContractDataMapEntryT, InternalContractDataEntryHash,
+                       InternalContractDataEntryEqual>;
 
 // InMemorySorobanState provides an efficient in-memory map for Soroban contract
 // state.
