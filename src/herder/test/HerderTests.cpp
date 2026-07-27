@@ -3362,6 +3362,64 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
     }
 }
 
+// Test combineCandidates handling of candidates where
+// previousLedgerHash != LCL.hash
+TEST_CASE("combineCandidates with mismatched previousLedgerHash candidate",
+          "[herder][bug]")
+{
+    Config cfg(getTestConfig());
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    auto& herder = dynamic_cast<HerderImpl&>(app->getHerder());
+    auto& pe = herder.getPendingEnvelopes();
+    auto& driver = herder.getHerderSCPDriver();
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    uint32_t const ver = lcl.header.ledgerVersion;
+    uint64_t const closeTime = lcl.header.scpValue.closeTime + 1;
+    uint64_t const slotIndex = lcl.header.ledgerSeq + 1;
+
+    // Two structurally-valid empty tx sets that differ only in
+    // previousLedgerHash.
+    auto goodTxSet = TxSetXDRFrame::makeEmpty(lcl.hash, ver); // matches LCL
+    auto badTxSet = TxSetXDRFrame::makeEmpty(sha256("not the LCL hash"),
+                                             ver); // mismatched
+
+    ValueWrapperPtrSet candidates;
+    // Register the tx set so combineCandidates' getTxSet() returns it, then add
+    // a candidate value referencing it.
+    auto addCandidate = [&](TxSetXDRFrameConstPtr const& txSet) {
+        pe.addTxSet(txSet->getContentsHash(), slotIndex, txSet);
+        StellarValue sv =
+            herder.makeStellarValue(txSet->getContentsHash(), closeTime,
+                                    emptyUpgradeSteps, cfg.NODE_SEED);
+        candidates.emplace(driver.wrapValue(xdr::xdr_to_opaque(sv)));
+    };
+    auto combinedTxSetHash = [&]() {
+        ValueWrapperPtr result =
+            driver.combineCandidates(slotIndex, candidates);
+        StellarValue sv;
+        xdr::xdr_from_opaque(result->getValue(), sv);
+        return sv.txSetHash;
+    };
+
+    SECTION("prefer applicable candidate over mismatched candidate")
+    {
+        addCandidate(goodTxSet);
+        addCandidate(badTxSet);
+        REQUIRE(combinedTxSetHash() == goodTxSet->getContentsHash());
+    }
+
+    SECTION("all candidates have mismatched previousLedgerHash")
+    {
+        // If the *only* option is a candidate with a mismatched
+        // previousLedgerHash, choose it.
+        addCandidate(badTxSet);
+        REQUIRE(combinedTxSetHash() == badTxSet->getContentsHash());
+    }
+}
+
 TEST_CASE("SCP State", "[herder]")
 {
     SecretKey nodeKeys[3];
