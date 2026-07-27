@@ -180,12 +180,9 @@ template <IsBucketType BucketT> class DiskIndex : public NonMovableOrCopyable
         ar(version, pageSize);
     }
 
-    // This concept template makes it such that this function is only defined
-    // when BucketT == LiveBucket
-    template <typename T = BucketT>
-        requires std::same_as<T, BucketT> && std::same_as<T, LiveBucket>
     AssetPoolIDMap const&
     getAssetPoolIDMap() const
+        requires std::same_as<BucketT, LiveBucket>
     {
         releaseAssert(mData.assetToPoolID);
         return *mData.assetToPoolID;

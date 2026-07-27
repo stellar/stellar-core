@@ -435,8 +435,5 @@ template void BucketBase<HotArchiveBucket>::mergeInternal<
     MergeCounters&);
 
 template class BucketBase<LiveBucket>;
-static_assert(std::same_as<BucketBase<LiveBucket>::IndexT, LiveBucket::IndexT>);
 template class BucketBase<HotArchiveBucket>;
-static_assert(std::same_as<BucketBase<HotArchiveBucket>::IndexT,
-                           HotArchiveBucket::IndexT>);
 }

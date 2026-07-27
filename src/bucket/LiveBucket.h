@@ -45,8 +45,6 @@ class LiveBucket : public BucketBase<LiveBucket>,
     // Entry type returned by loadKeys
     using LoadT = LedgerEntry;
 
-    using IndexT = LiveBucketIndex;
-
     static inline constexpr char const* METRIC_STRING = "bucketlistDB-live";
 
     LiveBucket();

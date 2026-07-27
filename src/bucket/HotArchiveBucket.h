@@ -33,8 +33,6 @@ class HotArchiveBucket : public BucketBase<HotArchiveBucket>,
     // Entry type returned by loadKeys
     using LoadT = HotArchiveBucketEntry;
 
-    using IndexT = HotArchiveBucketIndex;
-
     static inline constexpr char const* METRIC_STRING =
         "bucketlistDB-hotArchive";
 
