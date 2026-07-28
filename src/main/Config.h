@@ -934,6 +934,13 @@ class Config : public std::enable_shared_from_this<Config>
     // When set to true, ignores all message and tx set size limits for testing
     bool IGNORE_MESSAGE_LIMITS_FOR_TESTING;
 
+    // A config to allow gossiping (advertising and accepting in PEERS
+    // messages) and connecting to RFC1918 private addresses (10/8, 172.16/12,
+    // 192.168/16). Private addresses are normally filtered out of peer
+    // exchange, which disables gossip-based peer discovery in environments
+    // where every node has a private address (e.g. a Kubernetes pod network).
+    bool ALLOW_PRIVATE_ADDRESSES_FOR_TESTING;
+
     // When set, disables validation of the ledger target close time
     // bounds on config upgrades (for testing only).
     bool TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS;

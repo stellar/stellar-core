@@ -78,7 +78,7 @@ static std::unordered_set<std::string> const TESTING_ONLY_OPTIONS = {
 
 // Options that should only be used for testing
 static std::unordered_set<std::string> const TESTING_SUGGESTED_OPTIONS = {
-    "ALLOW_LOCALHOST_FOR_TESTING"};
+    "ALLOW_LOCALHOST_FOR_TESTING", "ALLOW_PRIVATE_ADDRESSES_FOR_TESTING"};
 
 namespace
 {
@@ -157,6 +157,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     IGNORE_MESSAGE_LIMITS_FOR_TESTING = false;
     TESTING_IGNORE_LEDGER_TIME_UPGRADE_BOUNDS = false;
     TESTING_NOMINATE_RANDOM_VALUES = false;
+    ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = false;
 #endif
 
     FORCE_SCP = false;
@@ -1295,6 +1296,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"IGNORE_MESSAGE_LIMITS_FOR_TESTING",
                  [&]() { IGNORE_MESSAGE_LIMITS_FOR_TESTING = readBool(item); }},
+                {"ALLOW_PRIVATE_ADDRESSES_FOR_TESTING",
+                 [&]() {
+                     ALLOW_PRIVATE_ADDRESSES_FOR_TESTING = readBool(item);
+                 }},
 #endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
