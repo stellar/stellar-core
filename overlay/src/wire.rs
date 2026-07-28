@@ -32,7 +32,7 @@ use crate::xdr::{self, XdrError};
 pub struct ValidatedTx {
     bytes: Vec<u8>,
     hash: [u8; 32],
-    fee: u64,
+    fee: i64,
     num_ops: u32,
 }
 
@@ -69,7 +69,7 @@ impl ValidatedTx {
     /// 4 bytes of the XDR encoding.
     pub fn from_core_trusted(
         bytes: Vec<u8>,
-        fee: u64,
+        fee: i64,
         num_ops: u32,
     ) -> Result<Arc<Self>, XdrError> {
         if bytes.len() < 4 {
@@ -95,7 +95,7 @@ impl ValidatedTx {
         &self.hash
     }
 
-    pub fn fee(&self) -> u64 {
+    pub fn fee(&self) -> i64 {
         self.fee
     }
 
@@ -106,7 +106,7 @@ impl ValidatedTx {
     /// Fee per operation, used for flood prioritization. Guards against a zero
     /// op count so it never divides by zero.
     pub fn fee_per_op(&self) -> i64 {
-        (self.fee / u64::from(self.num_ops.max(1))) as i64
+        self.fee / i64::from(self.num_ops.max(1))
     }
 
     /// The `StellarMessage::Transaction(..)` wire framing for flooding this tx.
@@ -127,10 +127,10 @@ impl fmt::Debug for ValidatedTx {
 }
 
 /// Read fee and operation count off a decoded envelope, rejecting fee-bumps.
-fn fee_and_ops(envelope: &TransactionEnvelope) -> Result<(u64, u32), XdrError> {
+fn fee_and_ops(envelope: &TransactionEnvelope) -> Result<(i64, u32), XdrError> {
     match envelope {
-        TransactionEnvelope::TxV0(v0) => Ok((u64::from(v0.tx.fee), v0.tx.operations.len() as u32)),
-        TransactionEnvelope::Tx(v1) => Ok((u64::from(v1.tx.fee), v1.tx.operations.len() as u32)),
+        TransactionEnvelope::TxV0(v0) => Ok((i64::from(v0.tx.fee), v0.tx.operations.len() as u32)),
+        TransactionEnvelope::Tx(v1) => Ok((i64::from(v1.tx.fee), v1.tx.operations.len() as u32)),
         TransactionEnvelope::TxFeeBump(_) => Err(XdrError::UnsupportedFeeBump),
     }
 }
