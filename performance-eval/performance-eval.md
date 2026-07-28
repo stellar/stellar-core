@@ -76,7 +76,7 @@ This scenario looks at the overhead of flooding transactions and SCP messages (r
 
 ### Built-in load generator
 stellar-core has a built-in load generator that allows to inject transactions on private networks.
-See the `generateload` [command](docs/software/commands.md) for more detail.
+See the `generateload` [command](../docs/software/commands.md) for more detail.
 
 ## Micro-benchmarks
 
@@ -88,11 +88,11 @@ In some cases it may make sense to submit changes to those tests (or write new m
 
 # Measuring metrics
 ## Built-in metrics
-Calling the `metrics` [command](docs/software/commands.md) allows to gather the metrics at various intervals.
+Calling the `metrics` [command](../docs/software/commands.md) allows to gather the metrics at various intervals.
 
 ### Notable metrics
 
-See [docs/metrics](docs/metrics.md) for information on metrics exposed by stellar-core.
+See [docs/metrics](../docs/metrics.md) for information on metrics exposed by stellar-core.
 
 ## System metrics
 Tools used to gather those metrics are O/S specific.
@@ -214,7 +214,7 @@ export LDFLAGS=-ltcmalloc_minimal
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so ./stellar-core ...
 ```
 * use clang/clang++ and a custom `libc++` compiled with the same compilation options that you use.
-    * See [building a custom libc++](CONTRIBUTING.md#building-a-custom-libc)
+    * See [building a custom libc++](../CONTRIBUTING.md#building-a-custom-libc)
     * Do not enable memory sanitizer for that version, instead run something like
 ```
     svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
@@ -319,4 +319,3 @@ The main page for the profiler built into Visual Studio Community Edition is loc
 ## All platforms
 
 Intel V-Tune (free, unlimited license 90 days renewal) https://software.intel.com/en-us/system-studio/choose-download
-

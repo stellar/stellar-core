@@ -77,13 +77,13 @@ without having to replay and validate the entire ledger state.
 
 #### Bucket list hash
 This is a reference to a multi level tree like structure described in more
-detail in [`src/bucket/readme.md`](../bucket/readme.md).
+detail in [`src/bucket/README.md`](../bucket/README.md).
 The leaf elements are what we call "Ledger Entries", this is the bulk of
 the data contained in a ledger.
 
 ## Ledger state entries
 Ledger entries are specified in
-[`src/xdr/Stellar-ledger-entries.x`](../xdr/Stellar-ledger-entries.x)
+[`src/protocol-curr/xdr/Stellar-ledger-entries.x`](../protocol-curr/xdr/Stellar-ledger-entries.x)
 
 ### AccountEntry
 This entry represents an account. In Stellar, everything is centered around
@@ -154,7 +154,7 @@ _See `TxSetFrame::getTxsInApplyOrder` for more detail._
 
 2. Once the list of transactions to apply is computed, each transaction is
 applied to the ledger.
-_See [`src/transactions/readme.md`](../transactions/readme.md) for more detail
+_See [`src/transactions/README.md`](../transactions/README.md) for more detail
 on how transactions are applied._
 
 3. After applying each transaction its result is stored in the transaction history
@@ -166,7 +166,7 @@ for the entire Ledger close is fed to the BucketManager (see [BucketManager](#bu
 
 5. At this point the module notifies the history subsystem that a ledger was
 closed so that it can publish the new ledger/transaction set for long term storage.
-_See [`src/history/readme.md`](../history/readme.md) for more detail._
+_See [`src/history/README.md`](../history/README.md) for more detail._
 
 # Storage
 
@@ -195,5 +195,4 @@ BucketManager to add it to the "L0" bucket.
 The resulting set is used to compute the hash of the entire set of
 Ledger Entries.
 
-See [`src/bucket/readme.md`](../bucket/readme.md) for more detail.
-
+See [`src/bucket/README.md`](../bucket/README.md) for more detail.
