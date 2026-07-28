@@ -26,7 +26,8 @@ namespace stellar
 //
 // Use this to speed up trivially parallelizable compute-heavy workloads.
 //
-// The executor pins the worker threads to physical cores. It may only run
+// The executor pins the worker threads to CPUs, spreading them across physical
+// cores before resorting to hyper-thread siblings. It may only run
 // a single batch of tasks at a time, and there should be only a single executor
 // instance per app, or else the execution would have unexpectedly degraded
 // performance due to oversubscription of physical cores.
@@ -65,10 +66,11 @@ class BatchExecutor : private NonMovableOrCopyable
     // Task execution loop running on every worker thread.
     void workerLoop(size_t index, uint64_t initialGeneration);
     // Grows the pool to at least `count` workers, pinning each new one to a
-    // physical core if possible.
+    // CPU if possible.
     void ensureWorkers(size_t count);
-    // Pins worker `index` to its designated physical core. No-op on non-Linux
-    // platforms or when the CPU topology is unavailable.
+    // Pins worker `index` to its designated CPU. No-op on non-Linux
+    // platforms, when the CPU topology is unavailable, or when there are more
+    // workers than available CPUs.
     void pinWorker(size_t index);
 
     // Plain std::mutex (rather than the annotated wrapper) as it has to work
@@ -76,9 +78,12 @@ class BatchExecutor : private NonMovableOrCopyable
     std::mutex mMutex;
     std::condition_variable mCondition;
     std::vector<std::thread> mWorkers;
-    // One logical CPU per physical core; empty if pinning is unavailable. Set
-    // once in the constructor and immutable afterwards.
-    std::vector<unsigned> mPinCpus;
+    // All allowed logical CPUs in pinning-preference order.
+    std::vector<unsigned> mPinCpuOrder;
+    // Number of distinct physical cores found in the allowed logical CPUs.
+    // First `mPhysicalCoreCount` entries of `mPinCpuOrder` are guaranteed to be
+    // on distinct physical cores by the pinning order assignment procedure.
+    size_t mPhysicalCoreCount{0};
 
     // Task that is being currently executed by the workers.
     std::function<void(size_t)> const* mRunTask{nullptr};
