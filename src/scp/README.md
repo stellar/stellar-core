@@ -16,9 +16,10 @@ implement consensus using the SCP protocol, implementing the necessary abstract
 methods for handling SCP-generated events, and calling methods from the central
 [SCP base-class](SCP.h) methods to receive incoming messages.
 The messages making up the protocol are defined in XDR,
-in the file [Stellar-SCP.x](../xdr/Stellar-SCP.x), however, library users are
-most likely to want to modify [`Stellar-types.x`](../xdr/Stellar-types.x),
-which contains all the base types used through the implementation
+in the file [Stellar-SCP.x](../protocol-curr/xdr/Stellar-SCP.x). However,
+library users are most likely to want to modify
+[`Stellar-types.x`](../protocol-curr/xdr/Stellar-types.x), which contains all
+the base types used through the implementation
 (such as the hash type, or the `NodeID` type, used to represent a node's identity).
 
 

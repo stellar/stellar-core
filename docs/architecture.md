@@ -14,7 +14,7 @@ Two slightly-obscurely-named components are:
     linear history and ledger form that is hashed. A specific arrangement of
     concatenations-of-XDR. Organized around "temporal buckets". Entries tending
 	to stay in buckets grouped by how frequently they change.
-	see [`src/bucket/readme.md`](/src/bucket/readme.md)
+	see [`src/bucket/README.md`](/src/bucket/README.md)
 
   - SCP -- "Stellar Consensus Protocol", the component implementing the
     [consensus algorithm](https://www.stellar.org/papers/stellar-consensus-protocol.pdf).

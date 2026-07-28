@@ -122,7 +122,7 @@ sequentially. Anyone wishing to audit or reconstruct the activity of stellar-cor
 history archive can simply poll the archive and consume new files as they arrive.
 
 All XDR encoding and decoding in stellar-core is done by code generated automatically from the
-associated [XDR schemas](/src/xdr); any other compliant XDR code generator should produce a
+associated [XDR schemas](/src/protocol-curr/xdr); any other compliant XDR code generator should produce a
 deserializer that can read and write the same history. The XDR code generator used in stellar-core
 is developed independently, but [included in the source tree as a submodule](../lib/xdrpp).
 
@@ -174,7 +174,7 @@ they are a JSON serialization of the data structure called
   - `server`: an optional debugging string identifying the software that wrote the file
   - `networkPassphrase`: an optional string identifying the networkPassphrase
   - `currentLedger`: a number denoting the ledger this file describes the state of
-  - `currentBuckets`: an array containing an encoding of the [bucket list](/src/bucket/BucketList.h) for this ledger
+  - `currentBuckets`: an array containing an encoding of the [bucket list](/src/bucket/LiveBucketList.h) for this ledger
 
 The `currentBuckets` array contains one object for each level in the bucket list. The objects in the
 array correspond to "levels" in the bucket list; any field in the bucket list which is said to denote
@@ -194,7 +194,7 @@ the bucket list contain the following fields:
 The organization of the bucket list is somewhat subtle: it is an 11-entry array of
 temporally-stratified, exponentially-growing sequences of ledger entries, each of which comprises a
 subset of ledger entries last-changed a given amount of time in the past. The detailed structure is
-explained in [the BucketList.h header](/src/bucket/BucketList.h). It suffices here to say that the
+explained in [the LiveBucketList.h header](/src/bucket/LiveBucketList.h). It suffices here to say that the
 higher-numbered levels in the bucket list denote larger buckets (with more ledger entries) that
 change more slowly; whereas the lower-numbered levels denote smaller buckets (with fewer ledger
 entries) that change more quickly. Reconstructing the state of the ledger described by a given
@@ -264,7 +264,7 @@ In total, each checkpoint number `0xwwxxyyzz` consists of the following files:
 
   - One ledger-headers file, named by ledger number as `ledger/ww/xx/yy/ledger-wwxxyyzz.xdr.gz`. The
     file contains a sequence of XDR structures of type
-    [`LedgerHeaderHistoryEntry`](/src/xdr/Stellar-ledger.x), one per ledger in the checkpoint (so
+    [`LedgerHeaderHistoryEntry`](/src/protocol-curr/xdr/Stellar-ledger.x), one per ledger in the checkpoint (so
     there should be 64 such structures in all checkpoints except the first, which has 63
     headers). These header structures are fixed-size and small, and are sufficient to establish the
     "trust chain" of linked cryptographic hashes between the present state of the network and
@@ -272,7 +272,7 @@ In total, each checkpoint number `0xwwxxyyzz` consists of the following files:
 
   - One transactions file, named by ledger number as
     `transactions/ww/xx/yy/transactions-wwxxyyzz.xdr.gz`. The file contains a sequence of XDR
-    structures of the type [`TransactionHistoryEntry`](/src/xdr/Stellar-ledger.x), with zero-or-more
+    structures of the type [`TransactionHistoryEntry`](/src/protocol-curr/xdr/Stellar-ledger.x), with zero-or-more
     structures per ledger; it is the concatenation of all the transactions applied in all the
     ledgers of a given checkpoint. Each `TransactionHistoryEntry` structure indicates the ledger it
     was a part of, and there may be dozens, hundreds, even thousands of such structures per
@@ -281,7 +281,7 @@ In total, each checkpoint number `0xwwxxyyzz` consists of the following files:
 
   - One results file, named by ledger number as `results/ww/xx/yy/results-wwxxyyzz.xdr.gz`. The file
     contains a sequence of XDR structures of the type
-    [`TransactionHistoryResultEntry`](/src/xdr/Stellar-ledger.x), with zero-or-more structures per
+    [`TransactionHistoryResultEntry`](/src/protocol-curr/xdr/Stellar-ledger.x), with zero-or-more structures per
     ledger. The file is similar to the transactions file, in that there is one entry per transaction
     applied to a ledger in the checkpoint; but this file stores the _results_ of applying each
     transaction. These files allows to get a very close approximation of the history of changes
@@ -290,9 +290,8 @@ In total, each checkpoint number `0xwwxxyyzz` consists of the following files:
 
   - (Optionally) one SCP file, named by ledger number as `scp/ww/xx/yy/scp-wwxxyyzz.xdr.gz`. The file
     contains a sequence of XDR structures of the type
-    [`SCPHistoryEntry`](/src/xdr/Stellar-ledger.x), with zero-or-more structures per ledger. The
+    [`SCPHistoryEntry`](/src/protocol-curr/xdr/Stellar-ledger.x), with zero-or-more structures per ledger. The
     file records the sequence of nomination and ballot protocol messages exchanged during consensus
     for each ledger. It is primarily of interest when debugging, or when analyzing
     trust-relationships and protocol behavior of SCP. It is not required for reconstructing the
     ledger state or interpreting the transactions.
-
