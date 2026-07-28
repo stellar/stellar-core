@@ -9,10 +9,11 @@
 #include <string>
 
 #ifdef __linux__
+#include <algorithm>
 #include <fstream>
+#include <map>
 #include <pthread.h>
 #include <sched.h>
-#include <unordered_set>
 #endif
 
 namespace stellar
@@ -20,13 +21,29 @@ namespace stellar
 
 namespace
 {
-// Returns one logical CPU id per physical core, restricted to the CPUs this
-// process is actually allowed to run on. Empty on failure or on non-Linux
-// platforms.
-std::vector<unsigned>
-physicalCoreRepresentatives()
+struct CpuPinning
 {
-    std::vector<unsigned> res;
+    // Allowed logical CPUs in pinning-preference order.
+    std::vector<unsigned> order;
+    // Number of distinct physical cores found in the allowed logical CPUs.
+    // First `physicalCoreCount` entries of `order` are guaranteed to be on
+    // distinct physical cores by the pinning order assignment procedure.
+    size_t physicalCoreCount{0};
+};
+
+// Returns every logical CPU this process is allowed to run on, ordered by
+// pinning preference:
+//   - One logical CPU per physical core in ascending order, but with the core
+//     hosting logical CPU 0 shifted to be the last core in the order (as the OS
+//     tends to concentrate housekeeping work on CPU 0)
+//   - The remaining hyper-thread siblings follow, one tier of siblings at a
+//     time in the same order as the physical core order above
+//   - Within the CPU-0 core, CPU 0 itself is demoted behind its siblings, so it
+//     ends up as the very last CPU we pin.
+// Empty on failure or on non-Linux platforms.
+CpuPinning
+pinnedCpuOrder()
+{
 #ifdef __linux__
     cpu_set_t affinity;
     CPU_ZERO(&affinity);
@@ -37,12 +54,7 @@ physicalCoreRepresentatives()
         return {};
     }
 
-    // Walk the allowed CPUs in ascending order and keep the first (hence
-    // smallest) allowed sibling of each physical core. thread_siblings_list
-    // begins with the smallest sibling id, which is a stable per-core
-    // identifier independent of the affinity mask, so it lets us collapse the
-    // logical CPUs of one core down to a single representative.
-    std::unordered_set<unsigned> seenCores;
+    std::map<unsigned, std::vector<unsigned>> cpusByCore;
     for (unsigned cpu = 0; cpu < CPU_SETSIZE; ++cpu)
     {
         if (!CPU_ISSET(cpu, &affinity))
@@ -60,20 +72,58 @@ physicalCoreRepresentatives()
             // pinning rather than guess.
             return {};
         }
-        if (seenCores.insert(coreId).second)
+        cpusByCore[coreId].push_back(cpu);
+    }
+
+    // Order the cores with the CPU-0-hosting core last.
+    std::vector<std::vector<unsigned> const*> coreOrder;
+    coreOrder.reserve(cpusByCore.size());
+    size_t maxSiblings = 0;
+    for (auto const& [coreId, cpus] : cpusByCore)
+    {
+        if (coreId != 0)
         {
-            res.push_back(cpu);
+            coreOrder.push_back(&cpus);
+        }
+        maxSiblings = std::max(maxSiblings, cpus.size());
+    }
+    auto core0 = cpusByCore.find(0);
+    if (core0 != cpusByCore.end())
+    {
+        // Demote CPU 0 behind its own hyper-thread siblings so it becomes the
+        // very last CPU we pin.
+        auto& core0Cpus = core0->second;
+        releaseAssert(!core0Cpus.empty());
+        std::rotate(core0Cpus.begin(), core0Cpus.begin() + 1, core0Cpus.end());
+        coreOrder.push_back(&core0Cpus);
+    }
+
+    // Emit the CPUs tier by tier: the first sibling of every core, then the
+    // second siblings, and so on.
+    std::vector<unsigned> res;
+    for (size_t rank = 0; rank < maxSiblings; ++rank)
+    {
+        for (auto const* cpus : coreOrder)
+        {
+            if (rank < cpus->size())
+            {
+                res.push_back((*cpus)[rank]);
+            }
         }
     }
+    return {std::move(res), cpusByCore.size()};
+#else
+    return {};
 #endif
-    return res;
 }
 } // namespace
 
 BatchExecutor::BatchExecutor()
 {
-    mPinCpus = physicalCoreRepresentatives();
-    if (mPinCpus.empty())
+    auto pinning = pinnedCpuOrder();
+    mPinCpuOrder = std::move(pinning.order);
+    mPhysicalCoreCount = pinning.physicalCoreCount;
+    if (mPinCpuOrder.empty())
     {
         CLOG_WARNING(
             Perf,
@@ -82,10 +132,10 @@ BatchExecutor::BatchExecutor()
     }
     else
     {
-        for (size_t i = 0; i < mPinCpus.size(); ++i)
+        for (size_t i = 0; i < mPinCpuOrder.size(); ++i)
         {
-            CLOG_DEBUG(Perf, "Batch worker physical core {} maps to CPU {}", i,
-                       mPinCpus[i]);
+            CLOG_DEBUG(Perf, "Batch worker {} pins to CPU {}", i,
+                       mPinCpuOrder[i]);
         }
     }
 }
@@ -120,20 +170,31 @@ void
 BatchExecutor::pinWorker(size_t index)
 {
 #ifdef __linux__
-    if (mPinCpus.empty())
+    if (mPinCpuOrder.empty())
     {
         return;
     }
-    if (index >= mPinCpus.size())
+    if (index >= mPinCpuOrder.size())
     {
         CLOG_WARNING(
             Perf,
-            "Not enough physical cores to pin batch executor worker {} - the "
-            "network configuration demands more physical cores than available. "
-            "This may reduce the performance of the node.",
+            "Not enough logical CPU cores to pin batch executor worker {} - "
+            "the network configuration demands more cores than available. "
+            "This may significantly reduce the performance of the node.",
+            index);
+        return;
+    }
+    if (index >= mPhysicalCoreCount)
+    {
+        CLOG_WARNING(
+            Perf,
+            "Not enough physical CPU cores to pin batch executor "
+            "worker {} - the network configuration demands more physical "
+            "cores than available. Using hyper-thread sibling "
+            "instead. This may reduce the performance of the node.",
             index);
     }
-    unsigned cpu = mPinCpus.at(index % mPinCpus.size());
+    unsigned cpu = mPinCpuOrder.at(index);
     cpu_set_t set;
     CPU_ZERO(&set);
     CPU_SET(cpu, &set);
