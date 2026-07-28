@@ -997,8 +997,9 @@ impl App {
 
                     info!("Returning {} transactions to Core", txs.len());
 
-                    // Extract just the TX data (not hashes) for the response
-                    let tx_data: Vec<&[u8]> = txs.iter().map(|(_, d)| d.as_slice()).collect();
+                    // Borrow the shared tx bytes for serialization; the one
+                    // copy happens inside the IPC frame encoding.
+                    let tx_data: Vec<&[u8]> = txs.iter().map(|tx| tx.bytes()).collect();
 
                     if let Err(e) = core_sender.send_top_txs_response(&tx_data) {
                         error!("Failed to send top txs response: {}", e);

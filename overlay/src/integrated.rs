@@ -22,7 +22,7 @@ pub enum CoreCommand {
     /// Request top N transactions by fee
     GetTopTxs {
         count: usize,
-        reply: mpsc::Sender<Vec<([u8; 32], Vec<u8>)>>,
+        reply: mpsc::Sender<Vec<Arc<ValidatedTx>>>,
     },
 
     /// Remove transactions from mempool (after ledger close)
@@ -78,12 +78,17 @@ impl Overlay {
             }
 
             CoreCommand::GetTopTxs { count, reply } => {
-                let mempool = self.mempool.read().await;
-                let top_hashes = mempool.top_by_fee(count);
-                let txs: Vec<([u8; 32], Vec<u8>)> = top_hashes
-                    .iter()
-                    .filter_map(|h| mempool.get(h).map(|meta| (*h, meta.bytes().to_vec())))
-                    .collect();
+                // Collect Arc clones under the read lock, then drop it before
+                // the (bounded) reply send so a slow receiver can't hold up
+                // mempool writers.
+                let txs: Vec<Arc<ValidatedTx>> = {
+                    let mempool = self.mempool.read().await;
+                    mempool
+                        .top_by_fee(count)
+                        .iter()
+                        .filter_map(|h| mempool.get(h).map(Arc::clone))
+                        .collect()
+                };
                 let _ = reply.send(txs).await;
             }
 
@@ -130,7 +135,7 @@ impl OverlayHandle {
     }
 
     /// Get top transactions by fee.
-    pub async fn get_top_txs(&self, count: usize) -> Vec<([u8; 32], Vec<u8>)> {
+    pub async fn get_top_txs(&self, count: usize) -> Vec<Arc<ValidatedTx>> {
         let (reply_tx, mut reply_rx) = mpsc::channel(1);
         let _ = self.cmd_tx.send(CoreCommand::GetTopTxs {
             count,
@@ -201,7 +206,7 @@ mod tests {
         let top = handle.get_top_txs(2).await;
         assert_eq!(top.len(), 2);
         // First should be highest fee
-        assert_eq!(top[0].1, tx2);
+        assert_eq!(top[0].bytes(), &tx2[..]);
     }
 
     #[tokio::test]
@@ -271,8 +276,8 @@ mod tests {
         assert_eq!(top.len(), 3);
 
         // Order should be: TX2 (150/op), TX1 (100/op), TX3 (75/op)
-        assert_eq!(top[0].1, tx2);
-        assert_eq!(top[1].1, tx1);
-        assert_eq!(top[2].1, tx3);
+        assert_eq!(top[0].bytes(), &tx2[..]);
+        assert_eq!(top[1].bytes(), &tx1[..]);
+        assert_eq!(top[2].bytes(), &tx3[..]);
     }
 }
