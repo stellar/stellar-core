@@ -3,8 +3,10 @@
 //! When we receive/submit a TX, we store it here so we can respond to
 //! GETDATA requests from peers who received our INV.
 
+use crate::wire::ValidatedTx;
 use lru::LruCache;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Default buffer capacity
@@ -14,10 +16,10 @@ pub const TX_BUFFER_CAPACITY: usize = 10_000;
 pub const TX_BUFFER_MAX_AGE: Duration = Duration::from_secs(60);
 
 /// Entry in the TX buffer
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct BufferEntry {
-    /// Full transaction data
-    data: Vec<u8>,
+    /// The transaction, shared with the mempool and in-flight sends
+    tx: Arc<ValidatedTx>,
     /// When the TX was added
     added_at: Instant,
 }
@@ -39,25 +41,25 @@ impl TxBuffer {
         }
     }
 
-    /// Store a TX in the buffer
-    pub fn insert(&mut self, hash: [u8; 32], data: Vec<u8>) {
+    /// Store a TX in the buffer, keyed by its hash
+    pub fn insert(&mut self, tx: Arc<ValidatedTx>) {
         self.buffer.put(
-            hash,
+            *tx.hash(),
             BufferEntry {
-                data,
+                tx,
                 added_at: Instant::now(),
             },
         );
     }
 
-    /// Get a TX, cloning the data (avoids borrow issues)
-    pub fn get_cloned(&mut self, hash: &[u8; 32]) -> Option<Vec<u8>> {
+    /// Get a TX; the returned `Arc` shares the buffered bytes without copying
+    pub fn get(&mut self, hash: &[u8; 32]) -> Option<Arc<ValidatedTx>> {
         let entry = self.buffer.get(hash)?;
         if entry.added_at.elapsed() > self.max_age {
             self.buffer.pop(hash);
             return None;
         }
-        Some(entry.data.clone())
+        Some(Arc::clone(&entry.tx))
     }
 }
 
@@ -70,36 +72,44 @@ impl Default for TxBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::xdr::tests::valid_transaction_xdr;
 
-    fn hash(n: u8) -> [u8; 32] {
-        [n; 32]
+    /// Build a validated tx with a distinct hash per `seq`.
+    fn make_tx(fee: u32, seq: i64) -> Arc<ValidatedTx> {
+        let bytes = valid_transaction_xdr(fee, seq, 1);
+        ValidatedTx::from_core_trusted(bytes, fee as i64, 1).unwrap()
     }
 
     #[test]
-    fn test_tx_buffer_get_cloned() {
+    fn test_tx_buffer_get() {
         let mut buffer = TxBuffer::new();
-        let tx_data = vec![0x01, 0x02, 0x03];
+        let tx = make_tx(100, 1);
+        let hash = *tx.hash();
 
-        buffer.insert(hash(1), tx_data.clone());
+        buffer.insert(Arc::clone(&tx));
 
-        let cloned = buffer.get_cloned(&hash(1)).unwrap();
-        assert_eq!(cloned, tx_data);
+        let retrieved = buffer.get(&hash).unwrap();
+        assert_eq!(retrieved.bytes(), tx.bytes());
+        // Shared, not copied: both handles point at the same allocation
+        assert!(std::ptr::eq(retrieved.bytes(), tx.bytes()));
     }
 
     #[test]
     fn test_tx_buffer_not_found() {
         let mut buffer = TxBuffer::new();
-        assert!(buffer.get_cloned(&hash(1)).is_none());
+        assert!(buffer.get(&[1u8; 32]).is_none());
     }
 
     #[test]
     fn test_tx_buffer_overwrite() {
         let mut buffer = TxBuffer::new();
+        let tx = make_tx(100, 1);
+        let hash = *tx.hash();
 
-        buffer.insert(hash(1), vec![1, 1, 1]);
-        buffer.insert(hash(1), vec![2, 2, 2]); // Overwrite
+        buffer.insert(Arc::clone(&tx));
+        buffer.insert(Arc::clone(&tx)); // Overwrite with same hash
 
-        let retrieved = buffer.get_cloned(&hash(1)).unwrap();
-        assert_eq!(retrieved, vec![2, 2, 2]);
+        let retrieved = buffer.get(&hash).unwrap();
+        assert_eq!(retrieved.bytes(), tx.bytes());
     }
 }

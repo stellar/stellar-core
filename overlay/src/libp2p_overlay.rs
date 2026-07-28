@@ -848,7 +848,7 @@ impl StellarOverlay {
         // Store TX in buffer for GETDATA responses
         {
             let mut buffer = self.state.tx_buffer.write().await;
-            buffer.insert(hash, tx.bytes().to_vec());
+            buffer.insert(Arc::clone(&tx));
         }
 
         let streams = self.state.peer_streams.read().await;
@@ -1673,19 +1673,19 @@ async fn handle_getdata(
 
     for hash in getdata.hashes {
         // Look up TX in our buffer
-        let tx_data = {
+        let tx = {
             let mut buffer = state.tx_buffer.write().await;
-            buffer.get_cloned(&hash)
+            buffer.get(&hash)
         };
 
-        if let Some(tx_data) = tx_data {
+        if let Some(tx) = tx {
             state
                 .metrics
                 .flood_fulfilled
                 .fetch_add(1, Ordering::Relaxed);
             // Send TX response. Buffered bytes were validated on entry, so
             // framing them (concat) yields valid wire XDR by construction.
-            let encoded = crate::xdr::frame_transaction(&tx_data);
+            let encoded = tx.to_flood_frame();
 
             let state_clone = Arc::clone(state);
             let peer_clone = *peer_id;
@@ -1773,7 +1773,7 @@ async fn handle_tx_response(state: &Arc<SharedState>, peer_id: &PeerId, tx: Arc<
     // Store in buffer for responding to others' GETDATA
     {
         let mut buffer = state.tx_buffer.write().await;
-        buffer.insert(hash, tx.bytes().to_vec());
+        buffer.insert(Arc::clone(&tx));
     }
 
     debug!(
