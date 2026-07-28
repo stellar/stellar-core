@@ -1092,7 +1092,7 @@ impl App {
                 // Core is trusted for encoding and supplies fee/ops; we only
                 // reject fee-bumps (still unsupported) via a cheap discriminant
                 // check. No decode.
-                let tx = match ValidatedTx::from_core_trusted(tx_data, fee as u64, num_ops) {
+                let tx = match ValidatedTx::from_core_trusted(tx_data, fee, num_ops) {
                     Ok(tx) => tx,
                     Err(e) => {
                         warn!("SUBMIT_TX_DROP: Dropping unsupported TX from Core: {}", e);

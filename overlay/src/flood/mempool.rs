@@ -27,7 +27,7 @@ struct MempoolEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FeePriority {
     /// Fee (higher is better)
-    fee: u64,
+    fee: i64,
     /// Number of ops (lower is better for same fee)
     num_ops: u32,
     /// Hash for tie-breaking
@@ -38,8 +38,8 @@ impl Ord for FeePriority {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Higher fee per op = higher priority
         // fee1/ops1 > fee2/ops2 iff fee1*ops2 > fee2*ops1
-        let left = self.fee * (other.num_ops as u64);
-        let right = other.fee * (self.num_ops as u64);
+        let left = self.fee * (other.num_ops as i64);
+        let right = other.fee * (self.num_ops as i64);
 
         match left.cmp(&right).reverse() {
             // reverse for descending order
@@ -190,7 +190,7 @@ mod tests {
     use crate::xdr::tests::valid_transaction_xdr;
 
     /// Build a validated tx with a distinct hash per `seq`.
-    fn make_tx(fee: u64, num_ops: u32, seq: i64) -> Arc<ValidatedTx> {
+    fn make_tx(fee: i64, num_ops: u32, seq: i64) -> Arc<ValidatedTx> {
         let bytes = valid_transaction_xdr(fee as u32, seq, num_ops as usize);
         ValidatedTx::from_core_trusted(bytes, fee, num_ops).unwrap()
     }
@@ -288,7 +288,7 @@ mod tests {
     fn test_stress_insert_many() {
         let mut mempool = Mempool::new(1000, Duration::from_secs(300));
         for i in 0..200i64 {
-            assert!(mempool.insert(make_tx((i as u64 + 1) * 10, 1, i)));
+            assert!(mempool.insert(make_tx((i + 1) * 10, 1, i)));
         }
         assert_eq!(mempool.len(), 200);
         assert_eq!(mempool.top_by_fee(10).len(), 10);
