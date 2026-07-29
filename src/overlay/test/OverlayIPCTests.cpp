@@ -329,7 +329,7 @@ TEST_CASE("Rust overlay get top transactions", "[overlay-ipc][.]")
     REQUIRE(ipc->start());
 
     // Get top transactions from empty mempool
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
 
     // With empty mempool, should get empty vector
     REQUIRE(txs.empty());
@@ -382,7 +382,7 @@ TEST_CASE("Rust overlay TX submission", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should contain our submitted TX
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
 
     // Verify it's the same TX we submitted
@@ -452,7 +452,7 @@ TEST_CASE("Rust overlay TX inclusion", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 3);
 
     // Verify all 3 TXs are included
@@ -497,7 +497,7 @@ TEST_CASE("Rust overlay TX fee per op inclusion", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 2);
 
     // Both TXs should be included
@@ -548,7 +548,7 @@ TEST_CASE("Rust overlay mempool eviction", "[overlay-ipc][.]")
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
 
     // All 53 TXs should be included (mempool not at capacity)
     REQUIRE(txs.size() == 53);
@@ -593,7 +593,7 @@ TEST_CASE("Rust overlay TX deduplication", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should only have 1 TX (deduped)
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
     REQUIRE(txs[0].v1().tx.fee == 1000);
 
@@ -625,7 +625,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Get top transactions - should have 1 TX
-    auto txs = ipc->getTopTransactions(100, 5000);
+    auto txs = ipc->getTopTransactions(100);
     REQUIRE(txs.size() == 1);
 
     // Compute TX hash from the submitted TX
@@ -642,7 +642,7 @@ TEST_CASE("Rust overlay mempool clear on externalize", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // TX should now be cleared from mempool
-    auto txs2 = ipc->getTopTransactions(100, 5000);
+    auto txs2 = ipc->getTopTransactions(100);
     REQUIRE(txs2.empty());
 
     LOG_INFO(DEFAULT_LOG, "Mempool clear on externalize test passed");
@@ -700,7 +700,7 @@ TEST_CASE("Rust overlay TX flooding between peers", "[overlay-ipc][.]")
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Get top transactions from overlay B - should have the flooded TX
-    auto txsB = ipcB->getTopTransactions(100, 5000);
+    auto txsB = ipcB->getTopTransactions(100);
 
     // Should have 1 TX (the flooded TX)
     REQUIRE(txsB.size() == 1);

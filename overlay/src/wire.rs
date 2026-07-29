@@ -67,7 +67,7 @@ impl ValidatedTx {
     /// every tx, including fee-bumps, and the overlay does not yet support
     /// them) via the envelope's `EnvelopeType` discriminant, which is the first
     /// 4 bytes of the XDR encoding.
-    pub fn from_core_trusted(
+    pub(crate) fn from_core_trusted(
         bytes: Vec<u8>,
         fee: i64,
         num_ops: u32,

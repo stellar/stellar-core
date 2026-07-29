@@ -185,11 +185,11 @@ RustOverlayManager::cacheTxSet(Hash const& txSetHash,
 }
 
 std::vector<TransactionEnvelope>
-RustOverlayManager::getTopTransactions(size_t count, int timeoutMs)
+RustOverlayManager::getTopTransactions(size_t count)
 {
     if (mOverlayIPC && !mShuttingDown)
     {
-        return mOverlayIPC->getTopTransactions(count, timeoutMs);
+        return mOverlayIPC->getTopTransactions(count);
     }
     return {};
 }

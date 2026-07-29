@@ -106,16 +106,14 @@ class OverlayIPC
     /**
      * Request top N transactions by fee for nomination.
      *
-     * This is a synchronous call that blocks until response received
-     * or timeout expires.
+     * Synchronous: blocks until the overlay responds. Shutdown or loss of
+     * the IPC connection unblocks the wait and returns an empty vector.
      *
      * @param count Number of transactions to request
-     * @param timeoutMs Timeout in milliseconds
      * @return Vector of transaction envelopes (may be less than count if
      * mempool is small)
      */
-    std::vector<TransactionEnvelope> getTopTransactions(size_t count,
-                                                        int timeoutMs = 1000);
+    std::vector<TransactionEnvelope> getTopTransactions(size_t count);
 
     /**
      * Submit a transaction to the overlay for flooding.
@@ -221,6 +219,9 @@ class OverlayIPC
     std::unique_ptr<IPCChannel> mChannel;
     std::thread mReaderThread;
     std::atomic<bool> mRunning{false};
+    // True while the reader thread can still deliver responses; cleared on
+    // reader exit (disconnect) to unblock getTopTransactions waiters.
+    std::atomic<bool> mReaderAlive{false};
 
     pid_t mOverlayPid{-1};
 

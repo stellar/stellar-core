@@ -153,6 +153,7 @@ OverlayIPC::start()
 
             // Start reader thread
             mRunning = true;
+            mReaderAlive = true;
             mReaderThread = std::thread(&OverlayIPC::readerLoop, this);
             return true;
         }
@@ -178,6 +179,13 @@ OverlayIPC::shutdown()
     CLOG_INFO(Overlay, "Shutting down overlay IPC");
 
     mRunning = false;
+
+    // Wake any getTopTransactions waiter under the lock so the notification
+    // can't race its predicate check.
+    {
+        std::lock_guard<std::mutex> lock(mRequestMutex);
+        mRequestCv.notify_all();
+    }
 
     // Send shutdown message
     if (mChannel && mChannel->isConnected())
@@ -288,6 +296,15 @@ OverlayIPC::readerLoop()
     }
 
     CLOG_DEBUG(Overlay, "OverlayIPC reader thread exiting");
+
+    // No more responses can arrive; wake any getTopTransactions waiter.
+    // The flag is flipped under mRequestMutex so a waiter can't check it
+    // and then sleep past the notification.
+    {
+        std::lock_guard<std::mutex> lock(mRequestMutex);
+        mReaderAlive = false;
+    }
+    mRequestCv.notify_all();
 }
 
 void
@@ -484,7 +501,7 @@ OverlayIPC::notifyTxSetExternalized(Hash const& txSetHash,
 }
 
 std::vector<TransactionEnvelope>
-OverlayIPC::getTopTransactions(size_t count, int timeoutMs)
+OverlayIPC::getTopTransactions(size_t count)
 {
     std::vector<TransactionEnvelope> result;
 
@@ -508,17 +525,20 @@ OverlayIPC::getTopTransactions(size_t count, int timeoutMs)
         }
     }
 
-    // Wait for response
+    // Wait for response; shutdown and connection loss notify the cv to
+    // unblock us.
     std::unique_lock<std::mutex> lock(mRequestMutex);
     mPendingResponse.reset();
 
-    bool gotResponse =
-        mRequestCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
-                            [this] { return mPendingResponse.has_value(); });
+    mRequestCv.wait(lock, [this] {
+        return mPendingResponse.has_value() || !mRunning || !mReaderAlive;
+    });
 
-    if (!gotResponse)
+    if (!mPendingResponse.has_value())
     {
-        CLOG_WARNING(Overlay, "Timeout waiting for top transactions");
+        CLOG_WARNING(Overlay,
+                     "Overlay IPC {} while waiting for top transactions",
+                     mRunning ? "disconnected" : "shut down");
         return result;
     }
 
