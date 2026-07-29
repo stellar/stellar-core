@@ -28,22 +28,19 @@ SignatureChecker::SignatureChecker(
     : mProtocolVersion{protocolVersion}
     , mContentsHash{contentsHash}
     , mSignatures{signatures}
-    , mIsOverlayValidation{isOverlayValidation}
+    , mEnforceVerifyBudget{
+          isOverlayValidation ||
+          protocolVersionStartsFrom(protocolVersion,
+                                    TX_ED25519_VERIFY_BUDGET_PROTOCOL_VERSION)}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
 
 bool
-SignatureChecker::isOverlayValidation() const
-{
-    return mIsOverlayValidation;
-}
-
-bool
 SignatureChecker::isOverVerificationBudget() const
 {
-    return mIsOverlayValidation &&
-           mTxEd25519Verifications >= OVERLAY_TX_ED25519_VERIFY_BUDGET;
+    return mEnforceVerifyBudget &&
+           mTxEd25519Verifications >= TX_ED25519_VERIFY_BUDGET;
 }
 
 bool

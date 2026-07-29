@@ -43,8 +43,11 @@ class SignatureChecker
     void disableCacheMetricsTracking();
 #endif // BUILD_TESTS
 
-    bool isOverlayValidation() const;
-    static constexpr uint32_t OVERLAY_TX_ED25519_VERIFY_BUDGET = 1000;
+    // Maximum number of ed25519 signature verifications a single
+    // SignatureChecker will perform. Enforced during overlay validation at all
+    // protocol versions, and on all validation and apply paths starting from
+    // TX_ED25519_VERIFY_BUDGET_PROTOCOL_VERSION.
+    static constexpr uint32_t TX_ED25519_VERIFY_BUDGET = 1000;
 
     // Reset and return the counts of signature checks performed as part of
     // transaction `checkValid` or apply flow. The first element of the pair is
@@ -57,9 +60,13 @@ class SignatureChecker
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
     bool mTrackCacheMetrics{true};
-    bool mIsOverlayValidation{false};
+
+    // Whether this checker enforces TX_ED25519_VERIFY_BUDGET.
+    bool const mEnforceVerifyBudget;
 
     std::vector<bool> mUsedSignatures;
+
+    // Number of ed25519 verifications performed by this checker
     uint32_t mTxEd25519Verifications{0};
 
     bool isOverVerificationBudget() const;
