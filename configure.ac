@@ -495,6 +495,11 @@ AM_CONDITIONAL(USE_TCMALLOC, [test -n "$have_tcmalloc"])
 AC_SUBST(libtcmalloc_CFLAGS)
 AC_SUBST(libtcmalloc_LIBS)
 
+# AC_CONFIG_SUBDIRS disables option checking so options can be forwarded to
+# recursive configures. Re-enable it for the top-level configure by default;
+# generated recursion still passes --disable-option-checking to sub-configures.
+m4_divert_text([DEFAULTS], [enable_option_checking=fatal])
+
 AC_ARG_ENABLE(tests,
     AS_HELP_STRING([--disable-tests],
         [Disable building test suite]))
