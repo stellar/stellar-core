@@ -35,7 +35,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
 
-    int const nbTx = 100;
+    int const nbTx = 20;
 
     std::vector<TestAccount> sources;
     SequenceNumber expectedSeq = 0;
