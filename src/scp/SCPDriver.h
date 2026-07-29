@@ -183,10 +183,8 @@ class SCPDriver
         return nullptr;
     }
 
-#ifdef CAP_0083
     // Helper function to craft an empty-tx-set value from a Value.
     virtual Value makeEmptyTxSetValueFromValue(Value const& v) const = 0;
-#endif
 
     // `isEmptyTxSetValue` checks if a value is an empty-tx-set value.
     virtual bool isEmptyTxSetValue(Value const& v) const = 0;

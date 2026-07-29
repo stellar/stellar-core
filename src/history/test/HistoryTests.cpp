@@ -1130,7 +1130,6 @@ TEST_CASE("History catchup with extra validation", "[history][publish]")
     REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger, true));
 }
 
-#ifdef CAP_0083
 TEST_CASE("History catchup over empty-tx-set ledgers", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
@@ -1325,7 +1324,6 @@ TEST_CASE("ApplyCheckpointWork rejects malformed empty-tx-set ledger headers",
                     }) == BasicWork::State::WORK_FAILURE);
     }
 }
-#endif // CAP_0083
 
 TEST_CASE("Publish works correctly post shadow removal", "[history]")
 {

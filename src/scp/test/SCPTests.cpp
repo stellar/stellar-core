@@ -132,7 +132,6 @@ class TestSCP : public SCPDriver
         return TX_SET_TIMEOUT;
     }
 
-#ifdef CAP_0083
     Value
     makeEmptyTxSetValueFromValue(Value const& value) const override
     {
@@ -148,7 +147,6 @@ class TestSCP : public SCPDriver
         std::copy(value.begin(), value.end(), emptyTxSetValue.begin() + 6);
         return emptyTxSetValue;
     }
-#endif // CAP_0083
 
     bool
     isEmptyTxSetValue(Value const& v) const override

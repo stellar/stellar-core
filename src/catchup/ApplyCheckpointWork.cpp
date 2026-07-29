@@ -275,7 +275,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     }
 #endif
 
-#ifdef CAP_0083
     // Empty-tx-set values should have the empty-tx-set hash (and vice versa)
     if ((header.scpValue.txSetHash == Herder::EMPTY_TX_SET_HASH) !=
         (header.scpValue.ext.v() == STELLAR_VALUE_EMPTY_TX_SET))
@@ -285,7 +284,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
                        "hash and StellarValue type {:d}"),
             header.ledgerSeq, static_cast<int32_t>(header.scpValue.ext.v())));
     }
-#endif // CAP_0083
 
     // We've verified the ledgerHeader (in the "trusted part of history"
     // sense) in CATCHUP_VERIFY phase; we now need to check that the

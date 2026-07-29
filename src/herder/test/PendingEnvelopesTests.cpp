@@ -512,7 +512,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                 Herder::ENVELOPE_STATUS_DISCARDED);
     }
 
-#ifdef CAP_0083
     SECTION("empty-tx-set value envelopes gated by "
             "EMPTY_TX_SET_PROTOCOL_VERSION")
     {
@@ -545,7 +544,6 @@ TEST_CASE_VERSIONS("PendingEnvelopes recvSCPEnvelope", "[herder]")
                 });
         }
     }
-#endif // CAP_0083
 
     SECTION("can receive malformed tx set")
     {

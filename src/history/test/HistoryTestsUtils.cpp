@@ -757,7 +757,6 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     stroopySeqs.push_back(stroopy.loadSequenceNumber());
 }
 
-#ifdef CAP_0083
 void
 CatchupSimulation::generateEmptyTxSetLedger()
 {
@@ -834,7 +833,6 @@ CatchupSimulation::generateEmptyTxSetLedger()
     eveSeqs.push_back(eve.loadSequenceNumber());
     stroopySeqs.push_back(stroopy.loadSequenceNumber());
 }
-#endif // CAP_0083
 
 void
 CatchupSimulation::setUpgradeLedger(uint32_t ledger,

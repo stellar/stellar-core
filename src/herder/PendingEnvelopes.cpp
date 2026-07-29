@@ -339,11 +339,9 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             case STELLAR_VALUE_SIGNED:
                 // Signed values are allowed
                 return false;
-#ifdef CAP_0083
             case STELLAR_VALUE_EMPTY_TX_SET:
                 return !mHerder.getHerderSCPDriver()
                             .protocolAllowsEmptyTxSetValues();
-#endif
             default:
                 releaseAssert(false);
             }
