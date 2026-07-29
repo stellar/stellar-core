@@ -8,15 +8,6 @@
 //! Uses QUIC transport for true stream independence - SCP never blocked by TX.
 //! Communicates with Core via Unix domain socket IPC.
 
-mod config;
-mod flood;
-pub mod integrated;
-mod ipc;
-pub mod libp2p_overlay;
-mod metrics;
-mod wire;
-mod xdr;
-
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -26,17 +17,18 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
-use config::Config;
-use flood::{CachedTxSet, Hash256, TxSetCache};
-use integrated::{Overlay, OverlayHandle};
-use ipc::{CoreIpc, Message, MessageType};
 use libp2p::identity::Keypair as Libp2pKeypair;
 use libp2p::{Multiaddr, PeerId};
-use libp2p_overlay::{
+use stellar_overlay::config::Config;
+use stellar_overlay::flood::{CachedTxSet, Hash256, TxSetCache};
+use stellar_overlay::integrated::{Overlay, OverlayHandle};
+use stellar_overlay::ipc::{CoreIpc, Message, MessageType};
+use stellar_overlay::libp2p_overlay::{
     create_overlay, OverlayEvent as LibP2pOverlayEvent, OverlayHandle as LibP2pOverlayHandle,
 };
-use metrics::OverlayMetrics;
-use wire::ValidatedTx;
+use stellar_overlay::metrics::OverlayMetrics;
+use stellar_overlay::wire::ValidatedTx;
+use stellar_overlay::xdr;
 
 /// Command-line arguments
 struct Args {

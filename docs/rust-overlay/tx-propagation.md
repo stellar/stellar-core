@@ -200,11 +200,5 @@ Node D: receives INV from A, INV from B (via C's relay)
 
 ## Known issues and TODOs
 
-- **Announced fees never reach the receiver.** Every TX — local or
-  relayed — now knows its real `fee_per_op` (carried by the shared
-  `ValidatedTx`, so mempool fee ordering is correct; see
-  [mempool.md](mempool.md)), but `FloodAdvert` transmits only hashes.
-  The receiver records announced entries with fee 0 and cannot
-  prioritize its pulls by fee.
 - **No DoS scoring** at the overlay layer — a peer flooding INVs is not
   throttled.
